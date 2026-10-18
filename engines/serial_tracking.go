@@ -270,7 +270,7 @@ var serialTransitions = map[string]map[string]bool{
 // no separate qty table to keep in step.
 //
 // Allocated -> Shipped is where "verify at pack" (42.1.8's own wording,
-// docs/specs/wms_parity_plan.md:195-198) becomes a real check rather than a
+// docs/archive/legacy/wms-parity-plan.md:195-198) becomes a real check rather than a
 // bare status flip: if the unit was allocated to a voucher (a pick task, a
 // sales order) and this call's voucherID names a different one, it is
 // rejected. That is new ground batch's own pick/pack path never needed,

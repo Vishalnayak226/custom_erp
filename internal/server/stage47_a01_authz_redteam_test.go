@@ -11,7 +11,7 @@ import (
 )
 
 // Stage 47.0.1 / audit finding A-01 ("Cashier can read confidential HR,
-// system, and finance data" - docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md
+// system, and finance data" - docs/archive/audits/erp-deep-persona-audit-2026-09-01.md
 // lines 65-75). The audit's live evidence: a signed Cashier request returned
 // HTTP 200 from the trial balance, audit log, system log, sales register,
 // vendor ledger, asset register, employee loan, expense claim, allocation

@@ -13,7 +13,7 @@ import (
 // Stage 26.12.4 (Courier/Shipment/Manifest): extends the pre-existing bare
 // LogisticsBooking record (carrier/tracking/charge, hardcoded status
 // "Shipped" at creation - the single largest orchestration gap versus the
-// blueprint, per docs/specs/oms_master_blueprint_reference.md §7) into a
+// blueprint, per docs/product/research/oms-benchmark.md §7) into a
 // real Shipment engine - serviceability check, AWB assignment, manifest
 // grouping, a handover cascade, tracking sync, and RTO detection. Per the
 // checklist item's own scope note this is the internal AWB/manifest engine

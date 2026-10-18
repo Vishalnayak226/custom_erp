@@ -1554,14 +1554,14 @@ See `README.md`'s "Project Structure" section for the full current map. In short
 
 ### D.4 Architecture Reference
 
-- **[`../ERP_BLUEPRINT.md`](../ERP_BLUEPRINT.md)** — the full project snapshot: scope, architecture, build history, known gaps. Read this first for orientation.
-- **[`../architecture/framework_architecture.md`](../architecture/framework_architecture.md)** — the metadata-driven Record Type engine every module is built on (internal/architectural docs still use the framework's original technical name, "DocType", when describing the underlying database tables and API shape — the UI and admin-facing docs use "Record Type" throughout).
-- **[`../architecture/architecture_evaluation.md`](../architecture/architecture_evaluation.md)** — why Go/PostgreSQL/schema-per-tenant, with the cost/footprint reasoning.
-- **[`../requirements/PRD.md`](../requirements/PRD.md)** — module-by-module functional requirements and built-vs-specified status.
+- **[`../ERP_BLUEPRINT.md`](../archive/legacy/erp-blueprint.md)** — the full project snapshot: scope, architecture, build history, known gaps. Read this first for orientation.
+- **[`../architecture/framework_architecture.md`](../archive/legacy/framework-architecture.md)** — the metadata-driven Record Type engine every module is built on (internal/architectural docs still use the framework's original technical name, "DocType", when describing the underlying database tables and API shape — the UI and admin-facing docs use "Record Type" throughout).
+- **[`../architecture/architecture_evaluation.md`](../archive/legacy/architecture-evaluation.md)** — why Go/PostgreSQL/schema-per-tenant, with the cost/footprint reasoning.
+- **[`../requirements/PRD.md`](../archive/legacy/prd.md)** — module-by-module functional requirements and built-vs-specified status.
 
 ### D.5 Security Posture
 
-JWT bearer auth with expiry, TOTP MFA for privileged roles, server-side RBAC on every document operation, parameterized SQL throughout (no string-built queries), a request body size cap, per-category rate limiting, a CORS allowlist, HMAC-verified inbound webhooks, AES-256-GCM encrypted-at-rest channel credentials. Historical hardening record: **[`../operations/hardening_roadmap.md`](../operations/hardening_roadmap.md)** (closed, historical reference — not an active backlog).
+JWT bearer auth with expiry, TOTP MFA for privileged roles, server-side RBAC on every document operation, parameterized SQL throughout (no string-built queries), a request body size cap, per-category rate limiting, a CORS allowlist, HMAC-verified inbound webhooks, AES-256-GCM encrypted-at-rest channel credentials. Historical hardening record: **[`../operations/hardening_roadmap.md`](../archive/legacy/hardening-roadmap.md)** (closed, historical reference — not an active backlog).
 
 **Every API request passes one shared check before it reaches any screen's logic** (the request envelope, Stage 49.4.4; `internal/server/request_envelope.go`). An integration or script that breaks a rule gets a clear error with a `correlation_id` to quote to support:
 

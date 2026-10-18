@@ -384,7 +384,7 @@ func TestVersionEndpointIsPublicAndTenantStampingWorks(t *testing.T) {
 // TestCrossTenantIsolationAndTokenSecurity (Stage 11.1). The checklist item this closes was
 // re-opened 2026-07-12 pointing at two specific findings - the "no auth header -> admin"
 // fallback and the generic-list SQL injection - both fixed and verified the same day
-// (docs/operations/hardening_roadmap.md Phase 1, closed 2026-07-12) but never re-verified
+// (docs/archive/legacy/hardening-roadmap.md Phase 1, closed 2026-07-12) but never re-verified
 // against a passing bar afterward. This is that re-verification, executed fresh rather than
 // just trusting the old note, covering both halves the item names: cross-tenant role
 // boundaries and token verification.

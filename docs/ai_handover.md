@@ -19,7 +19,7 @@ superseded_by: none
 
 Start with this page, then use the [live checklist](micro_checklist.md) for open gates and the
 [project ledger](project_ledger.md) for dated evidence. The full handover that preceded this
-concise index is preserved as a [2026-10-03 capture](archive/ai-handover-2026-10-03.txt).
+concise index is preserved as a [2026-10-03 capture](archive/handovers/ai-handover-2026-10-03.txt).
 Its document ID is distinct from this live page; historical entries are context, not a substitute
 for checking the current source and worktree.
 
@@ -120,11 +120,20 @@ for checking the current source and worktree.
 - [Micro-checklist](micro_checklist.md) — child-level statuses and operational TODOs.
 - [Project ledger](project_ledger.md) — chronology, prior test hazards, and evidence.
 - [Developer setup](engineering/developer-setup.md) and [service operations](operations/service-operations.md).
-- [2026-10-03 prior handover snapshot](archive/ai-handover-2026-10-03.txt) — preserved copy of
+- [2026-10-03 prior handover snapshot](archive/handovers/ai-handover-2026-10-03.txt) — preserved copy of
   the previous long-form handoff; follow the live sources above where it is stale.
 
 ## 6. Version Control
 
+- **2026-10-19 Stage 103 (repository tidy-up) - APPROVED, NOT STARTED; run only after the in-flight dev stages finish.**
+  The plan and the user's decisions are in checklist Stage 103: free about 900 MB (old graph snapshots, `git gc`, root
+  `.exe` builds, stale worktrees), builds to `bin/`, private notes to `.local/`, `db/migrations/`, `engines/data/`,
+  stage-named files renamed by module, 24 unused functions removed, 2 merged/stale branches and a stash dropped.
+  `docs/sop-video/` stays untouched. Whichever session finds every other stage committed should run it.
+- **2026-10-19 Stage 97 (docs folder reorganised) - DONE, shipped in erp-c1's 2026-10-19 release.** Ledger §252,
+  checklist Stage 97. 48 files moved, 7 merged away, 4 deleted; `docs/README.md` is the front door and
+  `docs/archive/readme.md` maps every old path to its new one. Comments in Go files that other sessions had open at the
+  time still name some old doc paths; the archive table resolves them.
 - **2026-10-19 "Fix all" on the build run's leftovers - 75.2.8a, 76.6, BLD020 test, manifest DONE (ship); 75.3 catalog
   reports IN PROGRESS (do NOT ship).** Checklist 75.2.8a, 76.6, 75.3.2, 75.3.5. No migration.
   - **Ship:** `engines/print_documents.go` (credit note `irn_signed_qr`), `print_templates.go` (E-invoice fields),
@@ -1249,7 +1258,7 @@ for checking the current source and worktree.
   `engines/vendor_invoice.go` (match nets posted returns), `internal/server/routes.go` +
   `route_capabilities.go` (2 routes), `public/view-procurement.js` (screen + exports),
   `public/app.js` (view registry, prereqs, menu maps, click handler), `public/index.html` (menu
-  item), the two guides, `docs/specs/modules_overview.md`, `docs/requirements/PRD.md`, and the
+  item), the two guides, `docs/archive/legacy/modules-overview.md`, `docs/archive/legacy/prd.md`, and the
   brain map (Procurement region claims the two new files; BRAIN.md/brain.html/brain-manifest.json
   regenerated, which also carries Stage 58's pending map edit). **57.8** Fixed Asset items (model
   approved 2026-10-09): new `db/migrations_stage57_8_fixed_asset_items.sql` (applied locally; **must
@@ -1318,7 +1327,7 @@ for checking the current source and worktree.
   Fulfillment + COD hold fix, asset version 33. Committed, pushed and deployed at the user's request
   for a client demo (see the line below this one for the commit/deploy record). **Do not commit**
   `Dockerfile`, `docs/governance/document-register.json`, `docs/product/*`,
-  `docs/assurance/*` or the Stage 56 hunk in `micro_checklist.md` - those are another session's
+  `docs/archive/audits/*` or the Stage 56 hunk in `micro_checklist.md` - those are another session's
   Railway/usability work. SOP training server restarted on :8111 from
   `<this session's scratchpad>\server.exe` (restart helper `restart.ps1` there; env
   `DATABASE_URL=...:5490/erp_sop_training_20261006`, `PORT=8111`). SOP chapters still to write:
@@ -1365,7 +1374,7 @@ for checking the current source and worktree.
   applicable statutory/tax treatment and audit evidence. Neither reviewed the first UI run;
   do not describe it as finance or statutory acceptance. No app code, commit or deploy.
 - **2026-10-05 Stage 55.0F first functional UI run, audit only:** See ledger §195 and
-  `docs/assurance/erp-functional-audit-2026-10-05.md`. Fresh disposable
+  `docs/archive/audits/erp-functional-audit-2026-10-05.md`. Fresh disposable
   `custom_erp_org_20261005` and scratch port 8111; Chromium saved/read back ten masters,
   PR → manager-approved PO → partial/rejected GRN → draft supplier invoice and failed match,
   plus a Transfer draft and one idempotent manual OMS order. Six findings include AP
@@ -1376,7 +1385,7 @@ for checking the current source and worktree.
   sensitive and must never be copied into docs. No commit, push or deploy from this pass.
 - Stage 55 audit/plan: 20 module owners, 56 routes, 199 record types, 70 tab/config panels and 92
   report parameter screens. See ledger §192 and `docs/product/erp-module-usability-plan-2026-10-04.md`.
-  **55.1 is now closed locally** (ledger §193, `docs/assurance/stage55-shared-correctness-2026-10-04.json`):
+  **55.1 is now closed locally** (ledger §193, `docs/archive/audits/stage55-shared-correctness-2026-10-04.json`):
   20 Chromium checks pass across seven cold HR/Manufacturing tabs, all 54 secondary panels,
   New/Edit and real Department save, Wave input at 390px, modal focus, password-reset path and
   restricted-role denial. `public/app.js` and `public/index.html` now use matching asset version 32;

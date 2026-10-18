@@ -35,7 +35,7 @@ implementation references. Preview migration against the tenant's own grants and
 approved custom roles. Tenant owners must review before/after evidence before activation;
 the fact that templates exist does not mean a tenant was migrated.
 
-[Historical permission matrix](../guides/PERMISSION_MATRIX.md) is a default-tenant snapshot,
+[Historical permission matrix](../archive/legacy/permission-matrix.md) is a default-tenant snapshot,
 not this normative policy or effective authorization. New permission evidence exports
 require explicit environment, schema and output root; they remain dated records. Field,
 route and workflow controls must also be tested before accepting migration evidence.

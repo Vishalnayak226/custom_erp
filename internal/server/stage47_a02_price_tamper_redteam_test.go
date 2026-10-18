@@ -12,7 +12,7 @@ import (
 )
 
 // Stage 47.0.1 / audit finding A-02 ("POS trusts the browser for sale price
-// and cost price" - docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md lines
+// and cost price" - docs/archive/audits/erp-deep-persona-audit-2026-09-01.md lines
 // 77-83). The audit's own reproducible claim: "Approval checks rely on
 // submitted discount percentage, so a cashier can send a zero or abnormally
 // low price with discount_pct = 0 and avoid discount approval."

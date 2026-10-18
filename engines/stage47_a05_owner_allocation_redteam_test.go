@@ -10,7 +10,7 @@ import (
 
 // Stage 47.0.1 / audit finding A-05 ("3PL stock ownership is not enforced
 // during allocation/picking" -
-// docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md lines 101-107).
+// docs/archive/audits/erp-deep-persona-audit-2026-09-01.md lines 101-107).
 //
 // This gap is not a hidden accident - it is a documented, deliberate scope
 // decision in the code itself: engines/wms_owner_stock.go's own header

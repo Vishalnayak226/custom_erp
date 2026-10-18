@@ -5,7 +5,9 @@
 //
 //	ERROR_CODES.md       - from internal/server's error catalog
 //	REPORT_CATALOG.md    - from engines' report registry
-//	PERMISSION_MATRIX.md - from the live role_permissions table
+//	public-v1.json       - the public API's OpenAPI document
+//	permission snapshot  - from the live role_permissions table, on demand only,
+//	                       as a dated record under docs/archive/audits/permissions/
 //
 // Run it with:
 //
@@ -109,7 +111,7 @@ func main() {
 		if err != nil {
 			fail(fmt.Errorf("permission snapshot failed; no outputs written"))
 		}
-		files["docs/assurance/permissions/"+*stamp+"-"+*environment+"-"+*tenant+".md"] = []byte(body)
+		files["docs/archive/audits/permissions/"+*stamp+"-"+*environment+"-"+*tenant+".md"] = []byte(body)
 	}
 	if *check {
 		diffs := docgen.Diff(*out, files)
@@ -141,10 +143,7 @@ func referenceFiles(root, stamp string) (map[string][]byte, error) {
 		"docs/guides/REPORT_CATALOG.md":            []byte(reportCatalogDoc(stamp)),
 		"docs/kb/reference/report-catalog.md":      []byte(kbReportCatalog(stamp)),
 		"docs/kb/reference/country-phone-rules.md": []byte(kbCountryPhoneRules(stamp)),
-		"docs/specs/openapi_public_v1.json":        append(spec, '\n'),
-		// Preserve the published path as a generated compatibility projection
-		// for the governed transition window; both derive from one registry.
-		"docs/api/generated/public-v1.json": append(spec, '\n'),
+		"docs/api/generated/public-v1.json":        append(spec, '\n'),
 	} {
 		files[name] = body
 	}

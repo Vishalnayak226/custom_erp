@@ -334,7 +334,7 @@
     },
     {
       "path": "internal/kb/content/articles/printing-stickers-and-documents.html",
-      "sha256": "6245352a860f190e2e7793a8dac9a23af1b0958c7744cdf938e03b1cac20dccd",
+      "sha256": "b0ec8be2865b229e31a0276da4d0a0839afe4f2703c712160c530cb246a21dfd",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -370,7 +370,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes-2.html",
-      "sha256": "db2d042db652c45cd2a4edf4eae2b41f898379044284ecd181562d7166af8327",
+      "sha256": "e6b503c5acd251329156bd591e282be2eb65d307c4fc8740cb69b2223a6dc395",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -379,7 +379,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes.html",
-      "sha256": "58f98a21d3164bed4300d8e42cdfcd9996949f224f58112952ae1080e96bb434",
+      "sha256": "d6fa82b2fe401875db9e7df35e94d24b0aef17769592b8b78d9f9ff822e17b86",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -424,7 +424,7 @@
     },
     {
       "path": "internal/kb/content/articles/security-approvals.html",
-      "sha256": "394e2e58d79efcfd15068470167afd541f9832d1deddedce498b1f702789c6a5",
+      "sha256": "9ecd4f9aceaa506e93f7ab50da473c8b494e43115ae0d9aaf32360c4f4f13556",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -496,7 +496,7 @@
     },
     {
       "path": "internal/kb/content/index.json",
-      "sha256": "cf9e364049cc7f4e433a0793e7bf3f97cc35d928704f791ddc9c3db5e9472c9a",
+      "sha256": "9b2021006bd82256c31fa56407d238da4462164781301a55ca3ff1eb24eb426b",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -505,7 +505,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "b6f5c1b5225fc2067d7c745d01c3c519a19fb63424fb5be2978c0571b49d77d8",
+      "sha256": "3124a03372dac6fe33291ca8230af580cfe6b384c1b72caa0d6bc8e61dda7bba",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

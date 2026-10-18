@@ -21,9 +21,9 @@ This register separates reusable drafts, signed instruments and deployment-speci
 
 | ID | Document class / current source | Status | Owner / approval gate |
 |---|---|---|---|
-| LEGAL-TPL-001 | [Developer agreement](<../Contract/Developer Contract.md>) | Draft; existing path retained pending controlled move to legal/templates | Qualified counsel + business owner before use/signature |
+| LEGAL-TPL-001 | [Developer agreement](templates/developer-agreement.md) | Draft; existing path retained pending controlled move to legal/templates | Qualified counsel + business owner before use/signature |
 | LEGAL-PRIV-001 | [Privacy applicability worksheet](privacy-applicability.md) | Reusable draft, no customer decision | Qualified privacy/legal + business owner |
-| LEGAL-RET-001 | [Data lifecycle and retention](../data/data-lifecycle.md) | Proposed policy; no universal duration | Qualified legal + data/operations |
+| LEGAL-RET-001 | [Data lifecycle and retention](../data/data-handbook.md#data-lifecycle-and-retention-decisions) | Proposed policy; no universal duration | Qualified legal + data/operations |
 | LEGAL-CUST-001 | Customer order/terms/service agreement | No approved instrument registered | Commercial/legal owner must supply negotiated scope and signature reference |
 | LEGAL-DPA-001 | Processing/subprocessor terms and notices | No approved instrument registered | Qualified privacy/legal owner |
 | LEGAL-IP-001 | Dependency licenses and source/IP rights | Release review required | Engineering + qualified counsel where needed |

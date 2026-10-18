@@ -8,9 +8,9 @@ import (
 )
 
 // Stage 47.0.1 / audit finding A-04 ("Legacy POS return is replayable and can
-// separate stock from finance" - docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md
+// separate stock from finance" - docs/archive/audits/erp-deep-persona-audit-2026-09-01.md
 // lines 93-99; traced line-by-line in
-// docs/audits/STAGE47_ENDPOINT_MUTATION_MAP_2026-09-03.md section 2.2).
+// docs/archive/audits/stage47-endpoint-mutation-map-2026-09-03.md section 2.2).
 //
 // Exact mechanism reproduced here: ProcessReturnAnywhere (engines/fulfillment.go:297)
 // checks a PARTIAL return's cumulative quantity against sumPriorReturns, which

@@ -26,14 +26,6 @@
       "disposition": "keep"
     },
     {
-      "prefix": "docs/assurance/",
-      "type": "record",
-      "status": "archived",
-      "owner": "qa-owner",
-      "authority": "historical",
-      "disposition": "keep"
-    },
-    {
       "prefix": "docs/legal/templates/",
       "type": "template",
       "status": "draft",
@@ -64,134 +56,6 @@
       "owner": "security-owner",
       "authority": "historical",
       "disposition": "keep"
-    },
-    {
-      "prefix": "docs/ERP_BLUEPRINT.md",
-      "type": "record",
-      "status": "archived",
-      "owner": "product-owner",
-      "authority": "historical",
-      "disposition": "archive"
-    },
-    {
-      "prefix": "docs/requirements/BRD.md",
-      "type": "record",
-      "status": "archived",
-      "owner": "product-owner",
-      "authority": "historical",
-      "disposition": "archive"
-    },
-    {
-      "prefix": "docs/requirements/PRD.md",
-      "type": "record",
-      "status": "archived",
-      "owner": "product-owner",
-      "authority": "historical",
-      "disposition": "archive"
-    },
-    {
-      "prefix": "docs/architecture/architecture_evaluation.md",
-      "type": "record",
-      "status": "archived",
-      "owner": "product-owner",
-      "authority": "historical",
-      "disposition": "archive"
-    },
-    {
-      "prefix": "docs/architecture/framework_architecture.md",
-      "type": "record",
-      "status": "archived",
-      "owner": "product-owner",
-      "authority": "historical",
-      "disposition": "archive"
-    },
-    {
-      "prefix": "docs/architecture/pos_architecture.md",
-      "type": "record",
-      "status": "archived",
-      "owner": "product-owner",
-      "authority": "historical",
-      "disposition": "archive"
-    },
-    {
-      "prefix": "docs/specs/erp_maturity_master_plan.md",
-      "type": "record",
-      "status": "archived",
-      "owner": "product-owner",
-      "authority": "historical",
-      "disposition": "archive"
-    },
-    {
-      "prefix": "docs/specs/implementation_plan.md",
-      "type": "record",
-      "status": "archived",
-      "owner": "product-owner",
-      "authority": "historical",
-      "disposition": "archive"
-    },
-    {
-      "prefix": "docs/specs/market_intelligence_reference.md",
-      "type": "record",
-      "status": "archived",
-      "owner": "product-owner",
-      "authority": "historical",
-      "disposition": "archive"
-    },
-    {
-      "prefix": "docs/specs/modules_overview.md",
-      "type": "record",
-      "status": "archived",
-      "owner": "product-owner",
-      "authority": "historical",
-      "disposition": "archive"
-    },
-    {
-      "prefix": "docs/specs/oms_master_blueprint_reference.md",
-      "type": "record",
-      "status": "archived",
-      "owner": "product-owner",
-      "authority": "historical",
-      "disposition": "archive"
-    },
-    {
-      "prefix": "docs/specs/parity_master_plan.md",
-      "type": "record",
-      "status": "archived",
-      "owner": "product-owner",
-      "authority": "historical",
-      "disposition": "archive"
-    },
-    {
-      "prefix": "docs/specs/pdf_blueprint_gap_analysis.md",
-      "type": "record",
-      "status": "archived",
-      "owner": "product-owner",
-      "authority": "historical",
-      "disposition": "archive"
-    },
-    {
-      "prefix": "docs/specs/wms_master_blueprint_reference.md",
-      "type": "record",
-      "status": "archived",
-      "owner": "product-owner",
-      "authority": "historical",
-      "disposition": "archive"
-    },
-    {
-      "prefix": "docs/specs/wms_parity_plan.md",
-      "type": "record",
-      "status": "archived",
-      "owner": "product-owner",
-      "authority": "historical",
-      "disposition": "archive"
-    },
-    {
-      "prefix": "docs/operations/hardening_roadmap.md",
-      "type": "record",
-      "status": "archived",
-      "owner": "product-owner",
-      "authority": "historical",
-      "disposition": "archive"
     },
     {
       "prefix": "docs/data/",
@@ -274,44 +138,20 @@
       "disposition": "keep"
     },
     {
+      "prefix": "docs/product/research/",
+      "type": "record",
+      "status": "archived",
+      "owner": "product-owner",
+      "authority": "historical",
+      "disposition": "keep"
+    },
+    {
       "prefix": "docs/product/",
       "type": "reference",
       "status": "draft",
       "owner": "product-owner",
       "authority": "proposed-policy",
       "disposition": "keep"
-    },
-    {
-      "prefix": "docs/ERP_LOOPHOLES_ANALYSIS.md",
-      "type": "record",
-      "status": "archived",
-      "owner": "qa-owner",
-      "authority": "historical",
-      "disposition": "archive"
-    },
-    {
-      "prefix": "docs/QC_EXHAUSTIVE_REPORT.md",
-      "type": "record",
-      "status": "archived",
-      "owner": "qa-owner",
-      "authority": "historical",
-      "disposition": "archive"
-    },
-    {
-      "prefix": "docs/UX_MANUAL_AUDIT.md",
-      "type": "record",
-      "status": "archived",
-      "owner": "qa-owner",
-      "authority": "historical",
-      "disposition": "archive"
-    },
-    {
-      "prefix": "docs/DURABILITY_AUDIT_2026-07-31.md",
-      "type": "record",
-      "status": "archived",
-      "owner": "qa-owner",
-      "authority": "historical",
-      "disposition": "archive"
     },
     {
       "prefix": "docs/governance/document-register.json",
@@ -360,22 +200,6 @@
       "owner": "security-owner",
       "authority": "projection",
       "disposition": "keep"
-    },
-    {
-      "prefix": "docs/specs/openapi_public_v1.json",
-      "type": "generated",
-      "status": "active",
-      "owner": "api-owner",
-      "authority": "projection",
-      "disposition": "keep"
-    },
-    {
-      "prefix": "docs/guides/PERMISSION_MATRIX.md",
-      "type": "record",
-      "status": "archived",
-      "owner": "security-owner",
-      "authority": "historical",
-      "disposition": "archive"
     },
     {
       "prefix": "docs/guides/ERROR_CODES.md",
@@ -434,14 +258,6 @@
       "disposition": "keep"
     },
     {
-      "prefix": "docs/audits/",
-      "type": "record",
-      "status": "archived",
-      "owner": "qa-owner",
-      "authority": "historical",
-      "disposition": "archive"
-    },
-    {
       "prefix": "docs/operations/restore_drill_log.md",
       "type": "record",
       "status": "archived",
@@ -454,14 +270,6 @@
       "type": "template",
       "status": "draft",
       "owner": "qa-owner",
-      "authority": "proposed-policy",
-      "disposition": "rebuild"
-    },
-    {
-      "prefix": "docs/Contract/",
-      "type": "template",
-      "status": "draft",
-      "owner": "legal-owner",
       "authority": "proposed-policy",
       "disposition": "rebuild"
     },

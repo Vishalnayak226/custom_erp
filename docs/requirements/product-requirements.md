@@ -18,7 +18,7 @@ superseded_by: none
 # Product requirements core
 
 Intended behavior is separate from availability. The [capability catalog](../generated/capability-catalog.md)
-is the scoped maturity projection. The [legacy PRD](PRD.md) is retained for content mapping;
+is the scoped maturity projection. The [legacy PRD](../archive/legacy/prd.md) is retained for content mapping;
 its old built/spec counts are not current truth.
 
 ## Shared behavior

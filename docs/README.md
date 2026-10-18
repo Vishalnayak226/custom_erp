@@ -9,68 +9,126 @@ audience: [everyone]
 applies_to: repository navigation
 authority: navigation
 confidentiality: internal
-last_verified: 2026-09-06
-review_by: 2026-10-06
+last_verified: 2026-10-19
+review_by: 2027-01-19
 supersedes: none
 superseded_by: none
 ---
 
-# Documentation portal
+# ERP documentation
 
-Choose the question that matches your task. The [authority matrix](governance/authority-matrix.md)
-explains which source can answer it and where approved product evidence is still missing.
-The [document register](governance/document-register.json) lists all inventoried material,
-including provisional ownership, review status, replacements and historical records.
+Find the row that matches what you want to do. Each link opens the one page that answers it.
+The [folder map](#folder-map) at the end explains what every folder holds.
 
-## Run the business or use the product
+## I use the ERP
 
-| I need to… | Start here | Audience / authority |
-|---|---|---|
-| Understand the business purpose | [Vision](product/vision.md), [rebuilt BRD](requirements/business-requirements.md), [PRD core](requirements/product-requirements.md) | Product leadership; concrete drafts awaiting owner approval |
-| Know what my configuration supports | [Capability catalog](generated/capability-catalog.md), [evidence traceability](generated/requirements-traceability.md) | Buyer / product owner; scoped evaluation limits, no Production approval |
-| Learn the everyday workflow for my role | [Role journeys](kb/role-journeys/role-journeys-overview.md) | Cashier, store manager, warehouse, finance, category manager, admin |
-| Set up a shop and make a first sale | [Onboarding tutorial](kb/getting-started/open-a-shop-and-make-your-first-sale.md) | Business owner / tenant admin |
-| Find a task or recovery instruction | [Curated user manual](user/user-manual.html), [troubleshooting](kb/troubleshooting/troubleshooting-index.md) | Users; KB topics are the canonical task source |
-| Configure users or operations | [Tenant admin manual](user/tenant-admin-manual.html), [security and approvals](kb/module-handbooks/security-approvals.md) | Tenant admin; [manual sources and migration status](user/manuals.md) |
-| Run user acceptance checks | [UAT checklist](guides/UAT_CHECKLIST.md), [run-sheet template](operations/uat_run_sheet.md) | QA / implementation; blank checks are not signed acceptance |
-| Use a procedural template | [User SOP](guides/USER_SOP.md), [Admin SOP](guides/ADMIN_SOP.md) | Process owner; customer approval required before local use |
+| I want to… | Read |
+|---|---|
+| Learn the ERP, screen by screen | [User guide](guides/USER_GUIDE.md) |
+| Learn my own daily job (cashier, store manager, warehouse, finance, category manager, admin) | [Role journeys](kb/role-journeys/role-journeys-overview.md) |
+| Open a shop and make the first sale | [Getting started](kb/getting-started/open-a-shop-and-make-your-first-sale.md) |
+| Follow a step-by-step procedure | [User SOP](guides/USER_SOP.md), [video SOPs](sop-video/readme.md) |
+| Understand an error message | [Reading an error code](kb/troubleshooting/error-codes.md), [all error codes](guides/ERROR_CODES.md), [troubleshooting](kb/troubleshooting/troubleshooting-index.md) |
+| Find the right report | [Report catalog](guides/REPORT_CATALOG.md) |
+| Print stickers, labels and documents | [Printing setup](guides/QZ_PRINTING_SETUP.md) |
+| Look up a term or abbreviation | [Glossary](kb/reference/glossary.md), [abbreviations](kb/reference/abbreviations.md), [FAQ](kb/reference/faq.md) |
+| Print or read the whole manual offline | [User manual](user/user-manual.html) |
 
-## Build, integrate, deploy or recover
+The same help topics open inside the app from **Help** on every screen.
 
-| I need to… | Start here | Audience / authority |
-|---|---|---|
-| Resume development | [Developer setup](engineering/developer-setup.md), [current handover state](ai_handover.md#current-repository-state) | Developer; stable procedure and shared-tree state |
-| Locate a subsystem | [Current architecture](architecture/current-architecture.md), [project brain](brain/README.md) | Engineer; verify graph inferences in source |
-| Understand data and runtime boundaries | [Data/runtime views](architecture/data-and-runtime-views.md), [generated dictionary](data/generated/dictionary.md) | Engineer/data steward; scoped source facts |
-| Integrate through the API | [API overview](api/overview.md), [generated OpenAPI](api/generated/public-v1.json) | Integrator; generated contract plus authored usage |
-| Read errors or reports | [Error reference](guides/ERROR_CODES.md), [report catalog](guides/REPORT_CATALOG.md) | Developer / support; generated registry projections |
-| Deploy and operate | [Deployment](../deploy/README.md), [go-live decisions](operations/go_live_decisions.md) | Platform operator |
-| Monitor or upgrade a service | [Service operations](operations/service-operations.md), [upgrade/rollback](operations/upgrade-and-rollback.md) | Platform operator; approved environment required |
-| Back up or recover | [Backup runbook](operations/backup_restore.md), [incident runbook](operations/incident_runbook.md) | Operations; [drill log](operations/restore_drill_log.md) is separate historical evidence |
-| Verify a connector | [Live connector verification](operations/connector_live_verification.md) | Implementation / integration owner |
-| Implement or migrate a customer | [Onboarding workbook](implementation/onboarding-workbook.md), [master data](data/master-data-governance.md) | Implementation/data owners; draft templates require project acceptance |
-| Plan cutover, training and support | [Delivery workbook](implementation/delivery-workbook.md) | Customer/implementation owners; execution and sign-off separate |
-| Review test coverage | [Verification strategy](qa/verification-strategy.md), [release acceptance](governance/release-acceptance.md) | QA / release reviewers; templates are not executed evidence |
-| Verify controls and devices | [Regression/device matrix](qa/control-and-device-matrix.md) | QA/floor/security; physical and human verification required |
-| Change documentation safely | [Documentation standard](governance/documentation-standard.md), [generation command](update-docs.ps1) | Author / reviewer; staged generation and read-only checks |
-| Review documentation health or a move | [Health and walkthroughs](governance/health-and-walkthroughs.md), [migration/retention register](governance/migration-and-retention-register.md) | Documentation owners; review before committing moves or deleting |
+## I set up the ERP for my company
 
-## Review risk, decisions or history
+| I want to… | Read |
+|---|---|
+| Configure the company, stores, users, roles and approvals | [Admin guide](guides/ADMIN_GUIDE.md), [Admin SOP](guides/ADMIN_SOP.md) |
+| Understand who can approve what | [Security and approvals](kb/module-handbooks/security-approvals.md) |
+| Print or read the admin manual offline | [Tenant admin manual](user/tenant-admin-manual.html) |
+| Bring in a new customer and their data | [Onboarding workbook](implementation/onboarding-workbook.md), [data handbook](data/data-handbook.md) |
+| Plan cutover, training and support | [Delivery workbook](implementation/delivery-workbook.md) |
+| Run acceptance tests before go-live | [UAT checklist](guides/UAT_CHECKLIST.md), [UAT run sheet](operations/uat_run_sheet.md) |
 
-| I need to… | Start here | Authority / limitation |
-|---|---|---|
-| Review current security work | [Security program](security/README.md) | Owned risk/control work; no blanket certification |
-| Review audit or privacy obligations | [Audit/logging policy](security/audit-and-logging-policy.md), [legal register](legal/document-register.md) | Qualified control owners; drafts do not establish compliance |
-| See remaining work | [Outcome roadmap](product/roadmap.md), [micro-checklist](micro_checklist.md) | Product outcomes and live work; not release acceptance |
-| Read engineering history | [Project ledger](project_ledger.md) | Build record; generated release excerpts require product review |
-| Understand the system snapshot | [ERP blueprint](ERP_BLUEPRINT.md) | Legacy snapshot; authority banner explains limitations |
-| Review the September audit | [Deep persona audit](audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md) | Dated observations; subsequent fixes need separate verification |
-| Understand the documentation program | [Architecture plan](audits/DOCUMENTATION_ARCHITECTURE_PLAN_2026-09-01.md) | Dated proposal driving Stage 48 |
-| Review performance priorities | [Smoothness plan](audits/LIGHTWEIGHT_SMOOTHNESS_PLAN_2026-09-01.md) | Proposed budgets and work |
-| Review a legal template | [Developer contract](<Contract/Developer Contract.md>) | Draft; qualified legal/business review required |
+## I build or change the ERP
 
-Review the [Stage 48 verification and open findings](assurance/stage48-verification-2026-09-10.md) and [proposed path migration](governance/migration-review.md).
+| I want to… | Read |
+|---|---|
+| Get the code running on my machine | [Developer setup](engineering/developer-setup.md), [contributing](engineering/contributing.md) |
+| Pick up where the last session stopped | [Handover, section 6](ai_handover.md#6-version-control) |
+| See what is left to build | [Micro checklist](micro_checklist.md) (the live backlog) |
+| See what was built, and when | [Project ledger](project_ledger.md) |
+| Find where a piece of code lives | [Project brain](brain/README.md) |
+| Understand how the system is built | [Current architecture](architecture/current-architecture.md), [data and runtime views](architecture/data-and-runtime-views.md), [decisions](architecture/decisions/decision-register.md) |
+| Integrate through the public API | [API overview](api/overview.md), [API contract](api/public-api-v1.md), [OpenAPI file](api/generated/public-v1.json) |
+| Look up a table or field | [Data dictionary](data/generated/dictionary.md) |
+| Plan tests | [Verification strategy](qa/verification-strategy.md), [device matrix](qa/control-and-device-matrix.md) |
+| Let an outside developer build a client-only extension | [Extension hooks checklist](engineering/extension-hooks-checklist.md) |
+| Keep the GitHub repository locked down | [GitHub security checklist](engineering/github-security-checklist.md) |
 
-Older audits, parity plans and closed history remain discoverable in the register.
-Their presence does not establish current support. Existing paths are retained until
-the Stage 48 baseline, review, migration and retention gates pass.
+## I run the servers
+
+| I want to… | Read |
+|---|---|
+| Deploy a release | [Deployment](../deploy/README.md), [running the service](operations/service-operations.md) |
+| Back up or restore | [Backup and restore runbook](operations/backup_restore.md), [restore drill log](operations/restore_drill_log.md) |
+| Handle an outage or incident | [Incident runbook](operations/incident_runbook.md) |
+| Check what was decided for go-live | [Go-live decisions](operations/go_live_decisions.md), [hypercare plan](operations/hypercare_plan.md) |
+| Prove a marketplace or courier connector works | [Live connector verification](operations/connector_live_verification.md) |
+| Scope a penetration test | [Pentest scope](operations/pentest_scope.md) |
+
+## I decide what gets built
+
+| I want to… | Read |
+|---|---|
+| Know why the product exists and where it is going | [Vision](product/vision.md), [roadmap](product/roadmap.md) |
+| Know what is supported today | [Capability catalog](generated/capability-catalog.md), [requirements traceability](generated/requirements-traceability.md) |
+| Read the requirements | [Business requirements](requirements/business-requirements.md), [product requirements](requirements/product-requirements.md), [non-functional requirements](requirements/nonfunctional-requirements.md) |
+| Read market and competitor research | [Market](product/research/market-intelligence.md), [OMS benchmark](product/research/oms-benchmark.md), [WMS benchmark](product/research/wms-benchmark.md) |
+
+## Security, privacy and legal
+
+| I want to… | Read |
+|---|---|
+| See the security programme, threats and risks | [Security overview](security/README.md), [threat model](security/threat_model.md), [risk register](security/risk_register.md) |
+| Answer a customer's security questionnaire | [Customer security pack](security/customer-security-pack.md) |
+| Find a contract, policy or privacy decision | [Legal register](legal/document-register.md), [privacy applicability](legal/privacy-applicability.md) |
+
+## Old material
+
+Past audits, superseded plans and specifications, earlier handovers and closed checklist stages
+are in the [archive](archive/readme.md). Its table also says where every moved file went.
+Nothing there describes the system as it is today.
+
+## Folder map
+
+| Folder | What is inside |
+|---|---|
+| `guides/` | The user and admin guides, SOPs, UAT checklist, error codes, report catalog, printing setup |
+| `kb/` | Help topics shown inside the app (built into the server) |
+| `user/` | Printable user and admin manuals, generated from `kb/` |
+| `sop-video/` | Video walk-throughs of common tasks |
+| `implementation/` | Workbooks for bringing a new customer live |
+| `product/` | Vision, roadmap, capability register, feature plans and `research/` |
+| `requirements/` | Business, product, control and non-functional requirements, one page per module in `modules/` |
+| `architecture/` | How the system is built, design specifications and `decisions/` |
+| `api/` | Public API guide, contract, message catalog and the OpenAPI file |
+| `data/` | Data handbook, business definitions and the generated data dictionary |
+| `engineering/` | Developer setup, contributing and engineering checklists |
+| `qa/` | Test strategy and the audit and browser-test scripts |
+| `operations/` | Runbooks for deploy, backup, incidents, go-live and hypercare |
+| `security/` | Security programme, threat model, risk registers and policies |
+| `legal/` | Legal register, privacy decisions and contract templates |
+| `specs/reports/` | The report catalog's source data (read by `cmd/gencatalog`) |
+| `governance/` | Rules for writing and checking these docs, and the document register |
+| `generated/` | Machine-made pages; never edit them by hand |
+| `brain/` | The code map: which file belongs to which part of the system |
+| `archive/` | Everything dated or superseded, kept for the record |
+
+The three files at the top of this folder are the project's working records: the
+[micro checklist](micro_checklist.md) (what is still to do), the [project ledger](project_ledger.md)
+(what was built) and the [AI handover](ai_handover.md) (the state of the working tree).
+
+## Keeping these docs healthy
+
+Writing rules are in the [documentation standard](governance/documentation-standard.md). After changing
+docs, run `pwsh docs/update-docs.ps1` to rebuild generated pages and `go run ./cmd/doclint` to check
+links. Pages under `generated/`, `brain/`, `user/`, `data/generated/` and `api/generated/` and the two
+catalogs in `guides/` (error codes, report catalog) are rebuilt by tools; change their source instead.

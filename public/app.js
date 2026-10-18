@@ -4467,7 +4467,9 @@ async function fetchRegisteredDoctypes() {
 let setupMenuFilter = '';
 // Stage 88.1: Inventory-module lists that belong to the ERP side; every other one is filed under WMS.
 // A new ERP inventory list is added here.
-const SETUP_INVENTORY_ERP = ['Item', 'ItemAttribute', 'ItemBarcode', 'ItemException', 'ItemType', 'ReorderPointConfig', 'BackflushRule', 'Printer', 'StickerTemplate'];
+const SETUP_INVENTORY_ERP = ['Item', 'ItemAttribute', 'ItemBarcode', 'ItemException', 'ItemType', 'ReorderPointConfig', 'BackflushRule'];
+// Stage 88.1.14: print setup is its own Setup group, whatever module the list is filed under.
+const SETUP_PRINTING = ['PrintTemplate', 'StickerTemplate', 'Printer'];
 
 function renderSidebarSubmenu() {
   const sub = document.getElementById('submenu-master');
@@ -4477,11 +4479,12 @@ function renderSidebarSubmenu() {
   const visible = state.activeDoctypes.filter(d => d.document_type === 'Master' && canReadDoctype(d.name) &&
     !document.querySelector(`.sidebar-menu [data-doctype="${d.name}"]`));
   const needle = setupMenuFilter.trim().toLowerCase();
+  const groupOf = d => SETUP_PRINTING.includes(d.name) ? 'Printing' : d.module === 'Inventory' && !SETUP_INVENTORY_ERP.includes(d.name) ? 'WMS' : (d.module || 'Other');
   const matches = d =>
     !needle ||
     d.name.toLowerCase().includes(needle) ||
     String(getDoctypeLabel(d.name)).toLowerCase().includes(needle) ||
-    String(d.module || '').toLowerCase().includes(needle);
+    groupOf(d).toLowerCase().includes(needle);
 
   // The filter row is a <li> so it is a legal child of the <ul>, but it holds
   // no .submenu-item - which is exactly how applySidebarPermissions() tells
@@ -4510,7 +4513,6 @@ function renderSidebarSubmenu() {
     }
   });
 
-  const groupOf = d => d.module === 'Inventory' && !SETUP_INVENTORY_ERP.includes(d.name) ? 'WMS' : (d.module || 'Other');
   const label = d => String(getDoctypeLabel(d.name));
   const entry = d => `<li><a class="submenu-item" data-view="${escapeHTMLText(d.name)}">${escapeHTMLText(label(d))}</a></li>`;
   const byModule = {};

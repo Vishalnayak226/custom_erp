@@ -18,7 +18,7 @@ superseded_by: none
 # ERP module coverage, SaaS packaging and experience roadmap
 
 This is a product decision and build checklist accompanying the
-[independent audit](../assurance/erp-independent-audit-2026-09-16.md).
+[independent audit](../archive/audits/erp-independent-audit-2026-09-16.md).
 **Existing open features are excluded from defect judgments.** “Present” below means there
 is identifiable implementation and regression coverage or a rendered screen; it does not
 mean complete market parity or customer acceptance. The authoritative

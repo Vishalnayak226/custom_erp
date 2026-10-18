@@ -17,8 +17,8 @@ superseded_by: none
 
 # Reproducing the September ERP maturity audit
 
-Read the [report](../assurance/erp-independent-audit-2026-09-16.md) and
-[machine summary](erp-audit-2026-09-16-summary.json) before interpreting raw logs.
+Read the [report](../archive/audits/erp-independent-audit-2026-09-16.md) and
+[machine summary](../archive/audits/erp-audit-2026-09-16-summary.json) before interpreting raw logs.
 The tools below are optional development tooling and add no ERP runtime dependency.
 They are a record of this controlled audit, not a universal production test command.
 

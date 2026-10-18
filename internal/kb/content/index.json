@@ -3523,6 +3523,11 @@
           "headings": [
             {
               "level": 2,
+              "text": "2026-10-19",
+              "slug": "2026-10-19"
+            },
+            {
+              "level": 2,
               "text": "2026-10-18",
               "slug": "2026-10-18"
             },
@@ -3675,7 +3680,26 @@
               "level": 2,
               "text": "2026-08-31",
               "slug": "2026-08-31"
-            },
+            }
+          ]
+        },
+        {
+          "slug": "release-notes-2",
+          "title": "Release notes (part 2)",
+          "section": "Reference",
+          "order": 26,
+          "summary": "Earlier releases, 2026-07-27 to 2026-08-30, continued from the release notes.",
+          "audience": "everyone",
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Release notes (part 2)",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
+          "source_path": "reference/release-notes-2.md",
+          "headings": [
             {
               "level": 2,
               "text": "2026-08-30",
@@ -3690,26 +3714,7 @@
               "level": 2,
               "text": "2026-08-25",
               "slug": "2026-08-25"
-            }
-          ]
-        },
-        {
-          "slug": "release-notes-2",
-          "title": "Release notes (part 2)",
-          "section": "Reference",
-          "order": 26,
-          "summary": "Earlier releases, 2026-07-27 to 2026-08-22, continued from the release notes.",
-          "audience": "everyone",
-          "last_verified": "2026-09-10",
-          "owner": "documentation-maintainer",
-          "status": "active",
-          "topic_type": "reference",
-          "module": "platform",
-          "task": "Release notes (part 2)",
-          "prerequisites": "Authorized access to the relevant ERP task",
-          "applies_to": "source registries; not release acceptance",
-          "source_path": "reference/release-notes-2.md",
-          "headings": [
+            },
             {
               "level": 2,
               "text": "2026-08-22",

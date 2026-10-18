@@ -49,16 +49,16 @@ A metadata-driven, pluggable, ledger-backed Enterprise Resource Planning (ERP) s
 ├── public/                        # Static frontend (index.html, app.js, styles.css, profiles/)
 ├── scripts/                       # Operational scripts (connector live-verification, etc.) - see scripts/archive/ for retired one-offs
 ├── docs/
-│   ├── ERP_BLUEPRINT.md           # Full project snapshot for an outside/AI reviewer - start here for "what is this system"
+│   ├── README.md                  # Start here: "I want to..." table and a map of every docs folder
 │   ├── micro_checklist.md         # Live backlog/build tracker - current source of truth for what's built
 │   ├── project_ledger.md          # Chronological build history and architectural decisions
-│   ├── ai_handover.md             # Environment setup, run commands, and dev handover notes
-│   ├── README.md                  # Index of everything else in docs/
-│   ├── architecture/              # Design docs: framework_architecture.md, architecture_evaluation.md, pos_architecture.md
-│   ├── specs/                     # Spec-vs-built docs: implementation_plan.md, industry_plugs.md, modules_overview.md, pdf_blueprint_gap_analysis.md
-│   ├── operations/                # backup_restore.md, incident_runbook.md, connector_live_verification.md, hardening_roadmap.md
-│   ├── requirements/               # BRD.md, PRD.md
-│   └── guides/                    # USER_GUIDE.md (client-facing), ADMIN_GUIDE.md (operator manual)
+│   ├── ai_handover.md             # State of the working tree for the next session (read section 6)
+│   ├── guides/                    # USER_GUIDE.md (client-facing), ADMIN_GUIDE.md (operator manual), SOPs, UAT, error codes, reports
+│   ├── kb/                        # In-app help topics (embedded in the server)
+│   ├── architecture/, api/, data/ # How it is built, the public API, the data handbook and dictionary
+│   ├── operations/                # backup_restore.md, incident_runbook.md, service-operations.md, go-live decisions
+│   ├── requirements/, product/    # Requirements, vision, roadmap, capability register, research
+│   └── archive/                   # Past audits, superseded specs/plans, old handovers; readme.md maps old paths to new
 └── package.json                   # Project metadata only; no frontend scripts or dependencies
 ```
 
@@ -92,12 +92,12 @@ There is no frontend build step. The Go server serves the browser assets directl
 
 ## Technical Reference & Architecture
 
-*   **Start here**: **[docs/ERP_BLUEPRINT.md](docs/ERP_BLUEPRINT.md)** — a full project snapshot (scope, architecture, build history, known gaps) written for an outside reviewer with no other context. **[docs/README.md](docs/README.md)** indexes everything else in `docs/`.
+*   **Start here**: **[docs/README.md](docs/README.md)** — the documentation front door: pick what you want to do (use, set up, build, run, decide) and it links the one page that answers it, with a map of every `docs/` folder.
 *   **Current priorities**: **[docs/micro_checklist.md](docs/micro_checklist.md)** is the live backlog — kept current after every closed item.
-*   **New here?**: **[docs/ai_handover.md](docs/ai_handover.md)** has environment setup, port map, and run commands. **[docs/guides/ADMIN_GUIDE.md](docs/guides/ADMIN_GUIDE.md)** is the fuller standalone operator manual. **[docs/guides/USER_GUIDE.md](docs/guides/USER_GUIDE.md)** is the client-facing, non-technical walkthrough.
-*   **Business/product scope**: **[docs/requirements/BRD.md](docs/requirements/BRD.md)** (business goals/scope) and **[docs/requirements/PRD.md](docs/requirements/PRD.md)** (functional module spec, built-vs-planned status).
-*   **System architecture**: **[docs/architecture/framework_architecture.md](docs/architecture/framework_architecture.md)** (metadata-driven DocType kernel) and **[docs/architecture/architecture_evaluation.md](docs/architecture/architecture_evaluation.md)** (stack/multi-tenancy rationale).
+*   **New here?**: **[docs/engineering/developer-setup.md](docs/engineering/developer-setup.md)** gets the code running; **[docs/ai_handover.md](docs/ai_handover.md)** §6 has the current state of the working tree. **[docs/guides/ADMIN_GUIDE.md](docs/guides/ADMIN_GUIDE.md)** is the fuller standalone operator manual. **[docs/guides/USER_GUIDE.md](docs/guides/USER_GUIDE.md)** is the client-facing, non-technical walkthrough.
+*   **Business/product scope**: **[docs/requirements/business-requirements.md](docs/requirements/business-requirements.md)**, **[docs/requirements/product-requirements.md](docs/requirements/product-requirements.md)** and the **[capability catalog](docs/generated/capability-catalog.md)** (what is supported today).
+*   **System architecture**: **[docs/architecture/current-architecture.md](docs/architecture/current-architecture.md)** and **[docs/brain/README.md](docs/brain/README.md)** (which file belongs to which part of the system).
 *   **Operations**: **[docs/operations/backup_restore.md](docs/operations/backup_restore.md)**, **[docs/operations/incident_runbook.md](docs/operations/incident_runbook.md)**, **[docs/operations/connector_live_verification.md](docs/operations/connector_live_verification.md)**.
 *   **Build history**: **[docs/project_ledger.md](docs/project_ledger.md)** for chronological architectural decisions.
 
-Note: several docs under `docs/specs/` (`implementation_plan.md`, `pos_architecture.md`, `modules_overview.md`, `industry_plugs.md`, `pdf_blueprint_gap_analysis.md`) mix built and forward-looking specification — each carries a status banner explaining exactly which parts are real code today; `docs/ERP_BLUEPRINT.md` §2 gives the current built-vs-spec picture in one table.
+Older material (the September blueprint, the original BRD/PRD, framework and parity plans, past audits) lives in **[docs/archive/](docs/archive/readme.md)**, whose table also says where every moved file went.

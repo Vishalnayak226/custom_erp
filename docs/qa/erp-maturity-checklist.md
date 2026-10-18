@@ -67,8 +67,8 @@ as a discovery aid, not a requirement to implement every vendor feature.
 
 ## Results
 
-See the [dated audit and bug report](../assurance/erp-independent-audit-2026-09-16.md),
-[machine results](erp-audit-2026-09-16-summary.json),
+See the [dated audit and bug report](../archive/audits/erp-independent-audit-2026-09-16.md),
+[machine results](../archive/audits/erp-audit-2026-09-16-summary.json),
 [reproduction guide](erp-audit-reproduction.md), and
 [module/SaaS/UI build roadmap](../product/erp-maturity-roadmap-2026-09-16.md).
 No existing open stage is closed by this audit.

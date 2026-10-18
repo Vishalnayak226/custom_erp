@@ -2,7 +2,7 @@
 title: Release notes (part 2)
 section: Reference
 order: 26
-summary: Earlier releases, 2026-07-27 to 2026-08-22, continued from the release notes.
+summary: Earlier releases, 2026-07-27 to 2026-08-30, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,7 +19,25 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **53** earlier entries, 2026-07-27 to 2026-08-22.
+This page continues the [release notes](release-notes.md) with **56** earlier entries, 2026-07-27 to 2026-08-30.
+
+## 2026-08-30
+
+**Stage 36.4/36.6/36.7 — export & syndication, DAM depth, enrichment & quality — Stage 36 closes** *(code + schema)*
+
+Closes the rest of Stage 36 (PIM parity, Unbxd level): export & syndication depth (36.4), DAM depth (36.6), and enrichment & quality (36.7, its last five sub-items — 36.7.2 had shipped earlier). With 36.1-36.7 all now built and verified, Stage 36 is **complete** and has been moved out of `micro_checklist.md` into `docs/archive/micro_checklist_closed_stages.md`. Full item-by-item detail lived there before the move and now lives in that archive entry; this section is the index.
+
+## 2026-08-28
+
+**Stage 36.5 + 36.3 — declarative transform rules, and PIM import depth** *(code + schema)*
+
+Opens Stage 36's remaining five top-level items (36.3-36.7 — import, export/syndication, transform rules, DAM depth, enrichment) with the two built in dependency order: 36.5 first (a shared value-transform seam), then 36.3 (import depth), which consumes it. Full item-by-item detail, including the scope calls made explicit before building, is in `micro_checklist.md` Stage 36.
+
+## 2026-08-25
+
+**Stage 35.8/35.9 — Settlement reconciliation ("UniReco") and returns depth** *(code + schema + UI)*
+
+Closes the last two open items of Stage 35's OMS parity plan: 35.8 (5 sub-items) and 35.9 (3 sub-items). Full item detail in `micro_checklist.md` Stage 35.
 
 ## 2026-08-22
 
@@ -55,7 +73,7 @@ All six Stage 35.5 items are code-complete using the parity plan's default first
 
 **Stage 46 — Money precision: paise migration** *(code + schema)*
 
-Closed the two items both `docs/DURABILITY_AUDIT_2026-07-31.md` and `docs/ERP_LOOPHOLES_ANALYSIS.md`'s 2026-08-20 re-evaluation still carried as genuinely open. Full item-by-item detail in `micro_checklist.md` Stage 46.
+Closed the two items both `docs/archive/audits/durability-audit-2026-07-31.md` and `docs/archive/audits/erp-loopholes-analysis.md`'s 2026-08-20 re-evaluation still carried as genuinely open. Full item-by-item detail in `micro_checklist.md` Stage 46.
 
 **Stage 42.4 CLOSED — Outbound depth: waves, sortation, cartonization v2, packing validation, deconsolidation, loading + Bill of Lading, pre-ship gate, and VAS/kitting off the existing BOM** *(code + schema + frontend)*
 
@@ -145,7 +163,7 @@ User explicitly asked to start both Stage 36 and Stage 37 while protecting the o
 
 **Stage 42 — WMS parity plan against SAP EWM and Infor WMS** *(planning only, no code)*
 
-User request: review the WMS module of SAP EWM and Infor WMS thoroughly, prepare a plan, update the checklist. Both benchmark URLs were supplied. Output is `docs/specs/wms_parity_plan.md` (the source of detail) plus the Stage 42 tracker skeleton in `micro_checklist.md` — the same two-file relationship Stages 35-39 have to `parity_master_plan.md`. **No source, schema or config was touched.**
+User request: review the WMS module of SAP EWM and Infor WMS thoroughly, prepare a plan, update the checklist. Both benchmark URLs were supplied. Output is `docs/archive/legacy/wms-parity-plan.md` (the source of detail) plus the Stage 42 tracker skeleton in `micro_checklist.md` — the same two-file relationship Stages 35-39 have to `parity_master_plan.md`. **No source, schema or config was touched.**
 
 **Tracker reconciliation — 23.11 and 26.1.3** *(docs only)*
 
@@ -195,7 +213,7 @@ Review of open item 32.4 concluded it was a real bug already fixed by `0bee663` 
 
 **Retiring the OmniCore/"Buying Catalog" project, keeping its market-intelligence knowledge** *(docs)*
 
-A standalone Python microservices stack (`Antigravity Projects/Buying Catalog/OmniCore` — FastAPI + Streamlit + SQLAlchemy/SQLite + Redis/RQ + docker-compose, services `crawler`/`pims`/`oms`/`erp`/`pos`, last touched 2025-12-27) was read in full, its knowledge extracted to `docs/specs/market_intelligence_reference.md`, and the folder deleted. Same disposition and the same reasoning as the standalone WMS project in §(1c1c050)/`docs/specs/wms_master_blueprint_reference.md`.
+A standalone Python microservices stack (`Antigravity Projects/Buying Catalog/OmniCore` — FastAPI + Streamlit + SQLAlchemy/SQLite + Redis/RQ + docker-compose, services `crawler`/`pims`/`oms`/`erp`/`pos`, last touched 2025-12-27) was read in full, its knowledge extracted to `docs/product/research/market-intelligence.md`, and the folder deleted. Same disposition and the same reasoning as the standalone WMS project in §(1c1c050)/`docs/product/research/wms-benchmark.md`.
 
 **Stage 31.1.9 — One-click print wired into the last three screens** *(code)*
 
@@ -253,7 +271,7 @@ User request, made from the Purchase Orders screen: *"PO number will be auto cre
 
 **Stage 30.1/30.2 — the layman audit's P0 block, closed** *(code)*
 
-User asked to start building open checklist items, explicitly not phase by phase. Took the whole P0 block of Stage 30 (the 2026-07-30 layman audit, `docs/UX_MANUAL_AUDIT.md`) — seven items — plus two backend items from 30.5 that fell out of the same work. Item-by-item mechanics in micro_checklist.md Stage 30.
+User asked to start building open checklist items, explicitly not phase by phase. Took the whole P0 block of Stage 30 (the 2026-07-30 layman audit, `docs/archive/audits/ux-manual-audit.md`) — seven items — plus two backend items from 30.5 that fell out of the same work. Item-by-item mechanics in micro_checklist.md Stage 30.
 
 ## 2026-07-29
 

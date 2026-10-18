@@ -34,7 +34,7 @@ Go/PostgreSQL or obtain platform credentials to operate an already provisioned s
 | Rollback | Trigger, decision owner, data/application boundaries, reconciliation and customer communication; operations/finance |
 | Hypercare/support handoff | Coverage, incident route, known issues, evidence location, review date and acceptance; support/tenant owner |
 
-Use [data migration controls](../data/import-and-migration.md),
+Use [data migration controls](../data/data-handbook.md#import-and-data-migration-controls),
 [customer operating procedures](operating-procedure-template.md),
 [role/access policy](../security/access-control-policy.md), [user role journeys](../kb/role-journeys/role-journeys-overview.md)
 and [release acceptance](../governance/release-acceptance.md). Credentials, private contacts

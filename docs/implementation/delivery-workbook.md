@@ -17,7 +17,7 @@ superseded_by: none
 
 # Discovery, cutover and support handoff workbook
 
-Create a dated customer execution record from this workbook; never overwrite the blank template with one customer's outcome. Link the [onboarding workbook](onboarding-workbook.md), [data migration](../data/import-and-migration.md) and [local operating procedure](operating-procedure-template.md).
+Create a dated customer execution record from this workbook; never overwrite the blank template with one customer's outcome. Link the [onboarding workbook](onboarding-workbook.md), [data migration](../data/data-handbook.md#import-and-data-migration-controls) and [local operating procedure](operating-procedure-template.md).
 
 | Gate | Fill in before advancing | Accountable approval |
 |---|---|---|

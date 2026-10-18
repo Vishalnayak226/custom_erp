@@ -5,7 +5,7 @@ package engines
 // screen, no new frontend code" shape engines/traceability_reports.go
 // established for batch - see that file's header for the full reasoning.
 // Both reports here answer the plan's own wording verbatim
-// (docs/specs/wms_parity_plan.md:196-198): "one screen answering 'where is
+// (docs/archive/legacy/wms-parity-plan.md:196-198): "one screen answering 'where is
 // this unit now and everywhere it has been'."
 
 func init() {

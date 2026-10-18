@@ -106,7 +106,7 @@ Jump straight to the thing you're trying to do.
 | Find out which version I am on, to report a problem | §11.1 |
 | **Understand an error message or code** | §12 and **[ERROR_CODES.md](ERROR_CODES.md)** |
 | **Set the whole thing up from scratch and make my first sale** | §13 — the full worked example |
-| Know what my role is allowed to do | **[PERMISSION_MATRIX.md](PERMISSION_MATRIX.md)** |
+| Know what my role is allowed to do | **[PERMISSION_MATRIX.md](../archive/legacy/permission-matrix.md)** |
 
 ---
 
@@ -642,7 +642,7 @@ Each side's state comes from its GSTIN (the first two digits are the state code)
 
 If the banner turns amber and says it **could not work the supply type out**, it names exactly what's missing — usually "this vendor has no GSTIN or state recorded". Two options:
 
-- **Fix the master** (better): add the GSTIN or State to the vendor under **Setup → Vendors**, or to the Legal Entity behind your Location. Every future PO for that vendor then gets it right automatically.
+- **Fix the master** (better): add the GSTIN or State to the vendor under **Procurement → Vendors**, or to the Legal Entity behind your Location. Every future PO for that vendor then gets it right automatically.
 - **Set it by hand** (for this PO only): tick **Inter-state (IGST)** in the banner.
 
 You can also **Override** a derived answer when you know something the master records don't — a bill-to/ship-to split, for instance. Once you override, your choice sticks and later saves won't quietly undo it.
@@ -711,6 +711,8 @@ Together the last two are what a recall needs — the first tells you what to st
 ### 6.4 Asking vendors for quotes (RFQ)
 
 **Procurement → RFQ / Quotes.** Use it when you want prices from several suppliers before you raise a Purchase Order.
+
+**Requisition or RFQ?** A **Purchase Requisition** stays inside your business: a department asks for something (what, how many, an estimated amount) and it is approved. It names no vendor and no price. An **RFQ** goes out to vendors: it asks one or more of them to quote for those goods, and the quote you **Award** becomes the Purchase Order. The usual order is Requisition → RFQ → Purchase Order. When you already know the vendor and price, convert the requisition straight to a Purchase Order and skip the RFQ.
 
 1. **Create the RFQ**: click **+ New RFQ**, choose where the goods go (**Deliver to**), when quotes are due and when you need the goods. Add the **items asked for**, one line each: pick an **Item** (its name fills in) or just describe the thing, its **Unit** (Nos, Roll, kg…) and **Qty**, then **Add line**. **Create RFQ** saves it as **Draft** and opens it under the list. While it is a Draft, **Edit lines** changes the lines.
 2. **Invite vendors**: under **Vendors**, pick each supplier, a **Reply by** date, and **Invite**. Each vendor shows **Invited**, **Responded** (with their quote number) or **Declined** - click **Declined** (with an optional reason) when one says no.
@@ -977,7 +979,7 @@ Moving stock between bins never changes how much you have at the location; a Goo
 
 **Inventory → Sticker Printing.** This is where item labels come from — the small barcode tags that go on the product itself. The screen has four tabs: **Print** (do a print run), **Sticker templates** (decide what a label looks like), **Template rules** (which template each item's label uses — §7A.5) and **Document templates** (how POs, GRNs, transfers and debit / credit notes print — §7B).
 
-> **Before your first print run you need one Printer record.** Setup → Core → **Printer**, Active, one record per physical label printer. Without one, the Printer dropdown on this screen is empty and printing stops with "Select a printer first." (On this screen you always pick the printer yourself, so **Default For** = `Sticker` is not required here — it is what makes the *other* print screens one-click.) Getting labels to come out *silently* — straight to a **TSC (TSPL)** or **Zebra (ZPL)** thermal printer with no browser dialog — is a separate one-time per-PC setup covered in **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)**; the Printer record needs its **Printer Language** (TSPL or ZPL), **Printer DPI** and **OS Printer Name** filled in. Until that is done, printing still works, it just opens the normal browser print dialog (as roll-sized pages or an A4 sticker sheet — §7A.2, *Label tab*).
+> **Before your first print run you need one Printer record.** Setup → Printing → **Printer**, Active, one record per physical label printer. Without one, the Printer dropdown on this screen is empty and printing stops with "Select a printer first." (On this screen you always pick the printer yourself, so **Default For** = `Sticker` is not required here — it is what makes the *other* print screens one-click.) Getting labels to come out *silently* — straight to a **TSC (TSPL)** or **Zebra (ZPL)** thermal printer with no browser dialog — is a separate one-time per-PC setup covered in **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)**; the Printer record needs its **Printer Language** (TSPL or ZPL), **Printer DPI** and **OS Printer Name** filled in. Until that is done, printing still works, it just opens the normal browser print dialog (as roll-sized pages or an A4 sticker sheet — §7A.2, *Label tab*).
 
 ### 7A.1 Print the labels for a GRN or a Transfer Order
 
@@ -1151,7 +1153,7 @@ Good to know:
 
 ### 7B.2 Designing a print template (Document templates)
 
-**Setup → Core → Print Template opens this same screen** — there is one set of document print templates, whichever way you reach it. (A *sticker* template is a different thing: it is the barcode label on the product, made under **Sticker templates**.)
+**Setup → Printing → Print Template opens this same screen** — there is one set of document print templates, whichever way you reach it. (A *sticker* template is a different thing: it is the barcode label on the product, made under **Sticker templates**.)
 
 **Inventory → Sticker Printing → Document templates** lists each transaction — Purchase Order, Vendor PO, Goods Receipt Note, Vendor Copy, Purchase Return, Transfer Out, Transfer In, Debit Note, Credit Note (to vendor), Credit Note (to customer), Sales Return — with its templates and the **Standard layout**. **Customise** starts from the standard layout; **+ New template** does the same for the transaction you pick; **Design** edits, **Duplicate** copies, **Make default** sets the one used when nothing more specific fits, **Delete** removes one.
 
@@ -1167,9 +1169,9 @@ The designer works like the Sticker Studio:
 
 ## 8. Managing Master Data (Vendors, Locations, Brands, and Similar Lists)
 
-"Master data" just means the reference lists everything else points to — your vendors, your locations, your items, and things like brands, colors or sizes. A few of the most-used ones also appear directly in a module (**Vendors** under Procurement, **Customers**, **Campaigns** and **Vouchers** under CRM); those are not repeated in **Setup**, which holds all the others.
+"Master data" just means the reference lists everything else points to — your vendors, your locations, your items, and things like brands, colors or sizes. A few of the most-used ones also appear directly in a module (**Vendors** under Procurement, **Customers**, **Campaigns** and **Vouchers** under CRM, **POS Profiles** under POS, **Bin**, **Dock Doors** and **Trailers** under WMS); those are not repeated in **Setup**, which holds all the others.
 
-The **Setup** menu lists **module names** only (Core, Finance, HR, Inventory, Master Data, OMS, PIM, Sales, WMS and so on): point at one and its reference lists open beside it — a long one in two columns. The technical lists most businesses never touch come last in each module's list, under **Advanced**. The **filter box** at the top searches every list at once: type a few letters and every match is listed under its module, Advanced ones included, so nothing is ever hidden from a search. On a phone, a module's lists open under its row.
+The **Setup** menu lists **module names** only (Core, Finance, HR, Inventory, Master Data, OMS, PIM, Printing, Sales, WMS and so on). **Printing** holds the print setup in one place: **Print Template** (the layouts of PO, GRN, transfer and bill prints), **Sticker Template** (the barcode label) and **Printer**. point at one and its reference lists open beside it — a long one in two columns. The technical lists most businesses never touch come last in each module's list, under **Advanced**. The **filter box** at the top searches every list at once: type a few letters and every match is listed under its module, Advanced ones included, so nothing is ever hidden from a search. On a phone, a module's lists open under its row.
 
 > **Your shop is a Location.** Setup → Core → **Location**, with its **Type** set to Store, Warehouse or HO — this is the record every transaction points at. A Location also holds the shop's **Address, City, Contact Phone** and **Manager**. (Earlier versions had a separate "Stores" list under the Stock menu that nothing else read; it was retired and its fields folded into Location.)
 
@@ -1958,7 +1960,7 @@ Underneath there's a **code** like `GLOBAL-0001` and a **correlation ID**. Look 
 | *"…cannot move from 'X' to 'Y'"* | The document can't jump to that status from where it is. The message lists the statuses it *can* move to. |
 | *"…requires a reason_code"* | You're reversing a decision (revoking an approved leave, un-selecting a vendor quote). Give a reason and it will go through. |
 | *"This sale requires manager approval"* | The discount is over your store's threshold. The sale waits in Approvals; nothing is charged yet. |
-| *"You do not have permission…"* | Your role can't do that. See **[PERMISSION_MATRIX.md](PERMISSION_MATRIX.md)**, then ask an admin. |
+| *"You do not have permission…"* | Your role can't do that. See **[PERMISSION_MATRIX.md](../archive/legacy/permission-matrix.md)**, then ask an admin. |
 | A **Rate Limit** message | The server is protecting itself from too many requests in a short time — from a script, a stuck key, or clicking very fast through many reports or imports. Nothing is broken and nothing was lost. Wait up to a minute and carry on. If you see it during ordinary work, tell your administrator which screen you were on. |
 | *"Too many requests"* | You've run reports faster than the limit allows. The message says how long to wait. |
 

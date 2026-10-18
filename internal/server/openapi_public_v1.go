@@ -242,7 +242,7 @@ func PublicAPIOpenAPISpec() ([]byte, error) {
 				"require an `Idempotency-Key` header, so a retry after a timeout cannot be mistaken for a second request.\n\n" +
 				"Responses carry `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-Quota-Limit` and `X-Quota-Remaining` so a " +
 				"client can pace itself without waiting to be rejected.\n\n" +
-				"Compatibility rules for v1 are in docs/specs/public_api_v1.md.",
+				"Compatibility rules for v1 are in docs/api/public-api-v1.md.",
 		},
 		"servers": []interface{}{
 			map[string]interface{}{"url": "/", "description": "This deployment."},

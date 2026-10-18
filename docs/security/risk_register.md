@@ -366,7 +366,7 @@ and deserved its own reviewed session rather than riding along.
 
 49.0's acceptance requires Stage 47's findings to live in *this* register rather than
 a parallel backlog. They are not restated here — the audit
-(`docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md`) is the evidence and
+(`docs/archive/audits/erp-deep-persona-audit-2026-09-01.md`) is the evidence and
 `docs/micro_checklist.md` Stage 47 is the treatment plan. This table is the index,
 with the misuse case each one corresponds to in threat_model.md §5.
 

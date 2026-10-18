@@ -3,7 +3,7 @@ package engines
 import "sort"
 
 // Stage 47.1.3 - sensitive-field policy (audit findings A-01/A-09,
-// docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md).
+// docs/archive/audits/erp-deep-persona-audit-2026-09-01.md).
 //
 // Before this file, field-level access was purely additive-deny: the
 // field_permissions table (Stage 16.7) holds one row per role/doctype/field

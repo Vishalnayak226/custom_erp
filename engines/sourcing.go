@@ -206,7 +206,7 @@ func singleLocationHighestATS(schema string, items []map[string]interface{}) (st
 // inventory_availability has no per-batch received-date, so updated_at is
 // the closest proxy available today (same "proxy, not a real port" caveat
 // the design note gives Nearest Pincode's own distance calculation, see
-// docs/specs/oms_master_blueprint_reference.md §12).
+// docs/product/research/oms-benchmark.md §12).
 func singleLocationOldestStock(schema string, items []map[string]interface{}) (string, bool, error) {
 	cands, err := qualifyingLocations(schema, items)
 	if err != nil {

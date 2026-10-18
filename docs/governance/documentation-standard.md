@@ -138,12 +138,14 @@ Ordinary articles: 120 KiB raw; KB search index: 250 KiB; embedded KB: 2 MiB; ha
 require an explicit owner decision, never an automatic increase. The full docs tree is
 excluded from production; only intentionally embedded help is shipped.
 
-Before moving a family: settle concurrent edits, capture a recoverable approved baseline,
-map inbound links and unique content, review replacements, update generators/help/portal,
-then validate the family. Preserve deprecated-path stubs for two supported releases.
-Before deleting an explicit file: prove replacement approval, content/evidence retention,
-link migration, transition expiry and release/migration record. No bulk deletion. Audits,
-UAT, incidents, restore drills, decisions and required legal versions are retained.
+Before moving or merging a file: make sure no other session is mid-edit on it, list what
+reads its path (docs, code, CI, generators), move it, rewrite every link, and add a row to
+the "Where did it go?" table in the [archive index](../archive/readme.md). There are no
+redirect stubs; that table is the redirect (Stage 97, 2026-10-19, replacing the stub rule).
+Dated or superseded material moves to `docs/archive/` instead of being deleted. Delete only
+a file the product owner approved by name, such as a byte-identical copy or a preview that
+never took effect. Audits, UAT, incidents, restore drills, decisions and required legal
+versions are retained.
 
 Stage 48.0/48.1 implement the first foundation. Later Stage 48 gates own support approval,
 requirements rebuild, full migration, live walkthroughs and final strict enforcement.

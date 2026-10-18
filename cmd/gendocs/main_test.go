@@ -24,17 +24,14 @@ func TestReferenceOutputsStayUnderExplicitRoot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := 8 + len(kbErrorCodeReference("2026-09-06")) + len(kbReleaseNotes("2026-09-06", "# Ledger\n")); len(files) != want {
+	if want := 7 + len(kbErrorCodeReference("2026-09-06")) + len(kbReleaseNotes("2026-09-06", "# Ledger\n")); len(files) != want {
 		t.Fatalf("got %d outputs, want %d", len(files), want)
 	}
 	out := t.TempDir()
-	if string(files["docs/api/generated/public-v1.json"]) != string(files["docs/specs/openapi_public_v1.json"]) {
-		t.Fatal("OpenAPI compatibility projection diverged")
-	}
 	if err := docgen.Write(out, files); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"docs/guides/ERROR_CODES.md", "docs/kb/reference/report-catalog.md", "docs/specs/openapi_public_v1.json"} {
+	for _, name := range []string{"docs/guides/ERROR_CODES.md", "docs/kb/reference/report-catalog.md", "docs/api/generated/public-v1.json"} {
 		if _, err := os.Stat(filepath.Join(out, filepath.FromSlash(name))); err != nil {
 			t.Fatal(err)
 		}

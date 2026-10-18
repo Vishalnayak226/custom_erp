@@ -9,7 +9,7 @@ import (
 
 // Stage 47.0.1 / audit finding A-03 ("Failed checkout can leave stock posted
 // and can deduct it again on retry" -
-// docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md lines 85-91).
+// docs/archive/audits/erp-deep-persona-audit-2026-09-01.md lines 85-91).
 //
 // Exact mechanism (engines/pos_checkout.go, FinalizePOSCheckout):
 // PostInventoryLedgerWithVoucher commits the availability decrement in its

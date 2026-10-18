@@ -110,7 +110,7 @@ RTO/RPO, retention, legal hold and restore validation require configuration-spec
 
 ## Decisions and changes
 
-Record governing decisions using the [ADR template](../governance/adr-template.md).
+Record governing decisions using the [ADR template](decisions/adr-template.md).
 Existing topology is recorded in [ADR-001](decisions/2026-09-07-existing-topology.md).
 Session/authentication, owner isolation, audit evidence, job execution and dependency exceptions
 need separately reviewed decisions before their irreversible changes. This document cannot

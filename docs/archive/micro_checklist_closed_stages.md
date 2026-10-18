@@ -539,7 +539,7 @@ The user asked (before naming anything) whether reusing standard ERP nomenclatur
 
 ## Stage 30 — Usability & Manual Overhaul ✅ (from the 2026-07-30 layman audit; 30.1/30.2 closed 2026-07-31; 30.3, 30.4, 30.6, 30.7 and 30.8 closed 2026-08-01; **30.5.5 and 30.5.8 closed 2026-08-02 — Stage 30 is now complete**)
 
-Backlog derived from a full end-to-end pass where the manual was read first and the live app driven against it as a first-time user. Full evidence, reproductions and scoring: **[docs/UX_MANUAL_AUDIT.md](../UX_MANUAL_AUDIT.md)**.
+Backlog derived from a full end-to-end pass where the manual was read first and the live app driven against it as a first-time user. Full evidence, reproductions and scoring: **[docs/UX_MANUAL_AUDIT.md](audits/ux-manual-audit.md)**.
 
 **Framing:** the engine tested well (45/46 catalog reports run; maker-checker, GST and the full PO→GRN→stock→sale chain all correct). The failures are concentrated in (a) one POS lookup defect that blocks the flagship flow, (b) a manual that has drifted badly out of date, and (c) empty/unguided dropdowns. Order below is deliberate: 30.1–30.2 first because nothing else matters if a new user can't ring up a sale; 30.3 next because wrong docs cause wrong actions.
 

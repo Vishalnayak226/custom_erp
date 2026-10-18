@@ -120,7 +120,7 @@ def main():
     lines.append("}")
     lines.append("")
     lines.append(f"// errorCatalog holds all {len(entries)} standardized message codes, keyed by")
-    lines.append("// Error Code (e.g. \"GLOBAL-0001\", \"MASTER-0040\"). See docs/specs/message_catalog.md.")
+    lines.append("// Error Code (e.g. \"GLOBAL-0001\", \"MASTER-0040\"). See docs/api/message-catalog.md.")
     lines.append("var errorCatalog = map[string]CatalogEntry{")
     for e in entries:
         lines.append(f"\t{go_str(e['code'])}: {{")

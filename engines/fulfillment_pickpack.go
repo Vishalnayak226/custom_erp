@@ -10,7 +10,7 @@ import (
 // Stage 26.12.3 (OMS Maturity Sprint): splits FulfillmentTask's pick step
 // into distinct, scan-validated Pick and Pack stages on top of the existing
 // single-stage task (Pending -> Rejected/Dispatched, engines/fulfillment.go)
-// - see docs/specs/oms_master_blueprint_reference.md §6/§12. Deliberately
+// - see docs/product/research/oms-benchmark.md §6/§12. Deliberately
 // layered alongside engines/wms.go's GenerateBinPickList rather than merged
 // into it: GenerateBinPickList answers "which bin do I walk to for this
 // SKU" (a warehouse-internal, bin_stock-backed concern that doesn't apply to

@@ -730,7 +730,7 @@
       "id": "docs-memory",
       "lobe": "memory",
       "name": "Project Documentation",
-      "role": "The big 3 (micro_checklist / project_ledger / ai_handover) plus the blueprint, guides, SOPs, specs, architecture notes and runbooks. This is where the project stores what it knows about itself between sessions.",
+      "role": "The big 3 (micro_checklist / project_ledger / ai_handover) plus the guides, SOPs, in-app help, architecture notes, runbooks and the archive of dated and superseded material. docs/README.md is the front door. This is where the project stores what it knows about itself between sessions.",
       "match": [
         "docs/*",
         "internal/kb/*",

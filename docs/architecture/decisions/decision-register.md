@@ -17,7 +17,7 @@ superseded_by: none
 
 # Architecture decision register
 
-New architecture decisions receive a stable ADR ID before implementation. A descriptive record of existing code is not retrospective approval. The [ADR template](../../governance/adr-template.md) records alternatives, consequences, controls, scope and approval reference.
+New architecture decisions receive a stable ADR ID before implementation. A descriptive record of existing code is not retrospective approval. The [ADR template](adr-template.md) records alternatives, consequences, controls, scope and approval reference.
 
 | ID | Decision / current observation | State and next gate |
 |---|---|---|

@@ -18,7 +18,7 @@ import (
 // is the contract, and adding a field to it is a decision.
 //
 // The compatibility rules these obey are written down in
-// docs/specs/public_api_v1.md: fields are never removed or renamed inside v1,
+// docs/api/public-api-v1.md: fields are never removed or renamed inside v1,
 // timestamps are RFC3339 UTC, and identifiers are opaque strings.
 
 // PublicPage is the shared envelope for every list response, so a client writes

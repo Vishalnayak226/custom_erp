@@ -34,4 +34,4 @@ At least quarterly, and after a material navigation change, sample CEO/product, 
 | Finding | Severity, owner, backlog reference, correction and recheck date |
 | Acceptance | Qualified review reference or explicit pending/blocked result |
 
-Sample questions: supported mixed-owner scope; reverse a sale safely; resolve a rejected receipt; revoke a user; reproduce a migration; restore service; map imported masters; assess an audit or privacy claim. Save the dated result in `docs/assurance/` or the approved restricted evidence store. No quarterly human walkthrough has been claimed by creating this procedure.
+Sample questions: supported mixed-owner scope; reverse a sale safely; resolve a rejected receipt; revoke a user; reproduce a migration; restore service; map imported masters; assess an audit or privacy claim. Save the dated result in `docs/archive/audits/` or the approved restricted evidence store. No quarterly human walkthrough has been claimed by creating this procedure.

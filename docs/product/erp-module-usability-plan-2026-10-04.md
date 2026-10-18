@@ -34,7 +34,7 @@ correctness, not visual cleanup. The separate [every-module functional verificat
 is the controlling evidence gate for save/readback, sequences, document lineage, stock/GL
 effects and independent task completion. This screen register cannot close that gate.
 The subsequent “continue building” authorized Phase 55.1 implementation and disposable-data tests;
-that phase is verified in [its browser/Go evidence](../assurance/stage55-shared-correctness-2026-10-04.json).
+that phase is verified in [its browser/Go evidence](../archive/audits/stage55-shared-correctness-2026-10-04.json).
 The remaining phases are planned, not implicitly accepted or complete. Business policy and access
 controls are not relaxed. No commit or deployment.
 Existing Stage 50 BLD/JRN gates remain authoritative; Stage 55 organizes the usability work
@@ -47,9 +47,9 @@ Help must not substitute for safe defaults, and simplicity must not bypass permi
 
 ## Evidence and three perspectives
 
-The [screen register](../assurance/erp-usability-screen-register-2026-10-04.md) enumerates
+The [screen register](../archive/audits/erp-usability-screen-register-2026-10-04.md) enumerates
 every discovered screen and record type, its observation and its implementation phase.
-Machine evidence is [the sanitized browser inventory](../assurance/erp-usability-observations-2026-10-04.json).
+Machine evidence is [the sanitized browser inventory](../archive/audits/erp-usability-observations-2026-10-04.json).
 Those artifacts carry final coverage counts, failures, reruns and source-snapshot qualifications.
 
 One reviewer used three structured lenses, **not three independent human testers**:

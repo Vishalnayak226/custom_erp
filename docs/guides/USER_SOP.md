@@ -657,32 +657,33 @@ A grid of clickable stat cards (Products, Incomplete, Pending approval, Ready to
 
 ## 28. Setup
 
-The **Setup** flyout holds every reference list ("master") the system knows about. It is **built from your own tenant's registered record types**, so what you see is what you actually have — a default tenant has 53 of them. It is not a fixed list, and an administrator can add more (Database Schema Design — see [ADMIN_SOP.md](ADMIN_SOP.md)).
+The **Setup** flyout holds every reference list ("master") the system knows about. It is **built from your own tenant's registered record types**, so what you see is what you actually have. It is not a fixed list, and an administrator can add more (Database Schema Design — see [ADMIN_SOP.md](ADMIN_SOP.md)).
 
 **How it's laid out**
 
-- **Grouped by module**, not one long alphabetical run. In a default tenant that's 14 groups — Core, CRM, Finance, HR, Inventory, Manufacturing, Master Data, OMS, PIM, POS, Procurement, Reports, Sales, Store.
-- **A filter box at the top.** Type any part of a name or module — "vend", "channel", "report" — and the menu narrows as you type. This is the fastest way in once you know roughly what you want.
-- **An "Advanced" divider at the bottom**, collapsed by default, holding the 15 system-internal lists (channel field maps, allocation and status-transition rules, notification templates, robotics credentials, saved report profiles and so on). Click it to expand. **If you filter, matches inside Advanced are shown automatically** — you never have to know something was filed there to find it.
+- **Module names only.** Setup lists the modules (Core, Finance, HR, Inventory, Master Data, OMS, PIM, Printing, Sales, WMS and the rest); point at one and its lists open beside it, a long one in two columns. On a phone a module's lists open under its row.
+- **A filter box at the top.** Type any part of a list's name or its module — "channel", "printing", "wms" — and every match is listed under its module. This is the fastest way in once you know roughly what you want.
+- **Advanced lists come last** in each module's list, under an *Advanced* heading: the system-internal ones (channel field maps, allocation and status-transition rules, notification templates, robotics credentials, saved report profiles and so on). The filter finds them too.
+- **A list with its own menu entry is not repeated here:** Vendors (Procurement), Customers, Campaigns and Vouchers (CRM), POS Profiles (POS), Bin, Dock Doors and Trailers (WMS).
 - You only see lists your role can read, and only the modules your business has licensed.
 
 **The everyday groups, in a default tenant**
 
 | Group | Lists |
 |---|---|
-| **Master Data** | Brand, Color, Model, Size, Style, Batch |
-| **Core** | Location (see §21), Department, Cost Center, Legal Entity |
-| **Sales** | Customer, POS Profile |
+| **Master Data** | Category, Color, Manufacturer Brand, Model, Product Type, Size, Style, UOM, Product Batch, Serial Number |
+| **Core** | Location (see §21), Department, Cost Center, Legal Entity, HSN Code |
+| **Sales** | POS Tender, Price List Version, Salesman, Stored Value Profile, Recurring Sales Contract |
 | **POS** | Offer (the discounts and coupons the till applies — see §3.2) |
-| **Procurement** | Vendor |
-| **Inventory** | Item, Bin, Printer, Carton Type |
+| **Printing** | Print Template, Sticker Template, Printer |
+| **Inventory** | Item, Item Attribute, Item Barcode, Item Type, Item Exception, Reorder Point Config, Backflush Rule |
+| **WMS** | Zone, Hold Code, Carton Type, Pack Station, Putaway Strategy, Allocation Strategy and the other warehouse rules |
 | **HR** | Employee, Shift, Salary Structure, Training Program, Appraisal Cycle |
-| **Finance** | Bank Account, TDS Section |
+| **Finance** | Bank Account, Budget, Currency, Exchange Rate, Project, TDS Section |
 | **Manufacturing** | BOM, Routing, Work Center |
-| **PIM** | Channel, Product Family, Product Attribute Def, Product Attribute Group |
-| **OMS** | Reason Code, Courier Service Area |
-| **CRM** | Campaign, Voucher |
-| **Reports** | Scheduled Report |
+| **PIM** | Channel, Item Name, Product Family, Product Attribute Def, Product Attribute Group and the PIM import / export lists |
+| **OMS** | Product Bundle, Reason Code |
+| **Reports** | Scheduled Report, Dashboard Digest, Dashboard Layout |
 
 > **Note**: earlier versions of this SOP listed **Sub Brands, Sub Styles, Product Categories, Product Types, Item Names, Secondary Colors, Fabric Colors** and **Polishes** here. None of those has ever existed as a record type — they were placeholder entries in the page's HTML that the real menu overwrote on load. They have been removed from the code as well as from this document.
 

@@ -29,7 +29,7 @@ Economic overrides and privileged recovery must preserve the approved separation
 
 ## SEC-003
 
-Release evidence must identify dependencies, vulnerability findings, artifact identity, mitigations, accountable approval and expiry. Scan results without review do not approve a dependency or a release. Use the [secure development workflow](../security/secure-development.md).
+Release evidence must identify dependencies, vulnerability findings, artifact identity, mitigations, accountable approval and expiry. Scan results without review do not approve a dependency or a release. Use the [secure development workflow](../security/secure-development-lifecycle.md#ssdf-practice-mapping-and-release-evidence).
 
 ## DATA-001
 

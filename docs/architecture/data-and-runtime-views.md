@@ -71,4 +71,4 @@ The flow is an operational view, not a claim that every step forms one transacti
 
 ## Job execution and recovery
 
-Requests enqueue durable work where the job/outbox framework is used; in-process workers claim and execute it, record results and retry according to the registered handler. The application and PostgreSQL remain the deployment units. An extension or new handler needs the same cancellation, scoping, delivery-mode and reconciliation review. See [job/outbox operations](../operations/jobs-and-outbox.md) and [decision register](decisions/decision-register.md).
+Requests enqueue durable work where the job/outbox framework is used; in-process workers claim and execute it, record results and retry according to the registered handler. The application and PostgreSQL remain the deployment units. An extension or new handler needs the same cancellation, scoping, delivery-mode and reconciliation review. See [job/outbox operations](../operations/service-operations.md#job-and-outbox-recovery) and [decision register](decisions/decision-register.md).

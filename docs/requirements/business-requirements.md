@@ -17,7 +17,7 @@ superseded_by: none
 
 # Business requirements
 
-This draft separates business needs from implementation status. The [legacy BRD](BRD.md)
+This draft separates business needs from implementation status. The [legacy BRD](../archive/legacy/brd.md)
 remains available for provenance and unique-content mapping. Product/process approval is
 pending; these requirements do not establish current support.
 

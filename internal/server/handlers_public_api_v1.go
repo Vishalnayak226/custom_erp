@@ -27,7 +27,7 @@ func publicPagingParams(r *http.Request) (limit, offset int) {
 
 // writePublicError keeps the public surface on the same error envelope as the
 // rest of the platform (error/code/correlation_id/retryable), which is what
-// docs/specs/public_api_v1.md promises integrators.
+// docs/api/public-api-v1.md promises integrators.
 func writePublicError(w http.ResponseWriter, r *http.Request, err error) {
 	if err == engines.ErrPublicNotFound {
 		writeAPIErrorGeneric(w, r, http.StatusNotFound, "No such resource.")

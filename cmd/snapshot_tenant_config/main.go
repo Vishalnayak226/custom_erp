@@ -21,8 +21,8 @@
 //
 // Usage:
 //
-//	go run ./cmd/snapshot_tenant_config -out docs/audits/tenant_snapshots/pre-47.1-migration
-//	go run ./cmd/snapshot_tenant_config -out docs/audits/tenant_snapshots/post-47.1-migration
+//	go run ./cmd/snapshot_tenant_config -out docs/archive/audits/tenant_snapshots/pre-47.1-migration
+//	go run ./cmd/snapshot_tenant_config -out docs/archive/audits/tenant_snapshots/post-47.1-migration
 //
 // Connects via DATABASE_URL exactly like every other cmd/ tool in this repo
 // (see db.ConnStringFromEnv) - falls back to the standard local dev Postgres
@@ -491,7 +491,7 @@ func safeFilename(tenantID string) string {
 }
 
 func main() {
-	out := flag.String("out", "docs/audits/tenant_snapshots/manual", "Output directory for one <tenant_id>.json per tenant plus MANIFEST.json.")
+	out := flag.String("out", "docs/archive/audits/tenant_snapshots/manual", "Output directory for one <tenant_id>.json per tenant plus MANIFEST.json.")
 	flag.Parse()
 
 	db.InitDB(db.ConnStringFromEnv())

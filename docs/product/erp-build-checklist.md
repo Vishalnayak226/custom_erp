@@ -20,7 +20,7 @@ format: work-register
 # ERP maturity build and acceptance checklist
 
 This is the execution detail for [Stage 50 in the live TODO](../micro_checklist.md#stage-50--independent-erp-maturity-audit-2026-09-16-audit-executed-remediation-open).
-It turns the [independent audit](../assurance/erp-independent-audit-2026-09-16.md),
+It turns the [independent audit](../archive/audits/erp-independent-audit-2026-09-16.md),
 [136-control review](../qa/erp-maturity-checklist.md) and
 [module, SaaS, UI and performance roadmap](erp-maturity-roadmap-2026-09-16.md)
 into buildable work with dependencies and closure evidence. The live TODO retains the
@@ -1536,7 +1536,7 @@ promise to perform every ERP domain serially or a mandate to split the service i
   -ldflags="-s -w"` builds, all three byte-identical (SHA-256
   `972d8b41ab11316a952dd6b83b2c2bece701ac04208736ed94f1b04f370621c6`, 16,990,368 bytes, 35% under
   the 25 MiB limit), with byte-identical reports. Units documented in the report's own `units` field
-  and in `docs/assurance/release-budget-evidence-2026-10-04.md`. **Found and corrected a gate that
+  and in `docs/archive/audits/release-budget-evidence-2026-10-04.md`. **Found and corrected a gate that
   read as breached when it was not**: the startup-JS metric counted `view-pos.js` toward "initial
   core JS", but that module loads only after authentication and a route-entitlement check — not
   initial by construction, and BLD-041's own 100.3 KiB baseline measured the shell without it. Split
@@ -1644,7 +1644,7 @@ promise to perform every ERP domain serially or a mandate to split the service i
   **Done:** strict lint and clean-checkout generated checks pass, brain coverage is complete,
   three safety rounds prove read-only checks and recoverable failures. Sources: MC-129–131, 48.0/48.8/48.11, 50.6a/50.9.
   — *2026-10-03: archived the full prior 145 KB handover content at
-  `docs/archive/ai-handover-2026-10-03.txt` (assigning a unique archive ID) and replaced the live
+  `docs/archive/handovers/ai-handover-2026-10-03.txt` (assigning a unique archive ID) and replaced the live
   handover with a concise operational index. Registered the seven security documents and other
   newly inventoried artifacts; refreshed the 320-entry generated register. Work-register byte
   exemptions are explicit and limited to the two canonical checklists. Portable-path cleanup is
@@ -1655,7 +1655,7 @@ promise to perform every ERP domain serially or a mandate to split the service i
   run. `go run ./cmd/doclint -strict` reports **0 findings across 322 files**: the eight recorded
   lint findings and the seven unregistered security documents are genuinely resolved, and the live
   handover is 82 lines with its full prior content preserved verbatim at
-  `docs/archive/ai-handover-2026-10-03.txt` (nothing deleted, a distinct archive document id).
+  `docs/archive/handovers/ai-handover-2026-10-03.txt` (nothing deleted, a distinct archive document id).
   **Three safety rounds**: `docs/` hashed over 245 files before and after three consecutive
   strict-plus-JSON passes — byte-identical every time, so the checks are read-only in fact and
   not only by intent. **Recoverable-failure rounds**: a missing root, an unreadable register and an
@@ -1802,7 +1802,7 @@ Where only a subset is approved, record that scope before executing; do not sile
 ## Stage 55 — UI audit follow-through (2026-10-04)
 
 [Every-module plan](erp-module-usability-plan-2026-10-04.md) and
-[screen register](../assurance/erp-usability-screen-register-2026-10-04.md) map the live UI to 22
+[screen register](../archive/audits/erp-usability-screen-register-2026-10-04.md) map the live UI to 22
 phases without replacing BLD/JRN acceptance. 56 routes, 199 record types, 70 tab/config panels and
 92 report parameter screens inspected; no transaction or real-user acceptance inferred.
 The user's clarified bar is [functional ERP verification](erp-functional-verification-plan-2026-10-04.md):
@@ -1816,7 +1816,7 @@ independently completed task in every applicable module. The screen audit does n
   functional matrix. No screen-only or unsubmitted-form result counts as functional acceptance.
   **2026-10-05 UI execution is partial, not Done:** an isolated tenant proved ten master saves,
   requisition, manager-approved PO, partial GRN, vendor-invoice mismatch, transfer-approval 405,
-  and one idempotent OMS order; see [functional audit](../assurance/erp-functional-audit-2026-10-05.md).
+  and one idempotent OMS order; see [functional audit](../archive/audits/erp-functional-audit-2026-10-05.md).
   The user requested audit/plan today and bug fixes after ERP build completion; six repair
   findings are recorded there, but the remaining modules and 199-type matrix are still open.
   The next finance review has **two distinct open lenses**: Account Head (books, controls and
@@ -1825,7 +1825,7 @@ independently completed task in every applicable module. The screen audit does n
 - [x] **55.1 Shared correctness.** UX-001/002/003/008-focus/009: actual New/Edit click paths,
   seven cold HR/Mfg tabs, all 54 secondary panels, Wave character preservation at phone width,
   modal focus/Tab containment and supported Users reset path. Twenty Chromium checks including
-  real Department create/edit and restricted-role denial passed. [Evidence](../assurance/stage55-shared-correctness-2026-10-04.json).
+  real Department create/edit and restricted-role denial passed. [Evidence](../archive/audits/stage55-shared-correctness-2026-10-04.json).
   The full Go suite retains one pre-existing stale audit-checkpoint failure (ledger §193); no
   conditional-print or performance gate is closed here.
 - [ ] **55.2–55.21 Domain execution.** Full per-phase microitems and Done bars are in the linked plan

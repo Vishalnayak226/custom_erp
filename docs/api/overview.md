@@ -18,7 +18,7 @@ superseded_by: none
 # API and extension reference
 
 Use [generated OpenAPI](generated/public-v1.json) for the machine contract and the
-[public API guide](../specs/public_api_v1.md) for its boundary. A scope being defined does
+[public API guide](public-api-v1.md) for its boundary. A scope being defined does
 not mean a corresponding endpoint ships. Private application routes are not public
 integration contracts.
 
@@ -39,7 +39,7 @@ Verify credentials/scopes and signature/replay requirements for that exact integ
 private application routes do not inherit the public API contract. A queued job or accepted
 HTTP response is not confirmation of an external business effect. Retain the command/job
 reference, observe its terminal result and reconcile provider state before retrying an
-uncertain delivery. See [job/outbox recovery](../operations/jobs-and-outbox.md).
+uncertain delivery. See [job/outbox recovery](../operations/service-operations.md#job-and-outbox-recovery).
 
 ## Changes and compatibility
 

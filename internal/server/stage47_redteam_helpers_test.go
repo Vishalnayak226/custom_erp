@@ -3,7 +3,7 @@
 package server
 
 // Stage 47.0.1 - red-team regression/abuse scenarios for audit findings A-01
-// through A-07 (docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md, lines
+// through A-07 (docs/archive/audits/erp-deep-persona-audit-2026-09-01.md, lines
 // 63-132; tracked at docs/micro_checklist.md Stage 47, item 47.0.1).
 //
 // HOW TO RUN:

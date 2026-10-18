@@ -125,6 +125,6 @@ func registerPublicAPIV1Routes() {
 	http.HandleFunc(publicAPIPathPrefix, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		writeAPIErrorGeneric(w, r, http.StatusNotFound,
-			"No such public API endpoint. See docs/specs/public_api_v1.md for the endpoints available in v1.")
+			"No such public API endpoint. See docs/api/public-api-v1.md for the endpoints available in v1.")
 	})
 }

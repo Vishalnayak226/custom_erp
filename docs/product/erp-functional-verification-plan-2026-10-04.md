@@ -21,11 +21,11 @@ format: work-register
 
 ## Scope correction and honest baseline
 
-The [Stage 55 screen audit](../assurance/erp-usability-screen-register-2026-10-04.md)
+The [Stage 55 screen audit](../archive/audits/erp-usability-screen-register-2026-10-04.md)
 is **not** an end-to-end functional audit. It opened 56 routes, 198 generic New dialogs,
 54 tab panels, 16 configuration panels and 92 report parameter forms. It did **not** save
 one example of each of 199 record types, reconcile their effects or prove every workflow.
-The [2026-10-05 first operational UI run](../assurance/erp-functional-audit-2026-10-05.md)
+The [2026-10-05 first operational UI run](../archive/audits/erp-functional-audit-2026-10-05.md)
 adds actual master-to-procurement and OMS transactions, but finds AP, transfer and fulfillment
 blockers and is also **not** an every-module acceptance result. Its six findings are the first
 repair queue; the user asked to defer those fixes until ERP build completion.

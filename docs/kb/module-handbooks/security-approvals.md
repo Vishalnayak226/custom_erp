@@ -116,7 +116,7 @@ table for exactly that reason.
 Since Stage 30.5.7 the app also *hides* what a role cannot do, not just
 blocks it after the fact: no **New** or **Bulk Import** button appears
 without create rights, no row-level **Edit**/**Delete** icon appears without
-update/delete rights. So `docs/guides/PERMISSION_MATRIX.md` — generated
+update/delete rights. So `docs/archive/legacy/permission-matrix.md` — generated
 directly from the live `role_permissions` table via
 `go run ./cmd/gendocs -db "postgres://..."`, not hand-maintained — doubles
 as a prediction of what each role's screens actually show, not just what the

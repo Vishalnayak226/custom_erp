@@ -93,8 +93,8 @@ anywhere in the docs tree.
 - "Tenant size" appears only as a **capacity-planning/forecast dimension** (47.18.2, 49.18.7 —
   "daily/monthly volume by tenant size"), never as a commercial or acceptance tier.
 - Aspirational positioning language ("SMB/mid-market", benchmarked against Dynamics 365
-  Business Central and Infor WMS 11.5) exists in `docs/specs/parity_master_plan.md` and
-  `docs/specs/wms_parity_plan.md` — not a shipped tier, not a test configuration.
+  Business Central and Infor WMS 11.5) exists in `docs/archive/legacy/parity-master-plan.md` and
+  `docs/archive/legacy/wms-parity-plan.md` — not a shipped tier, not a test configuration.
 - Twelve open SaaS-packaging decisions (`PKG-01..12`) exist, including PKG-06 (commercial
   subscription model) — none define a size tier; all are open decisions, not built features.
 - **Reading:** "tenant size" cannot be named as a reference-customer dimension today beyond
@@ -132,7 +132,7 @@ for either candidate yet.
   role" as the unit of authorization testing.
 - **Reading:** 12 is the canonical current role set for any pairwise role/device/locale matrix
   (BLD-020) built against these candidates; legacy 3-4-role naming (Super Admin/Store
-  Manager/Cashier/Supplier, `docs/guides/PERMISSION_MATRIX.md`) is the pre-rebuild set and
+  Manager/Cashier/Supplier, `docs/archive/legacy/permission-matrix.md`) is the pre-rebuild set and
   should not be re-cited as current without noting the mapping.
 
 ## 7. Reconciliation of Stage 20/26/31/34/35–39/47–49 open items
