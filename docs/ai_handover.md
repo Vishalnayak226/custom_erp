@@ -128,6 +128,12 @@ for checking the current source and worktree.
 - **2026-10-18 Release of every entry below that says "NOT COMMITTED" (Stage 73 batches A-D + continuation,
   Stages 76, 78-82, 83.1, 71.8, the 73 pending reconciliation) in one commit, pushed and deployed.** This supersedes
   those tags. Ledger §238; checklist 73.R and 84.7-84.9.
+  - **Shipped:** `840909b`, pushed (`31fb485..840909b`; origin now has 0845470 / 0f2e6e1 too). Deployed from a
+    clean LF worktree: DEPLOY-OK, 32 migrations, `[sync] tenant_minn` 19 doctype_fields, no warnings. Rollback
+    `/opt/erp/rollback_20261018_044446`, backup `custom_erp_20261018T044446Z.dump.enc` (sha256 OK). Both hosts
+    report 840909b, `app.js` hash = commit, `public` erp:erp 755. Disk 69%, 3.0G free (9 rollback dirs).
+  - **Within an hour of deploy:** the depreciation job's first run back-posts every ended month of every
+    capitalised asset (user OK'd). Campaigns now reach only customers with recorded consent (55.17a).
   - **Gates:** a fresh DB `custom_erp_rel20261018` (5490) took all 229 migrations from zero. The full `go test -p 1`
     passed except 84.7's three from-zero `Stores` tests, which pass on `custom_erp`. Release budget OK, surface
     `-check` current (617 routes), brain 100%.

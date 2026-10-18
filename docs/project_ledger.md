@@ -48,10 +48,11 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 
 At the user's *"if all task done, push all and deploy all to minn and app"*. This supersedes the "NOT COMMITTED" tags on §229-237. Full detail in `micro_checklist.md` 73.R and 84.7-84.9.
 
-- **Gates on the combined tree:** build and vet clean. A from-zero database took all 229 migrations (33 new). The full `go test -p 1` passed except three from-zero-only `Stores` failures (84.7, pre-existing). Release budget inside every cap; attack surface current; brain 100%.
+- **Gates on the combined tree:** build and vet clean. A from-zero database took all 229 migrations (32 new; the commit message says 33, which is wrong). The full `go test -p 1` passed except three from-zero-only `Stores` failures (84.7, pre-existing). Release budget inside every cap; attack surface current; brain 100%.
 - **Fixed at release:** the KB error-code article (447 codes) was over the 120 KiB article cap, so gendocs now continues it on further pages; five location-scoped doctypes added to the scope registry; one reviewed bypass entry; attack surface regenerated (617 routes). The scanner had never seen the OAuth token endpoint; it now does, and the endpoint was reviewed. Duplicate error-code numbers renumbered (73.C.6); Stage 59 archived.
 - **Not changed:** the capability register's expired review dates, which have kept CI red since 2026-10-09 (84.8, owner review).
 - **User decisions at release:** the depreciation catch-up on production is fine; no live import schedule needs an owner first.
+- **Shipped:** `840909b`, pushed (origin had been at `31fb485`) and deployed with DEPLOY-OK and 32 migrations. app.wholeops.in and minn.wholeops.in both serve it (73.R.4).
 
 ## 237. Stage 82 — The industry is chosen in Configuration, by the org's admin only (2026-10-18, code + docs, NOT COMMITTED)
 
