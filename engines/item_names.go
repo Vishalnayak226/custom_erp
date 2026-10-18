@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"time"
 )
 
 // Stage 65.3/65.4 (user, 2026-10-16): a design in the PO hangs off an item
@@ -15,43 +14,8 @@ import (
 // and GST every design under it inherits, so they are typed once. Its
 // variants come from the PIM attributes, which the PO may now extend inline.
 
-// serverNumberedMasters are the masters numbered on the server when created
-// with no code - from inside the PO a buyer creates them inline, and the
-// master-code endpoint the master screens use is admin-only. Each draws from
-// its own prefix_configs row (doc_type = the doctype).
-var serverNumberedMasters = map[string]bool{
-	"ProductFamily": true,
-	"Category":      true,
-	"ProductType":   true,
-	"ItemName":      true,
-}
-
-// IsServerNumberedMaster reports whether PrepareMasterNumber numbers doctype.
-func IsServerNumberedMaster(doctype string) bool { return serverNumberedMasters[doctype] }
-
-// PrepareMasterNumber numbers a new master of one of those types that arrives
-// with no code. A code the caller typed, or an explicit id (the API's upsert
-// form), is kept.
-func PrepareMasterNumber(tenantID, location, doctype string, isCreate bool, payload map[string]interface{}) error {
-	if !serverNumberedMasters[doctype] || !isCreate ||
-		strings.TrimSpace(strField(payload, "code")) != "" || strings.TrimSpace(strField(payload, "id")) != "" {
-		return nil
-	}
-	store := strings.TrimSpace(location)
-	if store == "" {
-		store = "HQ"
-	}
-	code, err := GenerateSequence(tenantID, doctype, store, documentFinancialYear(time.Now()))
-	if err != nil {
-		if verr, ok := err.(*ValidationError); ok {
-			return verr
-		}
-		return fmt.Errorf("could not number the new %s: %v", doctype, err)
-	}
-	payload["code"] = code
-	payload["id"] = code
-	return nil
-}
+// Masters created inline from the PO are numbered by PrepareMasterNumber
+// (engines/master_codes.go), like every other master since Stage 76.5.
 
 // PrepareItemNameFields fills what the user should not have to type twice:
 // an ItemName with no name is named "<Category> <Product Type>", and a design
@@ -154,6 +118,11 @@ func AddDesignAttributeValue(tenantID, userID, code, label, value string) (Desig
 	if err == sql.ErrNoRows {
 		if label == "" {
 			return DesignAttribute{}, &ValidationError{Code: "PIM-0321", Message: fmt.Sprintf("There is no product attribute %q.", code)}
+		}
+		// Stage 81: once the operator has set this client's attributes up from
+		// the library, a PO adds values to them but never a new attribute.
+		if TenantHasLibraryAttributes(tenantID) {
+			return DesignAttribute{}, &ValidationError{Code: "PIM-0691", Message: fmt.Sprintf("%q is not one of your product attributes. Pick one of the attributes shown, or ask your administrator to add it under PIM -> Attribute Definitions.", label)}
 		}
 		newCode := strings.ToUpper(strings.Trim(attributeCodeRE.ReplaceAllString(label, "_"), "_"))
 		if newCode == "" {

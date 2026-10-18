@@ -4,6 +4,7 @@ import (
 	"custom_erp/engines"
 	"encoding/json"
 	"net/http"
+	"strconv"
 )
 
 // Stage 26.7: Voucher redemption + loyalty tier rules admin. A new file
@@ -115,20 +116,28 @@ func handleLoyaltyTierRules(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = json.NewEncoder(w).Encode(rules)
 	case http.MethodPost:
-		var req struct {
-			Tier           string  `json:"tier"`
-			MinSpend       float64 `json:"min_spend"`
-			EarnMultiplier float64 `json:"earn_multiplier"`
-		}
+		// Stage 73.3.1: benefits and grace days too, from the Loyalty screen.
+		var req engines.LoyaltyTierRule
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Tier == "" {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'tier' is required")
 			return
 		}
-		if err := engines.UpsertLoyaltyTierRule(tenantID, req.Tier, req.MinSpend, req.EarnMultiplier); err != nil {
+		if err := engines.SaveLoyaltyTierRule(tenantID, req); err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{"tier": req.Tier, "status": "saved"})
+	case http.MethodDelete:
+		id, errID := strconv.Atoi(r.URL.Query().Get("id"))
+		if errID != nil {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameter 'id' is required")
+			return
+		}
+		if err := engines.DeleteLoyaltyTierRule(tenantID, id); err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"id": id, "status": "deleted"})
 	default:
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 	}

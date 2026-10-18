@@ -82,6 +82,23 @@ export function renderPOSReturnPanel(panel) {
   });
   document.getElementById('pos-return-submit-btn').addEventListener('click', submitPOSReturn);
 
+  // Stage 55.5: a return is taken where the till is. The Return Location
+  // follows the till's store whenever that is set and this box is still
+  // blank, so a cashier is not asked again for the store they opened the
+  // session at. It stays a picker - a return for another store can still be
+  // keyed.
+  const tillStore = document.getElementById('pos-location');
+  const followTillStore = () => {
+    const hidden = document.getElementById('pos-return-location');
+    const display = document.getElementById('pos-return-location-display');
+    if (!tillStore || !hidden || !display || hidden.value.trim() || !tillStore.value.trim()) return;
+    hidden.value = tillStore.value.trim();
+    display.value = (document.getElementById('pos-location-display') || {}).value || hidden.value;
+    display.dataset.resolved = '1';
+  };
+  if (tillStore) tillStore.addEventListener('change', followTillStore);
+  followTillStore();
+
   renderPOSReturnTable();
 }
 
@@ -226,11 +243,68 @@ async function submitPOSReturnInner() {
   posReturnEligibility = null;
   document.getElementById('pos-return-order-id').value = '';
   renderPOSReturnTable();
-  await showCustomAlert(
-    data.replayed
-      ? `This return was already raised as ${data.return_request_id}. Nothing was duplicated.`
-      : `Return ${data.return_request_id} raised. It now needs approval, then the goods received and inspected before any refund is paid.`,
+  if (data.replayed) {
+    await showCustomAlert(`This return was already raised as ${data.return_request_id}. Nothing was duplicated.`, 'Return Raised');
+    return;
+  }
+  // Stage 55.5: say what the customer gets back and where the return goes
+  // next, and offer to take the cashier there.
+  const back = await describeReturnRefund(data.return_request_id);
+  const open = await showCustomConfirm(
+    `Return ${data.return_request_id} raised.${back ? ` When it is refunded the customer gets back ${back}.` : ''}` +
+    ' Next, on Returns: Approve, Receive Goods, Inspect, then Refund - no refund is paid until the goods have been inspected. Open Returns now?',
     'Return Raised');
+  if (open) renderView('returns');
+}
+
+// defaultPOSStore (Stage 55.5): a cashier signed in at a store finds the till
+// already on it, instead of having to search for their own store before they
+// can open a session. Only the signed-in user's own location (the token's loc
+// claim, as the screen's context line shows it), and only when it is a
+// sellable store - the Store picker's own filter (Stage 53.3) - so an admin
+// signed in at HO still picks one. Applied exactly as a pick is: the hidden
+// code, the name shown, then the change event the till listens for.
+export async function defaultPOSStore() {
+  let loc = '';
+  try {
+    loc = new URLSearchParams(atob((localStorage.getItem('erp_token') || '').split('.')[0].replace(/-/g, '+').replace(/_/g, '/'))).get('loc') || '';
+  } catch (_) { return; }
+  if (!loc) return;
+  const res = await apiFetch(`/api/v1/doc/Location?q=${encodeURIComponent(loc)}&limit=10&sellable=Yes`).catch(() => null);
+  if (!res || !res.ok) return;
+  const rows = await res.json().catch(() => []);
+  const store = (rows || []).find(d => String(d.code || d.id || '').toLowerCase() === loc.toLowerCase());
+  const hidden = document.getElementById('pos-location');
+  const display = document.getElementById('pos-location-display');
+  if (!store || !hidden || !display || hidden.value.trim()) return;
+  hidden.value = store.code || store.id;
+  display.value = store.name || hidden.value;
+  display.dataset.resolved = '1';
+  hidden.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+// describeReturnRefund reads the return just raised: its lines carry their
+// share of what the bill was paid with (Stage 73.1.1), so the cashier can tell
+// the customer "Cash 900.00 and 270 points" before anything is approved.
+async function describeReturnRefund(returnID) {
+  const res = await apiFetch(`/api/v1/doc/ReturnRequest/${encodeURIComponent(returnID)}`).catch(() => null);
+  if (!res || !res.ok) return '';
+  const doc = await res.json().catch(() => null);
+  const tenders = {};
+  let points = 0;
+  let plain = 0;
+  (Array.isArray(doc?.items) ? doc.items : []).forEach(it => {
+    if (it.tenders) {
+      Object.entries(it.tenders).forEach(([k, v]) => { if (k !== 'Loyalty Points') tenders[k] = (tenders[k] || 0) + Number(v || 0); });
+    } else {
+      plain += Number(it.original_unit_price || 0) * Number(it.qty || 0);
+    }
+    points += Number(it.points || 0);
+  });
+  const parts = Object.keys(tenders).filter(k => tenders[k] > 0).sort().map(k => `${k} ${(tenders[k] / 100).toFixed(2)}`);
+  if (plain > 0) parts.push(plain.toFixed(2));
+  if (points > 0) parts.push(`${points} points`);
+  return parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1] : parts.join('');
 }
 
 // The quantity box in the Return table calls this through the data-act
@@ -253,10 +327,21 @@ export async function quickAddPOSCustomer() {
   }
   const phone = await showCustomPrompt(`Phone number for ${name.trim()}? (optional)`, '', 'New Customer');
   if (phone === null) return;
+  // Stage 55.17a: no consent, no SMS / WhatsApp offers. Ask, with both
+  // unticked; Cancel here records no consent (the customer is still added).
+  // The save stamps when and by whom.
+  let consent = { sms: false, whatsapp: false };
+  if (phone.trim()) {
+    consent = await posFormDialog('New Customer', `Has ${name.trim()} agreed to receive offers? Tick only what they agreed to.`,
+      `<label style="display:flex; gap:8px; align-items:center; margin:6px 0;"><input type="checkbox" data-consent="sms"> Offers by SMS</label>
+       <label style="display:flex; gap:8px; align-items:center; margin:6px 0;"><input type="checkbox" data-consent="whatsapp"> Offers by WhatsApp</label>`,
+      el => ({ sms: el.querySelector('[data-consent="sms"]').checked, whatsapp: el.querySelector('[data-consent="whatsapp"]').checked }))
+      || { sms: false, whatsapp: false };
+  }
 
   const res = await apiFetch('/api/v1/doc/Customer', {
     method: 'POST',
-    body: JSON.stringify({ name: name.trim(), phone: phone.trim(), status: 'Active' })
+    body: JSON.stringify({ name: name.trim(), phone: phone.trim(), status: 'Active', consent_sms: consent.sms, consent_whatsapp: consent.whatsapp })
   });
   if (!res) return;
   if (!res.ok) {
@@ -290,14 +375,30 @@ export async function checkPOSLoyaltyBalance() {
     infoEl.textContent = 'Search for the customer by name or phone first, or add them with + New Customer.';
     return;
   }
-  const res = await apiFetch(`/api/v1/loyalty/ledger?customer_id=${encodeURIComponent(customerId)}`);
+  // Stage 73.3.2: the customer on the bill, not just a balance - points and
+  // their value, tier and what it gives, the way to the next tier, recent
+  // bills and returns, and the vouchers they can use now.
+  const res = await apiFetch(`/api/v1/pos/customer-context?customer_id=${encodeURIComponent(customerId)}`);
   if (!res) return;
   if (!res.ok) {
-    infoEl.textContent = 'Failed to look up loyalty balance.';
+    infoEl.textContent = 'Failed to look up the customer.';
     return;
   }
-  const data = await res.json();
-  infoEl.textContent = `${customerId} has ${data.balance} loyalty point(s).`;
+  const c = await res.json();
+  infoEl.textContent = `${c.name || customerId} has ${c.balance} loyalty point(s) (worth ${Number(c.points_value).toFixed(2)}).`;
+  const money = n => Number(n || 0).toFixed(2);
+  const section = (title, rows, empty) => `<h4 style="margin:12px 0 4px; font-size:13px;">${title}</h4>${rows.length ? '<ul style="margin:0; padding-left:18px; font-size:13px;">' + rows.map(r => `<li>${r}</li>`).join('') + '</ul>' : `<div class="txn-hint">${empty}</div>`}`;
+  const html = `<div style="font-size:13px; margin-top:8px;">
+      <div><strong>${cfgEsc(c.name || customerId)}</strong>${c.phone ? ` &middot; ${cfgEsc(c.phone)}` : ''}</div>
+      <div>Points: <strong>${c.balance}</strong> (worth ${money(c.points_value)})${c.balance < 0 ? ' - negative after a return; new purchases pay it back' : ''}</div>
+      <div>Tier: <strong>${cfgEsc(c.tier || 'none yet')}</strong>${c.benefits ? ` - ${cfgEsc(c.benefits)}` : ''}</div>
+      <div>Offers: ${c.consent_sms || c.consent_whatsapp ? `agreed by ${[c.consent_sms ? 'SMS' : '', c.consent_whatsapp ? 'WhatsApp' : ''].filter(Boolean).join(' and ')}` : 'not agreed - no SMS or WhatsApp offers are sent'}</div>
+      <div>${c.next_tier ? `${money(c.to_next_tier)} more to ${cfgEsc(c.next_tier)}` : 'At the top tier'} (spend counted: ${money(c.spend)})${c.below_tier_since ? ` &middot; below this tier since ${cfgEsc(c.below_tier_since)}` : ''}</div>
+    </div>`
+    + section('Vouchers they can use now (type the code in Coupon code)', (c.vouchers || []).map(v => `<strong>${cfgEsc(v.code)}</strong> - ${cfgEsc(v.offer)}${v.expires ? `, until ${cfgEsc(v.expires)}` : ''}${v.uses_left ? `, ${v.uses_left} use(s) left` : ''}`), 'None issued to this customer.')
+    + section('Recent bills', (c.recent_bills || []).map(b => `${cfgEsc(b.date)} &middot; ${cfgEsc(b.cart_number)} &middot; ${money(b.amount)} (${b.lines} line${b.lines === 1 ? '' : 's'})`), 'No bills yet.')
+    + section('Recent returns', (c.recent_returns || []).map(r => `${cfgEsc(r.date)} &middot; ${cfgEsc(r.id)} against ${cfgEsc(r.bill)} &middot; ${cfgEsc(r.status)}${r.refund ? ` &middot; ${money(r.refund)}` : ''}`), 'No returns.');
+  await posFormDialog('Customer', '', html, () => true);
 }
 
 export async function redeemPOSLoyaltyPoints(t) {
@@ -313,44 +414,237 @@ export async function redeemPOSLoyaltyPoints(t) {
     return;
   }
 
-  // Check the balance first so the cashier is told "you have N" rather than
-  // finding out at the till.
-  const balRes = await apiFetch(`/api/v1/loyalty/ledger?customer_id=${encodeURIComponent(customerId)}`);
-  if (!balRes) return;
-  if (!balRes.ok) {
-    infoEl.textContent = 'Failed to look up loyalty balance.';
+  // Stage 73.1.5: the server prices points - the balance, what one point is
+  // worth and the most this bill can take all come from the quote, so the
+  // till never assumes 1 point = 1.
+  till.redeemPoints = 0;
+  till.auth = {};
+  await till.quote();
+  const l = till.loyalty;
+  if (!l) {
+    infoEl.textContent = 'Could not price points for this customer - check the connection and try again.';
     return;
   }
-  const balance = (await balRes.json()).balance || 0;
-  if (balance <= 0) {
-    infoEl.textContent = `${customerId} has no loyalty points to redeem.`;
+  if (l.max_points <= 0) {
+    infoEl.textContent = l.balance > 0 ? `${customerId} has ${l.balance} point(s), but none can be used on this bill.` : `${customerId} has no loyalty points to redeem.`;
     return;
   }
-
-  const cartTotal = posCart.reduce((sum, line) => sum + line.qty * line.salePrice, 0);
-  const pointsStr = await showCustomPrompt(`How many points to redeem? ${customerId} has ${balance}. 1 point = 1 off this sale.`);
+  const pointsStr = await showCustomPrompt(`How many points to redeem? ${customerId} has ${l.balance}; 1 point = ${l.value_per_point} off. This bill can take up to ${l.max_points}.`);
   const points = parseInt(pointsStr, 10);
   if (!points || points <= 0) return;
-  if (points > balance) {
-    infoEl.textContent = `${customerId} only has ${balance} point(s).`;
+  if (points > l.max_points) {
+    infoEl.textContent = `This bill can take at most ${l.max_points} point(s).`;
     return;
   }
-  if (points > cartTotal) {
-    infoEl.textContent = `This sale is only ${cartTotal.toFixed(2)} - redeem at most ${Math.floor(cartTotal)} point(s).`;
-    return;
+  till.redeemPoints = points;
+  await till.quote();
+  const q = till.loyalty || {};
+
+  // Stage 73.1.4: the controls - the customer's one-time code, and a manager's
+  // approval above the approval value. Both are bound to this cart; the sale
+  // spends them, and the server checks them again when the points burn.
+  if (q.needs_otp || q.needs_approval) {
+    let reason = '';
+    if (q.needs_approval) {
+      reason = await pickLoyaltyReason(q);
+      if (reason === null) { till.redeemPoints = 0; till.renderCart(); return; }
+    }
+    const res = await apiFetch('/api/v1/pos/loyalty/redemption/start', {
+      method: 'POST',
+      body: JSON.stringify({ customer_id: customerId, points: q.points, cart_number: till.cart, location: till.location, reason_code: reason })
+    });
+    if (!res || !res.ok) {
+      infoEl.textContent = await getErrorMessage(res, 'The redemption could not be started.');
+      till.redeemPoints = 0;
+      till.renderCart();
+      return;
+    }
+    const started = await res.json();
+    const auth = {};
+    if (started.challenge_id) {
+      const otp = await showCustomPrompt('A one-time code was sent to the customer. Enter the code they read back.');
+      if (!otp) { till.redeemPoints = 0; till.renderCart(); return; }
+      const v = await apiFetch('/api/v1/pos/loyalty/redemption/verify', { method: 'POST', body: JSON.stringify({ challenge_id: started.challenge_id, otp: otp.trim() }) });
+      if (!v || !v.ok) {
+        infoEl.textContent = await getErrorMessage(v, 'That code is not right. Choose Redeem Points to send a new one.');
+        till.redeemPoints = 0;
+        till.renderCart();
+        return;
+      }
+      auth.redemption_challenge_id = started.challenge_id;
+    }
+    if (started.approval_id) auth.redemption_approval_id = started.approval_id;
+    till.auth = auth;
+    if (started.approval_id && started.approval_status !== 'Approved') {
+      infoEl.textContent = `${q.points} point(s) (${Number(q.value).toFixed(2)} off) need a ${q.approver_role || 'manager'}'s approval - request ${started.approval_id} is waiting under Approvals. Complete the sale once it is approved.`;
+      return;
+    }
   }
 
   // Nothing is burned here. The points ride on the cart and are spent by the
   // server only if the sale completes.
-  till.redeemPoints = points;
-  till.renderCart();
-  infoEl.textContent = `${points} point(s) will be applied to this sale. They are only deducted once the sale completes.`;
+  infoEl.textContent = `${q.points} point(s) (${Number(q.value).toFixed(2)} off) will be applied to this sale. They are only deducted once the sale completes.`;
+}
+
+// pickLoyaltyReason asks for the reason a large redemption is being made, from
+// the active Loyalty Redemption reason codes. Resolves the code, or null.
+function pickLoyaltyReason(q) {
+  return pickPOSReason('Loyalty Redemption', 'Manager approval needed',
+    `${q.points} point(s) (${Number(q.value).toFixed(2)} off) needs a ${q.approver_role || 'manager'}'s approval. Choose the reason; the request goes to Approvals.`);
+}
+
+// posReasonCodes lists the active reason codes of one category.
+async function posReasonCodes(category) {
+  const res = await apiFetch('/api/v1/doc/ReasonCode?limit=500');
+  if (!res || !res.ok) return [];
+  const payload = await res.json();
+  const docs = Array.isArray(payload) ? payload : (payload.data || payload.documents || []);
+  return docs.map(d => ({ id: d.id, ...(d.data || d) })).filter(d => d.category === category && (d.status || 'Active') === 'Active');
+}
+
+function posReasonSelect(codes) {
+  return `<select class="form-select" data-reason><option value="">Choose a reason...</option>${codes.map(c => `<option value="${cfgEsc(c.id)}">${cfgEsc(c.code || c.id)}${c.description ? ` - ${cfgEsc(c.description)}` : ''}</option>`).join('')}</select>`;
+}
+
+// pickPOSReason asks for a reason code of one category. With none set up the
+// cashier is told who adds them, rather than shown an empty list.
+async function pickPOSReason(category, title, message) {
+  const codes = await posReasonCodes(category);
+  if (!codes.length) {
+    await showCustomAlert(`This needs a reason, and no ${category} reason codes exist yet. Ask a manager to add one under Setup -> Reason Codes.`, title);
+    return null;
+  }
+  const picked = await posFormDialog(title, message, posReasonSelect(codes), extra => extra.querySelector('[data-reason]').value);
+  if (picked === null) return null;
+  if (!picked) {
+    await showCustomAlert('Choose a reason to go on.', title);
+    return null;
+  }
+  return picked;
+}
+
+// --- Stage 73.2.7: the drawer ---------------------------------------------------
+//
+// Closing a session, cash in and out between sales, and handing the till to
+// the next cashier. The server keeps the drawer's figures; this shows them.
+
+function posCashBreakdown(p) {
+  return `Float ${Number(p.opening_cash).toFixed(2)} + cash sales ${Number(p.cash_sales).toFixed(2)} - cash refunds ${Number(p.cash_refunds).toFixed(2)}`
+    + ` + paid in ${Number(p.paid_in).toFixed(2)} - paid out ${Number(p.paid_out).toFixed(2)} - safe drops ${Number(p.safe_drops).toFixed(2)}`
+    + ` = ${Number(p.expected_cash).toFixed(2)} expected.`;
+}
+
+export async function closePOSSessionFlow(t) {
+  till = t;
+  const sessionId = till.session;
+  if (!sessionId) return;
+  // 20.13: never close while sales are still waiting to sync, so a synced sale
+  // can never land against the next session's cash figures.
+  const stillQueued = getOfflineQueue().length;
+  if (stillQueued > 0) {
+    await showCustomAlert(`${stillQueued} sale${stillQueued === 1 ? '' : 's'} still need${stillQueued === 1 ? 's' : ''} to sync before this session can close. Reconnect and try again, or click the offline badge above to sync now.`, 'Offline Sales Pending');
+    return;
+  }
+  const countedStr = await showCustomPrompt('Counted cash in the till?');
+  if (countedStr === null) return;
+  const counted = parseFloat(countedStr);
+  const send = (reason) => apiFetch('/api/v1/pos/session/close', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, counted_cash: isNaN(counted) ? 0 : counted, variance_reason: reason || '' })
+  });
+  let res = await send('');
+  if (!res) return;
+  if (!res.ok) {
+    let body = {};
+    try { body = await res.clone().json(); } catch (e) {}
+    if (body.code !== 'POSOFF-0240') { await showApiError(res, 'Failed to close session.'); return; }
+    // The count is off by more than the tolerance: say by how much, and ask why.
+    const reason = await showCustomPrompt(`${body.detail || body.error || 'The count is off by more than the tolerance.'}\n\nWhy is it different? A manager approves this close.`, '', 'Cash Variance');
+    if (!reason || !reason.trim()) return;
+    res = await send(reason.trim());
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Failed to close session.'); return; }
+  }
+  const data = await res.json();
+  let msg = `Expected: ${Number(data.expected_cash).toFixed(2)}, Counted: ${Number(data.counted_cash).toFixed(2)}, Variance: ${Number(data.variance).toFixed(2)}`;
+  if (data.status === 'Pending Approval') {
+    msg = `The count is off by more than the tolerance, so a ${data.required_role || 'manager'} has to accept it under Approvals before the session counts as closed. Nothing more can be sold on it.\n\n${msg}`;
+  }
+  // 24.36: queued offline sales that never arrived, flagged for review.
+  if (data.offline_queue_gap && data.offline_queue_gap.length > 0) {
+    msg += `\n\nWarning: ${data.offline_queue_gap.length} offline sale(s) were queued but never synced (${data.offline_queue_gap.join(', ')}). This has been flagged for manager review.`;
+  }
+  await showCustomAlert(msg, data.status === 'Pending Approval' ? 'Waiting for Approval' : 'Session Closed');
+  await till.refreshSession();
+}
+
+async function openPOSCashMovement() {
+  const sessionId = till.session;
+  if (!sessionId) {
+    await showCustomAlert('Open a session first - cash moves in and out of an open session.', 'Cash in / out');
+    return;
+  }
+  const sumRes = await apiFetch(`/api/v1/pos/session/summary?session_id=${encodeURIComponent(sessionId)}`);
+  const pos = sumRes && sumRes.ok ? await sumRes.json() : null;
+  const codes = await posReasonCodes('Cash Movement');
+  if (!codes.length) {
+    await showCustomAlert('Cash movements need a reason, and no Cash Movement reason codes exist yet. Ask a manager to add one under Setup -> Reason Codes.', 'Cash in / out');
+    return;
+  }
+  const html = `<div class="form-group" style="margin-top:8px;"><label class="form-label">Type</label>
+      <select class="form-select" data-cm="type"><option>Paid In</option><option>Paid Out</option><option>Safe Drop</option></select></div>
+    <div class="form-group"><label class="form-label">Amount</label><input type="number" min="0" step="0.01" class="form-input" data-cm="amount" placeholder="0.00"></div>
+    <div class="form-group"><label class="form-label">Reason</label>${posReasonSelect(codes)}</div>
+    <div class="form-group"><label class="form-label">Reference (voucher, bag no.)</label><input class="form-input" data-cm="ref"></div>`;
+  const picked = await posFormDialog('Cash in / out',
+    `${pos ? posCashBreakdown(pos) + ' ' : ''}Paid In: cash brought in from the safe. Paid Out: a petty expense paid from the till. Safe Drop: cash taken to the safe.`,
+    html, extra => ({
+      movement_type: extra.querySelector('[data-cm="type"]').value,
+      amount: parseFloat(extra.querySelector('[data-cm="amount"]').value) || 0,
+      reason_code: extra.querySelector('[data-reason]').value,
+      reference: extra.querySelector('[data-cm="ref"]').value.trim()
+    }));
+  if (!picked) return;
+  const res = await apiFetch('/api/v1/pos/session/cash-movement', { method: 'POST', body: JSON.stringify({ session_id: sessionId, ...picked }) });
+  if (!res || !res.ok) { await showApiError(res, 'The cash movement was not recorded.'); return; }
+  const data = await res.json();
+  await showCustomAlert(`${picked.movement_type} of ${picked.amount.toFixed(2)} recorded.${data.position ? '\n\n' + posCashBreakdown(data.position) : ''}`, 'Cash in / out');
+}
+
+async function openPOSTakeover() {
+  if (till.session) {
+    await showCustomAlert('You already have this till. To hand it over, the next cashier signs in here and chooses Take over this till.', 'Take over');
+    return;
+  }
+  if (!till.location) {
+    await showCustomAlert('Pick the store first.', 'Take over');
+    return;
+  }
+  const countedStr = await showCustomPrompt('Count the cash in the till and type it here. That closes the current cashier\'s session against your count and opens yours with it as the float.', '', 'Take over this till');
+  if (countedStr === null) return;
+  const counted = parseFloat(countedStr) || 0;
+  const send = (reason) => apiFetch('/api/v1/pos/session/takeover', { method: 'POST', body: JSON.stringify({ location: till.location, counted_cash: counted, variance_reason: reason || '' }) });
+  let res = await send('');
+  if (res && !res.ok) {
+    let body = {};
+    try { body = await res.clone().json(); } catch (e) {}
+    if (body.code === 'POSOFF-0240') {
+      const reason = await showCustomPrompt(`${body.detail || body.error}\n\nWhy is it different? A manager approves the outgoing cashier's close.`, '', 'Cash Variance');
+      if (!reason || !reason.trim()) return;
+      res = await send(reason.trim());
+    }
+  }
+  if (!res || !res.ok) { await showApiError(res, 'The till was not taken over.'); return; }
+  const data = await res.json();
+  const prev = data.previous || {};
+  await showCustomAlert(`The till is yours, with ${counted.toFixed(2)} as your float. The previous session closed with a variance of ${Number(prev.variance || 0).toFixed(2)}${prev.status === 'Pending Approval' ? ' and waits for a manager under Approvals' : ''}.`, 'Take over');
+  await till.refreshSession();
 }
 
 // posFormDialog shows the shared dialog (the one showCustomPrompt uses) with a
 // small form in its extra area; collect(extraEl) reads the form on OK, before
 // the dialog is cleared. Resolves the collected value, or null on cancel.
-function posFormDialog(title, message, html, collect, onOpen) {
+export function posFormDialog(title, message, html, collect, onOpen) {
   return new Promise((resolve) => {
     const backdrop = document.getElementById('custom-dialog-container');
     const extraEl = document.getElementById('custom-dialog-extra');
@@ -421,6 +715,195 @@ export async function openPOSPackaging(t) {
   if (missing.length) {
     await showCustomAlert(`A reason is needed to change: ${missing.join(', ')}. Those kept their usual packaging.`, 'Packaging');
   }
+}
+
+// --- Stage 73: the More menu ------------------------------------------------
+//
+// The till's occasional actions sit behind one More... button so the first
+// screen stays inside the cold-core budget. Each entry is a function here.
+const POS_MORE_ACTIONS = [
+  ['split', 'Split payment', () => openPOSSplitPayment()],
+  ['cash', 'Cash in / out (paid in, paid out, safe drop)', () => openPOSCashMovement()],
+  ['takeover', 'Take over this till (shift handover)', () => openPOSTakeover()],
+  ['hold', 'Hold this bill', () => holdPOSBill()],
+  ['resume', 'Resume a held bill', () => resumePOSBill()],
+  ['exchange', 'Exchange (take items back against this bill)', () => openPOSExchange()]
+];
+
+// Stage 73.2.6: exchange. The items coming back are returned (received and
+// inspected here, at the counter); their value becomes a credit that pays
+// this bill. The customer pays only the difference - or gets it back.
+async function openPOSExchange() {
+  const infoEl = document.getElementById('pos-loyalty-info');
+  if (!till.location) { infoEl.textContent = 'Pick the store first.'; return; }
+  if (till.exchangeActive) { await showCustomAlert('This bill already has an exchange credit on it.', 'Exchange'); return; }
+  const billNo = await showCustomPrompt('Bill number the items were bought on (from the receipt)?', '', 'Exchange');
+  if (!billNo || !billNo.trim()) return;
+  const eRes = await apiFetch(`/api/v1/returns/eligibility?original_order_id=${encodeURIComponent(billNo.trim())}`);
+  if (!eRes || !eRes.ok) { await showApiError(eRes, 'That bill could not be looked up.'); return; }
+  const elig = await eRes.json();
+  const open = (elig.lines || []).filter(l => l.remaining_qty > 0);
+  if (!elig.found || !open.length) { await showCustomAlert(elig.explanation || 'Nothing on that bill can be returned.', 'Exchange'); return; }
+  const html = open.map(l => `<div data-ex="${cfgEsc(l.sku)}" style="display:grid; grid-template-columns: 2fr 1fr 1fr; gap:6px; margin-top:8px; align-items:center;">
+      <span>${cfgEsc(l.sku)} <span style="color:var(--text-muted);">&middot; ${Number(l.unit_price).toFixed(2)} each, ${l.remaining_qty} can come back</span></span>
+      <input type="number" min="0" max="${l.remaining_qty}" step="1" class="form-input" data-exq placeholder="Qty">
+      <select class="form-select" data-exc><option>Sellable</option><option>Damaged</option><option>Repairable</option></select></div>`).join('');
+  const picked = await posFormDialog('Exchange', `${elig.explanation || ''} Type how many of each are coming back and their condition.`, html,
+    extra => Array.from(extra.querySelectorAll('[data-ex]')).map(el => ({ sku: el.dataset.ex, qty: parseInt(el.querySelector('[data-exq]').value, 10) || 0, cond: el.querySelector('[data-exc]').value })).filter(x => x.qty > 0));
+  if (!picked || !picked.length) return;
+  const res = await apiFetch('/api/v1/pos/exchange/start', {
+    method: 'POST',
+    body: JSON.stringify({
+      original_order_id: billNo.trim(), location: till.location, idempotency_key: `exchange:${billNo.trim()}:${Date.now()}`,
+      lines: picked.map(p => ({ sku: p.sku, qty: p.qty })), dispositions: Object.fromEntries(picked.map(p => [p.sku, p.cond]))
+    })
+  });
+  if (!res || !res.ok) { await showApiError(res, 'The exchange could not be started.'); return; }
+  const credit = await res.json();
+  let row = document.getElementById('pos-exchange-row');
+  if (!row) {
+    row = document.createElement('span');
+    row.id = 'pos-exchange-row';
+    document.getElementById('pos-giftcard-row').after(row);
+  }
+  till.exchange = { id: credit.id, amount: Number(credit.amount) || 0 };
+  infoEl.textContent = `Taken back against ${billNo.trim()}: ${Number(credit.amount).toFixed(2)} credit${credit.points_restored ? ` and ${credit.points_restored} points back to the customer` : ''}. Ring up what they take instead; they pay only the difference.`;
+}
+
+// Stage 73.2.5: hold and resume. A held bill keeps its bill number, so when it
+// is resumed and paid it posts under that number, once. Points, a split and
+// gift cards are not kept - add them again after resuming.
+async function holdPOSBill() {
+  const infoEl = document.getElementById('pos-loyalty-info');
+  if (!posCart.length) {
+    infoEl.textContent = 'There is nothing on the bill to hold.';
+    return;
+  }
+  const note = await showCustomPrompt('Hold this bill? Add a note so it is easy to find (optional) - e.g. the customer\'s name.', '', 'Hold this bill');
+  if (note === null) return;
+  const customerId = document.getElementById('pos-customer').value.trim();
+  const coupon = (document.getElementById('pos-coupon-code') || {}).value || '';
+  const res = await apiFetch('/api/v1/pos/held-bills', {
+    method: 'POST',
+    body: JSON.stringify({
+      cart_number: till.cart, location: till.location, customer_id: customerId, note: note.trim(),
+      coupon_codes: coupon.split(/[,\s]+/).map(c => c.trim()).filter(Boolean),
+      total: parseFloat(document.getElementById('pos-cart-total').textContent) || 0,
+      lines: posCart.map(l => ({ sku: l.sku, name: l.name, qty: l.qty, unit_price: l.unpriced ? l.salePrice : 0 }))
+    })
+  });
+  if (!res || !res.ok) { await showApiError(res, 'The bill was not held.'); return; }
+  const bill = await res.json();
+  till.clear();
+  till.renderCart();
+  document.getElementById('pos-loyalty-info').textContent = `Bill ${bill.cart_number} held (${bill.line_count} item line${bill.line_count === 1 ? '' : 's'}). Resume it from More... -> Resume a held bill.`;
+}
+
+async function resumePOSBill() {
+  if (posCart.length) {
+    await showCustomAlert('Finish or hold the bill on the till first - a held bill comes back onto an empty till.', 'Resume a held bill');
+    return;
+  }
+  const listRes = await apiFetch(`/api/v1/pos/held-bills?location=${encodeURIComponent(till.location)}`);
+  if (!listRes || !listRes.ok) { await showApiError(listRes, 'Held bills could not be listed.'); return; }
+  const bills = (await listRes.json()).bills || [];
+  if (!bills.length) {
+    await showCustomAlert('No bills are held at this store.', 'Resume a held bill');
+    return;
+  }
+  const html = bills.map((b, i) => `<label style="display:block; margin-top:8px;"><input type="radio" name="pos-held" value="${cfgEsc(b.id)}" ${i === 0 ? 'checked' : ''}>
+      ${cfgEsc(b.note || b.customer_id || 'Walk-in')} &middot; ${b.line_count} line(s) &middot; ${Number(b.total).toFixed(2)}
+      <span style="color:var(--text-muted);">&middot; ${cfgEsc(b.cashier)}, ${cfgEsc(b.held_at || '')}</span></label>`).join('')
+    + `<div class="form-group" style="margin-top:12px;"><label class="form-label">Do</label><select class="form-select" data-held="act"><option value="resume">Resume it on this till</option><option value="discard">Discard it (the customer is not coming back)</option></select></div>
+       <input class="form-input" data-held="reason" placeholder="Reason (needed to discard)">`;
+  const picked = await posFormDialog('Resume a held bill', 'Bills held at this store, oldest first.', html, extra => ({
+    id: (extra.querySelector('input[name="pos-held"]:checked') || {}).value,
+    act: extra.querySelector('[data-held="act"]').value,
+    reason: extra.querySelector('[data-held="reason"]').value.trim()
+  }));
+  if (!picked || !picked.id) return;
+  const res = await apiFetch(`/api/v1/pos/held-bills/${encodeURIComponent(picked.id)}/${picked.act}`, {
+    method: 'POST', body: JSON.stringify({ location: till.location, reason: picked.reason })
+  });
+  if (!res || !res.ok) { await showApiError(res, picked.act === 'discard' ? 'The held bill was not discarded.' : 'The bill could not be resumed.'); return; }
+  if (picked.act === 'discard') {
+    document.getElementById('pos-loyalty-info').textContent = 'Held bill discarded.';
+    return;
+  }
+  const bill = await res.json();
+  till.cartNumber = bill.cart_number;
+  const lines = [];
+  for (const l of bill.lines || []) {
+    const a = await apiFetch(`/api/v1/availability?sku=${encodeURIComponent(l.sku)}&location=${encodeURIComponent(till.location)}`);
+    const av = a && a.ok ? await a.json() : {};
+    lines.push({ sku: l.sku, name: l.name || l.sku, qty: l.qty, available: av.ats ?? av.available ?? 0,
+      withheld: (av.qc_hold || 0) + (av.damaged || 0) + (av.blocked || 0) + (av.hold_qty || 0),
+      salePrice: l.unit_price || 0, referencePrice: 0, priceSource: '', overrideId: '', unpriced: !!l.unit_price });
+  }
+  posCart = lines;
+  const coupon = document.getElementById('pos-coupon-code');
+  if (coupon) coupon.value = (bill.coupon_codes || []).join(' ');
+  const cust = document.getElementById('pos-customer');
+  const custDisplay = document.getElementById('pos-customer-display');
+  if (cust && bill.customer_id) {
+    cust.value = bill.customer_id;
+    if (custDisplay) custDisplay.value = bill.customer_id;
+    cust.dispatchEvent(new Event('change'));
+  }
+  till.renderCart();
+  document.getElementById('pos-loyalty-info').textContent = `Bill ${bill.cart_number} resumed - prices are checked again. Add any points, split or gift card again before completing.`;
+}
+
+export async function openPOSMore(t) {
+  till = t;
+  const html = POS_MORE_ACTIONS.map(([key, label], i) =>
+    `<label style="display:block; margin-top:8px;"><input type="radio" name="pos-more" value="${key}" ${i === 0 ? 'checked' : ''}> ${cfgEsc(label)}</label>`).join('');
+  const picked = await posFormDialog('More', 'Choose what to do.', html,
+    extra => (extra.querySelector('input[name="pos-more"]:checked') || {}).value || null);
+  const action = POS_MORE_ACTIONS.find(([key]) => key === picked);
+  if (action) await action[2]();
+}
+
+// Stage 73.1.6: split payment. The cashier enters the fixed parts (say Card
+// 1,200 and UPI 300); the Payment Mode the till shows takes whatever is left,
+// so the split always adds up to the bill. The server checks it again and
+// posts each part to its own clearing account, and a later return refunds
+// each part back the way it was paid.
+async function openPOSSplitPayment() {
+  const infoEl = document.getElementById('pos-loyalty-info');
+  if (!posCart.length) {
+    infoEl.textContent = 'Add items to the cart before splitting the payment.';
+    return;
+  }
+  const due = parseFloat(document.getElementById('pos-cart-total').textContent) || 0;
+  const rest = document.getElementById('pos-payment-mode').value;
+  const current = Object.fromEntries((till.split || []).map(s => [s.mode, s.amount]));
+  const html = ['Cash', 'Card', 'UPI'].map(m => `<div class="form-group" style="margin-top:8px;">
+      <label class="form-label" for="pos-split-${m}">${m}</label>
+      <input type="number" min="0" step="0.01" id="pos-split-${m}" class="form-input" data-split="${m}" placeholder="0.00" value="${current[m] ? current[m].toFixed(2) : ''}">
+    </div>`).join('');
+  const picked = await posFormDialog('Split payment',
+    `The bill is ${due.toFixed(2)}. Enter what is paid each way; whatever is left is taken by ${rest} (the Payment Mode). Leave all blank to pay one way.`,
+    html, extra => Array.from(extra.querySelectorAll('[data-split]')).map(el => ({ mode: el.dataset.split, amount: Math.round((parseFloat(el.value) || 0) * 100) / 100 })).filter(s => s.amount > 0));
+  if (picked === null) return;
+  const fixed = picked.reduce((s, p) => s + p.amount, 0);
+  if (fixed - due > 0.004) {
+    await showCustomAlert(`Those add up to ${fixed.toFixed(2)}, more than the ${due.toFixed(2)} bill. Lower one of them.`, 'Split payment');
+    return;
+  }
+  till.split = picked;
+  renderPOSSplitRow(picked);
+}
+
+function renderPOSSplitRow(parts) {
+  let row = document.getElementById('pos-split-row');
+  if (!parts.length) { if (row) row.remove(); return; }
+  if (!row) {
+    row = document.createElement('span');
+    row.id = 'pos-split-row';
+    document.getElementById('pos-giftcard-row').after(row);
+  }
+  row.textContent = `Split: ${parts.map(p => `${p.mode} ${p.amount.toFixed(2)}`).join(' + ')}; the rest by Payment Mode`;
 }
 
 // --- Stage 72.8: gift cards --------------------------------------------------
@@ -580,4 +1063,72 @@ async function posRegisterGiftCards(p) {
     }
   }
   await showCustomAlert(`${r.registered} card(s) registered as not yet issued.`, 'Gift Card');
+}
+
+// Stage 20.14: reuses the sticker-print-area's hidden-until-printing @media
+// print pattern (styles.css) rather than a new PDF/print dependency. This is
+// the fallback behind the 31.1.9 QZ path - what prints when QZ Tray is not
+// running, or when no printer is set as Default For Receipt.
+//
+// 31.1.9 fix: offerDiscount was missing here. Checkout returns amount_due as
+// sale_total - loyalty_discount - offer_discount, so a sale with a Stage 30.7
+// offer applied printed a receipt whose total was higher than the cash
+// actually collected. Kept as a defaulted parameter so the shape of the call
+// is unchanged for anything that does not pass it.
+export function printPOSReceipt(t, cartNumber, location, paymentMode, items, saleTotal, loyaltyDiscount = 0, offerDiscount = 0) {
+  till = t;
+  const posStoreProfile = till.storeProfile;
+  const area = document.getElementById('receipt-print-area');
+  if (!area) return;
+  // Stage 53.12: name the product the way the customer recognises it. The code
+  // stays as the fallback for a line whose name never resolved.
+  const lines = items.map(it => `
+    <div class="receipt-line"><span>${cfgEsc(it.name || it.sku)} x${it.qty}</span><span>${(it.qty * it.sale_price).toFixed(2)}</span></div>
+  `).join('');
+  // Stage 30.2.5: points spent on the sale are shown on the receipt as their
+  // own line, so the customer can see what their points paid for and the
+  // printed total matches what was actually collected.
+  const subtotalLine = (loyaltyDiscount > 0 || offerDiscount > 0) ? `
+      <div class="receipt-line"><span>Subtotal</span><span>${Number(saleTotal).toFixed(2)}</span></div>
+  ` : '';
+  const offerLine = offerDiscount > 0 ? `
+      <div class="receipt-line"><span>Offer discount</span><span>-${Number(offerDiscount).toFixed(2)}</span></div>
+  ` : '';
+  const loyaltyLine = loyaltyDiscount > 0 ? `
+      <div class="receipt-line"><span>Loyalty points applied</span><span>-${Number(loyaltyDiscount).toFixed(2)}</span></div>
+  ` : '';
+  const amountDue = Number(saleTotal) - Number(loyaltyDiscount) - Number(offerDiscount);
+  // Stage 53.12: the header says WHICH SHOP and WHICH COMPANY, not just a
+  // location code. Kept deliberately in step with BuildReceiptPayload's
+  // ESC-POS header (engines/qz_payload.go) - a receipt that reads differently
+  // depending on which printer it reached is the same class of defect as
+  // 31.1.9's missing offer line.
+  const p = posStoreProfile && posStoreProfile.code === location ? posStoreProfile : null;
+  const storeName = p ? p.name : location;
+  const header = `
+      <div class="receipt-title">${cfgEsc(p && p.entityName ? p.entityName : 'Sales Receipt')}</div>
+      ${p && p.entityName ? '<div>Sales Receipt</div>' : ''}
+      <div>${cfgEsc(storeName)}</div>
+      ${p && p.gstin ? `<div>GSTIN ${cfgEsc(p.gstin)}</div>` : ''}
+      ${p && p.stateName ? `<div>${cfgEsc(p.stateName)}</div>` : ''}
+      <div>${cfgEsc(cartNumber)}</div>
+      <div>${new Date().toLocaleString()}</div>
+      ${p && p.cashier ? `<div>Cashier: ${cfgEsc(p.cashier)}</div>` : ''}`;
+  area.innerHTML = `
+    <div class="receipt">
+      <div class="receipt-header">
+        ${header}
+      </div>
+      <hr>
+      ${lines}
+      <hr>
+      ${subtotalLine}
+      ${offerLine}
+      ${loyaltyLine}
+      <div class="receipt-line receipt-total"><span>Total (${paymentMode})</span><span>${amountDue.toFixed(2)}</span></div>
+    </div>
+  `;
+  area.classList.add('printing');
+  window.print();
+  setTimeout(() => area.classList.remove('printing'), 500);
 }

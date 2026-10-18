@@ -38,7 +38,23 @@ func PlaceHold(tenantID, holdCode, sku, locationCode, batchNo string, qty int, r
 	if err := db.SetSearchPath(tx, schema); err != nil {
 		return "", err
 	}
+	holdID, err := placeHoldTx(tx, schema, holdCode, sku, locationCode, batchNo, qty, reason, userID)
+	if err != nil {
+		return "", err
+	}
+	if err := tx.Commit(); err != nil {
+		return "", err
+	}
+	return holdID, nil
+}
 
+// placeHoldTx is PlaceHold inside the caller's transaction (Stage 55.13: a
+// failed inspection's hold commits together with its disposition, so a
+// retried disposition cannot hold the same stock twice).
+func placeHoldTx(tx *sql.Tx, schema, holdCode, sku, locationCode, batchNo string, qty int, reason, userID string) (string, error) {
+	if qty <= 0 {
+		return "", errors.New("hold quantity must be positive")
+	}
 	var codeActive bool
 	if err := tx.QueryRow(fmt.Sprintf(
 		`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'HoldCode' AND data->>'code' = $1 AND status = 'Active')`, schema),
@@ -50,7 +66,7 @@ func PlaceHold(tenantID, holdCode, sku, locationCode, batchNo string, qty int, r
 	}
 
 	var onHand, existingHold int
-	err = tx.QueryRow(fmt.Sprintf(
+	err := tx.QueryRow(fmt.Sprintf(
 		`SELECT on_hand, hold_qty FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2 FOR UPDATE`, schema),
 		sku, locationCode).Scan(&onHand, &existingHold)
 	if err == sql.ErrNoRows {
@@ -86,9 +102,6 @@ func PlaceHold(tenantID, holdCode, sku, locationCode, batchNo string, qty int, r
 		return "", err
 	}
 
-	if err := tx.Commit(); err != nil {
-		return "", err
-	}
 	return holdID, nil
 }
 

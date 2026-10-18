@@ -130,6 +130,16 @@ func DriftGuards(articles []Article, sources DriftSources, now time.Time) []stri
 		if validScreens != nil {
 			for _, screen := range article.Screens {
 				screen = strings.ToLower(strings.TrimSpace(screen))
+				// Every master list is the one doctype-table view; Help asks
+				// for it per list as doctype:<name>, then module:<module>
+				// (public/view-help.js), so those keys stand for that view.
+				if kind, name, ok := strings.Cut(screen, ":"); ok && (kind == "doctype" || kind == "module") {
+					mappedScreens["doctype-table"] = true
+					if strings.TrimSpace(name) == "" {
+						warnings = append(warnings, fmt.Sprintf("%s: screens: lists %q, which names no %s", article.SourcePath, screen, kind))
+					}
+					continue
+				}
 				mappedScreens[screen] = true
 				if !validScreens[screen] {
 					warnings = append(warnings, fmt.Sprintf("%s: screens: lists %q, which is not a view id dispatched in %s", article.SourcePath, screen, sources.AppJSPath))

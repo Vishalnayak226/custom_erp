@@ -5,7 +5,7 @@ order: 20
 summary: Receive stock against a PO, put it away, pick and pack it back out, count it, adjust it, and move it between locations — the floor-ops backbone every other WMS feature sits on top of.
 audience: warehouse operator, warehouse manager, admin
 last_verified: 2026-09-03
-screens: [grn, rf-receiving, putaway, wave-picking, cycle-count, transfers, warehouse-cockpit, doctype-table, reports]
+screens: [grn, rf-receiving, putaway, wave-picking, cycle-count, transfers, warehouse-cockpit, inventory, module:inventory, reports]
 doc_id: DOC-79A300F5E0
 type: procedure
 status: draft

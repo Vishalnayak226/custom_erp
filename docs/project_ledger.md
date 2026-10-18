@@ -44,7 +44,152 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
-## 228. Stage 72 — Item & Material Master: independent classification, packaging backflush at the POS, gifts with purchase, gift cards as stored value (2026-10-17, code + docs, NOT COMMITTED)
+## 238. Release of §229-237 — Stage 73 batches A-D, Stages 76, 78-82, 71.8 (2026-10-18, one commit, pushed + deployed)
+
+At the user's *"if all task done, push all and deploy all to minn and app"*. This supersedes the "NOT COMMITTED" tags on §229-237. Full detail in `micro_checklist.md` 73.R and 84.7-84.9.
+
+- **Gates on the combined tree:** build and vet clean. A from-zero database took all 229 migrations (33 new). The full `go test -p 1` passed except three from-zero-only `Stores` failures (84.7, pre-existing). Release budget inside every cap; attack surface current; brain 100%.
+- **Fixed at release:** the KB error-code article (447 codes) was over the 120 KiB article cap, so gendocs now continues it on further pages; five location-scoped doctypes added to the scope registry; one reviewed bypass entry; attack surface regenerated (617 routes). The scanner had never seen the OAuth token endpoint; it now does, and the endpoint was reviewed. Duplicate error-code numbers renumbered (73.C.6); Stage 59 archived.
+- **Not changed:** the capability register's expired review dates, which have kept CI red since 2026-10-09 (84.8, owner review).
+- **User decisions at release:** the depreciation catch-up on production is fine; no live import schedule needs an owner first.
+
+## 237. Stage 82 — The industry is chosen in Configuration, by the org's admin only (2026-10-18, code + docs, NOT COMMITTED)
+
+From the user's screenshot of the top bar's industry dropdown and its typed-code Override prompt. Full detail in `micro_checklist.md` Stage 82.
+
+- **82.1** Settings → Configuration → **Industry** (admin only): the current industry with who / when / how many changes, every industry as a named card with what it covers, what a change does, and the reason asked in the panel. Same endpoints and lock as Stage 51.3.
+- **82.2** The top-bar dropdown, Override button and prompt are gone (cold core shrank to 180,236 B gzip).
+- **Verified** in Chrome on a scratch client (set, change refused without a reason, change with one).
+
+## 236. Stage 81 — Product attributes per client from the industry attribute library (2026-10-18, code + docs, NOT COMMITTED)
+
+From the user's message and draft workbook `ERP_Industry_Product_Attribute_Master.xlsx`. Full detail in `micro_checklist.md` Stage 81.
+
+- **81.1** `cmd/genattrlib` turns the workbook into `engines/attribute_library.json` (embedded, 10 industries / 671 attributes / 1,569 values). The workbook's Variant Driver and Value Scope columns decide what each attribute is for in the ERP (variant) or PIM (product information); batch / serial-level ones and those the Item already has are not copied.
+- **81.2-81.3** The platform operator adds a client's attributes from Control Panel → **Attributes**; they become the client's ProductAttributeDef records (new fields `used_for`, `uom`, `library_id`). Re-adding never touches what the client changed.
+- **81.4-81.5** Once a client has them, the Item form and PO offer exactly those attributes (a PO may still add a value, not an attribute: PIM-0691). Values are chips the client can remove or add; attributes switch off but cannot be deleted (PIM-0690).
+- **81.6 (open, user decision)** The Jewellery profile's free-text Color / Polish / Size / Stone Type Item fields overlap the library's variant attributes. **81.7** Category rules, multi-select values, units and approvals from the workbook are not built.
+- **Verified** with engine tests (in a rolled-back transaction) and Chrome on a scratch client provisioned for the test and purged after.
+
+## 235. Stage 73 batch A — Sales, POS, returns and loyalty: what was really paid, by what, and what comes back (2026-10-17/18, code + docs, NOT COMMITTED)
+
+One of four parallel batches over Stage 73 / 55; 18 items, all ticked. Detail and verification notes are on each item in **[micro_checklist.md](micro_checklist.md)**.
+
+- **73.1.1–73.1.6 (P0 money)**:
+  - One per-line **sale allocation** (`engines/sale_allocation.go`) splits each bill's offer, points and tenders onto its lines by largest remainder, so a return refunds what was paid, not the list price.
+  - Points earned are reversed pro rata, and points spent come back with their expiry (D03: a balance may go negative and new purchases pay it back).
+  - Redemption limits, OTP and approval are checked once, where the points burn.
+  - Revenue and GST are booked net of offers.
+  - **Split tender**, with refunds going back by tender.
+- **Till operations (73.2.5–73.2.7, 73.2.10)**: hold and resume, exchange credit, paid in / paid out / safe drop with expected-cash close and approval above tolerance, shift handover, and issued vouchers at the till.
+- **Loyalty administration (73.2.11, 73.2.12, 73.3.1, 73.3.2)**:
+  - Reasoned manual adjustments through maker-checker, and an optional accrual of points liability with a movement report that reconciles.
+  - Tiers by real spend with benefits and grace days, and the customer's context at the till.
+  - A new **Loyalty** screen.
+- **73.2.8 / 73.2.9**:
+  - A post-sale edit needs a reason and leaves a before/after record (Post-Sale Edit History). The check sits at `ValidateTransactionalRules`, the choke point every generic save passes.
+  - A customer PO / reference goes from order to invoice to print, with its own report.
+- **55.5 / 55.17 usability**: a real cashier walked a whole day with no instructions. Eight dead ends were fixed:
+  - a till that did not start on the cashier's store;
+  - a corrected cart that could not be sold after a stock refusal (409);
+  - a typed disposition word at inspection;
+  - inspections reporting "nothing refundable" (wrong response key);
+  - and four more listed on the item.
+  - Loyalty also gained customer history and **Vouchers & campaigns** in words; campaign previews use the worker's own selection.
+- **Decisions** (user answered 2026-10-18; both built the same day):
+  - **55.5a (b)**: second-person approval of returns and refunds is built behind the setting `returns.second_person_approval`, off until the business turns it on (an approvals PWA will act on it). The approver is now the signed-in user.
+  - **55.17a**: *no consent, no SMS / WhatsApp*. There are per-channel consent flags on Customer, and a *Sent by* channel on Campaign. Campaigns send only to consenting customers; one without a channel sends nothing. The till's quick-add asks for consent, and a consent withdrawal clears it.
+  - **Still open, 55.5a (a)**: the Cashier menu breadth, and the newly found gap that Cashier / Store Manager cannot create a Customer, so the till's + New Customer is refused.
+- **Behaviour changes to know**:
+  - GST and revenue on offer sales are now net of the offer, and the earn base is net too.
+  - POS Sale Reconciliation will show historic offer sales as BROKEN. That is accurate, and they are not re-posted.
+  - OMS refunds have no tender split yet.
+  - Switching to accrual does not book the opening balance.
+- **Verified**:
+  - `go build` / `go vet` on the shared tree.
+  - Every batch engine test, plus the full `internal/server` package, on the shared tree. The only failure there is another session's attachments test, whose migration is not applied.
+  - Chrome on scratch :8201 against a throwaway client for every screen.
+  - Cold core 183,487 of 184,320 bytes.
+  - The 55.5a / 55.17a consent and approval checks were live-checked on a shared-tree build, because Customer codes are minted only by another session's Stage 76.5.
+  - Built and tested in a worktree holding only batch A's hunks.
+
+## 234. Stage 80 — New Item form in sections with a variant-option picker; Help opens the right article on every list; one place for print templates; WMS start-here guide (2026-10-18, code + docs, NOT COMMITTED)
+
+Four screenshots from the user on the deployed build. Full detail in `micro_checklist.md` Stage 80.
+
+- **80.1-80.3** The Item form is grouped into seven sections (three start closed), built by `groupFormSections` in the lazy `view-pickers.js`; Variant Options are Option + Value rows from the Attribute Definitions, writing the same `Key:Value;Key:Value` string; GST Rate follows Tax Treatment. Label migration `migrations_stage80_1_item_form_labels.sql`.
+- **80.4** Help on any master list asks for `doctype:<name>`, then `module:<module>`; it used to open Channel Connectors on every list because all lists are one `doctype-table` view. The KB build orders articles handbook-first, then by the screen's position in each article's `screens:` list.
+- **80.5-80.6** New KB articles *Warehouse (WMS) - what each screen is for* and *Printing - stickers and document templates*; USER_GUIDE §7.6. Setup → Print Template opens the Document templates gallery instead of a raw table of the same records.
+- **80.7 (open, user decision)** Eight WMS gaps found by the source sweep, e.g. holds do not block pick-list allocation and Mobile Picking confirmations are not saved.
+- **Verified** with `go test ./internal/kb/`, `node --check`, a KB regeneration, and Chrome on scratch :8215. Cold core untouched.
+
+## 233. Stage 79 — Number boxes take only numbers; PO record form pickers and status; Roles screen rebuilt (2026-10-18, code + docs, NOT COMMITTED)
+
+Four messages from the user on the deployed build, all on screens reached from GRN → "create the PO" and Settings → Roles. Full detail in `micro_checklist.md` Stage 79.
+
+- **79.1** Every number box refuses letters, `e`, `+` and non-numeric pastes (`installNumberStepGuards`, cold core, byte-negative); the server's Number check and JSONTable number columns now parse the whole value (`isPlainNumber`), so `"12abc"` / a rate of `"abc"` is GLOBAL-0002 naming the column.
+- **79.2** The generic record form gets the Location picker on Location-reference fields (`pick_from` from `engines.LocationReferenceFields`, the list the doc save already resolves), real tick boxes for Check fields, and no Approved/Rejected in an approval-gated doctype's Status (`approval_only`) - the user's GLOBAL-0019 was a new PO saved as Approved; the error now says why.
+- **79.3** Roles: `view-roles.js` (lazy; old form cut from `app.js`): role list → per-role page with every module and its record types, Full/Read/Create/Update/Delete, one Save; `POST /admin/role-permissions` accepts `grants[]` in one transaction.
+- **Verified** as the deployed commit plus only these hunks (other sessions' Stage 76-78 work shares the files); unit + targeted engine/server tests; live API and Chrome checks; fixtures removed.
+
+## 232. Stage 73 batch B — Supply chain: inventory, WMS, procurement, manufacturing, quality (2026-10-17/18, code + docs, NOT COMMITTED)
+
+One of four parallel batches over Stage 73 / 59 / 55; 18 items, all ticked. Detail and verification notes are on each item in **[micro_checklist.md](micro_checklist.md)**.
+
+- **73.1.7 / 73.1.8** — transfers keep lot/serial identity, receive in parts with excess/short/damage lines, cancel and return to source; D04 maker-checker with a per-client direct-approval limit. Counts: configurable recount triggers; an approved variance posts in one transaction.
+- **Stage 59 closed (59.2–59.6, D07)** — owner on the order → task, owner-aware allocation and availability, owner through every movement, slice constraints + exception report, the 47.5 banner line retired. Whole stage ready to archive.
+- **73.2.4 (D05)** — rejected GRN quantity stays open on the PO; short-close with reason closes it and raises the claim; ordered / accepted / rejected / open / invoiced / paid view.
+- **73.2.1–73.2.3 (D06)** — RFQ lines and invited vendors, comparable quotes on landed total, award to exactly one PO with lineage both ways. **73.2.18** — planner approves reorder/MRP proposals into a PO / transfer / production order.
+- **55.4 / 55.6 / 55.7 / 55.8 / 55.12 / 55.13 usability** — procurement journey; count session work table, hold impact, book-vs-ledger drift report; inbound queue (appointment → yard → RF receiving → putaway, door picker, ASN closes on full receipt, duplicate receipt refused); outbound waves from a selection, phone picking with shortfalls, open loads, Labour (worked standard preview + wizard) and Billing (charge arithmetic + exceptions) in the Warehouse Cockpit; typed BOM lines and a materials check; source-linked inspections with authorised disposition, NCR with owner and evidence, maintenance checklist/parts/hours.
+- **Decision raised**: fractional BOM component totals are truncated at issue (2.2 × 4 = 8.8 issues 8) — round up, round, or refuse is a product call.
+- **Verified**: `go build` / `go vet`, `node --check`, 15 focused throwaway-client Go tests (all batch tests re-run together at the end), Chrome on scratch :8202 for every screen (phone width for RF receiving, putaway and mobile picking). Built and tested in a worktree holding only batch B's hunks; the shared tree's build is currently broken by another session's `engines/doctype.go` (`isPlainNumber`).
+
+## 231. 71.8 multi-page prints, PO / GRN rules pinned, Stage 78 day limits (2026-10-17, code + docs, NOT COMMITTED)
+
+Three of the user's messages in one session; full detail in `micro_checklist.md` 71.8, the 65.2 re-check note and Stage 78.
+
+- **71.8 Multi-page prints.** Header on the first page only; tax summary, totals, words, signatures and audit line on the last page only. Fixed once in the renderer (`public/trade-docs.js`): with an items table, an element's position decides its page, for the built-in layouts and every saved template, stored layouts untouched. Middle pages use the freed space, the last page keeps at least one row with the totals, and column headings still repeat. Studio shows the effective page and locks **Prints on** where position decides; `contY` retired. Verified in a before/after renderer harness and live through the print dialog and the studio.
+- **PO / GRN rules.** "PO can't be deleted if GRN done; partly received PO can be closed; GRN partial from one or several POs" - all three were already true (65.2, 73.2.4, Stage 62). New `TestPOPartialReceiptRules` pins them together. No code change.
+- **Stage 78 day limits.** `procurement.po_auto_cancel_days` cancels an Approved PO N days after approval with nothing received, or short-closes the rest when partly received; it runs as an hourly worker. A cancelled PO shows **Auto-cancelled** on the list and can't be edited or sent (PURCHA-0621). `procurement.purchase_return_window_days` limits returns of accepted stock after a receipt (PURCHA-0620). Both default to 0 (off). New `TestProcurementDayLimits`, plus a live check on scratch :8177. 78.3 is the researched rest of the set and waits for the user's pick.
+
+## 230. Stage 73 batch C — OMS, platform, shared shell, masters: truthful notifications, exception queues and one order timeline, order changes after release, one task inbox, OAuth2 client credentials (2026-10-17, code + docs, NOT COMMITTED)
+
+One of four parallel batches over Stage 73 / 55. Detail and verification notes are on each item in **[micro_checklist.md](micro_checklist.md)**.
+
+- **73.2.13 done** — notifications are **Queued** with their delivery job in one transaction (async_jobs as the outbox's delivery stage), **Retrying** with backoff, **Accepted** on a provider 2xx, **Delivered/Failed** only on the provider's word (answer or receipt on `POST /api/public/v1/notifications/{id}/delivery-status`, scope `notifications:write`), Failed after the last attempt; never re-sent once the provider has it.
+- **73.2.14 done** — Stuck payments, Carrier, Returns and refunds, Settlement queues with counts, reasons, age and next step; order detail gains one chronological **Timeline** and a server-computed **Next step**. Fixed: the timeline mixed three database clocks.
+- **73.2.15 done** — Edit lines up to the pick cutoff (stock, total and payment rechecked in one transaction), cancel after Released until anything is packed, zero-priced Reship / Replacement orders linked both ways and idempotent.
+- **73.3.3 done** — the Approvals menu opens **My work**: approvals for the viewer's role (never their own), OMS queues and PIM tasks in one list; the existing approvals table embedded unchanged.
+- **38.2 / 38.2d done** — OAuth2 client credentials as a credential mode (one inventory with API keys), `/api/public/v1/oauth/token` with 15-minute digest-stored tokens that die with the client; API access screen under Extension Hooks.
+- **73.J.1 done** — journeys J3/J6/J8/J9 added to 47.17.1 and the UAT run sheet (Scenarios H–K).
+- **55.2 / 55.3 / 55.9 / 55.11 / 55.18 / 55.19 / 55.21 / 55.0F advanced, kept open** — accessible names across OMS and the generic list; dependency-ordered **Setup path**; manual-order labels and FA-20261005-06's "Existing Order"; PIM isolation tests re-run; **Service desk**, contract coverage and project ledger; print page daily-flow-first with setup collapsed; a 217-record-type schema/list sweep.
+- **Decision settled** (user go-ahead, 2026-10-17): 73.4.4's bulk-job resume and named schedule owners were built - see the continuation below.
+- **Verified**: `go build` / `go vet`, `node --check`, focused Go tests and the full `internal/server` package (in a worktree holding only batch C's hunks, then again on the shared tree once it built), Chrome on scratch :8203 for every new screen, cold core 183,937 → 183,946.
+
+**2026-10-18 continuation** (the open parts of 55.0F/55.2/55.3/55.9/55.11/55.18/55.19/55.21; all stay `[ ]` against the Stage 55 Done bar):
+
+- **Import resume + schedule owners (55.11 / 73.4.4)** — failed rows kept on every import job; **Fix and resume** downloads them with reasons, **Check** without writing, then **Resume** imports only those rows once (`engines/import_resume.go`, `/api/v1/import-jobs/{id}`…). Import schedules run and record as their **Owner**, never "system". Migration `migrations_stage55_11_import_owner_resume.sql`.
+- **OMS (55.9)** — returns/refunds carry the invoice number and now show on their order and in the queue; connector replay imports each order once; connector rows say Not connected / Never synced / last redacted error and ignore deleted runs.
+- **Admin (55.21)** — "Who approves what" with gaps flagged and an amount checker; Configuration search, kept unsaved values, defaults and a leave guard; System Status **Incident alerts** card and Never-recorded warnings; approval/deployment rows escaped. The batch-C role-scope panel was dropped for Stage 79's Roles screen.
+- **Masters / printing (55.3 / 55.19)** — **Numbering for this record type** from any New form; one GSTIN per vendor (MASTER-0472); a retried sticker print logs once (`migrations_stage55_19_sticker_print_request_key.sql`).
+- **55.0F functional sweep** — 71 batch-C types on throwaway client `batchc55f`: 70 complete create → edit → delete, 0 server errors. Repaired: API JSON arrays refused on JSON-table fields (`ValidateDocument`), ProductBundle had no component columns so no bundle could be made from the form (`migrations_stage55_0f_bundle_component_columns.sql`), list cells showed raw JSON, and Escape in a suggestion list closed the whole form.
+- **Verified**: `go build` / `go vet`, `node --check`, focused throwaway-client Go tests (the new resume, owner, GSTIN, JSON-table, connector, return-linkage and print-retry tests plus the import, PIM template, OMS and channel regressions) + the `internal/server` route/catalog tests, Chrome on scratch :8203 for every screen above; cold core 3,620 bytes under HEAD. Other batches' defects are listed in 55.0F.
+
+## 229. Stage 73 batch D — Finance, HR, expenses, assets, reports: posting attribution, signed close with controlled reopen, bank workbench, payroll reconciliation, control totals (2026-10-17, code + docs, NOT COMMITTED)
+
+One of four parallel batches over Stage 73 (decision D09: corrections by reversal only; reopen through maker-checker). Detail and verification notes are on each item in **[micro_checklist.md](micro_checklist.md)**.
+
+- **73.1.9 done** — every new GL line names its poster (`posted_by`, `source_command`), stamped at `PostDoubleEntryTx` from a goroutine-scoped actor bound by the API middleware, the public-API middleware and the job runner (`engines/posting_actor.go`); no posting signature changed. Reports **General Journal** and **GL Posting Review**; old rows read "before attribution".
+- **73.1.10 done** — five owned close tasks per period with live checks and evidence; close refused until all are signed; reopen only by an approved `PeriodReopenRequest` (requester cannot approve), which starts a new close round (`engines/period_close.go`). Accountant (D09's "Finance Head") and Super Admin may create / close / request reopen.
+- **73.2.16 done** — bank workbench: manual and rule matching, exception queue with owner and reason, marketplace batch and card / UPI payouts matched to bank lines; closed-period lines frozen.
+- **73.2.17 done** — Payroll Reconciliation report (gross → deductions → net → paid → bank-confirmed → still owed).
+- **73.2.19 done** — control totals on inventory valuation, receivables, payables, sales register, GST and (2026-10-18, once 73.2.12 landed) loyalty points liability against 2630. Receivables drill-down fixed to age like its report.
+- **55.10 / 55.14 / 55.15 / 55.16 / 55.20 advanced, kept open** — finance work-to-review and close board; HR paths by role, leave balance and overlap help; expense defaults, history, correction, receipt number, **fixed: advance-adjusted payments over-credited the bank**; asset lifecycle detail and posting previews; report catalog by business question, remembered filters, run summary, **fixed: any user could download another's export**.
+- **Decisions raised and taken (user, 2026-10-17)**: keep Accountant as D09's "Finance Head"; AP ageing on received-not-paid (2100); post depreciation monthly with disposal proceeds; build receipt upload.
+- **Second pass, built in parallel the same day** (five agents, separate files and disposable databases): part and credit settlement of AR/AP and Payables Ageing on the 2100 sub-ledger (`partial_settlement.go`, `payables_subledger.go`, the PO view kept as **Open Purchase Commitments**); report **Schedules** and **Recent runs** (`report_schedule_view.go`; deleted schedules were still being sent — fixed); guided HR journeys (`hr_journeys.go`; the Approvals inbox was leaking other employees' grievance text to every role — fixed); monthly depreciation posting and disposal with proceeds (`asset_depreciation.go`, accounts 1410 / 5310 / 4300); expense receipt upload (`attachments.go`, `document_attachments`; the request envelope now matches the escaped path so ids containing "/" get their route's size limit). 55.15, 55.16 and 55.20 ticked; 55.10 and 55.14 wait only on human acceptance.
+- **Verified**: `go build`/`go vet` (engines, internal/server), `node --check` on the five view modules, 26 engine tests run together on the live tree on a disposable database (`custom_erp_batchd_20261017`) - all Batch D tests plus the existing finance / report / dashboard / asset tests the work touched - and Chromium on scratch ports :8204, :8214, :8224, :8234, :8244, :8254.
+
+## 228. Stage 72 — Item & Material Master: independent classification, packaging backflush at the POS, gifts with purchase, gift cards as stored value (2026-10-17, code + docs; committed `0845470`, deployed 2026-10-17)
 
 From two PDFs of the user's: *Backflush vs Non-Sellable Items in Retail ERP/POS* (*"Build this also for pos"*) and the 41-page *Enterprise Item & Material Master Module - Build Blueprint* that grew out of it (*"Read and update checklist and build"*). The blueprint's rule - one item-type list cannot answer what an item is, whether stock is kept, whether it is valued, whether the till sells it, how it is consumed and where its cost goes - is now how the item master works: the Stage 60 **Item Type became the reusable profile** with eight independent dimensions (+ expense account) that any Item may override, resolved in one place (`engines/item_policy.go`), checked on every save against the blueprint's compatibility rules and frozen once an item has stock history. At the till (`ResolvePOSQuote`, the one pricing path): packaging and other non-sellable items are refused, promo-only gifts ring at zero only when a new **Gift With Purchase** offer earns them, and a stored-value item cannot be a bill line. **Backflush Rules** consume the store's usual box and butter paper with every sale, inside the sale's transaction, with a **Packaging** override for the cashier, a short-stock policy (default never blocks - the user's decision) and an **Item Exception** queue. Items that keep no stock (services, non-stock expense) and non-valuated stock now behave distinctly at GRN, at the till and on transfers; **virtual kits** issue their components at the POS. **Gift cards** are stored value: registered numbers, funded only when payment and liability posting commit, redeemed as a tender inside checkout, append-only ledger, masked everywhere, block / release / cancel. **Consumption Entry** posts periodic counts and manual issues. Nine section-20 reports. Found and fixed on the way: the POS screen had refused every zero-priced line since Stage 60.4, so no gift or free item could ever be billed. Full detail and verification: `micro_checklist.md` Stage 72; decisions still needed (item release maker-checker, effective-dated versions, posted-bill cancellation, per-store item policy, editor + reason in the audit trail, negative stock per profile, gift returns, gift-card refunds / transfer): 72.D.
 
@@ -52,11 +197,11 @@ From two PDFs of the user's: *Backflush vs Non-Sellable Items in Retail ERP/POS*
 
 From the user's HR Attendance screenshot: *"All txn where there is create and history both will be different page … Make it standard practice how it is in best erp being followed."* Every screen that records something now opens on its **list** (count beside the title) with **+ New …** top right; the form is a page of its own with a breadcrumb back, and saving returns to the list - the Odoo / ERPNext / Zoho shape. One shared mechanism in `public/txn-screen.js` (outside the cold core, `app.js` untouched): each page is a browser history entry on the same address, so Back / Forward move between list and form without a re-render and keep half-typed work, and `history.state` decides which page a re-render shows. Applied to the five Stage 65.8 / 68 screens that had New-first tabs (PO, GRN, Purchase Return, Stock Transfer, Journal Vouchers) and to sixteen more: HR (Attendance, Leave, Payroll, Loans/Advances, My Requests with three New pages), Expenses, Fixed Assets, Manufacturing orders + BOM, ASN, RFQ and its quotes, Order Management's manual order, Marketplace's three sections, Payment Proposals, Yard Board, Sticker Printing's Print tab, and Location Movement - which had no history of moves at all and now lists the completed Move warehouse tasks, each of which now records its batch and reason (`engines/wms_bin_move.go`). Guides, SOP and UAT checklist updated. Full detail and verification: checklist Stage 69.
 
-## 226. Stage 71 — Transaction prints follow the company's standard print-format pack (2026-10-17, code + docs, NOT COMMITTED)
+## 226. Stage 71 — Transaction prints follow the company's standard print-format pack (2026-10-17, code + docs; committed `0845470`, deployed 2026-10-17)
 
 From the user's `ERP_Standard_Transaction_Print_Formats.docx`: the Standard layouts of every transaction print now follow the pack. Each has a common header with financial year and status, the pack's columns, reference lines that drop out when blank, totals, three signature lines and an audit line (created / approved / printed by and when). GRN and Transfer In print quantities only. Four documents that existed without a print gained one: the GRN's Vendor Copy (values stripped from the payload), Purchase Return, Credit Note to a customer and Sales Return (`migrations_stage71_1_print_formats.sql` adds them to the template transaction list). Found and fixed: Transfer In printed its received qty as "Sent". Fields the ERP does not hold were left out, and the eleven modules the pack implies but the ERP lacks (delivery challan, customer advance, material issue, inventory adjustment, job work, store credit, e-invoice / e-way bill, document print log, reason codes, PO / GRN fields, print profiles) are listed for the user's decision. Full detail: checklist Stage 71.
 
-## 225. Stage 70 — Sticker templates: variant on the standard label, duplicate it, template rules, template chosen at print (2026-10-17, code + docs, NOT COMMITTED)
+## 225. Stage 70 — Sticker templates: variant on the standard label, duplicate it, template rules, template chosen at print (2026-10-17, code + docs; committed `0845470`, deployed 2026-10-17)
 
 The built-in standard label now prints the variant's values ("Silver / 7") under the name, and appears as the first card on the Sticker templates gallery with a **Duplicate** that copies it into an editable template. Which template a label uses is now a rule: Item → Item type → category → default → standard (`pickStickerTemplate`), with `Item.sticker_template` / `ItemType.sticker_template` added by `migrations_stage70_1_sticker_template_rules.sql` and a **Template rules** tab to set them. A GRN / Transfer Order print can choose a template per line or for the whole run, for that print only (`StickerLineSelection.TemplateID`). Found and fixed on the way: a soft-deleted template still printed, and two templates on one category or two defaults resolved in scan order. Full detail: checklist Stage 70.
 

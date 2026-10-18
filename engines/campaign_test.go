@@ -46,10 +46,10 @@ func TestCampaignTriggersAndROI(t *testing.T) {
 		cleanup()
 		todayMMDD := time.Now().Format("01-02")
 		seedDoc(bdayCustID, "Customer", map[string]interface{}{
-			"code": bdayCustID, "name": "Birthday Customer", "date_of_birth": "1990-" + todayMMDD,
+			"code": bdayCustID, "name": "Birthday Customer", "date_of_birth": "1990-" + todayMMDD, "consent_whatsapp": true,
 		}, "Active")
 		seedDoc(birthdayCampaignID, "Campaign", map[string]interface{}{
-			"name": "Birthday Blast", "trigger_type": "Birthday", "message_template": "Happy Birthday {{customer_name}}!",
+			"name": "Birthday Blast", "trigger_type": "Birthday", "message_template": "Happy Birthday {{customer_name}}!", "channel": "WhatsApp",
 		}, "Active")
 
 		runCampaignsForSchema(schema)
@@ -81,13 +81,14 @@ func TestCampaignTriggersAndROI(t *testing.T) {
 
 	t.Run("lapsed-customer campaign matches a customer whose last Paid POSCart is older than lapsed_days", func(t *testing.T) {
 		cleanup()
+		seedDoc(lapsedCustID, "Customer", map[string]interface{}{"code": lapsedCustID, "name": "Lapsed Customer", "consent_sms": "Yes"}, "Active")
 		staleCart := map[string]interface{}{"cart_number": "TEST-CAMPAIGN-CART-1", "customer_id": lapsedCustID, "amount_paid": 500, "location": "HO", "payment_mode": "Cash"}
 		seedDoc("TEST-CAMPAIGN-CART-1", "POSCart", staleCart, "Paid")
-		if _, err := db.DB.Exec("UPDATE "+schema+".documents SET created_at = CURRENT_TIMESTAMP - INTERVAL '100 days' WHERE id='TEST-CAMPAIGN-CART-1'"); err != nil {
+		if _, err := db.DB.Exec("UPDATE " + schema + ".documents SET created_at = CURRENT_TIMESTAMP - INTERVAL '100 days' WHERE id='TEST-CAMPAIGN-CART-1'"); err != nil {
 			t.Fatalf("backdate cart: %v", err)
 		}
 		seedDoc(lapsedCampaignID, "Campaign", map[string]interface{}{
-			"name": "Win Back", "trigger_type": "Lapsed Customer", "lapsed_days": 90, "message_template": "We miss you!",
+			"name": "Win Back", "trigger_type": "Lapsed Customer", "lapsed_days": 90, "message_template": "We miss you!", "channel": "SMS",
 		}, "Active")
 
 		runCampaignsForSchema(schema)
@@ -103,10 +104,11 @@ func TestCampaignTriggersAndROI(t *testing.T) {
 
 	t.Run("recent customer does not match the lapsed-customer trigger", func(t *testing.T) {
 		cleanup()
+		seedDoc(lapsedCustID, "Customer", map[string]interface{}{"code": lapsedCustID, "name": "Lapsed Customer", "consent_sms": true}, "Active")
 		recentCart := map[string]interface{}{"cart_number": "TEST-CAMPAIGN-CART-2", "customer_id": lapsedCustID, "amount_paid": 500, "location": "HO", "payment_mode": "Cash"}
 		seedDoc("TEST-CAMPAIGN-CART-2", "POSCart", recentCart, "Paid")
 		seedDoc(lapsedCampaignID, "Campaign", map[string]interface{}{
-			"name": "Win Back", "trigger_type": "Lapsed Customer", "lapsed_days": 90, "message_template": "We miss you!",
+			"name": "Win Back", "trigger_type": "Lapsed Customer", "lapsed_days": 90, "message_template": "We miss you!", "channel": "SMS",
 		}, "Active")
 
 		runCampaignsForSchema(schema)
@@ -115,6 +117,30 @@ func TestCampaignTriggersAndROI(t *testing.T) {
 		db.DB.QueryRow("SELECT COUNT(*) FROM "+schema+".clevertap_event_log WHERE campaign_id=$1 AND customer_id=$2", lapsedCampaignID, lapsedCustID).Scan(&count)
 		if count != 0 {
 			t.Fatalf("expected no event for a recently-active customer, got %d", count)
+		}
+	})
+
+	// Stage 55.17a: no consent, no SMS / WhatsApp - and a campaign without a
+	// channel has no consent to check, so it sends nothing.
+	t.Run("no consent on the campaign's channel, or no channel, sends nothing", func(t *testing.T) {
+		cleanup()
+		todayMMDD := time.Now().Format("01-02")
+		seedDoc(bdayCustID, "Customer", map[string]interface{}{
+			"code": bdayCustID, "name": "Birthday Customer", "date_of_birth": "1990-" + todayMMDD, "consent_whatsapp": true, "consent_sms": false,
+		}, "Active")
+		seedDoc(birthdayCampaignID, "Campaign", map[string]interface{}{
+			"name": "Birthday SMS", "trigger_type": "Birthday", "message_template": "Happy Birthday!", "channel": "SMS",
+		}, "Active")
+		seedDoc(lapsedCampaignID, "Campaign", map[string]interface{}{
+			"name": "No channel", "trigger_type": "Birthday", "message_template": "Happy Birthday!",
+		}, "Active")
+
+		runCampaignsForSchema(schema)
+
+		var count int
+		db.DB.QueryRow("SELECT COUNT(*) FROM "+schema+".clevertap_event_log WHERE campaign_id IN ($1, $2)", birthdayCampaignID, lapsedCampaignID).Scan(&count)
+		if count != 0 {
+			t.Fatalf("a WhatsApp-only customer got an SMS campaign, or a channel-less campaign sent: %d events", count)
 		}
 	})
 

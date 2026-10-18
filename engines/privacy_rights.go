@@ -140,13 +140,12 @@ func DecideDataSubjectRequest(tenantID, requestID, decidedBy string, approve boo
 }
 
 // ExecuteDataSubjectRequest runs an approved request and marks it completed.
-// Only Customer erasure/anonymize/export/access is implemented today -
-// correction goes through the doctype's ordinary edit path instead of a
-// bespoke one here, and consent-withdrawal's concrete effect is
-// [needs decision: which marketing/communication flag it should clear -
-// no such flag exists on Customer yet], so both are recorded as completed
-// with no automated side effect rather than invented. Any other subject
-// doctype is a clear, named gap, not a silent no-op.
+// Only Customer erasure/anonymize/export/access/consent-withdrawal is
+// implemented - correction goes through the doctype's ordinary edit path
+// instead of a bespoke one here, so it is recorded as completed with no
+// automated side effect. Consent withdrawal (Stage 55.17a) clears the
+// customer's SMS and WhatsApp marketing consent, so no campaign reaches them.
+// Any other subject doctype is a clear, named gap, not a silent no-op.
 func ExecuteDataSubjectRequest(tenantID, requestID, actor string) error {
 	req, err := getDataSubjectRequest(tenantID, requestID)
 	if err != nil {
@@ -167,7 +166,11 @@ func ExecuteDataSubjectRequest(tenantID, requestID, actor string) error {
 		if _, err := ExportCustomerData(tenantID, req.SubjectID); err != nil {
 			return err
 		}
-	case PrivacyRequestCorrection, PrivacyRequestConsentWithdraw:
+	case PrivacyRequestConsentWithdraw:
+		if err := WithdrawMarketingConsent(tenantID, req.SubjectID, "Consent withdrawal "+requestID); err != nil {
+			return err
+		}
+	case PrivacyRequestCorrection:
 		// No automated action - see doc comment above.
 	default:
 		return fmt.Errorf("unknown request type %q", req.RequestType)

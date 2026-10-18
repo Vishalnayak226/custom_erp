@@ -88,20 +88,27 @@ func handleDisposeAsset(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
+	// Stage 55.16 (Batch D): proceeds (default 0) and the cash/bank account
+	// they were received into (default 1100); the entry carries the gain or
+	// loss.
 	var req struct {
-		AssetID      string `json:"asset_id"`
-		DisposalType string `json:"disposal_type"`
+		AssetID      string  `json:"asset_id"`
+		DisposalType string  `json:"disposal_type"`
+		Proceeds     float64 `json:"proceeds"`
+		ReceivedInto string  `json:"received_into"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.AssetID == "" || req.DisposalType == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'asset_id' and 'disposal_type' are required")
 		return
 	}
-	if err := engines.DisposeAsset(tenantID, req.AssetID, req.DisposalType); err != nil {
+	result, err := engines.DisposeAssetWithProceeds(tenantID, req.AssetID, req.DisposalType, req.Proceeds, req.ReceivedInto)
+	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	engines.LogAuditEvent(tenantID, userID, "ASSET_DISPOSE", "SUCCESS", fmt.Sprintf("Asset %s disposed (%s)", req.AssetID, req.DisposalType))
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "disposed"})
+	engines.LogAuditEvent(tenantID, userID, "ASSET_DISPOSE", "SUCCESS", fmt.Sprintf("Asset %s disposed (%s): proceeds %.2f into %s, gain/loss %.2f",
+		req.AssetID, req.DisposalType, result.Proceeds, result.ReceivedInto, result.GainLoss))
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "disposed", "disposal": result})
 }
 
 // Expense Management (Stage 13.13c). Claim creation/listing and Manager
@@ -463,14 +470,17 @@ func handleDispatchTransferOrder(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
+	// Stage 73.1.7: lines optionally names the lots / serial numbers chosen
+	// at the dispatch desk (identity only - quantities stay as approved).
 	var req struct {
-		TransferOrderID string `json:"transfer_order_id"`
+		TransferOrderID string                 `json:"transfer_order_id"`
+		Lines           []engines.TransferLine `json:"lines"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TransferOrderID == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'transfer_order_id' is required")
 		return
 	}
-	if err := engines.DispatchTransferOrder(tenantID, req.TransferOrderID, userID); err != nil {
+	if err := engines.DispatchTransferOrderWith(tenantID, req.TransferOrderID, userID, req.Lines); err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
@@ -484,27 +494,27 @@ func handleReceiveTransferOrder(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
+	// Stage 73.1.7: each line may also carry damaged / lost / excess
+	// quantities with a reason code, a lot and serial numbers; keep_open
+	// leaves the rest in transit for a later receipt; receipt_key makes a
+	// retry a no-op.
 	var req struct {
-		TransferOrderID string `json:"transfer_order_id"`
-		ReceivedItems   []struct {
-			Sku    string `json:"sku"`
-			Qty    int    `json:"qty"`
-			Reason string `json:"reason"`
-		} `json:"received_items"`
+		TransferOrderID string                        `json:"transfer_order_id"`
+		ReceivedItems   []engines.TransferReceiptLine `json:"received_items"`
+		KeepOpen        bool                          `json:"keep_open"`
+		ReceiptKey      string                        `json:"receipt_key"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TransferOrderID == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'transfer_order_id' is required")
 		return
 	}
-	itemsInterface := make([]interface{}, len(req.ReceivedItems))
-	for i, item := range req.ReceivedItems {
-		itemsInterface[i] = map[string]interface{}{"sku": item.Sku, "qty": item.Qty, "reason": item.Reason}
-	}
-	if err := engines.ReceiveTransferOrder(tenantID, req.TransferOrderID, userID, itemsInterface); err != nil {
+	res, err := engines.ReceiveTransferOrderLines(tenantID, req.TransferOrderID, userID, engines.TransferReceiptRequest{
+		Lines: req.ReceivedItems, KeepOpen: req.KeepOpen, ReceiptKey: req.ReceiptKey})
+	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "Received", "transfer_order_id": req.TransferOrderID})
+	_ = json.NewEncoder(w).Encode(res)
 }
 
 func handleConvertRequisition(w http.ResponseWriter, r *http.Request) {
@@ -578,9 +588,29 @@ func handlePayVendorInvoice(w http.ResponseWriter, r *http.Request) {
 		// did before - today's rate, resolved from the rate table.
 		SettlementDate string  `json:"settlement_date"`
 		ExchangeRate   float64 `json:"exchange_rate"`
+		// Stage 73 / 55.10, both optional: a part-payment amount (omitted or
+		// 0 = the whole outstanding balance) and a reference that makes a
+		// retry idempotent. Not with override_reason - Override & Pay stays a
+		// whole-bill, approval-routed payment.
+		Amount    float64 `json:"amount"`
+		Reference string  `json:"reference"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.InvoiceID == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'invoice_id' is required")
+		return
+	}
+	if req.OverrideReason == "" && (req.Amount != 0 || strings.TrimSpace(req.Reference) != "") {
+		res, err := engines.PayVendorInvoiceAmount(tenantID, req.InvoiceID, userID, req.Amount, req.Reference,
+			engines.SettlementOptions{SettlementDate: strings.TrimSpace(req.SettlementDate), ExchangeRate: req.ExchangeRate})
+		if err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": res.Status, "invoice_id": req.InvoiceID, "amount_paid": res.Amount,
+			"paid_amount": res.SettledAmount, "outstanding_amount": res.OutstandingAmount,
+			"reference": res.Reference, "replayed": res.Replayed,
+		})
 		return
 	}
 	amountPaid, pendingApproval, err := engines.PayVendorInvoice(tenantID, req.InvoiceID, userID, role, req.OverrideReason,

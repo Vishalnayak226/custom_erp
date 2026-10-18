@@ -14,6 +14,9 @@ type issueAPICredentialRequest struct {
 	Name      string   `json:"name"`
 	Scopes    []string `json:"scopes"`
 	ExpiresAt string   `json:"expires_at"`
+	// AuthMode "oauth_client" issues an OAuth2 client (Stage 38.2d); blank or
+	// "api_key" issues the opaque key, as before.
+	AuthMode string `json:"auth_mode"`
 }
 
 func parseAPICredentialExpiry(raw string) (*time.Time, error) {
@@ -49,6 +52,22 @@ func handleIssueAPICredential(w http.ResponseWriter, r *http.Request) {
 	}
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	actor := r.Header.Get("Resolved-Username")
+	if mode := strings.TrimSpace(req.AuthMode); mode == "oauth_client" {
+		client, err := engines.IssueOAuthClient(tenantID, req.Name, req.Scopes, expiresAt, actor)
+		if err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+		engines.LogAuditEvent(tenantID, actor, "API_CREDENTIAL_ISSUED", "SUCCESS",
+			fmt.Sprintf("credential=%s oauth_client_id=%s scopes=%s", client.Credential.ID, client.ClientID, strings.Join(client.Credential.Scopes, ",")))
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(client)
+		return
+	} else if mode != "" && mode != "api_key" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "auth_mode must be api_key or oauth_client")
+		return
+	}
 	issued, err := engines.IssueAPICredential(tenantID, req.Name, req.Scopes, expiresAt, actor)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
@@ -90,6 +109,10 @@ func handleRotateAPICredential(w http.ResponseWriter, r *http.Request) {
 	engines.LogAuditEvent(tenantID, actor, "API_CREDENTIAL_ROTATED", "SUCCESS",
 		fmt.Sprintf("old_credential=%s new_credential=%s new_prefix=%s", r.PathValue("id"), issued.Credential.ID, issued.Credential.KeyPrefix))
 	w.Header().Set("Cache-Control", "no-store")
+	if issued.Credential.AuthMode == "oauth_client" {
+		_ = json.NewEncoder(w).Encode(engines.OAuthClientFromIssued(issued))
+		return
+	}
 	_ = json.NewEncoder(w).Encode(issued)
 }
 

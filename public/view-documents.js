@@ -3,6 +3,15 @@
 // are published by the loader for legacy cross-view calls.
 import { documentSearchLink } from './view-document-links.js';
 async function renderDocTableView(container) {
+  // A print template is drawn in the studio, not typed into a list: the
+  // generic table showed its layout as a raw text column, beside the very
+  // same records Sticker Printing's Document templates tab designs. Setup's
+  // entry opens that gallery, so there is one place and one way to make one.
+  if (currentDoctype === 'PrintTemplate') {
+    container.insertAdjacentHTML('beforeend', '<div class="page-header"><div class="page-title-section"><h1 class="page-title">Print Templates</h1></div></div>');
+    const { renderPrintTemplateGallery } = await import('./trade-docs.js' + new URL(import.meta.url).search);
+    return renderPrintTemplateGallery(container);
+  }
   const doctypeAtRequestTime = currentDoctype;
   const pageAtRequestTime = currentTablePage;
   const searchAtRequestTime = currentSearchQuery;
@@ -99,6 +108,23 @@ async function renderDocTableView(container) {
     </div>
   `;
   container.appendChild(header);
+  // Stage 55.18: service tickets, contracts and projects open with their
+  // working view (queue, coverage, ledger) above the record list.
+  if (['ServiceTicket', 'ServiceContract', 'Project'].includes(currentDoctype)) {
+    const deskHost = document.createElement('div');
+    container.appendChild(deskHost);
+    loadViewModule('/view-service-desk.js' + new URL(import.meta.url).search)
+      .then(m => m.renderServiceDeskPanel(deskHost, currentDoctype))
+      .catch(error => console.error('[55.18] service desk panel failed to load', error));
+  }
+  // Stage 55.11: the Import Job list opens with "Fix and resume an import".
+  if (currentDoctype === 'ImportJob') {
+    const resumeHost = document.createElement('div');
+    container.appendChild(resumeHost);
+    loadViewModule('/view-import-jobs.js' + new URL(import.meta.url).search)
+      .then(m => m.renderImportJobPanel(resumeHost))
+      .catch(error => console.error('[55.11] import resume panel failed to load', error));
+  }
   header.querySelector('#quick-create-back')?.addEventListener('click', event => {
     event.preventDefault();
     returnFromQuickCreate();
@@ -116,7 +142,7 @@ async function renderDocTableView(container) {
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
-        <input type="text" id="doc-table-search" placeholder="Search table..." value="${escapeHTMLText(currentSearchQuery)}">
+        <input type="text" id="doc-table-search" aria-label="Search this list" placeholder="Search table..." value="${escapeHTMLText(currentSearchQuery)}">
       </div>
       ${currentDoctype === 'Item' ? `<button class="btn btn-outline" id="pim-group-actions-btn" title="Act on a saved Product Group instead of hand-picking rows">Group Actions</button>` : ''}
       ${isPIMBulkEditDoctype() ? `<div class="bulk-edit-bar hidden" id="pim-bulk-edit-bar"><span id="pim-bulk-selection-count">0 selected</span><button class="btn btn-outline" id="pim-bulk-edit-button" disabled>Edit Selected</button>${currentDoctype === 'ProductContent' ? `<button class="btn btn-primary" id="pim-bulk-approve-button" disabled>Approve Selected</button><button class="btn btn-outline" id="pim-bulk-reject-button" disabled>Reject Selected</button>` : ''}</div>` : ''}
@@ -261,6 +287,15 @@ function renderDocTable() {
           // Stage 57.1: marked as a reference, so the shell's name sweep shows
           // the record's name here (the copy chip still copies the code).
           tableHTML += `<td data-link-doctype="${escapeHTMLText(f.options)}" data-link-ref="${escapeHTMLText(val)}">${copyableCell(val, val)}</td>`;
+        } else if (f.fieldtype === 'JSONTable' && val) {
+          // Stage 55.0F: a line table reads as its lines ("SKU1 × 2, SKU2 × 1"),
+          // not as the raw JSON it is stored as.
+          let lines = val, key = '';
+          try { if (typeof lines === 'string') lines = JSON.parse(lines); key = (JSON.parse(f.options || '[]')[0] || {}).key || ''; } catch (_) { /* shown as stored below */ }
+          const text = Array.isArray(lines)
+            ? lines.map(l => (l && typeof l === 'object') ? [l[key] ?? Object.values(l)[0], l.quantity ?? l.qty].filter(v => v !== undefined && v !== '').join(' × ') : String(l)).join(', ')
+            : String(val);
+          tableHTML += `<td title="${escapeHTMLText(text)}">${escapeHTMLText(Array.isArray(lines) && text.length > 60 ? `${lines.length} lines` : text)}</td>`;
         } else {
           tableHTML += `<td>${copyableCell(val, val)}</td>`;
         }
@@ -1063,6 +1098,10 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
   const activeDoc = state.activeDoctypes.find(d => d.name === currentDoctype);
   const isMaster = activeDoc && activeDoc.document_type === 'Master';
   const isPurchaseRequisition = currentDoctype === 'PurchaseRequisition';
+  // Stage 76: the state dropdown, the GSTIN rule and the master code format
+  // live with the other shared form widgets (view-pickers.js).
+  await loadPickers();
+  const masterSeries = !isEdit && isMaster ? await loadMasterCodeSeries(currentDoctype) : null;
 
   for (const f of state.activeDocFields) {
     if (f.fieldname === 'id') continue;
@@ -1090,7 +1129,7 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
     // a value it would discard. It comes from the same registry that assigns
     // the number (engines/document_numbering.go), rather than a copy of the
     // doctype list kept here.
-    const isCodeField = f.auto_generated || ((isMaster || isPurchaseRequisition) && f.fieldname.toLowerCase() === 'code');
+    const isCodeField = f.auto_generated || ((isMaster || isPurchaseRequisition) && f.fieldname.toLowerCase() === 'code' && !(masterSeries && masterSeries.typed));
     const existingVal = isEdit ? existingRecord[f.fieldname] : createDefaults[f.fieldname];
 
     const fg = document.createElement('div');
@@ -1104,16 +1143,21 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
     // stable id here - one association point for every field type below,
     // rather than a per-branch fix that a new fieldtype could miss.
     const fieldId = `dyn-field-${currentDoctype}-${f.fieldname}`;
-    fg.innerHTML = `<label class="form-label" for="${fieldId}">${getTranslatedLabel(f.label)}${f.mandatory && !isCodeField ? '<span class="required">*</span>' : ''}</label>`;
+    fg.innerHTML = `<label class="form-label" for="${fieldId}">${taxIdLabel(f.fieldname, getTranslatedLabel(f.label))}${f.mandatory && !isCodeField ? '<span class="required">*</span>' : ''}</label>`;
 
-    if (f.fieldtype === 'Select') {
+    if (f.fieldtype === 'Data' && isStateFieldName(f.fieldname) && (window.FIELD_META?.regions || []).length) {
+      // Stage 76.2: every state is chosen from the home country's list.
+      fg.appendChild(buildStateSelect({ id: fieldId, name: f.fieldname, value: existingVal, required: f.mandatory }));
+    } else if (f.fieldtype === 'Select') {
       const select = document.createElement('select');
       select.className = 'form-select';
       select.id = fieldId;
       select.name = f.fieldname;
       select.required = f.mandatory;
       select.innerHTML = '<option value="" disabled selected>— Select Option —</option>';
-      const opts = f.options.split(',');
+      // Approved/Rejected on an approval-gated doctype come only from the
+      // approval flow (meta's approval_only) - offered only if already set.
+      const opts = f.options.split(',').filter(o => !(f.approval_only || []).includes(o.trim()) || o.trim() === String(existingVal ?? ''));
       opts.forEach(o => {
         select.innerHTML += `<option value="${o.trim()}">${o.trim()}</option>`;
       });
@@ -1236,6 +1280,15 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
       // table - it takes the whole row rather than a 240px column.
       fg.classList.add('form-group-wide');
       renderJSONLineEditor(fg, f, existingVal);
+    } else if (f.fieldtype === 'Check') {
+      // A yes/no field is a tick box (it fell into the text branch below).
+      const input = document.createElement('input');
+      input.id = fieldId;
+      input.type = 'checkbox';
+      input.name = f.fieldname;
+      input.checked = existingVal === true || existingVal === 'true' || existingVal === 1 || existingVal === '1';
+      input.style.cssText = 'align-self: flex-start; width: 18px; height: 18px; margin: 10px 0 0;';
+      fg.appendChild(input);
     } else if (f.fieldtype === 'Number') {
       const input = document.createElement('input');
       input.className = 'form-input';
@@ -1295,10 +1348,29 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
           input.value = existingVal ?? '';
         } else if (f.auto_generated || isPurchaseRequisition) {
           input.placeholder = 'Auto-generated from Prefix Configs on save';
+          // Stage 55.3: whoever may set numbering reaches this type's series
+          // from here - its preview shows the next number before any is used.
+          if (typeof MENU_PERMISSION_MAP !== 'undefined' && isMenuRuleVisible(MENU_PERMISSION_MAP['menu-prefix-configs'])) {
+            const link = document.createElement('a');
+            link.href = '#';
+            link.className = 'empty-state-link';
+            link.style.cssText = 'display:inline-block;font-size:12px;margin-top:4px;';
+            link.textContent = 'Numbering for this record type';
+            link.addEventListener('click', event => {
+              event.preventDefault();
+              try { sessionStorage.setItem('erp_prefix_for', currentDoctype); } catch (_) { /* storage off: the screen still opens */ }
+              closeDynamicModal();
+              setActiveMenu('menu-prefix-configs');
+              renderView('prefix-configs');
+            });
+            queueMicrotask(() => fg.appendChild(link));
+          }
+        } else if (masterSeries && masterSeries.configured && masterSeries.next) {
+          input.placeholder = `${masterSeries.next} (given on save)`;
         } else {
           input.placeholder = 'Auto-generated upon save';
         }
-      } else if (isDerivedCompanionField(f.fieldname)) {
+      } else if (isDerivedCompanionField(f.fieldname) || isStateCodeFieldName(f.fieldname)) {
         // Stage 41: a derived companion ("phone_country") is written by the
         // server from another field's value - the phone engine resolves it
         // from the number itself. Showing it as an empty box invites a user to
@@ -1312,6 +1384,12 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
       } else {
         input.required = f.mandatory;
         if (existingVal !== undefined && existingVal !== null) input.value = existingVal;
+        // A Data field the server resolves against a master (meta's
+        // pick_from - a PO's warehouse and location) is picked, not typed.
+        if (f.pick_from) {
+          input.autocomplete = 'off';
+          attachLinkTypeahead(input, f.pick_from);
+        }
       }
       // Stage 36.7.4: a "Generate" button beside Item.barcode - the one
       // field this ERP mints a check-digit-correct EAN-13 for on request.
@@ -1346,6 +1424,11 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
       }
     }
     body.appendChild(fg);
+  }
+
+  // Stage 76.5: the first record of a master type asks how its codes look.
+  if (masterSeries && !masterSeries.typed && !masterSeries.configured) {
+    body.insertBefore(masterCodeSetupRow(masterSeries, getDoctypeLabel(currentDoctype), body.querySelector('[name="code"]')), body.firstChild);
   }
 
   // The requirement catalogue is deliberately a soft suggestion rather than
@@ -1387,6 +1470,14 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
 
   // Stage 57.10: an Offer's Scope Value follows its Scope.
   if (currentDoctype === 'Offer') wireOfferScopeValue(body);
+
+  // Stage 80: variant options as option + value rows, then the fields in
+  // named sections (both no-ops on a form without them).
+  await attachVariantOptionsEditor(body.querySelector('input[name="variant_option_values"]'));
+  const parentCode = body.querySelector('input[name="parent_product_code"]');
+  if (parentCode && !isEdit) parentCode.placeholder = 'Same as the design if left blank';
+  groupFormSections(body, currentDoctype, isEdit ? existingRecord : createDefaults);
+  if (currentDoctype === 'ProductAttributeDef') wireAttributeDefForm(body); // Stage 81
 
   // Stage 33: only the long forms get the wide, multi-column dialog. Item
   // renders ~20 fields and was taller than any screen in one column; a
@@ -1565,6 +1656,8 @@ async function handleDynamicFormSubmitInner(form) {
       } else {
         if (f.fieldtype === 'Number' || f.fieldtype === 'Currency') {
           payload[f.fieldname] = parseFloat(input.value);
+        } else if (f.fieldtype === 'Check') {
+          payload[f.fieldname] = input.checked;
         } else {
           payload[f.fieldname] = input.value;
         }
@@ -1572,22 +1665,12 @@ async function handleDynamicFormSubmitInner(form) {
     }
   });
 
-  if (codeFieldname) {
-    const seqRes = await apiFetch('/api/v1/sequence', {
-      method: 'POST',
-      body: JSON.stringify({
-        doc_type: currentDoctype,
-        store_code: 'HQ',
-        financial_year: new Date().getFullYear().toString()
-      })
-    });
-    if (seqRes && seqRes.ok) {
-      const seqData = await seqRes.json();
-      payload[codeFieldname] = seqData.code;
-    } else {
-      await showApiError(seqRes, 'Failed to generate Code sequence.');
-      return;
-    }
+  // Stage 76.5: a master's code is numbered on the server (V00001) - the form
+  // no longer asks the admin-only /api/v1/sequence for it, which refused a
+  // Store Manager. The first record of its type carries the chosen format.
+  if (codeFieldname && window.readMasterCodeFormat) {
+    const codeFormat = readMasterCodeFormat(form);
+    if (codeFormat) payload._code_format = codeFormat;
   }
 
   const isEdit = !!editingDocID;
@@ -1599,10 +1682,21 @@ async function handleDynamicFormSubmitInner(form) {
   // was actually live and reachable (edit-load/delete's own copies of this
   // bug were found alongside it, same root cause).
   const endpoint = isEdit ? `/api/v1/doc/${currentDoctype}/${encodeURIComponent(editingDocID)}` : `/api/v1/doc/${currentDoctype}`;
-  const res = await apiFetch(endpoint, {
+  let res = await apiFetch(endpoint, {
     method: 'POST',
     body: JSON.stringify(payload)
   });
+  // Stage 73.2.8: a change to an issued sale needs a reason, which is kept in
+  // its edit history - ask for it and save again rather than dead-ending.
+  if (res && !res.ok && isEdit) {
+    const err = await res.clone().json().catch(() => ({}));
+    if (err.code === 'SALESP-0616') {
+      const reason = await showCustomPrompt(err.error || 'Why is this being changed?', '', 'Reason for the change');
+      if (!reason || !reason.trim()) return;
+      payload.edit_reason = reason.trim();
+      res = await apiFetch(endpoint, { method: 'POST', body: JSON.stringify(payload) });
+    }
+  }
 
   if (res && res.ok) {
     // BLD-035: the generic doc engine now reports the document's real
@@ -1904,3 +1998,7 @@ window.deleteFieldConfig = async function(doctypeName, fieldID) {
 // change is visible before it is applied to real documents.
 
 export { renderDocTableView, refreshDocTablePage, renderDocTable, isPIMBulkEditDoctype, visibleDocTableItems, updatePIMBulkEditBar, captureFocusForModalReturn, restoreFocusAfterModalClose, handleDynamicFormSubmitInner, renderDocTypeBuilderView, openFieldModal };
+
+// Stage 55.18: the service desk panel runs ticket steps through this one
+// implementation (published on window by the view loader).
+export { runServiceTicketStep };

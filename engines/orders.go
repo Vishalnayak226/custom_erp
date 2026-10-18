@@ -50,10 +50,10 @@ const (
 // (Stage 26.12.9) overrides it, so the cancellation matrix is usable out of
 // the box before any admin has populated that master.
 var orderCancelBlockedStatuses = map[string]bool{
-	// FA-20261005-03: once released, the warehouse holds pick tasks for it;
-	// cancelling would leave them picking for an order that no longer exists.
-	OrderStatusReleased: true,
-	"Shipped":           true,
+	// FA-20261005-03 blocked Released here: the warehouse would keep picking
+	// for an order that no longer existed. Stage 73.2.15 lifts that - CancelOrder
+	// now stops the open pick tasks first, and refuses once one is Packed.
+	"Shipped":   true,
 	"Delivered": true,
 	"Closed":    true,
 	"Cancelled": true,
@@ -141,6 +141,7 @@ type SalesOrderInput struct {
 	Channel           string
 	ChannelOrderID    string
 	CustomerName      string
+	CustomerRef       string // Stage 73.2.9: a B2B customer's own PO number / reference
 	ShippingAddress   string
 	ShippingState     string
 	PaymentStatus     string
@@ -152,6 +153,10 @@ type SalesOrderInput struct {
 	// an order. Optional: an empty value simply stores nothing.
 	CustomerPhone string
 	Lines         []SalesOrderLineInput
+	// OwnerID (Stage 59.2) is the 3PL client whose stock fills the order -
+	// one owner per order. Optional: blank takes the warehouse's owner at
+	// release (engines.ResolveTaskOwnerQ).
+	OwnerID string
 }
 
 // CreateSalesOrder validates then reserves stock for a new order, in the
@@ -238,6 +243,13 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 		if err != nil {
 			return "", err
 		}
+		// Stage 59.3: an owner's order is sourced only where that owner's own
+		// stock covers it (engines/wms_owner_isolation.go).
+		if plan != nil && strings.TrimSpace(in.OwnerID) != "" {
+			if plan, err = OwnerCheckedPlan(tenantID, in.OwnerID, lines, plan); err != nil {
+				return "", err
+			}
+		}
 		if plan == nil || (in.NoSplit && plan.Split) {
 			holdReason = HoldAllocationFailed
 		}
@@ -271,6 +283,9 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 		"contains_bundles": len(bundleLines) > 0,
 		"bundle_lines":     bundleLines,
 	}
+	if owner := strings.TrimSpace(in.OwnerID); owner != "" {
+		orderDoc["owner_id"] = owner // Stage 59.2
+	}
 
 	// Stage 41: clean the channel-supplied phone number and record which
 	// country it belongs to.
@@ -296,6 +311,9 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 			// its own home country.
 			orderDoc["customer_country"] = p.CountryISO2
 		}
+	}
+	if ref := strings.TrimSpace(in.CustomerRef); ref != "" {
+		orderDoc["customer_reference"] = ref // Stage 73.2.9, printed on its invoice
 	}
 	orderMarshaled, err := json.Marshal(orderDoc)
 	if err != nil {
@@ -611,6 +629,11 @@ func CancelOrder(tenantID, orderID, reasonCode string, actor ...string) error {
 	}
 	if err := requireActiveReasonCode(tenantID, reasonCode, "Cancellation"); err != nil {
 		return err
+	}
+	if orderStatus == OrderStatusReleased {
+		if err := cancelReleasedOrderTasks(tenantID, schema, orderID, reasonCode, userID); err != nil {
+			return err
+		}
 	}
 
 	rows, err := db.DB.Query(fmt.Sprintf(

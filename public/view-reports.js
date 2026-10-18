@@ -11,7 +11,8 @@ const REPORT_TABS = [
   { id: 'payables-ageing', label: 'Payables Ageing' },
   { id: 'receivables-ageing', label: 'Receivables Ageing' },
   { id: 'gst-return-summary', label: 'GST Return Summary' },
-  { id: 'report-catalog', label: 'Report Catalog' }
+  { id: 'report-catalog', label: 'Report Catalog' },
+  { id: 'schedules', label: 'Schedules' }
 ];
 
 async function renderReportsView(container) {
@@ -81,6 +82,8 @@ async function renderReportsView(container) {
     await renderGSTReturnSummaryReport(panel);
   } else if (currentReportTab === 'report-catalog') {
     await renderReportCatalogPanel(panel);
+  } else if (currentReportTab === 'schedules') {
+    await renderReportSchedulesPanel(panel);
   }
 }
 
@@ -478,10 +481,10 @@ async function renderPayablesAgeingReport(panel) {
   const buckets = res.ok ? await res.json() : [];
   panel.innerHTML = `
     <p style="padding: 16px 16px 0; font-size: 13px; color: var(--text-muted);">
-      Buckets Approved-but-not-yet-Closed purchase orders by age since creation.
+      Goods received and not yet paid (GRN Suspense 2100), by age from the bill's due date or else the receipt date. Open purchase orders are in the Report Catalog as Open Purchase Commitments.
     </p>
     <table>
-      <thead><tr><th>Age Bucket</th><th>PO Count</th><th>Outstanding Amount</th></tr></thead>
+      <thead><tr><th>Age Bucket</th><th>Open Items</th><th>Outstanding Amount</th></tr></thead>
       <tbody>
         ${buckets.map(b => `
           <tr>
@@ -614,14 +617,21 @@ async function renderReportCatalogPanel(panel) {
     (byCategory[cat] = byCategory[cat] || []).push(d);
   });
 
+  // Stage 55.20: each report's business question is its option's tooltip and
+  // is searchable, so "who owes us" finds Receivables Ageing.
+  const optionFor = d => `<option value="${escapeHTMLText(d.id)}" ${d.id === reportCatalogSelectedId ? 'selected' : ''} title="${escapeHTMLText(d.question || '')}">${escapeHTMLText(d.label)}${d.question ? ` - ${escapeHTMLText(d.question)}` : ''}</option>`;
   panel.innerHTML = `
     <div style="padding: 16px; display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; border-bottom: 1px solid var(--border-color);">
-      <div class="form-group" style="margin-bottom: 0; min-width: 220px;">
+      <div class="form-group" style="margin-bottom: 0; min-width: 200px;">
+        <label class="form-label" for="rc-report-search">Find a report</label>
+        <input id="rc-report-search" class="form-input" type="search" placeholder="e.g. who owes us, stock value" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0; min-width: 260px;">
         <label class="form-label" for="rc-report-select">Report</label>
         <select id="rc-report-select" class="form-select">
           ${Object.keys(byCategory).sort().map(cat => `
-            <optgroup label="${cat}">
-              ${byCategory[cat].map(d => `<option value="${d.id}" ${d.id === reportCatalogSelectedId ? 'selected' : ''}>${d.label}</option>`).join('')}
+            <optgroup label="${escapeHTMLText(cat)}">
+              ${byCategory[cat].map(optionFor).join('')}
             </optgroup>
           `).join('')}
         </select>
@@ -642,8 +652,31 @@ async function renderReportCatalogPanel(panel) {
     </div>
     <div id="rc-columns-panel" class="hidden" style="padding: 12px 16px 0;"></div>
     <div id="rc-export-status" style="padding: 0 16px;"></div>
+    <div id="rc-run-summary" style="padding: 12px 16px 0; color: var(--text-muted); font-size: 13px;"></div>
+    <div id="rc-control-totals" style="padding: 0 16px;"></div>
     <div id="rc-results" style="padding: 16px;"></div>
+    <details id="rc-recent-runs" style="padding: 0 16px 8px;"><summary>Recent runs</summary><div id="rc-recent-runs-body"></div></details>
+    <details id="rc-my-exports" style="padding: 0 16px 16px;"><summary>My exports</summary><div id="rc-my-exports-body"></div></details>
   `;
+  document.getElementById('rc-report-search').addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    const select = document.getElementById('rc-report-select');
+    let first = null;
+    select.querySelectorAll('option').forEach(o => {
+      const d = reportCatalogDefs.find(x => x.id === o.value);
+      const hay = d ? `${d.label} ${d.question || ''} ${d.description || ''} ${d.category || ''}`.toLowerCase() : '';
+      const show = !q || q.split(/\s+/).every(w => hay.includes(w));
+      o.hidden = !show;
+      if (show && !first) first = o;
+    });
+    select.querySelectorAll('optgroup').forEach(g => { g.hidden = ![...g.querySelectorAll('option')].some(o => !o.hidden); });
+    if (first && select.selectedOptions[0]?.hidden) {
+      select.value = first.value;
+      select.dispatchEvent(new Event('change'));
+    }
+  });
+  document.getElementById('rc-my-exports').addEventListener('toggle', (e) => { if (e.target.open) renderMyReportExports(); });
+  document.getElementById('rc-recent-runs').addEventListener('toggle', (e) => { if (e.target.open) renderRecentReportRuns(); });
 
   document.getElementById('rc-report-select').addEventListener('change', (e) => {
     reportCatalogSelectedId = e.target.value;
@@ -652,6 +685,7 @@ async function renderReportCatalogPanel(panel) {
     initReportCatalogColumns();
     loadReportColumnProfiles();
     document.getElementById('rc-columns-panel').classList.add('hidden');
+    if (document.getElementById('rc-recent-runs').open) renderRecentReportRuns();
   });
   document.getElementById('rc-run-btn').addEventListener('click', runReportCatalogReport);
   // Enter in a filter runs the report - a barcode scanner types the code and
@@ -872,6 +906,189 @@ function renderReportCatalogParams() {
       ${control(p)}
     </div>
   `).join('');
+  // Stage 55.20: the filters last run for this report come back (Back and
+  // re-opening keep them); otherwise a required date starts on a sensible
+  // default - this month to date, or today for an as-of date.
+  const remembered = reportParamMemory[def.id] || {};
+  const today = localISODate(new Date());
+  const monthStart = today.slice(0, 8) + '01';
+  (def.params || []).forEach(p => {
+    const el = document.getElementById(`rc-param-${p.key}`);
+    if (!el) return;
+    if (remembered[p.key] !== undefined) { el.value = remembered[p.key]; return; }
+    if (p.type !== 'date' || !p.required) return;
+    if (/^(start|from|period_from)$/.test(p.key)) el.value = monthStart;
+    else el.value = today;
+  });
+}
+
+// Stage 55.20: filters per report for this session, so drill-through and Back
+// return to the same scoped result.
+const reportParamMemory = {};
+
+// One line saying exactly what was run: report, filters, row count, when, in
+// what currency and time zone.
+function renderReportRunSummary(def, params, result) {
+  const el = document.getElementById('rc-run-summary');
+  if (!el) return;
+  const labelOf = k => ((def.params || []).find(p => p.key === k) || {}).label || k;
+  const filters = Object.entries(params).map(([k, v]) => `${labelOf(k)}: ${v}`).join(' · ') || 'no filters';
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  el.textContent = `${def.label} - ${filters} - ${(result.rows || []).length} row(s) - run ${new Date().toLocaleString('en-IN')} (${tz}) - amounts in INR`;
+}
+
+// Stage 73.2.19: detail = summary = ledger, with its cut-off.
+function renderReportControlTotals(ct) {
+  const el = document.getElementById('rc-control-totals');
+  if (!el) return;
+  if (!ct) { el.innerHTML = ''; return; }
+  const money = v => (v === null || v === undefined) ? '-' : Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const amounts = ct.amounts_hidden ? '<span>Amounts restricted for your role.</span>' : `
+      <span>Detail (rows) <b>${money(ct.detail_total)}</b></span>
+      <span>Summary <b>${money(ct.summary_total)}</b></span>
+      <span>Ledger${ct.ledger_accounts && ct.ledger_accounts.length ? ` (${escapeHTMLText(ct.ledger_accounts.join(', '))})` : ''} <b>${ct.ledger_total === null || ct.ledger_total === undefined ? 'no ledger account' : money(ct.ledger_total)}</b></span>
+      ${ct.detail_vs_summary ? `<span>Detail - summary <b>${money(ct.detail_vs_summary)}</b></span>` : ''}
+      ${ct.summary_vs_ledger ? `<span>Summary - ledger <b>${money(ct.summary_vs_ledger)}</b></span>` : ''}`;
+  el.innerHTML = `
+    <div class="table-panel" style="padding:12px 16px;margin-top:12px;border-left:4px solid ${ct.tied ? 'var(--success-color, #10b981)' : 'var(--warning-color, #f59e0b)'}">
+      <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center">
+        <span class="badge ${ct.tied ? 'badge-success' : 'badge-warning'}">${ct.tied ? 'Control totals tie' : 'Control totals do not tie'}</span>
+        ${amounts}
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:6px">${escapeHTMLText(ct.basis || '')}${ct.basis ? ' · ' : ''}${escapeHTMLText(ct.cut_off || '')}</div>
+      ${(ct.notes || []).map(n => `<div style="font-size:12px;margin-top:4px">${escapeHTMLText(n)}</div>`).join('')}
+    </div>`;
+}
+
+// Stage 55.20: the requester's own background exports - status, error and
+// the download, private to them.
+async function renderMyReportExports() {
+  const body = document.getElementById('rc-my-exports-body');
+  if (!body) return;
+  const res = await apiFetch('/api/v1/reports/exports');
+  if (!res) return;
+  if (!res.ok) { body.innerHTML = `<p class="login-error">${escapeHTMLText(await getErrorMessage(res, 'Could not load your exports.'))}</p>`; return; }
+  const { jobs } = await res.json();
+  body.innerHTML = jobs.length === 0 ? '<p style="color:var(--text-muted)">You have not exported a report yet. Use "Export in Background" above.</p>' : `
+    <table><thead><tr><th>Report</th><th>Filters</th><th>Requested</th><th>Status</th><th></th></tr></thead><tbody>
+    ${jobs.map(j => `<tr><td>${escapeHTMLText(j.report_label || j.report_id)}</td>
+      <td><small>${escapeHTMLText(Object.entries(j.params || {}).map(([k, v]) => `${k}=${v}`).join(', ') || '-')}</small></td>
+      <td>${escapeHTMLText(reportCellText(j.created_at))}</td>
+      <td><span class="badge ${j.status === 'Completed' ? 'badge-success' : j.status === 'Failed' ? 'badge-danger' : 'badge-secondary'}">${escapeHTMLText(j.status)}</span>${j.code ? ` <small>${escapeHTMLText(j.code)}</small>` : ''}</td>
+      <td>${j.status === 'Completed' ? `<button class="action-btn" data-export-download="${escapeHTMLText(j.id)}">Download CSV</button>` : ''}
+          ${j.status === 'Pending' ? `<button class="action-btn" data-export-cancel="${escapeHTMLText(j.id)}">Cancel</button>` : ''}</td></tr>`).join('')}
+    </tbody></table>`;
+  body.querySelectorAll('[data-export-download]').forEach(b => b.addEventListener('click', () => downloadReportExportCSV(b.dataset.exportDownload)));
+  body.querySelectorAll('[data-export-cancel]').forEach(b => b.addEventListener('click', async () => {
+    const r = await apiFetch(`/api/v1/reports/export/${encodeURIComponent(b.dataset.exportCancel)}/cancel`, { method: 'POST', body: '{}' });
+    if (!r) return;
+    if (!r.ok) { await showApiError(r, 'The export could not be cancelled.'); return; }
+    renderMyReportExports();
+  }));
+}
+
+// Stage 55.20: the selected report's recent runs - your own, or everyone's
+// (the scheduler's too) for a Super Admin.
+function formatRunDuration(ms) {
+  const n = Number(ms) || 0;
+  return n < 1000 ? `${n} ms` : `${(n / 1000).toFixed(1)} s`;
+}
+
+async function renderRecentReportRuns() {
+  const body = document.getElementById('rc-recent-runs-body');
+  const def = currentReportCatalogDef();
+  if (!body || !def) return;
+  body.innerHTML = '<p style="color:var(--text-muted)">Loading...</p>';
+  const res = await apiFetch(`/api/v1/reports/runs/${encodeURIComponent(def.id)}`);
+  if (!res) return;
+  if (!res.ok) { body.innerHTML = `<p class="login-error">${escapeHTMLText(await getErrorMessage(res, 'Could not load recent runs.'))}</p>`; return; }
+  const { runs } = await res.json();
+  if (def.id !== reportCatalogSelectedId) return; // the selection moved on while this loaded
+  body.innerHTML = runs.length === 0 ? `<p style="color:var(--text-muted)">No runs of ${escapeHTMLText(def.label)} yet. Press Run above.</p>` : `
+    <table><thead><tr><th>Run by</th><th>When</th><th>Took</th><th>Rows</th></tr></thead><tbody>
+    ${runs.map(r => `<tr><td>${escapeHTMLText(r.run_by || 'Schedule')}</td><td>${escapeHTMLText(reportCellText(r.run_at))}</td>
+      <td>${escapeHTMLText(formatRunDuration(r.duration_ms))}</td><td>${escapeHTMLText(String(r.row_count))}</td></tr>`).join('')}
+    </tbody></table>`;
+}
+
+// Stage 55.20: scheduled reports and dashboard digests - yours, or everyone's
+// for a Super Admin. "Next run" is the scheduler's own answer and recipients
+// are masked; schedules are created in Setup (Scheduled Report / Dashboard
+// Digest), so this list links there instead of carrying a form of its own.
+function scheduleDateText(ymd) {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(ymd || '') ? new Date(`${ymd}T00:00:00`) : null;
+  return d && !isNaN(d) ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : (ymd || '');
+}
+
+function scheduleNextRunHTML(s) {
+  if (s.status !== 'Active') return '<span style="color:var(--text-muted)">Paused</span>';
+  if (!s.next_run) return '<span style="color:var(--text-muted)">Not set</span>';
+  if (s.due) return `Due now<br><small style="color:var(--text-muted)">goes out at the next hourly check, then ${escapeHTMLText(scheduleDateText(s.following_run))}</small>`;
+  return `<span style="white-space:nowrap">${escapeHTMLText(scheduleDateText(s.next_run))}</span>`;
+}
+
+function scheduleResultHTML(s) {
+  if (s.last_result === 'ok') return `<span class="badge badge-success">Delivered</span>${s.last_rows !== undefined ? `<br><small>${escapeHTMLText(String(s.last_rows))} row${s.last_rows === 1 ? '' : 's'}</small>` : ''}`;
+  if (s.last_result === 'running') return '<span class="badge badge-secondary">Running</span>';
+  if (s.last_result === 'error') return `<span class="badge badge-danger">Failed</span><br><small>${escapeHTMLText(s.last_error || '')}</small>`;
+  return '<span style="color:var(--text-muted)">Not run yet</span>';
+}
+
+function scheduleRecipientsHTML(s) {
+  const parts = [];
+  if (s.recipient_count > 0) parts.push(`${s.recipient_count} email${s.recipient_count === 1 ? '' : 's'}<br><small>${escapeHTMLText(s.recipients.join(', '))}</small>`);
+  if (s.webhook_host) parts.push(`<small>Webhook: ${escapeHTMLText(s.webhook_host)}</small>`);
+  return parts.length ? parts.join('<br>') : '<span style="color:var(--text-muted)">None set</span>';
+}
+
+async function renderReportSchedulesPanel(panel) {
+  if (!panel) return;
+  panel.id = 'rs-panel';
+  const res = await apiFetch('/api/v1/reports/schedules');
+  if (!res) return;
+  if (!res.ok) { panel.innerHTML = `<p class="login-error" style="padding:16px;">${escapeHTMLText(await getErrorMessage(res, 'Could not load schedules.'))}</p>`; return; }
+  const { schedules } = await res.json();
+  const setupLinks = [['ScheduledReport', 'Set up a scheduled report'], ['DashboardDigest', 'Set up a dashboard digest']]
+    .filter(([doctype]) => typeof canCreateDoctype === 'function' && canCreateDoctype(doctype))
+    .map(([doctype, label]) => `<button class="btn btn-outline btn-sm" data-sched-setup="${doctype}">${label}</button>`).join('');
+  const empty = setupLinks
+    ? 'No scheduled reports or digests yet. Set one up in Setup > Reports: a Scheduled Report sends one report, a Dashboard Digest sends every tile of a saved dashboard layout - pick the frequency, the first run date and the recipient email.'
+    : 'No scheduled reports or digests yet. Ask a Store Manager or Super Admin to set one up for you.';
+  panel.innerHTML = `
+    <div style="padding: 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--border-color);">
+      ${setupLinks}<button class="btn btn-outline btn-sm" data-sched-refresh="1">Refresh</button>
+    </div>
+    <div style="padding: 16px; overflow-x: auto;">
+    ${schedules.length === 0 ? `<p style="color:var(--text-muted)">${empty}</p>` : `
+      <table><thead><tr><th>Schedule</th><th>Owner</th><th>Frequency</th><th>Next run</th><th>Last run</th><th>Result</th><th>Recipients</th><th>Status</th><th></th></tr></thead><tbody>
+      ${schedules.map(s => `<tr>
+        <td><b>${escapeHTMLText(s.target_label || s.target || '-')}</b><br><small>${s.kind === 'digest' ? 'Dashboard digest' : 'Report'}${s.run_as_role ? ` · runs as ${escapeHTMLText(s.run_as_role)}` : ''}</small></td>
+        <td>${escapeHTMLText(s.owner)}</td>
+        <td>${escapeHTMLText(s.frequency)}</td>
+        <td>${scheduleNextRunHTML(s)}</td>
+        <td>${s.last_run_at ? escapeHTMLText(reportCellText(s.last_run_at)) : '<span style="color:var(--text-muted)">Never</span>'}</td>
+        <td>${scheduleResultHTML(s)}</td>
+        <td>${scheduleRecipientsHTML(s)}</td>
+        <td><span class="badge ${s.status === 'Active' ? 'badge-success' : 'badge-secondary'}">${escapeHTMLText(s.status)}</span></td>
+        <td style="white-space:nowrap">
+          <button class="action-btn" data-sched-action="${s.status === 'Active' ? 'pause' : 'resume'}" data-sched-kind="${escapeHTMLText(s.kind)}" data-sched-id="${escapeHTMLText(s.id)}">${s.status === 'Active' ? 'Pause' : 'Resume'}</button>
+          <button class="action-btn" data-sched-action="run" data-sched-kind="${escapeHTMLText(s.kind)}" data-sched-id="${escapeHTMLText(s.id)}" data-sched-label="${escapeHTMLText(s.target_label || s.target || '')}">Run now</button>
+        </td></tr>`).join('')}
+      </tbody></table>`}
+    </div>`;
+  panel.querySelector('[data-sched-refresh]').addEventListener('click', () => renderReportSchedulesPanel(panel));
+  panel.querySelectorAll('[data-sched-setup]').forEach(b => b.addEventListener('click', () => { window.location.hash = `#/setup/${b.dataset.schedSetup}`; }));
+  panel.querySelectorAll('[data-sched-action]').forEach(btn => btn.addEventListener('click', async () => {
+    const action = btn.dataset.schedAction;
+    if (action === 'run' && !(await showCustomConfirm(`Run "${btn.dataset.schedLabel}" now and send it to its recipients?`, 'Run now'))) return;
+    btn.disabled = true;
+    const r = await apiFetch(`/api/v1/reports/schedules/${encodeURIComponent(btn.dataset.schedKind)}/${encodeURIComponent(btn.dataset.schedId)}/${action}`, { method: 'POST', body: '{}' });
+    if (!r) { btn.disabled = false; return; }
+    if (!r.ok) { btn.disabled = false; await showApiError(r, 'The schedule could not be changed.'); return; }
+    showToast(action === 'run' ? 'Running now - the result shows here when it finishes.' : action === 'pause' ? 'Schedule paused.' : 'Schedule resumed.', { variant: 'success' });
+    await renderReportSchedulesPanel(panel);
+    if (action === 'run') setTimeout(() => { if (panel.isConnected) renderReportSchedulesPanel(panel); }, 4000);
+  }));
 }
 
 function collectReportCatalogParams() {
@@ -897,6 +1114,9 @@ async function runReportCatalogReport() {
       return;
     }
   }
+  reportParamMemory[def.id] = { ...params };
+  resultsEl.innerHTML = '<p style="color:var(--text-muted)">Running...</p>';
+  renderReportControlTotals(null);
   const res = await apiFetch(`/api/v1/reports/run/${def.id}?${reportCatalogQueryString(params)}`);
   if (!res) return;
   if (!res.ok) {
@@ -904,7 +1124,10 @@ async function runReportCatalogReport() {
     return;
   }
   const result = await res.json();
+  renderReportRunSummary(def, params, result);
+  renderReportControlTotals(result.control_totals);
   renderReportCatalogResultTable(resultsEl, result, params);
+  if (document.getElementById('rc-recent-runs')?.open) renderRecentReportRuns();
 }
 
 // 2026-10-10: report timestamps (Stock Ledger's Date, created/submitted
@@ -993,10 +1216,13 @@ async function runReportCatalogDrillDown(reportId, rowKey, rowIdx) {
   const data = await res.json();
   const drillRows = data.rows || [];
   const keys = drillRows.length > 0 ? Object.keys(drillRows[0]) : [];
-  let inner = `<div style="padding:8px 0;"><table style="width:100%;"><thead><tr>${keys.map(k => `<th>${escapeHTMLText(k)}</th>`).join('')}</tr></thead><tbody>`;
+  // Stage 55.20: says which row and filters the lines belong to, with
+  // readable headings and dates.
+  const scope = Object.entries(params).map(([k, v]) => `${k} ${v}`).join(', ');
+  let inner = `<div style="padding:8px 0;"><div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${drillRows.length} line(s) behind "${escapeHTMLText(rowKey)}"${scope ? ` - same filters (${escapeHTMLText(scope)})` : ''}</div><table style="width:100%;"><thead><tr>${keys.map(k => `<th>${escapeHTMLText(k.replace(/_/g, ' '))}</th>`).join('')}</tr></thead><tbody>`;
   inner += drillRows.length === 0
     ? `<tr><td colspan="${keys.length || 1}" style="text-align:center; color:var(--text-muted);">No underlying rows for this figure &mdash; it is a computed total with no individual transactions behind it in the selected period.</td></tr>`
-    : drillRows.map(r => `<tr>${keys.map(k => `<td>${escapeHTMLText(r[k] === null || r[k] === undefined ? '' : r[k])}</td>`).join('')}</tr>`).join('');
+    : drillRows.map(r => `<tr>${keys.map(k => `<td>${escapeHTMLText(reportCellText(r[k] === null || r[k] === undefined ? '' : r[k]))}</td>`).join('')}</tr>`).join('');
   inner += `</tbody></table></div>`;
   targetRow.classList.remove('hidden');
   targetRow.querySelector('td').innerHTML = inner;
@@ -1074,7 +1300,11 @@ async function exportReportCatalogReport() {
     return;
   }
   const job = await res.json();
-  statusEl.innerHTML = `<p>Export queued (job ${job.id})... waiting for it to complete.</p>`;
+  statusEl.innerHTML = `<p>Export queued (job ${escapeHTMLText(job.id)})... waiting for it to complete. <button class="action-btn" id="rc-export-cancel-btn">Cancel</button></p>`;
+  document.getElementById('rc-export-cancel-btn')?.addEventListener('click', async () => {
+    const r = await apiFetch(`/api/v1/reports/export/${encodeURIComponent(job.id)}/cancel`, { method: 'POST', body: '{}' });
+    if (r && !r.ok) await showApiError(r, 'The export could not be cancelled.');
+  });
   pollReportExportJob(job.id, statusEl);
 }
 
@@ -1091,7 +1321,11 @@ async function pollReportExportJob(jobId, statusEl) {
     return;
   }
   if (job.status === 'Failed') {
-    statusEl.innerHTML = `<p class="login-error">Export failed.</p>`;
+    statusEl.innerHTML = `<p class="login-error">Export failed${job.message ? `: ${escapeHTMLText(job.message)}` : '.'} Narrow the filters and export again.</p>`;
+    return;
+  }
+  if (job.status === 'Cancelled') {
+    statusEl.innerHTML = `<p>Export cancelled.</p>`;
     return;
   }
   statusEl.innerHTML = `<p><button class="action-btn" id="rc-download-btn">Download CSV</button></p>`;
@@ -1120,373 +1354,7 @@ async function downloadReportExportCSV(jobId) {
   URL.revokeObjectURL(url);
 }
 
-import { documentSearchLink } from './view-document-links.js';
-
-// RFQ / Vendor Quote / Quote Comparison (Stage 13.12) - RFQ/VendorQuote
-// creation and listing use the same generic doc API as Vendor/Customer
-// (Stage 13.9); this screen adds the comparison view and winner-selection
-// action on top, which the generic endpoint doesn't provide.
-let selectedRFQId = '';
-
-// Stage 69: the RFQ list and a selected RFQ's quotes are each a list with
-// + New, the form a page of its own (txn-screen.js, the standard ERP shape) -
-// loaded with the RFQ screen only, not with Reports.
-const loadTxnScreen = () => import('./txn-screen.js' + new URL(import.meta.url).search);
-
-async function renderRFQView(container) {
-  const res = await apiFetch('/api/v1/doc/RFQ');
-  if (!res) return;
-  const { txnPagedSection, txnRestorePane } = await loadTxnScreen();
-
-  const rfqs = res.ok ? await res.json() : [];
-
-  const formPanel = document.createElement('div');
-  formPanel.className = 'table-panel';
-  formPanel.style.padding = '24px';
-  formPanel.style.marginBottom = '24px';
-  formPanel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      ${autoNumberField('RFQ Number', 'RFQ', '160px')}
-      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
-        <label class="form-label" for="rfq-description">Item / Requirement Description</label>
-        <input type="text" id="rfq-description" class="form-input">
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="rfq-quantity">Quantity</label>
-        <input type="number" id="rfq-quantity" class="form-input" style="width: 100px;">
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="rfq-target-date">Target Date</label>
-        <input type="date" id="rfq-target-date" class="form-input">
-      </div>
-      <button class="btn btn-primary" id="rfq-create-btn">Create RFQ</button>
-    </div>
-    <div id="rfq-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
-  `;
-
-  const listPanel = document.createElement('div');
-  listPanel.className = 'table-panel';
-  listPanel.style.marginBottom = '24px';
-  let listHtml = `
-    <table>
-      <thead><tr><th>RFQ Number</th><th>Source requisition</th><th>Description</th><th>Quantity</th><th>Target Date</th><th>Status</th><th></th></tr></thead>
-      <tbody>
-  `;
-  listHtml += rfqs.length === 0
-    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No RFQs yet. Create and approve a requisition first, then convert it to RFQ; or click <b>+ New RFQ</b> for a standalone one.</td></tr>`
-    : rfqs.map(r => `
-        <tr>
-          <td style="font-family: monospace;">${r.code || r.id}</td>
-          <td>${documentSearchLink('PurchaseRequisition', r.source_requisition_id)}</td>
-          <td>${escapeHTMLText(r.description || '')}</td>
-          <td>${r.quantity ?? ''}</td>
-          <td>${r.target_date || ''}</td>
-          <td><span class="badge ${r.status === 'Closed' ? 'badge-success' : 'badge-secondary'}">${escapeHTMLText(r.status || '')}</span></td>
-          <td style="white-space: nowrap;">
-            <button class="action-btn" ${actionAttrs('viewRFQQuotes', [r.id])}>${r.status === 'Closed' ? 'View Quotes' : 'Vendors &amp; Quotes'}</button>
-            ${r.status === 'Draft' ? `<button class="action-btn" ${actionAttrs('setRFQStatus', [r.id, 'Sent'])}>Mark as Sent</button>` : ''}
-            ${r.status === 'Sent' ? `<button class="action-btn" ${actionAttrs('setRFQStatus', [r.id, 'Closed'])}>Close</button>` : ''}
-          </td>
-        </tr>
-      `).join('');
-  listHtml += `</tbody></table>`;
-  listPanel.innerHTML = listHtml;
-  container.appendChild(txnPagedSection({ id: 'rfq-screen', title: 'RFQ / Quotes', page: 'New RFQ', count: rfqs.length,
-    newLabel: 'New RFQ', form: formPanel, list: listPanel }));
-  txnRestorePane('rfq-screen');
-
-  document.getElementById('rfq-create-btn').addEventListener('click', createRFQ);
-
-  if (selectedRFQId) {
-    // The selected RFQ's vendors and quotes sit under the list, on its page.
-    const quotesContainer = document.createElement('div');
-    quotesContainer.id = 'rfq-quotes-container';
-    document.querySelector('#rfq-screen > [data-pane="list"]').appendChild(quotesContainer);
-    await renderRFQQuotesPanel(quotesContainer, selectedRFQId, rfqs.find(r => r.id === selectedRFQId));
-  }
-}
-
-async function createRFQ() {
-  // BLD-036: guard against a double-click creating two RFQs.
-  await guardAgainstDoubleSubmit(document.getElementById('rfq-create-btn'), 'Creating...', createRFQInner);
-}
-
-async function createRFQInner() {
-  const errorEl = document.getElementById('rfq-form-error');
-  errorEl.classList.add('hidden');
-
-  const description = document.getElementById('rfq-description').value.trim();
-  const quantity = parseFloat(document.getElementById('rfq-quantity').value) || 0;
-  const targetDate = document.getElementById('rfq-target-date').value;
-
-  if (!description || !quantity) {
-    errorEl.textContent = 'Description and Quantity are required.';
-    errorEl.classList.remove('hidden');
-    return;
-  }
-
-  const res = await apiFetch('/api/v1/doc/RFQ', {
-    method: 'POST',
-    body: JSON.stringify({ description, quantity, target_date: targetDate, status: 'Draft' })
-  });
-  if (!res) return;
-  const data = await res.json();
-  if (!res.ok) {
-    errorEl.textContent = data.error || 'Failed to create RFQ.';
-    errorEl.classList.remove('hidden');
-    return;
-  }
-  (await loadTxnScreen()).txnDone('rfq-screen');
-  renderView('rfq');
-}
-
-async function viewRFQQuotes(rfqId) {
-  selectedRFQId = rfqId;
-  // Another RFQ's quotes open on their list, not on a quote form left open.
-  (await loadTxnScreen()).txnDone('rfq-quotes');
-  renderView('rfq');
-}
-
-// Stage 55.4: "Unable to change status of RFQ / how to assign vendors to an
-// RFQ?" The status had no control at all on this screen, and an RFQ had no
-// record of who it was sent to. Status moves along the transitions the
-// server already enforces (Draft -> Sent -> Closed; selecting a winning quote
-// also closes it), and the invited vendors are kept on the RFQ itself.
-
-// rfqInvitedVendors reads the stored list; tolerant of an empty or
-// hand-edited value so a malformed field never breaks the screen.
-function rfqInvitedVendors(rfq) {
-  try {
-    const list = JSON.parse((rfq && rfq.invited_vendors) || '[]');
-    return Array.isArray(list) ? list.map(String).filter(Boolean) : [];
-  } catch (e) {
-    return [];
-  }
-}
-
-// saveRFQ writes the whole record back - the generic update replaces a
-// document's data rather than merging into it - with its version, so a
-// concurrent edit is refused instead of silently overwritten.
-async function saveRFQ(rfqId, changes) {
-  const loaded = await apiFetch(`/api/v1/doc/RFQ/${encodeURIComponent(rfqId)}`);
-  if (!loaded) return false;
-  if (!loaded.ok) { await showApiError(loaded, 'Could not load the RFQ.'); return false; }
-  const { id, ...rfq } = await loaded.json();
-  const payload = { ...rfq, ...changes };
-  if (typeof rfq.version === 'number') payload.expected_version = rfq.version;
-  const res = await apiFetch(`/api/v1/doc/RFQ/${encodeURIComponent(rfqId)}`, { method: 'POST', body: JSON.stringify(payload) });
-  if (!res) return false;
-  if (!res.ok) { await showApiError(res, 'Could not update the RFQ.'); return false; }
-  return true;
-}
-
-async function setRFQStatus(rfqId, status) {
-  if (status === 'Sent') {
-    const loaded = await apiFetch(`/api/v1/doc/RFQ/${encodeURIComponent(rfqId)}`);
-    const rfq = loaded && loaded.ok ? await loaded.json() : null;
-    if (rfq && rfqInvitedVendors(rfq).length === 0 &&
-        !await showCustomConfirm('No vendors are invited to this RFQ yet. Mark it as sent anyway?', 'Mark RFQ as Sent')) return;
-  }
-  if (status === 'Closed' &&
-      !await showCustomConfirm('Close this RFQ without choosing a winning quote? No further quotes can be recorded against it.', 'Close RFQ')) return;
-  if (await saveRFQ(rfqId, { status })) {
-    showToast(`RFQ marked ${status}.`, { variant: 'success' });
-    renderView('rfq');
-  }
-}
-
-async function inviteRFQVendor(rfqId) {
-  const input = document.getElementById('rfq-invite-vendor');
-  const code = input ? input.value.trim() : '';
-  if (!code) { input?.focus(); return; }
-  const loaded = await apiFetch(`/api/v1/doc/RFQ/${encodeURIComponent(rfqId)}`);
-  if (!loaded || !loaded.ok) return;
-  const list = rfqInvitedVendors(await loaded.json());
-  if (list.some(v => v.toLowerCase() === code.toLowerCase())) {
-    showToast('That vendor is already invited.', { variant: 'warning' });
-    return;
-  }
-  if (await saveRFQ(rfqId, { invited_vendors: JSON.stringify([...list, code]) })) renderView('rfq');
-}
-
-async function removeRFQVendor(rfqId, code) {
-  const loaded = await apiFetch(`/api/v1/doc/RFQ/${encodeURIComponent(rfqId)}`);
-  if (!loaded || !loaded.ok) return;
-  const list = rfqInvitedVendors(await loaded.json()).filter(v => v !== code);
-  if (await saveRFQ(rfqId, { invited_vendors: JSON.stringify(list) })) renderView('rfq');
-}
-
-window.setRFQStatus = setRFQStatus;
-window.inviteRFQVendor = inviteRFQVendor;
-window.removeRFQVendor = removeRFQVendor;
-
-async function renderRFQQuotesPanel(container, rfqId, rfq) {
-  const res = await apiFetch(`/api/v1/rfq/quotes?rfq_id=${encodeURIComponent(rfqId)}`);
-  if (!res) return;
-  const quotes = res.ok ? await res.json() : [];
-  const isClosed = rfq && rfq.status === 'Closed';
-
-  // Stage 55.4: who this RFQ went to. Invite while it is open; a quote from a
-  // vendor who was never invited still records, and invites them on the way.
-  const invited = rfqInvitedVendors(rfq);
-  const vendorsPanel = document.createElement('div');
-  vendorsPanel.className = 'table-panel';
-  vendorsPanel.style.padding = '24px';
-  vendorsPanel.style.marginBottom = '16px';
-  vendorsPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 4px;">Invited vendors</h2>
-    <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
-      ${isClosed ? 'This RFQ is closed.' : 'Add the vendors you are asking for a quote. Mark the RFQ as <b>Sent</b> once you have sent it to them.'}
-    </p>
-    <div class="rfq-vendor-chips" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:${isClosed ? '0' : '12px'};">
-      ${invited.length === 0 ? '<span style="color: var(--text-muted); font-size: 13px;">No vendors invited yet.</span>' :
-        invited.map(v => `<span class="badge badge-secondary" style="display:inline-flex; align-items:center; gap:6px;">
-            <span data-link-doctype="Vendor" data-link-ref="${escapeHTMLText(v)}">${escapeHTMLText(v)}</span>
-            ${isClosed ? '' : `<button type="button" class="copy-chip" aria-label="Remove ${escapeHTMLText(v)}" title="Remove" ${actionAttrs('removeRFQVendor', [rfqId, v])}>&times;</button>`}
-          </span>`).join('')}
-    </div>
-    ${isClosed ? '' : `
-      <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" for="rfq-invite-vendor">Vendor</label>
-          <input type="text" id="rfq-invite-vendor" class="form-input" style="width: 220px;" autocomplete="off">
-        </div>
-        <button class="btn btn-outline" id="rfq-invite-btn" type="button">Invite vendor</button>
-      </div>`}
-  `;
-  container.appendChild(vendorsPanel);
-  const inviteInput = document.getElementById('rfq-invite-vendor');
-  if (inviteInput) {
-    attachLinkTypeahead(inviteInput, 'Vendor');
-    document.getElementById('rfq-invite-btn').addEventListener('click', () => inviteRFQVendor(rfqId));
-  }
-
-  const quotesTitle = `Quotes for ${escapeHTMLText((rfq && rfq.code) || rfqId)}`;
-  const panel = document.createElement('div');
-  panel.className = 'table-panel';
-  panel.style.padding = '24px';
-  panel.innerHTML = `
-    ${isClosed ? `<h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">${quotesTitle}</h2>` : ''}
-    <p style="font-size:13px; color:var(--text-muted); margin-bottom:16px;">Selecting a winner records the comparison decision but does not create a PO. Create and review the PO separately; this quote currently has no item, unit or tax line to carry across safely.</p>
-    <table>
-      <thead><tr><th>Quote Number</th><th>Vendor</th><th>Quoted Price</th><th>Lead Time (days)</th><th>Status</th><th></th></tr></thead>
-      <tbody>
-        ${quotes.length === 0
-          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No quotes submitted yet.${isClosed ? '' : ` Click <b>+ Record Quote</b> to record a vendor's response, then <b>Select as Winner</b>.`}</td></tr>`
-          : quotes.map(q => `
-            <tr>
-              <td style="font-family: monospace;">${q.code || q.id}</td>
-              <td>${q.vendor || ''}</td>
-              <td>${(q.quoted_price ?? 0).toLocaleString()}</td>
-              <td>${q.lead_time_days ?? ''}</td>
-              <td><span class="badge ${q.status === 'Selected' ? 'badge-success' : q.status === 'Rejected' ? 'badge-danger' : 'badge-secondary'}">${q.status}</span></td>
-              <td>${!isClosed && q.status === 'Submitted' ? `<button class="action-btn" ${actionAttrs('selectWinningQuote', [rfqId, q.id])}>Select as Winner</button>` : ''}</td>
-            </tr>
-          `).join('')}
-      </tbody>
-    </table>
-  `;
-  if (isClosed) {
-    container.appendChild(panel);
-    return;
-  }
-
-  // Stage 69: an open RFQ's quotes are a list with + Record Quote; the quote
-  // form is a page of its own.
-  const form = document.createElement('div');
-  form.className = 'table-panel';
-  form.style.padding = '24px';
-  form.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      ${autoNumberField('Quote Number', 'QTN', '160px')}
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="quote-vendor">Vendor</label>
-        <input type="text" id="quote-vendor" class="form-input" style="width: 160px;">
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="quote-price">Quoted Price</label>
-        <input type="number" id="quote-price" class="form-input" style="width: 130px;">
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="quote-lead-time">Lead Time (days)</label>
-        <input type="number" id="quote-lead-time" class="form-input" style="width: 130px;">
-      </div>
-      <button class="btn btn-primary" id="quote-submit-btn">Submit Quote</button>
-    </div>
-    <div id="quote-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
-  `;
-  const { txnPagedSection, txnRestorePane } = await loadTxnScreen();
-  container.appendChild(txnPagedSection({ id: 'rfq-quotes', title: quotesTitle, page: 'Record quote', count: quotes.length,
-    newLabel: 'Record Quote', form, list: panel, heading: 'h2' }));
-  txnRestorePane('rfq-quotes');
-
-  const submitBtn = document.getElementById('quote-submit-btn');
-  if (submitBtn) submitBtn.addEventListener('click', () => submitVendorQuote(rfqId));
-  const quoteVendorInput = document.getElementById('quote-vendor');
-  if (quoteVendorInput) attachLinkTypeahead(quoteVendorInput, 'Vendor');
-}
-
-async function submitVendorQuote(rfqId) {
-  // BLD-036: guard against a double-click creating two VendorQuotes.
-  await guardAgainstDoubleSubmit(document.getElementById('quote-submit-btn'), 'Submitting...', () => submitVendorQuoteInner(rfqId));
-}
-
-async function submitVendorQuoteInner(rfqId) {
-  const errorEl = document.getElementById('quote-form-error');
-  errorEl.classList.add('hidden');
-
-  const vendor = document.getElementById('quote-vendor').value.trim();
-  const quotedPrice = parseFloat(document.getElementById('quote-price').value);
-  const leadTime = parseFloat(document.getElementById('quote-lead-time').value) || 0;
-
-  if (!vendor || !quotedPrice) {
-    errorEl.textContent = 'Vendor and Quoted Price are required.';
-    errorEl.classList.remove('hidden');
-    return;
-  }
-
-  const res = await apiFetch('/api/v1/doc/VendorQuote', {
-    method: 'POST',
-    body: JSON.stringify({
-      rfq_id: rfqId, vendor,
-      quoted_price: quotedPrice, lead_time_days: leadTime, status: 'Submitted'
-    })
-  });
-  if (!res) return;
-  const data = await res.json();
-  if (!res.ok) {
-    errorEl.textContent = data.error || 'Failed to submit quote.';
-    errorEl.classList.remove('hidden');
-    return;
-  }
-  // A quote from a vendor who was not on the invite list puts them on it,
-  // so the list stays a true record of who is in this RFQ.
-  const loaded = await apiFetch(`/api/v1/doc/RFQ/${encodeURIComponent(rfqId)}`);
-  if (loaded && loaded.ok) {
-    const list = rfqInvitedVendors(await loaded.json());
-    if (!list.some(v => v.toLowerCase() === vendor.toLowerCase())) {
-      await saveRFQ(rfqId, { invited_vendors: JSON.stringify([...list, vendor]) });
-    }
-  }
-  (await loadTxnScreen()).txnDone('rfq-quotes');
-  renderView('rfq');
-}
-
-async function selectWinningQuote(rfqId, quoteId) {
-  const confirmed = await showCustomConfirm('This will mark this quote as the winner, reject all other quotes, and close the RFQ. Continue?', 'Select Winning Quote');
-  if (!confirmed) return;
-
-  const res = await apiFetch('/api/v1/rfq/select-quote', {
-    method: 'POST',
-    body: JSON.stringify({ rfq_id: rfqId, quote_id: quoteId })
-  });
-  if (!res) return;
-  if (!res.ok) {
-    await showApiError(res, 'Failed to select winning quote.', 'Selection Failed');
-    return;
-  }
-  renderView('rfq');
-}
+// RFQ / Vendor Quotes moved to its own lazy module, view-rfq.js (Stage 73.2.1-73.2.3).
 
 // QZ Tray silent printing (Stage 31.1).
 //
@@ -1501,4 +1369,4 @@ async function selectWinningQuote(rfqId, quoteId) {
 // sheet. Nobody is blocked from printing because the bridge is down.
 
 
-export { renderReportsView, fetchReportRows, execDashboardOpenReport, defaultDashboardTiles, loadDashboardLayouts, renderExecDashboard, renderExecDashboardBody, renderExecDashboardTrendChart, renderInventoryView, renderCurrentStockReport, renderSalesRegisterReport, renderVendorLedgerReport, renderPayablesAgeingReport, renderReceivablesAgeingReport, renderGSTReturnSummaryReport, renderReportCatalogPanel, currentReportCatalogDef, initReportCatalogColumns, effectiveReportColumns, toggleReportColumnsPanel, renderReportColumnsPanel, moveReportColumn, applyReportColumnState, loadReportColumnProfiles, applyReportColumnProfile, saveReportColumnProfile, renderReportCatalogParams, collectReportCatalogParams, reportCatalogQueryString, runReportCatalogReport, renderReportCatalogResultTable, runReportCatalogDrillDown, loadReportCatalogSavedFilters, applyReportCatalogSavedFilter, saveReportCatalogFilter, exportReportCatalogReport, pollReportExportJob, downloadReportExportCSV, renderRFQView, createRFQ, createRFQInner, viewRFQQuotes, renderRFQQuotesPanel, submitVendorQuote, submitVendorQuoteInner, selectWinningQuote };
+export { renderReportsView, fetchReportRows, execDashboardOpenReport, defaultDashboardTiles, loadDashboardLayouts, renderExecDashboard, renderExecDashboardBody, renderExecDashboardTrendChart, renderInventoryView, renderCurrentStockReport, renderSalesRegisterReport, renderVendorLedgerReport, renderPayablesAgeingReport, renderReceivablesAgeingReport, renderGSTReturnSummaryReport, renderReportCatalogPanel, currentReportCatalogDef, initReportCatalogColumns, effectiveReportColumns, toggleReportColumnsPanel, renderReportColumnsPanel, moveReportColumn, applyReportColumnState, loadReportColumnProfiles, applyReportColumnProfile, saveReportColumnProfile, renderReportCatalogParams, collectReportCatalogParams, reportCatalogQueryString, runReportCatalogReport, renderReportCatalogResultTable, runReportCatalogDrillDown, loadReportCatalogSavedFilters, applyReportCatalogSavedFilter, saveReportCatalogFilter, exportReportCatalogReport, pollReportExportJob, downloadReportExportCSV };

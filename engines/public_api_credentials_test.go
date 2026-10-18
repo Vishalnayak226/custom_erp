@@ -87,7 +87,8 @@ func TestAPICredentialLifecycle(t *testing.T) {
 		scopes JSONB NOT NULL, status VARCHAR(20) NOT NULL DEFAULT 'Active',
 		expires_at TIMESTAMPTZ, last_used_at TIMESTAMPTZ, revoked_at TIMESTAMPTZ,
 		rotated_from UUID, created_by VARCHAR(255) NOT NULL,
-		created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+		created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		auth_mode VARCHAR(20) NOT NULL DEFAULT 'api_key' -- Stage 38.2d
 	)`); err != nil {
 		t.Fatalf("create scratch credential table: %v", err)
 	}

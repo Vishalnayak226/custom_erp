@@ -18,12 +18,14 @@ function sessionStore() {
 
 // txnContext is the "User/Store detail in top" chip: who is working and where.
 // store overrides the session's store where the screen is bound to its own
-// (the POS till).
+// (the POS till). Stage 83 (user, 2026-10-18): "No need to show superadmin in
+// top. As it will be shown in profile." - the role is in the profile menu and
+// this chip's hover text, not on the chip.
 export function txnContext(store) {
   const user = localStorage.getItem('erp_username') || '';
   const role = localStorage.getItem('erp_role') || '';
   const where = store || sessionStore();
-  return `<span class="txn-ctx" title="Signed in as ${esc(user)}${role ? ` (${esc(role)})` : ''}"><b>${esc(user)}</b>${role ? ` · ${esc(role)}` : ''}${where ? ` · <span class="txn-ctx-store">${esc(where)}</span>` : ''}</span>`;
+  return `<span class="txn-ctx" title="Signed in as ${esc(user)}${role ? ` (${esc(role)})` : ''}"><b>${esc(user)}</b>${where ? ` · <span class="txn-ctx-store">${esc(where)}</span>` : ''}</span>`;
 }
 
 // txnTabs renders New / History style page tabs; fn is the window function
@@ -91,6 +93,8 @@ window.txnShowPane = function(target) {
         // save) reads forceLanding instead of the not-yet-popped state.
         if (current) { forceLanding[screenId] = true; history.back(); }
       } else if (!current) {
+        // On the list entry, so no Back is pending: a leftover flag is stale.
+        delete forceLanding[screenId];
         history.pushState({ txnPane: target }, '', location.href);
       } else if (current !== pane) {
         history.replaceState({ ...history.state, txnPane: target }, '', location.href);
@@ -101,9 +105,13 @@ window.txnShowPane = function(target) {
 };
 
 window.addEventListener('popstate', () => {
+  // The Back txnShowPane started has landed: clear its forceLanding for every
+  // screen, not just those in #view-root - a re-render is often mid-flight here
+  // (renderView builds off-root while it fetches), and a flag left set made
+  // every later + New render the list (the PO screen's dead + New, 2026-10-17).
+  Object.keys(forceLanding).forEach(id => { if (!statePane(id)) delete forceLanding[id]; });
   document.querySelectorAll('#view-root [data-landing]').forEach(screen => {
     const pane = statePane(screen.id);
-    if (!pane) delete forceLanding[screen.id];
     const want = pane || screen.dataset.landing;
     if (lastPane[screen.id] !== want) showPage(screen.id, want);
   });

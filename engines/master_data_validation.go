@@ -34,7 +34,7 @@ func ValidateMasterDataRules(tenantID, docID, doctype string, payload map[string
 	case "Item":
 		return validateItemMasterRules(tenantID, docID, payload)
 	case "Vendor":
-		return validateVendorMasterRules(payload)
+		return validateVendorMasterRules(tenantID, docID, payload)
 	case "Customer":
 		return validateCustomerMasterRules(tenantID, docID, payload)
 	case "Location":
@@ -514,9 +514,27 @@ func validateProductContentDuplicate(tenantID, docID string, payload map[string]
 	return nil
 }
 
-func validateVendorMasterRules(payload map[string]interface{}) error {
-	if gstin := strField(payload, "gstin"); gstin != "" && !gstinPattern.MatchString(strings.ToUpper(gstin)) {
+func validateVendorMasterRules(tenantID, docID string, payload map[string]interface{}) error {
+	gstin := strings.ToUpper(strings.TrimSpace(strField(payload, "gstin")))
+	if gstin != "" && !gstinPattern.MatchString(gstin) {
 		return &ValidationError{Code: "MASTER-0049", Message: fmt.Sprintf("GSTIN %q is not a valid 15-character GSTIN", gstin)}
+	}
+	// Stage 55.3: one GSTIN, one vendor - the Customer mobile check's shape.
+	// Two vendor records for one registered supplier is how a bill gets paid
+	// twice. Compared upper-cased, which is also how it is stored.
+	if gstin != "" && db.DB != nil {
+		payload["gstin"] = gstin
+		schema, err := db.GetTenantSchema(tenantID)
+		if err != nil {
+			return err
+		}
+		var existingID string
+		err = db.DB.QueryRow(fmt.Sprintf(`SELECT id FROM %s.documents
+			WHERE doctype = 'Vendor' AND UPPER(data->>'gstin') = $1 AND id != $2 AND status != 'Cancelled' AND deleted_at IS NULL LIMIT 1`, schema),
+			gstin, docID).Scan(&existingID)
+		if err == nil {
+			return &ValidationError{Code: "MASTER-0472", SubFor: "gstin", Message: fmt.Sprintf("vendor %s already has GSTIN %s", existingID, gstin)}
+		}
 	}
 	if acct := strField(payload, "bank_account_number"); acct != "" && !bankAccountPattern.MatchString(acct) {
 		return &ValidationError{Code: "MASTER-0052", Message: fmt.Sprintf("Bank account number %q must be 9-18 digits", acct)}
@@ -627,6 +645,11 @@ func validateZoneMasterRules(tenantID, docID string, payload map[string]interfac
 // zone is always allowed - not every warehouse zones its bins, and this
 // must not become a mandatory field retroactively.
 func validateBinMasterRules(tenantID, docID string, payload map[string]interface{}) error {
+	// Stage 59.4: a bin's owner cannot change under its stock
+	// (engines/wms_owner_isolation.go).
+	if err := validateBinOwnerChange(tenantID, docID, payload); err != nil {
+		return err
+	}
 	zone := strField(payload, "zone")
 	if zone == "" {
 		return nil

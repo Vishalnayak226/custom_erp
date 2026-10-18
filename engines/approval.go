@@ -428,6 +428,17 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 		executeApprovedLoyaltyRedemption(tenantID, docID, data)
 	}
 
+	// Stage 73.2.11: an approved manual points adjustment posts.
+	if doctype == "LoyaltyPointAdjustment" && decision == "Approved" {
+		postApprovedLoyaltyAdjustment(tenantID, docID)
+	}
+
+	// Stage 73.2.7: a till close whose count was off by more than the
+	// tolerance - approved closes it, rejected reopens it for a recount.
+	if doctype == "POSSession" {
+		finishPOSSessionApproval(tenantID, docID, decision)
+	}
+
 	// Stage 42.3.5: an Approved HoldReleaseRequest is the only path that may
 	// ever move a Hold from Active to Released - see ReleaseHold's own doc
 	// comment (engines/wms_holds.go). Best-effort/logged rather than failing
@@ -440,6 +451,16 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 				LogSystemError(tenantID, "", "ERROR", "DecideApproval",
 					fmt.Sprintf("HoldReleaseRequest %s approved but ReleaseHold(%s) failed: %v", docID, holdID, errRelease), "")
 			}
+		}
+	}
+
+	// Stage 73.1.10 (D09): an Approved PeriodReopenRequest reopens its period
+	// and starts a new close round. Logged rather than failing the committed
+	// decision; the period's close board offers the retry.
+	if doctype == "PeriodReopenRequest" && decision == "Approved" {
+		if errReopen := ApplyApprovedPeriodReopen(tenantID, docID, actorUserID); errReopen != nil {
+			LogSystemError(tenantID, "", "ERROR", "DecideApproval",
+				fmt.Sprintf("PeriodReopenRequest %s approved but the reopen failed: %v", docID, errReopen), "")
 		}
 	}
 

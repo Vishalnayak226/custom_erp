@@ -157,7 +157,15 @@ func publicAPIMiddleware(requiredScope string, next http.HandlerFunc) http.Handl
 		r.Header.Set("Resolved-Tenant-ID", tenantID)
 
 		rawKey := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-		credential, err := engines.AuthenticateAPICredential(tenantID, strings.TrimSpace(rawKey))
+		// Stage 38.2d: an OAuth access token or an API key, judged by its own
+		// rules but failing with the same single answer.
+		var credential *engines.APICredential
+		var err error
+		if engines.IsOAuthAccessToken(rawKey) {
+			credential, err = engines.AuthenticateOAuthAccessToken(tenantID, rawKey)
+		} else {
+			credential, err = engines.AuthenticateAPICredential(tenantID, strings.TrimSpace(rawKey))
+		}
 		if err != nil {
 			if !errors.Is(err, engines.ErrInvalidAPICredential) {
 				writeAPIErrorGeneric(rec, r, http.StatusServiceUnavailable, "Unable to verify the API credential - please retry shortly.")
@@ -170,6 +178,8 @@ func publicAPIMiddleware(requiredScope string, next http.HandlerFunc) http.Handl
 		}
 		entry.CredentialID = credential.ID
 		entry.KeyPrefix = credential.KeyPrefix
+		// The non-secret prefix, so a handler can say which integration acted.
+		r.Header.Set("Resolved-API-Credential", credential.KeyPrefix)
 
 		if !engines.APICredentialHasScope(credential, requiredScope) {
 			// Naming the missing scope is safe and saves an integrator a support
@@ -284,7 +294,12 @@ func publicAPIMiddleware(requiredScope string, next http.HandlerFunc) http.Handl
 			record("shed")
 			return
 		}
-		next.ServeHTTP(rec, r)
+		// Stage 73.1.9: GL rows this call posts name the API key, not a user.
+		func() {
+			defer engines.BindPostingActor(engines.PostingActor{
+				PostedBy: "service:api-key:" + credential.KeyPrefix, SourceCommand: r.Method + " " + r.URL.Path})()
+			next.ServeHTTP(rec, r)
+		}()
 		tenantConcurrency.release(tenantID)
 
 		if claimed {

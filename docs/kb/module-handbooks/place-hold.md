@@ -9,7 +9,7 @@ audience: inventory operator, store manager
 applies_to: source release 0.1.0; configured tenant permissions
 authority: canonical
 confidentiality: internal
-last_verified: 2026-09-09
+last_verified: 2026-10-18
 review_by: 2026-10-09
 supersedes: none
 superseded_by: none
@@ -26,7 +26,7 @@ failure_behavior: Reload the saved record before retrying an uncertain operation
 
 # Place and release an inventory hold
 
-Use **Place Hold** to prevent a quantity from being allocated while a quality or operational issue is investigated.
+Use **Place Hold** to stop a quantity being sold or reserved for new orders while a quality or operational issue is investigated. A pick list for an order that was already reserved can still pick held stock from its bin, so also move the goods to **QC-Hold** in **Bin Conditions** (or set the bin's **Bin Status** to Blocked) when they must not leave.
 
 ## Place the hold
 

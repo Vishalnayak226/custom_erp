@@ -126,6 +126,9 @@ func GenerateInvoiceForPackage(tenantID, packageID, userID string, opts PackInvo
 	if encodedLines, err := json.Marshal(invoiceLines); err == nil {
 		invoiceData["items"] = string(encodedLines)
 	}
+	if ref, _ := orderFieldString(schema, p.OrderID, "customer_reference"); ref != "" {
+		invoiceData["customer_reference"] = ref // Stage 73.2.9: the customer's PO, onto its invoice
+	}
 	encoded, err := json.Marshal(invoiceData)
 	if err != nil {
 		return "", err

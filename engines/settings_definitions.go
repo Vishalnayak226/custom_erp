@@ -34,6 +34,43 @@ func init() {
 		Label: "Recompute customer tier on each earn", Type: SettingTypeBool, Default: "true",
 		Description: "When on, a customer's loyalty tier is re-evaluated against lifetime spend every time they earn points.",
 	})
+	// Stage 73.3.1: what a tier is earned on.
+	RegisterSetting(SettingDefinition{
+		Key: "loyalty.tier_window_days", Module: "Loyalty",
+		Label: "Tier spend counted over the last", Type: SettingTypeInt, Default: "0", Unit: "days (0 = all time)",
+		Min:         settingBound(0),
+		Description: "A customer's tier is set by what they spent (net of offers and refunds). 0 counts all time, so a tier is never lost; 365 counts the last year, so spend that ages out can lower it - after the tier's grace days.",
+	})
+	// Stage 73.2.12: how points are accounted for.
+	RegisterSetting(SettingDefinition{
+		Key: "loyalty.liability_accounting", Module: "Loyalty",
+		Label: "Account for loyalty points", Type: SettingTypeSelect, Default: "redemption",
+		Options: []SettingOption{
+			{Value: "redemption", Label: "As an expense when they are redeemed (5250)"},
+			{Value: "accrue", Label: "As a liability when they are earned (2630 / 5260)"},
+		},
+		Description: "Accrual books the value of points earned as Loyalty Points Expense and a Loyalty Points Liability, releases the liability as points are redeemed, given back or expire, and lets the Loyalty Points Movement report reconcile it to the ledger. Turning it on does not book points already outstanding - post that opening balance by journal.",
+	})
+	// Stage 73.1.4: redemption controls on every path that burns points.
+	RegisterSetting(SettingDefinition{
+		Key: "loyalty.redemption_requires_otp", Module: "Loyalty",
+		Label: "Customer confirms every redemption with a one-time code", Type: SettingTypeBool, Default: "false",
+		Description: "When on, points can only be redeemed - at the till or through the API - after the customer reads back a one-time code sent to them. Needs a Loyalty Redemption OTP notification template. Redemptions at or above the LoyaltyRedemptionRequest approval rule also need a manager's approval.",
+	})
+	// Stage 73.1.3: points a return gives back.
+	RegisterSetting(SettingDefinition{
+		Key: "loyalty.restored_points_grace_days", Module: "Loyalty",
+		Label: "Returned points stay valid for at least", Type: SettingTypeInt, Default: "30", Unit: "days",
+		Min:         settingBound(0),
+		Description: "When a returned item was paid for with points, those points go back to the customer. They keep the latest expiry the customer's points had at the sale, but never less than this many days from the return.",
+	})
+	// Stage 55.5a: second-person approval of returns and refunds - off until
+	// a business turns it on.
+	RegisterSetting(SettingDefinition{
+		Key: "returns.second_person_approval", Module: "OMS",
+		Label: "A second person approves returns and refunds", Type: SettingTypeBool, Default: "false",
+		Description: "When on, the person who raised a return cannot approve it or approve its refund - someone else must. Receiving, inspecting and paying the refund out are unchanged, and an exchange at the till is still approved at the counter. Off: anyone with Returns can approve, as before.",
+	})
 
 	// --- Inventory ---
 	RegisterSetting(SettingDefinition{
@@ -142,6 +179,20 @@ func registerStage282Settings() {
 		Min:         settingBound(0),
 		Description: "How many days after creation a Goods Receipt Note may still be edited. 0 means no time limit.",
 	})
+	// Day limits (the user, 2026-10-17): read by po_auto_cancel.go and
+	// purchase_return.go.
+	RegisterSetting(SettingDefinition{
+		Key: "procurement.po_auto_cancel_days", Module: "Procurement",
+		Label: "Purchase Order auto-cancel", Type: SettingTypeInt, Default: "0", Unit: "days",
+		Min:         settingBound(0),
+		Description: "How many days after approval an Approved Purchase Order stays open. Then, checked every hour: with nothing received it is cancelled; partly received, its open balance is short-closed (rejected goods go on a draft purchase return). Already-older POs are handled on the first check. 0 = never.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "procurement.purchase_return_window_days", Module: "Procurement",
+		Label: "Purchase return window", Type: SettingTypeInt, Default: "0", Unit: "days",
+		Min:         settingBound(0),
+		Description: "How many days after a goods receipt its accepted stock may still be returned to the vendor (PURCHA-0620). Rejected and damaged goods can always be returned. 0 = no limit.",
+	})
 	// Stage 40.1. Defaults to Exclusive: a vendor's quoted purchase price is
 	// normally the taxable value with GST added on top, which is the opposite
 	// of this codebase's sale-side rate fields (MRP-style, tax already in).
@@ -212,20 +263,19 @@ func registerStage282Settings() {
 	})
 
 	// Stage 47.5.1 (audit A-05). Single-owner is the SUPPORTED configuration,
-	// not merely the default: allocation and picking take no owner parameter
-	// anywhere in this codebase, so two owners under one roof means one
-	// client's order can be filled from another client's segregated stock.
-	// The mixed value exists so a real 3PL pilot can opt in knowingly - it is
-	// labelled unsupported because that is what it is, and
-	// ListMixedOwnerLocations reports every location it puts in that state.
+	// not merely the default. Stage 59.6: mixed owners is supported too -
+	// orders, pick tasks, allocation, availability and every bin movement
+	// carry the owner (engines/wms_owner_isolation.go), so one client's order
+	// is only ever filled from that client's stock. The pre-59 value
+	// "mixed_unsupported" still reads as mixed.
 	RegisterSetting(SettingDefinition{
 		Key: StockOwnershipModeSetting, Module: "Warehouse",
 		Label: "Stock ownership model", Type: SettingTypeSelect, Default: OwnershipSingleOwner,
 		Options: []SettingOption{
-			{Value: OwnershipSingleOwner, Label: "One owner per warehouse (supported)"},
-			{Value: OwnershipMixedUnsupported, Label: "Allow mixed owners (UNSUPPORTED - picking is owner-blind)"},
+			{Value: OwnershipSingleOwner, Label: "One owner per warehouse"},
+			{Value: OwnershipMixed, Label: "Several owners per warehouse (stock kept apart per owner)"},
 		},
-		Description: "Whether a warehouse may hold stock for more than one 3PL owner. Allocation and picking do not filter by owner, so mixing owners in one building allows one client's demand to be met from another client's stock. Keep this on one-owner-per-warehouse unless you have accepted that risk.",
+		Description: "Whether a warehouse may hold stock for more than one 3PL owner (client). With several owners, each order names its owner and is picked only from that owner's stock; putaway, moves and condition changes keep each owner's units apart, and Reports → Owner Stock Exceptions lists anything that no longer adds up.",
 	})
 
 	// --- Manufacturing ---

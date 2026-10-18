@@ -111,11 +111,7 @@ func AuthorizePOSSale(tenantID, cartNumber string) (*POSAuthorization, error) {
 	}
 
 	auth := &POSAuthorization{CartNumber: cartNumber, PaymentState: PaymentStateInitiated}
-	lines := append([]struct {
-		Sku       string  `json:"sku"`
-		Qty       int     `json:"qty"`
-		SalePrice float64 `json:"sale_price"`
-	}(nil), cart.Items...)
+	lines := append([]posCartLine(nil), cart.Items...)
 	sortPOSLinesBySKU(lines)
 	for _, item := range lines {
 		resID, resErr := CreateReservation(tenantID, item.Sku, cart.Location, item.Qty, "POSAuthorization", posAuthReservationTTLSeconds)
@@ -319,14 +315,9 @@ func releasePOSReservations(schema string, ids []string) {
 }
 
 // sortPOSLinesBySKU keeps the reservation order identical to the decrement
-// order (47.3.4). Written out rather than reaching for a generic helper
-// because the anonymous struct the stored cart unmarshals into has no name to
-// hang a sort.Interface on.
-func sortPOSLinesBySKU(lines []struct {
-	Sku       string  `json:"sku"`
-	Qty       int     `json:"qty"`
-	SalePrice float64 `json:"sale_price"`
-}) {
+// order (47.3.4). An insertion sort, kept from when the stored cart line was an
+// anonymous struct with no name to hang a sort.Interface on.
+func sortPOSLinesBySKU(lines []posCartLine) {
 	for i := 1; i < len(lines); i++ {
 		for j := i; j > 0 && lines[j].Sku < lines[j-1].Sku; j-- {
 			lines[j], lines[j-1] = lines[j-1], lines[j]

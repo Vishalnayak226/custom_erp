@@ -20,17 +20,25 @@ func handlePutaway(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
+	// Stage 59.4: owner_id (or the owner of grn_id's goods receipt) says whose
+	// stock is going away; see engines.PutawayToBinForOwner.
 	var req struct {
 		BinCode string `json:"bin_code"`
 		Sku     string `json:"sku"`
 		Qty     int    `json:"qty"`
+		OwnerID string `json:"owner_id"`
+		GRNID   string `json:"grn_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.BinCode == "" || req.Sku == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'bin_code' and 'sku' are required")
 		return
 	}
-	if err := engines.PutawayToBin(tenantID, req.BinCode, req.Sku, req.Qty, userID); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+	owner := req.OwnerID
+	if owner == "" && req.GRNID != "" {
+		owner = engines.ReceiptOwner(tenantID, req.GRNID)
+	}
+	if err := engines.PutawayToBinForOwner(tenantID, req.BinCode, req.Sku, req.Qty, owner, userID); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
@@ -102,13 +110,14 @@ func handleBinConditionTransition(w http.ResponseWriter, r *http.Request) {
 		Qty           int    `json:"qty"`
 		FromCondition string `json:"from_condition"`
 		ToCondition   string `json:"to_condition"`
+		OwnerID       string `json:"owner_id"` // Stage 59.4: whose units, in a shared bin
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.BinCode == "" || req.Sku == "" || req.FromCondition == "" || req.ToCondition == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'bin_code', 'sku', 'from_condition', and 'to_condition' are required")
 		return
 	}
-	if err := engines.TransitionBinStockCondition(tenantID, req.BinCode, req.Sku, req.Qty, req.FromCondition, req.ToCondition, userID); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+	if err := engines.TransitionBinStockConditionForOwner(tenantID, req.BinCode, req.Sku, req.Qty, req.FromCondition, req.ToCondition, req.OwnerID, userID); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
@@ -233,13 +242,29 @@ func handleReconcileCycleCount(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'count_session' is required")
 		return
 	}
-	posted, pendingApproval, err := engines.ReconcileCycleCount(tenantID, req.CountSession, userID, role)
+	// Stage 73.1.8: also reports lines sent for a blind recount by a
+	// configured trigger, and recount lines still waiting to be counted.
+	res, err := engines.ReconcileCycleCountDetailed(tenantID, req.CountSession, userID, role)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"posted_no_variance": posted,
-		"pending_approval":   pendingApproval,
-	})
+	_ = json.NewEncoder(w).Encode(res)
+}
+
+// handleCycleCountSessionLines (Stage 55.6) feeds the Cycle Count screen's
+// session work table - lines with their state, and book quantities only
+// once reconciled.
+func handleCycleCountSessionLines(w http.ResponseWriter, r *http.Request) {
+	session := r.URL.Query().Get("count_session")
+	if session == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameter 'count_session' is required")
+		return
+	}
+	lines, err := engines.CycleCountSessionLines(r.Header.Get("Resolved-Tenant-ID"), session)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(lines)
 }

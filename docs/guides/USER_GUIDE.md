@@ -95,6 +95,7 @@ Jump straight to the thing you're trying to do.
 | Check whether a marketplace or Unicommerce order reached the ERP | §9A.2 |
 | Process an order through to shipment and invoice | §9A.3 and §9A.4 |
 | Understand why a field says my GSTIN, email or phone number is wrong | §8e |
+| Pick a state, fill an address, or see why a new record's code is V00001 | §8f |
 | Approve or reject something | §10 |
 | Post an accrual, correction or opening balance (journal voucher) | §9B.1 |
 | **Log a customer's service call and work it to closure** | §9C |
@@ -219,6 +220,15 @@ From your second visit onward you land back on whichever screen you were last us
 
 At the top right of most list screens there are **New** and **Bulk Import** buttons, and each row has **Edit** and **Delete** icons. Any of these that your role can't use simply won't be shown.
 
+**When some rows of a Bulk Import fail**, the rows that were right are already saved — fix only the others:
+
+1. On the import result, click **Fix and resume the failed rows** (the same job also opens from **My work**, and from **Setup → Import Job** by typing its job ID into the box above the list).
+2. **Download failed rows**. Each row comes with its reason in the last column. Correct the values; keep the **original_row** column as it is.
+3. Choose the corrected file and click **Check**. It reports what would happen and saves nothing; **Resume** only becomes clickable after a check.
+4. Click **Resume**. Just those rows are imported. The job then shows how many are still to fix and how many were fixed since; repeat for any that still fail.
+
+A row number that is not one of the job's open failed rows is refused, so a row cannot be imported twice.
+
 ## 4. Making a Sale (POS / Billing)
 
 This is the screen a cashier uses most.
@@ -232,11 +242,22 @@ This is the screen a cashier uses most.
 ### 4.0 Open the till for the shift
 
 1. Click **POS / Billing** (under the **POS** module).
-2. Start typing your shop's **name** into **Store** and pick it from the list (the code and short code work too, if that is what you know it by). The session line just under the screen's title bar shows whether a session is open there.
+2. If your user is set up at a shop, **Store** already shows it when the till opens. Otherwise, or to sell from another shop, start typing the shop's **name** into **Store** and pick it from the list (the code and short code work too, if that is what you know it by). The session line just under the screen's title bar shows whether a session is open there.
    - **Only sellable locations appear here.** If the shop you expect is missing, it is almost certainly set to **Sellable = No** on its Location record — ask an administrator to change it. This is deliberate: it is what stops a sale being rung up against a warehouse or head office by accident.
 3. If the session line says *"No open session … open one before selling"*, click **Open Session**, type the **cash physically in the till right now**, and confirm. The bar changes to *"Session open at …"*.
 4. **The till is now bound to that store.** The **Store** box goes read-only and shows *"Bound to … for this session"* underneath. This is on purpose — it means you cannot drift onto another shop's stock halfway through a shift. To change it, see **Reset Terminal** in §4.5.
-5. At the end of the shift, click **Close Session** and enter the cash you counted. The system shows what it expected, what you counted, and the difference — note it for your manager if it isn't zero.
+5. At the end of the shift, click **Close Session** and enter the cash you counted. The system shows what it expected, what you counted, and the difference.
+   - **If the count is off by more than the allowed amount** (₹50 unless your administrator changed it), the till says by how much and asks **why**. Type the reason. The session then waits for a **Store Manager** to accept it under **Approvals** — nothing more can be sold on it meanwhile. If the manager rejects it, the session opens again so you can recount and close once more.
+
+**During the shift — cash in and out of the drawer.** Click **More… → Cash in / out**. The dialog shows what the drawer should hold right now (*Float + cash sales − cash refunds + paid in − paid out − safe drops = expected*). Choose:
+
+- **Paid In** — cash brought into the till from the store's safe (more change, say).
+- **Paid Out** — a small expense paid from the till (tea, a courier). It is booked as a till petty-cash expense.
+- **Safe Drop** — cash taken out of the till to the safe, so the drawer does not build up.
+
+Type the amount, pick a **reason**, and add a reference (the voucher or bag number). You cannot take out more than the drawer should hold. Every movement counts in the expected cash at close, so a drawer that had a ₹1,000 safe drop still balances. Cash refunds paid at this store are allowed for too.
+
+**Handing the till to the next cashier.** The next cashier signs in on the same till, picks the store, and chooses **More… → Take over this till**. They count the cash and type it: that closes the outgoing cashier's session against their count (with the same reason-and-approval step if it is off) and opens theirs with that cash as the float. The two sessions name each other, so who handed over to whom is on record.
 
 You open a session once per shift, not once per sale.
 
@@ -250,14 +271,20 @@ You open a session once per shift, not once per sale.
    - If nothing matches you are told so plainly — *"No product matches …"* — rather than a blank line being added to the cart.
 2. Repeat for every item the customer is buying. Scanning the same item twice adds 2, it does not create a second line.
 3. **Adjust quantities with the − and + buttons** on the line, or type straight into the quantity box for a larger number. Pressing **−** on a quantity of 1 removes the line.
-4. **Read the Available column before you promise anything.** It shows the quantity you can actually sell at this store. If some of that item is held back — quarantined by QC, damaged, or blocked — a second line says so: *"3 not sellable (QC hold / damaged / blocked)"*. That stock is physically in the shop but must not be sold. If you ask for more than can be sold, the row turns red and says *"Only N can be sold here"*.
+4. **Read the Available column before you promise anything.** It shows the quantity you can actually sell at this store. If some of that item is held back — quarantined by QC, damaged, or blocked — a second line says so: *"3 not sellable (QC hold / damaged / blocked)"*. That stock is physically in the shop but must not be sold. If you ask for more than can be sold, the row turns red and says *"Only N can be sold here"*. Clicking **Complete Sale** anyway names the item and how many are available (e.g. *"LAMP … available 0, requested 1"*). Click **Remove** on that line, or lower the quantity, and click **Complete Sale** again. Nothing was charged, and the bill keeps its number.
 5. **If the customer is a returning or loyalty customer**, type their **name** (or phone number, or code) into **Customer** and pick them from the list. The line beneath the box reads *"Walk-in — no customer attached"* until you do, so you always know which you are on.
-   - **The customer isn't in the system yet?** Click **+ New Customer**, enter their name and phone, and they are created and attached to this sale without leaving the till.
-   - **Check Points** shows their balance. **Redeem Points** spends points on this sale — the discount comes off the amount to collect automatically, and the points are only actually deducted once the sale completes.
+   - **The customer isn't in the system yet?** Click **+ New Customer**, enter their name and phone, and they are created and attached to this sale without leaving the till. With a phone number, the till then asks whether they have agreed to receive offers. Tick **Offers by SMS** and/or **Offers by WhatsApp** only if they said yes; both start unticked. Without a tick, no SMS or WhatsApp campaign is sent to them. **Customer details** shows what they agreed to.
+   - **Customer details** shows who you are serving: their points and what they are worth, their tier and what it gives (*Bronze — Birthday voucher*), how much more they need to spend for the next tier, their last few bills and returns, and any **vouchers issued to them that they can use today** (type the code into **Coupon code**). The phone number shows only its last four digits. **Redeem Points** spends points on this sale. Add the items first: the till then tells you the customer's balance, what one point is worth (set by your administrator — it is not always ₹1) and the most this bill can take, and you type how many to use. The amount comes off the **Total** at once (the bar shows *Loyalty: −270.00 (270 pt)*), and the points are only actually deducted once the sale completes.
+   - **The customer may need to confirm.** If your shop asks customers to confirm redemptions, a one-time code is sent to the customer; type the code they read back into the box that appears. A wrong code redeems nothing — choose **Redeem Points** again to send a new one.
+   - **A large redemption needs a manager.** Above the value your administrator set (₹500 as shipped), the till asks you to **choose a reason** and raises a request for a Store Manager. The info line names the request and says it is waiting under **Approvals**. Once the manager approves it there, complete the sale as normal; until then, **Complete Sale** refuses with *"needs a manager's approval"*. Each approval is for this one bill and this number of points — it cannot be reused on another bill.
+   - **Points the customer has already spent elsewhere can make the balance negative** after a return (see §4.7). Such a customer cannot redeem until new purchases bring the balance back above zero.
 6. **Any offers that apply appear on their own, in a panel under the items** — see §4.2. If the customer has a coupon, type it into the **Coupon code** box.
 7. Check the **Total** at the top right of the screen — tax is calculated automatically, you don't need to work it out.
 8. **Choose how they're paying.** If it is **Cash**, type what the customer handed you into **Cash tendered** and **Change due** appears beside the Total at the top before you commit to anything (or *"Short by …"* if it isn't enough). Card and UPI are for the exact amount, so the box disappears for those.
+   - **Paying more than one way?** Click **More… → Split payment**. Type the fixed parts — say **Card 1,000** and **UPI 200** — and leave the rest blank. Whatever is left is paid by the **Payment Mode** you have selected; the bar shows *Split: Card 1000.00 + UPI 200.00; the rest by Payment Mode*. If the rest is cash, **Cash tendered** and **Change due** work on the cash part only. Parts that add up to more than the bill are refused. To go back to one payment mode, open **Split payment** again and clear the boxes. A split sale cannot be queued offline with a gift card, and a payment-terminal sale is never split.
 9. Click **Complete Sale** (top right, next to the Total).
+
+**Holding a bill.** A customer goes to fetch another size and the queue is waiting: click **More… → Hold this bill**, add a short note (their name, say) and confirm. The till clears for the next customer. When they come back, click **More… → Resume a held bill** on any till at the same store, pick the bill (shown with its note, items, total, who held it and when) and it comes back with its items, customer and coupon. Prices are checked again. Points, a split payment and gift cards are not kept on a held bill — add them again before **Complete Sale**. A bill keeps its number while it is held, so it can only ever be paid once; if two tills try to resume the same bill, the second is told it is no longer held. To drop a bill the customer will not come back for, choose it in the same list, pick **Discard it** and give a reason. Holding a bill does not set stock aside.
 
 ### 4.1a The sale is complete — the till freezes
 
@@ -282,6 +309,7 @@ You do not apply offers by hand. Whatever your head office has set up in the ERP
 
 - **Automatic offers just appear.** Add the qualifying items and the offer shows up. Remove an item and it disappears again if the cart no longer qualifies. If an offer needs a minimum spend, it appears once the cart crosses it.
 - **Coupon offers need the code.** Type it into the **Coupon code** box. Case doesn't matter, and you can enter more than one separated by a space or comma. If a code doesn't apply to this cart, the panel says so in plain words rather than silently ignoring it — check the spelling, and whether the cart actually meets the offer's conditions.
+- **Issued vouchers go in the same box.** A voucher your company issued (a printed or emailed code — *WELCOME100*, a customer's birthday voucher) is typed into **Coupon code** like any coupon. It is applied after the offers, on what they left, and shows in the panel as *Voucher WELCOME100 — issued voucher −100.00*. One voucher per bill. If it cannot be used the panel says why — *used up*, *expired*, *restricted to a different customer*, *for Online use only*, *can be used from …*. A voucher restricted to a customer needs that customer on the sale first. It is used up only when the sale completes; if someone else used its last use in the meantime, **Complete Sale** says so — remove the code and the bill is priced again without it.
 - **Some offers only apply to certain customers** (a loyalty tier, for instance). Look the customer up *before* expecting those to show — with no customer on the sale, a tier-restricted offer will not appear.
 - **The final say is the server's, not this screen's.** The panel is a preview; the discount is recalculated for real when you take payment. In normal use the two agree. If they ever don't, the amount charged is the correct one.
 - **The discount box is separate.** The **Discount %** field is still there for a manual, cashier-applied discount, and large manual discounts may still need a manager's approval. Offers are not manual discounts and don't need approval — they're the rules head office already signed off.
@@ -330,7 +358,7 @@ Day to day you will not need this button. Between customers, use **New Sale (Res
 
 **Free gifts (Gift With Purchase).** When the bill qualifies for a gift — say a Gift Plant with every necklace — the panel shows **Gift eligible: 1 × Gift Plant — scan it to hand it over**. Scan the gift you actually hand over: it rings up at **0.00** as *Free gift (offer)* and the prompt changes to *scanned*. A gift the bill has **not** earned — or more of it than earned — is refused and comes off, with the reason. A "free with item" accessory (a charger free with a phone) still works as before: it is free only alongside its main product.
 
-**Gift cards.** Click **Gift Card** (with Check Points / Redeem Points) and choose what you are doing:
+**Gift cards.** Click **Gift Card** (with Customer details / Redeem Points) and choose what you are doing:
 
 - **Pay this bill with a gift card.** Scan or type the card number; leave the amount blank to use as much as the card covers (or type a smaller amount). The bar shows **Gift card: −600.00 (**** 1701)** and the **Total** drops to what is still to collect — take the rest by Cash / Card / UPI as usual. The card is charged only when the sale completes; if the sale fails, the card keeps its balance. A gift card **needs a connection** — it cannot be used on a sale rung up offline. To take a card back off the bill before completing, use **Gift Card → Remove the gift cards from this bill**.
 - **Issue / add value.** For a customer **buying** a gift card. Take their payment first, then scan the card, type the amount and choose how they paid. The card is funded at that moment and a separate **Gift Card Issue** receipt prints (card shown as **** 1701, amount, balance, valid until). It is not a line on any sale bill. A card that has already been issued cannot be issued again; whether value can be **added** to an issued card depends on its type.
@@ -340,6 +368,40 @@ Day to day you will not need this button. Between customers, use **New Sale (Res
 The finished bill and the receipt show each gift card as its own line (*Gift card **** 1701 −600.00*), so the amount collected matches the drawer.
 
 **Items the till won't sell.** Some items are kept off the bill on purpose — packaging, internal supplies, fixed assets (laptops, the till itself). Scanning one removes the line and tells you why. A **service** (repair, installation) sells normally but shows **Not stocked** in the Available column, because there is no shelf stock to count.
+
+### 4.7 Returns — what the customer gets back
+
+A return pays back **what the customer actually paid for those items**, the way they paid it. It is never the price on the tag when the bill had an offer, and never cash for something paid with points or a gift card.
+
+1. **Raise it at the till.** Open the **Return** tab on the POS screen, type the **bill number** from the receipt and click **Look Up Bill**. Each line shows what can still be returned and its price — the price after the bill's offer, e.g. a ₹1,000 shirt on a bill with 10% off shows **900.00**. **Return Location** is already filled with the till's store. Type the quantities coming back and click **Raise Return**. A box tells you what the customer will get back once it is refunded (for example *Cash 900.00 and 90 points*) and offers to **open Returns**. **Sales & Marketplace → Returns → + New Return** brings you back to this tab.
+2. **A manager takes it from there** on **Sales & Marketplace → Returns**: **Approve** (if your business has turned on second-person approval, someone other than the person who raised the return must approve it, and its refund), then **Receive Goods** when the items are physically back, then **Inspect**. Inspect opens one form with each item by name. Choose its condition from the list: Sellable, Damaged and Repairable are refunded; Missing, Wrong Item and Rejected are not. Optionally, type an item code to exchange it instead. Until the inspection, **Refund Eligible** shows the expected amount, marked *expected*.
+3. **Refund.** Click **Refund** on the return. For a till bill you are shown exactly where the money goes, for example *Card 333.33, Cash 410.00, UPI 66.66, 90 points back to the customer* — confirm to approve, and confirm again to pay. Reverse any card or UPI part on the terminal or payment app; cash comes out of the drawer. You are only asked *"How is the refund being paid?"* for a return with no till bill behind it (an online order).
+
+What happens to the customer's points, automatically:
+
+- **Points they spent on the returned items come back as points**, valid for at least 30 days (or longer, if their points had a later expiry when they bought).
+- **Points the returned items earned are taken back**, in proportion to the money refunded. If the customer has already spent them, their balance goes negative and their next purchases pay it back; the cash refund is never reduced to cover them.
+- **A gift-card share goes back onto the same card.** If that card has since been blocked, the refund stops with *"goes back to a gift card that is blocked"* — a manager releases the card (**Gift Card → Release a blocked card**) and processes the refund again.
+
+**Exchanging at the till — swap, and pay only the difference.** The customer is at the counter with something to swap:
+
+1. On an empty till (store picked, session open), click **More… → Exchange**, type the **original bill number** and choose how many of each item are coming back and their condition (**Sellable**, **Damaged** or **Repairable**). The items are received and inspected there and then — no trip to the Returns screen.
+2. The till shows **Exchange credit: −900.00** in the bar: what the customer paid for those items (after the bill's offer; any points they used come back as points, and the points those items earned are taken back, as for any return).
+3. Ring up what they take instead. The **Total** is what is left to pay after the credit — take it as usual (cash, card, UPI, a split). If the new items cost less, the bar says *(450.00 back to the customer)*, the Total reads **0.00**, and after **Complete Sale** the finished bill says **Exchange: give the customer 450.00 back from the till** — hand that over in cash. It is counted in the drawer's expected cash.
+4. The new bill earns points on everything it was paid with, the credit included, so a straight swap leaves the customer's points where they were. An exchange needs a connection (it cannot be queued offline), and its credit can be used on one bill only.
+
+Returning a line in pieces works out to the paisa: two identical shirts returned one at a time may refund 809.99 and then 810.01, and together they always give back exactly what was paid.
+
+### 4.8 A customer's points — the Loyalty screen (store managers)
+
+**Sales & Marketplace → Loyalty.** Four tabs:
+
+- **Customer** — search the customer by name or phone. You see their balance, their tier and what it gives (*Silver · Free alterations*), and every entry in their points history in plain words — *Earned on a sale*, *Redeemed*, *Given back on a return*, *Taken back on a return*, *Credited / Debited by adjustment*, *Expired* — with the bill or document it came from and when earned points lapse. A negative balance is explained: a return took back points they had already spent, and new purchases pay it back.
+  - **Adjust points** puts points on or takes them off by hand — a goodwill credit, a correction. Type the points (+ to credit, − to debit), pick a **reason** and add a note. It is a new entry in the history; nothing is ever edited. Up to the approval value (₹500 worth as shipped) it happens at once; above it the adjustment waits under **Approvals** for another manager. A debit can never take the balance below zero.
+  - Under the balance you also see what the points are worth, the spend counted for tiers and how much more reaches the next tier, the customer's **last bills**, their **returns** (status and refund), and the **vouchers they can use** right now. These are the same figures the cashier sees under **Customer details** at the till.
+- **Tiers** — each tier's **Spend from** threshold, **Earn multiplier**, **Benefits** (shown to the cashier at the till) and **Grace days**. A customer's tier follows what they actually spent, net of offers and refunds. When their spend drops below their tier, they keep it for its grace days before moving down. Edit a row and click **Save**; **Add a tier** for a new one.
+- **Points movement** — for a period (blank = all time): opening balance, points earned, given back on returns, credited, redeemed, taken back on returns, debited, expired, and the closing balance, each with its value. If your company accounts for points as a liability, the last two lines compare the liability in the books with the points outstanding — they should agree.
+- **Vouchers & campaigns** — every voucher in plain words: what it gives (*100 off the bill*, *10% off the bill*), who it is for, where it works (till, online or both), its dates, how often it has been used (*0 of 1*), whether it can be used **now** or why not (*expired on …*, *can be used from …*, *has reached its maximum uses*, *not active*), and the discount it has given on paid bills. Below that, every campaign: its trigger, what it is **Sent by**, the message as it will be sent, how many customers it **would pick today** (only those who agreed to that channel), how many matched but were **skipped for no consent**, how many it has been sent to, sales from them since, its cost and return. A campaign hands each message to CleverTap; whether the message reached the customer is tracked there, not here. **Add or edit vouchers** / **Add or edit campaigns** open their records.
 
 ## 5. Checking Stock
 
@@ -356,7 +418,9 @@ The finished bill and the receipt show each gift card as its own line (*Gift car
    Add each item (its book stock appears), type the quantities, add a **Count reference** (e.g. *Week 42 count*), and click **Post Consumption**, then confirm. The stock leaves the store and the cost goes to the item's expense account. A count higher than the book, or a quantity used larger than the stock, is refused — receive the difference on a GRN first. Services and other items that keep no stock can't be added.
 5. Use that row's **Transfer**, **Count** or **Hold** link for the next task.
    **Hold** carries the item and location into Place Hold; choose a Hold Code,
-   quantity and reason, then save. The result links to the saved Hold record.
+   quantity and reason, then save. Before you save, the screen shows the item's
+   on-hand, already-held and available-to-sell quantities there and what the
+   hold leaves to sell (a hold never changes on-hand stock). The result links to the saved Hold record.
    Release is a separate Hold Release Request requiring approval. After placing
    the hold, choose **Request release of this hold**, enter the reason, save
    the Draft, then use its row's **Submit for Approval** action. A different
@@ -365,34 +429,57 @@ The finished bill and the receipt show each gift card as its own line (*Gift car
 
 For a simple untracked item transfer, choose **Transfer** on the Inventory
 row, select the From and To locations, add the item and quantity, and create
-the Draft. **Mark Approved**, **Dispatch** and **Receive** are separate actions;
-receiving asks for the actual quantity and a reason for any shortfall. The
-source on-hand decreases at dispatch, the quantity is in transit until
-receipt, and only confirmed units enter destination stock. Transfer approval
-is currently a direct authorized status action, not independent maker-checker
-sign-off; do not treat it as such. Lot/serial-preserving transfer remains an
-open Stage 55.6 gate.
+the Draft. Approval, **Dispatch** and **Receive** are separate steps (§7):
+approval is by a second person unless the transfer is worth less than your
+business's direct-approval limit; dispatch takes lots and serial numbers with
+the goods; a receipt can be split over several deliveries and records damaged,
+lost or extra units with a reason. The source on-hand decreases at dispatch,
+the quantity is in transit until receipt, and only confirmed units enter
+destination stock.
 
 For an ad hoc blind count, choose **Count** on the Inventory row, then **Start
 blind count for this item**. The item, location and new count-session reference
 are filled for you. Enter only the quantity you physically counted and Save;
 expected quantity and variance are not shown during entry. Return to **Cycle
 Count**: the last session reference is already in **Reconcile Session**. A
-zero-variance line posts there; a variance waits for the separate reason,
-recount/approval path. The server rejects a new count line that claims Posted
-or supplies an expected quantity or variance by hand.
+zero-variance line posts there. **3. Session lines** then lists every line of
+the session - item by name, status, what was counted, and (only after
+reconcile) the book quantity and the difference. For a difference: choose its
+**Reason** from the list (reason codes of type *Cycle Count Variance*), and
+either leave it for approval (**Approvals** link) or click **Recount** to send it
+for a blind recount. A recount line has a quantity box and **Save recount**
+for the second counter. An approved line whose posting failed shows **Post**.
+The server rejects a new count line that claims Posted or supplies an expected
+quantity or variance by hand.
+
+**Big differences are recounted first.** If your administrator has set a
+recount trigger (a number of units, a percentage, or a value), a first count
+that is off by at least that much is not sent for approval. **Reconcile
+Session** lists it under *sent for recount*, with the reason ("off by 18 units
+(trigger 5)") and a new recount line. Give that line to a different person:
+in **3. Session lines** they enter their count on the recount row, without
+seeing the first count or the books. Reconcile the session again: the recount's
+difference goes for approval, with the first count shown beside it. A recount
+line nobody has counted yet is reported as *not counted yet* - it is never
+taken as a count of zero. Once a difference is approved it is posted to stock
+exactly once, together with the line's Posted status; a second click or a
+retry changes nothing.
+
+**Finding old drift between the books and the movements.** **Reports → Stock
+Book vs Ledger (drift finder)** compares each item's on-hand at each location
+with the total of its stock-ledger movements and lists where they differ, with
+a hint (for example a transfer dispatched before 9 October 2026 that never left
+the sending store's books). It changes nothing: settle each one with a count.
+To see the movements themselves, run **Reports → Stock Ledger** for the item
+and location (each line names its voucher - GRN, transfer, sale, count).
 
 The **Available to sell** figure is the same calculation the reservation
 engine uses. The Current Stock report now shows that figure and its breakdown
 too; the raw `available` database bucket alone is not free-to-sell stock.
 
-### 5.1 Entering a wave on Mobile Picking
+### 5.1 Choosing a wave on Mobile Picking
 
-Open **Stock → Mobile Picking** and scan or type the existing **Wave ID** exactly as assigned.
-Letters and hyphens are part of the identifier: `WAVE-0001` must remain `WAVE-0001`, not `0001`.
-This is a warehouse code, not a phone number. Click **Load** for the chosen wave. The example is
-only a format example; use a wave that exists in your warehouse. An assigned-wave chooser is
-planned separately; this screen currently still requires the wave reference.
+Open **Stock → Mobile Picking**, choose the **Location**, then pick the **Wave** from the list — it shows every released wave there with how many orders are still to pick. Nothing to type. The whole pick-to-load flow is in §7.4.
 
 ### 5.2 How a pick list holds stock in the bins
 
@@ -437,6 +524,11 @@ This only applies to locations that keep stock in **bins**. A store with no bins
    **Delete** on the order's row removes a purchase order at any stage — draft, pending approval, approved or already sent — **as long as no goods have been received against it**. It asks you to confirm first. Once a goods receipt exists (including one that received several POs together), Delete is refused and names the receipt; cancel that receipt first. You only see **Delete** if your role is allowed to delete purchase orders — your administrator sets that under **Settings → Roles** (Purchase Order → Delete).
 9. When the stock physically arrives, find the approved PO and click **Receive goods**. The Goods Receipt opens on its **New goods receipt** page with that PO and its lines loaded. If you opened Goods Receipt directly, click **+ New Goods Receipt**, choose the PO and click **Add PO & Load Items** — and repeat for any other PO of the **same vendor** that came in the same delivery (§6.10). Only what is still **open** on each PO loads. Type the vendor's **invoice number, date and amount**, and on each line change the **Invoice Rate** if the bill's price differs from the PO; any difference becomes a debit or credit note automatically (§6.10). For a partial delivery, remove the full-quantity line and add the actual received quantity; record any rejected or damaged quantity and its reason. The posting confirmation separates accepted from rejected/damaged units. **Only accepted units enter available stock**; an order by itself never adds stock. Check **Inventory** afterwards.
     Once it is posted, the configured barcode policy can issue a missing barcode — for example, on an older or imported Item. A new Item no longer requires you to type a barcode. The GRN is also where you start printing its labels — see §7A.1.
+10. **Rejected goods stay on order (Stage 73.2.4).** Only **accepted** units count against the PO. If 10 shirts arrive and 2 are rejected, the PO still shows 2 **open** - the next **Receive goods** loads those 2 for the vendor's replacement, and a delivery whose extra units are rejected is not an over-receipt. To see where a PO stands, click **Balance** on its row: per item it shows ordered, received, accepted, rejected, damaged, returned, short-closed, **open**, invoiced and paid, the money totals, each receipt with its invoice, and any claims.
+11. **Short-close.** If the vendor will not replace or send the rest, open **Balance**, choose a **Reason** (reason codes of type *Cancellation*), optionally a note, and click **Short-close**. The PO becomes **Closed**: it takes no more receipts and can no longer be edited. Any rejected or damaged goods still held are put on a **Draft purchase return** for that receipt - the claim on the vendor (its number is shown). Post it on **Procurement → Purchase Return** when the goods go back (§6.5).
+12. **Auto-cancel.** If your administrator set **Configuration → Procurement → Purchase Order auto-cancel** (for example 30 days), an Approved PO is closed automatically that many days after it was approved: with nothing received it becomes **Cancelled** and shows **Auto-cancelled** under its status (hover for the reason) — it can no longer be edited or sent to the vendor; partly received, the rest is short-closed exactly as in step 11 with the reason `AUTO-EXPIRY`. A PO that is fully received, still a Draft or waiting for approval is never touched. Raise a new PO for anything still needed.
+
+**Creating a PO from inside a Goods Receipt.** When the PO you want to receive against does not exist yet, the GRN's purchase-order picker offers to create one. That opens the plain **New Purchase Order** record form (not the order page above). On it, **Target Warehouse** and **Location** are pickers - start typing a store or warehouse name and choose it; **Inter-state Supply** and **Supply Type Overridden** are tick boxes. **Status** offers only Draft, Pending Approval and Closed: **Approved** and **Rejected** come only from the approval flow, so save it as **Draft** and send it for approval. Saving takes you back to the Goods Receipt; once the PO is approved, pick it there.
 
 #### 6.4 Completing missing barcodes at receipt
 
@@ -453,7 +545,7 @@ What that means in practice:
 
 If you want to *print* at the moment of receipt, that is still a deliberate second step — post the receipt, then print its labels from the Sticker Printing screen (§7A.1). Posting a receipt does not send anything to a printer on its own.
 
-**An RFQ is optional.** If you want to compare suppliers, raise a Purchase Requisition and convert it to an **RFQ** (Procurement → RFQ), then collect and select quotes. A winning quote does **not** yet price or issue a PO automatically: its price basis, tax and award mapping need a business rule. Review and create the PO explicitly. If you already know the supplier, go straight to a Purchase Order as above.
+**An RFQ is optional.** If you want to compare suppliers, raise a Purchase Requisition and convert it to an **RFQ** (or start one on Procurement → RFQ / Quotes), collect quotes, and **Award** the best one: that creates the Draft PO for you (§6.4). If you already know the supplier, go straight to a Purchase Order as above.
 
 ![The Purchase Order screen; the PO Number box is greyed out and filled in on save](img/purchase-order.png)
 
@@ -564,11 +656,12 @@ Together the last two are what a recall needs — the first tells you what to st
 
 **Procurement → RFQ / Quotes.** Use it when you want prices from several suppliers before you raise a Purchase Order.
 
-1. **Create the RFQ**: click **+ New RFQ**, describe what you need, the quantity and (optionally) a target date, then **Create RFQ**. It starts as **Draft** and you're back on the RFQ list.
-2. **Invite vendors**: on the RFQ's row choose **Vendors & Quotes**. Under **Invited vendors**, pick each supplier you are asking and **Invite vendor**. Remove one with its **×** while the RFQ is open.
-3. **Mark as Sent** once you have actually sent the request to them (by email, phone or in person — the system records who it went to; it does not send the request itself).
-4. **Record each quote** as it comes in: under **Quotes for RFQ/…** click **+ Record Quote**, enter the vendor, quoted price and lead time, then **Submit Quote** — you're back on the quotes list with it added. A quote from a supplier you had not invited still records, and adds them to the invited list.
-5. **Choose the winner**: **Select as Winner** on the best quote. The other quotes are rejected and the RFQ closes. If you decide to buy from nobody, use **Close** on the RFQ instead.
+1. **Create the RFQ**: click **+ New RFQ**, choose where the goods go (**Deliver to**), when quotes are due and when you need the goods. Add the **items asked for**, one line each: pick an **Item** (its name fills in) or just describe the thing, its **Unit** (Nos, Roll, kg…) and **Qty**, then **Add line**. **Create RFQ** saves it as **Draft** and opens it under the list. While it is a Draft, **Edit lines** changes the lines.
+2. **Invite vendors**: under **Vendors**, pick each supplier, a **Reply by** date, and **Invite**. Each vendor shows **Invited**, **Responded** (with their quote number) or **Declined** - click **Declined** (with an optional reason) when one says no.
+3. **Mark as Sent** once you have actually sent the request to them (by email, phone or in person — the system records who it went to; it does not send the request itself). Recording the first quote also marks it Sent.
+4. **Record each quote** as it comes in: **+ Record Quote**, choose the vendor, how long the quote is **valid**, its **freight**, **payment terms** and lead time, and for every line the vendor's **unit**, **unit price**, **tax %** and lead days - or tick **Not quoted**. If the vendor prices in another unit (a box of 10), fill **RFQ units in one** (10) unless the item already has that unit conversion. A vendor who sends a revised quote is recorded again; the newer one replaces the older. A quote from a supplier you had not invited still records and adds them to the vendors as Responded.
+5. **Compare**: the quotes sit side by side. Each line shows every vendor's price and its **landed** cost per unit (price + tax + its share of freight), with **best** on the cheapest; below are lines total, tax, freight, **landed total**, lead time, terms, validity (an expired quote is flagged and cannot be awarded) and how many lines each vendor quoted. **Recommended** is the lowest landed total among quotes that cover every line and are still valid.
+6. **Award**: click **Award** under the chosen quote. Confirm the **Deliver to**, and for any free-text line choose the item it is (or **Leave out**). **Create Purchase Order** makes a **Draft PO** for that vendor with the quote's prices, freight and terms; the other quotes are marked Rejected and the RFQ closes, showing the PO's number. An RFQ can be awarded once - a second award is refused. Submit the PO for approval as usual (§6). If you decide to buy from nobody, use **Close without award**.
 
 The status only moves forward — Draft → Sent → Closed.
 
@@ -607,7 +700,8 @@ If your administrator requires approval for returns, the row shows **Submit for 
 Things the screen refuses, with the reason shown:
 - returning more than **Can return** ("RTV quantity cannot exceed rejected/returnable quantity");
 - a GRN that was cancelled because its stock never posted ("RTV must be created against a valid GRN");
-- a line already fully on another return ("RTV is already created ...").
+- a line already fully on another return ("RTV is already created ...");
+- **accepted** goods once the receipt is older than the **Purchase return window** your administrator set ("The return window for this goods receipt has passed", counted from the receipt date) — rejected and damaged goods can still go back.
 
 When the supplier's bill comes in after a return, bill only for what you kept. The Vendor Invoice match (§6.6) counts accepted units **less what you returned**, so a bill for the kept units matches. A bill that still charges for the returned units goes on hold. If you had already paid for the returned goods, the supplier now owes you their value including GST, which is the total shown at the end of the Debit Note's Reason.
 
@@ -631,10 +725,13 @@ Laptops, furniture, machines and other things the business **uses** rather than 
 1. **Set the Item up as a fixed asset once.** In **Setup → Item**, open (or create) the Item and set **Item Type** to **Fixed Asset**. It still needs its **HSN Code** and **GST Rate**, because the purchase is taxed. Leave **Item Type** blank or **Stock** for everything you sell.
 2. **Buy it the normal way.** Raise a Purchase Order (§6), get it approved, and receive it on **Procurement → Goods Receipt**.
 3. **What the receipt does.** The accepted units do **not** go into stock. Instead, each unit becomes its own asset in **HRM → Fixed Assets**, with status **Draft** and a number such as `AST/FAC-ROOT-TEST/26-27/000001`. The Asset # column shows what it was bought as and the GRN it came from, for example "LIVE578-LAPTOP from GRN GRN/HO/26-27/000025". The cost is the PO price before GST, and the vendor, location and date are filled in. If you typed serial numbers on the receipt, each asset carries one.
-4. **Capitalise it.** Click **Capitalise** on the asset. An asset that came from a receipt has no useful life yet, so you are asked for one, in years (for example `3` for a laptop). This starts depreciation and books the asset to the accounts.
+4. **Capitalise it.** Click **Capitalise** on the asset. An asset that came from a receipt has no useful life yet, so you are asked for one, in years (for example `3` for a laptop). Before anything is posted you see what will happen — "Posts: Dr 1400 Fixed Assets 60,000 / Cr 2100 GRN Suspense 60,000. Depreciation: straight line, 1,000.00 a month for 60 months, posted monthly, Dr 5310 Depreciation Expense / Cr 1410 Accumulated Depreciation" — and confirm. This books the asset to the accounts.
+   - **Depreciation is posted every month.** The month the asset is capitalised is its first month. Once a month has ended, its share (cost ÷ months of life; the last month takes the rounding, so the months add up to the cost exactly) is posted as Dr 5310 / Cr 1410, dated at the month-end. This runs by itself once a month. An Accountant or Super Admin can also click **Run depreciation** on the register to post everything due now; it lists what it posted and any month it could not post. Running it again never posts a month twice. A month inside a closed accounting period is not posted; it posts on the first run after the period is reopened.
+   - The register's **Accum. Depreciation** is what has been posted; ended months not yet posted show underneath as "… due, not posted". **Net Block** is cost less what is posted.
+   - **Details** shows where the asset came from (the goods receipt, or entered by hand), its schedule by year of life (Posted with how many of the year's months, To come, the current year in bold), **Depreciation posted** (one row per month, the month-end it is dated and who posted it), the capitalisation and disposal GL lines with who posted them, and transfers. A warning names any ended month that is not posted, and why. The **Category** box suggests the categories already in use.
 5. **Look after it.** A capitalised asset shows **Transfer**, to move it to another location or custodian, and **Dispose**, to sell, scrap or write it off. The register shows its accumulated depreciation and net book value as time passes.
    - **Transfer** opens a small panel above the register. Pick the **New Location** by name, and the **New Custodian** (optional) by name, then **Confirm**.
-   - **Dispose** opens the same panel with **How is it leaving?** — **Sold**, **Scrapped** or **Written off (lost, stolen)**. **Confirm** writes off the remaining book value and closes the asset. This cannot be undone.
+   - **Dispose** opens the same panel with **How is it leaving?** (Sold, Scrapped, Written off), **Proceeds** (what you received, 0 if nothing) and **Received into** (1100 Cash/Bank or one of your bank accounts). It shows the book value and, as you type, the gain or loss. **Confirm** shows the exact entry — for example "Dr 1410 Accumulated Depreciation 21,000.00, Dr 1100 Cash/Bank 16,000.00, Cr 1400 Fixed Assets 36,000.00, Cr 4300 Gain on Asset Disposal 1,000.00" — and posts it. Depreciation due is posted first. Proceeds below book value post the difference as a loss to 5300; above it, as a gain to 4300. The asset becomes **Disposed**; this cannot be undone. Assets disposed before monthly posting began keep their original entry, and Details says so.
 
 An asset you already own, or one bought without a PO, can still be added by hand: **HRM → Fixed Assets** opens on the asset register; click **+ New Asset**, fill in the form and **Create** — you're back on the register with it listed as **Draft**, ready to **Capitalise**.
 
@@ -678,7 +775,7 @@ In fashion you often order a design that doesn't exist in the system yet, in sev
 6. **Variants.** Every product attribute your business has defined is shown (*Colour*, *Size*, *Fabric*…). Click the values you are buying:
    - **One value** of an attribute (say Fabric = *Cotton*) describes the **design**.
    - **Two or more values** (say Colour = *Red, Blue* and Size = *S, M, L*) become **combinations** — every mix is listed below (6 here). **All** picks every value of that attribute.
-   - **A value that isn't there yet?** Type it in that attribute's **+ value** box and press **Enter** — it is saved to the attribute (PIM → Product Attributes) and picked. **A new attribute?** Type its name and first value in the boxes under the attributes and click **+ Add attribute**. (These need the right to change product attributes; your administrator grants it.)
+   - **A value that isn't there yet?** Type it in that attribute's **+ value** box and press **Enter** — it is saved to the attribute (PIM → Product Attributes) and picked. **A new attribute?** Type its name and first value in the boxes under the attributes and click **+ Add attribute**. (These need the right to change product attributes; your administrator grants it.) When your attributes were set up for your business by your provider, the panel shows only those attributes and has no **+ Add attribute** — a new value is still added the same way. Only *Variant* attributes appear here; *Product information* ones are for PIM.
 7. In the combinations table, change any row's **Qty**, **Purchase price** or **MRP**, and click **×** on any combination you are not buying (**Restore removed** brings them back).
 8. Click **Add N to PO**. The system creates the design (or uses the one you picked) and one item per combination — its **Combination ID** is the design id plus its values, e.g. `Design/HO/26-27/000012-Red-M` — each with the item name's HSN and GST, and adds them as lines on the PO. Barcodes follow your barcode policy (§6.8).
 9. The panel stays on the same item name with the design number cleared, so you can type the **next design number** straight away; the values you picked stay picked, since the next design is often in the same sizes. Click **Done** when you have finished.
@@ -714,11 +811,25 @@ A vendor often delivers against several of your POs on one invoice, and the invo
 
 1. Click **Stock Transfer** in the sidebar.
 2. The screen opens on the list of transfers. Click **+ New Transfer**, fill in the From and To warehouse/location, then add one or more line items (SKU + quantity) using the **Add Line** button — a transfer needs at least one line before it can be created. The bar at the top counts the lines and units. The Transfer Number is filled in for you when you save (§6.1).
-3. Click **Create Transfer** (top right). It starts as a **Draft**, and you're back on the list with it on top.
-4. On the list, once it's ready to go, click **Mark Approved**.
-5. Click **Dispatch** to move the stock out of the source location (it sits "in transit" until received).
-6. When it physically arrives, click **Receive** and confirm the quantity that actually showed up for each line — if less arrived than was dispatched, entering the lower number records that shortage rather than hiding it.
-7. **Print it.** From **Approved** onwards the row has **Print Transfer Out** — the dispatch challan that travels with the goods — and once received, **Print Transfer In** — the receipt, with sent and received quantities. Both open the print window (§7B). A transfer between two stores of the **same GSTIN** prints as a delivery challan with no tax; between two **different GSTINs** it is a taxable stock transfer and the GST is shown (IGST across states).
+3. Click **Create Transfer** (top right). It starts as a **Draft**, and you're back on the list with it on top. Adding the same item twice adds to its one line.
+4. **Get it approved.** A transfer is approved by someone other than the person who made it:
+   - **Send for approval** puts it in **Pending Approval**. A Store Manager (or an administrator) who did not create it opens Stock Transfer (or **Approvals**) and clicks **Approve** — or **Reject**, with a reason. The person who created it gets "you cannot approve or reject a document you submitted".
+   - **Approve now** is for small transfers. If your business has set a **transfer direct-approval limit** (Admin Guide, Settings → Inventory) and the transfer is worth less than it at item cost, a Store Manager of the sending or receiving store approves it alone. Otherwise the button tells you why (limit switched off, value at or above the limit, or an item with no cost on record) and offers to send it for approval instead.
+5. Click **Dispatch** to move the stock out of the source location (it sits "in transit" until received). If an item is tracked:
+   - **Serial-tracked** — scan one serial number per unit (one per line). Each must be in stock at the sending store; it is reserved to this transfer until it arrives.
+   - **Batch-tracked** — leave the lots box blank and the lots with the earliest expiry are taken from the store's bins (expired, blocked and already-reserved lots are skipped). Or name them, as `LOT-A:3, LOT-B:2`. A store with no bins has to name the lot.
+   The dispatch is refused, with the item named, if the lots or serial numbers do not cover the quantity.
+6. **Receive it — in one go or delivery by delivery.** Click **Receive**. For each item enter what arrived: **Good**, **Damaged**, **Lost** and **Extra** (more than was sent). A batch item has a **Lot** choice (default: oldest lot first); a serial item lists the serial numbers in transit — move any damaged or missing ones to the **Damaged** / **Lost** boxes.
+   - Damaged, lost and extra units need a **reason** (reason codes of type *Transfer Discrepancy*; if there are none yet, **Add a reason code** opens Masters → Reason Codes).
+   - With **Units not entered here stay in transit** ticked (the default), anything you did not enter waits for the next delivery and the transfer shows **Partially Received**. Untick it to close the transfer now: what is not entered is recorded as lost, with the reason.
+   - Damaged units are counted in the store's stock but kept out of sellable stock. Lost units leave the books. Extra units are added to the receiving store.
+   - Pressing **Record Receipt** twice (or a retry after a dropped connection) records the delivery once.
+7. **Send it back.** While anything is still in transit, **Return to source** puts it back into the sending store's stock (choose the quantity, or the serial numbers, and a reason). Put returned lots away again there. A transfer whose goods all went back shows **Returned**.
+8. **Cancel** is on a transfer until it is dispatched (Draft, Pending Approval, Approved, Packed) and needs a reason code of type *Cancellation*. Nothing has moved, so nothing is reversed. Once dispatched, use **Return to source** instead.
+9. **Details** shows, per item and per lot, how many were sent, received, damaged, lost, returned, extra and are still in transit; each serial number's state; the value at cost and how it was approved; and every receipt and return with who and when.
+10. **Print it.** From **Approved** onwards the row has **Print Transfer Out** — the dispatch challan that travels with the goods — and once anything is received, **Print Transfer In** — the receipt, with sent and received quantities and the reason for any short line. Both open the print window (§7B). A transfer between two stores of the **same GSTIN** prints as a delivery challan with no tax; between two **different GSTINs** it is a taxable stock transfer and the GST is shown (IGST across states).
+
+Received batch or serial stock arrives at the store level, like a goods receipt: put it away into a bin and attach its lot there (WMS → Putaway, then RF Lot & Serial) before it can be picked from a bin.
 
 ### 7.1 Moving stock between bins in the same location (Location Movement)
 
@@ -731,6 +842,60 @@ Use this to re-slot stock inside one warehouse or store, for example moving a fa
 5. Click **Move Stock**. You're back on the history with the move on top. **+ New Movement** again keeps the same location, with the bin quantities already updated, for the next move.
 
 The move is refused, with the reason shown, if the destination bin is inactive, Blocked, Full or being counted, would go over its capacity, is in a zone that cannot take that item, or is at a different location. It is also refused for stock an open pick task is holding (§5.2): the message says how many units can be moved. Every move is recorded in the stock ledger with both bins.
+
+### 7.2 A warehouse shared by several clients (3PL owners)
+
+If your business stores goods for other businesses (you are a 3PL), each client is an **owner**. Your administrator chooses whether a warehouse may hold one owner or several (Admin Guide B.3.11). With several owners, each client's stock is kept apart all the way through:
+
+1. **Receiving and putaway.** On **WMS → Putaway**, fill in **Owner** with the client whose goods you are putting away. A bin that belongs to another client refuses them; in a warehouse that holds several clients' stock, putaway without an owner is refused and asks whose stock it is. (A goods receipt can carry the owner too, in its **Owner** field.)
+2. **Orders.** Every order is for one owner. Before an order is released to the warehouse, set its owner on **WMS → Fulfillment → Order owner** (type the order, the owner, **Set Owner**). An order with no owner is given the warehouse's own owner; at a warehouse holding several clients' stock it is refused at release, with a message saying so. Once released, the order keeps its owner. The **Fulfillment** list shows each pick task's owner.
+3. **Picking.** A pick list (single order or wave) only ever offers the owner's own units. If that owner has too few in the bins, the pick list shows a shortfall - it never borrows another client's stock. Stock is also sourced only where the owner's own stock covers the order.
+4. **Moving and damage.** On **Location Movement** and **Bin Conditions**, fill in **Owner** when the bin holds more than one client's stock; the client's units move (or change condition) and stay theirs. A client's units cannot go into another client's bin.
+5. **Counting.** A count line can carry the owner; the posted difference records it.
+6. **Billing.** Storage billing counts each owner's own stock.
+7. **When something doesn't add up.** **Reports → Owner Stock Exceptions** lists bins where the owners are credited with more than the bin holds, another client's units in an owned bin, several owners in a one-owner warehouse, and pick tasks without an owner at a shared warehouse - each with what to do. A Store Manager corrects an owner's quantity after counting it (Admin Guide B.3.11).
+
+### 7.3 Receiving a delivery: gate, door, RF receiving and putaway (Stage 55.7)
+
+A delivery runs **Appointment → Yard → RF Receiving → Putaway**, and each screen offers the next piece of work instead of asking you to remember a number.
+
+1. **Book it.** **WMS → Appointment Calendar → + New Appointment**: door, Inbound, carrier, trailer, the **ASN it brings** (its PO comes with it), date and time. No doors yet? The calendar's **Set up dock doors** opens the Dock Door list and brings you back.
+2. **At the gate.** **WMS → Yard Board → + Check In Trailer**. Pick the **Booked appointment** — trailer and carrier fill in — and **Check In**. The appointment becomes *Checked in*. A trailer already in the yard cannot be checked in again until it is checked out.
+3. **To a door.** **Assign to Door** lists every active door: *Free* or *Occupied* (by which trailer) and what is booked on it today. **Spot here** on a free door; an occupied door is refused. The board's **Delivery** column shows the ASN the trailer brought.
+4. **Receive.** At the door, the row's **Receive** opens **RF Receiving** with the ASN loaded (or open RF Receiving, choose the **Receiving Location**, and pick from **Expected deliveries** — trailers at a door first). Then, one carton at a time: **scan the item** → the screen asks **How many?** with what is still expected filled in → **Enter** (or **Confirm**). An item not on the ASN is refused (*set the carton aside, nothing was received*) and offers **Get a supervisor**, which asks a supervisor on their own device; counting more than is still expected is refused; scanning an item already received in full adds nothing. **Post Receipt** books the goods receipt. If some units have not come, it says so: the ASN stays open for the rest, and the receipt that completes it marks the ASN *Received* and the appointment *Completed* — receiving it again is refused.
+5. **Put away.** **Put it away now** opens **WMS → Putaway** at the same location. **Waiting for putaway** lists every item received there but not yet in a bin (on hand, in bins, waiting). **Put away** on a row fills the item and quantity and suggests a bin if a putaway strategy is set up; then it is keyboard / scanner only: scan the **bin** → Enter → item → Enter → quantity → Enter. The row shrinks as stock goes into bins. A bin of another location, a blocked or full bin, or more than is waiting is refused with the reason. A location without bins says so, with **Set up bins**.
+
+**Cross-dock** (send it straight out instead of shelving) is under **Cross-dock instead of shelving (advanced)** on the Putaway screen.
+
+### 7.4 Shipping orders: wave, pick, pack and load (Stage 55.8)
+
+1. **Make a wave.** **WMS → Wave / Batch Picking**, choose the **Location**. *Orders ready to wave* lists every released order there that is not in a wave yet (Pending or Picking): tick the ones to pick together (or the box in the heading for all), choose **Into** — *A new wave* or an open one — and click **Put N selected into the wave**. An order at another location, already in a wave or past picking is not added, and the screen says which and why.
+2. **Release it.** *Open waves* shows each wave's status and how many of its orders are to pick, picking, packed and dispatched. A new wave is *Planned* — **Release** it when the floor should start. Then **Pick list** shows the walking-order list and, per order, what could be allocated and what is short; **Pick on a phone** opens Mobile Picking with that wave.
+3. **Pick on a phone.** One line at a time: item, bin, batch and quantity, with *N confirmed · M to go*. **Confirm & Next** (or say "next" / "confirm"). After the last line the screen lists the orders that are complete and the ones that are **short** (which item, how many). **Mark N order(s) packed** packs the complete ones. A short order is left as it is — finish it on **Fulfillment** when the stock is there, or reject it there to send it to another location. Picking and packing move no stock; stock leaves when the order is dispatched.
+4. **Load.** **WMS → Loading** lists the loads open at the doors (door, trailer, manifest, cartons scanned) — **Open** one to carry on, or open a new load with the door, trailer and manifest picked from their lists. The load shows the packages *still to load* on its manifest. Scan each package. If fewer cartons are scanned than expected, **Complete Load** asks first and records what was actually loaded. Then record the pallet exchange and **Depart**, and print the Bill of Lading.
+
+When a wave's orders are all packed, dispatched or rejected, **Complete** it on Wave / Batch Picking.
+
+### 7.5 Warehouse labour and billing (Stage 55.8)
+
+**WMS → Warehouse Cockpit → Labour.**
+
+- **Labour plan.** Pick the dates and **Plan**: open warehouse tasks per department turned into hours and a headcount (planned hours ÷ the hours one worker has in the period, rounded up). *No standard* counts tasks whose task type has no labour standard — they are not in the hours, so set one up.
+- **Labour standards.** Each standard with its operation, elements, travel and allowances. Enter a quantity and **Preview** to see the working: each work element (fixed seconds + seconds per unit × quantity), travel (per task + per unit × quantity), allowance (a % of work + travel, plus fixed seconds), the total in seconds and minutes, and the cost at the operation's hourly rate — with *matches the planning engine* confirming it is the same figure the plan uses.
+- **+ New labour standard** sets one up in one go: the operation (pick an existing one or name a new one with its task type, department and cost per hour), the work elements, optional travel and allowance, and the standard's code and name. Every field shows its unit. If one step cannot be saved, the screen says which; the steps before it are kept.
+
+**Warehouse Cockpit → Billing.** Enter the **Owner** (client) and the period and **Review**: what has been captured, what is not yet invoiced and the storage still to capture. Every captured charge shows its working (quantity × rate, markup, discount, minimum charge, tax, total); every storage rate shows average units × rate per day × the days that have a balance snapshot. **Check before invoicing** lists what deserves a look: storage days without a snapshot, charges billed at the minimum, and charges captured before their rate was recorded. **Capture storage charges for the period** and **Raise invoice** do what they say (each asks first; an invoice is posted like any credit sale). Captured charges and snapshots are written by the system — nobody types them in. What to charge is your business decision; the screen only applies the charge codes, rate groups and contracts you set up (Admin Guide B.3.16).
+
+### 7.6 The warehouse (WMS) screens — where to start
+
+Every warehouse screen is under **Stock → WMS**, and the **?** (Help) button on each one opens the Knowledge Center article **Warehouse (WMS) - what each screen is for**: the one-time setup order, receiving, keeping stock right, shipping, and a one-line summary of every menu entry. In short:
+
+- **Set up once, in this order:** Location → Zones (optional) → **Bin** (Bin Code, Location, Status; capacity and Bin Status are enforced) → each Item's **Batch, serial and expiry** section → **Dock Doors** → **Hold Codes**.
+- **Receiving:** ASN → **Appointment Calendar** → **Yard Board** (check in, assign to a door) → **RF Receiving** or **Goods Receipt** → **Putaway** (the list shows stock not yet in a bin) → for batch-tracked items, **RF Lot & Serial → Put a lot away**.
+- **Keeping stock right:** **Location Movement** and **Bin Replenishment** move stock between bins; **Bin Conditions** marks stock Damaged / QC-Hold / RTV; **Place Hold** stops a quantity being sold (release it through **Hold Release Requests**); **Cycle Count** corrects it.
+- **Shipping:** releasing a sales order creates its tasks → **Wave / Batch Picking** (or **Mobile Picking** on a phone) → **Loading** → **Fulfillment → Dispatch**, which is the step that takes the stock out.
+
+Moving stock between bins never changes how much you have at the location; a Goods Receipt, a transfer, a sale and an approved cycle count do. The Help article also lists what the system does not do for you yet (for example, a Goods Receipt does not create a putaway task, and a hold does not stop a pick list for an order that was already reserved).
 
 ## 7A. Printing Barcode Stickers and Labels
 
@@ -750,7 +915,7 @@ This is the normal way to print. You don't type SKUs — you point at the docume
    - **Template** — the label layout that line will print with, and in brackets the rule that picked it: *item*, *item type*, *category* or *default* (§7A.5), or **Standard label (no rule)** when no rule applies. To print a line on a different layout **this time only**, pick it in that line's dropdown — **Standard label** or any Active template. **Template for every line**, above the table, sets every line at once; choose **As per template rules** to go back. Nothing is saved to the item — the next print follows the rules again.
    - **Batch/Lot** — shown only when at least one line on the document carries a lot number.
    - **Copies** — pre-filled with that line's own quantity. Overtype it if you want a different number.
-5. Choose the **Printer** in the panel just below the line list, and type a **Reprint Reason** if this is a re-run of labels already printed once (optional, but it is recorded against the print).
+5. Choose the **Printer** in the panel just below the line list, and type a **Reprint reason** if this is a re-run of labels already printed once (optional, but it is kept in the print history against the run).
 6. Then either:
    - untick any rows you don't want and click **Print Selected** — the whole document in one run; or
    - click **Print** on a single row — just that one line.
@@ -763,6 +928,8 @@ Three things it does for you:
 - **Mixed categories come off grouped.** A GRN holding earrings and necklaces prints all the earring labels, then all the necklace labels, so the strip can be torn into one stack per category.
 
 If the document loads but says *"That document has no stickerable lines"*, the lines were all rejected/damaged, or (for a transfer) the quantities are zero.
+
+**Where the labels go.** With QZ Tray running on this computer and a thermal printer chosen, labels print silently. Otherwise the browser's print dialog opens — that is your preview, and **Cancel** there prints nothing. An item with no barcode of its own prints its SKU as the barcode. **Printer setup on this computer (QZ Tray) and channel label PDFs**, collapsed at the bottom of the print page, holds the one-time setup — QZ status, **Detect Printers**, **Test Print** — and printing a marketplace label or invoice PDF exactly as the channel issued it.
 
 ### 7A.2 Design your labels (Templates and the Sticker Studio)
 
@@ -908,14 +1075,16 @@ Good to know:
 
 ### 7B.2 Designing a print template (Document templates)
 
+**Setup → Core → Print Template opens this same screen** — there is one set of document print templates, whichever way you reach it. (A *sticker* template is a different thing: it is the barcode label on the product, made under **Sticker templates**.)
+
 **Stock → Sticker Printing → Document templates** lists each transaction — Purchase Order, Vendor PO, Goods Receipt Note, Vendor Copy, Purchase Return, Transfer Out, Transfer In, Debit Note, Credit Note (to vendor), Credit Note (to customer), Sales Return — with its templates and the **Standard layout**. **Customise** starts from the standard layout; **+ New template** does the same for the transaction you pick; **Design** edits, **Duplicate** copies, **Make default** sets the one used when nothing more specific fits, **Delete** removes one.
 
 The designer works like the Sticker Studio:
 
 1. **Fields — drag onto the page.** The left list has everything the document carries: document fields (number, date, PO numbers, vendor invoice no…), your **brand**, the **generating store**, the **vendor / other store** and the **ship-to** (name, legal name, address, city, PIN, state, state code, GSTIN, phone, email), and **totals** (taxable, CGST, SGST, IGST, round off, grand total, amount in words). Search it, then drag a field to where you want it — or double-click to add it.
-2. **Items table columns.** Line fields (quantity, rates, HSN, GST, batch, PO…) and **every Item master field** (and **Item image**) are listed under *Items table*. Drag one **onto the table** to add it as a column. In the right panel, rename columns, set their relative width, alignment (L / C / R), move them, or remove them; set the table's font size, picture size, header shade and where it starts on later pages.
+2. **Items table columns.** Line fields (quantity, rates, HSN, GST, batch, PO…) and **every Item master field** (and **Item image**) are listed under *Items table*. Drag one **onto the table** to add it as a column. In the right panel, rename columns, set their relative width, alignment (L / C / R), move them, or remove them; set the table's font size, picture size and header shade. Rows that do not fit carry on to the next page with the column headings repeated; later pages start at the top margin and pages before the last run to the bottom margin.
 3. **Insert** adds a Text box (type text and insert `{fields}`), a Field, a Store / Vendor / Ship-to block (tick which lines to show), the Items table, the **Tax summary** (one row per GST rate — CGST + SGST within a state, IGST across states, chosen automatically), **Totals** (edit, reorder or add rows), a **Logo / image** (PNG or JPG up to 400 KB), a Line, a Box or the Page number.
-4. **Place it.** Drag to move (it snaps to the margins, the centre and other elements; hold **Alt** to place freely), drag the handles to resize, or type exact **X / Y / W / H** in mm. **Prints on** decides **first page**, **every page** or **last page**. Arrows nudge 0.5 mm (Shift: 5 mm); **Delete** removes; **Ctrl+D** duplicates; **Ctrl+Z / Ctrl+Y** undo / redo.
+4. **Place it.** Drag to move (it snaps to the margins, the centre and other elements; hold **Alt** to place freely), drag the handles to resize, or type exact **X / Y / W / H** in mm. Where it sits decides the page: anything **above the items table** (the header) prints on the **first page only**, anything **below it** (tax summary, totals, amount in words, terms, signatures) on the **last page only** — **Prints on** shows this and cannot be changed for them. For the **page number** and anything **beside the table**, **Prints on** decides **first page**, **every page** or **last page**. Arrows nudge 0.5 mm (Shift: 5 mm); **Delete** removes; **Ctrl+D** duplicates; **Ctrl+Z / Ctrl+Y** undo / redo.
 5. **Preview with** a real document number to see it filled in; **Test print** prints the preview. Click an empty part of the page to see the template settings: page size (A4 / A5 / Letter), orientation, margin and font.
 6. **When to use it.** Leave it for any vendor and product, or limit it: **Only for vendor**, **Only for designs / families**, **Only for categories** (comma-separated). When printing, the most specific template that fits is offered first — vendor, then design, then category, then the default.
 7. **Save** (Ctrl+S).
@@ -988,13 +1157,25 @@ The **HSN Code** box suggests the right code for what you are creating, so you p
    - **If you change the HSN code later**, a rate the picker filled changes with it. A rate you typed or clicked yourself is never overwritten.
 4. **Not in the list?** Type to search: digits search by code (*6109*) and words search the full HSN list shipped with the system (*bedsheet*, *imitation*). If you still can't find it, choose **+ Create "…"** to add the code to your list.
 
-**A 0% rate** (fresh milk, vegetables, seeds) needs the item's **Tax Treatment** set to *Exempt*, *Nil-Rated* or *Zero-Rated*. In the small New Item form, that box appears as soon as you choose 0%.
+**A 0% rate** (fresh milk, vegetables, seeds) needs the item's **Tax Treatment** set to *Exempt*, *Nil-Rated* or *Zero-Rated*. In the small New Item form, that box appears as soon as you choose 0%. In the full Item form it works the other way round: choose *Exempt*, *Nil-Rated* or *Zero-Rated* and **GST Rate** is set to 0 and locked; switch back to *Taxable* and it is cleared for you to pick a rate.
 
 The suggested rates are the GST rates in force from 22 September 2025, so check unusual items with your tax advisor. Your HSN list fills itself as you go: every Item saved with a valid HSN adds that code, with its description. An HSN or SAC code is **4, 6 or 8 digits**; spaces and dots are removed for you. The Item stores the plain number, so GST, e-invoices and reports read it exactly as before.
 
 **Number boxes have no up/down arrows.** Anywhere in the system, a number box (quantity, price, rate) takes exactly what you type. The mouse wheel and the arrow keys do not nudge it, so a scroll can't silently change a price.
 
+**Number boxes take only numbers.** Digits, one decimal point and a leading minus; a letter (even `e`), a comma or a space is simply not typed, and pasting text that is not a plain number does nothing. The server checks the same thing on save, so a price like `2O0` (letter O) can never be stored - including the Qty / Purchase Price / MRP columns of a line table.
+
 **Barcodes on an Item** are optional to type: leave the box blank and one is issued for that SKU (when, depends on your administrator's barcode settings). Scan or type your own if you have one — it is kept. The **Generate** button makes one on the spot.
+
+**The Item form is in sections**, with the fields that belong together side by side: **Basics** (name, code, item type, category, barcode), **Price and tax** (prices, HSN, Tax Treatment, GST rate), **Design and variant**, **Batch, serial and expiry**, then three sections that start closed because most items leave them as they are: **Barcode and label**, **Handling and storage**, and **Selling and accounting** (the item-type overrides). Click a section's name to open or close it. A closed section opens by itself when it holds something you set, and Save opens the section of any box that still needs filling. Fields your industry or administrator added appear under **More details**.
+
+**Variant options** are picked, not typed in a code: choose an **Option** (Colour, Size and the other attributes set up under **PIM → Attribute Definitions**, where a *Select* attribute's options become the values to pick) and its **Value**, and **+ Add option** for the next one; **×** removes a row. For an option that is not set up, choose **Other…** and type its name — unless your attributes were set up for your business by your provider (Admin Guide §C.9): then the list is exactly those, and **Other…** is not offered. The item stores the same combination as before, so variant codes, the duplicate-combination check, PO designs and stickers read it unchanged. **Parent Product Code** can be left blank when you pick a **Product Family** (design): the design is used.
+
+**Your product attributes** live under **PIM → Attribute Definitions**. **Used for** says where each one appears: *Variant* attributes are the Item's variant options, the PO's design panel and the prints; *Product information* attributes are for PIM enrichment only. Open one to change it:
+
+- **Switch it off:** set **Status** to *Inactive* and save. It disappears from new choices everywhere; items that already use it keep their values.
+- **Remove a value:** click **×** on the value. **Add one:** type it under the values and press **Enter**. Items that already carry a removed value keep it.
+- **Delete:** an attribute your provider set up for your business (it shows **From the attribute library**) cannot be deleted — switch it off instead. Its code cannot be changed either, because every item stores its values under that code.
 
 #### 8.1.3 Bins and zones
 
@@ -1221,7 +1402,7 @@ The rules, in plain terms:
 
 | Field | What it needs |
 |---|---|
-| **GSTIN** | 15 characters — 2-digit state code, 10-character PAN, then 3 more. `27AAPFU0939F1ZV` |
+| **GSTIN** | 15 characters — 2-digit state code, 10-character PAN, then 3 more — and the last character must be the check digit GSTN issued it with, so a GSTIN with one character mistyped is refused even though it looks right. `27AAPFU0939F1ZV`. **Outside India** the box follows your **Home country** (Settings → Localization) and is named after it: a **TRN** in the UAE, a **VAT number** in the UK and EU, an **ABN** in Australia (with its own check), an **EIN** in the US; a country with no rule still takes only 5–20 letters and digits |
 | **Email** | An `@` and a dot in the domain. `buyer@company.com` — `asdf` and `missing@dot` are both refused |
 | **Phone / mobile** | Digits, optionally with `+ - ( )` and spaces. No letters |
 | **PAN** | 10 characters — 5 letters, 4 digits, 1 letter. `AAPFU0939F` |
@@ -1233,13 +1414,32 @@ If you save anyway with something malformed, the server refuses it and tells you
 
 > **Worth doing on your vendors:** a vendor's **GSTIN** is what lets a purchase order work out its own tax treatment (§6.2), and a vendor's **email** is what **Send to Vendor** uses (§6, step 7). Both are optional — but filling them in is what makes those two features work without anyone having to think about them.
 
+### 8f. States, addresses and record codes
+
+**State is a list, not a box.** Every **State** field — on a vendor, a store, a legal entity, an order — is a dropdown of your Home country's states (India: the 28 states, 8 union territories and Other Territory). You pick the name; nobody types "KA" on one record and "Karnataka " on the next any more.
+
+- **The GSTIN picks the state for you.** Type a vendor's GSTIN and, as soon as it is complete and real, **State** switches to the state that GSTIN is registered in (its first two digits). If you then choose a different state, saving is refused with both names shown — the GSTIN is what the tax department registered, so fix whichever is wrong.
+- **A vendor's State is required.** With a GSTIN you never have to pick it; without one, choose it — it decides CGST + SGST or IGST on every purchase order (§6.2).
+- **One GSTIN, one vendor.** Saving a second vendor with a GSTIN another vendor already has (in any letter case) is refused with *"Another vendor already has this GSTIN"* — use the existing vendor, so its purchases and payables stay in one place.
+- **A store takes its legal entity's state** when you leave it blank, and stores and legal entities show a read-only **State Code** (KA, MH, TN …) that the system fills in from the state.
+- A state saved before it was a list shows as *"… (not on the list - choose one)"* the next time you edit the record; pick the real one and save.
+
+**Addresses have two lines.** Vendors, stores, legal entities and orders take **Address Line 1**, **Address Line 2**, **City**, **State** and **PIN Code**. What was "Address" before is now Address Line 1 — nothing you saved moved.
+
+**Record codes are short.** A new vendor is `V00001`, the next `V00002`, and so on — no store, no year, no slashes. The **first time** anyone creates a record of a kind (a vendor, a customer, a design …), its **New** form shows a **code format (asked once)** row at the top: the suggested **Prefix** (`V` for vendors, `C` for customers …) and number of **Digits** (5), with the first code shown as you type. Change either if you like, then save the record as normal — every later record of that kind just takes the next number and the question never appears again. A save that is refused hands its number back, so the codes have no holes. Currency, unit and HSN codes are still typed by you, because they are real codes (`INR`, `PCS`, `7113`).
+
 ## 9. Running a Report
 
-1. Click **Reports** in the sidebar (it is a top-level entry, not inside a module).
-2. Pick the report you need. There are 46 of them across 12 categories — **[REPORT_CATALOG.md](REPORT_CATALOG.md)** lists every one, what it answers, and what it needs from you.
-3. Set any filters the report offers (date range, store, vendor…). A filter marked required has to be filled in before the report will run.
-4. Where a report supports it, click a figure to **drill down** into the individual transactions behind it, or use **Export in Background** for a large export that would otherwise time out.
-5. The numbers always come from real recorded transactions — never from someone’s manual guess — so you can trust them.
+1. Click **Reports** in the sidebar (it is a top-level entry, not inside a module), then the **Report Catalog** tab.
+2. Pick the report you need. Type the question in **Find a report** — *who owes us*, *stock value*, *who posted* — and the list narrows to the reports that answer it; each report shows its question beside its name. **[REPORT_CATALOG.md](REPORT_CATALOG.md)** lists every one, what it answers, and what it needs from you.
+3. Set any filters the report offers (date range, store, vendor…). A required date starts on this month to date (or today for an "as of" date). The filters you last ran a report with come back when you return to it.
+4. **Run.** A line above the results says exactly what was run: the filters, the number of rows, when, and your time zone; amounts are in rupees.
+5. **Control totals.** Inventory Valuation, Receivables Ageing, Payables Ageing, Sales Register, GST Return Summary and Loyalty Points Liability show a strip above the rows: the **detail** (the rows added up), the **summary** (the same documents totalled separately) and the **ledger** (the GL account balance), with the cut-off they were read at. "Control totals tie" means all three agree; otherwise the differences and what usually explains them are listed. Payables Ageing shows goods received and not yet paid and ties to 2100 GRN Suspense; open purchase orders are in **Open Purchase Commitments**, which has no ledger figure and says so. Loyalty Points Liability ties to 2630 only when loyalty is booked as a liability when earned (Loyalty settings); otherwise it says there is no ledger account. If your role cannot see amounts, you see only whether the totals tie.
+6. Where a report supports it, **View Details** on a row lists the transactions behind that figure, with the same filters, and says so above the lines.
+7. **Export in Background** for a large export. You can **Cancel** it while it waits. **My exports** (below the results) lists your own exports with their status, any error and **Download CSV**. An export is private to the person who requested it.
+8. **Recent runs** (below the results) lists the latest runs of the selected report: who ran it, when, how long it took and how many rows it returned. You see your own runs; a Super Admin sees everyone's, including those sent by a schedule (shown as *Schedule*).
+9. **Schedules.** Reports → **Schedules** lists the scheduled reports and dashboard digests you set up (a Super Admin sees everyone's, with the owner). Each row shows how often it runs and its **Next run** exactly as the scheduler will act on it — a date, **Due now** (it goes out at the next hourly check), or **Paused** — when it last ran, the **Result** (*Delivered* with the number of rows, or *Failed* with the reason) and who receives it, as a count and masked addresses such as a***@example.com. **Pause** stops a schedule until you **Resume** it. **Run now** sends it straight away to the same recipients; pressing it again within a minute is refused. To create one, press **Set up a scheduled report** or **Set up a dashboard digest**, then **New**: pick the report or saved dashboard layout, frequency, run-as role, first run date and the recipient email.
+10. The numbers always come from real recorded transactions — never from someone’s manual guess — so you can trust them.
 
 **The Trial Balance asks for an "As Of Date"** and starts on today. It shows every posting up to and including that date, so setting it to a month-end gives you that month’s closing position. Every account is listed either way; a date before you started trading correctly shows all zeros.
 
@@ -1264,7 +1464,8 @@ Use this for a phone order, a walk-in wholesale order, a replacement, or anythin
 2. Fill in:
    - **Customer name** and **Customer phone** — both optional, but they're what makes an order findable later. The phone box only accepts digits, `+`, `-`, `(`, `)` and spaces; it won't let you type letters.
    - **Source** — defaults to "Manual". Change it if you want the order tagged as coming from somewhere specific (a phone line, a trade counter, a particular salesperson).
-   - **Reference** — optional, but useful. It's your own order number for this order. If you send the **same reference twice, you get the same order back rather than a duplicate** — so a double-click or a retried entry can't create two orders.
+   - **Reference** — optional, but useful. It's your own order number for this order. If you send the **same reference twice, you get the same order back rather than a duplicate** — so a double-click or a retried entry can't create two orders. The screen then says **Existing Order** and names it, instead of "created".
+   - **Customer PO / reference** — optional. For a business customer, their own purchase order number (e.g. *PO-4500123*). It is shown on the order, copied onto the invoice raised from it and printed on that invoice, and **Reports → Report Catalog → Sales by Customer Reference** finds every order and invoice for it. Change it later with the order's **Edit**. A sales invoice made directly (Financial Accounting → Sales Invoice → **+ New Sales Invoice**) has the same **Customer PO / Reference** box.
    - **Payment** — Confirmed (paid), Pending, or Cash on delivery. **Confirmed** and **Cash on delivery** go straight through; **Pending** puts the order On Hold (*PAYMENT_PENDING*) until you edit it to Confirmed once the money arrives.
    - **Shipping address** — **required.** The order engine has to know where it's going.
 3. Add items with **+ Add item**: search for the item, set the quantity and the unit price.
@@ -1313,7 +1514,7 @@ Across the top of that page is the action bar:
 
 If an action is greyed out, the order has reached a status that closes it (Shipped, Delivered, Closed, Cancelled). An administrator can reopen any of these by configuring a Status Transition Rule.
 
-**Once an order is Released**, the warehouse is already picking it, so **Hold**, **Hold line**, **Switch facility**, **Split** and **Cancel** are refused with a message saying so. **Edit** (address, contact) and **Expedite** still work. If the location cannot fulfil it, **Reject** the task on the Fulfillment screen; the system re-routes it to the next best location with stock.
+**Once an order is Released**, the warehouse is already picking it, so **Hold**, **Hold line**, **Switch facility** and **Split** are refused with a message saying so. **Edit** (address, contact) and **Expedite** still work. **Cancel order** still works until anything is packed: the open pick tasks are stopped (shown as **Cancelled** on the Fulfillment screen — put back anything already picked) and the reserved stock is released. Once a task is **Packed**, cancel is refused — let it ship and raise a return, or mark the shipment RTO. **Edit lines** is described in §9A.7. If the location cannot fulfil it, **Reject** the task on the Fulfillment screen; the system re-routes it to the next best location with stock.
 
 **Acting on many orders at once:** tick the checkboxes in the Orders table — the header checkbox selects the whole page — and a bar appears with **Release Hold**, **Hold** and **Cancel**. Each order is still checked individually, so a mixed selection does what it can and tells you exactly which orders refused and why (an order that has already shipped can't be cancelled, and says so).
 
@@ -1325,7 +1526,7 @@ If an action is greyed out, the order has reached a status that closes it (Shipp
 4. **Pick and pack.** Go to **Fulfillment** — the task for this order is routed to the location holding the stock. Work it through pick → pack. Anything you marked **Expedite** appears at the top of the picking worklist. (Warehouses using wave picking or mobile picking do the same thing from those screens.)
 5. **Book the shipment.** Open the order and choose **Book shipment**. **Marketplace** opens on its **Book a shipment** page with the order/task/PIN filled — check them, enter a serviceable carrier, and choose **Book** (you're then back on the Logistics Bookings list). The booking and AWB then appear in the order's **Shipments** section. A package-based label may require its invoice first; the screen will refuse an early print.
 6. **Hand over.** On **Marketplace**, generate a manifest for that courier and location, then **Hand Over**. The booking becomes **Handed Over** and, when every task has dispatched, the order becomes **Shipped**. **In-Transit** is a later tracking action, not the handover status. Dispatch moves the shipped quantity out of location stock; handover closes the order and starts invoice/notification work.
-7. **Invoice.** A Draft invoice appears in the order's **Invoices** section for the shipped quantity. Open it, post it, and settle it when the customer has paid. A notification marked **Queued**, **Skipped-NoTemplate** or **Sent** means something different; do not call it delivered unless the log actually says so.
+7. **Invoice.** A Draft invoice appears in the order's **Invoices** section for the shipped quantity. Open it, post it, and settle it when the customer has paid. Notifications show what actually happened: **Queued** (waiting to be sent), **Retrying** (the provider could not be reached; it tries again), **Accepted** (the provider took it, delivery not yet confirmed), **Delivered** or **Failed** (the provider's own answer, or Failed after every retry), and **Skipped-…** when nothing was sent (no template, no channel set up, a sandbox client, or sending switched off). **Sent** appears only on notifications from before this change — it meant "tried", never "delivered". Tell a customer a message reached them only when it says **Delivered**.
 8. **Delivered.** Record **Mark Delivered** on the booking when the courier confirms delivery; that event moves the order to Delivered.
 
 On **Marketplace**, a manual settlement now lets you add real saved channel orders one by one. Changing the channel clears the selection. Do not enter a payout until you have the provider's settlement evidence; this picker alone is not a reconciliation.
@@ -1356,13 +1557,88 @@ The difference between what you booked and what you actually received is recorde
 
 If your finance team runs a month-end revaluation, open balances get restated then too; that is described in the Admin Guide and is not something you need to do yourself.
 
+### 9A.6 Stuck work, and an order's whole story
+
+Under **Start with the work needing attention**, four more buttons each show how many orders are waiting:
+
+| Queue | What lands in it | What to do |
+|---|---|---|
+| **Stuck payments** | Open orders whose payment is still Pending after 30 minutes | Confirm the payment (Edit → Payment status) then release the hold — or cancel the order |
+| **Carrier exceptions** | Packed tasks with no carrier booking for 4 hours; bookings with no carrier movement for 48 hours; RTO parcels not yet received back | Book the shipment; chase the carrier and record tracking or RTO on Marketplace; receive the RTO and run its return QC |
+| **Returns and refunds** | Return requests open more than 2 days; refunds waiting more than 1 day | Approve or reject, schedule the pickup, run QC, approve or process the refund |
+| **Settlement** | Payout lines in Variance or Disputed; shipped channel orders with no settled payout after the aging period | Raise a dispute, write the variance off with a reason, record the corrected amount, or import and reconcile the payout file |
+
+Click a button to list its rows, oldest first: the order, why it is there, since when, for how many hours, the next step, and the document to open. Click the order to open it. The same queues appear in **My work** (§10) for anyone allowed to read orders.
+
+**The order screen** now opens with a **Next step** line — the step the system will actually accept next (for example *Confirm payment*, *Release to fulfillment*, *Book shipment*, *Record delivery or RTO*, *Work the return*) with its button. Below the lines, the **Timeline** lists everything that happened to the order in date order: received, notifications, pick tasks, status changes, bookings, invoices, returns, refunds, replacements and each recorded change with who did it. The section-by-section tables are still there under **Related documents by type**.
+
+**Returns and refunds on the order.** A return or refund raised against the order's invoice is listed on the order itself and counts in the **Returns and refunds** queue — you do not need to look it up separately.
+
+**Channel connectors** (the panel under the queues) shows each marketplace channel's state: **Not connected** — its credentials have not been added yet (add them on **Marketplace**); **Never synced** — connected but no sync has run; otherwise the last sync's result and time, with the error of a failed sync (passwords and tokens are masked). **24h failures** counts failed syncs in the last day.
+
+**Bundles.** **Manage bundles** lists your bundles. To make one, click **New Product Bundle**, pick the **Bundle SKU** (the item customers order), a name, the fulfilment and pricing modes, then under **Components** click **+ Add Line** for each item in the bundle with its **Quantity**. The list shows the components as *SKU × quantity*. A bundle cannot contain its own SKU.
+
+### 9A.7 Changing an order: lines, cancelling after release, reship and replacement
+
+**Edit lines** (order Draft, On Hold, Reserved, or Released with nothing picked yet): change a quantity or price, tick **Remove**, or add a line (item code, quantity and unit price). Give a **reason** — it is kept on the order's history. On **Save line changes**:
+
+- extra stock is reserved for any increase, and released for any decrease or removed line, in one step — if there is not enough free stock, nothing changes and you are told how much is available;
+- the order total is recalculated; if the payment was **Confirmed** and the new total is higher, the order goes **On Hold** for payment (confirm the extra amount, then release); if it is lower, the order shows **Refund the difference** with the amount;
+- a **Released** order goes back to **Reserved** and its untouched pick tasks are cancelled — choose **Release to Fulfillment** again so the warehouse picks the edited lines.
+
+Lines cannot change once the warehouse starts picking, once the order is invoiced, for a line that is part of a bundle, or if the change would remove every line (cancel instead).
+
+**Reship / replace** (order Shipped, Delivered, Closed or Dispatched): choose **Reship** to send the same goods again (lost or undelivered) or **Replacement** for the same or an exchanged item (damaged or wrong). Enter how many of each shipped line to send again — never more than shipped, less anything already sent again — and a reason. The new order is **free of charge**, ships from available stock like any order, shows **Reship of** / **Replacement of** the original, and the original lists it under **Replacements and reships**. Clicking **Create order** twice returns the same new order. Collect the damaged or wrong goods with a return request.
+
 ## 9B. Finance work to review
 
-Open **Financial Accounting → Finance / GL**. **Work to review** starts with direct paths to Payables, Receivables, Payment Proposals, Bank Reconciliation and Period Close. Open the destination and inspect each source document before posting or paying it; this landing page does not show balances, ageing, bank differences or approval counts. On **Accounting Periods**, use **Close Checklist** to inspect warnings before a permanent close; the checklist is advisory and does not itself certify the books.
+Open **Financial Accounting → Finance / GL**. **Work to review** starts with direct paths to Payables, Receivables, Payment Proposals, Bank Reconciliation, **Who posted what**, **General journal** and **Period close**. Open the destination and inspect each source document before posting or paying it; this landing page does not show balances, ageing, bank differences or approval counts.
 
-**GL posting sources** opens the dated **Statutory Audit Export (Full GL)** report. Set its Period Start and Period End, then inspect each debit/credit line's account and source document. This report does **not** identify the posting actor on each GL row; do not use it alone as proof of who approved or posted an entry.
+**Who posted what** opens the **GL Posting Review (by poster)** report: for the dates you choose, one row per person, job or integration that posted to the ledger, with how many lines and documents and the totals. **View Details** lists exactly those lines. **General journal** lists every posted line with its source document, account and **Posted by** / **Source command**; filter it by a username, by **Attribution** (*Attributed* or *Before attribution*) or by document type. Lines posted before this record existed show **before attribution** — that means "not recorded", not "nobody". A job shows as `service:job`, an API key as `service:api-key:…`, and a background process as `service:background`.
 
-For a supplier bill, match it to its PO and GRN in **Vendor Invoice** before a payment proposal. For a customer bill, use **Sales Invoice** to distinguish Draft, Approved (posted) and Paid. Use **Bank Reconciliation** within the selected bank account; a matched count does not mean all statement lines or GL postings are reconciled. An Account Head and a qualified CA still have separate review and signoff responsibilities.
+For a supplier bill, match it to its PO and GRN in **Vendor Invoice** before a payment proposal. For a customer bill, use **Sales Invoice** to distinguish Draft, Approved (posted) and Paid. An Account Head and a qualified CA still have separate review and signoff responsibilities.
+
+### 9B.2 Closing a month (Accounting Periods)
+
+**Finance / GL → Accounting Periods** lists your periods with how many of their five close tasks are signed. **+ New Period** creates one (name, start and end date). Click **Close tasks** on a period to open its close board.
+
+1. **Every period has five close tasks:** Bank reconciliation, Stock valuation tie-out, Payables (AP) tie-out, Receivables (AR) tie-out, and Marketplace / POS settlement. Each shows a **System check (live)** — for example "3 statement lines in the period still unmatched" or "tied - detail 48,000, summary 48,000, ledger 48,000" — and an **Open** link to the screen or report where you do the work.
+2. **An Accountant or Super Admin assigns an owner** to each task: type the owner's username and click **Assign**.
+3. **Only the owner signs the task off.** The owner clicks **Sign off**, picks **Done** or **Not applicable**, writes the **Evidence** (what was checked and what it showed — at least 10 characters) and an optional **Reference**. The system check as it read at that moment is saved with the sign-off. A check that does not pass can still be signed when the evidence explains the difference. **Undo sign-off** (owner, Accountant or Super Admin, with a reason) returns it to open.
+4. **Close period** is only enabled once all five are signed, and only for an Accountant or Super Admin. After closing, any posting dated inside the period is refused.
+5. **Reopening needs a second person.** On a closed period an Accountant or Super Admin writes why it must reopen and clicks **Request reopen**. The request waits in **Approvals**; the person who asked cannot approve it. When another Accountant or Super Admin approves, the period reopens, starts **close round 2** and every task goes back to unsigned. Corrections are posted as **new reversing entries** — nothing already posted is edited — and the period is closed again through the same five tasks.
+6. **History** at the bottom of the board records every assignment, sign-off, undo, close, reopen request and reopen, with who and when.
+
+### 9B.3 Reconciling a bank account
+
+**Financial Accounting → Bank Reconciliation.** Choose the **Bank Account**; the screen shows the statement lines (default: the last three months plus anything still open), how many are Unmatched, Exceptions, Matched / Explained, the book balance, and how much was matched with a difference.
+
+1. **Import the statement** with **Statement Lines / Import CSV** (one row per line: bank account, date, description, reference, amount, Debit/Credit).
+2. **Exact match** pairs lines with book entries of exactly the same amount within three days.
+3. **Rule match** opens three settings: **Amount tolerance** (for example 10 rupees of bank charges), **Date window** in days, and **Use the statement reference**. A line is matched only when exactly one book entry fits; a match within the tolerance records its **difference**, which you then post (for example a bank-charges Journal Voucher). Lines with several possible entries are left for you.
+4. **Find match** on a line lists the closest book entries. Tick one or more; **Match selected** is only enabled when they add up exactly to the line.
+5. **Raise exception** gives a line you cannot match yet an **Owner** and a **Reason**; it shows its age in days. **Explain** (Accountant or Super Admin only) closes an exception that nothing in the books will ever match, with a note.
+6. **Payout** on a money-in line: choose a **marketplace settlement batch** (its payouts must add up to the line), or the **card** or **UPI** clearing account and the **acquirer fee** deducted. A card / UPI payout posts the money from clearing (1101 / 1102) to the bank, the fee to 5230, and matches it.
+7. **Unmatch** (with a reason) undoes a match. A line dated in a **closed** period cannot be changed — request a reopen first.
+
+### 9B.4 Receiving and paying in parts, and credit notes against an invoice
+
+**Customer receipts.** Open **Financial Accounting → Sales Invoice**. Each invoice shows its **Amount** and its **Outstanding** balance.
+
+1. Click **Settle** on a posted (Approved) invoice. The box offers the whole outstanding balance.
+2. To record full payment, click **OK**. To record part of it, type the amount received (no more than the outstanding balance) and click **OK**.
+3. A message confirms the amount and what is still outstanding. The invoice shows **Part paid** until nothing is left, then **Paid**.
+4. **Payments (n)** on the row lists every receipt and applied credit note, with date, reference, amount and who recorded it.
+
+A foreign-currency invoice can only be settled in full.
+
+**Changing a sale after it is issued.** You can still open a posted sales invoice, a confirmed sales order or a paid till bill with **Edit** to correct something such as a due date or a note. When you **Save**, a box asks *Reason for the change*. Type why, for example *customer asked for month end*, and click **OK** to save. Click **Cancel** to leave the record as it was. Who changed what, from what to what, and the reason are kept in **Reports → Report Catalog → Post-Sale Edit History**. Saving without changing anything does not ask. A Draft can be edited freely.
+
+**Supplier payments.** Open **Financial Accounting → Vendor Invoice**. On a **Matched** bill click **Pay**; the box offers the whole outstanding balance — accept it or type a part amount. Each payment clears the goods value and the input GST in proportion, and the last payment clears both exactly. The bill shows **Part paid** until it is fully paid, and **Payments (n)** lists every payment. **Pay w/ TDS** is only offered before the first payment, because TDS is withheld on the whole bill; finish a part-paid bill with **Pay**. A payment proposal pays only what is still outstanding on each bill.
+
+**Credit notes against an invoice.** In **Debit / Credit Notes → Customer credit notes**, a credit note that names a **Sales Invoice** reduces that invoice's outstanding balance when you **Post** it. If the note is larger than what is left, the rest is booked as a refund to the customer. The **Invoice** column shows how much was applied and how much refunded. A note against an invoice that is already Paid is a refund.
+
+**Ageing.** **Receivables Ageing** ages what is still outstanding. **Payables Ageing** shows goods received and not yet paid, one line per goods receipt, aged from the bill's due date (or the receipt date when no bill has a due date); its control totals tie to 2100 GRN Suspense. Open purchase orders are in the Report Catalog as **Open Purchase Commitments**.
 
 ### 9B.1 Raising a journal voucher (accruals, corrections, opening balances)
 
@@ -1398,21 +1674,122 @@ Use this when you service equipment for customers: a customer calls, someone is 
 
 Until it is resolved, **Cancel** is also offered, and asks why. A closed or cancelled ticket has no further steps.
 
+**The service desk.** **Setup → Service Ticket** opens with a **Service desk** above the list: every open ticket, overdue ones first, then by priority and Resolve By date. **Mine and unassigned** shows your tickets plus any nobody has taken; **All open** shows everyone's. Each row shows the customer, priority, status, technician, a **Due** badge (*Response overdue*, *Resolution overdue*, *Due today*), the contract with its coverage (*Covered - 2 visit(s) left*, *Ended …*, *All visits used*) and a **Next step** button (Assign, Start work, Resolve with notes, Close) that runs the same step as the row button below. Click a ticket number to see its status history — each change, when and by whom.
+
+**A contract's tickets.** **Setup → Service Contract** opens with **Contract coverage**: pick or type a contract number and **Show** — whether it covers work today, visits used of included, its dates, and every ticket raised under it.
+
+**A project's cost and revenue.** **Setup → Project** opens with **Project cost and revenue**: pick a project and **Show** — revenue, expense and net from everything posted with that project, and each source document behind the figures (Journal Vouchers and expense claims carry a Project field). An inactive project's history still shows. There is no project budget, timesheet or billing in this ERP.
+
 ## 9D. CRM — birthday and lapsed-customer campaigns
 
 A campaign is set up once and then sends by itself: every hour the system finds the customers it applies to and sends the message once a day per customer. Messages go out through your CleverTap connection; on a test system delivery is switched off, but each send is still logged.
 
 1. **Birthday campaigns need dates of birth.** On **Setup → Customer**, **Edit** the customer and fill **Date of Birth**. Only the day and month are used, so it repeats every year.
-2. **Setup → Campaign → + New Campaign**. Give it a **Campaign Name** and a **Trigger Type**:
+   **No consent, no message.** A campaign is sent only to customers who agreed to offers on its channel. On the Customer record, tick **Agrees to offers by SMS** and/or **Agrees to offers by WhatsApp** once they agree. **Consent recorded on / by** fill themselves in when you save. A customer with neither ticked gets no campaign.
+2. **Setup → Campaign → + New Campaign**. Give it a **Campaign Name**, choose **Sent by** (**WhatsApp** or **SMS**; it is sent only to customers who agreed to that one), and a **Trigger Type**:
    - **Birthday** — customers whose birthday is today.
    - **Lapsed Customer** — customers whose last purchase was more than **Lapsed After (days)** ago. Someone who has never bought is not "lapsed".
 3. **Message Template** — the text sent. `{{customer_name}}` is replaced with each customer's name, for example `Happy birthday {{customer_name}}! Enjoy 10% off in store this week.`
 4. **Campaign Cost** (optional) — what it costs you, so the report can show a return. **Status Active** to run it; **Inactive** pauses it.
-5. **See what it brought in:** **Reports → Report Catalog → Campaign ROI** (under CRM). Per campaign: customers reached, what those customers spent at the till since the campaign was created, the cost, and the return. It is a simple measure — every sale to a reached customer counts, whether or not the message caused it.
+5. **See what it brought in:** **Reports → Report Catalog → Campaign ROI** (under CRM). Per campaign: the customers it was sent to (handed to CleverTap; delivery is tracked there, not here), what those customers spent at the till since the campaign was created, the cost, and the return. It is a simple measure — every sale to a customer it was sent to counts, whether or not the message caused it. **Loyalty → Vouchers & campaigns** shows the same figures, plus who the campaign would pick today.
+
+## 9E. People — HR, leave, payroll and expense claims
+
+**HRM → HR** groups its tabs by who does the work: **My work** (My Requests — your own leave, expense claims and grievances), **Team** (Attendance, Leave, Shift Roster) and **HR administration** (Payroll, Payroll Export, Loans/Advances, Onboarding, Appraisals, Training, Grievances). You only see the tabs your role can open; Payroll, Payroll Export and Loans need the payroll permission.
+
+**Applying for leave** (Team → Leave → **+ Apply Leave**, or My Requests → **+ Request Leave**):
+
+1. Choose the employee (on My Requests it is you), the **Leave Type**, **From** and **To**. **Days** fills itself in — calendar days, counting both ends.
+2. Under the form you see the balance for that type this year — for example "Casual 2026: 12 days a year, 3 approved, 1 awaiting approval, 8 left" — and a warning if the dates overlap leave already on the list. You only ever see your own balance unless you are HR or a store manager.
+3. Save. The server still checks the balance and overlaps, so a request over the limit is refused with the reason.
+
+**Grievances.** Raise your own from My Requests → **+ Grievance**; it goes straight to HR and you follow its status there and under HR administration → Grievances (*With HR*, then *Resolved - actioned* or *Closed - no action*). Who can read it is printed on the form and above the case list, taken from the rules the server enforces: what was raised and how it was resolved — Super Admin only; a Store Manager sees that a case exists (number, employee, category, status) but not what it says; everyone else sees only their own cases, by status. A Super Admin opens a case, writes the **Resolution Notes** (required) and chooses **Resolve - actioned** or **Close - no action**; **+ Grievance** on the case list raises one on an employee's behalf.
+
+**Onboarding / Offboarding** lists each employee's checklist with its progress (*2 of 4*). **+ New checklist**: choose the type and employee (the code is suggested), type the steps or **Copy steps from** an earlier checklist of the same type, and save. **Open** a checklist to tick steps — each ticked step shows who ticked it and when — and add a step or a document link. When every step is ticked the checklist is *Completed*. Employees see their own checklist, read-only.
+
+**Appraisals**: choose the **Appraisal cycle** (cycles and their KRAs are set up under **Manage cycles**). Every active employee you can see is listed as *Not started, Draft, Submitted for review, Reviewed* or *Returned for changes*. **Start** opens the appraisal with the cycle's KRAs filled in: enter the self ratings (1-5), then **Submit for review**. The reviewer — a Store Manager or Super Admin, never the person who submitted it — enters manager ratings (**Overall Rating** fills with the weighted average, which you can change) and comments, then **Approve review** or **Return for changes** with a reason; a returned appraisal is corrected and submitted again.
+
+**Training**: choose the **Training program** (set up under **Manage programs**). Each employee shows *Not enrolled, Enrolled - due, Completed* or *Failed*. **Enrol** one, tick several and **Enrol selected**, or use **+ Enrol employee**. **Record result** sets Completed or Failed, the date and an optional score; someone who failed can be enrolled again.
+
+**Running payroll** (HR administration → Payroll → **+ Run Payroll**): the period defaults to last month. Each payslip in the list shows gross, the deductions (PF, ESI, PT, TDS, loan — hover for the amounts) and net pay. **Post to GL** posts one payslip. **Reconcile payroll** opens the **Payroll Reconciliation** report: for the pay periods you choose it sets each figure on the payslips beside what the ledger holds (gross on 5500, PF, ESI, PT, TDS, loan recovery, net pay on 2400), checks gross − deductions = net, then shows the salary paid out of 2400, how much of that payment is matched to the bank statement, what is still owed, and any payslips not yet posted. **View Details** on any line lists the payslips or GL lines behind it. Salary is paid with a Journal Voucher debiting 2400 Salary Payable and crediting the bank; match that bank line in Bank Reconciliation (§9B.3).
+
+**Expense claims** (HRM → Expenses → **+ New Expense Claim**):
+
+1. The claim starts filled in with you as the employee, the store you are signed in at, and today's date.
+2. Enter the **Amount (before GST)**, the **GST on the bill**, any **Advance already received** for this expense, the **Bill / receipt no.** and the **Purpose**. The line under the form shows what will be reimbursed: amount + GST − advance. GST cannot be more than the amount and the advance cannot be more than the bill. The same employee, category, date and amount twice is refused as a likely duplicate bill. Attach the receipt itself under **Receipt photo / PDF**: a photo or scan as JPEG, PNG or WebP, or a PDF, up to 5 MB each and 5 per claim. The claim saves first and the files upload straight after, so if one is refused, what you typed is kept; attach it again from **History**.
+3. **Create Draft**, then **Submit for Approval**. The list's cards show how many claims, and how much, wait for approval, for finance verification, for payment and for correction.
+4. **History** on a claim shows the steps it has passed (Draft → Pending Approval → Approved → Verified → Paid) and every approver comment — a rejection always carries its reason.
+   - **Receipts.** Under the claim number the list shows a paperclip with the number of files, or **no receipt**. **History** lists the receipts: **View** opens a photo on the page and saves a PDF to your computer. While a claim is **Draft** or **Rejected**, whoever added a receipt can **Remove** it and add more (**Attach**). Once it is submitted the receipts are fixed; ask a Super Admin if a wrong file must come off. Anyone who can see the claim (you, your store's manager, Finance) can see its receipts; nobody else can. A file that is not really a picture or PDF (for example a document renamed to .jpg) is refused, and the same file cannot be attached twice to one claim.
+5. A **Rejected** claim offers **Correct and resubmit**: the form opens with what you entered; fix it, save (it returns to Draft), and submit it again.
+6. Finance clicks **Finance Verify**, then **Mark Paid**. Payment posts the expense and GST, pays out only what is still owed after the advance, and clears the advance from 1600 Staff Loans & Advances. A claim can be paid once.
+
+## 9F. Manufacturing and supply planning
+
+### 9F.1 Supply proposals — what to buy, move or make (Stage 73.2.18)
+
+**Manufacturing → Supply Proposals.** The planner's list of what a location needs, and the place to turn it into orders.
+
+1. Choose the **Location** and **Propose from**: **Reorder points** (every stock item below its reorder point: how fast it sells × lead time + safety stock — an item's own *Reorder Point Config* wins over the lead time and safety stock on the screen) or **MRP** (manufactured items below their reorder point, and the raw materials their BOM would be short of). Click **Generate proposals**. Running it again refreshes the open proposals instead of adding duplicates.
+2. Each row shows the item, where the need came from, what is available, what is needed, the **suggested** quantity and an editable **Quantity**.
+3. Tick the rows to supply together and choose how:
+   - **Purchase order** — pick the **Vendor**; one Draft PO is created for all the ticked items, priced at their cost (moving average, else the item's standard cost — check the prices before submitting).
+   - **Transfer from another location** — pick **From location**; one Draft stock transfer is created.
+   - **Production order** — one Draft production order per ticked item, on its active BOM (an item without a BOM is refused).
+   Click **Approve selected**. The message names the documents; open them on Purchase Orders, Stock Transfer or Manufacturing → Orders to review and submit as usual. Approve one location at a time.
+4. Rows you will not act on: tick them and **Reject selected** with a reason (in **Note / reason**, or asked for).
+5. **Show** switches between open, converted, rejected and all proposals. A converted proposal shows the document it became, who decided and when; that document shows the proposals it came from. A proposal is converted once — approving it again is refused.
+
+### 9F.2 BOMs and production orders (Stage 55.12)
+
+**Manufacturing → Orders.**
+
+**A new BOM** (**+ New BOM**): enter the **BOM Code** and the **Parent Item** — the finished item it makes. Then fill one row per component: pick the **Item**, enter the **Qty per finished unit** and, if some is lost in making, the **Expected scrap %** (10 means 10% more is issued). **+ Add component** adds a row and **Remove** takes one out; blank rows are skipped. The same item cannot be on two rows (put the total on one) and a BOM cannot use the item it makes. Sub-assemblies, by-products, alternate/effective-dated BOMs, QC requirement and standard cost are set afterwards under Setup → BOM.
+
+**A new production order** (**+ New Production Order**): choose the **BOM**, the **Quantity** and the **Location** the materials are taken from. As soon as all three are filled, the **materials check** shows each component's quantity per unit, the total **Required**, what is **Available** at that location and any **Short** quantity. A short component means **Issue Material** will be refused until the stock arrives — transfer it in (§7) or receive a purchase. Components whose item type is backflushed (packaging) say *as output is reported*: they are taken as finished units are reported, so they never hold up the issue. Click **Create Order**; it is saved as Draft either way.
+
+**The order list** shows each order's BOM and what it makes, **Made / ordered**, the location, status and **Next step**:
+
+| Status | Next step | Who | Buttons |
+|---|---|---|---|
+| Draft | check materials, then issue them | Planner / store | **Materials** (opens the same check under the row), **Issue Material** |
+| Material Issued / In Process | report output | Shop floor | **Complete (Receive FG)** for the rest in one go, **Report Partial** for a batch, **Confirm Operation**, **Scrap** (with a reason), **Rework** |
+| Completed, no actual cost | record the actual cost | Planner | **Record Actual Cost** |
+| Completed | done | — | — |
+
+Material is issued once: issuing again is refused. **Report Partial** receives that many finished units and backflushes their packaging; the order stays open until everything is made, and reporting more than the order quantity is refused. Quality inspections for an order are on **Quality Inspections**; work sent out to a subcontractor (what was sent, what is expected back and what came back) is on **Subcontracting**.
+
+> **Whole units.** Stock moves in whole units. If a component's quantity per unit times the order quantity (with scrap) is not a whole number — for example 2.2 × 4 = 8.8 — the check shows 8.8, but Issue Material takes only the whole part (8). Set component quantities and scrap % so that the totals come out whole.
+
+### 9F.3 Quality inspections, certificates, non-conformance and maintenance (Stage 55.13)
+
+**Manufacturing → Quality Inspections.** **+ New Inspection**:
+
+1. **Inspecting**: *Goods received (GRN)*, *Production output* or *Goods going out (sales order)*, then the document. For goods received, the **Item** must be one received on that GRN; give the **Location** the stock is at and the **Quantity inspected**. For production output, item and location come from the order.
+2. Optionally pick an **Inspection plan** — its parameters and specifications fill the readings table, and every one needs a reading. Without a plan, add your own readings (**+ Add reading**).
+3. Mark each reading **Pass** or **Fail** and click **Record inspection**. One Fail fails the inspection.
+
+What happens next is on the list (**Readings** shows what was measured):
+
+- **Production output** → **Submit for approval**. The approver decides it under Approvals; the production order cannot be completed until it is approved, and an approved **Fail** blocks completion.
+- **Goods received / going out** → **Decide**. A pass is **accepted** (no stock changes). A fail cannot be accepted: choose **Hold stock** (the quantity stays on hand but cannot be sold or issued until a hold release is approved), **Rework** (held the same way until reworked and released), or **Use as-is (concession)** — this needs a note, and someone other than the inspector must record it. A failed inspection raises a **non-conformance report**; its number appears on the row — click it to go there.
+
+**Certificates.** **+ New Certificate** records a lot's test results (item, batch/lot, optional plan, each result Pass/Fail). A passed certificate can be **Released**; **Reject** moves every bin holding that lot to QC-Hold. A certificate records your own tests — it is not a regulatory certification.
+
+**Non-conformance.** Each report shows what went wrong, where it was found, the item and lot. Work it through: **Investigate** (pick the root cause — reason codes of category *Quality*) → **Plan action** (the corrective action, the **owner** who does it and a due date; overdue ones are flagged) → **Close** (the evidence the action was done — for example a vendor letter, or the next lots passing). **+ New Report** raises one for anything not found by an inspection.
+
+**Maintenance.** **+ New Order**: the asset, the work, an optional date (with a date it is Scheduled at once; without, it waits in Draft — use **Schedule**) and a checklist, one task per line. Then **Start**, and **Complete**: tick every checklist task, add the parts used (recorded on the order — take them out of stock separately) and the hours, and write what was done. An order cannot be completed with a task unticked. **+ New Schedule** sets up recurring work (every N days, first due date, checklist); the system raises an order on each due date. Overdue open orders are flagged.
 
 ## 10. Approvals
 
 If your role can approve things (e.g. a manager approving a purchase order), you'll see an **Approvals** section listing anything waiting on you. Open an item, review it, and either approve or reject it (you can add a note explaining why). Once decided, it can't be silently changed — there's always a record of who approved what and when.
+
+**My work.** The **Approvals** menu opens **My work**: one list of everything waiting for you, overdue first, then oldest:
+
+- **Approvals** routed to your role (by the amount rules your administrator set) that you did not submit yourself — you can never approve your own;
+- **Order desk** queues with orders in them (§9A.6), if you can read orders;
+- **Catalog** tasks assigned to you, or to your role with nobody named yet (PIM → My Work).
+
+Each row says why it is yours and since when; **Everything / Approvals / Order desk / Catalog** filter it. **Open** takes you where the work is done: the approvals table further down this page (Approve / Reject as before), Order Management with that queue showing, or PIM → My Work. If one source cannot be loaded, the page says so and shows the rest.
 
 ## 11. Your Profile, Password, and Session
 
@@ -1515,14 +1892,14 @@ Everything above is per-screen. This section is the opposite: one continuous pat
 
 **Setup → Inventory → Item → New Item.** Fill in the name and code, and — this is the step people skip — the **HSN Code** and **GST Rate**. Both are required; the system refuses to save without them, because it can't price a sale it can't tax. Save.
 
-> **Selling something that isn't taxed?** Unbranded grain, fresh produce, salt, books and exports are all sold at 0%, and a 0 in **GST Rate** on its own is still rejected — the system can't tell it apart from a rate you haven't filled in yet. Set **Tax Treatment** (just above GST Rate) instead:
+> **Selling something that isn't taxed?** Unbranded grain, fresh produce, salt, books and exports are all sold at 0%, and a 0 in **GST Rate** on its own is still rejected — the system can't tell it apart from a rate you haven't filled in yet. Set **Tax Treatment** (next to GST Rate, in the **Price and tax** section) instead:
 >
 > | Tax Treatment | Use it for | GST Rate |
 > |---|---|---|
 > | **Taxable** | Everything ordinary. This is what you get if you leave the field alone. | Must be greater than 0 |
-> | **Exempt** | Goods exempted by notification — fresh produce, unbranded grain. | Leave 0 or blank |
-> | **Nil-Rated** | Goods whose tariff rate is genuinely 0% — salt, certain cereals. | Leave 0 or blank |
-> | **Zero-Rated** | Exports and SEZ supplies made under LUT/bond. | Leave 0 or blank |
+> | **Exempt** | Goods exempted by notification — fresh produce, unbranded grain. | Set to 0 for you |
+> | **Nil-Rated** | Goods whose tariff rate is genuinely 0% — salt, certain cereals. | Set to 0 for you |
+> | **Zero-Rated** | Exports and SEZ supplies made under LUT/bond. | Set to 0 for you |
 >
 > **HSN Code is still required on all four** — it goes on the invoice whatever the rate is, and the nil/exempt part of GSTR-1 is reported HSN-wise too. And you can't have it both ways: pick a non-taxable treatment and the item may not carry a GST Rate above 0.
 

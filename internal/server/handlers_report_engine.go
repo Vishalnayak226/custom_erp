@@ -48,13 +48,17 @@ func handleRunReport(w http.ResponseWriter, r *http.Request) {
 	}
 	reportID := r.PathValue("id")
 	params := flattenQueryParams(r)
-	def, rows, masked, err := engines.RunReportContext(r.Context(), tenantID, reportID, role, userID, params)
+	def, rows, masked, controls, err := engines.RunReportWithControlTotals(r.Context(), tenantID, reportID, role, userID, params)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	resp := map[string]interface{}{
 		"id": def.ID, "label": def.Label, "columns": def.Columns, "has_drill_down": def.HasDrillDown, "rows": rows,
+	}
+	// Stage 73.2.19: detail = summary = ledger, with its cut-off.
+	if controls != nil {
+		resp["control_totals"] = controls
 	}
 	// REPORT-0160 (Stage 25.5): "Report no data" is a Warning/non-blocking
 	// scenario in the catalog (an empty result from a legitimate filter
@@ -129,6 +133,12 @@ func handleGetReportExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	jobID := r.PathValue("id")
+	// Stage 55.20: an export is the requester's own - another user gets the
+	// same answer as for a job that does not exist.
+	if visible, verr := engines.ReportExportJobVisible(tenantID, jobID, r.Header.Get("Resolved-User-ID"), r.Header.Get("Resolved-Role")); verr != nil || !visible {
+		writeAPIErrorGeneric(w, r, http.StatusNotFound, "export job not found")
+		return
+	}
 	status, csvBytes, code, err := engines.GetReportExportJob(tenantID, jobID)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusNotFound)
@@ -162,4 +172,23 @@ func flattenQueryParams(r *http.Request) map[string]string {
 		}
 	}
 	return out
+}
+
+// Stage 55.20: "My exports" - the caller's own background exports.
+func handleListMyReportExports(w http.ResponseWriter, r *http.Request) {
+	jobs, err := engines.ListMyReportExportJobs(r.Header.Get("Resolved-Tenant-ID"), r.Header.Get("Resolved-User-ID"), 20)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"jobs": jobs})
+}
+
+func handleCancelReportExport(w http.ResponseWriter, r *http.Request) {
+	if err := engines.CancelReportExportJob(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("id"),
+		r.Header.Get("Resolved-User-ID"), r.Header.Get("Resolved-Role")); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "Cancelled"})
 }

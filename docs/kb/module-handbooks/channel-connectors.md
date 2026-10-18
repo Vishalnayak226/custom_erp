@@ -5,7 +5,7 @@ order: 45
 summary: Push product content out to Shopify, BigCommerce, Magento, Amazon, Flipkart and a dozen private-contract marketplaces through one shared readiness/queue/retry pipeline, and pull their orders back in through the same connector.
 audience: category manager, admin, integrator
 last_verified: 2026-09-03
-screens: [pim, oms, doctype-table]
+screens: [pim, oms, doctype:channel, doctype:channelvalidationrule, doctype:channelcategorymap, doctype:channelfieldmap, doctype:channelsyncrun, doctype:channelskuexception]
 doc_id: DOC-79BB2AA4C0
 type: procedure
 status: draft

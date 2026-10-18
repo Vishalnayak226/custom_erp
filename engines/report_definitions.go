@@ -57,14 +57,34 @@ func init() {
 		},
 	})
 
+	// Stage 73 / 55.10: goods received and not yet paid (GRN Suspense 2100),
+	// so it ties to the ledger; the purchase-order view is "po-commitments".
 	RegisterReport(ReportDefinition{
 		ID: "payables-ageing", Label: "Payables Ageing", Category: "Finance",
 		Columns: []ReportColumn{
-			{Key: "bucket", Label: "Age Bucket"}, {Key: "count", Label: "PO Count"},
+			{Key: "bucket", Label: "Age Bucket"}, {Key: "count", Label: "Open Items"},
 			{Key: "amount", Label: "Outstanding Amount", Sensitive: true},
 		},
 		Run: func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
 			buckets, err := GetPayablesAgeingReport(tenantID)
+			if err != nil {
+				return nil, err
+			}
+			return structsToRows(buckets)
+		},
+		DrillDown: func(tenantID, rowKey string, params map[string]string) ([]map[string]interface{}, error) {
+			return payablesAgeingDrillDown(tenantID, rowKey)
+		},
+	})
+
+	RegisterReport(ReportDefinition{
+		ID: "po-commitments", Label: "Open Purchase Commitments", Category: "Procurement",
+		Columns: []ReportColumn{
+			{Key: "bucket", Label: "Age Bucket"}, {Key: "count", Label: "PO Count"},
+			{Key: "amount", Label: "Committed Amount", Sensitive: true},
+		},
+		Run: func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
+			buckets, err := GetPOCommitmentsReport(tenantID)
 			if err != nil {
 				return nil, err
 			}
@@ -242,8 +262,13 @@ func ageingBucketDrillDown(tenantID, doctype, status, amountField, bucketLabel s
 	if err != nil {
 		return nil, err
 	}
+	// Stage 73 / 55.10: the 6th column is the open balance - a SalesInvoice's
+	// outstanding_amount once anything is received against it, else the
+	// amount itself - so Receivables Ageing's rows show what each bucket
+	// actually summed.
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT id, data, COALESCE((data->>$1)::numeric, 0), created_at AT TIME ZONE current_setting('TimeZone')
+		SELECT id, data, COALESCE((data->>$1)::numeric, 0), created_at AT TIME ZONE current_setting('TimeZone'), COALESCE(data->>'due_date', ''),
+		       COALESCE((data->>'outstanding_amount')::numeric, (data->>$1)::numeric, 0)
 		FROM %s.documents WHERE doctype = $2 AND status = $3`, schema), amountField, doctype, status)
 	if err != nil {
 		return nil, err
@@ -252,21 +277,39 @@ func ageingBucketDrillDown(tenantID, doctype, status, amountField, bucketLabel s
 	now := time.Now()
 	var results []map[string]interface{}
 	for rows.Next() {
-		var id, dataStr string
-		var amount float64
+		var id, dataStr, dueDate string
+		var amount, outstanding float64
 		var createdAt time.Time
-		if err := rows.Scan(&id, &dataStr, &amount, &createdAt); err != nil {
+		if err := rows.Scan(&id, &dataStr, &amount, &createdAt, &dueDate, &outstanding); err != nil {
 			return nil, err
 		}
-		if ageBucketLabel(int(now.Sub(createdAt).Hours()/24)) != bucketLabel {
+		// Stage 73.2.19: age exactly as GetReceivablesAgeingReport does - from
+		// a SalesInvoice's due_date when it has one, never below zero - so a
+		// bucket's rows are the same set its total was summed from.
+		ageFrom := createdAt
+		if doctype == "SalesInvoice" && dueDate != "" {
+			if parsed, perr := time.ParseInLocation("2006-01-02", dueDate, time.Local); perr == nil {
+				ageFrom = parsed
+			}
+		}
+		ageDays := int(now.Sub(ageFrom).Hours() / 24)
+		if ageDays < 0 {
+			ageDays = 0
+		}
+		if ageBucketLabel(ageDays) != bucketLabel {
 			continue
 		}
 		// 24.18: dataStr/data was scanned and unmarshaled but never
 		// actually read - dead code, removed rather than given error
 		// handling for a value nothing uses.
-		results = append(results, map[string]interface{}{
+		row := map[string]interface{}{
 			"id": id, amountField: amount, "created_at": createdAt,
-		})
+		}
+		if doctype == "SalesInvoice" {
+			row["outstanding_amount"] = outstanding
+			row["due_date"] = dueDate
+		}
+		results = append(results, row)
 	}
 	if results == nil {
 		results = []map[string]interface{}{}

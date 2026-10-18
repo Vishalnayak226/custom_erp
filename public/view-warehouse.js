@@ -43,6 +43,7 @@ async function renderFulfillmentView(container) {
           <th>Task ID</th>
           <th>Order</th>
           <th>Location</th>
+          <th>Owner</th>
           <th>Status</th>
           <th>Actions</th>
         </tr>
@@ -50,7 +51,7 @@ async function renderFulfillmentView(container) {
       <tbody>
   `;
   if (!tasks || tasks.length === 0) {
-    html += `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No fulfillment tasks routed to your location. Tasks appear automatically when a Sales Order is released under <b>Order Management</b>.</td></tr>`;
+    html += `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No fulfillment tasks routed to your location. Tasks appear automatically when a Sales Order is released under <b>Order Management</b>.</td></tr>`;
   }
   (tasks || []).forEach(t => {
     const badgeClass = FULFILLMENT_STATUS_BADGE[t.status] || 'badge-secondary';
@@ -59,6 +60,7 @@ async function renderFulfillmentView(container) {
         <td style="font-family: monospace;">${t.code || t.id}</td>
         <td>${fulfillmentOrderLabel(t.order_id, orderInfo[t.order_id])}</td>
         <td>${t.location_code || ''}</td>
+        <td>${escapeHTMLText(t.owner_id || '')}</td>
         <td><span class="badge ${badgeClass}">${t.status}</span></td>
         <td>${renderFulfillmentActions(t)}</td>
       </tr>
@@ -67,6 +69,33 @@ async function renderFulfillmentView(container) {
   html += `</tbody></table>`;
   panel.innerHTML = html;
   container.appendChild(panel);
+
+  // Stage 59.2: a warehouse shared by several 3PL clients picks an order only
+  // from its owner's stock - set the owner here before the order is released.
+  const ownerPanel = document.createElement('div');
+  ownerPanel.className = 'table-panel';
+  ownerPanel.style.padding = '16px';
+  ownerPanel.style.marginTop = '16px';
+  ownerPanel.innerHTML = `
+    <h2 style="font-size: 15px; font-weight: 700; margin-bottom: 8px;">Order owner (3PL client)</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="fo-order">Order</label>
+        <input type="text" id="fo-order" class="form-input" style="width: 200px;" autocomplete="off" placeholder="Order ID, not yet released"></div>
+      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="fo-owner">Owner</label>
+        <input type="text" id="fo-owner" class="form-input" style="width: 160px;" autocomplete="off" placeholder="Blank clears it"></div>
+      <button class="btn btn-outline" id="fo-save" type="button">Set Owner</button>
+    </div>`;
+  container.appendChild(ownerPanel);
+  attachLinkTypeahead(document.getElementById('fo-order'), 'SalesOrder');
+  document.getElementById('fo-save').addEventListener('click', async () => {
+    const orderID = document.getElementById('fo-order').value.trim();
+    if (!orderID) { await showCustomAlert('Choose the order.', 'Order Owner'); return; }
+    const res = await apiFetch('/api/v1/wms/order-owner', { method: 'POST',
+      body: JSON.stringify({ order_id: orderID, owner_id: document.getElementById('fo-owner').value.trim() }) });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'The owner could not be set.', 'Order Owner'); return; }
+    showToast(`Order ${orderID}: owner set.`);
+  });
 }
 
 function fulfillmentOrderLabel(orderID, order) {
@@ -178,6 +207,23 @@ async function renderPutawayView(container) {
   `;
   container.appendChild(header);
 
+  // Stage 55.7: what is waiting to go into a bin at a location - received
+  // stock not yet binned - so the operator picks a line instead of recalling it.
+  const waitPanel = document.createElement('div');
+  waitPanel.className = 'table-panel';
+  waitPanel.style.padding = '24px';
+  waitPanel.style.marginBottom = '24px';
+  waitPanel.innerHTML = `
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <h2 style="font-size: 16px; font-weight: 700; margin: 0; flex: 1;">Waiting for putaway</h2>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="putaway-wait-location">Location</label>
+        <input type="text" id="putaway-wait-location" class="form-input" style="width: 180px;" autocomplete="off">
+      </div>
+    </div>
+    <div id="putaway-waiting" style="margin-top: 12px;"></div>`;
+  container.appendChild(waitPanel);
+
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.style.padding = '24px';
@@ -196,6 +242,10 @@ async function renderPutawayView(container) {
         <input type="number" id="putaway-qty" class="form-input" style="width: 90px;" min="1" value="1">
       </div>
       <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="putaway-owner">Owner (3PL client, optional)</label>
+        <input type="text" id="putaway-owner" class="form-input" style="width: 160px;" autocomplete="off" placeholder="Whose stock">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="putaway-location">Location (for Suggest Bin)</label>
         <input type="text" id="putaway-location" class="form-input" style="width: 140px;" autocomplete="off">
       </div>
@@ -212,14 +262,30 @@ async function renderPutawayView(container) {
   attachLinkTypeahead(document.getElementById('putaway-bin'), 'Bin');
   attachLinkTypeahead(document.getElementById('putaway-sku'), 'Item');
   attachLinkTypeahead(document.getElementById('putaway-location'), 'Location');
+  // Stage 55.7: scanner order - bin, Enter, item, Enter, quantity, Enter puts it away.
+  [['putaway-bin', 'putaway-sku'], ['putaway-sku', 'putaway-qty']].forEach(([from, to]) =>
+    document.getElementById(from).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById(to).focus(); document.getElementById(to).select?.(); } }));
+  document.getElementById('putaway-qty').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitPutaway(); } });
+  const waitLoc = document.getElementById('putaway-wait-location');
+  attachLinkTypeahead(waitLoc, 'Location');
+  if (inboundLocation) waitLoc.value = inboundLocation;
+  waitLoc.addEventListener('change', () => { inboundLocation = waitLoc.value.trim(); loadPutawayWaiting(); });
+  loadPutawayWaiting();
+
+  // Cross-dock is a different decision from shelving: kept, but folded away
+  // as an explicit variant rather than two more blank forms beside this one.
+  const xdockWrap = document.createElement('details');
+  xdockWrap.className = 'table-panel';
+  xdockWrap.style.padding = '16px 24px';
+  xdockWrap.style.marginTop = '24px';
+  xdockWrap.innerHTML = '<summary style="cursor: pointer; font-weight: 600;">Cross-dock instead of shelving (advanced)</summary>';
+  container.appendChild(xdockWrap);
 
   // Stage 26.5.3: cross-dock/flow-through putaway - an alternative to
   // shelving when a transfer/sale is already waiting on this exact SKU at
   // this location, skipping bin placement in favor of a staging bin.
   const xdockPanel = document.createElement('div');
-  xdockPanel.className = 'table-panel';
-  xdockPanel.style.padding = '24px';
-  xdockPanel.style.marginTop = '24px';
+  xdockPanel.style.padding = '16px 0 0';
   xdockPanel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">Cross-Dock Staging</h2>
     <p style="color: var(--text-muted); margin-bottom: 12px;">Check whether an open transfer/sale is already waiting on a SKU before shelving it - if so, stage it for immediate outbound instead.</p>
@@ -242,7 +308,7 @@ async function renderPutawayView(container) {
     <div id="xdock-result" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);"></div>
     <div id="xdock-form-error" class="login-error hidden" style="margin-top: 12px;"></div>
   `;
-  container.appendChild(xdockPanel);
+  xdockWrap.appendChild(xdockPanel);
   document.getElementById('xdock-check-btn').addEventListener('click', checkCrossDockOpportunity);
   document.getElementById('xdock-stage-btn').addEventListener('click', submitCrossDockPutaway);
   attachLinkTypeahead(document.getElementById('xdock-sku'), 'Item');
@@ -252,9 +318,7 @@ async function renderPutawayView(container) {
   // a CrossDockPlan raised ahead of receipt (Cross-Dock Plans in the sidebar)
   // instead of scanning for live opportunistic demand like the panel above.
   const planPanel = document.createElement('div');
-  planPanel.className = 'table-panel';
-  planPanel.style.padding = '24px';
-  planPanel.style.marginTop = '24px';
+  planPanel.style.padding = '24px 0 0';
   planPanel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">Planned Cross-Dock / Flow-Through / Transship</h2>
     <p style="color: var(--text-muted); margin-bottom: 12px;">Stages against a Cross-Dock Plan raised ahead of receipt (see Cross-Dock Plans), rather than scanning for live demand.</p>
@@ -276,7 +340,7 @@ async function renderPutawayView(container) {
     <div id="xplan-result" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);"></div>
     <div id="xplan-form-error" class="login-error hidden" style="margin-top: 12px;"></div>
   `;
-  container.appendChild(planPanel);
+  xdockWrap.appendChild(planPanel);
   document.getElementById('xplan-stage-btn').addEventListener('click', submitPlannedCrossDockPutaway);
   attachLinkTypeahead(document.getElementById('xplan-sku'), 'Item');
   attachLinkTypeahead(document.getElementById('xplan-location'), 'Location');
@@ -391,15 +455,53 @@ async function submitPutaway() {
 
   const res = await apiFetch('/api/v1/wms/putaway', {
     method: 'POST',
-    body: JSON.stringify({ bin_code: binCode, sku: sku, qty: qty })
+    // Stage 59.4: in a warehouse shared by several 3PL owners, say whose.
+    body: JSON.stringify({ bin_code: binCode, sku: sku, qty: qty, owner_id: (document.getElementById('putaway-owner')?.value || '').trim() })
   });
   if (!res) return;
   if (!res.ok) {
     await showApiError(res, 'Failed to put away stock.', 'Putaway Failed');
     return;
   }
-  await showCustomAlert(`Put away ${qty} x ${sku} into bin ${binCode}.`, 'Putaway Complete');
+  showToast(`Put away ${qty} x ${sku} into bin ${binCode}.`, { variant: 'success' });
   document.getElementById('putaway-qty').value = 1;
+  document.getElementById('putaway-bin').value = '';
+  document.getElementById('putaway-sku').value = '';
+  document.getElementById('putaway-suggest-result').textContent = '';
+  await loadPutawayWaiting();
+  document.getElementById('putaway-bin').focus();
+}
+
+// loadPutawayWaiting lists received stock not yet in a bin (Stage 55.7); a
+// row's Put away fills the form below and asks for a bin suggestion.
+async function loadPutawayWaiting() {
+  const el = document.getElementById('putaway-waiting');
+  if (!el) return;
+  const loc = (document.getElementById('putaway-wait-location')?.value || '').trim();
+  const res = await apiFetch(`/api/v1/wms/inbound-work?location=${encodeURIComponent(loc)}`);
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Could not load what is waiting for putaway.', 'Putaway'); return; }
+  const work = await res.json();
+  const rows = work.putaway || [];
+  if (!work.has_bins) {
+    el.innerHTML = `<p style="margin: 0; color: var(--text-muted);">No bins are set up${loc ? ' at ' + escapeHTMLText(loc) : ''} yet - putaway places stock into bins. <button type="button" class="action-btn" ${actionAttrs('openSetupDoctype', ['Bin'])}>Set up bins</button></p>`;
+    return;
+  }
+  el.innerHTML = rows.length === 0 ? `<p style="margin: 0; color: var(--text-muted);">Nothing waiting${loc ? ' at ' + escapeHTMLText(loc) : ''} - every received unit is in a bin.</p>` : `<div style="overflow-x: auto;"><table>
+    <thead><tr><th>Item</th><th>Location</th><th class="num">On hand</th><th class="num">In bins</th><th class="num">Waiting</th><th></th></tr></thead>
+    <tbody>${rows.map(p => `<tr><td>${escapeHTMLText(p.name || p.sku)}<div style="font-size: 11px; color: var(--text-muted);">${escapeHTMLText(p.sku)}</div></td>
+      <td>${escapeHTMLText(p.location)}</td><td class="num">${p.on_hand}</td><td class="num">${p.binned}</td><td class="num"><b>${p.waiting}</b></td>
+      <td><button type="button" class="btn btn-outline btn-sm" data-putaway-sku="${escapeHTMLText(p.sku)}" data-putaway-loc="${escapeHTMLText(p.location)}" data-putaway-qty="${p.waiting}">Put away</button></td></tr>`).join('')}</tbody></table></div>`;
+  el.querySelectorAll('[data-putaway-sku]').forEach(btn => btn.addEventListener('click', async () => {
+    document.getElementById('putaway-sku').value = btn.dataset.putawaySku;
+    document.getElementById('putaway-location').value = btn.dataset.putawayLoc;
+    document.getElementById('putaway-qty').value = btn.dataset.putawayQty;
+    document.getElementById('putaway-bin').value = '';
+    await suggestPutawayBin();
+    const bin = document.getElementById('putaway-bin');
+    bin.focus();
+    bin.select?.();
+  }));
 }
 
 // Stage 42.3.5 - Place Hold: the only creation path for a Hold document
@@ -449,12 +551,15 @@ async function renderPlaceHoldView(container) {
       </div>
       <button class="btn btn-primary" id="hold-submit-btn" type="button">Place Hold</button>
     </div>
+    <div id="hold-impact" aria-live="polite" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);">Choose the item and location to see what a hold takes out of sellable stock.</div>
     <div id="hold-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
     <div id="hold-result" aria-live="polite" style="margin-top:16px;"></div>
   `;
   container.appendChild(panel);
 
   document.getElementById('hold-submit-btn').addEventListener('click', submitPlaceHold);
+  // Stage 55.6: what the hold will do to sellable stock, before it is placed.
+  ['hold-sku', 'hold-location', 'hold-qty'].forEach(id => document.getElementById(id).addEventListener('change', showHoldImpact));
   attachLinkTypeahead(document.getElementById('hold-code'), 'HoldCode');
   attachLinkTypeahead(document.getElementById('hold-sku'), 'Item');
   attachLinkTypeahead(document.getElementById('hold-location'), 'Location');
@@ -467,6 +572,20 @@ async function renderPlaceHoldView(container) {
       document.getElementById('hold-location').value = String(context.location || '');
     } catch (error) { /* A stale local hint must not block a fresh hold. */ }
   }
+}
+
+async function showHoldImpact() {
+  const el = document.getElementById('hold-impact');
+  const sku = document.getElementById('hold-sku')?.value.trim();
+  const loc = document.getElementById('hold-location')?.value.trim();
+  const qty = parseInt(document.getElementById('hold-qty')?.value, 10) || 0;
+  if (!el || !sku || !loc) return;
+  const res = await apiFetch(`/api/v1/availability?sku=${encodeURIComponent(sku)}&location=${encodeURIComponent(loc)}`);
+  if (!res || !res.ok) { el.textContent = 'Stock for this item and location could not be read.'; return; }
+  const a = await res.json();
+  const ats = Number(a.ats) || 0;
+  el.innerHTML = `At ${escapeHTMLText(loc)}: on hand <b>${Number(a.on_hand) || 0}</b>, already held <b>${Number(a.hold_qty) || 0}</b>, available to sell <b>${ats}</b>.` +
+    (qty > 0 ? ` A hold of ${qty} leaves <b>${ats - qty}</b> to sell until a release is approved${qty > ats ? ' - <span style="color: var(--danger-color);">more than is available to sell</span>' : ''}. On-hand stock does not change.` : '');
 }
 
 async function submitPlaceHold() {
@@ -535,6 +654,10 @@ async function renderYardBoardView(container) {
   panel.innerHTML = `
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="yard-appt">Booked appointment (optional)</label>
+        <select id="yard-appt" class="form-select" style="width: 260px;"><option value="">Not booked</option></select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="yard-trailer">Trailer No</label>
         <input type="text" id="yard-trailer" class="form-input" style="width: 140px;" autocomplete="off">
       </div>
@@ -562,6 +685,18 @@ async function renderYardBoardView(container) {
   txnRestorePane('yard-screen');
   document.getElementById('yard-checkin-btn').addEventListener('click', submitYardCheckIn);
   attachLinkTypeahead(document.getElementById('yard-trailer'), 'Trailer', { valueFields: ['code'] });
+  // Stage 55.7: check a booked trailer in against its appointment.
+  const apptRes = await apiFetch('/api/v1/doc/Appointment');
+  const appts = apptRes && apptRes.ok ? (await apptRes.json()).filter(a => a.status === 'Scheduled' && a.appointment_date >= localISODate(new Date(Date.now() - 864e5))) : [];
+  appts.sort((a, b) => `${a.appointment_date} ${a.start_time}`.localeCompare(`${b.appointment_date} ${b.start_time}`));
+  const apptSel = document.getElementById('yard-appt');
+  apptSel.innerHTML += appts.map(a => `<option value="${escapeHTMLText(a.id)}">${escapeHTMLText(a.appointment_date)} ${escapeHTMLText(a.start_time)} · door ${escapeHTMLText(a.dock_door)} · ${escapeHTMLText(a.appointment_type)}${a.carrier ? ' · ' + escapeHTMLText(a.carrier) : ''}${a.trailer_no ? ' · ' + escapeHTMLText(a.trailer_no) : ''}</option>`).join('');
+  apptSel.addEventListener('change', () => {
+    const a = appts.find(x => x.id === apptSel.value);
+    if (!a) return;
+    if (a.trailer_no) document.getElementById('yard-trailer').value = a.trailer_no;
+    if (a.carrier) document.getElementById('yard-carrier').value = a.carrier;
+  });
   await loadYardBoard();
 }
 
@@ -584,15 +719,30 @@ async function loadYardBoard(liveBody = null) {
     body.innerHTML = '<div class="table-panel" style="padding:24px; color:var(--text-muted);">No trailers currently in the yard.</div>';
     return;
   }
+  // Stage 55.7: what each trailer brought, from its appointment.
+  const apptRes = await apiFetch('/api/v1/doc/Appointment');
+  const apptById = Object.fromEntries((apptRes && apptRes.ok ? await apptRes.json() : []).map(a => [a.id, a]));
+  const delivery = r => {
+    const a = apptById[r.appointment_id];
+    if (!a) return '-';
+    return `${escapeHTMLText(a.appointment_type || '')}${a.asn_id ? ` · ASN ${escapeHTMLText(a.asn_id)}` : a.po_id ? ` · PO ${escapeHTMLText(a.po_id)}` : ''}<div style="font-size: 11px; color: var(--text-muted);">booked ${escapeHTMLText(a.appointment_date)} ${escapeHTMLText(a.start_time)}, door ${escapeHTMLText(a.dock_door)}</div>`;
+  };
+  const receiveBtn = r => {
+    const a = apptById[r.appointment_id];
+    return r.status === 'AtDoor' && a && a.asn_id && a.appointment_type !== 'Outbound'
+      ? `<button class="btn btn-primary btn-sm" ${actionAttrs('receiveYardASN', [a.asn_id])}>Receive</button>` : '';
+  };
 
   const rows = active.map(r => `
     <tr>
       <td>${escapeHTMLText(r.trailer_no || '')}</td>
       <td>${escapeHTMLText(r.carrier || '-')}</td>
       <td>${escapeHTMLText(r.driver_name || '-')}</td>
-      <td><span class="badge">${escapeHTMLText(r.status || '')}</span></td>
+      <td>${delivery(r)}</td>
+      <td><span class="badge">${escapeHTMLText(r.status === 'AtDoor' ? 'At door' : r.status === 'InYard' ? 'In yard' : r.status || '')}</span></td>
       <td>${escapeHTMLText(r.dock_door || r.yard_location || '-')}</td>
       <td>
+        ${receiveBtn(r)}
         ${r.status === 'InYard' ? `<button class="btn btn-outline btn-sm" ${actionAttrs('assignYardDoor', [r.id])}>Assign to Door</button>` : ''}
         <button class="btn btn-outline btn-sm" ${actionAttrs('checkOutYardTrailer', [r.id])}>Check Out</button>
       </td>
@@ -602,7 +752,7 @@ async function loadYardBoard(liveBody = null) {
   panel.className = 'table-panel';
   panel.innerHTML = `
     <div class="table-wrapper"><table>
-      <thead><tr><th>Trailer</th><th>Carrier</th><th>Driver</th><th>Status</th><th>Door / Slot</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Trailer</th><th>Carrier</th><th>Driver</th><th>Delivery</th><th>Status</th><th>Door / Slot</th><th>Actions</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
   `;
@@ -624,19 +774,23 @@ async function submitYardCheckInInner() {
     errorEl.classList.remove('hidden');
     return;
   }
+  // Stage 55.7: checked in by the server - once per trailer, and its
+  // appointment (if picked) marked checked in.
   const payload = {
     trailer_no: trailerNo,
     carrier: document.getElementById('yard-carrier').value.trim(),
     driver_name: document.getElementById('yard-driver').value.trim(),
     yard_location: document.getElementById('yard-slot').value.trim(),
-    status: 'InYard'
+    appointment_id: document.getElementById('yard-appt')?.value || ''
   };
-  const res = await apiFetch('/api/v1/doc/YardCheckIn', { method: 'POST', body: JSON.stringify(payload) });
+  const res = await apiFetch('/api/v1/wms/yard/check-in', { method: 'POST', body: JSON.stringify(payload) });
   if (!res) return;
   if (!res.ok) {
     await showApiError(res, 'Failed to check in trailer.');
     return;
   }
+  const apptSel = document.getElementById('yard-appt');
+  if (apptSel) { apptSel.querySelector(`option[value="${CSS.escape(apptSel.value)}"]`)?.remove(); apptSel.value = ''; }
   document.getElementById('yard-trailer').value = '';
   document.getElementById('yard-carrier').value = '';
   document.getElementById('yard-driver').value = '';
@@ -662,16 +816,56 @@ async function patchYardCheckIn(id, patch) {
   return apiFetch(`/api/v1/doc/YardCheckIn/${encodeURIComponent(id)}`, { method: 'POST', body: JSON.stringify(record) });
 }
 
+// Stage 55.7: pick a door from the doors that exist, seeing which are taken
+// and what is booked on them today; the server refuses an occupied door.
 window.assignYardDoor = async function(id) {
-  const dockDoor = await showCustomPrompt('Assign to which dock door?');
-  if (!dockDoor) return;
-  const res = await patchYardCheckIn(id, { status: 'AtDoor', dock_door: dockDoor.trim() });
-  if (!res) return;
-  if (!res.ok) {
-    await showApiError(res, 'Failed to assign door.');
-    return;
-  }
-  await loadYardBoard();
+  const [doorsRes, yardRes, apptRes] = await Promise.all([apiFetch('/api/v1/doc/DockDoor'), apiFetch('/api/v1/doc/YardCheckIn'), apiFetch('/api/v1/doc/Appointment')]);
+  if (!doorsRes || !yardRes || !apptRes) return;
+  const doors = doorsRes.ok ? (await doorsRes.json()).filter(d => d.status === 'Active').sort((a, b) => (a.code || '').localeCompare(b.code || '')) : [];
+  const yard = yardRes.ok ? await yardRes.json() : [];
+  const today = localISODate(new Date());
+  const booked = apptRes.ok ? (await apptRes.json()).filter(a => a.appointment_date === today && a.status !== 'Cancelled' && a.status !== 'Completed') : [];
+  document.getElementById('yard-door-dialog')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'yard-door-dialog';
+  const rows = doors.map(d => {
+    const at = yard.find(y => y.status === 'AtDoor' && y.dock_door === d.code && y.id !== id);
+    const todays = booked.filter(a => a.dock_door === d.code).map(a => `${escapeHTMLText(a.start_time)} ${escapeHTMLText(a.trailer_no || a.carrier || a.appointment_type)}`).join(', ');
+    return `<tr><td><b>${escapeHTMLText(d.code)}</b><div style="font-size: 11px; color: var(--text-muted);">${escapeHTMLText(d.door_type || '')}</div></td>
+      <td>${at ? `<span class="badge badge-danger">Occupied</span> trailer ${escapeHTMLText(at.trailer_no)}` : '<span class="badge badge-success">Free</span>'}</td>
+      <td style="font-size: 12px;">${todays || '-'}</td>
+      <td>${at ? '' : `<button type="button" class="btn btn-primary btn-sm" data-door="${escapeHTMLText(d.code)}">Spot here</button>`}</td></tr>`;
+  }).join('');
+  overlay.innerHTML = `
+    <div class="modal-container" style="max-width: 640px;" role="dialog" aria-modal="true" aria-labelledby="yard-door-title">
+      <div class="modal-header"><h3 class="modal-title" id="yard-door-title">Assign to a dock door</h3>
+        <button type="button" class="modal-close" aria-label="Close dialog" data-yard-close><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div>
+      <div class="modal-body">${doors.length ? `<table><thead><tr><th>Door</th><th>Now</th><th>Booked today</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
+        : `<p>No active dock doors yet. <button type="button" class="action-btn" ${actionAttrs('openSetupDoctype', ['DockDoor'])}>Set up dock doors</button></p>`}</div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline" data-yard-close>Cancel</button></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelectorAll('[data-yard-close]').forEach(b => b.addEventListener('click', close));
+  overlay.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', close));
+  overlay.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  overlay.querySelectorAll('[data-door]').forEach(btn => btn.addEventListener('click', () => guardAgainstDoubleSubmit(btn, 'Spotting...', async () => {
+    const res = await apiFetch(`/api/v1/wms/yard/${encodeURIComponent(id)}/door`, { method: 'POST', body: JSON.stringify({ dock_door: btn.dataset.door }) });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Failed to assign door.'); return; }
+    close();
+    showToast(`Trailer spotted at door ${btn.dataset.door}.`);
+    await loadYardBoard();
+  })));
+  overlay.querySelector('[data-door]')?.focus();
+};
+
+// receiveYardASN opens RF Receiving with the trailer's ASN already loaded.
+let rfPendingASN = '';
+window.receiveYardASN = function(asnId) {
+  rfPendingASN = asnId;
+  window.location.hash = '#/view/rf-receiving';
 };
 
 window.checkOutYardTrailer = async function(id) {
@@ -722,6 +916,7 @@ async function renderAppointmentCalendarView(container) {
       </div>
       <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-carrier">Carrier</label><input type="text" id="cal-carrier" class="form-input" style="width:120px;" autocomplete="off"></div>
       <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-trailer">Trailer No</label><input type="text" id="cal-trailer" class="form-input" style="width:120px;" autocomplete="off"></div>
+      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-asn">ASN it brings (optional)</label><input type="text" id="cal-asn" class="form-input" style="width:150px;" autocomplete="off"></div>
       <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-appt-date">Date</label><input type="date" id="cal-appt-date" class="form-input" style="width:150px;" value="${calendarDate}"></div>
       <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-start">Start</label><input type="time" id="cal-start" class="form-input" style="width:120px;" value="09:00"></div>
       <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-end">End</label><input type="time" id="cal-end" class="form-input" style="width:120px;" value="10:00"></div>
@@ -742,6 +937,7 @@ async function renderAppointmentCalendarView(container) {
   document.getElementById('cal-new-btn').addEventListener('click', () => { document.getElementById('cal-new-form').classList.toggle('hidden'); });
   document.getElementById('cal-save-btn').addEventListener('click', submitNewAppointment);
   attachLinkTypeahead(document.getElementById('cal-door'), 'DockDoor', { valueFields: ['code'] });
+  attachLinkTypeahead(document.getElementById('cal-asn'), 'ASN', { noSetupHint: true });
 
   await loadAppointmentCalendar();
 }
@@ -783,7 +979,7 @@ async function loadAppointmentCalendar() {
   const allAppts = await apptRes.json();
 
   if (doors.length === 0) {
-    body.innerHTML = '<div class="table-panel" style="padding:24px; color:var(--text-muted);">No Active dock doors - create one under Dock Doors first.</div>';
+    body.innerHTML = `<div class="table-panel" style="padding:24px; color:var(--text-muted);">No active dock doors yet - appointments are booked against a door. <button type="button" class="action-btn" ${actionAttrs('openSetupDoctype', ['DockDoor'])}>Set up dock doors</button></div>`;
     return;
   }
 
@@ -866,6 +1062,15 @@ async function submitNewAppointmentInner() {
     errorEl.classList.remove('hidden');
     return;
   }
+  // Stage 55.7: the ASN it brings - the yard and RF receiving follow it.
+  const asnId = document.getElementById('cal-asn').value.trim();
+  if (asnId) {
+    const ar = await apiFetch(`/api/v1/doc/ASN/${encodeURIComponent(asnId)}`);
+    if (!ar || !ar.ok) { errorEl.textContent = `ASN ${asnId} not found.`; errorEl.classList.remove('hidden'); return; }
+    const asn = await ar.json();
+    payload.asn_id = asnId;
+    if (asn.po_id) payload.po_id = asn.po_id;
+  }
   const res = await apiFetch('/api/v1/doc/Appointment', { method: 'POST', body: JSON.stringify(payload) });
   if (!res) return;
   if (!res.ok) {
@@ -893,6 +1098,10 @@ let rfReceivingExpected = [];
 let rfReceivingLines = [];
 let rfReceivingASNId = '';
 let rfReceivingPOId = '';
+// Stage 55.7: the line a scan picked, waiting for its quantity; and the
+// location RF Receiving and Putaway share, so one hands over to the other.
+let rfPendingLine = null;
+let inboundLocation = '';
 
 async function renderRFReceivingView(container) {
   const header = document.createElement('div');
@@ -911,18 +1120,22 @@ async function renderRFReceivingView(container) {
   setupPanel.style.maxWidth = '480px';
   setupPanel.innerHTML = `
     <div class="form-group" style="margin-bottom: 12px;">
-      <label class="form-label" for="rf-asn-input">Scan or Enter ASN</label>
-      <input type="text" id="rf-asn-input" class="form-input" placeholder="ASN number, then Enter" autocomplete="off" style="font-size:18px; padding:14px;">
-    </div>
-    <div class="form-group" style="margin-bottom: 0;">
       <label class="form-label" for="rf-location-input">Receiving Location</label>
       <input type="text" id="rf-location-input" class="form-input" autocomplete="off">
     </div>
+    <div class="form-group" style="margin-bottom: 0;">
+      <label class="form-label" for="rf-asn-input">Scan or Enter ASN - or pick a delivery below</label>
+      <input type="text" id="rf-asn-input" class="form-input" placeholder="ASN number, then Enter" autocomplete="off" style="font-size:18px; padding:14px;">
+    </div>
     <div id="rf-setup-error" class="login-error hidden" style="margin-top: 12px;"></div>
+    <div id="rf-expected"></div>
   `;
   container.appendChild(setupPanel);
   document.getElementById('rf-asn-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); loadRFReceivingASN(); } });
-  attachLinkTypeahead(document.getElementById('rf-location-input'), 'Location');
+  const locInput = document.getElementById('rf-location-input');
+  attachLinkTypeahead(locInput, 'Location');
+  if (inboundLocation) locInput.value = inboundLocation;
+  locInput.addEventListener('change', () => { inboundLocation = locInput.value.trim(); loadRFExpected(); });
 
   const body = document.createElement('div');
   body.id = 'rf-receiving-body';
@@ -933,6 +1146,37 @@ async function renderRFReceivingView(container) {
   rfReceivingLines = [];
   rfReceivingASNId = '';
   rfReceivingPOId = '';
+  rfPendingLine = null;
+  if (rfPendingASN) {
+    document.getElementById('rf-asn-input').value = rfPendingASN;
+    rfPendingASN = '';
+    await loadRFReceivingASN();
+  } else {
+    await loadRFExpected();
+  }
+}
+
+// loadRFExpected lists the deliveries expected at the location, the ones at a
+// door first, so the operator picks one instead of typing its number.
+async function loadRFExpected() {
+  const el = document.getElementById('rf-expected');
+  if (!el) return;
+  const loc = (document.getElementById('rf-location-input')?.value || '').trim();
+  const res = await apiFetch(`/api/v1/wms/inbound-work?location=${encodeURIComponent(loc)}`);
+  if (!res || !res.ok) { el.innerHTML = ''; return; }
+  const work = await res.json();
+  const asns = work.asns || [];
+  el.innerHTML = asns.length === 0
+    ? `<p style="color: var(--text-muted); margin: 12px 0 0;">No deliveries expected${loc ? ' at ' + escapeHTMLText(loc) : ''}.</p>`
+    : `<div style="margin-top: 14px; font-weight: 600;">Expected deliveries</div>` + asns.map(a => `
+      <button type="button" data-rf-asn="${escapeHTMLText(a.id)}" style="display:block; width:100%; text-align:left; padding:12px; margin-top:8px; min-height:44px; border:1px solid var(--border-color); border-radius:8px; background:transparent; color:inherit; cursor:pointer;">
+        <b>${escapeHTMLText(a.asn_number || a.id)}</b> · PO ${escapeHTMLText(a.po_id || '-')}${a.vendor ? ' · ' + escapeHTMLText(a.vendor) : ''}
+        <div style="font-size:12px; color: var(--text-muted);">${a.lines} line(s), ${a.units} unit(s) at ${escapeHTMLText(a.location)} · ${escapeHTMLText(a.stage)}</div>
+      </button>`).join('');
+  el.querySelectorAll('[data-rf-asn]').forEach(b => b.addEventListener('click', () => {
+    document.getElementById('rf-asn-input').value = b.dataset.rfAsn;
+    loadRFReceivingASN();
+  }));
 }
 
 async function loadRFReceivingASN() {
@@ -949,6 +1193,11 @@ async function loadRFReceivingASN() {
     return;
   }
   const asn = await res.json();
+  if (asn.status && asn.status !== 'Expected') {
+    errorEl.textContent = `ASN ${asnId} is already ${asn.status} - nothing more to receive on it.`;
+    errorEl.classList.remove('hidden');
+    return;
+  }
   let items = [];
   try { items = JSON.parse(asn.expected_items || '[]'); } catch (e) { items = []; }
   if (items.length === 0) {
@@ -956,15 +1205,20 @@ async function loadRFReceivingASN() {
     errorEl.classList.remove('hidden');
     return;
   }
+  const locInput = document.getElementById('rf-location-input');
+  if (!locInput.value.trim() && asn.location) locInput.value = asn.location;
+  inboundLocation = locInput.value.trim();
 
   rfReceivingASNId = asnId;
   rfReceivingPOId = asn.po_id || '';
   rfReceivingExpected = items.map(it => ({ sku: it.sku || '', expectedQty: Number(it.qty) || 0, receivedQty: 0 }));
   rfReceivingLines = [];
+  rfPendingLine = null;
+  document.getElementById('rf-expected').innerHTML = '';
   renderRFReceivingBody();
 }
 
-function renderRFReceivingBody() {
+function renderRFReceivingBody(status) {
   const body = document.getElementById('rf-receiving-body');
   if (!body) return;
   if (rfReceivingExpected.length === 0) {
@@ -981,16 +1235,27 @@ function renderRFReceivingBody() {
       <td>${escapeHTMLText(l.sku)}</td>
       <td>${l.receivedQty} / ${l.expectedQty}</td>
     </tr>`).join('');
+  const pending = rfPendingLine;
+  const left = pending ? pending.expectedQty - pending.receivedQty : 0;
 
   body.innerHTML = `
     <div class="table-panel" style="padding:20px; margin-bottom:16px;">
       <div class="text-muted" style="font-size:13px; margin-bottom:10px;">ASN ${escapeHTMLText(rfReceivingASNId)} &mdash; ${doneLines} of ${totalLines} SKU(s) fully received</div>
-      <div class="form-group" style="margin-bottom:0;">
+      <div class="form-group ${pending ? 'hidden' : ''}" style="margin-bottom:0;">
         <label class="form-label" for="rf-scan-input">Scan Carton SKU</label>
         <input type="text" id="rf-scan-input" class="form-input" placeholder="Scan or type SKU, then Enter" autocomplete="off" style="font-size:22px; padding:16px;">
       </div>
-      <div id="rf-scan-error" class="login-error hidden" style="margin-top:10px;"></div>
-      <div id="rf-scan-confirm" style="margin-top:10px; font-size:14px;"></div>
+      <div class="form-group ${pending ? '' : 'hidden'}" style="margin-bottom:0;">
+        <label class="form-label" for="rf-qty-input">How many ${escapeHTMLText(pending ? pending.sku : '')}? ${left} still expected</label>
+        <input type="number" id="rf-qty-input" class="form-input" min="1" max="${left}" value="${left}" style="font-size:22px; padding:16px;">
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button class="btn btn-primary" id="rf-qty-ok" type="button" style="flex:1; min-height:44px;">Confirm</button>
+          <button class="btn btn-outline" id="rf-qty-cancel" type="button" style="min-height:44px;">Cancel</button>
+        </div>
+      </div>
+      <div id="rf-scan-error" class="login-error ${status && status.error ? '' : 'hidden'}" style="margin-top:10px;">${status && status.error ? escapeHTMLText(status.error) : ''}</div>
+      <div id="rf-scan-confirm" style="margin-top:10px; font-size:14px;">${status && status.ok ? `<span class="badge badge-success">${escapeHTMLText(status.ok)}</span>` : ''}</div>
+      <button class="btn btn-outline btn-sm ${status && status.assist ? '' : 'hidden'}" id="rf-assist-btn" type="button" style="margin-top:8px; min-height:44px;">Get a supervisor</button>
     </div>
     <div class="table-panel" style="padding:0; margin-bottom:16px;">
       <div class="table-wrapper"><table>
@@ -998,41 +1263,76 @@ function renderRFReceivingBody() {
         <tbody>${rows}</tbody>
       </table></div>
     </div>
-    <button class="btn btn-primary" id="rf-post-btn" type="button" style="width:100%; padding:14px; font-size:16px;" ${rfReceivingLines.length === 0 ? 'disabled' : ''}>Post Receipt (${rfReceivingLines.length} line(s))</button>
+    <button class="btn btn-primary" id="rf-post-btn" type="button" style="width:100%; padding:14px; font-size:16px;" ${rfReceivingLines.length === 0 || pending ? 'disabled' : ''}>Post Receipt (${rfReceivingLines.length} line(s))</button>
   `;
   const scanInput = document.getElementById('rf-scan-input');
   scanInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); confirmRFScan(); } });
-  scanInput.focus();
+  const qtyInput = document.getElementById('rf-qty-input');
+  qtyInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); confirmRFQty(); }
+    if (e.key === 'Escape') { e.preventDefault(); rfPendingLine = null; renderRFReceivingBody(); }
+  });
+  document.getElementById('rf-qty-ok').addEventListener('click', confirmRFQty);
+  document.getElementById('rf-qty-cancel').addEventListener('click', () => { rfPendingLine = null; renderRFReceivingBody(); });
+  document.getElementById('rf-assist-btn').addEventListener('click', requestRFReceivingAssist);
+  if (pending) { qtyInput.focus(); qtyInput.select(); } else scanInput.focus();
   document.getElementById('rf-post-btn').addEventListener('click', postRFReceipt);
 }
 
+// confirmRFScan finds the scanned SKU's line; the quantity is the next,
+// separate decision (prefilled with what is still expected).
 function confirmRFScan() {
   const scanInput = document.getElementById('rf-scan-input');
-  const errorEl = document.getElementById('rf-scan-error');
-  const confirmEl = document.getElementById('rf-scan-confirm');
-  errorEl.classList.add('hidden');
   const scanned = scanInput.value.trim();
   scanInput.value = '';
   if (!scanned) return;
-
-  const expectedLine = rfReceivingExpected.find(l => l.sku === scanned && l.receivedQty < l.expectedQty);
-  if (!expectedLine) {
-    errorEl.textContent = `${scanned} is not an outstanding line on this ASN.`;
-    errorEl.classList.remove('hidden');
-    scanInput.focus();
+  const line = rfReceivingExpected.find(l => l.sku === scanned);
+  if (!line) {
+    renderRFReceivingBody({ error: `${scanned} is not on ASN ${rfReceivingASNId}. Set the carton aside - nothing was received. Ask a supervisor if it should be here.`, assist: true });
     return;
   }
+  if (line.receivedQty >= line.expectedQty) {
+    renderRFReceivingBody({ error: `${scanned} is already received in full (${line.expectedQty}) - this scan added nothing.` });
+    return;
+  }
+  rfPendingLine = line;
+  renderRFReceivingBody();
+}
 
-  const qty = expectedLine.expectedQty - expectedLine.receivedQty;
-  expectedLine.receivedQty += qty;
-  const existingLine = rfReceivingLines.find(l => l.sku === scanned);
+function confirmRFQty() {
+  const line = rfPendingLine;
+  if (!line) return;
+  const left = line.expectedQty - line.receivedQty;
+  const qty = parseInt(document.getElementById('rf-qty-input').value, 10);
+  if (!qty || qty <= 0) {
+    renderRFReceivingBody({ error: 'Enter how many arrived (1 or more).' });
+    return;
+  }
+  if (qty > left) {
+    renderRFReceivingBody({ error: `Only ${left} of ${line.sku} are still expected on this ASN - count again, or ask a supervisor about the extra.`, assist: true });
+    return;
+  }
+  line.receivedQty += qty;
+  const existingLine = rfReceivingLines.find(l => l.sku === line.sku);
   if (existingLine) {
     existingLine.qty += qty;
+    existingLine.accepted_qty += qty;
   } else {
-    rfReceivingLines.push({ sku: scanned, qty, accepted_qty: qty, rejected_qty: 0, damaged_qty: 0 });
+    rfReceivingLines.push({ sku: line.sku, qty, accepted_qty: qty, rejected_qty: 0, damaged_qty: 0 });
   }
-  confirmEl.innerHTML = `<span class="badge badge-success">Confirmed ${qty} x ${escapeHTMLText(scanned)}</span>`;
-  renderRFReceivingBody();
+  rfPendingLine = null;
+  renderRFReceivingBody({ ok: `Confirmed ${qty} x ${line.sku}` });
+}
+
+// requestRFReceivingAssist raises the same FloorAssistRequest the RF task
+// shell uses; the supervisor answers it on their own device.
+async function requestRFReceivingAssist() {
+  const reason = await showCustomPrompt('What do you need help with? A supervisor will see this on their own device.', '', 'Get a Supervisor');
+  if (!reason || !reason.trim()) return;
+  const res = await apiFetch('/api/v1/doc/FloorAssistRequest', { method: 'POST', body: JSON.stringify({
+    task: `RF Receiving - ASN ${rfReceivingASNId}`, request: reason.trim(), location: inboundLocation, status: 'Open' }) });
+  if (res && res.ok) renderRFReceivingBody({ ok: 'A supervisor has been asked to come to you.' });
+  else renderRFReceivingBody({ error: 'The request could not be sent. Ask a colleague to call a supervisor.' });
 }
 
 async function postRFReceipt() {
@@ -1052,7 +1352,8 @@ async function postRFReceipt() {
   if (rfReceivingLines.length === 0) return;
 
   const totalQty = rfReceivingLines.reduce((s, l) => s + l.qty, 0);
-  if (!(await showCustomConfirm(`Post this goods receipt against ${rfReceivingPOId}? ${totalQty} unit(s) will be added to stock at ${location}.`, 'Post Goods Receipt'))) return;
+  const partial = rfReceivingExpected.some(l => l.receivedQty < l.expectedQty);
+  if (!(await showCustomConfirm(`Post this goods receipt against ${rfReceivingPOId}? ${totalQty} unit(s) will be added to stock at ${location}.${partial ? ' Some expected units have not arrived - the ASN stays open for them.' : ''}`, 'Post Goods Receipt'))) return;
 
   const payload = {
     po_id: rfReceivingPOId,
@@ -1068,13 +1369,26 @@ async function postRFReceipt() {
     await showApiError(res, 'Failed to post the receipt.', 'RF Receiving Failed');
     return;
   }
-  await showCustomAlert(`Posted a GRN for ${rfReceivingLines.length} line(s) against ASN ${rfReceivingASNId}.`, 'Receipt Posted');
+  const grn = await res.json().catch(() => ({}));
+  inboundLocation = location;
+  const asnDone = rfReceivingASNId;
   rfReceivingExpected = [];
   rfReceivingLines = [];
   rfReceivingASNId = '';
   rfReceivingPOId = '';
+  rfPendingLine = null;
   document.getElementById('rf-asn-input').value = '';
-  renderRFReceivingBody();
+  const body = document.getElementById('rf-receiving-body');
+  body.innerHTML = `
+    <div class="table-panel" style="padding:20px;">
+      <div><span class="badge badge-success">Received</span> ${totalQty} unit(s) on ${escapeHTMLText(grn.id || grn.code || 'the goods receipt')} against ASN ${escapeHTMLText(asnDone)}.</div>
+      <p style="color: var(--text-muted); margin: 8px 0 12px;">The stock is at ${escapeHTMLText(location)} and not in a bin yet.</p>
+      <button class="btn btn-primary" id="rf-putaway-now" type="button" style="width:100%; min-height:44px;">Put it away now</button>
+      <button class="btn btn-outline" id="rf-next-asn" type="button" style="width:100%; min-height:44px; margin-top:8px;">Receive the next delivery</button>
+    </div>`;
+  document.getElementById('rf-putaway-now').addEventListener('click', () => { window.location.hash = '#/view/putaway'; });
+  document.getElementById('rf-next-asn').addEventListener('click', () => { body.innerHTML = ''; loadRFExpected(); document.getElementById('rf-asn-input').focus(); });
+  document.getElementById('rf-putaway-now').focus();
 }
 
 // Stage 42.4.3 - Sortation / put-wall. Loads a SortStation's slot board and
@@ -1231,14 +1545,9 @@ async function renderLoadingDockView(container) {
   setupPanel.style.padding = '20px';
   setupPanel.style.marginBottom = '16px';
   setupPanel.innerHTML = `
-    <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
-      <div class="form-group" style="margin-bottom:0;">
-        <label class="form-label" for="load-existing-id">Existing Loading Task ID</label>
-        <input type="text" id="load-existing-id" class="form-input" style="width:200px;" autocomplete="off">
-      </div>
-      <button class="btn btn-secondary" id="load-open-existing-btn" type="button">Open</button>
-    </div>
+    <div id="load-open-list"><span style="color: var(--text-muted);">Loading open loads...</span></div>
     <hr style="margin:16px 0;">
+    <div style="font-weight: 600; margin-bottom: 8px;">Open a new load</div>
     <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
       <div class="form-group" style="margin-bottom:0;">
         <label class="form-label" for="load-dock-door">Dock Door</label>
@@ -1266,12 +1575,32 @@ async function renderLoadingDockView(container) {
   body.id = 'loading-body';
   container.appendChild(body);
 
-  document.getElementById('load-open-existing-btn').addEventListener('click', () => {
-    const id = document.getElementById('load-existing-id').value.trim();
-    if (id) { loadingCurrentTaskId = id; loadLoadingDock(); }
-  });
   document.getElementById('load-create-btn').addEventListener('click', createLoadingDockTask);
+  attachLinkTypeahead(document.getElementById('load-dock-door'), 'DockDoor', { valueFields: ['code'] });
+  attachLinkTypeahead(document.getElementById('load-trailer'), 'Trailer', { valueFields: ['code'] });
+  attachLinkTypeahead(document.getElementById('load-manifest'), 'Manifest', { noSetupHint: true });
   loadingCurrentTaskId = '';
+  await loadOpenLoads();
+}
+
+// loadOpenLoads (Stage 55.8) lists the loads open at the doors - pick one to
+// carry on - instead of asking for a loading task id.
+let outboundReady = [];
+async function loadOpenLoads() {
+  const el = document.getElementById('load-open-list');
+  if (!el) return;
+  const res = await apiFetch('/api/v1/wms/outbound-work');
+  if (!res || !res.ok) { el.innerHTML = ''; return; }
+  const work = await res.json();
+  outboundReady = work.ready_to_load || [];
+  const loads = work.loads || [];
+  el.innerHTML = `<div style="font-weight: 600; margin-bottom: 8px;">Open loads (${loads.length}) · ${outboundReady.length} package(s) ready to load</div>` + (loads.length === 0
+    ? '<p style="margin: 0; color: var(--text-muted);">No load is open at a door.</p>'
+    : `<div style="overflow-x: auto;"><table><thead><tr><th>Load</th><th>Door</th><th>Trailer</th><th>Manifest</th><th class="num">Scanned</th><th>Status</th><th></th></tr></thead><tbody>
+      ${loads.map(l => `<tr><td style="font-family: monospace; font-size: 12px;">${escapeHTMLText(l.doc_id)}</td><td>${escapeHTMLText(l.dock_door)}</td><td>${escapeHTMLText(l.trailer_no)}</td><td>${escapeHTMLText(l.manifest_id || '-')}</td>
+        <td class="num">${l.scanned_carton_count}${l.expected_carton_count ? ' / ' + l.expected_carton_count : ''}</td><td><span class="badge">${escapeHTMLText(l.status)}</span></td>
+        <td><button type="button" class="btn btn-outline btn-sm" data-open-load="${escapeHTMLText(l.doc_id)}">Open</button></td></tr>`).join('')}</tbody></table></div>`);
+  el.querySelectorAll('[data-open-load]').forEach(b => b.addEventListener('click', () => { loadingCurrentTaskId = b.dataset.openLoad; loadLoadingDock(); }));
 }
 
 async function createLoadingDockTask() {
@@ -1306,6 +1635,7 @@ async function createLoadingDockTaskInner() {
 async function loadLoadingDock() {
   const body = document.getElementById('loading-body');
   if (!loadingCurrentTaskId) { body.innerHTML = ''; return; }
+  await loadOpenLoads(); // Stage 55.8: keep the open-load counts and still-to-load list current
   const res = await apiFetch(`/api/v1/wms/loading/bol?loading_task_id=${encodeURIComponent(loadingCurrentTaskId)}`);
   if (!res) return;
   if (!res.ok) { await showApiError(res, 'Failed to load the loading task.', 'Load Failed'); return; }
@@ -1348,7 +1678,13 @@ async function loadLoadingDock() {
         <thead><tr><th>Package</th><th>Order</th><th>Weight (kg)</th></tr></thead>
         <tbody>${packages.length === 0 ? '<tr><td colspan="3">No cartons scanned yet.</td></tr>' : packages.map(p => `<tr><td>${p.package_code}</td><td>${p.order_id || '&mdash;'}</td><td>${p.weight_kg || '&mdash;'}</td></tr>`).join('')}</tbody>
       </table></div>
-    </div>`;
+    </div>
+    ${(task.status === 'Planned' || task.status === 'Loading') ? (() => {
+      // Stage 55.8: what is still to go on this trailer.
+      const waiting = outboundReady.filter(p => !task.manifest_id || p.manifest_id === task.manifest_id);
+      return `<div class="table-panel" style="padding:16px; margin-top:16px;"><b>Still to load${task.manifest_id ? ` on manifest ${escapeHTMLText(task.manifest_id)}` : ''}: ${waiting.length}</b>
+        ${waiting.length ? `<div style="font-size: 13px; margin-top: 6px;">${waiting.map(p => `${escapeHTMLText(p.id)}${p.order_id ? ` (${escapeHTMLText(p.order_id)})` : ''}`).join(' · ')}</div>` : ''}</div>`;
+    })() : ''}`;
 
   const scanInput = document.getElementById('load-scan-input');
   if (scanInput) {
@@ -1374,6 +1710,9 @@ async function loadLoadingDock() {
   }
   const completeBtn = document.getElementById('load-complete-btn');
   if (completeBtn) completeBtn.addEventListener('click', async () => {
+    // Stage 55.8: a load short of what was expected is said out loud first.
+    if (task.expected_carton_count && task.scanned_carton_count < task.expected_carton_count &&
+        !(await showCustomConfirm(`Only ${task.scanned_carton_count} of ${task.expected_carton_count} expected cartons are scanned. Complete the load with ${task.scanned_carton_count}? The cartons not scanned stay off this trailer.`, 'Load short'))) return;
     const res = await apiFetch('/api/v1/wms/loading/complete', { method: 'POST', body: JSON.stringify({ loading_task_id: loadingCurrentTaskId }) });
     if (!res) return;
     if (!res.ok) { await showApiError(res, 'Failed to complete the load.', 'Complete Failed'); return; }
@@ -1430,6 +1769,7 @@ function renderBOLPrintSheet(task, packages) {
 // from rendering. No dock/appointment strip - 42.3 (dock scheduling)
 // doesn't exist yet, and the plan's own note says that section is populated
 // there, not here.
+let cockpitTab = 'cockpit';
 async function renderWarehouseCockpitView(container) {
   const header = document.createElement('div');
   header.className = 'page-header';
@@ -1439,6 +1779,21 @@ async function renderWarehouseCockpitView(container) {
     </div>
   `;
   container.appendChild(header);
+
+  // Stage 55.8: labour and billing live beside the cockpit, in their own
+  // lazy module.
+  const tabs = document.createElement('div');
+  tabs.style.cssText = 'display: flex; gap: 8px; margin-bottom: 16px;';
+  tabs.innerHTML = [['cockpit', 'Cockpit'], ['labour', 'Labour'], ['billing', 'Billing']].map(([id, label]) =>
+    `<button type="button" class="btn ${cockpitTab === id ? 'btn-primary' : 'btn-outline'} btn-sm" data-cockpit-tab="${id}">${label}</button>`).join('');
+  container.appendChild(tabs);
+  tabs.querySelectorAll('[data-cockpit-tab]').forEach(b => b.addEventListener('click', () => { cockpitTab = b.dataset.cockpitTab; renderView('warehouse-cockpit'); }));
+  if (cockpitTab !== 'cockpit') {
+    const mod = await import('./view-wms-labour.js' + new URL(import.meta.url).search);
+    if (cockpitTab === 'labour') await mod.renderLabourTab(container, inboundLocation);
+    else await mod.renderBillingTab(container);
+    return;
+  }
 
   const controls = document.createElement('div');
   controls.className = 'table-panel';
@@ -1619,6 +1974,10 @@ async function renderBinConditionsView(container) {
         <input type="number" id="bincond-qty" class="form-input" style="width: 90px;" min="1" value="1">
       </div>
       <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="bincond-owner">Owner (3PL client, optional)</label>
+        <input type="text" id="bincond-owner" class="form-input" style="width: 160px;" autocomplete="off" placeholder="Whose stock">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="bincond-from">From Condition</label>
         <select id="bincond-from" class="form-input" style="width: 130px;">${options}</select>
       </div>
@@ -1629,6 +1988,7 @@ async function renderBinConditionsView(container) {
       <button class="btn btn-primary" id="bincond-submit-btn" type="button">Move</button>
     </div>
     <div id="bincond-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+    <p style="margin: 12px 0 0; color: var(--text-muted); font-size: 13px;">Moving Good stock to Damaged, QC-Hold or RTV takes it out of available-to-sell at once (on hand stays the same); moving it back to Good returns it. Units reserved for an open pick cannot change condition until that pick is short-picked or rejected. In a bin shared by several 3PL owners, name the owner.</p>
   `;
   container.appendChild(panel);
   document.getElementById('bincond-to').value = 'Damaged';
@@ -1661,7 +2021,7 @@ async function submitBinConditionTransition() {
 
   const res = await apiFetch('/api/v1/wms/condition-transition', {
     method: 'POST',
-    body: JSON.stringify({ bin_code: binCode, sku: sku, qty: qty, from_condition: fromCondition, to_condition: toCondition })
+    body: JSON.stringify({ bin_code: binCode, sku: sku, qty: qty, from_condition: fromCondition, to_condition: toCondition, owner_id: (document.getElementById('bincond-owner')?.value || '').trim() })
   });
   if (!res) return;
   if (!res.ok) {
@@ -1997,6 +2357,10 @@ function openLocationMoveForm(idx) {
         <label class="form-label" for="locmove-reason">Reason (optional)</label>
         <input type="text" id="locmove-reason" class="form-input" style="width: 220px;" placeholder="e.g. re-slotting, damaged shelf">
       </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="locmove-owner">Owner (3PL client, optional)</label>
+        <input type="text" id="locmove-owner" class="form-input" style="width: 160px;" autocomplete="off" placeholder="Whose stock">
+      </div>
       <button class="btn btn-primary" id="locmove-submit-btn" type="button">Move Stock</button>
       <button class="btn btn-outline" id="locmove-cancel-btn" type="button">Cancel</button>
     </div>
@@ -2026,7 +2390,7 @@ async function submitLocationMove(r) {
   try {
     const res = await apiFetch('/api/v1/wms/bin-move', {
       method: 'POST',
-      body: JSON.stringify({ from_bin_code: r.bin_code, to_bin_code: toBin, sku: r.sku, qty, batch_no: batchNo, reason })
+      body: JSON.stringify({ from_bin_code: r.bin_code, to_bin_code: toBin, sku: r.sku, qty, batch_no: batchNo, reason, owner_id: (document.getElementById('locmove-owner')?.value || '').trim() })
     });
     if (!res) return;
     if (!res.ok) { await showApiError(res, 'The stock could not be moved.', 'Move Failed'); return; }
@@ -2043,6 +2407,11 @@ async function submitLocationMove(r) {
 // Stage 26.5.6: wave/batch pick-list grouping - tag a batch of open
 // FulfillmentTasks into a wave, then generate one consolidated,
 // zone-then-bin-sorted pick list covering every order in it.
+// Stage 55.8: waves are built from a selection of the location's tasks that
+// can still be waved, into a new wave or an open one - no typed ids - and the
+// open waves show where their tasks are, with the next step for each.
+let waveWork = null;
+let waveLoadedLoc = null;
 async function renderWavePickingView(container) {
   const header = document.createElement('div');
   header.className = 'page-header';
@@ -2053,45 +2422,141 @@ async function renderWavePickingView(container) {
   `;
   container.appendChild(header);
 
-  const assignPanel = document.createElement('div');
-  assignPanel.className = 'table-panel';
-  assignPanel.style.padding = '24px';
-  assignPanel.style.marginBottom = '24px';
-  assignPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">1. Tag tasks into a wave</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="wave-id">Wave ID</label>
-        <input type="text" id="wave-id" class="form-input" style="width: 160px;" autocomplete="off">
-      </div>
-      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 260px;">
-        <label class="form-label" for="wave-task-ids">Task IDs (comma-separated)</label>
-        <input type="text" id="wave-task-ids" class="form-input" style="width: 100%;" placeholder="FT-1001, FT-1002, FT-1003">
-      </div>
-      <button class="btn btn-outline" id="wave-assign-btn" type="button">Tag Tasks</button>
-    </div>
-    <div id="wave-assign-result" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);"></div>
-  `;
-  container.appendChild(assignPanel);
+  const locPanel = document.createElement('div');
+  locPanel.className = 'table-panel';
+  locPanel.style.padding = '16px 24px';
+  locPanel.style.marginBottom = '16px';
+  locPanel.innerHTML = `
+    <div class="form-group" style="margin-bottom: 0;">
+      <label class="form-label" for="wave-location">Location</label>
+      <input type="text" id="wave-location" class="form-input" style="width: 200px;" autocomplete="off">
+    </div>`;
+  container.appendChild(locPanel);
+  const body = document.createElement('div');
+  body.id = 'wave-body';
+  container.appendChild(body);
+  const loc = document.getElementById('wave-location');
+  attachLinkTypeahead(loc, 'Location');
+  if (inboundLocation) loc.value = inboundLocation;
+  // A typeahead fires change again on blur; reload only for a new location.
+  loc.addEventListener('change', () => { const v = loc.value.trim(); if (v === waveLoadedLoc) return; inboundLocation = v; loadWaveWork(); });
+  await loadWaveWork();
+}
 
-  const genPanel = document.createElement('div');
-  genPanel.className = 'table-panel';
-  genPanel.style.padding = '24px';
-  genPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">2. Generate the wave pick list</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="wave-gen-id">Wave ID</label>
-        <input type="text" id="wave-gen-id" class="form-input" style="width: 160px;" autocomplete="off">
-      </div>
-      <button class="btn btn-primary" id="wave-gen-btn" type="button">Generate Pick List</button>
+async function loadWaveWork() {
+  const body = document.getElementById('wave-body');
+  if (!body) return;
+  const loc = (document.getElementById('wave-location')?.value || '').trim();
+  if (!loc) { body.innerHTML = '<div class="table-panel" style="padding: 24px; color: var(--text-muted);">Choose the location to see its orders ready to pick.</div>'; return; }
+  const res = await apiFetch(`/api/v1/wms/outbound-work?location=${encodeURIComponent(loc)}`);
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Could not load the outbound work.', 'Wave Picking'); return; }
+  waveWork = await res.json();
+  waveLoadedLoc = loc;
+  const keep = new Set([...document.querySelectorAll('.wave-pick:checked')].map(b => b.value));
+  const eligible = waveWork.eligible || [], waves = waveWork.waves || [];
+  const openWaves = waves.filter(w => !w.status || ['Planned', 'Released', 'In Progress'].includes(w.status));
+  const st = (w, s) => (w.by_status || {})[s] || 0;
+  const nextStep = w => {
+    if (w.status === 'Planned') return `<button class="action-btn" data-wave-act="release" data-wave="${escapeHTMLText(w.wave_id)}">Release</button>`;
+    const out = [];
+    if (w.remaining > 0 && w.status !== 'Planned') out.push(`<button class="action-btn" data-wave-act="picklist" data-wave="${escapeHTMLText(w.wave_id)}">Pick list</button>`,
+      `<button class="action-btn" data-wave-act="mobile" data-wave="${escapeHTMLText(w.wave_id)}">Pick on a phone</button>`);
+    if (w.remaining === 0 && w.status && w.status !== 'Complete') out.push(`<button class="action-btn" data-wave-act="complete" data-wave="${escapeHTMLText(w.wave_id)}">Complete</button>`);
+    if (st(w, 'Packed') > 0) out.push('<a href="#/view/loading-dock">Load</a>');
+    return out.join(' ');
+  };
+  body.innerHTML = `
+    <div class="table-panel" style="padding: 20px; margin-bottom: 16px;">
+      <h2 style="font-size: 16px; font-weight: 700; margin: 0 0 8px;">1. Orders ready to wave (${eligible.length})</h2>
+      ${eligible.length === 0 ? '<p style="margin: 0; color: var(--text-muted);">Nothing to wave - every Pending or Picking task here is already in a wave. Released orders appear here.</p>' : `
+      <div style="overflow-x: auto;"><table>
+        <thead><tr><th><input type="checkbox" id="wave-all" aria-label="Select all"></th><th>Task</th><th>Order</th><th>Status</th><th class="num">Lines</th><th class="num">Units</th><th>Owner</th></tr></thead>
+        <tbody>${eligible.map(t => `<tr><td><input type="checkbox" class="wave-pick" value="${escapeHTMLText(t.id)}" aria-label="Select ${escapeHTMLText(t.id)}"></td>
+          <td style="font-family: monospace; font-size: 12px;">${escapeHTMLText(t.id)}</td><td>${escapeHTMLText(t.customer || t.order_id)}<div style="font-size: 11px; color: var(--text-muted);">${escapeHTMLText(t.order_id)}</div></td>
+          <td>${escapeHTMLText(t.status)}</td><td class="num">${t.lines}</td><td class="num">${t.units}</td><td>${escapeHTMLText(t.owner_id || '')}</td></tr>`).join('')}</tbody></table></div>
+      <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px;">
+        <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="wave-target">Into</label>
+          <select id="wave-target" class="form-select"><option value="">A new wave</option>${openWaves.filter(w => w.status).map(w => `<option value="${escapeHTMLText(w.wave_id)}">${escapeHTMLText(w.wave_id)} (${escapeHTMLText(w.status)}, ${w.tasks} task(s))</option>`).join('')}</select></div>
+        <button class="btn btn-primary" id="wave-assign-btn" type="button" disabled>Put 0 selected into the wave</button>
+      </div>`}
+      <div id="wave-assign-result" style="margin-top: 10px; font-size: 13px;"></div>
     </div>
-    <div id="wave-pick-result" style="margin-top: 16px;"></div>
-  `;
-  container.appendChild(genPanel);
+    <div class="table-panel" style="padding: 20px; margin-bottom: 16px;">
+      <h2 style="font-size: 16px; font-weight: 700; margin: 0 0 8px;">2. Open waves (${openWaves.length})</h2>
+      ${openWaves.length === 0 ? '<p style="margin: 0; color: var(--text-muted);">No open waves at this location.</p>' : `<div style="overflow-x: auto;"><table>
+        <thead><tr><th>Wave</th><th>Status</th><th class="num">Tasks</th><th class="num">To pick</th><th class="num">Picking</th><th class="num">Packed</th><th class="num">Dispatched</th><th></th></tr></thead>
+        <tbody>${openWaves.map(w => `<tr><td style="font-family: monospace; font-size: 12px;">${escapeHTMLText(w.wave_id)}</td><td>${escapeHTMLText(w.status || 'untracked')}</td>
+          <td class="num">${w.tasks}</td><td class="num">${st(w, 'Pending')}</td><td class="num">${st(w, 'Picking')}</td><td class="num">${st(w, 'Packed')}</td><td class="num">${st(w, 'Dispatched')}</td>
+          <td>${nextStep(w)}</td></tr>`).join('')}</tbody></table></div>`}
+    </div>
+    <div id="wave-pick-result"></div>`;
+  const boxes = [...body.querySelectorAll('.wave-pick')];
+  const btn = document.getElementById('wave-assign-btn');
+  const recount = () => { const n = boxes.filter(b => b.checked).length; if (btn) { btn.disabled = n === 0; btn.textContent = `Put ${n} selected into the wave`; } };
+  boxes.forEach(b => { if (keep.has(b.value)) b.checked = true; b.addEventListener('change', recount); });
+  recount();
+  document.getElementById('wave-all')?.addEventListener('change', e => { boxes.forEach(b => { b.checked = e.target.checked; }); recount(); });
+  if (btn) btn.addEventListener('click', () => guardAgainstDoubleSubmit(btn, 'Saving...', submitWaveAssign));
+  body.querySelectorAll('[data-wave-act]').forEach(b => b.addEventListener('click', async () => {
+    const wave = b.dataset.wave;
+    if (b.dataset.waveAct === 'picklist') return submitWavePickList(wave);
+    if (b.dataset.waveAct === 'mobile') { mobilePendingWave = wave; window.location.hash = '#/view/mobile-picking'; return; }
+    const status = b.dataset.waveAct === 'release' ? 'Released' : 'Complete';
+    const r = await apiFetch('/api/v1/wms/wave/transition', { method: 'POST', body: JSON.stringify({ wave_id: wave, status }) });
+    if (!r) return;
+    if (!r.ok) { await showApiError(r, `The wave could not be moved to ${status}.`, 'Wave'); return; }
+    showToast(`Wave ${wave}: ${status}.`);
+    loadWaveWork();
+  }));
+}
 
-  document.getElementById('wave-assign-btn').addEventListener('click', submitWaveAssign);
-  document.getElementById('wave-gen-btn').addEventListener('click', submitWavePickList);
+async function submitWaveAssign() {
+  const resultEl = document.getElementById('wave-assign-result');
+  const loc = (document.getElementById('wave-location')?.value || '').trim();
+  const taskIds = [...document.querySelectorAll('.wave-pick:checked')].map(b => b.value);
+  if (!taskIds.length) return;
+  const res = await apiFetch('/api/v1/wms/wave/from-selection', { method: 'POST',
+    body: JSON.stringify({ location: loc, wave_id: document.getElementById('wave-target')?.value || '', task_ids: taskIds }) });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'The tasks could not go into a wave.', 'Wave Picking'); return; }
+  const data = await res.json();
+  const refused = Object.entries(data.refused || {});
+  showToast(`${(data.tagged || []).length} task(s) in wave ${data.wave_id}.`, { variant: 'success' });
+  await loadWaveWork();
+  const el = document.getElementById('wave-assign-result');
+  if (el && refused.length) el.innerHTML = `<span class="badge badge-warning">Not added</span> ${refused.map(([id, why]) => `${escapeHTMLText(id)} (${escapeHTMLText(why)})`).join(', ')}`;
+  else if (resultEl && el) el.textContent = '';
+}
+
+async function submitWavePickList(waveId) {
+  const resultEl = document.getElementById('wave-pick-result');
+  if (!waveId || !resultEl) return;
+  const res = await apiFetch(`/api/v1/wms/wave/pick-list?wave_id=${encodeURIComponent(waveId)}`);
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to generate wave pick list.', 'Wave Pick List Failed'); return; }
+  const data = await res.json();
+  // Stage 42.1.5: the Batch/Expiry column appears only when this wave actually
+  // allocated lots (FEFO), so a non-traceability warehouse sees the same six
+  // columns it always has.
+  const waveHasBatches = (data.pick_lines || []).some(l => l.batch_no);
+  let html = `<div class="table-panel" style="padding: 20px;"><h3 style="font-size: 14px; font-weight: 700; margin: 0 0 8px;">Pick list for ${escapeHTMLText(waveId)} (zone/aisle/rack walking order)</h3>`;
+  if (waveHasBatches) {
+    html += `<p class="text-muted" style="font-size:12px; margin:0 0 8px;">Lines are allocated <b>FEFO</b> (first-expiry-first-out) &mdash; pick the exact batch shown. Expired lots and lots inside the item's minimum remaining shelf life are excluded automatically.</p>`;
+  }
+  html += `<table><thead><tr><th>Zone</th><th>Aisle</th><th>Rack</th><th>Bin</th><th>SKU</th>${waveHasBatches ? '<th>Batch / Expiry</th>' : ''}<th>Pick Qty</th></tr></thead><tbody>`;
+  html += data.pick_lines.length === 0
+    ? `<tr><td colspan="${waveHasBatches ? 7 : 6}" style="text-align:center; color:var(--text-muted);">No pick lines &mdash; nothing in this wave is currently stored in a bin.</td></tr>`
+    : data.pick_lines.map(l => `<tr><td>${l.zone || ''}</td><td>${l.aisle || ''}</td><td>${l.rack || ''}</td><td>${l.bin_code}</td><td>${l.sku}</td>${waveHasBatches ? `<td>${batchCellHTML(l)}</td>` : ''}<td>${l.pick_qty}</td></tr>`).join('');
+  html += `</tbody></table>`;
+  html += `<h3 style="font-size: 14px; font-weight: 700; margin: 20px 0 8px;">Per-order allocation</h3>`;
+  html += `<table><thead><tr><th>Task ID</th><th>SKU</th><th>Allocated Qty</th><th>Shortfall</th></tr></thead><tbody>`;
+  html += data.allocations.length === 0
+    ? `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No allocations &mdash; no stock could be reserved for these orders. Check on-hand quantities under <b>Inventory</b>.</td></tr>`
+    : data.allocations.map(a => `<tr><td>${a.task_id}</td><td>${a.sku}</td><td>${a.allocated_qty}</td><td>${a.shortfall ? `<span class="badge badge-warning">${a.shortfall}</span>` : '0'}</td></tr>`).join('');
+  html += `</tbody></table></div>`;
+  resultEl.innerHTML = html;
+  resultEl.scrollIntoView({ block: 'nearest' });
 }
 
 // Stage 26.5.14 (P2, go-ahead 2026-07-27): mobile/voice picking. Reuses
@@ -2103,9 +2568,16 @@ async function renderWavePickingView(container) {
 // and both are feature-detected so this degrades to silent button-tap
 // navigation wherever unsupported (notably: no SpeechRecognition in
 // Firefox as of this writing).
+// Stage 55.8: the wave is chosen from the open ones, each confirmed line is
+// counted with what remains, and the end of the wave marks the fully picked
+// orders Packed - a short order is left as it is, and named.
 let mobilePickLines = [];
 let mobilePickIndex = 0;
 let mobilePickRecognition = null;
+let mobilePickConfirmed = new Set();
+let mobilePickAllocations = [];
+let mobilePickWave = '';
+let mobilePendingWave = '';
 
 async function renderMobilePickingView(container) {
   const header = document.createElement('div');
@@ -2123,12 +2595,13 @@ async function renderMobilePickingView(container) {
   loadPanel.style.marginBottom = '16px';
   loadPanel.style.maxWidth = '420px';
   loadPanel.innerHTML = `
-    <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
-      <div class="form-group" style="margin-bottom:0; flex:1; min-width:140px;">
-        <label class="form-label" for="mobile-pick-wave-id">Wave ID</label>
-        <input type="text" id="mobile-pick-wave-id" class="form-input" autocomplete="off">
-      </div>
-      <button class="btn btn-primary" id="mobile-pick-load-btn" type="button">Load</button>
+    <div class="form-group" style="margin-bottom: 10px;">
+      <label class="form-label" for="picker-location">Location</label>
+      <input type="text" id="picker-location" class="form-input" autocomplete="off">
+    </div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label class="form-label" for="mobile-pick-wave-id">Wave</label>
+      <select id="mobile-pick-wave-id" class="form-select" style="width: 100%; min-height: 44px;"><option value="">Choose a released wave...</option></select>
     </div>
     <div id="mobile-pick-error" class="login-error hidden" style="margin-top:10px;"></div>
   `;
@@ -2139,21 +2612,57 @@ async function renderMobilePickingView(container) {
   cardWrap.style.maxWidth = '420px';
   container.appendChild(cardWrap);
 
-  document.getElementById('mobile-pick-load-btn').addEventListener('click', loadMobilePickList);
+  const loc = document.getElementById('picker-location');
+  attachLinkTypeahead(loc, 'Location');
+  if (inboundLocation) loc.value = inboundLocation;
+  const sel = document.getElementById('mobile-pick-wave-id');
+  const fillWaves = async () => {
+    inboundLocation = loc.value.trim();
+    sel.innerHTML = '<option value="">Choose a released wave...</option>';
+    if (!inboundLocation && !mobilePendingWave) return;
+    const res = await apiFetch(`/api/v1/wms/outbound-work?location=${encodeURIComponent(inboundLocation)}`);
+    if (!res || !res.ok) return;
+    const work = await res.json();
+    for (const w of (work.waves || []).filter(x => x.remaining > 0 && x.status !== 'Planned')) {
+      sel.insertAdjacentHTML('beforeend', `<option value="${escapeHTMLText(w.wave_id)}">${escapeHTMLText(w.wave_id)} - ${w.remaining} order(s) to pick</option>`);
+    }
+    if (mobilePendingWave) {
+      if (![...sel.options].some(o => o.value === mobilePendingWave)) sel.insertAdjacentHTML('beforeend', `<option value="${escapeHTMLText(mobilePendingWave)}">${escapeHTMLText(mobilePendingWave)}</option>`);
+      sel.value = mobilePendingWave;
+      mobilePendingWave = '';
+      await loadMobilePickList();
+    }
+  };
+  loc.addEventListener('change', fillWaves);
+  sel.addEventListener('change', loadMobilePickList);
+  await fillWaves();
 }
 
 async function loadMobilePickList() {
   const errorEl = document.getElementById('mobile-pick-error');
   errorEl.classList.add('hidden');
   const waveId = document.getElementById('mobile-pick-wave-id').value.trim();
-  if (!waveId) { errorEl.textContent = 'Wave ID is required.'; errorEl.classList.remove('hidden'); return; }
+  if (!waveId) return;
 
   const res = await apiFetch(`/api/v1/wms/wave/pick-list?wave_id=${encodeURIComponent(waveId)}`);
   if (!res) return;
   if (!res.ok) { errorEl.textContent = await getErrorMessage(res, 'Failed to load the wave pick list.'); errorEl.classList.remove('hidden'); return; }
   const data = await res.json();
+  mobilePickWave = waveId;
   mobilePickLines = data.pick_lines || [];
+  mobilePickAllocations = data.allocations || [];
   mobilePickIndex = 0;
+  mobilePickConfirmed = new Set();
+  renderMobilePickCard();
+}
+
+function confirmMobilePickLine() {
+  mobilePickConfirmed.add(mobilePickIndex);
+  if (mobilePickConfirmed.size >= mobilePickLines.length) { renderMobilePickSummary(); return; }
+  for (let i = 1; i <= mobilePickLines.length; i++) {
+    const next = (mobilePickIndex + i) % mobilePickLines.length;
+    if (!mobilePickConfirmed.has(next)) { mobilePickIndex = next; break; }
+  }
   renderMobilePickCard();
 }
 
@@ -2161,22 +2670,27 @@ function renderMobilePickCard() {
   const wrap = document.getElementById('mobile-pick-card-wrap');
   if (!wrap) return;
   if (mobilePickLines.length === 0) {
-    wrap.innerHTML = `<div class="table-panel" style="padding:24px; text-align:center; color:var(--text-muted);">No pick lines for this wave. Generate a wave under <b>Wave Picking</b> first.</div>`;
+    // Nothing could be allocated: say which orders are short rather than
+    // implying the wave is empty.
+    if (mobilePickAllocations.length) { renderMobilePickSummary(); return; }
+    wrap.innerHTML = `<div class="table-panel" style="padding:24px; text-align:center; color:var(--text-muted);">No pick lines for this wave - nothing in it is in a bin yet.</div>`;
     return;
   }
   const line = mobilePickLines[mobilePickIndex];
+  const done = mobilePickConfirmed.size, total = mobilePickLines.length;
   const speechSupported = 'speechSynthesis' in window;
   const listenSupported = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
   wrap.innerHTML = `
     <div class="table-panel" style="padding:24px; text-align:center;">
-      <div class="text-muted" style="font-size:13px; margin-bottom:12px;">Item ${mobilePickIndex + 1} of ${mobilePickLines.length}</div>
-      <div style="font-size:32px; font-weight:700; letter-spacing:-0.5px; margin-bottom:6px;">${line.sku}</div>
-      <div style="font-size:15px; color:var(--text-muted); margin-bottom:16px;">Zone ${line.zone || '-'} / Aisle ${line.aisle || '-'} / Rack ${line.rack || '-'} / Bin ${line.bin_code}</div>
+      <div class="text-muted" style="font-size:13px; margin-bottom:12px;">Line ${mobilePickIndex + 1} of ${total} · ${done} confirmed · ${total - done} to go</div>
+      <div style="font-size:32px; font-weight:700; letter-spacing:-0.5px; margin-bottom:6px;">${escapeHTMLText(line.sku)}</div>
+      <div style="font-size:15px; color:var(--text-muted); margin-bottom:16px;">Zone ${escapeHTMLText(line.zone || '-')} / Aisle ${escapeHTMLText(line.aisle || '-')} / Rack ${escapeHTMLText(line.rack || '-')} / Bin ${escapeHTMLText(line.bin_code)}</div>
       ${line.batch_no ? `<div style="font-size:15px; margin-bottom:16px; line-height:1.7;">Batch ${batchCellHTML(line)}</div>` : ''}
       <div style="font-size:48px; font-weight:800; color:var(--primary-color); margin-bottom:20px;">${line.pick_qty}${line.shortfall ? ` <span class="badge badge-warning" style="font-size:14px; vertical-align:middle;">short ${line.shortfall}</span>` : ''}</div>
+      ${mobilePickConfirmed.has(mobilePickIndex) ? '<div style="margin-bottom: 12px;"><span class="badge badge-success">Confirmed</span></div>' : ''}
       <div style="display:flex; gap:10px; justify-content:center; margin-bottom:14px;">
-        <button class="btn btn-outline" id="mobile-pick-prev" type="button" ${mobilePickIndex === 0 ? 'disabled' : ''}>Previous</button>
-        <button class="btn btn-primary" id="mobile-pick-next" type="button" ${mobilePickIndex === mobilePickLines.length - 1 ? 'disabled' : ''}>Confirm &amp; Next</button>
+        <button class="btn btn-outline" id="mobile-pick-prev" type="button" style="min-height:44px;" ${mobilePickIndex === 0 ? 'disabled' : ''}>Previous</button>
+        <button class="btn btn-primary" id="mobile-pick-next" type="button" style="min-height:44px;">Confirm &amp; Next</button>
       </div>
       ${speechSupported || listenSupported ? `
       <div style="display:flex; gap:10px; justify-content:center; padding-top:14px; border-top:1px solid var(--border-color);">
@@ -2188,11 +2702,51 @@ function renderMobilePickCard() {
   const prevBtn = document.getElementById('mobile-pick-prev');
   const nextBtn = document.getElementById('mobile-pick-next');
   if (prevBtn) prevBtn.addEventListener('click', () => { mobilePickIndex = Math.max(0, mobilePickIndex - 1); renderMobilePickCard(); });
-  if (nextBtn) nextBtn.addEventListener('click', () => { mobilePickIndex = Math.min(mobilePickLines.length - 1, mobilePickIndex + 1); renderMobilePickCard(); });
+  if (nextBtn) { nextBtn.addEventListener('click', confirmMobilePickLine); nextBtn.focus(); }
   const speakBtn = document.getElementById('mobile-pick-speak');
   if (speakBtn) speakBtn.addEventListener('click', () => speakMobilePickLine(line));
   const listenBtn = document.getElementById('mobile-pick-listen');
   if (listenBtn) listenBtn.addEventListener('click', toggleMobilePickListening);
+}
+
+// renderMobilePickSummary: every line confirmed. Orders with nothing short
+// can be marked Packed; a short order is left as it is, named, for a
+// supervisor to finish or reject on Fulfillment.
+function renderMobilePickSummary() {
+  const wrap = document.getElementById('mobile-pick-card-wrap');
+  if (!wrap) return;
+  const byTask = {};
+  for (const a of mobilePickAllocations) {
+    const t = byTask[a.task_id] || (byTask[a.task_id] = { short: [] });
+    if (a.shortfall) t.short.push(`${a.sku} short ${a.shortfall}`);
+  }
+  const full = Object.keys(byTask).filter(id => byTask[id].short.length === 0);
+  const short = Object.keys(byTask).filter(id => byTask[id].short.length > 0);
+  wrap.innerHTML = `
+    <div class="table-panel" style="padding:24px;">
+      <div style="font-size: 18px; font-weight: 700; margin-bottom: 8px;">${mobilePickLines.length ? `Wave ${escapeHTMLText(mobilePickWave)}: all ${mobilePickLines.length} line(s) picked` : `Nothing to pick in wave ${escapeHTMLText(mobilePickWave)} - the bin stock these orders need is missing or already held for other orders`}</div>
+      <p style="margin: 0 0 8px;">${full.length} order(s) complete${short.length ? `, ${short.length} short` : ''}.</p>
+      ${short.length ? `<ul style="margin: 0 0 12px; padding-left: 18px;">${short.map(id => `<li>${escapeHTMLText(id)}: ${escapeHTMLText(byTask[id].short.join(', '))} - not packed: finish it on Fulfillment when the stock is there, or reject it there to send it to another location</li>`).join('')}</ul>` : ''}
+      <button class="btn btn-primary" id="mobile-pick-pack" type="button" style="width: 100%; min-height: 44px;" ${full.length ? '' : 'disabled'}>Mark ${full.length} order(s) packed</button>
+      <div id="mobile-pick-pack-result" style="margin-top: 10px; font-size: 13px;"></div>
+    </div>`;
+  const btn = document.getElementById('mobile-pick-pack');
+  btn.addEventListener('click', () => guardAgainstDoubleSubmit(btn, 'Packing...', async () => {
+    const out = [];
+    for (const id of full) {
+      const dr = await apiFetch(`/api/v1/doc/FulfillmentTask/${encodeURIComponent(id)}`);
+      const doc = dr && dr.ok ? await dr.json() : null;
+      const steps = doc && doc.status === 'Pending' ? ['Picking', 'Packed'] : doc && doc.status === 'Picking' ? ['Packed'] : [];
+      let ok = steps.length > 0;
+      for (const s of steps) {
+        const r = await apiFetch('/api/v1/fulfillment/task/transition', { method: 'POST', body: JSON.stringify({ task_id: id, status: s }) });
+        if (!r || !r.ok) { ok = false; break; }
+      }
+      out.push(`${id}: ${ok ? 'packed' : `not changed (${doc ? doc.status : 'not found'})`}`);
+    }
+    document.getElementById('mobile-pick-pack-result').innerHTML = `${escapeHTMLText(out.join(' · '))}<div style="margin-top: 8px;"><a href="#/view/loading-dock">Next: load the packed orders</a></div>`;
+    btn.disabled = true;
+  }));
 }
 
 function speakMobilePickLine(line) {
@@ -2227,8 +2781,7 @@ function toggleMobilePickListening() {
     // to relabel the new button, no stop/restart needed here.
     const said = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
     if (said.includes('next') || said.includes('confirm')) {
-      mobilePickIndex = Math.min(mobilePickLines.length - 1, mobilePickIndex + 1);
-      renderMobilePickCard();
+      confirmMobilePickLine();
     } else if (said.includes('previous') || said.includes('back')) {
       mobilePickIndex = Math.max(0, mobilePickIndex - 1);
       renderMobilePickCard();
@@ -2238,58 +2791,6 @@ function toggleMobilePickListening() {
   mobilePickRecognition.onend = () => { mobilePickRecognition = null; };
   mobilePickRecognition.start();
   if (btn) btn.textContent = 'Stop Listening';
-}
-
-async function submitWaveAssign() {
-  const resultEl = document.getElementById('wave-assign-result');
-  const waveId = document.getElementById('wave-id').value.trim();
-  const taskIds = document.getElementById('wave-task-ids').value.split(',').map(s => s.trim()).filter(Boolean);
-  if (!waveId || taskIds.length === 0) { resultEl.textContent = 'Wave ID and at least one Task ID are required.'; return; }
-  const res = await apiFetch('/api/v1/wms/wave/assign', {
-    method: 'POST',
-    body: JSON.stringify({ wave_id: waveId, task_ids: taskIds })
-  });
-  if (!res) return;
-  if (!res.ok) { await showApiError(res, 'Failed to tag tasks into wave.', 'Wave Assign Failed'); return; }
-  const data = await res.json();
-  resultEl.innerHTML = `<span class="badge badge-success">Tagged ${data.tagged} of ${taskIds.length} task(s)</span> into wave ${waveId}.`;
-  // Same class as the renderExecDashboard null-deref: this runs after an
-  // await, so the user may have navigated away and taken the form with them.
-  // Writing to a detached `resultEl` above is harmless; a null getElementById
-  // here is not. The request itself already succeeded either way - only the
-  // convenience refill of the form is skipped.
-  const waveIdInput = document.getElementById('wave-gen-id');
-  if (waveIdInput) waveIdInput.value = waveId;
-}
-
-async function submitWavePickList() {
-  const resultEl = document.getElementById('wave-pick-result');
-  const waveId = document.getElementById('wave-gen-id').value.trim();
-  if (!waveId) return;
-  const res = await apiFetch(`/api/v1/wms/wave/pick-list?wave_id=${encodeURIComponent(waveId)}`);
-  if (!res) return;
-  if (!res.ok) { await showApiError(res, 'Failed to generate wave pick list.', 'Wave Pick List Failed'); return; }
-  const data = await res.json();
-  // Stage 42.1.5: the Batch/Expiry column appears only when this wave actually
-  // allocated lots (FEFO), so a non-traceability warehouse sees the same six
-  // columns it always has.
-  const waveHasBatches = (data.pick_lines || []).some(l => l.batch_no);
-  let html = `<h3 style="font-size: 14px; font-weight: 700; margin: 16px 0 8px;">Consolidated Pick List (zone/aisle/rack walking order)</h3>`;
-  if (waveHasBatches) {
-    html += `<p class="text-muted" style="font-size:12px; margin:0 0 8px;">Lines are allocated <b>FEFO</b> (first-expiry-first-out) &mdash; pick the exact batch shown. Expired lots and lots inside the item's minimum remaining shelf life are excluded automatically.</p>`;
-  }
-  html += `<table><thead><tr><th>Zone</th><th>Aisle</th><th>Rack</th><th>Bin</th><th>SKU</th>${waveHasBatches ? '<th>Batch / Expiry</th>' : ''}<th>Pick Qty</th></tr></thead><tbody>`;
-  html += data.pick_lines.length === 0
-    ? `<tr><td colspan="${waveHasBatches ? 7 : 6}" style="text-align:center; color:var(--text-muted);">No pick lines &mdash; nothing in this wave is currently stored in a bin.</td></tr>`
-    : data.pick_lines.map(l => `<tr><td>${l.zone || ''}</td><td>${l.aisle || ''}</td><td>${l.rack || ''}</td><td>${l.bin_code}</td><td>${l.sku}</td>${waveHasBatches ? `<td>${batchCellHTML(l)}</td>` : ''}<td>${l.pick_qty}</td></tr>`).join('');
-  html += `</tbody></table>`;
-  html += `<h3 style="font-size: 14px; font-weight: 700; margin: 20px 0 8px;">Per-Order Allocation</h3>`;
-  html += `<table><thead><tr><th>Task ID</th><th>SKU</th><th>Allocated Qty</th><th>Shortfall</th></tr></thead><tbody>`;
-  html += data.allocations.length === 0
-    ? `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No allocations &mdash; no stock could be reserved for these orders. Check on-hand quantities under <b>Inventory</b>.</td></tr>`
-    : data.allocations.map(a => `<tr><td>${a.task_id}</td><td>${a.sku}</td><td>${a.allocated_qty}</td><td>${a.shortfall ? `<span class="badge badge-warning">${a.shortfall}</span>` : '0'}</td></tr>`).join('');
-  html += `</tbody></table>`;
-  resultEl.innerHTML = html;
 }
 
 // Cycle Count session lines are created the same way every other line-item
@@ -2344,60 +2845,20 @@ async function renderCycleCountView(container) {
   `;
   container.appendChild(reconcilePanel);
 
-  // Stage 26.5.10: a non-zero-variance line cannot post until it has a
-  // variance root-cause reason code - set one here, then (if the line was
-  // already Approved before the reason existed) retry the post directly.
-  const variancePanel = document.createElement('div');
-  variancePanel.className = 'table-panel';
-  variancePanel.style.padding = '24px';
-  variancePanel.style.marginTop = '24px';
-  variancePanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">3. Variance root-cause + posting</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="ccvariance-line-id">Line ID</label>
-        <input type="text" id="ccvariance-line-id" class="form-input" style="width: 180px;" autocomplete="off">
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="ccvariance-reason">Reason Code (ReasonCode ID)</label>
-        <input type="text" id="ccvariance-reason" class="form-input" style="width: 180px;" autocomplete="off">
-      </div>
-      <button class="btn btn-outline" id="ccvariance-set-btn" type="button">Set Variance Reason</button>
-      <button class="btn btn-primary" id="ccvariance-post-btn" type="button">Retry Post</button>
-    </div>
-    <div id="ccvariance-result" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);"></div>
+  // Stage 55.6: the session's lines as a work table - reasons picked by name,
+  // recount and posting from the row - instead of typing Line IDs. Book
+  // quantity and difference appear only once a line is reconciled.
+  const linesPanel = document.createElement('div');
+  linesPanel.className = 'table-panel';
+  linesPanel.style.padding = '24px';
+  linesPanel.style.marginTop = '24px';
+  linesPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">3. Session lines</h2>
+    <p style="color: var(--text-muted); margin: 0 0 12px;">Lines of the session above. A difference needs a root-cause reason before it can post; a doubtful count can go back for a blind recount by someone else.</p>
+    <button class="btn btn-outline" id="cyclecount-lines-btn" type="button">Show lines</button>
+    <div id="cyclecount-lines" style="margin-top: 12px;"></div>
   `;
-  container.appendChild(variancePanel);
-
-  // Stage 26.5.10: blind recount - a second, blind count on a line whose
-  // first result looks wrong, before it's trusted enough to post.
-  const recountPanel = document.createElement('div');
-  recountPanel.className = 'table-panel';
-  recountPanel.style.padding = '24px';
-  recountPanel.style.marginTop = '24px';
-  recountPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">4. Blind recount</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="recount-orig-line-id">Original Line ID</label>
-        <input type="text" id="recount-orig-line-id" class="form-input" style="width: 180px;" autocomplete="off">
-      </div>
-      <button class="btn btn-outline" id="recount-request-btn" type="button">Request Recount</button>
-    </div>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 16px;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="recount-new-line-id">Recount Line ID</label>
-        <input type="text" id="recount-new-line-id" class="form-input" style="width: 180px;" autocomplete="off">
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="recount-value">Counted Qty (blind)</label>
-        <input type="number" id="recount-value" class="form-input" style="width: 110px;">
-      </div>
-      <button class="btn btn-outline" id="recount-submit-btn" type="button">Submit Recount Value</button>
-    </div>
-    <div id="recount-result" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);"></div>
-  `;
-  container.appendChild(recountPanel);
+  container.appendChild(linesPanel);
 
   // Stage 26.5.9: ABC cycle-count planner - which SKUs are due for their
   // next count, ranked by velocity tier.
@@ -2406,7 +2867,7 @@ async function renderCycleCountView(container) {
   abcPanel.style.padding = '24px';
   abcPanel.style.marginTop = '24px';
   abcPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">5. ABC cycle-count planner</h2>
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">4. ABC cycle-count planner</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="abc-location">Location</label>
@@ -2437,10 +2898,7 @@ async function renderCycleCountView(container) {
     }
   });
   document.getElementById('cyclecount-reconcile-btn').addEventListener('click', submitCycleCountReconcile);
-  document.getElementById('ccvariance-set-btn').addEventListener('click', submitCycleCountVarianceReason);
-  document.getElementById('ccvariance-post-btn').addEventListener('click', submitRetryCycleCountPost);
-  document.getElementById('recount-request-btn').addEventListener('click', submitRequestRecount);
-  document.getElementById('recount-submit-btn').addEventListener('click', submitRecountValue);
+  document.getElementById('cyclecount-lines-btn').addEventListener('click', loadCycleCountLines);
   document.getElementById('abc-plan-btn').addEventListener('click', fetchABCCycleCountPlan);
   attachLinkTypeahead(document.getElementById('abc-location'), 'Location');
   const lastSession = sessionStorage.getItem('erp_cycle_count_last_session');
@@ -2471,68 +2929,84 @@ async function submitCycleCountReconcile() {
     return;
   }
   const data = await res.json();
+  // Stage 73.1.8: lines past a configured recount trigger go back for a blind
+  // recount (listed, with the new line to count) instead of to an approver.
+  const recounts = data.recounts || [];
   resultEl.innerHTML = `
     <span class="badge badge-success">${data.posted_no_variance || 0} posted (no variance)</span>
     &nbsp;
     <span class="badge badge-warning">${data.pending_approval || 0} pending approval</span>
-  `;
+    ${data.recount_requested ? `&nbsp;<span class="badge badge-warning">${data.recount_requested} sent for recount</span>` : ''}
+    ${data.awaiting_count ? `&nbsp;<span class="badge badge-secondary">${data.awaiting_count} recount${data.awaiting_count === 1 ? '' : 's'} not counted yet</span>` : ''}
+    ${recounts.length ? `<table style="margin-top: 12px;"><thead><tr><th>Item</th><th>Location</th><th>Why</th><th>Recount line</th></tr></thead><tbody>
+      ${recounts.map(rc => `<tr><td>${escapeHTMLText(rc.sku)}</td><td>${escapeHTMLText(rc.location)}</td><td>${escapeHTMLText(rc.trigger)}</td><td style="font-family: monospace;">${escapeHTMLText(rc.recount_line_id)}</td></tr>`).join('')}
+      </tbody></table><p style="color: var(--text-muted); margin-top: 8px;">Give each recount line to a different counter: under <b>3. Session lines</b> they enter it blind (the first count and the book are not shown), then reconcile this session again.</p>` : ''}
+  `;  await loadCycleCountLines(); // Stage 55.6
 }
 
-async function submitCycleCountVarianceReason() {
-  const resultEl = document.getElementById('ccvariance-result');
-  const lineId = document.getElementById('ccvariance-line-id').value.trim();
-  const reasonCode = document.getElementById('ccvariance-reason').value.trim();
-  if (!lineId || !reasonCode) { resultEl.textContent = 'Line ID and Reason Code are both required.'; return; }
-  const res = await apiFetch('/api/v1/wms/cycle-count/variance-reason', {
-    method: 'POST',
-    body: JSON.stringify({ line_id: lineId, reason_code: reasonCode })
-  });
+// Stage 55.6: the session work table.
+let cycleCountReasons = null;
+async function loadCycleCountLines() {
+  const el = document.getElementById('cyclecount-lines');
+  const session = document.getElementById('cyclecount-session').value.trim();
+  if (!el) return;
+  if (!session) { el.innerHTML = '<div class="login-error">Enter or reconcile a count session first.</div>'; return; }
+  const res = await apiFetch(`/api/v1/wms/cycle-count/session?count_session=${encodeURIComponent(session)}`);
   if (!res) return;
-  if (!res.ok) { await showApiError(res, 'Failed to set variance reason.', 'Set Reason Failed'); return; }
-  resultEl.innerHTML = `<span class="badge badge-success">Variance reason set</span> on line ${lineId}.`;
-}
-
-async function submitRetryCycleCountPost() {
-  const resultEl = document.getElementById('ccvariance-result');
-  const lineId = document.getElementById('ccvariance-line-id').value.trim();
-  if (!lineId) { resultEl.textContent = 'Line ID is required.'; return; }
-  const res = await apiFetch('/api/v1/wms/cycle-count/post-adjustment', {
-    method: 'POST',
-    body: JSON.stringify({ line_id: lineId })
-  });
-  if (!res) return;
-  if (!res.ok) { await showApiError(res, 'Failed to post the adjustment.', 'Post Failed'); return; }
-  resultEl.innerHTML = `<span class="badge badge-success">Posted</span> line ${lineId}.`;
-}
-
-async function submitRequestRecount() {
-  const resultEl = document.getElementById('recount-result');
-  const origLineId = document.getElementById('recount-orig-line-id').value.trim();
-  if (!origLineId) { resultEl.textContent = 'Original Line ID is required.'; return; }
-  const res = await apiFetch('/api/v1/wms/cycle-count/recount/request', {
-    method: 'POST',
-    body: JSON.stringify({ line_id: origLineId })
-  });
-  if (!res) return;
-  if (!res.ok) { await showApiError(res, 'Failed to request recount.', 'Recount Request Failed'); return; }
-  const data = await res.json();
-  resultEl.innerHTML = `<span class="badge badge-success">Recount line ${data.new_line_id} created</span> (blind - no counted/system qty carried over). Enter its value below.`;
-  const recountInput = document.getElementById('recount-new-line-id');
-  if (recountInput) recountInput.value = data.new_line_id;
-}
-
-async function submitRecountValue() {
-  const resultEl = document.getElementById('recount-result');
-  const lineId = document.getElementById('recount-new-line-id').value.trim();
-  const countedQty = parseFloat(document.getElementById('recount-value').value);
-  if (!lineId || isNaN(countedQty)) { resultEl.textContent = 'Recount Line ID and a Counted Qty are both required.'; return; }
-  const res = await apiFetch('/api/v1/wms/cycle-count/recount/submit', {
-    method: 'POST',
-    body: JSON.stringify({ line_id: lineId, counted_qty: countedQty })
-  });
-  if (!res) return;
-  if (!res.ok) { await showApiError(res, 'Failed to submit recount value.', 'Recount Submit Failed'); return; }
-  resultEl.innerHTML = `<span class="badge badge-success">Recount value ${countedQty} recorded</span> on ${lineId}. Reconcile its count_session above to post it.`;
+  if (!res.ok) { await showApiError(res, 'The session lines could not be loaded.', 'Cycle Count'); return; }
+  const lines = await res.json();
+  if (cycleCountReasons === null) {
+    const rr = await apiFetch('/api/v1/doc/ReasonCode?limit=500');
+    const docs = rr && rr.ok ? await rr.json() : [];
+    cycleCountReasons = (Array.isArray(docs) ? docs : (docs.data || [])).filter(d => d.category === 'Cycle Count Variance' && (d.status || 'Active') === 'Active');
+  }
+  const n = v => (v === undefined || v === null) ? '' : (Number(v) === Math.round(Number(v)) ? String(Number(v)) : Number(v).toFixed(2));
+  const reasonCell = l => {
+    if (l.status === 'Posted' || l.status === 'Recount Requested' || l.variance === undefined || Number(l.variance) === 0) return escapeHTMLText(l.variance_reason_code || '');
+    if (!cycleCountReasons.length) return `No reasons yet <button class="action-btn" ${actionAttrs('openSetupDoctype', ['ReasonCode'])}>Add one</button> <small>(category Cycle Count Variance)</small>`;
+    return `<select class="form-select cc-reason" data-line="${escapeHTMLText(l.id)}" aria-label="Reason for ${escapeHTMLText(l.sku)}"><option value="">Choose...</option>${cycleCountReasons.map(r => `<option value="${escapeHTMLText(r.id)}"${r.id === l.variance_reason_code ? ' selected' : ''}>${escapeHTMLText(r.code || r.id)}${r.description ? ` - ${escapeHTMLText(r.description)}` : ''}</option>`).join('')}</select>`;
+  };
+  const actions = l => {
+    const out = [];
+    if (l.recount_of && l.counted_qty === undefined && l.status === 'Draft') out.push(`<input type="number" class="form-input cc-recount-qty" data-line="${escapeHTMLText(l.id)}" style="width: 90px;" aria-label="Recount quantity"> <button class="action-btn" data-cc-act="recount-submit" data-line="${escapeHTMLText(l.id)}">Save recount</button>`);
+    if (!l.recount_of && (l.status === 'Pending Approval' || l.status === 'Draft') && l.variance !== undefined && Number(l.variance) !== 0) out.push(`<button class="action-btn" data-cc-act="recount" data-line="${escapeHTMLText(l.id)}">Recount</button>`);
+    if (l.status === 'Pending Approval') out.push('<a href="#/view/approvals">Approvals</a>');
+    if (l.status === 'Approved') out.push(`<button class="action-btn" data-cc-act="post" data-line="${escapeHTMLText(l.id)}">Post</button>`);
+    if (l.recount_line_id) out.push(`<small>recount: ${escapeHTMLText(l.recount_line_id)}</small>`);
+    return out.join(' ');
+  };
+  el.innerHTML = lines.length === 0 ? '<p style="color: var(--text-muted);">No lines in this session yet.</p>' : `<div style="overflow-x: auto;"><table>
+    <thead><tr><th>Item</th><th>Location / bin</th><th>Status</th><th class="num">Counted</th><th class="num">Book</th><th class="num">Difference</th><th>Reason</th><th></th></tr></thead>
+    <tbody>${lines.map(l => `<tr>
+      <td>${escapeHTMLText(l.item_name || l.sku)}<div style="font-size: 11px; color: var(--text-muted);">${escapeHTMLText(l.sku)}${l.recount_of ? ' · blind recount' : ''}</div></td>
+      <td>${escapeHTMLText(l.location)}${l.bin ? ` / ${escapeHTMLText(l.bin)}` : ''}</td>
+      <td><span class="badge ${l.status === 'Posted' ? 'badge-success' : l.status === 'Rejected' ? 'badge-danger' : 'badge-warning'}">${escapeHTMLText(l.status)}</span>${l.recount_trigger ? `<div style="font-size: 11px;">${escapeHTMLText(l.recount_trigger)}</div>` : ''}</td>
+      <td class="num">${n(l.counted_qty)}${l.first_count_qty !== undefined ? `<div style="font-size: 11px;">first count ${n(l.first_count_qty)}</div>` : ''}</td>
+      <td class="num">${n(l.system_qty)}</td><td class="num">${n(l.variance)}</td>
+      <td>${reasonCell(l)}</td><td>${actions(l)}</td></tr>`).join('')}</tbody></table></div>`;
+  el.querySelectorAll('.cc-reason').forEach(sel => sel.addEventListener('change', async () => {
+    if (!sel.value) return;
+    const r = await apiFetch('/api/v1/wms/cycle-count/variance-reason', { method: 'POST', body: JSON.stringify({ line_id: sel.dataset.line, reason_code: sel.value }) });
+    if (r && !r.ok) { await showApiError(r, 'Failed to set the reason.', 'Cycle Count'); return; }
+    showToast('Reason recorded.');
+  }));
+  el.querySelectorAll('[data-cc-act]').forEach(btn => btn.addEventListener('click', () => guardAgainstDoubleSubmit(btn, '...', async () => {
+    const line = btn.dataset.line;
+    let r;
+    if (btn.dataset.ccAct === 'recount') {
+      r = await apiFetch('/api/v1/wms/cycle-count/recount/request', { method: 'POST', body: JSON.stringify({ line_id: line }) });
+    } else if (btn.dataset.ccAct === 'recount-submit') {
+      const qty = parseFloat(el.querySelector(`.cc-recount-qty[data-line="${CSS.escape(line)}"]`).value);
+      if (isNaN(qty)) { await showCustomAlert('Enter the counted quantity.', 'Recount'); return; }
+      r = await apiFetch('/api/v1/wms/cycle-count/recount/submit', { method: 'POST', body: JSON.stringify({ line_id: line, counted_qty: qty }) });
+    } else {
+      r = await apiFetch('/api/v1/wms/cycle-count/post-adjustment', { method: 'POST', body: JSON.stringify({ line_id: line }) });
+    }
+    if (!r) return;
+    if (!r.ok) { await showApiError(r, 'That did not go through.', 'Cycle Count'); return; }
+    showToast(btn.dataset.ccAct === 'post' ? 'Posted to stock.' : btn.dataset.ccAct === 'recount' ? 'Sent for a blind recount.' : 'Recount recorded - reconcile the session again.');
+    await loadCycleCountLines();
+  })));
 }
 
 async function fetchABCCycleCountPlan() {
@@ -2595,4 +3069,4 @@ const FULFILLMENT_STATUS_BADGE = {
   Rejected: 'badge-danger'
 };
 
-export { renderFulfillmentView, renderFulfillmentActions, transitionFulfillmentTask, renderPutawayView, submitPlannedCrossDockPutaway, checkCrossDockOpportunity, submitCrossDockPutaway, suggestPutawayBin, submitPutaway, renderPlaceHoldView, submitPlaceHold, renderYardBoardView, loadYardBoard, submitYardCheckIn, submitYardCheckInInner, patchYardCheckIn, renderAppointmentCalendarView, shiftCalendarDate, calendarWeekDates, loadAppointmentCalendar, timeToMinutes, apptChip, submitNewAppointment, submitNewAppointmentInner, renderRFReceivingView, loadRFReceivingASN, renderRFReceivingBody, confirmRFScan, postRFReceipt, renderSortationView, loadSortationSlots, sortationAssignSlot, renderLoadingDockView, createLoadingDockTask, createLoadingDockTaskInner, loadLoadingDock, renderBOLPrintSheet, renderWarehouseCockpitView, loadWarehouseCockpit, renderBinConditionsView, submitBinConditionTransition, renderLPNView, submitLPNAssign, lookupLPNContents, renderBinReplenishmentView, fetchBinReplenishmentSuggestions, renderLocationMovementView, loadLocationMovementStock, renderWavePickingView, renderMobilePickingView, loadMobilePickList, renderMobilePickCard, speakMobilePickLine, toggleMobilePickListening, submitWaveAssign, submitWavePickList, renderCycleCountView, submitCycleCountReconcile, submitCycleCountVarianceReason, submitRetryCycleCountPost, submitRequestRecount, submitRecountValue, fetchABCCycleCountPlan };
+export { renderFulfillmentView, renderFulfillmentActions, transitionFulfillmentTask, renderPutawayView, submitPlannedCrossDockPutaway, checkCrossDockOpportunity, submitCrossDockPutaway, suggestPutawayBin, submitPutaway, renderPlaceHoldView, submitPlaceHold, renderYardBoardView, loadYardBoard, submitYardCheckIn, submitYardCheckInInner, patchYardCheckIn, renderAppointmentCalendarView, shiftCalendarDate, calendarWeekDates, loadAppointmentCalendar, timeToMinutes, apptChip, submitNewAppointment, submitNewAppointmentInner, renderRFReceivingView, loadRFReceivingASN, renderRFReceivingBody, confirmRFScan, postRFReceipt, renderSortationView, loadSortationSlots, sortationAssignSlot, renderLoadingDockView, createLoadingDockTask, createLoadingDockTaskInner, loadLoadingDock, renderBOLPrintSheet, renderWarehouseCockpitView, loadWarehouseCockpit, renderBinConditionsView, submitBinConditionTransition, renderLPNView, submitLPNAssign, lookupLPNContents, renderBinReplenishmentView, fetchBinReplenishmentSuggestions, renderLocationMovementView, loadLocationMovementStock, renderWavePickingView, renderMobilePickingView, loadMobilePickList, renderMobilePickCard, speakMobilePickLine, toggleMobilePickListening, submitWaveAssign, submitWavePickList, renderCycleCountView, submitCycleCountReconcile, loadCycleCountLines, fetchABCCycleCountPlan };

@@ -137,7 +137,7 @@ func lockSKUAtLocationTx(tx *sql.Tx, schema, locationCode, sku string) error {
 // its unpicked demand. Returns the units it could not reserve (the shortfall
 // against binned stock), which is a reportable fact, not an error - same
 // judgement AllocateFromStock makes.
-func reserveTaskSKUTx(tx *sql.Tx, tenantID, schema, taskID, locationCode string, n taskSKUNeed) (int, error) {
+func reserveTaskSKUTx(tx *sql.Tx, tenantID, schema, taskID, locationCode, owner string, n taskSKUNeed) (int, error) {
 	want := n.Demand - n.Picked
 	if want <= 0 || locationCode == "" {
 		return 0, nil
@@ -155,7 +155,9 @@ func reserveTaskSKUTx(tx *sql.Tx, tenantID, schema, taskID, locationCode string,
 	if gap <= 0 {
 		return 0, nil
 	}
-	candidates, shortfall, err := allocateFromStockQ(tx, tenantID, n.SKU, locationCode, gap)
+	// Stage 59.3: a task working for an owner is offered only that owner's
+	// units, and its reservation rows say so.
+	candidates, shortfall, err := allocateFromStockForOwnerQ(tx, tenantID, n.SKU, locationCode, gap, owner)
 	if err != nil {
 		return 0, err
 	}
@@ -165,8 +167,8 @@ func reserveTaskSKUTx(tx *sql.Tx, tenantID, schema, taskID, locationCode string,
 		}
 		if _, err := tx.Exec(fmt.Sprintf(`
 			INSERT INTO %s.bin_allocation (task_id, sku, location_code, bin_code, batch_no, owner_id, qty)
-			VALUES ($1, $2, $3, $4, $5, '', $6)`, schema),
-			taskID, n.SKU, locationCode, c.BinCode, c.BatchNo, c.Qty); err != nil {
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`, schema),
+			taskID, n.SKU, locationCode, c.BinCode, c.BatchNo, owner, c.Qty); err != nil {
 			return 0, err
 		}
 	}
@@ -181,8 +183,9 @@ func ReserveTaskBinStockTx(tx *sql.Tx, tenantID, schema, taskID, status string, 
 		return nil
 	}
 	location, _ := data["location_code"].(string)
+	owner, _ := data["owner_id"].(string)
 	for _, n := range taskSKUNeeds(data) {
-		if _, err := reserveTaskSKUTx(tx, tenantID, schema, taskID, location, n); err != nil {
+		if _, err := reserveTaskSKUTx(tx, tenantID, schema, taskID, location, owner, n); err != nil {
 			return err
 		}
 	}
@@ -255,15 +258,19 @@ func ConsumeTaskBinStockTx(tx *sql.Tx, tenantID, schema, taskID, locationCode, s
 		return 0, err
 	}
 	if have < n {
-		candidates, _, err := allocateFromStockQ(tx, tenantID, sku, locationCode, n-have)
+		owner, err := taskOwnerQ(tx, schema, taskID)
+		if err != nil {
+			return 0, err
+		}
+		candidates, _, err := allocateFromStockForOwnerQ(tx, tenantID, sku, locationCode, n-have, owner)
 		if err != nil {
 			return 0, err
 		}
 		for _, c := range candidates {
 			if _, err := tx.Exec(fmt.Sprintf(`
 				INSERT INTO %s.bin_allocation (task_id, sku, location_code, bin_code, batch_no, owner_id, qty)
-				VALUES ($1, $2, $3, $4, $5, '', $6)`, schema),
-				taskID, sku, locationCode, c.BinCode, c.BatchNo, c.Qty); err != nil {
+				VALUES ($1, $2, $3, $4, $5, $6, $7)`, schema),
+				taskID, sku, locationCode, c.BinCode, c.BatchNo, owner, c.Qty); err != nil {
 				return 0, err
 			}
 		}

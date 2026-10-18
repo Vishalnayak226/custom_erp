@@ -7,6 +7,19 @@ import (
 	"strings"
 )
 
+// LocationReferenceFields are the plain Data fields, per doctype, that hold a
+// Location reference: the generic doc save resolves each through
+// ResolveLocationReference, and GetDocTypeMeta marks them pick_from=Location
+// so the generic form offers the Location picker instead of a bare text box.
+var LocationReferenceFields = map[string][]string{
+	"PurchaseOrder":   {"location", "target_warehouse"},
+	"TransferOrder":   {"from_warehouse", "to_warehouse"},
+	"Attendance":      {"location"},
+	"Asset":           {"location"},
+	"ExpenseClaim":    {"location"},
+	"ProductionOrder": {"location"},
+}
+
 // ValidateLocationReference is Stage 17.9's validation half: a transaction
 // may only reference a Location code that exists in the new master and is
 // Active. Deliberately stricter than the generic Link-field check

@@ -23,8 +23,10 @@ func handleCreateSalesOrder(w http.ResponseWriter, r *http.Request) {
 		ChannelOrderID  string `json:"channel_order_id"`
 		CustomerName    string `json:"customer_name"`
 		CustomerPhone   string `json:"customer_phone"`
+		CustomerRef     string `json:"customer_reference"` // Stage 73.2.9
 		ShippingAddress string `json:"shipping_address"`
 		PaymentStatus   string `json:"payment_status"`
+		OwnerID         string `json:"owner_id"` // Stage 59.2: the 3PL client (optional)
 		Lines           []struct {
 			SKU       string  `json:"sku"`
 			Qty       int     `json:"qty"`
@@ -38,6 +40,13 @@ func handleCreateSalesOrder(w http.ResponseWriter, r *http.Request) {
 	if req.ShippingAddress == "" || len(req.Lines) == 0 {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'shipping_address' and at least one 'lines' entry are required")
 		return
+	}
+
+	// FA-20261005-06: say when a repeated channel reference returns the order it
+	// already made, so the screen does not announce a second "created".
+	existing := ""
+	if req.Channel != "" && req.ChannelOrderID != "" {
+		existing, _ = engines.FindSalesOrderByChannelRef(tenantID, req.Channel, req.ChannelOrderID)
 	}
 
 	lines := make([]engines.SalesOrderLineInput, len(req.Lines))
@@ -56,6 +65,8 @@ func handleCreateSalesOrder(w http.ResponseWriter, r *http.Request) {
 		ShippingAddress: req.ShippingAddress,
 		PaymentStatus:   req.PaymentStatus,
 		CustomerPhone:   req.CustomerPhone,
+		CustomerRef:     req.CustomerRef,
+		OwnerID:         req.OwnerID, // Stage 59.2
 		Lines:           lines,
 	})
 	if err != nil {
@@ -64,7 +75,7 @@ func handleCreateSalesOrder(w http.ResponseWriter, r *http.Request) {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]string{"order_id": orderID})
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"order_id": orderID, "existing": existing != "" && existing == orderID})
 }
 
 // handlePlaceOrderHold is the Hold engine's manual entry point (a CS agent

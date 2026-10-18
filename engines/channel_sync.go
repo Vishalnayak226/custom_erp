@@ -43,6 +43,9 @@ type ChannelHealth struct {
 	OpenExceptions int     `json:"open_exceptions"`
 	CanPullOrders  bool    `json:"can_pull_orders"`
 	CanPushATS     bool    `json:"can_push_ats"`
+	// CredentialsSet (Stage 55.21) says whether the channel can connect at
+	// all, so "never synced" and "not connected" read differently.
+	CredentialsSet bool `json:"credentials_set"`
 }
 
 type ChannelSKUException struct {
@@ -385,18 +388,22 @@ func GetConnectorHealth(tenantID string) ([]ChannelHealth, error) {
 			h.CanPushATS = descriptor.PushInventory
 		}
 		var finished sql.NullString
-		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT data->>'finished_at',status,COALESCE(data->>'error','') FROM %s.documents WHERE doctype='ChannelSyncRun' AND data->>'channel'=$1 ORDER BY created_at DESC LIMIT 1`, schema), h.Channel).Scan(&finished, &h.LastStatus, &h.LastError)
+		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT data->>'finished_at',status,COALESCE(data->>'error','') FROM %s.documents WHERE doctype='ChannelSyncRun' AND data->>'channel'=$1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1`, schema), h.Channel).Scan(&finished, &h.LastStatus, &h.LastError)
 		if finished.Valid {
 			h.LastSyncAt = finished.String
 			if t, e := time.Parse(time.RFC3339, finished.String); e == nil {
 				h.LagSeconds = int64(time.Since(t).Seconds())
 			}
 		}
-		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*),COUNT(*) FILTER(WHERE status='Failed') FROM %s.documents WHERE doctype='ChannelSyncRun' AND data->>'channel'=$1 AND created_at>=CURRENT_TIMESTAMP-INTERVAL '24 hours'`, schema), h.Channel).Scan(&h.Runs24h, &h.Failures24h)
+		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*),COUNT(*) FILTER(WHERE status='Failed') FROM %s.documents WHERE doctype='ChannelSyncRun' AND data->>'channel'=$1 AND deleted_at IS NULL AND created_at>=CURRENT_TIMESTAMP-INTERVAL '24 hours'`, schema), h.Channel).Scan(&h.Runs24h, &h.Failures24h)
 		if h.Runs24h > 0 {
 			h.FailureRate = float64(h.Failures24h) / float64(h.Runs24h)
 		}
-		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.documents WHERE doctype='ChannelSKUException' AND data->>'channel'=$1 AND status='Open'`, schema), h.Channel).Scan(&h.OpenExceptions)
+		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.documents WHERE doctype='ChannelSKUException' AND data->>'channel'=$1 AND status='Open' AND deleted_at IS NULL`, schema), h.Channel).Scan(&h.OpenExceptions)
+		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT EXISTS(SELECT 1 FROM %s.channel_credentials WHERE channel_code = $1)`, schema), h.Channel).Scan(&h.CredentialsSet)
+		// A provider error can echo a token or URL; the health table is shown
+		// to admins, so it gets the same redaction the logs do.
+		h.LastError = redactAndBoundLogField(h.LastError, 300)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Channel < out[j].Channel })
 	return out, nil

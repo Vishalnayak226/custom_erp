@@ -557,12 +557,26 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// same way (created inline from the PO too), an Item Name with no name
 		// becomes "<Category> <Product Type>", and a design under an item name
 		// takes its HSN / GST where its own are blank.
-		if engines.IsServerNumberedMaster(doctype) {
-			if err := engines.PrepareMasterNumber(tenantID, location, doctype, id == "", payload); err != nil {
-				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
-				return
-			}
+		// Stage 76.5: every master is numbered here now (V00001), with the
+		// format confirmed from the New form's first record; the form no
+		// longer fetches a number from the admin-only /api/v1/sequence.
+		// A save refused after this point gives its number back, so codes
+		// run V00001, V00002 ... without holes.
+		codeBefore, _ := payload["code"].(string)
+		if err := engines.PrepareMasterNumber(tenantID, location, doctype, id == "", payload); err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
 		}
+		masterNumbered := ""
+		if codeAfter, _ := payload["code"].(string); strings.TrimSpace(codeBefore) == "" && codeAfter != "" {
+			masterNumbered = codeAfter
+		}
+		docWritten := false
+		defer func() {
+			if masterNumbered != "" && !docWritten {
+				engines.ReleaseMasterNumber(tenantID, doctype, masterNumbered)
+			}
+		}()
 		if err := engines.PrepareItemNameFields(tenantID, doctype, payload); err != nil {
 			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 			return
@@ -731,6 +745,9 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		if doctype == "ProductAttributeDef" {
+			engines.KeepLibraryAttributeIdentity(tenantID, effectiveID, payload) // Stage 81
+		}
 		if err := engines.ValidateMasterDataRules(tenantID, effectiveID, doctype, payload); err != nil {
 			if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
 				writeAPIErrorDetail(w, r, verr.Code, verr.SubFor, verr.Message)
@@ -782,16 +799,9 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// this same choke point - every one of their existing live values
 		// already matches a real Location id (verified against the dev DB
 		// before enabling this), so no backfill was needed here, unlike the
-		// Vendor/Item Link conversions added alongside this.
-		locationFieldsByDoctype := map[string][]string{
-			"PurchaseOrder":   {"location", "target_warehouse"},
-			"TransferOrder":   {"from_warehouse", "to_warehouse"},
-			"Attendance":      {"location"},
-			"Asset":           {"location"},
-			"ExpenseClaim":    {"location"},
-			"ProductionOrder": {"location"},
-		}
-		for _, field := range locationFieldsByDoctype[doctype] {
+		// Vendor/Item Link conversions added alongside this. The list lives in
+		// engines so the form's Location picker reads the same one.
+		for _, field := range engines.LocationReferenceFields[doctype] {
 			locCode, _ := payload[field].(string)
 			if locCode == "" {
 				continue
@@ -870,6 +880,13 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			}
 			delete(payload, "expected_version")
 		}
+		// Stage 73.2.8: a post-sale edit's reason belongs to its edit history,
+		// not to the document - kept, then popped the same way.
+		editReason, _ := payload["edit_reason"].(string)
+		delete(payload, "edit_reason")
+		// Stage 55.17a: a Customer's marketing consent changed on this save is
+		// stamped with when and by whom (consent_updated_at / consent_source).
+		engines.StampMarketingConsent(doctype, priorData, payload, userID)
 
 		payloadBytes, _ := json.Marshal(payload)
 		statusVal := "Active"
@@ -893,9 +910,9 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// PUT sent the whole object back" pattern) still falls through here
 		// exactly as before - the existing wasApproved/ResetToPendingOnEdit
 		// logic below still forces it back to Pending Approval regardless.
-		if (statusVal == "Approved" || statusVal == "Rejected") && statusVal != priorStatus {
+		if isApprovalOnlyStatus(statusVal) && statusVal != priorStatus {
 			if gated, errGate := engines.IsApprovalGated(tenantID, doctype); errGate == nil && gated {
-				writeAPIError(w, r, "GLOBAL-0019", "")
+				writeAPIErrorDetail(w, r, "GLOBAL-0019", "", fmt.Sprintf("Status %s is set only by the approval flow - save as Draft, then send it for approval.", statusVal))
 				return
 			}
 		}
@@ -951,6 +968,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
+		docWritten = true
 
 		// Extension after_save hooks (Stage 14.17-14.20): fired async - the
 		// save already committed, so a notification/sync hook's failure
@@ -971,6 +989,11 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 					statusVal = "Pending Approval"
 				}
 			}
+		}
+
+		// Stage 73.2.8: the edit history of an issued sale, now it is saved.
+		if errEdit := engines.RecordPostSaleEdit(tenantID, doctype, docID, priorStatus, priorData, payload, userID, editReason); errEdit != nil {
+			engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "SALE_EDIT_HISTORY_FAILED", r.URL.Path, errEdit.Error(), "")
 		}
 
 		// PIM Product Profile auto-create (Stage 15.2, V2 §6.1 step 2):
@@ -1080,6 +1103,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				// Stage 57.7: the tenant's barcode policy - the permanent barcode
 				// unless generation is off, plus a receipt-date barcode when on.
 				engines.EnsureReceiptBarcodes(tenantID, docID, items)
+				engines.MarkASNReceivedIfComplete(tenantID, docID) // Stage 55.7
 
 				// Stage 62: the PO-vs-invoice price difference is settled by a
 				// Debit Note / Vendor Credit Note raised and posted now - never a
@@ -1159,6 +1183,12 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			}
 			if len(receipts) > 0 {
 				writeAPIErrorDetail(w, r, "PURCHA-0320", "", "Goods received on: "+strings.Join(receipts, ", "))
+				return
+			}
+		} else if doctype == "ProductAttributeDef" {
+			// Stage 81: an attribute set up from the library is switched off, never deleted.
+			if gErr := engines.CheckAttributeDelete(tenantID, id); gErr != nil {
+				writeEngineError(w, r, gErr, http.StatusInternalServerError)
 				return
 			}
 		} else if documentType == "Transaction" && status == "Approved" {
@@ -1552,7 +1582,29 @@ func handleGetDocTypeMeta(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// A save may not claim Approved/Rejected on an approval-gated doctype (the
+	// GLOBAL-0019 guard in handleGenericDoc), so the form must not offer them.
+	if gated, errGate := engines.IsApprovalGated(tenantID, doctype); errGate == nil && gated {
+		for i := range fields {
+			if fields[i].Fieldname == "status" {
+				fields[i].ApprovalOnly = approvalOnlyStatuses
+			}
+		}
+	}
 	_ = json.NewEncoder(w).Encode(fields)
+}
+
+// approvalOnlyStatuses are reached only through SubmitForApproval/
+// DecideApproval on an approval-gated doctype, never by a plain save.
+var approvalOnlyStatuses = []string{"Approved", "Rejected"}
+
+func isApprovalOnlyStatus(s string) bool {
+	for _, a := range approvalOnlyStatuses {
+		if s == a {
+			return true
+		}
+	}
+	return false
 }
 
 func handleGetDocTypes(w http.ResponseWriter, r *http.Request) {
@@ -1672,6 +1724,15 @@ func handleGetIndustries(w http.ResponseWriter, r *http.Request) {
 		{"code": "MEDICAL", "name": "Medical Devices"},
 		{"code": "SEMICONDUCTOR", "name": "Semiconductors"},
 		{"code": "AGRICULTURE", "name": "Agriculture & Perishable Goods"},
+	}
+	// Stage 82: what each industry covers, from the attribute library, so the
+	// Configuration screen can say it next to the name.
+	for _, ind := range engines.LibraryIndustries() {
+		for _, entry := range list {
+			if engines.LibraryIndustryForProfile(entry["code"]) == ind.Code {
+				entry["focus"] = ind.Focus
+			}
+		}
 	}
 	_ = json.NewEncoder(w).Encode(list)
 }

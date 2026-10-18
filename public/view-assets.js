@@ -1,7 +1,9 @@
 // Fixed Asset Management (Stage 13.13b, MB 16.1) - lifecycle:
 // Draft -> Capitalised -> (Transfer any number of times) -> Disposed.
-// Depreciation/net block are calculated by the backend on every fetch, not
-// stored, so they're always current as of "now."
+// Stage 55.16 (Batch D): depreciation is posted monthly by a job (Dr 5310 /
+// Cr 1410), so the register's accumulated depreciation is what the books
+// hold, with any not-yet-posted lag shown beside it; Dispose records the
+// proceeds and previews the gain or loss before it posts.
 //
 // BLD-041: native ES module loaded with import() by the authorized view
 // dispatcher. Shared services resolve from the classic app shell.
@@ -28,7 +30,8 @@ async function renderAssetsView(container) {
       </div>
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="asset-category">Category</label>
-        <input type="text" id="asset-category" class="form-input" style="width: 130px;">
+        <input type="text" id="asset-category" class="form-input" style="width: 130px;" list="asset-category-list" autocomplete="off">
+        <datalist id="asset-category-list">${[...new Set(assets.map(a => a.category).filter(Boolean))].sort().map(c => `<option value="${escapeHTMLText(c)}">`).join('')}</datalist>
       </div>
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="asset-cost">Cost</label>
@@ -75,25 +78,35 @@ async function renderAssetsView(container) {
           <td>${escapeHTMLText(a.category || '')}</td>
           <td>${escapeHTMLText(a.location || '')}</td>
           <td>${escapeHTMLText(a.custodian || '')}</td>
-          <td>${a.cost.toLocaleString()}</td>
-          <td>${a.accumulated_depreciation.toLocaleString()}</td>
-          <td>${a.net_block.toLocaleString()}</td>
+          <td>${assetMoney(a.cost)}</td>
+          <td>${assetMoney(a.accumulated_depreciation)}${a.status === 'Capitalised' && Number(a.calculated_depreciation) - Number(a.accumulated_depreciation) > 0.004
+            ? `<div style="font-size: 12px; color: var(--warning-color, #b45309);">${assetMoney(a.calculated_depreciation - a.accumulated_depreciation)} due, not posted</div>` : ''}</td>
+          <td>${assetMoney(a.net_block)}</td>
           <td><span class="badge ${a.status === 'Capitalised' ? 'badge-success' : a.status === 'Disposed' ? 'badge-danger' : 'badge-secondary'}">${escapeHTMLText(a.status)}</span></td>
-          <td>${renderAssetActions(a)}</td>
+          <td>${renderAssetActions(a)} <button class="action-btn" data-asset-action="details" data-asset-id="${escapeHTMLText(a.id)}">Details</button></td>
         </tr>
+        <tr class="hidden" data-asset-detail="${escapeHTMLText(a.id)}"><td colspan="9"></td></tr>
       `).join('');
   html += `</tbody></table>`;
   listPanel.innerHTML = html;
+  // Stage 55.16 (Batch D): Run depreciation is period-close work - offered to
+  // an Accountant or a Super Admin only (the server enforces the same rule).
+  const runButton = canRunAssetDepreciation()
+    ? '<button class="btn btn-outline" type="button" data-asset-run-depreciation="1">Run depreciation</button>' : '';
   container.appendChild(txnPagedSection({ id: 'asset-screen', title: 'Fixed Assets', page: 'New asset (draft)', count: assets.length,
-    newLabel: 'New Asset', form: formPanel, list: listPanel }));
+    newLabel: 'New Asset', form: formPanel, list: listPanel, extra: runButton }));
   txnRestorePane('asset-screen');
+  const runBtn = document.querySelector('#asset-screen [data-asset-run-depreciation]');
+  if (runBtn) runBtn.addEventListener('click', () => guardAgainstDoubleSubmit(runBtn, 'Working...', runAssetDepreciation));
   listPanel.addEventListener('click', event => {
     const button = event.target.closest('[data-asset-action]');
     if (!button) return;
     const assetID = button.dataset.assetId;
-    if (button.dataset.assetAction === 'capitalize') capitalizeAsset(assetID, Number(button.dataset.assetLife) || 0);
+    const asset = assets.find(a => a.id === assetID) || {};
+    if (button.dataset.assetAction === 'capitalize') capitalizeAsset(assetID, Number(button.dataset.assetLife) || 0, asset);
     else if (button.dataset.assetAction === 'transfer') promptTransferAsset(assetID);
-    else if (button.dataset.assetAction === 'dispose') promptDisposeAsset(assetID);
+    else if (button.dataset.assetAction === 'dispose') promptDisposeAsset(assetID, asset);
+    else if (button.dataset.assetAction === 'details') toggleAssetLifecycle(assetID);
   });
 
   document.getElementById('asset-create-btn').addEventListener('click', createAsset);
@@ -165,7 +178,7 @@ export {
   promptDisposeAsset
 };
 
-async function capitalizeAsset(assetId, usefulLifeYears) {
+async function capitalizeAsset(assetId, usefulLifeYears, asset = {}) {
   // Stage 57.8: an asset raised from a goods receipt has no useful life yet,
   // and depreciation cannot be worked out without one - ask for it here.
   let life = Number(usefulLifeYears) || 0;
@@ -178,6 +191,12 @@ async function capitalizeAsset(assetId, usefulLifeYears) {
       return;
     }
   }
+  // Stage 55.16: what capitalising will post, before it is posted.
+  const cost = Number(asset.cost) || 0;
+  const fmt = v => Number(v).toLocaleString('en-IN');
+  if (cost > 0 && !await showCustomConfirm(
+    `Capitalise ${asset.code || assetId}?\n\nPosts: Dr 1400 Fixed Assets ${fmt(cost)} / Cr 2100 GRN Suspense ${fmt(cost)}.\nDepreciation: straight line, ${assetMoney(Math.floor(cost * 100 / Math.round(life * 12)) / 100)} a month for ${Math.round(life * 12)} months from the month of ${asset.capitalisation_date || 'today'} - posted monthly, Dr 5310 Depreciation Expense / Cr 1410 Accumulated Depreciation.`,
+    'Capitalise asset')) return;
   const res = await apiFetch('/api/v1/assets/capitalize', {
     method: 'POST',
     body: JSON.stringify({ asset_id: assetId, useful_life_years: life })
@@ -256,8 +275,17 @@ async function promptTransferAsset(assetId) {
   panel.querySelector('#asset-transfer-location').focus();
 }
 
-async function promptDisposeAsset(assetId) {
-  openAssetActionPanel(`Dispose of asset ${assetId}`, `
+// Stage 55.16 (Batch D): Dispose asks what was received and into which
+// cash/bank account, shows the gain or loss as the proceeds are typed (from
+// the server's preview - book value after any depreciation still due), and
+// confirms the exact entry before posting it.
+function assetDisposalPreviewURL(assetId, proceeds, receivedInto) {
+  const q = new URLSearchParams({ proceeds: String(proceeds || 0), received_into: receivedInto || '1100' });
+  return `/api/v1/assets/${encodeURIComponent(assetId)}/disposal-preview?${q}`;
+}
+
+async function promptDisposeAsset(assetId, asset = {}) {
+  const panel = openAssetActionPanel(`Dispose of asset ${assetId}`, `
     <div class="form-group" style="margin-bottom: 0;">
       <label class="form-label" for="asset-dispose-type">How is it leaving?<span class="required">*</span></label>
       <select id="asset-dispose-type" class="form-input" style="width: 200px;">
@@ -266,15 +294,152 @@ async function promptDisposeAsset(assetId) {
         <option value="WriteOff">Written off (lost, stolen)</option>
       </select>
     </div>
-    <p style="margin: 0; font-size: 13px; color: var(--text-muted); max-width: 360px;">The remaining book value is written off and the asset is closed. This cannot be undone.</p>
+    <div class="form-group" style="margin-bottom: 0;">
+      <label class="form-label" for="asset-dispose-proceeds">Proceeds</label>
+      <input type="number" id="asset-dispose-proceeds" class="form-input" style="width: 140px;" min="0" step="0.01" value="0">
+    </div>
+    <div class="form-group" style="margin-bottom: 0;">
+      <label class="form-label" for="asset-dispose-into">Received into</label>
+      <select id="asset-dispose-into" class="form-input" style="width: 220px;"><option value="1100">1100 Cash/Bank Account</option></select>
+    </div>
+    <div id="asset-dispose-preview" style="flex-basis: 100%; font-size: 13px;">Working out the book value...</div>
   `, async () => {
     const disposalType = document.getElementById('asset-dispose-type').value;
+    const proceedsRaw = document.getElementById('asset-dispose-proceeds').value;
+    const proceeds = proceedsRaw === '' ? 0 : Number(proceedsRaw);
+    if (!Number.isFinite(proceeds) || proceeds < 0) { assetActionError('Enter the proceeds as 0 or more.'); return; }
+    const receivedInto = document.getElementById('asset-dispose-into').value;
+    // The exact entry, from the same calculation the disposal will post.
+    const pres = await apiFetch(assetDisposalPreviewURL(assetId, proceeds, receivedInto));
+    if (!pres) return;
+    if (!pres.ok) { assetActionError(await getErrorMessage(pres, 'Could not work out the disposal.')); return; }
+    const p = await pres.json();
+    const lines = (p.lines || []).map(l => `${l.debit ? 'Dr' : 'Cr'} ${l.account_code} ${l.account_name || ''} ${assetMoney(l.debit || l.credit)}`).join('\n');
+    const first = (p.depreciation_first || []).length
+      ? `\nDepreciation posted first: ${p.depreciation_first.length} month(s), ${p.depreciation_first[0]} to ${p.depreciation_first[p.depreciation_first.length - 1]}.` : '';
+    const skipped = (p.depreciation_skipped || []).length
+      ? `\nNot posted (closed period): ${p.depreciation_skipped.map(s => s.month).join(', ')} - that depreciation becomes part of the ${p.gain_loss >= 0 ? 'gain' : 'loss'}.` : '';
+    if (!await showCustomConfirm(
+      `Dispose of ${p.code || assetId}? This cannot be undone.${first}${skipped}\n\nBook value ${assetMoney(p.book_value)}, proceeds ${assetMoney(p.proceeds)}: ${assetGainLossText(p.gain_loss)}.\n\nPosts:\n${lines}`,
+      'Dispose asset')) return;
     const res = await apiFetch('/api/v1/assets/dispose', {
       method: 'POST',
-      body: JSON.stringify({ asset_id: assetId, disposal_type: disposalType })
+      body: JSON.stringify({ asset_id: assetId, disposal_type: disposalType, proceeds, received_into: receivedInto })
     });
     if (!res) return;
     if (!res.ok) { assetActionError(await getErrorMessage(res, 'Failed to dispose asset.')); return; }
     renderView('assets');
   });
+
+  const status = panel.querySelector('#asset-dispose-preview');
+  const proceedsEl = panel.querySelector('#asset-dispose-proceeds');
+  const intoEl = panel.querySelector('#asset-dispose-into');
+  const res = await apiFetch(assetDisposalPreviewURL(assetId, 0, '1100'));
+  if (!res) return;
+  if (!res.ok) { status.textContent = ''; assetActionError(await getErrorMessage(res, 'Could not work out the book value.')); return; }
+  const base = await res.json();
+  if ((base.receipt_accounts || []).length) {
+    intoEl.innerHTML = base.receipt_accounts.map(a =>
+      `<option value="${escapeHTMLText(a.code)}"${a.code === '1100' ? ' selected' : ''}>${escapeHTMLText(a.code)} ${escapeHTMLText(a.name || '')}</option>`).join('');
+  }
+  const showPreview = () => {
+    const proceeds = proceedsEl.value === '' ? 0 : Number(proceedsEl.value);
+    if (!Number.isFinite(proceeds) || proceeds < 0) { status.textContent = 'Enter the proceeds as 0 or more.'; return; }
+    const gainLoss = Math.round((proceeds - base.book_value) * 100) / 100;
+    const due = (base.depreciation_first || []).length;
+    status.textContent = `Book value ${assetMoney(base.book_value)} (cost ${assetMoney(base.cost)} less depreciation ${assetMoney(base.accumulated_depreciation)}`
+      + `${due ? `, including ${due} month(s) still to post` : ''}). Proceeds ${assetMoney(proceeds)}: ${assetGainLossText(gainLoss)}.`;
+  };
+  proceedsEl.addEventListener('input', showPreview);
+  showPreview();
+  proceedsEl.focus();
+}
+
+function assetGainLossText(v) {
+  const n = Number(v) || 0;
+  if (n > 0) return `gain of ${assetMoney(n)} to 4300 Gain on Asset Disposal`;
+  if (n < 0) return `loss of ${assetMoney(-n)} to 5300 Loss on Asset Disposal`;
+  return 'no gain or loss';
+}
+
+function assetMoney(v) {
+  return Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Super Admin, an Accountant, or a role named Finance Head - the server's
+// CanManagePeriodClose.
+function canRunAssetDepreciation() {
+  const role = String(localStorage.getItem('erp_role') || '').toLowerCase().replace(/\s+/g, '');
+  return ['superadmin', 'hr/admin', 'hradmin', 'accountant', 'financehead'].includes(role);
+}
+
+async function runAssetDepreciation() {
+  if (!await showCustomConfirm(
+    'Post depreciation for every capitalised asset, for each month that has ended and is not posted yet?\n\n'
+    + 'Each month posts Dr 5310 Depreciation Expense / Cr 1410 Accumulated Depreciation, dated at its month-end. '
+    + 'A month inside a closed accounting period is skipped and posts once that period is reopened. '
+    + 'Running it again never posts a month twice.',
+    'Run depreciation')) return;
+  const res = await apiFetch('/api/v1/assets/depreciation/run', { method: 'POST', body: '{}' });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Depreciation was not run.', 'Run depreciation'); return; }
+  const r = await res.json();
+  const box = document.createElement('div');
+  const line = text => { const d = document.createElement('div'); d.textContent = text; box.appendChild(d); return d; };
+  line(`Through ${r.through_month}: ${r.months_posted} month(s) posted, ${assetMoney(r.amount_posted)} in all, across ${r.assets_checked} capitalised asset(s).`);
+  (r.assets || []).forEach(a => {
+    const parts = [];
+    if (a.months_posted.length) parts.push(`${a.months_posted.length} month(s) posted (${assetMoney(a.amount_posted)})`);
+    a.months_skipped.forEach(s => parts.push(`${s.month} not posted: ${s.reason}`));
+    if (a.note) parts.push(a.note);
+    line(`${a.code || a.asset_id}: ${parts.join('; ')}`).style.marginTop = '6px';
+  });
+  if (!r.months_posted && !r.months_skipped) line('Nothing was due - every month that has ended is already posted.').style.marginTop = '6px';
+  await showCustomAlert(box, 'Depreciation run');
+  renderView('assets');
+}
+
+// Stage 55.16: one asset's lifecycle - source, straight-line schedule, the GL
+// lines posted for it (and by whom), transfers, and what the books do not hold.
+async function toggleAssetLifecycle(assetId) {
+  const row = document.querySelector(`tr[data-asset-detail="${CSS.escape(assetId)}"]`);
+  if (!row) return;
+  if (!row.classList.contains('hidden')) { row.classList.add('hidden'); return; }
+  const res = await apiFetch(`/api/v1/assets/${encodeURIComponent(assetId)}/lifecycle`);
+  if (!res) return;
+  const cell = row.querySelector('td');
+  if (!res.ok) {
+    cell.innerHTML = `<span class="login-error">${escapeHTMLText(await getErrorMessage(res, 'Could not load the asset history.'))}</span>`;
+    row.classList.remove('hidden');
+    return;
+  }
+  const lc = await res.json();
+  const fmt = v => Number(v || 0).toLocaleString('en-IN');
+  const a = lc.asset;
+  const acq = lc.acquisition || {};
+  const dep = lc.depreciation || {};
+  cell.innerHTML = `
+    <div style="padding:8px 0;display:grid;gap:12px">
+      <div><b>Source:</b> ${escapeHTMLText(acq.source || '')}${acq.item_code ? ` (item ${escapeHTMLText(acq.item_code)})` : ''}
+        ${acq.acquisition_date ? ` &middot; acquired ${escapeHTMLText(acq.acquisition_date)}` : ''}
+        &middot; cost ${fmt(a.cost)} &middot; useful life ${a.useful_life_years || 'not set'} yr
+        ${a.capitalisation_date ? ` &middot; capitalised ${escapeHTMLText(a.capitalisation_date)}` : ''}
+        ${acq.disposal_type ? ` &middot; disposed (${escapeHTMLText(acq.disposal_type)})` : ''}
+        ${acq.disposal_proceeds != null ? ` on ${escapeHTMLText(acq.disposal_date || '')}: proceeds ${assetMoney(acq.disposal_proceeds)} into ${escapeHTMLText(acq.disposal_received_into || '')}, book value ${assetMoney(acq.disposal_book_value)}, ${escapeHTMLText(assetGainLossText(acq.disposal_gain_loss))}` : ''}</div>
+      ${lc.schedule.length ? `<table><thead><tr><th>Year</th><th>From</th><th>To</th><th>Opening</th><th>Depreciation</th><th>Posted</th><th>To come</th><th>Closing</th></tr></thead><tbody>
+        ${lc.schedule.map(s => `<tr style="${s.current ? 'font-weight:700' : ''}"><td>${s.year}${s.current ? ' (now)' : ''}</td><td>${escapeHTMLText(s.from)}</td><td>${escapeHTMLText(s.to)}</td><td>${assetMoney(s.opening)}</td><td>${assetMoney(s.depreciation)}</td><td>${assetMoney(s.posted)}${s.months_posted ? ` (${s.months_posted} of ${s.months} mo)` : ''}</td><td>${assetMoney(s.to_come)}</td><td>${assetMoney(s.closing)}</td></tr>`).join('')}
+        </tbody></table>` : '<div style="color:var(--text-muted)">No schedule until a useful life is set.</div>'}
+      ${dep.total_months ? `<div><b>Depreciation:</b> ${assetMoney(dep.monthly_amount)} a month for ${dep.total_months} months &middot; ${dep.months_posted} month(s) posted, ${assetMoney(dep.posted)}${a.status === 'Capitalised' ? ` &middot; ${dep.months_due} month(s) ended so far, ${assetMoney(dep.due)} due` : ''}</div>` : ''}
+      ${(dep.postings || []).length ? `<details><summary>Depreciation posted (${dep.postings.length} month${dep.postings.length === 1 ? '' : 's'})</summary>
+        <table><thead><tr><th>Month</th><th>Dr 5310 / Cr 1410</th><th>Dated</th><th>Posted by</th></tr></thead><tbody>
+        ${dep.postings.map(p => `<tr><td>${escapeHTMLText(p.month)}</td><td>${assetMoney(p.amount)}</td><td>${escapeHTMLText(p.dated)}</td><td>${escapeHTMLText(p.posted_by)}</td></tr>`).join('')}
+        </tbody></table></details>` : ''}
+      <div><b>Posted to the GL:</b> ${lc.gl_postings.length === 0 ? 'nothing yet' : ''}</div>
+      ${lc.gl_postings.length ? `<table><thead><tr><th>When</th><th>Event</th><th>Account</th><th>Debit</th><th>Credit</th><th>Posted by</th></tr></thead><tbody>
+        ${lc.gl_postings.map(p => `<tr><td>${escapeHTMLText(p.posted_at)}</td><td>${escapeHTMLText(p.event)}</td><td>${escapeHTMLText(p.account_code)}</td><td>${p.debit ? fmt(p.debit) : ''}</td><td>${p.credit ? fmt(p.credit) : ''}</td><td>${escapeHTMLText(p.posted_by)}</td></tr>`).join('')}
+        </tbody></table>` : ''}
+      ${lc.transfers.length ? `<div><b>Transfers:</b><ul style="margin:4px 0 0 18px">${lc.transfers.map(t => `<li>${escapeHTMLText(t.at)} by ${escapeHTMLText(t.by)} - ${escapeHTMLText(t.detail)}</li>`).join('')}</ul></div>` : ''}
+      ${lc.gaps.map(g => `<div style="color:var(--warning-color, #b45309)">${escapeHTMLText(g)}</div>`).join('')}
+    </div>`;
+  row.classList.remove('hidden');
 }

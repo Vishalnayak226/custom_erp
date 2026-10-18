@@ -106,6 +106,8 @@ var envelopeRoutes = []envelopeRoute{
 	// is now reachable instead of being capped at 2 MiB underneath.
 	{pattern: "/api/v1/pim/media/upload", maxBody: 10 << 20},
 	{pattern: "/api/v1/pim/media/bulk-upload", maxBody: 100 << 20},
+	// Stage 55.15b: one 5 MB document attachment plus its multipart framing.
+	{pattern: "/api/v1/attachments/*/*", maxBody: 6 << 20},
 	{pattern: "/api/v1/import/*", maxBody: 16 << 20},
 	{pattern: "/api/v1/pim/import/*/preview", maxBody: 16 << 20},
 	{pattern: "/api/v1/pim/import-templates/*/preview", maxBody: 16 << 20},
@@ -186,7 +188,9 @@ func enforceRequestEnvelope(w http.ResponseWriter, r *http.Request) (_ *http.Req
 		return r, nil, false
 	}
 
-	policy := envelopePolicyFor(r.URL.Path)
+	// Matched on the escaped path, as the router matches: a record id holding
+	// "/" (EXP/HO/26-27/00005) arrives as %2F and stays one path segment.
+	policy := envelopePolicyFor(r.URL.EscapedPath())
 	if repeatedQueryParam(r.URL.RawQuery, policy.repeatableParams) {
 		writeAPIErrorDetail(w, r, "GLOBAL-0307", "", "A query parameter is repeated, so it is ambiguous which value applies.")
 		return r, nil, false

@@ -1322,7 +1322,17 @@ async function openPIMImportTemplateRun(templateID) {
         });
         resultEl.appendChild(download);
       }
-      resultEl.insertAdjacentHTML('beforeend', '<p>Keep the job result for audit. To continue after a failure, correct the CSV and preview a new upload; this screen does not resume a partly processed job.</p>');
+      // Stage 55.11: a partly failed job resumes from its failed rows only.
+      if (outcome.import_job_id && outcome.failed_rows > 0) {
+        const resume = document.createElement('button');
+        resume.type = 'button'; resume.className = 'btn btn-primary btn-sm'; resume.style.marginLeft = '8px';
+        resume.textContent = `Fix and resume the ${outcome.failed_rows} failed row(s)`;
+        resume.addEventListener('click', async () => {
+          const jobs = await loadViewModule('/view-import-jobs.js' + new URL(import.meta.url).search);
+          jobs.openImportResume(outcome.import_job_id);
+        });
+        resultEl.appendChild(resume);
+      }
     }
   };
   previewButton.addEventListener('click', () => run(true));

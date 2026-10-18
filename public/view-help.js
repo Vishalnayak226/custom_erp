@@ -210,7 +210,18 @@ async function openHelpDrawer(screenID) {
     showCustomAlert('The Knowledge Center could not be loaded.', 'Help');
     return;
   }
-  const slugs = (index.screen_map || {})[String(screenID || '').toLowerCase()] || [];
+  // Every master list is the one generic `doctype-table` screen, so that id
+  // alone named no screen: articles claiming it all matched every list, and
+  // the alphabetically first (Channel Connectors) opened on Bin, Dock Doors
+  // and Print Template alike. A list asks for its own doctype first, then the
+  // handbook of the module that doctype belongs to.
+  const map = index.screen_map || {};
+  let keys = [String(screenID || '').toLowerCase()];
+  if (keys[0] === 'doctype-table' && currentDoctype) {
+    const meta = (state.activeDoctypes || []).find(d => d.name === currentDoctype);
+    keys = ['doctype:' + currentDoctype.toLowerCase(), meta && meta.module ? 'module:' + meta.module.toLowerCase() : ''];
+  }
+  const slugs = map[keys.find(key => (map[key] || []).length)] || [];
 
   document.getElementById('kb-drawer')?.remove();
   const drawer = document.createElement('div');
@@ -245,10 +256,11 @@ async function openHelpDrawer(screenID) {
   if (!res || !res.ok) { body.innerHTML = '<p class="text-muted">That article could not be loaded.</p>'; return; }
   const article = await res.json();
   const others = slugs.slice(1);
+  const titleOf = slug => (flattenHelpArticles(index).find(a => a.slug === slug) || {}).title || slug;
   body.innerHTML = `
     <h4 style="margin:0 0 12px;">${escapeHTMLText(article.title)}</h4>
     <div class="kb-body">${article.html}</div>
-    ${others.length > 0 ? `<p class="text-muted" style="margin-top:16px;">Also for this screen: ${others.map(slug => `<a href="/help/${encodeURIComponent(slug)}">${escapeHTMLText(slug)}</a>`).join(', ')}</p>` : ''}`;
+    ${others.length > 0 ? `<p class="text-muted" style="margin-top:16px;">Also for this screen: ${others.map(slug => `<a href="/help/${encodeURIComponent(slug)}">${escapeHTMLText(titleOf(slug))}</a>`).join(', ')}</p>` : ''}`;
 }
 window.openHelpDrawer = openHelpDrawer;
 

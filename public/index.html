@@ -211,6 +211,7 @@
           <ul class="menu-flyout">
 			<li><a class="menu-item" id="menu-oms"><span>Order Management</span></a></li>
             <li><a class="menu-item" id="menu-returns"><span>Returns</span></a></li>
+            <li><a class="menu-item" id="menu-loyalty"><span>Loyalty</span></a></li>
             <li><a class="menu-item" id="menu-fulfillment"><span>Fulfillment</span></a></li>
             <li><a class="menu-item" id="menu-marketplace"><span>Marketplace</span></a></li>
             <li><a class="menu-item" id="menu-customers"><span>Customer</span></a></li>
@@ -460,24 +461,8 @@
                  placeholder="Search screens and setup lists...">
         </div>
         <div class="header-actions">
-          <select id="industry-selector" aria-label="Industry profile" class="form-select" style="width: auto; max-width: 180px; padding: 4px 8px; font-size: 13px; height: 36px; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--panel-bg); color: var(--text-main); margin-right: 8px;">
-            <option value="" disabled selected>Select Industry</option>
-            <option value="jewelry">Jewelry</option>
-            <option value="food_bev">Food & Beverage</option>
-            <option value="auto">Automobile</option>
-            <option value="clothing">Clothing</option>
-            <option value="pharma">Pharmaceuticals & Biotechnology</option>
-            <option value="metal">Metal & Steel Fabrication</option>
-            <option value="construction">Construction & Contracting</option>
-            <option value="medical">Medical Devices</option>
-            <option value="semiconductor">Semiconductors</option>
-            <option value="agriculture">Agriculture & Perishable Goods</option>
-          </select>
-          <!-- Stage 51.3: shown only once the industry profile is locked
-               (see applyIndustryLockUI/engines.SwitchIndustryProfile's lock
-               row) - the select above is disabled at that point, since a
-               plain change there would just be rejected server-side. -->
-          <button class="btn btn-outline btn-sm hidden" id="industry-override-btn" title="This tenant's industry profile is locked - click to override" style="margin-right: 8px;">Override</button>
+          <!-- Stage 82: the industry is chosen in Settings → Configuration →
+               Industry (org admin only), not here. -->
           <button class="btn btn-outline" id="sync-btn" title="Refresh: re-fetch labels and screen definitions, keeping everything you have open and everything cached">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
@@ -730,7 +715,7 @@
   <!-- 21.14: this app's first Web Component - plain <script>, no build
        step, registers <erp-typeahead> globally before app.js runs. -->
   <script src="/components/erp-typeahead.js?v=1"></script>
-  <script src="/app.js?v=46"></script>
+  <script src="/app.js?v=47"></script>
   <!-- 31.1: QZ Tray bridge for silent printing. Loaded after app.js because
        it calls apiFetch() for the certificate and per-request signature. -->
   <script src="/qz-print.js?v=1"></script>

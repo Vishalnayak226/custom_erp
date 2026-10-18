@@ -145,8 +145,15 @@ func handleApproveReturnRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewDecoder(r.Body).Decode(&req)
 
-	if err := engines.ApproveReturnRequest(tenantID, returnID, req.ApprovedBy); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+	// Stage 55.5a: the approver is the signed-in user, as the requester is in
+	// handleCreateReturnRequest - a typed name could not be held to the
+	// second-person rule. The body's approved_by is only a fallback.
+	approver := r.Header.Get("Resolved-User-ID")
+	if approver == "" {
+		approver = req.ApprovedBy
+	}
+	if err := engines.ApproveReturnRequest(tenantID, returnID, approver); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "approved"})
@@ -289,8 +296,12 @@ func handleApproveRefundRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewDecoder(r.Body).Decode(&req)
 
-	if err := engines.ApproveRefundRequest(tenantID, refundID, req.ApprovedBy); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+	approver := r.Header.Get("Resolved-User-ID") // Stage 55.5a, as for a return
+	if approver == "" {
+		approver = req.ApprovedBy
+	}
+	if err := engines.ApproveRefundRequest(tenantID, refundID, approver); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "approved"})

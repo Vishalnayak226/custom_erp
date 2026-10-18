@@ -27,6 +27,13 @@ type ImportResult struct {
 	CreatedIDs []string `json:"created_ids,omitempty"`
 	UpdatedIDs []string `json:"updated_ids,omitempty"`
 	DryRun     bool     `json:"dry_run"`
+
+	// Stage 55.11: the source header and failed rows' original cells, kept
+	// for the ImportJob so its failed rows can be resumed (import_resume.go).
+	sourceHeader   []string
+	sourceDoctype  string
+	sourceTemplate string
+	failedSource   []importFailedSourceRow
 }
 
 type RowValidationError struct {
@@ -130,7 +137,11 @@ func BulkImportCSVContext(ctx context.Context, tenantID string, doctype string, 
 		// how the file's columns happened to be named.
 		preErrors = pimVariantParentPreflight(tenantID, docRows)
 	}
-	return runDocDataImportContext(ctx, tenantID, doctype, userID, role, dryRun, docRows, preErrors)
+	res, err := runDocDataImportContext(ctx, tenantID, doctype, userID, role, dryRun, docRows, preErrors)
+	if err == nil {
+		attachFailedSourceRows(res, headers, records[1:], doctype, "")
+	}
+	return res, err
 }
 
 // readCSVRecords is the one CSV-parsing entry point BulkImportCSV and Stage
@@ -516,11 +527,32 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 			}
 		}
 
+		// Stage 76.5: a master row with no code is numbered exactly as one
+		// created on screen (V00001), instead of failing "code is required".
+		// The number is drawn only once the row has passed validation, so a
+		// refused row leaves no hole in the series; until then a placeholder
+		// stands in for the mandatory code.
+		needsNumber := false
+		if rowIsCreate && strings.TrimSpace(strField(docData, "code")) == "" && strings.TrimSpace(strField(docData, "id")) == "" {
+			if isMaster, _ := lk.masterDoctype(); (isMaster || IsServerNumberedMaster(doctype)) && !IsTypedCodeMaster(doctype) &&
+				!(doctype == "Item" && strings.TrimSpace(strField(docData, "family")) != "") {
+				needsNumber = true
+				docData["code"] = "PENDING-NUMBER"
+			}
+		}
+
 		// Perform field structure validation
 		valErr := validateDocumentWith(tenantID, doctype, docData, lk.validation)
 		if valErr != nil {
 			recordImportError(result, rowNumber, valErr.Error())
 			continue
+		}
+		if needsNumber {
+			delete(docData, "code")
+			if err := PrepareMasterNumber(tenantID, "", doctype, true, docData); err != nil {
+				recordImportError(result, rowNumber, err.Error())
+				continue
+			}
 		}
 
 		// Stage 51.8: restore the Master id = code invariant on this path too.
@@ -688,6 +720,9 @@ func RecordImportJob(tenantID, doctype string, res *ImportResult, createdBy stri
 		status = "Failed"
 	}
 
+	if doctype == "" && res.sourceDoctype != "" {
+		doctype = res.sourceDoctype
+	}
 	jobID := NewDocIDCompact("IMPJOB")
 	data := map[string]interface{}{
 		"id":           jobID,
@@ -698,6 +733,9 @@ func RecordImportJob(tenantID, doctype string, res *ImportResult, createdBy stri
 		"success_rows": res.SuccessRows,
 		"failed_rows":  res.FailedRows,
 		"error_csv":    errorCSV,
+	}
+	for k, v := range importJobSourceFields(res) {
+		data[k] = v // Stage 55.11: failed rows kept for resume
 	}
 	marshaled, err := json.Marshal(data)
 	if err != nil {

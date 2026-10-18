@@ -27,6 +27,9 @@ type LoyaltyLedgerEntry struct {
 	Points          int       `json:"points"`
 	ReferenceID     string    `json:"reference_id"`
 	CreatedAt       time.Time `json:"created_at"`
+	// Stage 55.17: what kind of document it came from, and when it lapses.
+	ReferenceDoctype string     `json:"reference_doctype,omitempty"`
+	ExpiresAt        *time.Time `json:"expires_at,omitempty"`
 }
 
 // insertLoyaltyLedgerEntryInSchema is the schema-level primitive - needed
@@ -61,21 +64,34 @@ func insertLoyaltyLedgerEntry(tenantID, customerID, transactionType string, poin
 // ReverseLoyaltyRedemption stays for the case it was really written for: a
 // completed sale that is later returned.
 //
-// The balance check reads inside the transaction and locks the customer's
-// ledger rows, so two tills redeeming the same balance concurrently cannot
-// both pass it.
-func RedeemLoyaltyPointsTx(tx *sql.Tx, schema, tenantID, customerID string, points int, referenceID string) (discountValue int, err error) {
+// The balance check reads inside the transaction under a per-customer lock, so
+// two tills redeeming the same balance concurrently cannot both pass it.
+//
+// Stage 73.1.1: the lock is a transaction advisory lock, not FOR UPDATE on the
+// balance query. Postgres refuses FOR UPDATE on an aggregate (0A000), so every
+// sale that redeemed points failed at checkout; and locking the existing rows
+// would not have stopped a concurrent till inserting a new Burn anyway. The
+// balance is read by a statement that starts after the lock is held, so under
+// READ COMMITTED it sees the other till's committed burn.
+//
+// Stage 73.1.4: this is the ONE place points are burned - the till's sale, the
+// /loyalty/redeem API, the OTP flow and an approved redemption request all
+// come through it - so the redemption controls (daily limit, one-time code,
+// manager approval above a value) are checked here, under the same lock, and
+// no path can skip them. auth names what authorised this redemption.
+func RedeemLoyaltyPointsTx(tx *sql.Tx, schema, tenantID, customerID string, points int, referenceID string, auth LoyaltyRedemptionAuth) (discountValue int, err error) {
 	if points <= 0 {
 		return 0, nil
 	}
-	var balance int
-	if err := tx.QueryRow(fmt.Sprintf(`
-		SELECT COALESCE(SUM(CASE WHEN transaction_type = 'Earn' THEN points ELSE -points END), 0)
-		FROM %s.loyalty_point_ledger WHERE customer_id = $1 FOR UPDATE`, schema), customerID).Scan(&balance); err != nil {
+	balance, err := lockedLoyaltyBalanceTx(tx, schema, customerID)
+	if err != nil {
 		return 0, err
 	}
 	if points > balance {
 		return 0, &ValidationError{Code: "CUSTOM-0134", Message: fmt.Sprintf("insufficient loyalty points: requested %d, balance %d", points, balance)}
+	}
+	if err := authorizeLoyaltyRedemptionTx(tx, schema, tenantID, customerID, points, referenceID, auth); err != nil {
+		return 0, err
 	}
 	if _, err := tx.Exec(fmt.Sprintf(`
 		INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id)
@@ -83,6 +99,21 @@ func RedeemLoyaltyPointsTx(tx *sql.Tx, schema, tenantID, customerID string, poin
 		return 0, err
 	}
 	return points * redemptionValuePerPointFor(tenantID), nil
+}
+
+// lockedLoyaltyBalanceTx takes the customer's loyalty lock for the rest of the
+// transaction and returns their balance as it stands once the lock is held.
+// Every writer that must not race a redemption (the till's burn, a return's
+// reversal or restore) goes through it.
+func lockedLoyaltyBalanceTx(tx *sql.Tx, schema, customerID string) (int, error) {
+	if _, err := tx.Exec(`SELECT pg_advisory_xact_lock(hashtext($1))`, "loyalty:"+schema+":"+customerID); err != nil {
+		return 0, err
+	}
+	var balance int
+	err := tx.QueryRow(fmt.Sprintf(`
+		SELECT COALESCE(SUM(CASE WHEN transaction_type = 'Earn' THEN points ELSE -points END), 0)
+		FROM %s.loyalty_point_ledger WHERE customer_id = $1`, schema), customerID).Scan(&balance)
+	return balance, err
 }
 
 // GetLoyaltyBalance computes a customer's current point balance as
@@ -109,8 +140,8 @@ func GetLoyaltyLedger(tenantID, customerID string) ([]LoyaltyLedgerEntry, error)
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT transaction_type, points, COALESCE(reference_id, ''), created_at
-		FROM %s.loyalty_point_ledger WHERE customer_id = $1 ORDER BY created_at DESC`, schema), customerID)
+		SELECT transaction_type, points, COALESCE(reference_id, ''), created_at, COALESCE(reference_doctype, ''), expires_at
+		FROM %s.loyalty_point_ledger WHERE customer_id = $1 ORDER BY created_at DESC, id DESC`, schema), customerID)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +150,7 @@ func GetLoyaltyLedger(tenantID, customerID string) ([]LoyaltyLedgerEntry, error)
 	var results []LoyaltyLedgerEntry
 	for rows.Next() {
 		var e LoyaltyLedgerEntry
-		if err := rows.Scan(&e.TransactionType, &e.Points, &e.ReferenceID, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.TransactionType, &e.Points, &e.ReferenceID, &e.CreatedAt, &e.ReferenceDoctype, &e.ExpiresAt); err != nil {
 			return nil, err
 		}
 		results = append(results, e)
@@ -131,24 +162,35 @@ func GetLoyaltyLedger(tenantID, customerID string) ([]LoyaltyLedgerEntry, error)
 // funds first - no negative balance is ever allowed, per the blueprint's
 // "no negative balance" POS redemption control) and returns the rupee
 // discount value it's worth, for the caller (checkout) to apply.
+//
+// CUSTOM-0134 (Stage 25.5, "Loyalty points insufficient") is the balance
+// refusal, a 422 at its call site (handleRedeemLoyaltyPoints). Stage 73.1.4: it
+// is now a thin transaction around RedeemLoyaltyPointsTx, so this API burn is
+// held to exactly the controls the till's is - with no authorisation, a
+// redemption that needs a one-time code or a manager's approval is refused.
 func RedeemLoyaltyPoints(tenantID, customerID string, points int, referenceID string) (discountValue int, err error) {
+	return redeemLoyaltyPointsAuthorized(tenantID, customerID, points, referenceID, LoyaltyRedemptionAuth{})
+}
+
+// redeemLoyaltyPointsAuthorized burns points in a transaction of its own.
+func redeemLoyaltyPointsAuthorized(tenantID, customerID string, points int, referenceID string, auth LoyaltyRedemptionAuth) (int, error) {
 	if points <= 0 {
 		return 0, nil
 	}
-	balance, err := GetLoyaltyBalance(tenantID, customerID)
+	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return 0, err
 	}
-	if points > balance {
-		// CUSTOM-0134 (Stage 25.5): "Loyalty points insufficient" - an exact
-		// scenario match, already returned as a 422 at its one call site
-		// (handleRedeemLoyaltyPoints), matching the catalog's own status.
-		return 0, &ValidationError{Code: "CUSTOM-0134", Message: fmt.Sprintf("insufficient loyalty points: requested %d, balance %d", points, balance)}
-	}
-	if err := insertLoyaltyLedgerEntry(tenantID, customerID, "Burn", points, "POSCart", referenceID); err != nil {
+	tx, err := db.DB.Begin()
+	if err != nil {
 		return 0, err
 	}
-	return points * redemptionValuePerPointFor(tenantID), nil
+	defer tx.Rollback()
+	value, err := RedeemLoyaltyPointsTx(tx, schema, tenantID, customerID, points, referenceID, auth)
+	if err != nil {
+		return 0, err
+	}
+	return value, tx.Commit()
 }
 
 // LoyaltyRedemptionValue is what `points` are worth in rupees, without
@@ -207,6 +249,11 @@ func EarnLoyaltyPoints(tenantID, customerID string, netSaleAmount int, reference
 	expiresAt := time.Now().AddDate(0, 0, GetSettingInt(tenantID, "loyalty.point_expiry_days"))
 	if err := insertLoyaltyLedgerEntryInSchema(schema, customerID, "Earn", points, "POSCart", referenceID, &expiresAt); err != nil {
 		return err
+	}
+	// Stage 73.2.12: when accruing, the earned points' value is a liability.
+	if err := postLoyaltyValue(tenantID, "POSCart", referenceID, "POSCart:"+referenceID+":LOYALTY_ACCRUE",
+		int64(points)*loyaltyPointValuePaise(tenantID), true, ""); err != nil {
+		LogSystemError(tenantID, "", "ERROR", "EarnLoyaltyPoints", fmt.Sprintf("points earned on %s but their liability was not booked: %v", referenceID, err), "")
 	}
 	if GetSettingBool(tenantID, "loyalty.recompute_tier_on_earn") {
 		if _, err := RecomputeLoyaltyTier(tenantID, customerID); err != nil {

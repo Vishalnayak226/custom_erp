@@ -383,6 +383,17 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		// click time, which is how a cashier used to be able to destroy a
 		// customer's points on a cart that was then abandoned.
 		RedeemPoints int `json:"redeem_points"`
+		// Stage 73.1.4: what authorised the redemption - see
+		// engines.StartTillLoyaltyRedemption. Checked here before the cart is
+		// claimed, and again where the points burn.
+		RedemptionChallengeID string `json:"redemption_challenge_id"`
+		RedemptionApprovalID  string `json:"redemption_approval_id"`
+		// Tenders (Stage 73.1.6) are the fixed parts of a split payment; the
+		// cart's PaymentMode takes the rest of the bill.
+		Tenders []engines.POSTender `json:"tenders"`
+		// ExchangeCreditID (Stage 73.2.6): the credit an exchange's returned
+		// items carry to this sale (engines.StartTillExchange).
+		ExchangeCreditID string `json:"exchange_credit_id"`
 		// CouponCodes (Stage 30.7): coupon-gated offers the cashier keyed in.
 		// A code that matches no live offer is reported back rather than
 		// silently ignored, so the cashier learns it didn't apply.
@@ -556,12 +567,13 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		quoteLines[i] = engines.QuoteLineRequest{Sku: item.Sku, Qty: item.Qty, FallbackUnitPrice: item.SalePrice}
 	}
 	quote, quoteErr := engines.ResolvePOSQuote(tenantID, engines.QuoteRequest{
-		CartNumber:  req.CartNumber,
-		Location:    req.Location,
-		CustomerID:  req.CustomerID,
-		Interstate:  req.Interstate,
-		CouponCodes: req.CouponCodes,
-		Lines:       quoteLines,
+		CartNumber:   req.CartNumber,
+		Location:     req.Location,
+		CustomerID:   req.CustomerID,
+		Interstate:   req.Interstate,
+		CouponCodes:  req.CouponCodes,
+		Lines:        quoteLines,
+		RedeemPoints: req.RedeemPoints,
 	})
 	if quoteErr != nil {
 		writeEngineError(w, r, quoteErr, http.StatusUnprocessableEntity)
@@ -620,22 +632,32 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	// exists so the ordinary "not enough points" case is rejected here, before
 	// the cart is claimed and before any side effect runs, instead of failing
 	// half-way through a sale.
-	loyaltyDiscount := 0
+	//
+	// Stage 73.1.5: the points are priced by the quote (at the tenant's point
+	// value, capped at the bill), not assumed here; 73.1.4: and a redemption
+	// the controls gate is refused before the cart is claimed if what it needs
+	// (the customer's code, a manager's approval) is not there yet.
+	loyaltyDiscount, redeemPoints := 0, 0
 	if req.RedeemPoints > 0 {
-		if req.CustomerID == "" {
+		if req.CustomerID == "" || quote.Loyalty == nil {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "A customer is required to redeem loyalty points")
 			return
 		}
-		balance, balErr := engines.GetLoyaltyBalance(tenantID, req.CustomerID)
-		if balErr != nil {
-			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to check the loyalty balance")
+		if req.RedeemPoints > quote.Loyalty.Balance {
+			writeAPIErrorDetail(w, r, "CUSTOM-0134", "", fmt.Sprintf("%s has %d loyalty point(s); this sale is trying to redeem %d.", req.CustomerID, quote.Loyalty.Balance, req.RedeemPoints))
 			return
 		}
-		if req.RedeemPoints > balance {
-			writeAPIErrorDetail(w, r, "CUSTOM-0134", "", fmt.Sprintf("%s has %d loyalty point(s); this sale is trying to redeem %d.", req.CustomerID, balance, req.RedeemPoints))
+		redeemPoints, loyaltyDiscount = quote.Loyalty.Points, int(quote.Loyalty.Value)
+		if quote.Loyalty.NeedsOTP && req.RedemptionChallengeID == "" {
+			writeAPIErrorDetail(w, r, "CUSTOM-0602", "", fmt.Sprintf("Redeeming %d point(s) needs the one-time code sent to the customer.", redeemPoints))
 			return
 		}
-		loyaltyDiscount = engines.LoyaltyRedemptionValue(tenantID, req.RedeemPoints)
+		if quote.Loyalty.NeedsApproval {
+			if status, _ := engines.TillRedemptionApprovalStatus(tenantID, req.RedemptionApprovalID); status != "Approved" {
+				writeAPIErrorDetail(w, r, "CUSTOM-0603", "", fmt.Sprintf("Redeeming %d point(s) (worth %.2f) needs a %s's approval first.", redeemPoints, quote.Loyalty.Value, quote.Loyalty.ApproverRole))
+				return
+			}
+		}
 	}
 
 	// Stage 72.8: gift cards as a tender. Checked here, before any side
@@ -660,6 +682,44 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	giftPaid := 0.0
 	for _, t := range giftTenders {
 		giftPaid += engines.PaiseToRupees(t.AmountPaise)
+	}
+	// Stage 73.2.6: an exchange's credit pays after points and gift cards;
+	// whatever the sale does not need is paid back from the till. Never on an
+	// offline-queued sale or a terminal authorisation - it is checked and
+	// spent against the server's own record.
+	exchangeUse, exchangePayout := 0.0, 0.0
+	if req.ExchangeCreditID != "" {
+		if req.OfflineSynced || req.AuthorizeOnly {
+			writeAPIErrorDetail(w, r, "POSOFF-0612", "", "An exchange is settled online at the till - it cannot be queued offline or sent to the payment terminal.")
+			return
+		}
+		credit, errC := engines.LoadOpenExchangeCredit(tenantID, req.ExchangeCreditID, req.Location)
+		if errC != nil {
+			writeEngineError(w, r, errC, http.StatusUnprocessableEntity)
+			return
+		}
+		owed := quote.AmountDue - giftPaid
+		exchangeUse = credit.Amount
+		if owed < exchangeUse {
+			exchangeUse = owed
+		}
+		if exchangeUse < 0 {
+			exchangeUse = 0
+		}
+		exchangePayout = credit.Amount - exchangeUse
+	}
+	// Stage 73.1.6: a split payment must name the till's modes and fit inside
+	// what is left to pay in money. A payment-terminal authorisation charges
+	// one card amount, so it is never split.
+	if len(req.Tenders) > 0 {
+		if req.AuthorizeOnly {
+			writeAPIErrorDetail(w, r, "POSOFF-0604", "", "A payment-terminal sale is paid by one card - remove the split, or take the sale without the terminal.")
+			return
+		}
+		if err := engines.ValidatePOSTenders(req.Tenders, req.PaymentMode, quote.AmountDue-giftPaid-exchangeUse); err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
 	}
 
 	schema, err := db.GetTenantSchema(tenantID)
@@ -773,29 +833,9 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	// survives only where the quote itself fell back to it - an item the
 	// tenant has not priced, in assisted mode - and is labelled as such by
 	// price_source on the line.
-	resolvedItems := make([]map[string]interface{}, 0, len(quote.Lines))
-	for _, l := range quote.Lines {
-		item := map[string]interface{}{
-			"sku": l.Sku, "qty": l.Qty,
-			"sale_price":      l.UnitPrice,
-			"reference_price": l.ReferencePrice,
-			"price_source":    l.PriceSource,
-		}
-		if l.OverrideID != "" {
-			item["override_id"] = l.OverrideID
-		}
-		if l.PriceListCode != "" {
-			item["price_list_code"] = l.PriceListCode
-		}
-		if l.PromotionRef != "" {
-			item["promotion_ref"] = l.PromotionRef
-		}
-		if l.BillMode != "" {
-			item["bill_mode"] = l.BillMode
-		}
-		resolvedItems = append(resolvedItems, item)
-	}
-	storedPayload["items"] = resolvedItems
+	storedPayload["items"] = engines.POSCartItemsFromQuote(quote)
+	// 73.1.5: the points the quote priced (capped at the bill), not the ask.
+	storedPayload["redeem_points"] = redeemPoints
 	storedPayload["consumption"] = consumption
 	delete(storedPayload, "gift_cards") // full card numbers never reach the stored cart
 	if len(giftTenders) > 0 {
@@ -948,7 +988,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		// Stage 30.2.5: what the customer actually pays, after any loyalty
 		// points they spent on this sale - so the receipt and the cash drawer
 		// agree without the cashier doing the subtraction in their head.
-		"loyalty_points_redeemed": req.RedeemPoints,
+		"loyalty_points_redeemed": redeemPoints,
 		"loyalty_discount":        loyaltyDiscount,
 		// Stage 30.7: offers applied to this sale, recomputed server-side.
 		// unmatched_coupon_codes lets the POS tell the cashier a code didn't
@@ -1001,17 +1041,32 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		// operator retry it AND lets a supervisor see that a sale was
 		// attempted and did not happen; ClaimCommand turns a Failed claim back
 		// into a live one on the retry.
-		engines.FailCommand(tenantID, claim.Key, finalizeErr.Error())
-		claimSettled = true
+		//
+		// Stage 55.5: the cart row goes back to Failed too. The sale's own
+		// transaction rolled it back to Processing, and the cart-row claim
+		// above only re-takes a Failed row - so every retry, even an identical
+		// one after "please try again", was refused "already being processed".
+		_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Failed', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'POSCart' AND id = $1 AND status = 'Processing'`, schema), req.CartNumber)
+		//
 		// 47.3.4: a business shortage and a retryable database conflict are
 		// different answers to the cashier. "Out of stock" must never be shown
 		// for a lock conflict, and "try again" must never be shown for stock
 		// that genuinely is not there.
 		var shortage *engines.InsufficientStockError
 		if errors.As(finalizeErr, &shortage) {
+			// Stage 55.5: a shortage is the cashier's to fix - remove the line
+			// or lower it - so the corrected cart is a different request under
+			// the same cart number. Kept Failed, the key answered it "already
+			// used for a different sale" and the till could not complete the
+			// corrected cart without a reset. Nothing was posted, so the key is
+			// released, as for any other refusal.
+			engines.ReleaseCommand(tenantID, claim.Key)
+			claimSettled = true
 			writeAPIErrorDetail(w, r, "INVENT-0101", "", shortage.Error())
 			return
 		}
+		engines.FailCommand(tenantID, claim.Key, finalizeErr.Error())
+		claimSettled = true
 		if engines.IsRetryableDBConflict(finalizeErr) {
 			writeAPIErrorGeneric(w, r, http.StatusConflict,
 				"Another till was completing a sale for the same item. Nothing was charged - please try again.")
@@ -1031,8 +1086,13 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 	response["sale_total"] = outcome.SaleTotal
 	response["loyalty_discount"] = outcome.LoyaltyDiscount
-	response["amount_due"] = outcome.SaleTotal - float64(outcome.LoyaltyDiscount) - quote.OfferDiscount - giftPaid
+	response["amount_due"] = outcome.SaleTotal - float64(outcome.LoyaltyDiscount) - quote.OfferDiscount - giftPaid - exchangeUse
 	response["gift_card_paid"] = giftPaid
+	if req.ExchangeCreditID != "" {
+		// Stage 73.2.6: what the exchange credit paid, and what went back.
+		response["exchange_credit_used"] = exchangeUse
+		response["exchange_paid_back"] = exchangePayout
+	}
 	// 47.2.2's acceptance line, literally: "Cashier never receives
 	// margin/cost fields." cost_total was returned to every caller before this
 	// stage, which handed the till the exact figure Stage 16.7 already hid on
@@ -1269,19 +1329,22 @@ func handlePOSSessionClose(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	expected, variance, offlineGapCartNumbers, err := engines.ClosePOSSession(tenantID, req.SessionID, cashier, req.CountedCash, req.VarianceReason)
+	res, err := engines.ClosePOSSession(tenantID, req.SessionID, cashier, req.CountedCash, req.VarianceReason)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	engines.LogAuditEvent(tenantID, cashier, "POS_SESSION", "CLOSED", fmt.Sprintf("Session %s closed, variance %.2f", req.SessionID, variance))
+	engines.LogAuditEvent(tenantID, cashier, "POS_SESSION", strings.ToUpper(strings.ReplaceAll(res.Status, " ", "_")), fmt.Sprintf("Session %s %s, variance %.2f", req.SessionID, res.Status, res.Variance))
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":            "Closed",
+		// Stage 73.2.7: "Pending Approval" when the count was off by more
+		// than the tolerance and a manager has to accept it.
+		"status":            res.Status,
+		"required_role":     res.RequiredApprover,
 		"session_id":        req.SessionID,
-		"expected_cash":     expected,
+		"expected_cash":     res.Expected,
 		"counted_cash":      req.CountedCash,
-		"variance":          variance,
-		"offline_queue_gap": offlineGapCartNumbers, // 24.36: non-empty if carts were heartbeated but never synced - see POSOfflineQueueGap
+		"variance":          res.Variance,
+		"offline_queue_gap": res.OfflineGapCarts, // 24.36: non-empty if carts were heartbeated but never synced - see POSOfflineQueueGap
 	})
 }
 
@@ -1397,7 +1460,7 @@ func handleAccountingPeriods(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(periods)
 
 	case http.MethodPost:
-		if !engines.IsSuperAdmin(role) {
+		if !engines.CanManagePeriodClose(role) {
 			writeAPIError(w, r, "GLOBAL-0011", "")
 			return
 		}
@@ -1434,13 +1497,14 @@ func handleCloseAccountingPeriod(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	if !engines.IsSuperAdmin(role) {
+	// Stage 73.1.10 (D09): Finance Head (the Accountant role) or Super Admin.
+	if !engines.CanManagePeriodClose(role) {
 		writeAPIError(w, r, "GLOBAL-0011", "")
 		return
 	}
 	periodID := r.PathValue("id")
 	if err := engines.CloseAccountingPeriod(tenantID, periodID, userID); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "closed"})
@@ -1701,12 +1765,14 @@ func handleListPendingApprovals(w http.ResponseWriter, r *http.Request) {
 	}
 
 	results, err := engines.ListPendingApprovals(tenantID, role, location)
+	if err == nil {
+		// Stage 55.14: the document API's self scope and field rules
+		// (handlers_hr_journeys.go).
+		results, err = scopePendingApprovals(r, results)
+	}
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
-	}
-	if results == nil {
-		results = []map[string]interface{}{}
 	}
 	_ = json.NewEncoder(w).Encode(results)
 }

@@ -323,6 +323,17 @@ func scanPublicAPIRoutes(root string, s *Surface) error {
 				Source: fmt.Sprintf("%s:%d", rel, i+1),
 				Note:   "publicAPIMiddleware refuses registration of a route with no scope",
 			})
+			continue
+		}
+		// Stage 38.2d's OAuth token endpoint sits outside publicAPIMiddleware:
+		// it is where a client without a bearer gets one.
+		if m := bareRoute.FindStringSubmatch(line); m != nil {
+			method, path := splitMethodPath(m[1])
+			s.Routes = append(s.Routes, Route{
+				Method: method, Path: path, Auth: AuthNone,
+				Source: fmt.Sprintf("%s:%d", rel, i+1),
+				Note:   "registered with no middleware - handler is solely responsible for its own access control",
+			})
 		}
 	}
 	return nil

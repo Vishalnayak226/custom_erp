@@ -9,6 +9,9 @@ const { txnContext, txnTabs, txnMoney, txnRestorePane, txnPagedSection, txnDone 
 // Shared app services resolve from the classic shell; these named exports
 // are published by the loader for legacy cross-view calls.
 let currentFinanceTab = 'work';
+// Stage 73.1.10: the period whose close board is open (null = the list).
+let currentClosePeriodId = null;
+const PERIOD_TASK_COUNT = 5;
 const FINANCE_TABS = [
   { id: 'work', label: 'Work to review' },
   { id: 'trial-balance', label: 'Trial Balance' },
@@ -59,6 +62,7 @@ async function renderFinanceView(container) {
   tabBar.querySelectorAll('[data-finance-tab]').forEach(btn => {
     btn.addEventListener('click', () => {
       currentFinanceTab = btn.getAttribute('data-finance-tab');
+      currentClosePeriodId = null;
       renderView('finance');
     });
   });
@@ -178,8 +182,9 @@ async function renderFinanceWorkPanel(container) {
     { title: 'Receivables', detail: 'Post customer bills and settle approved balances.', href: '#/view/sales-invoices' },
     { title: 'Payment proposals', detail: 'Prepare and approve a payment run from matched bills.', href: '#/view/payment-proposals' },
     { title: 'Bank reconciliation', detail: 'Match statement lines within the selected bank account.', href: '#/view/bank-reconciliation' },
-    { title: 'GL posting sources', detail: 'Review dated debit/credit lines and their source documents. Posting actor is not yet recorded on GL rows.', report: 'statutory-gl-export' },
-    { title: 'Period close', detail: 'Review the advisory checklist, exceptions and closer before closing.', tab: 'periods' }
+    { title: 'Who posted what', detail: 'GL lines by the user, job or integration that posted them.', report: 'gl-posting-review' },
+    { title: 'General journal', detail: 'Every posted line with its source document and poster.', report: 'gl-journal' },
+    { title: 'Period close', detail: 'Owned close tasks, sign-off, close and reopen requests.', tab: 'periods' }
   ];
   const panel = document.createElement('div');
   panel.className = 'table-panel';
@@ -296,6 +301,11 @@ async function renderChartOfAccountsPanel(container) {
 // read-only pre-close checklist (engines.GetPeriodCloseChecklist) surfaced
 // before the user commits to closing a period.
 async function renderAccountingPeriodsPanel(container) {
+  // Stage 73.1.10: one period's close board replaces the list until Back.
+  if (currentClosePeriodId) {
+    await renderPeriodCloseBoard(container, currentClosePeriodId);
+    return;
+  }
   const res = await apiFetch('/api/v1/finance/periods');
   if (!res) return;
   const periods = res.ok ? await res.json() : [];
@@ -303,9 +313,7 @@ async function renderAccountingPeriodsPanel(container) {
   const formPanel = document.createElement('div');
   formPanel.className = 'table-panel';
   formPanel.style.padding = '24px';
-  formPanel.style.marginBottom = '24px';
   formPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Accounting Period</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="period-name">Period Name</label>
@@ -323,32 +331,37 @@ async function renderAccountingPeriodsPanel(container) {
     </div>
     <div id="period-form-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
   `;
-  container.appendChild(formPanel);
 
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.innerHTML = `
     <table>
-      <thead><tr><th>Period Name</th><th>Start</th><th>End</th><th>Status</th><th>Closed By</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Period Name</th><th>Start</th><th>End</th><th>Status</th><th>Close tasks</th><th>Closed By</th><th>Actions</th></tr></thead>
       <tbody>
         ${periods.length === 0
-          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No accounting periods yet. Use <b>Create Period</b> above to open your first one; the close checklist needs a period to run against.</td></tr>`
+          ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No accounting periods yet. Use <b>Create Period</b> above to open your first one; its close tasks are created with it.</td></tr>`
           : periods.map(p => `
             <tr>
-              <td style="font-weight:600;">${p.period_name}</td>
+              <td style="font-weight:600;">${escapeHTMLText(p.period_name)}</td>
               <td>${p.start_date}</td>
               <td>${p.end_date}</td>
-              <td><span class="badge ${p.status === 'Open' ? 'badge-success' : 'badge-secondary'}">${p.status}</span></td>
-              <td>${p.closed_by || ''}</td>
-              <td>
-                ${p.status === 'Open' ? `<button class="action-btn" ${actionAttrs('showPeriodCloseChecklist', [p.id])}>Close Checklist</button>` : ''}
-              </td>
+              <td><span class="badge ${p.status === 'Open' ? 'badge-success' : 'badge-secondary'}">${p.status}</span>${p.close_round > 1 ? ` <span class="badge badge-warning">round ${p.close_round}</span>` : ''}</td>
+              <td>${p.status === 'Open' ? `${PERIOD_TASK_COUNT - p.tasks_unsigned} of ${PERIOD_TASK_COUNT} signed` : 'Signed and closed'}</td>
+              <td>${escapeHTMLText(p.closed_by || '')}</td>
+              <td><button class="action-btn" data-close-board="${escapeHTMLText(p.id)}">${p.status === 'Open' ? 'Close tasks' : 'Close record / reopen'}</button></td>
             </tr>
           `).join('')}
       </tbody>
     </table>
   `;
-  container.appendChild(panel);
+  // List first, New as its own page (Stage 69 shape).
+  container.appendChild(txnPagedSection({ id: 'fin-periods', title: 'Accounting Periods', page: 'New accounting period',
+    count: periods.length, newLabel: 'New Period', form: formPanel, list: panel, heading: 'h2' }));
+  txnRestorePane('fin-periods');
+  panel.querySelectorAll('[data-close-board]').forEach(btn => btn.addEventListener('click', () => {
+    currentClosePeriodId = btn.getAttribute('data-close-board');
+    renderView('finance');
+  }));
 
   document.getElementById('period-create-btn').addEventListener('click', async () => {
     const errorEl = document.getElementById('period-form-error');
@@ -371,6 +384,7 @@ async function renderAccountingPeriodsPanel(container) {
       errorEl.classList.remove('hidden');
       return;
     }
+    txnDone('fin-periods');
     renderView('finance');
   });
 }
@@ -392,7 +406,7 @@ async function showPeriodCloseChecklist(periodId) {
     ? 'All checks passed.'
     : 'One or more checks did not pass - review before closing.';
   const proceed = await showCustomConfirm(
-    `${summary}\n\n${lines}\n\nClosing a period is permanent - there is no reopen. Close "${checklist.period_name}" now?`,
+    `${summary}\n\n${lines}\n\nEvery close task must be signed off first. Once closed, reopening needs an approved request. Close "${checklist.period_name}" now?`,
     'Period Close Checklist'
   );
   if (!proceed) return;
@@ -403,6 +417,162 @@ async function showPeriodCloseChecklist(periodId) {
     return;
   }
   renderView('finance');
+}
+
+// Stage 73.1.10 (D09): one period's close board - owned tasks with live
+// checks and evidence, the gated Close, the reopen request and the history.
+// Every rule is enforced by the server; this screen only shows who can do
+// what next.
+function financeLink(link) {
+  if (!link) return '';
+  if (link.startsWith('report:')) return `<a href="#/view/reports" data-open-report="${escapeHTMLText(link.slice(7))}">Open report</a>`;
+  return `<a href="${escapeHTMLText(link)}">Open</a>`;
+}
+
+async function renderPeriodCloseBoard(container, periodId) {
+  const res = await apiFetch(`/api/v1/finance/periods/${encodeURIComponent(periodId)}/close-board`);
+  if (!res) return;
+  if (!res.ok) {
+    renderErrorPanel(container, await getErrorMessage(res, 'Failed to load the close tasks.'), () => renderView('finance'));
+    return;
+  }
+  const b = await res.json();
+  const me = localStorage.getItem('erp_username') || '';
+  const isOpen = b.status === 'Open';
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '24px';
+  const signedCount = b.tasks.filter(t => t.status !== 'Open' && t.status !== '').length;
+  panel.innerHTML = `
+    <p><a href="#/view/finance" id="close-board-back">&larr; All accounting periods</a></p>
+    <h2 style="font-size:18px;font-weight:700;margin:8px 0;">${escapeHTMLText(b.period_name)} <span class="badge ${isOpen ? 'badge-success' : 'badge-secondary'}">${b.status}</span> ${b.close_round > 1 ? `<span class="badge badge-warning">close round ${b.close_round}</span>` : ''}</h2>
+    <p style="color:var(--text-muted);margin:0 0 12px;">${b.start_date} to ${b.end_date}.
+      ${b.closed_by ? `Closed by ${escapeHTMLText(b.closed_by)} at ${escapeHTMLText(b.closed_at)}.` : ''}
+      ${b.reopened_by ? `Last reopened by ${escapeHTMLText(b.reopened_by)} at ${escapeHTMLText(b.reopened_at)}.` : ''}
+      ${isOpen ? `${signedCount} of ${b.tasks.length} close tasks signed.` : ''}</p>
+    <h3 style="font-size:15px;margin:16px 0 8px;">Close tasks</h3>
+    <table>
+      <thead><tr><th>Task</th><th>Owner</th><th>System check (live)</th><th>Sign-off</th><th>Actions</th></tr></thead>
+      <tbody>${b.tasks.map(t => `
+        <tr data-task="${escapeHTMLText(t.key)}">
+          <td><b title="${escapeHTMLText(t.hint)}">${escapeHTMLText(t.title)}</b><br><small>${financeLink(t.link)}</small></td>
+          <td>${isOpen && b.can_manage && t.status === 'Open'
+            ? `<input class="form-input" style="width:130px" data-owner-input value="${escapeHTMLText(t.owner)}" placeholder="username" aria-label="Owner of ${escapeHTMLText(t.title)}"> <button class="btn btn-outline btn-sm" data-assign>Assign</button>`
+            : escapeHTMLText(t.owner || 'Unassigned')}</td>
+          <td><span class="badge ${t.check_passed ? 'badge-success' : 'badge-warning'}">${t.check_passed ? 'Passes' : 'Needs a look'}</span><br><small>${escapeHTMLText(t.check_detail)}</small></td>
+          <td>${t.status === 'Open' || !t.status ? '<span class="badge badge-secondary">Not signed</span>'
+            : `<span class="badge badge-success">${escapeHTMLText(t.status)}</span> by ${escapeHTMLText(t.signed_by)} at ${escapeHTMLText(t.signed_at)}<br>
+               <small><b>Evidence:</b> ${escapeHTMLText(t.evidence)}${t.evidence_ref ? ` (ref ${escapeHTMLText(t.evidence_ref)})` : ''}</small><br>
+               <small style="color:var(--text-muted)">${escapeHTMLText(t.check_snapshot)}</small>`}</td>
+          <td>${isOpen && (t.status === 'Open' || !t.status) && t.owner && t.owner === me ? '<button class="btn btn-primary btn-sm" data-sign>Sign off</button>' : ''}
+              ${isOpen && t.status && t.status !== 'Open' && (t.owner === me || b.can_manage) ? '<button class="btn btn-outline btn-sm" data-undo>Undo sign-off</button>' : ''}
+              ${isOpen && (t.status === 'Open' || !t.status) && t.owner && t.owner !== me ? `<small style="color:var(--text-muted)">Waiting for ${escapeHTMLText(t.owner)}</small>` : ''}
+              ${isOpen && !t.owner && !b.can_manage ? '<small style="color:var(--text-muted)">An Accountant assigns an owner</small>' : ''}</td>
+        </tr>
+        <tr class="hidden" data-sign-form="${escapeHTMLText(t.key)}"><td colspan="5">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+            <div class="form-group" style="margin:0"><label class="form-label" for="sign-status-${escapeHTMLText(t.key)}">Result</label>
+              <select class="form-select" id="sign-status-${escapeHTMLText(t.key)}" data-sign-status><option>Done</option><option>Not applicable</option></select></div>
+            <div class="form-group" style="margin:0;flex:1 1 320px"><label class="form-label" for="sign-evidence-${escapeHTMLText(t.key)}">Evidence - what you checked and what it showed</label>
+              <textarea class="form-input" id="sign-evidence-${escapeHTMLText(t.key)}" rows="2" data-sign-evidence></textarea></div>
+            <div class="form-group" style="margin:0"><label class="form-label" for="sign-ref-${escapeHTMLText(t.key)}">Reference (optional)</label>
+              <input class="form-input" id="sign-ref-${escapeHTMLText(t.key)}" data-sign-ref placeholder="statement no., report run, file"></div>
+            <button class="btn btn-primary btn-sm" data-sign-submit>Sign off</button>
+          </div></td></tr>`).join('')}
+      </tbody>
+    </table>
+    <div id="close-board-actions" style="margin:16px 0;"></div>
+    <h3 style="font-size:15px;margin:16px 0 8px;">Advisory checks</h3>
+    <ul style="margin:0 0 12px 18px;">${(b.checks || []).map(c => `<li>${c.passed ? '&#10003;' : '&#10007;'} ${escapeHTMLText(c.name)} - ${escapeHTMLText(c.detail)}</li>`).join('')}</ul>
+    <h3 style="font-size:15px;margin:16px 0 8px;">History</h3>
+    ${b.log.length === 0 ? '<p style="color:var(--text-muted)">Nothing recorded yet.</p>' : `<table><thead><tr><th>When</th><th>Round</th><th>Event</th><th>Task</th><th>By</th><th>Detail</th></tr></thead><tbody>
+      ${b.log.map(e => `<tr><td>${escapeHTMLText(e.created_at)}</td><td>${e.close_round}</td><td>${escapeHTMLText(e.event)}</td><td>${escapeHTMLText(e.task_key)}</td><td>${escapeHTMLText(e.actor)}</td><td>${escapeHTMLText(e.detail)}</td></tr>`).join('')}
+    </tbody></table>`}
+  `;
+  container.appendChild(panel);
+  panel.querySelector('#close-board-back').addEventListener('click', e => { e.preventDefault(); currentClosePeriodId = null; renderView('finance'); });
+  panel.querySelectorAll('[data-open-report]').forEach(a => a.addEventListener('click', async e => {
+    e.preventDefault();
+    const reports = await loadViewModule('/view-reports.js?v=1');
+    reports.execDashboardOpenReport(a.getAttribute('data-open-report'));
+  }));
+
+  const taskAction = async (key, action, body) => {
+    const r = await apiFetch(`/api/v1/finance/periods/${encodeURIComponent(periodId)}/close-tasks/${encodeURIComponent(key)}/${action}`, { method: 'POST', body: JSON.stringify(body) });
+    if (!r) return;
+    if (!r.ok) { await showApiError(r, 'The close task could not be updated.'); return; }
+    renderView('finance');
+  };
+  panel.querySelectorAll('tr[data-task]').forEach(row => {
+    const key = row.getAttribute('data-task');
+    row.querySelector('[data-assign]')?.addEventListener('click', () => taskAction(key, 'assign', { owner: row.querySelector('[data-owner-input]').value.trim() }));
+    row.querySelector('[data-sign]')?.addEventListener('click', () => {
+      const form = panel.querySelector(`tr[data-sign-form="${CSS.escape(key)}"]`);
+      form.classList.toggle('hidden');
+      form.querySelector('[data-sign-evidence]').focus();
+    });
+    row.querySelector('[data-undo]')?.addEventListener('click', async () => {
+      const reason = await showCustomPrompt('Why is this sign-off being undone?', '', 'Undo sign-off');
+      if (reason) taskAction(key, 'undo', { reason });
+    });
+  });
+  panel.querySelectorAll('tr[data-sign-form]').forEach(form => {
+    const key = form.getAttribute('data-sign-form');
+    form.querySelector('[data-sign-submit]').addEventListener('click', () => taskAction(key, 'sign', {
+      status: form.querySelector('[data-sign-status]').value,
+      evidence: form.querySelector('[data-sign-evidence]').value,
+      evidence_ref: form.querySelector('[data-sign-ref]').value
+    }));
+  });
+
+  const actions = panel.querySelector('#close-board-actions');
+  if (isOpen) {
+    const close = document.createElement('button');
+    close.className = 'btn btn-primary';
+    close.textContent = 'Close period';
+    close.disabled = !b.all_signed || !b.can_manage;
+    actions.appendChild(close);
+    const why = document.createElement('span');
+    why.style.cssText = 'margin-left:12px;color:var(--text-muted)';
+    why.textContent = !b.can_manage ? 'An Accountant or a Super Admin closes the period.'
+      : (b.all_signed ? 'Every task is signed.' : `${b.unsigned} task(s) still to be signed.`);
+    actions.appendChild(why);
+    close.addEventListener('click', async () => {
+      if (!await showCustomConfirm(`Close "${b.period_name}"? Postings dated inside it will be refused. Reopening needs a reason and a second person's approval.`, 'Close period')) return;
+      const r = await apiFetch(`/api/v1/finance/periods/${encodeURIComponent(periodId)}/close`, { method: 'POST' });
+      if (!r) return;
+      if (!r.ok) { await showApiError(r, 'The period could not be closed.'); return; }
+      showToast('Period closed.', { variant: 'success' });
+      renderView('finance');
+    });
+  } else {
+    const pending = b.reopen_requests.find(q => q.id === b.reopen_pending_id);
+    if (pending && pending.status === 'Pending Approval') {
+      actions.innerHTML = `<p>Reopen request <b>${escapeHTMLText(pending.id)}</b> by ${escapeHTMLText(pending.requested_by)} is waiting for a second person's decision in <a href="#/view/approvals">Approvals</a>. Reason: ${escapeHTMLText(pending.reason)}</p>`;
+    } else if (pending && pending.status === 'Approved') {
+      actions.innerHTML = `<p>Reopen request <b>${escapeHTMLText(pending.id)}</b> is approved but the period did not reopen. <button class="btn btn-primary btn-sm" id="reopen-apply">Reopen now</button></p>`;
+      actions.querySelector('#reopen-apply').addEventListener('click', async () => {
+        const r = await apiFetch(`/api/v1/finance/period-reopen/${encodeURIComponent(pending.id)}/apply`, { method: 'POST', body: '{}' });
+        if (!r) return;
+        if (!r.ok) { await showApiError(r, 'The approved reopen could not be applied.'); return; }
+        renderView('finance');
+      });
+    } else if (b.can_manage) {
+      actions.innerHTML = `
+        <div class="form-group" style="max-width:640px"><label class="form-label" for="reopen-reason">Request a reopen - why, and what will be corrected</label>
+          <textarea class="form-input" id="reopen-reason" rows="2"></textarea></div>
+        <button class="btn btn-outline" id="reopen-request">Request reopen</button>`;
+      actions.querySelector('#reopen-request').addEventListener('click', async () => {
+        const r = await apiFetch(`/api/v1/finance/periods/${encodeURIComponent(periodId)}/reopen-request`, { method: 'POST', body: JSON.stringify({ reason: document.getElementById('reopen-reason').value }) });
+        if (!r) return;
+        if (!r.ok) { await showApiError(r, 'The reopen could not be requested.'); return; }
+        showToast('Reopen requested - it now waits in Approvals.', { variant: 'success' });
+        renderView('finance');
+      });
+    } else {
+      actions.innerHTML = '<p style="color:var(--text-muted)">This period is closed. An Accountant or a Super Admin can request a reopen.</p>';
+    }
+  }
 }
 
 // Vendor Invoices (Stage 20.27/20.28 prerequisite): VendorInvoice has
@@ -441,24 +611,31 @@ async function renderVendorInvoicesView(container) {
     newLabel: '+ New Vendor Invoice',
     table: `
     <table>
-      <thead><tr><th>Invoice #</th><th>Vendor</th><th>PO</th><th>GRN</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Invoice #</th><th>Vendor</th><th>PO</th><th>GRN</th><th>Amount</th><th class="num">Outstanding</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         ${invoices.length === 0
-          ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No vendor invoices yet. Use <b>+ New Vendor Invoice</b> above &mdash; have the Purchase Order and Goods Receipt it should 3-way match against to hand.</td></tr>`
-          : invoices.map(v => `
+          ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No vendor invoices yet. Use <b>+ New Vendor Invoice</b> above &mdash; have the Purchase Order and Goods Receipt it should 3-way match against to hand.</td></tr>`
+          : invoices.map(v => {
+            // Stage 73 / 55.10: what is still owed, and the payments behind it.
+            const history = settlementHistory(v, 'payments');
+            const partPaid = v.status === 'Matched' && history.length > 0;
+            return `
             <tr>
-              <td style="font-family: monospace;">${v.invoice_number || v.id}</td>
-              <td>${v.vendor_id || ''}</td>
+              <td style="font-family: monospace;">${escapeHTMLText(v.invoice_number || v.id)}</td>
+              <td>${escapeHTMLText(v.vendor_id || '')}</td>
               <td>${documentSearchLink('PurchaseOrder', v.po_id)}</td>
               <td>${documentSearchLink('GRN', v.grn_id)}</td>
               <td>${(v.invoice_amount ?? 0).toLocaleString()}</td>
-              <td><span class="badge ${STATUS_BADGE[v.status] || 'badge-secondary'}">${v.status}</span></td>
-              <td>${renderVendorInvoiceActions(v)}</td>
-            </tr>
-          `).join('')}
+              <td class="num">${v.status === 'Draft' || v.status === 'Cancelled' ? '&mdash;' : formatMoney(openBalance(v, 'invoice_amount', ['Matched', 'MismatchHold', 'Pending Approval', 'Approved']))}</td>
+              <td><span class="badge ${partPaid ? 'badge-warning' : (STATUS_BADGE[v.status] || 'badge-secondary')}">${partPaid ? 'Part paid' : escapeHTMLText(v.status)}</span></td>
+              <td>${renderVendorInvoiceActions(v)}${history.length > 0 ? ` <button class="action-btn" data-pay-hist-toggle="${escapeHTMLText(v.id)}">Payments (${history.length})</button>` : ''}</td>
+            </tr>${history.length > 0 ? paymentHistoryRow(v.id, history, 8) : ''}`;
+          }).join('')}
       </tbody>
     </table>`
   });
+  container.querySelectorAll('[data-vi-pay]').forEach(btn => btn.addEventListener('click', () => payVendorInvoicePlain(btn.getAttribute('data-vi-pay'))));
+  wirePaymentHistory(container);
   document.getElementById('vi-new-btn').addEventListener('click', async () => {
     const defaults = {};
     if (fromGRN) {
@@ -491,9 +668,11 @@ function renderVendorInvoiceActions(v) {
   if (v.status === 'Matched') {
     const sections = window.__tdsSections || [];
     const tdsOptions = sections.map(s => `<option value="${s.section_code || s.id}">${s.section_code || s.id} (${s.rate_percent}%)</option>`).join('');
+    // Stage 73 / 55.10: TDS is withheld on a whole bill, so once a bill is
+    // part-paid only plain Pay (of what is left) is offered.
     return `
-      <button class="action-btn" ${actionAttrs('payVendorInvoicePlain', [id])}>Pay</button>
-      ${sections.length > 0 ? `
+      <button class="action-btn" data-vi-pay="${escapeHTMLText(id)}">Pay</button>
+      ${sections.length > 0 && settlementHistory(v, 'payments').length === 0 ? `
         <select id="tds-select-${id}" class="form-select" style="width: 110px; display:inline-block; margin: 0 4px;">${tdsOptions}</select>
         <button class="action-btn" ${actionAttrs('payVendorInvoiceTDS', [id])}>Pay w/ TDS</button>
       ` : ''}
@@ -530,18 +709,35 @@ async function matchVendorInvoice(invoiceId) {
   renderView('vendor-invoices');
 }
 
+// payVendorInvoicePlain (Stage 73 / 55.10): asks how much to pay via
+// Cash/Bank, offering the whole outstanding balance - the same shape as
+// settling a sales invoice. Any other figure is a part-payment.
 async function payVendorInvoicePlain(invoiceId) {
-  const confirmed = await showCustomConfirm('Pay this vendor invoice in full via Cash/Bank?', 'Confirm Payment');
-  if (!confirmed) return;
+  const docRes = await apiFetch(`/api/v1/doc/VendorInvoice/${encodeURIComponent(invoiceId)}`);
+  if (!docRes) return;
+  if (!docRes.ok) {
+    await showApiError(docRes, 'Failed to load the invoice.');
+    return;
+  }
+  const inv = await docRes.json();
+  const outstanding = openBalance(inv, 'invoice_amount', ['Matched']);
+  const currency = inv.currency ? ` ${inv.currency}` : '';
+  const body = await askSettlementAmount(`Amount to pay the vendor via Cash/Bank. Outstanding: ${formatMoney(outstanding)}${currency}.`, outstanding, 'Pay Vendor Invoice');
+  if (!body) return;
+  body.invoice_id = invoiceId;
   const res = await apiFetch('/api/v1/procurement/vendor-invoice/pay', {
     method: 'POST',
-    body: JSON.stringify({ invoice_id: invoiceId })
+    body: JSON.stringify(body)
   });
   if (!res) return;
   if (!res.ok) {
     await showApiError(res, 'Payment failed.');
     return;
   }
+  const out = await res.json();
+  await showCustomAlert(out.status === 'Paid'
+    ? `Paid ${formatMoney(out.amount_paid)}${currency}. The invoice is fully paid.`
+    : `Paid ${formatMoney(out.amount_paid)}${currency}. Still outstanding: ${formatMoney(out.outstanding_amount)}${currency}.`, 'Payment Recorded');
   renderView('vendor-invoices');
 }
 
@@ -604,14 +800,14 @@ async function renderPaymentProposalsView(container) {
   builderPanel.innerHTML = `
     ${invoices.length === 0 ? `<p style="color:var(--text-muted);">No Matched vendor invoices available to batch.</p>` : `
       <table style="margin-bottom: 16px;">
-        <thead><tr><th></th><th>Invoice #</th><th>Vendor</th><th>Amount</th></tr></thead>
+        <thead><tr><th></th><th>Invoice #</th><th>Vendor</th><th>Outstanding</th></tr></thead>
         <tbody>
           ${invoices.map(v => `
             <tr>
               <td><input type="checkbox" class="pp-invoice-check" value="${v.id}"></td>
               <td style="font-family: monospace;">${v.invoice_number || v.id}</td>
               <td>${v.vendor_id || ''}</td>
-              <td>${(v.invoice_amount ?? 0).toLocaleString()}</td>
+              <td>${formatMoney(openBalance(v, 'invoice_amount', ['Matched']))}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -693,45 +889,70 @@ async function executePaymentProposal(proposalId) {
   renderView('payment-proposals');
 }
 
-// Bank Reconciliation (Stage 20.25/20.26): BankAccount/BankStatementLine
-// creation and CSV import reuse the generic doctype-table screen (linked
-// below) - this view only adds the reconcile action the generic CRUD
-// screen can't express.
+// Stage 73.2.16: the reconciliation workbench. Exact match (the original
+// one-click pass), a rule pass (amount tolerance, date window, reference),
+// manual match against candidates, the exception queue (owner + reason,
+// aged) and payouts - a marketplace settlement batch, or a card / UPI payout
+// cleared from 1101 / 1102 - matched to a bank credit. The server enforces
+// every rule; a line in a closed period is read-only there.
+const bankRecon = { account: '', from: '', to: '', filter: 'open' };
+
 async function renderBankReconciliationView(container) {
   const res = await apiFetch('/api/v1/doc/BankAccount');
   if (!res) return;
+  const accounts = res.ok ? await res.json() : [];
+  if (!bankRecon.account && accounts.length === 1) bankRecon.account = accounts[0].id;
 
   const header = document.createElement('div');
   header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">Bank Reconciliation</h1>
-    </div>
-  `;
+  header.innerHTML = `<div class="page-title-section"><h1 class="page-title">Bank Reconciliation</h1></div>`;
   container.appendChild(header);
 
-  const accounts = res.ok ? await res.json() : [];
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.style.padding = '24px';
   panel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
-      <div class="form-group" style="margin-bottom: 0; min-width: 220px;">
+    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;">
+      <div class="form-group" style="margin:0;min-width:220px;">
         <label class="form-label" for="bank-recon-account">Bank Account</label>
         <select id="bank-recon-account" class="form-select">
           <option value="">Select a bank account...</option>
-          ${accounts.map(a => `<option value="${a.id}">${a.bank_name || ''} - ${a.account_number || a.id}</option>`).join('')}
+          ${accounts.map(a => `<option value="${escapeHTMLText(a.id)}" ${a.id === bankRecon.account ? 'selected' : ''}>${escapeHTMLText(a.bank_name || '')} - ${escapeHTMLText(a.account_number || a.id)}</option>`).join('')}
         </select>
       </div>
-      <button class="btn btn-primary" id="bank-recon-btn">Reconcile</button>
+      <div class="form-group" style="margin:0;"><label class="form-label" for="bank-recon-from">From</label><input type="date" id="bank-recon-from" class="form-input" value="${bankRecon.from}"></div>
+      <div class="form-group" style="margin:0;"><label class="form-label" for="bank-recon-to">To</label><input type="date" id="bank-recon-to" class="form-input" value="${bankRecon.to}"></div>
+      <div class="form-group" style="margin:0;"><label class="form-label" for="bank-recon-filter">Show</label>
+        <select id="bank-recon-filter" class="form-select">
+          ${[['open', 'Open (unmatched + exceptions)'], ['Exception', 'Exception queue'], ['Matched', 'Matched'], ['Explained', 'Explained'], ['all', 'All lines']]
+            .map(([v, l]) => `<option value="${v}" ${v === bankRecon.filter ? 'selected' : ''}>${l}</option>`).join('')}
+        </select></div>
+      <button class="btn btn-primary" id="bank-recon-btn">Exact match</button>
+      <button class="btn btn-outline" id="bank-rule-toggle">Rule match</button>
       <button class="btn btn-outline" id="bank-recon-manage-accounts-btn">Manage Bank Accounts</button>
       <button class="btn btn-outline" id="bank-recon-manage-lines-btn">Statement Lines / Import CSV</button>
     </div>
+    <div id="bank-rule-form" class="hidden" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;">
+      <div class="form-group" style="margin:0;"><label class="form-label" for="bank-rule-tolerance">Amount tolerance (Rs)</label><input type="number" id="bank-rule-tolerance" class="form-input" value="0" min="0" max="10000" step="0.01" style="width:120px"></div>
+      <div class="form-group" style="margin:0;"><label class="form-label" for="bank-rule-window">Date window (days)</label><input type="number" id="bank-rule-window" class="form-input" value="3" min="0" max="31" style="width:100px"></div>
+      <label style="display:flex;gap:6px;align-items:center;padding-bottom:10px;"><input type="checkbox" id="bank-rule-reference" checked> Use the statement reference</label>
+      <button class="btn btn-primary" id="bank-rule-run">Run rule match</button>
+    </div>
     ${accounts.length === 0 ? `<p style="color:var(--text-muted);">No bank accounts yet - use "Manage Bank Accounts" to add one.</p>` : ''}
     <div id="bank-recon-result"></div>
+    <div id="bank-recon-workbench"></div>
   `;
   container.appendChild(panel);
 
+  const reload = () => renderView('bank-reconciliation');
+  const readFilters = () => {
+    bankRecon.account = document.getElementById('bank-recon-account').value;
+    bankRecon.from = document.getElementById('bank-recon-from').value;
+    bankRecon.to = document.getElementById('bank-recon-to').value;
+    bankRecon.filter = document.getElementById('bank-recon-filter').value;
+  };
+  ['bank-recon-account', 'bank-recon-from', 'bank-recon-to', 'bank-recon-filter'].forEach(id =>
+    document.getElementById(id).addEventListener('change', () => { readFilters(); reload(); }));
   document.getElementById('bank-recon-manage-accounts-btn').addEventListener('click', () => {
     currentDoctype = 'BankAccount'; currentSearchQuery = ''; currentTablePage = 1;
     renderView('doctype-table');
@@ -740,30 +961,183 @@ async function renderBankReconciliationView(container) {
     currentDoctype = 'BankStatementLine'; currentSearchQuery = ''; currentTablePage = 1;
     renderView('doctype-table');
   });
+  document.getElementById('bank-rule-toggle').addEventListener('click', () => {
+    const f = document.getElementById('bank-rule-form');
+    f.classList.toggle('hidden');
+    f.style.display = f.classList.contains('hidden') ? 'none' : 'flex';
+  });
+  document.getElementById('bank-rule-form').style.display = 'none';
+  const resultEl = document.getElementById('bank-recon-result');
+  const needAccount = () => {
+    if (bankRecon.account) return false;
+    resultEl.innerHTML = `<p class="login-error">Select a bank account first.</p>`;
+    return true;
+  };
   document.getElementById('bank-recon-btn').addEventListener('click', async () => {
-    const bankAccount = document.getElementById('bank-recon-account').value;
-    const resultEl = document.getElementById('bank-recon-result');
-    if (!bankAccount) {
-      resultEl.innerHTML = `<p class="login-error">Select a bank account first.</p>`;
-      return;
-    }
-    const reconRes = await apiFetch('/api/v1/finance/bank-reconcile', {
-      method: 'POST',
-      body: JSON.stringify({ bank_account: bankAccount })
+    if (needAccount()) return;
+    const r = await apiFetch('/api/v1/finance/bank-reconcile', { method: 'POST', body: JSON.stringify({ bank_account: bankRecon.account }) });
+    if (!r) return;
+    if (!r.ok) { resultEl.innerHTML = `<p class="login-error">${escapeHTMLText(await getErrorMessage(r, 'Reconciliation failed.'))}</p>`; return; }
+    const out = await r.json();
+    showToast(`${out.matched} line(s) matched exactly; ${out.unmatched_statement_lines.length} still open.`, { variant: 'success' });
+    reload();
+  });
+  document.getElementById('bank-rule-run').addEventListener('click', async () => {
+    if (needAccount()) return;
+    const r = await apiFetch('/api/v1/finance/bank-reconciliation/rule-match', { method: 'POST', body: JSON.stringify({
+      bank_account: bankRecon.account,
+      amount_tolerance: Number(document.getElementById('bank-rule-tolerance').value || 0),
+      date_window_days: parseInt(document.getElementById('bank-rule-window').value || '0', 10),
+      use_reference: document.getElementById('bank-rule-reference').checked }) });
+    if (!r) return;
+    if (!r.ok) { await showApiError(r, 'Rule match failed.'); return; }
+    const out = await r.json();
+    showToast(`${out.matched} matched (${out.matched_with_difference} with a difference), ${out.ambiguous_lines.length} ambiguous, ${out.no_candidate_lines.length} with no candidate.`, { variant: 'success' });
+    reload();
+  });
+  if (bankRecon.account) await renderBankWorkbench(document.getElementById('bank-recon-workbench'));
+}
+
+async function renderBankWorkbench(host) {
+  const q = new URLSearchParams({ bank_account: bankRecon.account, from: bankRecon.from, to: bankRecon.to });
+  const res = await apiFetch(`/api/v1/finance/bank-reconciliation/workbench?${q}`);
+  if (!res) return;
+  if (!res.ok) { host.innerHTML = `<p class="login-error">${escapeHTMLText(await getErrorMessage(res, 'Failed to load the statement.'))}</p>`; return; }
+  const wb = await res.json();
+  bankRecon.from = bankRecon.from || wb.from;
+  bankRecon.to = bankRecon.to || wb.to;
+  const fromEl = document.getElementById('bank-recon-from');
+  const toEl = document.getElementById('bank-recon-to');
+  if (fromEl && !fromEl.value) fromEl.value = wb.from;
+  if (toEl && !toEl.value) toEl.value = wb.to;
+  const c = wb.counts || {};
+  const lines = wb.lines.filter(l => bankRecon.filter === 'all' ? true
+    : bankRecon.filter === 'open' ? (l.match_status === 'Unmatched' || l.match_status === 'Exception') : l.match_status === bankRecon.filter);
+  const money = v => Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  host.innerHTML = `
+    <div class="dashboard-stats-row" style="margin:8px 0 16px;">
+      <div class="stat-card"><span class="stat-label">Unmatched</span><span class="stat-val">${c.Unmatched || 0}</span></div>
+      <div class="stat-card"><span class="stat-label">Exceptions</span><span class="stat-val">${c.Exception || 0}</span></div>
+      <div class="stat-card"><span class="stat-label">Matched / Explained</span><span class="stat-val">${(c.Matched || 0)} / ${(c.Explained || 0)}</span></div>
+      <div class="stat-card"><span class="stat-label">Book balance (${escapeHTMLText(wb.gl_account_code)}) at ${escapeHTMLText(wb.to)}</span><span class="stat-val">${money(wb.book_balance)}</span></div>
+      <div class="stat-card"><span class="stat-label">Matched with a difference</span><span class="stat-val">${money(wb.open_differences)}</span></div>
+    </div>
+    <table>
+      <thead><tr><th>Date</th><th>Description / reference</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>${lines.length === 0 ? `<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">No statement lines in this view. Import a statement with "Statement Lines / Import CSV", or widen the dates or the Show filter.</td></tr>` : lines.map(l => `
+        <tr data-line="${escapeHTMLText(l.id)}" data-drcr="${escapeHTMLText(l.dr_cr)}" data-amount="${l.amount}">
+          <td>${escapeHTMLText(l.txn_date)}</td>
+          <td>${escapeHTMLText(l.description || '')}${l.reference_number ? `<br><small>Ref ${escapeHTMLText(l.reference_number)}</small>` : ''}</td>
+          <td style="white-space:nowrap">${l.dr_cr === 'Credit' ? 'In' : 'Out'} ${money(l.amount)}</td>
+          <td><span class="badge ${l.match_status === 'Matched' ? 'badge-success' : l.match_status === 'Exception' ? 'badge-danger' : l.match_status === 'Explained' ? 'badge-secondary' : 'badge-warning'}">${escapeHTMLText(l.match_status)}</span>
+            ${l.match_method ? `<br><small>${escapeHTMLText(l.match_method)} by ${escapeHTMLText(l.matched_by)}${l.match_difference ? `, difference ${money(l.match_difference)}` : ''}</small>` : ''}
+            ${l.match_status === 'Exception' ? `<br><small>Owner ${escapeHTMLText(l.exception_owner)}, ${l.exception_age_days} day(s): ${escapeHTMLText(l.exception_reason)}</small>` : ''}
+            ${l.resolution_note ? `<br><small>${escapeHTMLText(l.resolution_note)}</small>` : ''}
+            ${(l.matched_postings || []).map(p => `<br><small>${documentSearchLink(p.document_type, p.document_id, `${p.document_type} ${p.document_id}`)}</small>`).join('')}</td>
+          <td>${l.match_status === 'Unmatched' || l.match_status === 'Exception' ? `
+              <button class="action-btn" data-bank-find>Find match</button>
+              ${l.dr_cr === 'Credit' ? '<button class="action-btn" data-bank-payout>Payout</button>' : ''}
+              ${l.match_status === 'Unmatched' ? '<button class="action-btn" data-bank-exception>Raise exception</button>' : '<button class="action-btn" data-bank-explain>Explain</button>'}`
+            : '<button class="action-btn" data-bank-unmatch>Unmatch</button>'}</td>
+        </tr>
+        <tr class="hidden" data-line-detail="${escapeHTMLText(l.id)}"><td colspan="5"></td></tr>`).join('')}
+      </tbody>
+    </table>
+    <h3 style="font-size:15px;margin:20px 0 8px;">Unmatched book entries on ${escapeHTMLText(wb.gl_account_code)} (${wb.unmatched_book.length})</h3>
+    ${wb.unmatched_book.length === 0 ? '<p style="color:var(--text-muted)">None.</p>' : `<table><thead><tr><th>Posted</th><th>Document</th><th>Debit (in)</th><th>Credit (out)</th><th>Posted by</th></tr></thead><tbody>
+      ${wb.unmatched_book.slice(0, 50).map(p => `<tr><td>${escapeHTMLText(p.date.slice(0, 16))}</td><td>${documentSearchLink(p.document_type, p.document_id, `${p.document_type} ${p.document_id}`)}</td><td>${p.debit ? money(p.debit) : ''}</td><td>${p.credit ? money(p.credit) : ''}</td><td>${escapeHTMLText(p.posted_by || 'before attribution')}</td></tr>`).join('')}
+    </tbody></table>`}
+    <h3 style="font-size:15px;margin:20px 0 8px;">Payouts waiting for a bank line</h3>
+    <p>Card clearing (1101): <b>${money(wb.card_clearing_balance)}</b> &middot; UPI clearing (1102): <b>${money(wb.upi_clearing_balance)}</b> &middot; Marketplace batches: <b>${wb.marketplace_payouts.length}</b></p>
+    ${wb.marketplace_payouts.length === 0 ? '' : `<table><thead><tr><th>Settlement batch</th><th>Channel</th><th>Lines</th><th>Net payout</th><th>Settled</th></tr></thead><tbody>
+      ${wb.marketplace_payouts.map(s => `<tr><td>${escapeHTMLText(s.settlement_batch_id)}</td><td>${escapeHTMLText(s.channel)}</td><td>${s.lines}</td><td>${money(s.net_payout)}</td><td>${escapeHTMLText(s.settlement_date)}</td></tr>`).join('')}
+    </tbody></table>`}
+  `;
+
+  const lineAction = async (lineId, action, body, done) => {
+    const r = await apiFetch(`/api/v1/finance/bank-reconciliation/lines/${encodeURIComponent(lineId)}/${action}`, { method: 'POST', body: JSON.stringify(body || {}) });
+    if (!r) return;
+    if (!r.ok) { await showApiError(r, 'The statement line could not be updated.'); return; }
+    showToast(done, { variant: 'success' });
+    renderView('bank-reconciliation');
+  };
+  host.querySelectorAll('tr[data-line]').forEach(row => {
+    const lineId = row.getAttribute('data-line');
+    const amount = Number(row.getAttribute('data-amount'));
+    const credit = row.getAttribute('data-drcr') === 'Credit';
+    const detail = host.querySelector(`tr[data-line-detail="${CSS.escape(lineId)}"]`);
+    const cell = detail.querySelector('td');
+    const open = html => { cell.innerHTML = html; detail.classList.remove('hidden'); };
+
+    row.querySelector('[data-bank-find]')?.addEventListener('click', async () => {
+      const r = await apiFetch(`/api/v1/finance/bank-reconciliation/lines/${encodeURIComponent(lineId)}/candidates`);
+      if (!r) return;
+      if (!r.ok) { await showApiError(r, 'Could not load candidates.'); return; }
+      const { candidates } = await r.json();
+      open(candidates.length === 0 ? `<p style="color:var(--text-muted)">No unmatched book entry on this side of the account. Post the missing entry (or the bank charge), or raise an exception.</p>` : `
+        <table><thead><tr><th></th><th>Posted</th><th>Document</th><th>Amount</th><th>Difference</th><th>Days apart</th></tr></thead><tbody>
+        ${candidates.map(p => `<tr><td><input type="checkbox" data-cand="${escapeHTMLText(p.posting_id)}" data-cand-amount="${credit ? p.debit : p.credit}" aria-label="Select ${escapeHTMLText(p.document_id)}"></td>
+          <td>${escapeHTMLText(p.date.slice(0, 16))}</td><td>${documentSearchLink(p.document_type, p.document_id, `${p.document_type} ${p.document_id}`)}</td>
+          <td>${money(credit ? p.debit : p.credit)}</td><td>${money(p.amount_difference)}</td><td>${p.days_apart || 0}</td></tr>`).join('')}
+        </tbody></table>
+        <div style="display:flex;gap:12px;align-items:center;margin-top:8px"><span data-cand-sum>Selected 0.00 of ${money(amount)}</span>
+          <input class="form-input" data-cand-note placeholder="Note (optional)" style="max-width:280px" aria-label="Match note">
+          <button class="btn btn-primary btn-sm" data-cand-match disabled>Match selected</button></div>`);
+      const boxes = cell.querySelectorAll('[data-cand]');
+      const sumEl = cell.querySelector('[data-cand-sum]');
+      const btn = cell.querySelector('[data-cand-match]');
+      boxes.forEach(b => b.addEventListener('change', () => {
+        const sum = [...boxes].filter(x => x.checked).reduce((s, x) => s + Number(x.getAttribute('data-cand-amount')), 0);
+        sumEl.textContent = `Selected ${money(sum)} of ${money(amount)}${Math.abs(sum - amount) >= 0.005 && sum > 0 ? ` - difference ${money(amount - sum)}` : ''}`;
+        btn.disabled = Math.abs(sum - amount) >= 0.005;
+      }));
+      btn?.addEventListener('click', () => lineAction(lineId, 'match', {
+        posting_ids: [...boxes].filter(x => x.checked).map(x => x.getAttribute('data-cand')),
+        note: cell.querySelector('[data-cand-note]').value }, 'Line matched.'));
     });
-    if (!reconRes) return;
-    if (!reconRes.ok) {
-      resultEl.innerHTML = `<p class="login-error">${await getErrorMessage(reconRes, 'Reconciliation failed.')}</p>`;
-      return;
-    }
-    const result = await reconRes.json();
-    resultEl.innerHTML = `
-      <div class="table-panel" style="padding: 16px; margin-top: 8px;">
-        <p><strong>${result.matched}</strong> line(s) matched.</p>
-        <p>${result.unmatched_statement_lines.length} statement line(s) still unmatched: ${result.unmatched_statement_lines.join(', ') || 'none'}</p>
-        <p>${result.unmatched_gl_postings.length} GL posting(s) still unmatched: ${result.unmatched_gl_postings.join(', ') || 'none'}</p>
-      </div>
-    `;
+
+    row.querySelector('[data-bank-exception]')?.addEventListener('click', () => {
+      open(`<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+        <div class="form-group" style="margin:0"><label class="form-label" for="exc-owner-${escapeHTMLText(lineId)}">Owner (username)</label><input class="form-input" id="exc-owner-${escapeHTMLText(lineId)}" data-exc-owner value="${escapeHTMLText(localStorage.getItem('erp_username') || '')}"></div>
+        <div class="form-group" style="margin:0;flex:1 1 320px"><label class="form-label" for="exc-reason-${escapeHTMLText(lineId)}">Reason</label><input class="form-input" id="exc-reason-${escapeHTMLText(lineId)}" data-exc-reason></div>
+        <button class="btn btn-primary btn-sm" data-exc-save>Raise exception</button></div>`);
+      cell.querySelector('[data-exc-save]').addEventListener('click', () => lineAction(lineId, 'exception', {
+        owner: cell.querySelector('[data-exc-owner]').value, reason: cell.querySelector('[data-exc-reason]').value }, 'Exception raised.'));
+    });
+
+    row.querySelector('[data-bank-explain]')?.addEventListener('click', async () => {
+      const note = await showCustomPrompt('Why will nothing in the books match this line? (Accountant or Super Admin)', '', 'Close as explained');
+      if (note) lineAction(lineId, 'explain', { note }, 'Exception closed as explained.');
+    });
+
+    row.querySelector('[data-bank-unmatch]')?.addEventListener('click', async () => {
+      const reason = await showCustomPrompt('Why is this match being undone?', '', 'Unmatch');
+      if (reason) lineAction(lineId, 'unmatch', { reason }, 'Match undone.');
+    });
+
+    row.querySelector('[data-bank-payout]')?.addEventListener('click', () => {
+      open(`<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+        <div class="form-group" style="margin:0"><label class="form-label" for="payout-kind-${escapeHTMLText(lineId)}">Payout from</label>
+          <select class="form-select" id="payout-kind-${escapeHTMLText(lineId)}" data-payout-kind>
+            ${wb.marketplace_payouts.map(s => `<option value="batch:${escapeHTMLText(s.settlement_batch_id)}">Marketplace batch ${escapeHTMLText(s.settlement_batch_id)} (${money(s.net_payout)})</option>`).join('')}
+            <option value="1101">Card acquirer - clears 1101 (${money(wb.card_clearing_balance)} waiting)</option>
+            <option value="1102">UPI - clears 1102 (${money(wb.upi_clearing_balance)} waiting)</option>
+          </select></div>
+        <div class="form-group" style="margin:0" data-payout-fee-wrap><label class="form-label" for="payout-fee-${escapeHTMLText(lineId)}">Acquirer fee deducted (Rs)</label><input type="number" class="form-input" id="payout-fee-${escapeHTMLText(lineId)}" data-payout-fee value="0" min="0" step="0.01" style="width:120px"></div>
+        <button class="btn btn-primary btn-sm" data-payout-save>Match payout</button></div>`);
+      const kind = cell.querySelector('[data-payout-kind]');
+      const feeWrap = cell.querySelector('[data-payout-fee-wrap]');
+      const syncFee = () => { feeWrap.style.display = kind.value.startsWith('batch:') ? 'none' : ''; };
+      kind.addEventListener('change', syncFee);
+      syncFee();
+      cell.querySelector('[data-payout-save]').addEventListener('click', () => {
+        if (kind.value.startsWith('batch:')) {
+          lineAction(lineId, 'match-marketplace', { settlement_batch_id: kind.value.slice(6) }, 'Marketplace payout matched.');
+        } else {
+          lineAction(lineId, 'match-pos-payout', { clearing_account: kind.value, fee: Number(cell.querySelector('[data-payout-fee]').value || 0) }, 'Payout booked and matched.');
+        }
+      });
+    });
   });
 }
 
@@ -811,14 +1185,15 @@ async function renderFinanceNotesView(container) {
       vendorNotesTable(vendorCreditNotes, 'VendorCreditNote', 'No vendor credit notes yet. A goods receipt billed below the PO price raises one automatically.'))}
     ${pane('customer-credit', 'Credit Notes (to Customers)', 'cn-new-btn', '+ New Credit Note', `
     <table>
-      <thead><tr><th>Note #</th><th>Customer</th><th>Amount</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Note #</th><th>Customer</th><th>Invoice</th><th>Amount</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         ${creditNotes.length === 0
-          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No credit notes yet. Use <b>+ New Credit Note</b>, then <b>Post</b> it to raise one against a customer.</td></tr>`
+          ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No credit notes yet. Use <b>+ New Credit Note</b>, then <b>Post</b> it to raise one against a customer.</td></tr>`
           : creditNotes.map(n => `
             <tr>
               <td style="font-family: monospace;">${n.note_number || n.id}</td>
               <td>${n.customer_id || ''}</td>
+              <td>${documentSearchLink('SalesInvoice', n.sales_invoice_id)}${n.status === 'Posted' && n.applied_to_invoice != null ? `<div style="font-size:12px; color:var(--text-muted);">Applied ${formatMoney(n.applied_to_invoice)}${Number(n.refunded_amount) > 0 ? `, refunded ${formatMoney(n.refunded_amount)}` : ''}</div>` : ''}</td>
               <td>${(n.amount ?? 0).toLocaleString()}</td>
               <td>${n.reason || ''}</td>
               <td><span class="badge ${n.status === 'Posted' ? 'badge-success' : 'badge-secondary'}">${n.status}</span></td>
@@ -916,33 +1291,41 @@ async function renderSalesInvoicesView(container) {
   const STATUS_BADGE = { Draft: 'badge-secondary', Approved: 'badge-warning', Paid: 'badge-success', Cancelled: 'badge-danger' };
   financeListScreen(container, {
     title: 'Sales Invoice',
-    hint: 'Credit sales to customers - Post to recognize the receivable, Settle once paid.',
+    hint: 'Credit sales to customers - Post to recognize the receivable, Settle as the customer pays, in part or in full.',
     count: invoices.length,
     total: invoices.reduce((s, v) => s + (Number(v.total_amount) || 0), 0),
     newId: 'si-new-btn',
     newLabel: '+ New Sales Invoice',
     table: `
     <table>
-      <thead><tr><th>Invoice #</th><th>Customer</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Invoice #</th><th>Customer</th><th>Amount</th><th class="num">Outstanding</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         ${invoices.length === 0
-          ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No sales invoices yet. Use <b>+ New Sales Invoice</b> above to bill a customer on credit; POS sales are settled immediately and do not appear here.</td></tr>`
-          : invoices.map(v => `
+          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No sales invoices yet. Use <b>+ New Sales Invoice</b> above to bill a customer on credit; POS sales are settled immediately and do not appear here.</td></tr>`
+          : invoices.map(v => {
+            // Stage 73 / 55.10: what is still owed, and the receipts behind it.
+            const history = settlementHistory(v, 'settlements');
+            const partPaid = v.status === 'Approved' && history.length > 0;
+            return `
             <tr>
-              <td style="font-family: monospace;">${v.invoice_number || v.id}</td>
-              <td>${v.customer || ''}</td>
+              <td style="font-family: monospace;">${escapeHTMLText(v.invoice_number || v.id)}</td>
+              <td>${escapeHTMLText(v.customer || '')}</td>
               <td>${(v.total_amount ?? 0).toLocaleString()}</td>
-              <td><span class="badge ${STATUS_BADGE[v.status] || 'badge-secondary'}">${v.status}</span></td>
+              <td class="num">${v.status === 'Draft' || v.status === 'Cancelled' ? '&mdash;' : formatMoney(openBalance(v, 'total_amount', ['Approved']))}</td>
+              <td><span class="badge ${partPaid ? 'badge-warning' : (STATUS_BADGE[v.status] || 'badge-secondary')}">${partPaid ? 'Part paid' : escapeHTMLText(v.status)}</span></td>
               <td>
                 ${v.status === 'Draft' ? `<button class="action-btn" ${actionAttrs('postSalesInvoiceAction', [v.id])}>Post</button>` : ''}
-                ${v.status === 'Approved' ? `<button class="action-btn" ${actionAttrs('settleSalesInvoiceAction', [v.id])}>Settle</button>` : ''}
+                ${v.status === 'Approved' ? `<button class="action-btn" data-si-settle="${escapeHTMLText(v.id)}">Settle</button>` : ''}
+                ${history.length > 0 ? `<button class="action-btn" data-pay-hist-toggle="${escapeHTMLText(v.id)}">Payments (${history.length})</button>` : ''}
                 <button class="action-btn" ${actionAttrs('printSalesInvoice', [v.id])}>Print</button>
               </td>
-            </tr>
-          `).join('')}
+            </tr>${history.length > 0 ? paymentHistoryRow(v.id, history, 6) : ''}`;
+          }).join('')}
       </tbody>
     </table>`
   });
+  container.querySelectorAll('[data-si-settle]').forEach(btn => btn.addEventListener('click', () => settleSalesInvoiceAction(btn.getAttribute('data-si-settle'))));
+  wirePaymentHistory(container);
   document.getElementById('si-new-btn').addEventListener('click', () => {
     currentDoctype = 'SalesInvoice'; currentSearchQuery = ''; currentTablePage = 1;
     renderView('doctype-table');
@@ -993,6 +1376,7 @@ function renderInvoicePrintSheet(invoice) {
       <table>
         ${row('Invoice', invoice.invoice_number || invoice.id)}
         ${row('Customer', invoice.customer)}
+        ${row('Customer PO / Ref', escapeHTMLText(invoice.customer_reference || ''))}
         ${row('Location', invoice.location)}
         ${row('Status', status)}
       </table>
@@ -1004,16 +1388,95 @@ function renderInvoicePrintSheet(invoice) {
   setTimeout(() => area.classList.remove('printing'), 500);
 }
 
+// settleSalesInvoiceAction (Stage 73 / 55.10): asks how much the customer
+// paid, offering the whole outstanding balance. Accepting the offer sends no
+// amount, so the server settles exactly what its ledger carries; any other
+// figure is a part-receipt. The reference is made once per dialog, so a
+// retried request posts once.
 async function settleSalesInvoiceAction(id) {
-  const confirmed = await showCustomConfirm('Mark this invoice as settled (customer paid in full)?', 'Confirm Settlement');
-  if (!confirmed) return;
-  const res = await apiFetch(`/api/v1/finance/sales-invoice/${id}/settle`, { method: 'POST' });
+  const docRes = await apiFetch(`/api/v1/doc/SalesInvoice/${encodeURIComponent(id)}`);
+  if (!docRes) return;
+  if (!docRes.ok) {
+    await showApiError(docRes, 'Failed to load the invoice.');
+    return;
+  }
+  const inv = await docRes.json();
+  const outstanding = openBalance(inv, 'total_amount', ['Approved']);
+  const currency = inv.currency ? ` ${inv.currency}` : '';
+  const body = await askSettlementAmount(`Amount received from the customer. Outstanding: ${formatMoney(outstanding)}${currency}.`, outstanding, 'Settle Invoice');
+  if (!body) return;
+  const res = await apiFetch(`/api/v1/finance/sales-invoice/${encodeURIComponent(id)}/settle`, { method: 'POST', body: JSON.stringify(body) });
   if (!res) return;
   if (!res.ok) {
     await showApiError(res, 'Failed to settle invoice.');
     return;
   }
+  const out = await res.json();
+  await showCustomAlert(out.status === 'Paid'
+    ? `Received ${formatMoney(out.amount)}${currency}. The invoice is fully settled.`
+    : `Received ${formatMoney(out.amount)}${currency}. Still outstanding: ${formatMoney(out.outstanding_amount)}${currency}.`, 'Receipt Recorded');
   renderView('sales-invoices');
+}
+
+// --- Stage 73 / 55.10: part-settlement helpers shared by both invoice lists. ---
+
+// openBalance is what an invoice still owes: the server's outstanding_amount
+// once anything is received or paid, else the whole amount while it is open.
+function openBalance(v, amountField, openStatuses) {
+  if (v.outstanding_amount !== undefined && v.outstanding_amount !== null && v.outstanding_amount !== '') return Number(v.outstanding_amount) || 0;
+  return openStatuses.includes(v.status) ? (Number(v[amountField]) || 0) : 0;
+}
+
+function settlementHistory(v, field) {
+  return Array.isArray(v[field]) ? v[field] : [];
+}
+
+function settlementReference() {
+  try {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+  } catch (_) { /* fall back to a time-based reference */ }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+// askSettlementAmount returns the request body, or null when cancelled.
+async function askSettlementAmount(message, outstanding, title) {
+  const entered = await showCustomPrompt(message, outstanding.toFixed(2), title, 'number');
+  if (entered === null) return null;
+  const amount = Number(String(entered).trim());
+  if (!(amount > 0)) {
+    await showCustomAlert('Enter an amount above zero.', title);
+    return null;
+  }
+  const body = { reference: settlementReference() };
+  if (amount.toFixed(2) !== outstanding.toFixed(2)) body.amount = amount;
+  return body;
+}
+
+// paymentHistoryRow is the Payments expansion under an invoice row: every
+// receipt, payment and applied credit note, oldest first.
+function paymentHistoryRow(id, entries, colspan) {
+  const lines = entries.map(e => `
+    <tr>
+      <td>${escapeHTMLText(e.date || '')}</td>
+      <td>${escapeHTMLText(e.kind || '')}</td>
+      <td style="font-family: monospace;">${escapeHTMLText(e.reference || '-')}</td>
+      <td class="num">${formatMoney(e.amount ?? 0)}</td>
+      <td>${escapeHTMLText(e.by || '')}</td>
+    </tr>`).join('');
+  return `<tr class="hidden" data-pay-hist-row="${escapeHTMLText(id)}"><td colspan="${colspan}">
+    <table><thead><tr><th>Date</th><th>Type</th><th>Reference</th><th class="num">Amount</th><th>By</th></tr></thead><tbody>${lines}</tbody></table>
+  </td></tr>`;
+}
+
+function wirePaymentHistory(root) {
+  root.querySelectorAll('[data-pay-hist-toggle]').forEach(btn => btn.addEventListener('click', () => {
+    const id = btn.getAttribute('data-pay-hist-toggle');
+    // Looked up from the button, not root: the shell may move the rendered
+    // screen out of the container it was built in.
+    const table = btn.closest('table');
+    const row = table && Array.from(table.querySelectorAll('[data-pay-hist-row]')).find(r => r.getAttribute('data-pay-hist-row') === id);
+    if (row) row.classList.toggle('hidden');
+  }));
 }
 
 // Fulfillment / reservation workbench (Stage 13.6) - pick/pack/dispatch

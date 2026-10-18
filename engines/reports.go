@@ -172,19 +172,22 @@ func GetVendorLedgerReport(tenantID, vendorFilter string) ([]map[string]interfac
 	return results, nil
 }
 
-// PayablesAgeingBucket sums outstanding PurchaseOrder value by age.
+// PayablesAgeingBucket is one age bucket: received-not-paid value for
+// Payables Ageing, open PO value for PO Commitments.
 type PayablesAgeingBucket struct {
 	Bucket string  `json:"bucket"`
 	Count  int     `json:"count"`
 	Amount float64 `json:"amount"`
 }
 
-// GetPayablesAgeingReport buckets "Approved" (i.e. approved but not yet
+// GetPOCommitmentsReport buckets "Approved" (i.e. approved but not yet
 // Closed - this codebase's data model has no separate paid/settled flag for
 // POs, so Closed is the closest existing proxy for "no longer payable") POs
-// by age since creation. This is a reasonable approximation given the
-// existing status model, not a claim that a real AP sub-ledger exists.
-func GetPayablesAgeingReport(tenantID string) ([]PayablesAgeingBucket, error) {
+// by age since creation. These are commitments, not ledger liabilities.
+// Stage 73 / 55.10: this was Payables Ageing; that report now ages the GRN
+// Suspense sub-ledger (engines/payables_subledger.go) and this view lives on
+// as the "po-commitments" report.
+func GetPOCommitmentsReport(tenantID string) ([]PayablesAgeingBucket, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
@@ -250,9 +253,11 @@ func GetReceivablesAgeingReport(tenantID string) ([]PayablesAgeingBucket, error)
 	if err != nil {
 		return nil, err
 	}
+	// Stage 73 / 55.10: ages what is still OUTSTANDING (part-receipts and
+	// applied credit notes taken off), so the buckets sum to GL 1300.
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT COALESCE((data->>'total_amount')::numeric, 0), created_at AT TIME ZONE current_setting('TimeZone'), COALESCE(data->>'due_date', '')
-		FROM %s.documents WHERE doctype = 'SalesInvoice' AND status = 'Approved'`, schema))
+		SELECT %s, created_at AT TIME ZONE current_setting('TimeZone'), COALESCE(data->>'due_date', '')
+		FROM %s.documents WHERE doctype = 'SalesInvoice' AND status = 'Approved'`, salesInvoiceOutstandingSQL, schema))
 	if err != nil {
 		return nil, err
 	}

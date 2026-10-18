@@ -429,3 +429,37 @@ Cites `+"`POST /api/v1/checkout`"+` and `+"`POSOFF-0238`"+`.
 		t.Errorf("must not fabricate a dangling-screen finding when the guard was skipped, got: %v", warnings)
 	}
 }
+
+// A master list's help key is doctype:<name> or module:<module>, which the
+// help drawer resolves for the generic doctype-table view - not a view id.
+func TestDriftGuardsAcceptListHelpKeys(t *testing.T) {
+	articlesDir, sources := driftFixtureSources(t)
+	kbDir := filepath.Join(articlesDir, "kb")
+	writeArticle(t, kbDir, "module-handbooks/lists.md", `---
+title: Lists Article
+section: Module Handbooks
+order: 1
+summary: Documents two master lists.
+audience: admin
+last_verified: 2026-10-18
+screens: [doctype:bin, module:inventory, doctype:]
+---
+
+# Lists Article
+
+Body text.
+`)
+
+	result, err := Build(kbDir)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	warnings := DriftGuards(result.Articles, sources, time.Now())
+
+	if hasWarningContaining(warnings, `"doctype:bin", which is not a view id`) || hasWarningContaining(warnings, `"module:inventory", which is not a view id`) {
+		t.Errorf("did not expect list help keys to be flagged as view ids, got: %v", warnings)
+	}
+	if !hasWarningContaining(warnings, `"doctype:", which names no doctype`) {
+		t.Errorf("expected an empty doctype key to be flagged, got: %v", warnings)
+	}
+}

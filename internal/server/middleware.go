@@ -1077,6 +1077,14 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 		defer tenantConcurrency.release(tenantID)
 
+		// Stage 73.1.9: a GL row posted while serving this request names its
+		// user and route (engines/posting_actor.go).
+		command := r.Method + " " + r.URL.Path
+		if pattern := matchedRoutePattern(r); pattern != "" {
+			command = pattern
+		}
+		defer engines.BindPostingActor(engines.RequestPostingActor(userID, username, purpose, command))()
+
 		next.ServeHTTP(w, r)
 	}
 }

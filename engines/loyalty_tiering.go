@@ -24,6 +24,10 @@ type LoyaltyTierRule struct {
 	Tier           string  `json:"tier"`
 	MinSpend       float64 `json:"min_spend"`
 	EarnMultiplier float64 `json:"earn_multiplier"`
+	// Stage 73.3.1: what the tier gives (shown to the cashier), and how many
+	// days a customer keeps it after their spend drops below its threshold.
+	Benefits  string `json:"benefits"`
+	GraceDays int    `json:"grace_days"`
 }
 
 // GetLoyaltyTierRules lists every configured tier, lowest threshold first.
@@ -33,7 +37,7 @@ func GetLoyaltyTierRules(tenantID string) ([]LoyaltyTierRule, error) {
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT id, tier, min_spend, earn_multiplier FROM %s.loyalty_tier_rules ORDER BY min_spend ASC`, schema))
+		`SELECT id, tier, min_spend, earn_multiplier, COALESCE(benefits, ''), COALESCE(grace_days, 0) FROM %s.loyalty_tier_rules ORDER BY min_spend ASC`, schema))
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +46,7 @@ func GetLoyaltyTierRules(tenantID string) ([]LoyaltyTierRule, error) {
 	var rules []LoyaltyTierRule
 	for rows.Next() {
 		var r LoyaltyTierRule
-		if err := rows.Scan(&r.ID, &r.Tier, &r.MinSpend, &r.EarnMultiplier); err != nil {
+		if err := rows.Scan(&r.ID, &r.Tier, &r.MinSpend, &r.EarnMultiplier, &r.Benefits, &r.GraceDays); err != nil {
 			return nil, err
 		}
 		rules = append(rules, r)
@@ -69,6 +73,23 @@ func UpsertLoyaltyTierRule(tenantID, tier string, minSpend, earnMultiplier float
 		INSERT INTO %s.loyalty_tier_rules (tier, min_spend, earn_multiplier) VALUES ($1, $2, $3)
 		ON CONFLICT (tier) DO UPDATE SET min_spend = EXCLUDED.min_spend, earn_multiplier = EXCLUDED.earn_multiplier`, schema),
 		tier, minSpend, earnMultiplier)
+	return err
+}
+
+// SaveLoyaltyTierRule (Stage 73.3.1) creates or edits a whole tier from the
+// Loyalty screen: threshold, multiplier, benefits and grace.
+func SaveLoyaltyTierRule(tenantID string, r LoyaltyTierRule) error {
+	if r.GraceDays < 0 {
+		return fmt.Errorf("grace_days cannot be negative")
+	}
+	if err := UpsertLoyaltyTierRule(tenantID, r.Tier, r.MinSpend, r.EarnMultiplier); err != nil {
+		return err
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	_, err = db.DB.Exec(fmt.Sprintf(`UPDATE %s.loyalty_tier_rules SET benefits = $2, grace_days = $3 WHERE tier = $1`, schema), r.Tier, r.Benefits, r.GraceDays)
 	return err
 }
 
@@ -138,32 +159,26 @@ func RecomputeLoyaltyTier(tenantID, customerID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var lifetimeSpend float64
-	if err := db.DB.QueryRow(fmt.Sprintf(`
-		SELECT COALESCE(SUM((data->>'amount_paid')::numeric), 0) FROM %s.documents
-		WHERE doctype = 'POSCart' AND status = 'Paid' AND data->>'customer_id' = $1`, schema), customerID).
-		Scan(&lifetimeSpend); err != nil {
-		return "", err
-	}
-
-	rows, err := db.DB.Query(fmt.Sprintf(`SELECT tier, min_spend FROM %s.loyalty_tier_rules ORDER BY min_spend DESC`, schema))
+	// Stage 73.3.1: spend is what the customer's paid bills took (amount_paid,
+	// recorded since 73.3.1; older bills' lines less their offer) less what was
+	// refunded on them, over the tier window - lifetime when
+	// loyalty.tier_window_days is 0. Before this, every bill read 0 here,
+	// because nothing ever stored amount_paid, so no one was ever upgraded.
+	lifetimeSpend, err := customerTierSpend(tenantID, schema, customerID)
 	if err != nil {
 		return "", err
 	}
-	var newTier string
-	for rows.Next() {
-		var tier string
-		var minSpend float64
-		if err := rows.Scan(&tier, &minSpend); err != nil {
-			rows.Close()
-			return "", err
-		}
-		if lifetimeSpend >= minSpend {
-			newTier = tier
-			break
+
+	rules, err := GetLoyaltyTierRules(tenantID)
+	if err != nil {
+		return "", err
+	}
+	newTier, newMin := "", -1.0
+	for _, r := range rules { // lowest threshold first: the last one reached wins
+		if lifetimeSpend >= r.MinSpend {
+			newTier, newMin = r.Tier, r.MinSpend
 		}
 	}
-	rows.Close()
 	if newTier == "" {
 		return "", nil
 	}
@@ -177,8 +192,36 @@ func RecomputeLoyaltyTier(tenantID, customerID string) (string, error) {
 	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
 		return newTier, nil
 	}
-	if existing, _ := data["loyalty_tier"].(string); existing == newTier {
+	existing, _ := data["loyalty_tier"].(string)
+	since, _ := data["loyalty_tier_below_since"].(string)
+	grace := 0
+	for _, r := range rules {
+		if r.Tier == existing {
+			grace = r.GraceDays
+		}
+	}
+	nextSince := ""
+	switch {
+	case existing != "" && newMin < tierMinSpend(rules, existing) && grace > 0:
+		// Spend has dropped below the current tier: it is kept for that
+		// tier's grace days, counted from the first time this was seen.
+		nextSince = since
+		if nextSince == "" {
+			nextSince = time.Now().Format("2006-01-02")
+		}
+		if d, errD := time.Parse("2006-01-02", nextSince); errD == nil && time.Since(d) < time.Duration(grace)*24*time.Hour {
+			newTier = existing
+		} else {
+			nextSince = ""
+		}
+	}
+	if newTier == existing && nextSince == since {
 		return newTier, nil
+	}
+	if nextSince == "" {
+		delete(data, "loyalty_tier_below_since")
+	} else {
+		data["loyalty_tier_below_since"] = nextSince
 	}
 	data["loyalty_tier"] = newTier
 	marshaled, err := json.Marshal(data)
@@ -190,6 +233,41 @@ func RecomputeLoyaltyTier(tenantID, customerID string) (string, error) {
 		marshaled, customerID)
 	return newTier, err
 }
+
+// customerTierSpend is what a customer's paid bills took over the tier window
+// (loyalty.tier_window_days, 0 = all time), less what was refunded on them.
+func customerTierSpend(tenantID, schema, customerID string) (float64, error) {
+	window := GetSettingInt(tenantID, "loyalty.tier_window_days")
+	carts := fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = 'POSCart' AND status = 'Paid' AND data->>'customer_id' = $1
+		AND ($2::int = 0 OR created_at >= NOW() - make_interval(days => $2::int))`, schema)
+	var spend, refunded float64
+	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(%s), 0) FROM %s.documents WHERE id IN (%s)`, posCartSpendSQL, schema, carts),
+		customerID, window).Scan(&spend); err != nil {
+		return 0, err
+	}
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(COALESCE((data->>'net_amount')::numeric, (data->>'amount')::numeric, 0)), 0)
+		FROM %s.documents WHERE doctype = 'RefundRequest' AND data->>'status' = 'Processed' AND data->>'original_order_id' IN (%s)`, schema, carts),
+		customerID, window).Scan(&refunded)
+	return spend - refunded, nil
+}
+
+// tierMinSpend is a tier's threshold, -1 for none.
+func tierMinSpend(rules []LoyaltyTierRule, tier string) float64 {
+	for _, r := range rules {
+		if r.Tier == tier {
+			return r.MinSpend
+		}
+	}
+	return -1
+}
+
+// posCartSpendSQL is what a paid POSCart took from its customer (Stage
+// 73.3.1): amount_paid, which finalization records since then, or for an
+// older bill its lines less its offer. Unqualified - for queries over
+// documents with no alias.
+const posCartSpendSQL = `COALESCE((data->>'amount_paid')::numeric,
+	(SELECT COALESCE(SUM((i->>'qty')::numeric * (i->>'sale_price')::numeric), 0) FROM jsonb_array_elements(COALESCE(data->'items', '[]'::jsonb)) i)
+	- COALESCE((data->>'offer_discount')::numeric, 0))`
 
 // loyaltyExpiryReferenceDoctype tags the expiry sweep's own Burn rows so
 // sweepLoyaltyExpiryForSchema can tell "already expired" apart from a
@@ -218,7 +296,7 @@ func sweepLoyaltyExpiryForSchema(schema string) {
 		return
 	}
 	type dueRow struct {
-		customerID                                 string
+		customerID                                    string
 		expiredEarned, alreadyExpired, currentBalance int
 	}
 	var due []dueRow
@@ -243,6 +321,19 @@ func sweepLoyaltyExpiryForSchema(schema string) {
 		}
 		if err := insertLoyaltyLedgerEntryInSchema(schema, r.customerID, "Burn", toExpire, loyaltyExpiryReferenceDoctype, "", nil); err != nil {
 			log.Printf("[LOYALTY-EXPIRY] Failed to expire %d points for customer %s in schema %s: %v", toExpire, r.customerID, schema, err)
+			continue
+		}
+		// Stage 73.2.12: when accruing, expired points release their liability
+		// (breakage) - keyed per customer and day, so a re-run cannot repeat it.
+		if loyaltyAccruesForSchema(schema) {
+			var tenantID string
+			if err := db.DB.QueryRow(`SELECT tenant_id FROM public.tenants WHERE schema_name = $1`, schema).Scan(&tenantID); err == nil {
+				day := time.Now().Format("2006-01-02")
+				if err := postLoyaltyValue(tenantID, loyaltyExpiryReferenceDoctype, r.customerID+":"+day, "LoyaltyExpiry:"+r.customerID+":"+day,
+					int64(toExpire)*loyaltyPointValuePaise(tenantID), false, ""); err != nil {
+					log.Printf("[LOYALTY-EXPIRY] %d points expired for %s but the liability was not released: %v", toExpire, r.customerID, err)
+				}
+			}
 		}
 	}
 }

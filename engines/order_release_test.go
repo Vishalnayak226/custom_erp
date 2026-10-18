@@ -16,7 +16,7 @@ func TestReleaseOrderToFulfillment(t *testing.T) {
 	}
 	const orderID = "TEST-REL-SO"
 	cleanup := func() {
-		db.DB.Exec("DELETE FROM "+schema+".documents WHERE id LIKE 'TEST-REL-%' OR (doctype = 'FulfillmentTask' AND data->>'order_id' LIKE 'TEST-REL-%')")
+		db.DB.Exec("DELETE FROM " + schema + ".documents WHERE id LIKE 'TEST-REL-%' OR (doctype = 'FulfillmentTask' AND data->>'order_id' LIKE 'TEST-REL-%')")
 	}
 	cleanup()
 	defer cleanup()
@@ -61,8 +61,10 @@ func TestReleaseOrderToFulfillment(t *testing.T) {
 	if err := orderMutationAllowed(tenantID, OrderStatusReleased, "Set Priority"); err != nil {
 		t.Fatalf("Set Priority must stay allowed on a released order: %v", err)
 	}
-	if blocked, _ := isCancellationBlocked(tenantID, OrderStatusReleased); !blocked {
-		t.Fatalf("cancellation must be blocked once released")
+	// Stage 73.2.15: Released is cancellable again - CancelOrder stops the open
+	// pick tasks first and refuses once one is Packed (order_changes_test.go).
+	if blocked, _ := isCancellationBlocked(tenantID, OrderStatusReleased); blocked {
+		t.Fatalf("a released order with no packed task must be cancellable")
 	}
 
 	seed("TEST-REL-SO2", "SalesOrder", "On Hold", map[string]interface{}{"code": "TEST-REL-SO2", "order_status": "On Hold"})

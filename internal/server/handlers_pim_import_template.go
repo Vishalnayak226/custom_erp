@@ -163,7 +163,7 @@ func handlePIMImportHook(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Missing X-Hook-Token header")
 		return
 	}
-	_, templateID, err := engines.ResolvePIMImportScheduleByHookToken(tenantID, token)
+	scheduleID, templateID, err := engines.ResolvePIMImportScheduleByHookToken(tenantID, token)
 	if err != nil {
 		// Deliberately the same generic message for "no such token" as for
 		// "token belongs to a different tenant" - which tenant a token
@@ -172,15 +172,20 @@ func handlePIMImportHook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Stage 55.11: the hook runs as the schedule's owner - their id on the
+	// job and their role for field-write restrictions - not as "system".
+	runAs, runRole, ownerErr := engines.PIMImportScheduleRunAs(tenantID, scheduleID)
+	if ownerErr != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, ownerErr.Error())
+		return
+	}
 	r.Body = http.MaxBytesReader(w, r.Body, 5<<20)
-	// "" role: an inbound webhook authenticates by token, not a session, so
-	// there is no operator role to check field-write restrictions against.
-	res, err := engines.RunPIMImportTemplateContext(r.Context(), tenantID, templateID, r.Body, "system", "", false)
+	res, err := engines.RunPIMImportTemplateContext(r.Context(), tenantID, templateID, r.Body, runAs, runRole, false)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	jobID, jobErr := engines.RecordImportJob(tenantID, "", res, "system")
+	jobID, jobErr := engines.RecordImportJob(tenantID, "", res, runAs)
 	if jobErr != nil {
 		engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "WARN", r.URL.Path, fmt.Sprintf("hook import job record failed: %v", jobErr), "")
 	}

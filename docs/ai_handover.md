@@ -125,6 +125,258 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-18 Release of every entry below that says "NOT COMMITTED" (Stage 73 batches A-D + continuation,
+  Stages 76, 78-82, 83.1, 71.8, the 73 pending reconciliation) in one commit, pushed and deployed.** This supersedes
+  those tags. Ledger §238; checklist 73.R and 84.7-84.9.
+  - **Gates:** a fresh DB `custom_erp_rel20261018` (5490) took all 229 migrations from zero. The full `go test -p 1`
+    passed except 84.7's three from-zero `Stores` tests, which pass on `custom_erp`. Release budget OK, surface
+    `-check` current (617 routes), brain 100%.
+  - **Fixed at release:** the KB error-code article split (`cmd/gendocs`), scope registry +5 doctypes, bypass review,
+    OAuth token route visible to the scanner and reviewed, codes renumbered (RFQ-0551..0556, PLAN-0557, GOODSR-0558),
+    Stage 59 archived, 29 Go files gofmt'd.
+  - **Docs pipeline:** `-Group Content` fails on doclint's expired capability reviews (84.8, red since 2026-10-09).
+    Use `-Group KB` then `-Group Brain` until the owners review.
+  - **Dev data:** the scratch DB `custom_erp_rel20261018` can be dropped; the other sessions' dev data notes below still apply.
+
+- **2026-10-18 Stage 73 pending-item reconciliation - checklist only, no code, NOT COMMITTED.** Stage 73
+  now opens with a **Pending** block: 55 open items grouped by who acts (your decisions, you run, fixes by
+  risk, release steps in order, on-site sign-offs, dev cleanup). Merged duplicates: 73.B.2 + 73.C.1 → 73.D.3,
+  73.B.3 → 73.C.2, 73.C.10 → 73.B.6, 73.D.22 → 73.B.5, 73.D.4 → 75.1.5. Closed 73.B.12 (`go build ./...`
+  passes). 73.0.1 narrowed to confirming D04 / D05 / D06 as built, plus D10. Checked against the tree:
+  brain `-Check` shows 0 unclaimed, generated drift only; gendocs not run; duplicate error codes still there.
+
+- **2026-10-18 Stage 73 batch C continuation (55.0F/2/3/9/11/18/19/21 open parts) - BUILT, NOT COMMITTED, NOT
+  DEPLOYED.** Ledger §230 (continuation); checklist notes dated 2026-10-18 under each 55.x item and 73.4.4. All 55.x stay `[ ]`.
+  - **Migrations (3, additive, applied to local `custom_erp` on 5490):** `migrations_stage55_11_import_owner_resume.sql`
+    (PIMImportSchedule.owner, ImportJob.resolved_rows/resumed_from), `migrations_stage55_19_sticker_print_request_key.sql`
+    (sticker_print_log request_key/request_line + partial unique index), `migrations_stage55_0f_bundle_component_columns.sql`
+    (ProductBundle.components column spec, fills an empty spec only). Ship them with the binary.
+  - **Behaviour changes to know:** import schedules run as their Owner (else creator) and refuse to run as "system" - a
+    schedule whose creator was `system` and has no owner now stops with a reason until an owner is set; a JSON table/map
+    sent as a real array/object is stored as JSON text (`ValidateDocument`); one GSTIN per vendor (MASTER-0472);
+    connector health ignores deleted runs/exceptions; Escape in a suggestion list no longer closes its form.
+  - **New files:** `engines/import_resume.go`, `engines/import_resume_test.go`, `engines/sticker_print_retry_test.go`,
+    `engines/connector_replay_test.go`, `internal/server/handlers_import_resume.go`, `public/view-import-jobs.js`.
+  - **Shared files touched (small hunks):** `engines/doctype.go` (JSON table/map normalise), `engines/import.go`,
+    `pim_import_template.go`, `pim_import_schedule.go`, `stickers.go`, `sticker_document_source.go`, `channel_sync.go`,
+    `oms_console.go`, `oms_exception_queues.go`, `master_data_validation.go`, `task_inbox.go`; `internal/server/routes.go`,
+    `route_capabilities.go`, `error_catalog_extensions.go` (DATAIM-0470/0471, MASTER-0472; next free in C's block 0473),
+    `handlers_ops_status.go`, `handlers_task_inbox.go`, `handlers_procurement_pim2.go`, `handlers_qz_print.go`,
+    `handlers_pim_import_template.go`; `public/app.js` (import-result button, typeahead Escape + stray-list guard),
+    `view-documents.js`, `view-admin.js`, `view-oms.js`, `view-pim.js`, `view-inbox.js`, `view-printing.js`. Guides: USER_GUIDE
+    §3/§8f/§9A.6, ADMIN_GUIDE B.3.0/B.3.2/C.4/D.6 import text, ADMIN_SOP B.9, UAT 6A/10B.
+  - **Pending at hand-off:** `go run ./cmd/gendocs` once every batch is in; `docs/security/attack_surface.json` needs
+    regenerating (new `/api/v1/import-jobs/*` and `/api/v1/ops/alerting-status` routes - the classifier blocks it here).
+  - **Dev data:** throwaway client **`batchc55f`** (provisioned by batch C for the functional sweep; its seed records are
+    test data) - left in place pending the user's OK to deprovision. Scratch server :8203 stopped.
+
+- **2026-10-18 Stages 81-82 (client product attributes from the industry attribute library; industry chosen in
+  Configuration) - BUILT, NOT COMMITTED, NOT DEPLOYED.** Ledger §236-237; checklist Stages 81-82 (81.6 overlap
+  with the Jewellery profile fields and 81.7 later items await the user).
+  - **Migration:** `migrations_stage81_1_attribute_library.sql` (ProductAttributeDef `used_for`, `uom`,
+    `library_id`) - applied to the local `custom_erp` on 5490 by psql. Deploy it with the binary.
+  - **New files:** `cmd/genattrlib/main.go`, `engines/attribute_library.json` (generated from the user's workbook -
+    rerun `go run ./cmd/genattrlib -xlsx <path>` after they edit it), `engines/attribute_library.go`,
+    `engines/attribute_library_apply.go`, `engines/attribute_library_test.go`, `public/view-attribute-library.js`.
+  - **Shared files (small hunks):** `engines/po_design.go` (`AttributesClosed`, drop Product information),
+    `engines/item_names.go` (PIM-0691 in `AddDesignAttributeValue`), `internal/server/handlers_core_doc_engine.go`
+    (delete guard, `KeepLibraryAttributeIdentity`, industries `focus`), `handlers_control_panel.go`, `routes.go`,
+    `route_capabilities.go`, `error_catalog_extensions.go` (PIM-0690/0691), `public/view-pickers.js`,
+    `view-documents.js`, `view-procurement.js` (one line), `view-control-panel.js`, `view-admin.js`
+    (`renderConfigIndustry`), `app.js` + `index.html` (top-bar industry selector removed - byte-negative).
+  - **Prod note:** the operator screen needs `ERP_PLATFORM_OPERATORS` (already set on the droplet for the Control
+    Panel). The scratch tenant `attrlib81` used for the live test was purged (tenantctl verify: CLEAN).
+  - **Stage 83:** 83.1 role removed from the transaction chip (`public/txn-screen.js` `txnContext`, one line);
+    83.2 top-bar working-store switcher is a recommendation awaiting the user (checklist 83.2) - not built.
+
+- **2026-10-17/18 Stage 73 batch A (sales, POS, returns, loyalty) - BUILT, NOT COMMITTED, NOT DEPLOYED.**
+  Ledger §235; checklist 73.1.1-73.1.6, 73.2.5-73.2.12, 73.3.1, 73.3.2, 55.5, 55.17 ticked.
+  - **2026-10-18, user's decisions built:**
+    - 55.5a(b): second-person approval of returns and refunds, setting `returns.second_person_approval` (off), SALESR-0617.
+    - 55.17a: marketing consent. `engines/marketing_consent.go`, migration `migrations_stage55_17a_marketing_consent.sql`. Campaigns go only to customers who consented on the campaign's channel; existing customers have none, so nothing is sent until consent is recorded.
+    - Still open, 55.5a(a): Cashier menu breadth, and Cashier / Store Manager have read-only Customer, so the till's + New Customer is refused for them.
+  - **Migrations (9, additive):** `migrations_stage55_17a_marketing_consent.sql` and `migrations_stage73_1_4_redemption_controls.sql`, `..._73_2_5_held_bills.sql`,
+    `..._73_2_6_exchange_credit.sql`, `..._73_2_7_till_cash_movements.sql`, `..._73_2_8_sale_edit_history.sql`,
+    `..._73_2_9_customer_reference.sql`, `..._73_2_10_voucher_till.sql`, `..._73_2_11_loyalty_admin.sql`. Applied
+    to the local `custom_erp` on 5490 by psql, not via `-migrate` (that would checksum-lock other sessions'
+    files). Deploy them with the binary.
+  - **Files (batch A alone, copied whole):** the list is
+    `%TEMP%/claude/.../scratchpad/filesA.txt`. It covers new engines (sale_allocation, loyalty_returns, pos_tenders,
+    pos_cash_movements, pos_held_bills, pos_exchange, loyalty_admin, loyalty_overview, pos_customer_context,
+    sale_edit_history, customer_reference_report), their handlers (handlers_pos_loyalty / _cash / _held,
+    handlers_loyalty_admin), tests, `public/view-loyalty.js`, plus whole-file edits of view-pos.js,
+    view-pos-extras.js, view-returns.js, pos_checkout / quote / offers / payment / session, returns(_atomic),
+    loyalty(_tiering / _redemption_security), voucher, campaign, stored_value, qz_payload, crm_reports_stage26.
+  - **Shared files (small hunks, each marked "Stage 73.x" / "Stage 55.5|55.17" / "Batch A"):** finance.go,
+    settings_definitions.go, approval.go, transactional_validation.go, handlers_core_doc_engine.go,
+    handlers_pim_pos_finance.go, routes.go, route_capabilities.go, error_catalog_extensions.go, app.js,
+    index.html, view-documents.js (73.2.8 reason prompt only), orders.go / handlers_orders.go /
+    order_mutations.go / handlers_order_mutations.go / order_invoice.go / pack_invoice.go / view-oms.js /
+    view-finance.js (73.2.9 customer reference). The list is `sharedA.txt`. Commit with partial-hunk staging.
+  - **Worktree kept for the commit:** `%TEMP%/claude/.../scratchpad/erp-batchA` = HEAD 0f2e6e1 + only batch
+    A's hunks (rebuilt by `syncA.sh`). It builds, and the batch tests pass there. Use it to check the staged
+    set, then `git worktree remove` it. Its only known red test is TestNoStaleRouteCapabilityEntries,
+    caused by other batches' capability entries; it passes in the shared tree.
+  - **Verified:** shared-tree `go build ./...` and `go vet` clean. Every batch engine test passes, and so
+    does all of `internal/server` except `TestAttachmentsFollowTheClaimsReadRule`: another session's
+    uncommitted attachments work whose `document_attachments` migration is not applied. Chrome on :8201
+    for every screen (a real Cashier user for 55.5). Cold core 183,487 / 184,320.
+  - **Open:** `docs/security/attack_surface.json` needs a regen for the new routes (the classifier blocks this
+    session from writing it). The brain map has every batch A file claimed, but `update-brain.ps1` still
+    stops on 6 unclaimed files from other sessions (attribute_library*, import_resume*, genattrlib), so
+    BRAIN.md / brain.html were not redrawn. Behaviour changes for the release note: offer sales post revenue
+    and GST net of the offer; historic offer sales show BROKEN in POS Sale Reconciliation (accurate, not
+    re-posted).
+
+- **2026-10-18 Stage 80 (Item form in sections + variant-option picker, Help per master list, one place for
+  print templates, WMS start-here guide) - BUILT, NOT COMMITTED, NOT DEPLOYED.** Ledger §234; checklist Stage 80
+  (80.1-80.6 done, 80.7 = eight WMS gaps awaiting the user's decision).
+  - **Migration:** `migrations_stage80_1_item_form_labels.sql` (Item labels only) - applied to the local
+    `custom_erp` on 5490 by psql, not via `-migrate`. Deploy it with the binary.
+  - **Files (mine alone):** new `docs/kb/module-handbooks/wms-start-here.md`, `printing-stickers-and-documents.md`;
+    `internal/kb/build.go` (screen-map order) + `drift.go` (`doctype:`/`module:` keys) + their tests;
+    `public/view-help.js`; `public/print-template-studio.js` (gallery redraws `currentView`, no subtitle);
+    12 KB frontmatters' `screens:` + `pim-pxm.md`, `place-hold.md` text; regenerated `internal/kb/content/`.
+  - **Shared files (small hunks):** `public/view-pickers.js` (`groupFormSections`, `attachVariantOptionsEditor`,
+    Tax-Treatment link inside `attachSmartHSNPicker`, CSS), `public/view-documents.js` (PrintTemplate → gallery
+    at the top of `renderDocTableView`; 4-line Stage 80 block after `wireOfferScopeValue`), USER_GUIDE §7.6,
+    §7B.2, §8.1.2, Step 3. erp-71 removed its parallel `groupItemFormSections` (55.3) so there is one grouper.
+  - Cold core untouched. Registry snapshot / dictionary still show the old Item labels until the next capture.
+
+- **2026-10-18 Stage 79 (number-only boxes, PO record form pickers/status, Roles screen rebuilt) - BUILT, NOT
+  COMMITTED, NOT DEPLOYED.** Ledger §233; checklist Stage 79 (79.1-79.3). No migration.
+  - **Files (mine alone):** new `public/view-roles.js`, `engines/number_field_validation_test.go`;
+    `engines/location_masters.go` (`LocationReferenceFields`), `internal/server/handlers_admin_identity.go`
+    (`grants[]` on POST role-permissions), `docs/sop-video/tools/scenes-modules.cjs` (role_setup scene),
+    `docs/guides/ADMIN_SOP.md` §A.2 + `img/roles.png`.
+  - **Shared files (small hunks, next to other sessions' uncommitted work):** `engines/doctype.go`
+    (`PickFrom`/`ApprovalOnly` on FieldMeta, `isPlainNumber`, JSONTable number columns - the "isPlainNumber
+    undefined" build break noted below was this stage mid-edit; the shared tree builds again),
+    `internal/server/handlers_core_doc_engine.go` (location map → engines, GLOBAL-0019 detail, meta
+    `approval_only`), `public/view-documents.js` (status filter, Check tick box, `pick_from` typeahead, Check
+    submit), `public/app.js` (number guard; `roles` lazy entry; old Roles form + `view === 'roles'` branch
+    removed; `MENU_MODULE_MAP` key `grant-save-btn` → `menu-roles`), ADMIN_GUIDE §B.2, USER_GUIDE (number boxes,
+    §6 PO from a GRN). Commit with partial-hunk staging.
+  - **Verified** as HEAD 0f2e6e1 + only these hunks in a %TEMP% worktree (removed after); see the checklist entry.
+
+- **2026-10-17/18 Stage 73 batch B (supply chain: inventory, WMS, procurement, manufacturing, quality) -
+  BUILT, NOT COMMITTED, NOT DEPLOYED.** Ledger §232; checklist 73.1.7, 73.1.8, 59.2–59.6, 73.2.1–73.2.4,
+  73.2.18, 55.4, 55.6, 55.7, 55.8, 55.12, 55.13 ticked. **Stage 59 is now wholly closed** - its section can be
+  moved to `docs/archive/micro_checklist_closed_stages.md` (and CLAUDE.md's archived-stage list) at a quiet moment.
+  - **Migrations (8, additive):** `migrations_stage73_1_7_transfer_lifecycle.sql`, `migrations_stage59_2_order_owner.sql`,
+    `migrations_stage59_4_owner_movements.sql`, `migrations_stage73_2_1_rfq_lines_invitations.sql`,
+    `..._73_2_2_comparable_quotes.sql`, `..._73_2_3_award_to_po.sql`, `..._73_2_18_supply_proposals.sql`,
+    `migrations_stage55_13_quality_maintenance.sql`. All applied to the local `custom_erp` on 5490 by psql (not
+    recorded in schema_migrations; all idempotent). Deploy them with the binary.
+  - **Behaviour changes to know:** a GRN against an ASN that is no longer Expected is refused (GOODSR-0499) and the
+    ASN becomes Received once GRNs cover it (hook after the GRN stock post in `handlers_core_doc_engine.go`);
+    yard check-in / door assignment go through `/api/v1/wms/yard/*` (one trailer once, one trailer per door);
+    `PlaceHold` split into `placeHoldTx`; NCR plan/close now need owner/evidence and the quality/maintenance
+    lifecycle endpoints check the role's doctype permission; captured WMS charges store their rate evidence;
+    QualityInspection `production_order_id` no longer mandatory; Manufacturing gains Certificates /
+    Non-conformance / Maintenance tabs (`view-quality.js`), Warehouse Cockpit gains Labour / Billing
+    (`view-wms-labour.js`). New error codes: STOCKT-0481..0486, INVENT-0491..0500, PURCHA-0487..0489,
+    RFQ-0511..0516, PLAN-0521, QUALIT-0561..0566, GOODSR-0499.
+  - **Shared files touched (small marked hunks, "Stage 59.x / 55.x / 73.x"):** `internal/server/routes.go`,
+    `route_capabilities.go`, `error_catalog_extensions.go`, `handlers_core_doc_engine.go` (one line, 55.7),
+    `handlers_orders.go` (59.2, interleaved with batch C's CustomerRef lines), `engines/fulfillment.go`,
+    `orders.go`, `sourcing.go`, `master_data_validation.go`, `settings_definitions.go`, `transactional_validation.go`,
+    `environment.go`, `public/app.js` (one registry line, view-rfq), `public/view-reports.js` (old RFQ block moved out).
+  - **Open decision:** fractional BOM component totals are truncated at material issue (2.2 × 4 = 8.8 issues 8).
+  - **Pending at hand-off:** `go run ./cmd/gendocs` once every batch is in; `docs/security/attack_surface.json`
+    needs regenerating (many new routes - the classifier blocks it here). The shared tree did not build at the end
+    (`engines/doctype.go:492 isPlainNumber` undefined - another session's in-progress edit); batch B was built and
+    tested in `%TEMP%\erp-b-wt`, a worktree holding only batch B's hunks (left in place).
+  - **Dev data left in `custom_erp` (tenant_default):** ids prefixed `B7317-`, `B7318-`, `B59-`, `B7324-`, `B732-`,
+    `B556-`, `B5512-`, `B557-`, `B558-`, `IP-B…`, `RC-B…`, `QI-`/`NCR-`/`MO-`/`COA-`/`YARD-`/`WAVE-` created by the
+    checks, POs `PO/HO/26-27/00063..00066`, GRNs from `GRN/HO/26-27/00039`, PRO/HO/26-27/000001, a
+    `wms.recount_trigger_qty` setting override. Not deleted - ask before cleaning.
+
+- **2026-10-17 71.8 multi-page prints (header first page only, tax / totals / signatures on the last) -
+  BUILT, NOT COMMITTED, NOT DEPLOYED.** Frontend only, no migration: `public/trade-docs.js` (position decides
+  the page once there is an items table - `pagesByPosition` / `printsOn` / `tableBox` / `paginate`; applies to
+  every saved template too, stored layouts untouched; `contY` retired), `public/print-template-studio.js`
+  (design-mode canvas, effective page tags, **Prints on** disabled where position decides),
+  USER_GUIDE §7B.2, ADMIN_GUIDE print section. Checklist 71.8 has the harness + live verification.
+- **2026-10-17 Stage 78 day limits (78.1 PO auto-cancel, 78.2 purchase return window) - BUILT, NOT COMMITTED,
+  NOT DEPLOYED.** Ledger §231. No migration (settings registry only). New `engines/po_auto_cancel.go`
+  (hourly `StartPOAutoCancelWorker`, registered in `internal/server/routes.go` - one hunk), `shortClosePurchaseOrder`
+  split out of `ShortClosePurchaseOrder`, return-window check in `purchase_return.go`, two settings in
+  `settings_definitions.go`, PURCHA-0620 / 0621 in `error_catalog_extensions.go`, cancelled-PO guard in
+  `MarkPurchaseOrderSent`, PO list stamp + hidden Edit / Send in `view-procurement.js`. Tests:
+  `TestProcurementDayLimits`, `TestPOPartialReceiptRules` (pins the user's PO/GRN rules - already built).
+  **Both settings default 0 (off)** - deploying changes nothing until an admin sets them; once set, POs already
+  past the limit are handled on the first hourly check. 78.3 (rest of the set) awaits the user's choice.
+  `go run ./cmd/gendocs` is still pending for ERROR_CODES (two new codes).
+
+- **2026-10-17 Stage 73 batch C (OMS, platform, shared shell, masters) - BUILT, NOT COMMITTED, NOT
+  DEPLOYED.** Ledger §230; checklist 73.2.13, 73.2.14, 73.2.15, 73.3.3, 38.2 (+38.2d) and 73.J.1 ticked;
+  55.0F/2/3/9/11/18/19/21 advanced and kept open.
+  - **Migrations (2, additive):** `migrations_stage73_2_13_notification_delivery.sql` (NotificationLog
+    options/fields), `migrations_stage38_2_oauth_client_credentials.sql` (`api_credentials.auth_mode`,
+    `api_oauth_tokens`; also added to `saas.go`'s provisioning clone list). Deploy them with the binary -
+    the credential queries read `auth_mode`. Both applied to the local `custom_erp` on 5490 (plus the four
+    committed Stage 72 migrations that were still pending there).
+  - **Behaviour changes to know:** CancelOrder now accepts a Released order until a task is Packed;
+    FulfillmentTask has a terminal `Cancelled`; the Approvals menu opens **My work** (`view-inbox.js`);
+    notification logs no longer say "Sent"; an OAuth client's secret is refused as a direct bearer;
+    `POST /api/v1/orders` returns `existing`.
+  - **Shared files touched (small hunks):** `engines/jobrunner.go` (enqueue in a tx, quarantine covers
+    notification jobs), `engines/orders.go`, `engines/fulfillment.go`, `engines/marketplace.go`,
+    `engines/saas.go`, `internal/server/routes.go`, `route_capabilities.go`, `error_catalog_extensions.go`
+    (NOTIFI-0461..0463, ORDERM-0464..0469), `middleware_public_api.go`, `handlers_orders.go`,
+    `module_manifest_test.go`, `public/app.js` (one registry line), `public/view-documents.js`.
+  - **Pending at hand-off:** `go run ./cmd/gendocs` (ERROR_CODES / REPORT_CATALOG / KB) once every batch
+    is in, and `docs/security/attack_surface.json` needs regenerating (new routes - the classifier blocks
+    doing it here). Scratch worktree `%TEMP%\...\scratchpad\wtC` held only batch C's hunks for testing.
+  - **Dev data left in `custom_erp`:** orders `BATCHC-*`, item `BATCHC-UI-SKU`, contract `BATCHC-SC-1`,
+    project `BATCHC-PRJ`, one revoked OAuth client - all test records, safe to leave.
+
+- **2026-10-17 Stage 73 batch D (finance, HR, expenses, assets, reports) - BUILT, NOT COMMITTED, NOT
+  DEPLOYED.** Ledger §229; checklist 73.1.9, 73.1.10, 73.2.16, 73.2.17 ticked; 73.2.19 partial (loyalty waits
+  for 73.2.12); 55.10/14/15/16/20 advanced and kept open.
+  - **Migrations (6, additive):** `migrations_stage73_1_9_gl_posting_attribution.sql`,
+    `migrations_stage73_1_10_period_close_tasks.sql`, `migrations_stage73_2_16_bank_reconciliation_exceptions.sql`,
+    `migrations_stage73_55_15_expense_receipt_reference.sql`, `migrations_stage73_55_15b_attachments.sql`,
+    `migrations_stage73_55_16_asset_depreciation.sql`. Deploy them with the binary.
+  - **Behaviour changes to know:** a period cannot close until its five close tasks are signed (FIN-0501);
+    Accountant may now create / close periods (confirmed by the user); expense payment credits the bank net
+    of the advance and credits 1600; report exports are private to their requester; invoices settle in parts;
+    Payables Ageing ages 2100 (PO view = Open Purchase Commitments); **the first depreciation run after deploy
+    catches up every ended month for every capitalised asset**; receipts are stored under `media_store/`,
+    which no backup script copies.
+  - **2026-10-18:** 73.2.19 closed - Points Liability control totals tie to 2630 when loyalty accrues (73.2.12
+    landed), "no ledger tie" otherwise (`TestPointsLiabilityControlTotalsTieTo2630WhenAccruing`).
+  - **Second pass (same day, five parallel agents):** part / credit settlement + AP ageing, report Schedules,
+    HR journeys, depreciation posting, receipt upload. Ticked 55.15, 55.16, 55.20; 55.10 / 55.14 wait on
+    Account Head / CA and policy-owner acceptance only.
+  - **Shared files touched (small hunks):** `engines/finance.go` (attribution in `PostDoubleEntryTx`),
+    `engines/jobrunner.go`, `engines/approval.go` (reopen hook), `internal/server/middleware.go`,
+    `middleware_public_api.go`, `routes.go`, `route_capabilities.go`, `error_catalog_extensions.go`
+    (FIN-0501..0516), `handlers_pim_pos_finance.go` (period handlers), `handlers_report_engine.go`.
+  - **Pending at hand-off:** `go run ./cmd/gendocs` (REPORT_CATALOG.md / ERROR_CODES.md) and
+    `docs/security/attack_surface.json` need regenerating (new routes); the shared tree did not build when
+    batch D finished because of other batches' in-flight files, so batch D was built and tested in a
+    detached worktree (`%TEMP%\batchd-wt`) holding only its own hunks.
+  - **Test database:** `custom_erp_batchd_20261017` on 5490 (disposable copy of `custom_erp_test`).
+
+- **2026-10-17 Stage 76 (short codes, state dropdowns, address lines, country tax IDs) Phase A BUILT,
+  Stage 77 (POS for a real store) PLANNED - NOT COMMITTED, NOT DEPLOYED.** Checklist Stages 76 and 77.
+  - **Built (76.1/76.2/76.4/76.5, most of 76.3):**
+    - `engines/regions.go` is the India state table: name, ISO short code and GST code. The place-of-supply tables are derived from it.
+    - `engines/document_regions.go` runs at `validateDocumentWith`, before the mandatory check: canonical state name, a blank State filled from the GSTIN, a mismatch refused, `state_code` filled, a Location takes its Legal Entity's state, and `addressLines` for prints.
+    - `engines/tax_ids.go`: a per-country tax-ID rule plus the GSTIN check digit.
+    - `engines/master_codes.go`: every master is numbered on the server (`V00001`). The format is asked once in the New form (`_code_format`), and a refused save gives its number back. Currency/UOM/HSN codes are typed.
+    - Route `GET /api/v1/master-codes/{doctype}`.
+    - Browser helpers live in `view-pickers.js`, not `app.js`: the cold core is 184,219 / 184,320, about 100 bytes free.
+    - Migrations `76_2` (address lines, Vendor.state mandatory, Location state, state_code) and `76_5` (`prefix_configs.confirmed_at`) are applied to the local DB **by psql only**, so the ledger still lists them as pending. The other session's five Stage 73 migrations were deliberately NOT applied.
+  - **Verified:** targeted tests (`stage76_regions_codes_test.go` plus import/BLD046/PO/place-of-supply). Live on :8146: first Vendor `V00001` with the format row, State filled from the GSTIN, second Vendor not asked again, mismatch refused, inline **+ New** Vendor too. The dev Vendor series row was restored afterwards.
+  - **Full `go test -p 1` (engines + internal/server):** `internal/server` ok. Two engines failures were Stage 76's expected shape change (`TestStage62Designs`, `TestItemNamesAndInlineAttributes`); both are fixed and now restore what they touch (`preserveSeries`). The other 9 are the other session's Stage 73 work, whose migrations are not applied locally (`posted_by` / `auth_mode` columns, accounting periods, FIN-0501, LoyaltyRedemptionRequest scope) - not Stage 76's.
+  - **Test-pollution trap:** a test that numbers a master in `tenant_default` confirms that master's format for good. Wrap it in `preserveSeries(t, schema, doctypes...)`.
+  - **Stage 77 decisions (user):** default customer per store; a **separate Salesman list**; stock locations as a master over the existing buckets.
+  - **Open:** 76.3's OMS manual-order address split (`view-oms.js` is another session's) and the receipt address (`qz_payload.go`, same). 76.6 re-code tool. 76.7-76.12 store-wise transaction numbering. All of Stage 77; 77.0 needs three user decisions.
+  - **Concurrency:** another session is mid-way through Stage 73 on POS / transfers / returns / finance files and has broken the build twice for a minute while writing. Its `engines/pos_tenders.go` (73.1.6 split tender) is what 77.5's tender master must extend. Commit Stage 76 by explicit file list plus partial hunks for `routes.go` / `route_capabilities.go` (both sessions added routes there).
+
 - **2026-10-17 Release of everything above (Stages 54.3f, 65.6-65.8, 66-72, plans 73-75) in one commit,
   `0845470`, DEPLOYED - NOT PUSHED** (the classifier refused `git push`; the user said deploy anyway, so
   origin/main is still `31fb485` until the user pushes). Supersedes the "NOT COMMITTED / NOT DEPLOYED"
@@ -182,7 +434,8 @@ for checking the current source and worktree.
 
   Store credit depends on Stage 73's 73.1.1 / 73.1.6, so build those first.
 - **2026-10-17 Stage 72 Item & Material Master (item policy, POS packaging backflush, Gift With
-  Purchase, gift cards, consumption entry) - NOT COMMITTED, NOT DEPLOYED.** Checklist Stage 72
+  Purchase, gift cards, consumption entry) - COMMITTED `0845470`, DEPLOYED (`0f2e6e1`), NOT
+  PUSHED (84.1).** Open: 72.D (a)-(h), decisions only. Checklist Stage 72
   (72.D = decisions still needed), ledger §228. New: `engines/item_policy.go`,
   `backflush_rules.go`, `item_exceptions.go`, `pos_item_policy.go`, `consumption_entry.go`,
   `stored_value.go`, `item_master_reports.go`, tests `item_policy_test.go`,

@@ -370,10 +370,16 @@ func GetOrderConsoleDetail(tenantID, orderID string) (map[string]interface{}, er
 		"refunds":           {"RefundRequest", "COALESCE(d.data->>'refund_mode', '')"},
 		"notifications":     {"NotificationLog", "COALESCE(d.data->>'event', '')"},
 	} {
+		// Stage 55.9: returns and refunds name their order in original_order_id -
+		// the SalesOrder, or the invoice a customer return was raised against.
+		match := "d.data->>'order_id'"
+		if spec.doctype == "ReturnRequest" || spec.doctype == "RefundRequest" {
+			match = omsReturnOrderExpr(schema, "d")
+		}
 		rowsOut, err := queryDocs(schema, `
-			SELECT d.id, d.status, `+spec.extra+`, d.created_at
+			SELECT d.id, d.status, `+spec.extra+`, d.created_at AT TIME ZONE current_setting('TimeZone')
 			FROM `+schema+`.documents d
-			WHERE d.doctype = '`+spec.doctype+`' AND d.data->>'order_id' = $1 AND d.deleted_at IS NULL
+			WHERE d.doctype = '`+spec.doctype+`' AND `+match+` = $1 AND d.deleted_at IS NULL
 			ORDER BY d.created_at DESC`, orderID, func(scan func(...interface{}) error) (map[string]interface{}, error) {
 			var id, status, extra string
 			var createdAt time.Time
@@ -390,7 +396,7 @@ func GetOrderConsoleDetail(tenantID, orderID string) (map[string]interface{}, er
 
 	// SalesInvoice references the order through sales_order_id, not order_id.
 	invoices, err := queryDocs(schema, `
-		SELECT d.id, d.status, COALESCE((d.data->>'total_amount')::numeric, 0)::text, d.created_at
+		SELECT d.id, d.status, COALESCE((d.data->>'total_amount')::numeric, 0)::text, d.created_at AT TIME ZONE current_setting('TimeZone')
 		FROM `+schema+`.documents d
 		WHERE d.doctype = 'SalesInvoice' AND d.data->>'sales_order_id' = $1 AND d.deleted_at IS NULL
 		ORDER BY d.created_at DESC`, orderID, func(scan func(...interface{}) error) (map[string]interface{}, error) {
@@ -411,7 +417,10 @@ func GetOrderConsoleDetail(tenantID, orderID string) (map[string]interface{}, er
 	// order that has been round-tripped many times should not return an
 	// unbounded log to a browser.
 	audit, err := queryDocs(schema, `
-		SELECT a.user_id, a.action, a.status, COALESCE(a.details, ''), a.created_at
+		SELECT a.user_id, a.action, a.status, COALESCE(a.details, ''),
+		       -- LogAuditEvent signs its rows and writes UTC; the documents trigger
+		       -- writes unsigned rows on the session clock (Stage 73.2.14).
+		       CASE WHEN COALESCE(a.signature, '') = '' THEN a.created_at AT TIME ZONE current_setting('TimeZone') ELSE a.created_at AT TIME ZONE 'UTC' END
 		FROM `+schema+`.audit_logs a
 		WHERE a.details LIKE '%' || $1 || '%'
 		ORDER BY a.created_at DESC LIMIT 100`, orderID, func(scan func(...interface{}) error) (map[string]interface{}, error) {
@@ -427,6 +436,31 @@ func GetOrderConsoleDetail(tenantID, orderID string) (map[string]interface{}, er
 		return nil, err
 	}
 	detail["audit_trail"] = audit
+
+	// Stage 73.2.15: replacement / reship orders raised from this one.
+	replacements, err := queryDocs(schema, `
+		SELECT d.id, d.status, COALESCE(d.data->>'replacement_kind', ''), d.created_at AT TIME ZONE current_setting('TimeZone')
+		FROM `+schema+`.documents d
+		WHERE d.doctype = 'SalesOrder' AND d.data->>'original_order_id' = $1 AND d.deleted_at IS NULL
+		ORDER BY d.created_at`, orderID, func(scan func(...interface{}) error) (map[string]interface{}, error) {
+		var id, status, kind string
+		var createdAt time.Time
+		if err := scan(&id, &status, &kind, &createdAt); err != nil {
+			return nil, err
+		}
+		return map[string]interface{}{"id": id, "status": status, "detail": kind, "created_at": createdAt}, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	detail["replacements"] = replacements
+
+	// Stage 73.2.14: the sections above merged into one dated story, and the
+	// step the engines will accept next (engines/oms_exception_queues.go).
+	var createdAt time.Time
+	_ = db.DB.QueryRow(`SELECT created_at AT TIME ZONE current_setting('TimeZone') FROM `+schema+`.documents WHERE id = $1 AND doctype = 'SalesOrder'`, orderID).Scan(&createdAt)
+	detail["timeline"] = buildOrderTimeline(orderID, createdAt, detail)
+	detail["next_actions"] = orderNextActions(detail)
 
 	return detail, nil
 }

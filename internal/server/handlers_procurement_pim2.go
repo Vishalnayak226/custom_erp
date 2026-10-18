@@ -96,6 +96,8 @@ func handlePrintStickers(w http.ResponseWriter, r *http.Request) {
 		SourceDocID    string                         `json:"source_doc_id"`
 		CopiesOverride map[string]int                 `json:"copies_override"`
 		Lines          []engines.StickerLineSelection `json:"lines"`
+		// Stage 55.19: the same key on a retry writes the history once.
+		RequestKey string `json:"request_key"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
@@ -111,9 +113,9 @@ func handlePrintStickers(w http.ResponseWriter, r *http.Request) {
 		// Stage 52: the browser-print-fallback path for bulk printing from a
 		// GRN/Transfer Order - mirrors the QZ silent-print branch in
 		// handleQZPrintPayload so both paths accept the same request shape.
-		labels, err = engines.PrintStickersForDocument(tenantID, req.SourceDoctype, req.SourceDocID, req.PrinterCode, userID, req.ReprintReason, stickerSelections(req.Lines, req.Skus, req.CopiesOverride))
+		labels, err = engines.PrintStickersForDocument(tenantID, req.SourceDoctype, req.SourceDocID, req.PrinterCode, userID, req.ReprintReason, stickerSelections(req.Lines, req.Skus, req.CopiesOverride), engines.StickerPrintOptions{RequestKey: req.RequestKey})
 	} else {
-		labels, err = engines.PrintStickers(tenantID, req.Skus, req.PrinterCode, userID, req.ReprintReason, req.Copies)
+		labels, err = engines.PrintStickers(tenantID, req.Skus, req.PrinterCode, userID, req.ReprintReason, req.Copies, engines.StickerPrintOptions{RequestKey: req.RequestKey})
 	}
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)

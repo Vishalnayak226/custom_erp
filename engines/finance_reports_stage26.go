@@ -2,6 +2,7 @@ package engines
 
 import (
 	"custom_erp/db"
+	"database/sql"
 	"fmt"
 	"time"
 )
@@ -345,7 +346,7 @@ func GetStatutoryGLExport(tenantID, startDate, endDate string) ([]map[string]int
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT p.posting_id, p.account_code, a.account_name, a.account_type,
-		       p.document_type, p.document_id, p.debit, p.credit, p.created_at
+		       p.document_type, p.document_id, p.debit, p.credit, p.created_at, p.posted_by, p.source_command
 		FROM %s.gl_postings p JOIN %s.gl_accounts a ON a.account_code = p.account_code
 		WHERE p.created_at >= $1::date AND p.created_at < ($2::date + 1)
 		ORDER BY p.created_at ASC`, schema, schema), startDate, endDate)
@@ -359,13 +360,15 @@ func GetStatutoryGLExport(tenantID, startDate, endDate string) ([]map[string]int
 		var postingID, accountCode, accountName, accountType, docType, docID string
 		var debitPaise, creditPaise int64
 		var createdAt time.Time
-		if err := rows.Scan(&postingID, &accountCode, &accountName, &accountType, &docType, &docID, &debitPaise, &creditPaise, &createdAt); err != nil {
+		var postedBy, sourceCommand sql.NullString
+		if err := rows.Scan(&postingID, &accountCode, &accountName, &accountType, &docType, &docID, &debitPaise, &creditPaise, &createdAt, &postedBy, &sourceCommand); err != nil {
 			return nil, err
 		}
 		out = append(out, map[string]interface{}{
 			"posting_id": postingID, "account_code": accountCode, "account_name": accountName,
 			"account_type": accountType, "document_type": docType, "document_id": docID,
 			"debit": PaiseToRupees(debitPaise), "credit": PaiseToRupees(creditPaise), "created_at": createdAt,
+			"posted_by": glPostedByLabel(postedBy), "source_command": sourceCommand.String,
 		})
 	}
 	if out == nil {
@@ -400,7 +403,7 @@ func financialStatementDrillDown(tenantID, accountCode, startDate, endDate strin
 		args = append(args, dimArg)
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT document_type, document_id, debit, credit, created_at FROM %s.gl_postings p
+		SELECT document_type, document_id, debit, credit, created_at, posted_by FROM %s.gl_postings p
 		WHERE p.account_code = $1 AND %s%s ORDER BY p.created_at ASC`, schema, dateClause, dimClause), args...)
 	if err != nil {
 		return nil, err
@@ -411,12 +414,14 @@ func financialStatementDrillDown(tenantID, accountCode, startDate, endDate strin
 		var docType, docID string
 		var debitPaise, creditPaise int64
 		var createdAt time.Time
-		if err := rows.Scan(&docType, &docID, &debitPaise, &creditPaise, &createdAt); err != nil {
+		var postedBy sql.NullString
+		if err := rows.Scan(&docType, &docID, &debitPaise, &creditPaise, &createdAt, &postedBy); err != nil {
 			return nil, err
 		}
 		out = append(out, map[string]interface{}{
 			"document_type": docType, "document_id": docID,
 			"debit": PaiseToRupees(debitPaise), "credit": PaiseToRupees(creditPaise), "created_at": createdAt,
+			"posted_by": glPostedByLabel(postedBy),
 		})
 	}
 	if out == nil {
@@ -539,6 +544,7 @@ func init() {
 			{Key: "document_type", Label: "Document Type"}, {Key: "document_id", Label: "Document ID"},
 			{Key: "debit", Label: "Debit", Sensitive: true}, {Key: "credit", Label: "Credit", Sensitive: true},
 			{Key: "created_at", Label: "Date"},
+			{Key: "posted_by", Label: "Posted by"}, {Key: "source_command", Label: "Source command"},
 		},
 		Params: []ReportParam{
 			{Key: "start", Label: "Period Start", Type: "date", Required: true},

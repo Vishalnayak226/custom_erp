@@ -48,7 +48,9 @@ func CreatePaymentProposal(tenantID string, invoiceIDs []string, userID string) 
 			// correctness risk, not just a display glitch. Reject instead.
 			return "", 0, fmt.Errorf("vendor invoice %s has corrupt stored data: %v", invID, err)
 		}
-		total += int(numFromInterface(data["invoice_amount"]))
+		// Stage 73 / 55.10: what is still owed - a part-paid bill pays only its
+		// outstanding balance when the proposal executes.
+		total += int(vendorInvoiceOpenAmount(data))
 	}
 
 	idsJSON, err := json.Marshal(invoiceIDs)

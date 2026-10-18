@@ -33,7 +33,8 @@ func TestBulkImportCSVRestoresTheMasterIDCodeInvariant(t *testing.T) {
 	cleanup()
 	defer cleanup()
 
-	csv := "code,name\n" + vendorCode + ",Import Invariant Vendor\n"
+	// Stage 76.2: a Vendor needs its State.
+	csv := "code,name,state\n" + vendorCode + ",Import Invariant Vendor,Karnataka\n"
 	res, err := BulkImportCSV("default", "Vendor", strings.NewReader(csv), "system", "HR/Admin", false)
 	if err != nil {
 		t.Fatalf("BulkImportCSV: %v", err)

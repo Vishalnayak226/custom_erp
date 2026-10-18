@@ -262,8 +262,10 @@ async function renderPurchaseOrdersView(container) {
     // Sent-to-vendor is shown next to the status rather than as its own
     // column: it is the answer to "did this actually go out?", which is only
     // ever asked about a PO that is already approved.
-    const sent = po.sent_to_vendor_at
-      ? `<div class="po-sent-stamp" title="Sent ${escapeHTMLText(po.sent_to_vendor_at)}">Sent to vendor</div>` : '';
+    const sent = (po.sent_to_vendor_at
+      ? `<div class="po-sent-stamp" title="Sent ${escapeHTMLText(po.sent_to_vendor_at)}">Sent to vendor</div>` : '')
+      + (po.auto_cancelled ? `<div class="po-sent-stamp" title="${escapeHTMLText(po.cancel_reason || '')}">Auto-cancelled</div>` : '');
+    const live = po.status !== 'Closed' && po.status !== 'Cancelled';
     html += `
       <tr>
         <td style="font-family: monospace;">${copyableCell(poNumber, poNumber)}</td>
@@ -277,9 +279,10 @@ async function renderPurchaseOrdersView(container) {
         <td class="po-row-actions">
           ${po.status === 'Draft' ? `<button class="action-btn" ${actionAttrs('submitPOForApproval', [po.id])}>Submit for Approval</button>` : ''}
           ${po.status === 'Approved' ? `<button class="action-btn" ${actionAttrs('startGRNFromPO', [po.id])}>Receive goods</button>` : ''}
-          ${po.status !== 'Closed' ? `<button class="action-btn" ${actionAttrs('amendPurchaseOrder', [po.id])}>Edit</button>` : ''}
+          ${po.status === 'Approved' || po.status === 'Closed' ? `<button class="action-btn" ${actionAttrs('showPOBalance', [po.id])}>Balance</button>` : ''}
+          ${live ? `<button class="action-btn" ${actionAttrs('amendPurchaseOrder', [po.id])}>Edit</button>` : ''}
           <button class="action-btn" ${actionAttrs('printPurchaseOrder', [po.id])}>Print</button>
-          ${po.status !== 'Draft' ? `<button class="action-btn" ${actionAttrs('sendPurchaseOrderToVendor', [po.id])}>Send to Vendor</button>` : ''}
+          ${po.status !== 'Draft' && po.status !== 'Cancelled' ? `<button class="action-btn" ${actionAttrs('sendPurchaseOrderToVendor', [po.id])}>Send to Vendor</button>` : ''}
           ${canDeleteDoctype('PurchaseOrder') ? `<button class="action-btn action-btn-danger" ${actionAttrs('deletePurchaseOrder', [po.id, poNumber])}>Delete</button>` : ''}
         </td>
       </tr>
@@ -301,6 +304,89 @@ window.deletePurchaseOrder = async function(poId, poNumber) {
   if (poDraft && poDraft.id === poId) { poDraft = newPODraft(); poPreview = null; }
   showToast(`Purchase order ${poNumber} deleted.`);
   renderView('purchase-orders');
+};
+
+// Stage 73.2.4 (D05): one view of a PO end to end - ordered, received,
+// accepted, rejected, damaged, returned, short-closed, open, invoiced, paid -
+// and the short-close of its open balance. A rejected unit stays open for the
+// vendor to replace until the buyer short-closes; the short-close puts the
+// rejected / damaged goods still held on a Draft purchase return (the claim).
+window.showPOBalance = async function(poId) {
+  const res = await apiFetch(`/api/v1/procurement/purchase-order/${encodeURIComponent(poId)}/reconciliation`);
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'The purchase order balance could not be loaded.', 'PO Balance'); return; }
+  const rec = await res.json();
+  const n = v => { const x = Number(v) || 0; return x === Math.round(x) ? String(x) : x.toFixed(2); };
+  const cell = v => `<td class="num">${n(v)}</td>`;
+  const totalOpen = (rec.lines || []).reduce((s, l) => s + (Number(l.open) || 0), 0);
+  let reasons = [];
+  if (rec.status === 'Approved' && totalOpen > 0) {
+    const rr = await apiFetch('/api/v1/doc/ReasonCode?limit=500');
+    if (rr && rr.ok) {
+      const docs = await rr.json();
+      reasons = (Array.isArray(docs) ? docs : (docs.data || [])).filter(d => d.category === 'Cancellation' && (d.status || 'Active') === 'Active');
+    }
+  }
+  document.getElementById('po-balance-dialog')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'po-balance-dialog';
+  overlay.innerHTML = `
+    <div class="modal-container" style="max-width: 980px;" role="dialog" aria-modal="true" aria-labelledby="po-balance-title">
+      <div class="modal-header">
+        <h3 class="modal-title" id="po-balance-title">PO ${escapeHTMLText(rec.po_number)} - receipts and balance</h3>
+        <button type="button" class="modal-close" aria-label="Close dialog" data-po-close>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px;">
+        <p style="margin: 0;">${escapeHTMLText(rec.vendor_name || rec.vendor || '')} · <span class="badge ${rec.status === 'Closed' ? 'badge-secondary' : 'badge-success'}">${escapeHTMLText(rec.status)}</span>
+          ${rec.short_close_info ? ` · ${escapeHTMLText(rec.short_close_info)}` : ''}</p>
+        <div class="table-panel" style="overflow-x: auto;"><table>
+          <thead><tr><th>Item</th><th class="num">Ordered</th><th class="num">Received</th><th class="num">Accepted</th><th class="num">Rejected</th><th class="num">Damaged</th><th class="num">Returned</th><th class="num">Short-closed</th><th class="num">Open</th><th class="num">Invoiced</th><th class="num">Paid</th></tr></thead>
+          <tbody>${(rec.lines || []).map(l => `<tr><td>${escapeHTMLText(l.name || l.sku)}${l.name ? `<div style="font-size: 11px; color: var(--text-muted);">${escapeHTMLText(l.sku)}</div>` : ''}</td>
+            ${cell(l.ordered)}${cell(l.received)}${cell(l.accepted)}${cell(l.rejected)}${cell(l.damaged)}${cell(l.returned)}${cell(l.short_closed)}<td class="num"><b>${n(l.open)}</b></td>${cell(l.invoiced)}${cell(l.paid)}</tr>`).join('')}</tbody>
+        </table></div>
+        <p style="margin: 0;">Ordered ₹${formatMoney(rec.ordered_value)} · Accepted ₹${formatMoney(rec.accepted_value)} · Open ₹${formatMoney(rec.open_value)} · Invoiced ₹${formatMoney(rec.invoiced_amount)} · Paid ₹${formatMoney(rec.paid_amount)}</p>
+        <p style="margin: 0; color: var(--text-muted);">Receipts: ${(rec.grns || []).length ? rec.grns.map(g => `${escapeHTMLText(g.number)}${g.invoices && g.invoices.length ? ` (invoice ${escapeHTMLText(g.invoices.join(', '))})` : ' (not invoiced)'}`).join(' · ') : 'none yet'}
+          ${(rec.claims || []).length ? `<br>Claims raised on short-close (Procurement → Purchase Return): ${escapeHTMLText(rec.claims.join(', '))}` : ''}</p>
+        ${rec.status === 'Approved' && totalOpen > 0 ? `
+        <div class="table-panel" style="padding: 12px;">
+          <b>Short-close the open balance</b>
+          <p style="margin: 4px 0 8px; color: var(--text-muted);">Rejected units stay open for the vendor to replace. If no replacement is coming, close the remaining ${n(totalOpen)} unit(s): the PO closes, takes no more receipts, and any rejected or damaged goods still held go on a Draft purchase return (the claim).</p>
+          ${reasons.length ? `<div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
+            <div class="form-group" style="margin: 0;"><label class="form-label" for="po-sc-reason">Reason</label>
+              <select id="po-sc-reason" class="form-select"><option value="">Choose a reason...</option>${reasons.map(r => `<option value="${escapeHTMLText(r.id)}">${escapeHTMLText(r.code || r.id)}${r.description ? ` - ${escapeHTMLText(r.description)}` : ''}</option>`).join('')}</select></div>
+            <div class="form-group" style="margin: 0;"><label class="form-label" for="po-sc-note">Note</label><input id="po-sc-note" class="form-input" maxlength="200"></div>
+            <button type="button" class="btn btn-primary" id="po-sc-btn">Short-close</button></div>
+            <div id="po-sc-error" class="login-error hidden"></div>`
+          : `<p style="margin: 0;">No active reason codes of type <b>Cancellation</b> yet. <button type="button" class="action-btn" ${actionAttrs('openSetupDoctype', ['ReasonCode'])}>Add a reason code</button></p>`}
+        </div>` : ''}
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline" data-po-close>Close</button></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelectorAll('[data-po-close]').forEach(b => b.addEventListener('click', close));
+  overlay.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  overlay.addEventListener('click', e => { if (e.target.closest('[data-act="openSetupDoctype"]')) close(); });
+  requestAnimationFrame(() => overlay.classList.add('open'));
+  const btn = overlay.querySelector('#po-sc-btn');
+  if (btn) btn.addEventListener('click', () => guardAgainstDoubleSubmit(btn, 'Closing...', async () => {
+    const errEl = overlay.querySelector('#po-sc-error');
+    errEl.classList.add('hidden');
+    const reason = overlay.querySelector('#po-sc-reason').value;
+    if (!reason) { errEl.textContent = 'Choose a reason.'; errEl.classList.remove('hidden'); return; }
+    if (!(await showCustomConfirm(`Close the remaining ${n(totalOpen)} unit(s) of PO ${rec.po_number}? No more goods can be received against it.`, 'Short-close'))) return;
+    const r = await apiFetch(`/api/v1/procurement/purchase-order/${encodeURIComponent(poId)}/short-close`, {
+      method: 'POST', body: JSON.stringify({ reason_code: reason, note: overlay.querySelector('#po-sc-note').value.trim() }) });
+    if (!r) return;
+    if (!r.ok) { close(); await showApiError(r, 'The purchase order could not be short-closed.', 'Short-close'); return; }
+    const out = await r.json();
+    close();
+    await showCustomAlert(`PO ${rec.po_number} closed: ${n(out.closed_units)} open unit(s) closed.${(out.claims || []).length ? ` Claim${out.claims.length === 1 ? '' : 's'} raised for the rejected / damaged goods: ${out.claims.join(', ')} (Procurement → Purchase Return, post to send them back).` : ''}`, 'Short-close');
+    renderView('purchase-orders');
+  }));
 };
 
 window.startGRNFromPO = function(poId) {
@@ -785,7 +871,9 @@ function renderPODesignPanel() {
   const kept = combos.filter(c => !d.removed.has(c.key));
   const axes = poDesignAxes(d);
   const inm = d.itemName;
-  const canAddAttr = canCreateDoctype('ProductAttributeDef');
+  // Stage 81: a client whose attributes were set up from the library adds
+  // values here, never a new attribute.
+  const canAddAttr = canCreateDoctype('ProductAttributeDef') && !(d.matrix && d.matrix.attributes_closed);
   const canAddValue = canUpdateDoctype('ProductAttributeDef');
   const exact = inm && d.designNumber.trim() && !d.loaded
     ? d.designs.find(f => poDesignLabel(f).toLowerCase() === d.designNumber.trim().toLowerCase()) : null;
@@ -2326,27 +2414,28 @@ async function loadGRNItemsFromPOInner() {
     Object.keys(acc).forEach(sku => { rates[sku] = { rate: Math.round(acc[sku].taxable / acc[sku].qty * 100) / 100, gst: acc[sku].gst }; });
   }
 
-  // Already received on earlier receipts of this PO (cancelled ones excluded),
-  // so only the open quantity loads.
-  const receivedBefore = {};
-  (Array.isArray(state.docData) ? state.docData : []).forEach(g => {
-    if (g.status === 'Cancelled') return;
-    const onThis = g.po_id === poKey || String(g.po_ids || '').split(',').includes(poKey);
-    if (!onThis) return;
-    let ls = [];
-    try { ls = JSON.parse(g.received_items || '[]'); } catch (e) { ls = []; }
-    ls.forEach(l => {
-      if ((l.po_id || g.po_id) === poKey) receivedBefore[l.sku] = (receivedBefore[l.sku] || 0) + (Number(l.qty) || 0);
-    });
-  });
+  // Stage 73.2.4 (D05): the open quantity comes from the server - ordered
+  // less ACCEPTED (a rejected unit stays open for its replacement) less any
+  // short-closed balance - so this screen and the receipt check agree.
+  const openBySku = {};
+  const recRes = await apiFetch(`/api/v1/procurement/purchase-order/${encodeURIComponent(poKey)}/reconciliation`);
+  if (recRes && recRes.ok) {
+    const rec = await recRes.json();
+    if (rec.status === 'Closed') {
+      noteEl.textContent = `PO ${poLabel} is closed${rec.short_closed ? ' (short-closed)' : ''} - nothing more can be received against it.`;
+      return;
+    }
+    (rec.lines || []).forEach(l => { openBySku[l.sku] = Number(l.open) || 0; });
+  }
 
   let added = 0, closed = 0;
+  const seenSku = {};
   for (const it of items) {
     const sku = it.sku || it.item_id || '';
-    const orderedQty = Number(it.qty) || 0;
-    if (!sku) continue;
-    const open = Math.max(0, orderedQty - (receivedBefore[sku] || 0));
-    receivedBefore[sku] = Math.max(0, (receivedBefore[sku] || 0) - orderedQty);
+    if (!sku || seenSku[sku]) continue;
+    seenSku[sku] = true;
+    const orderedQty = items.filter(x => (x.sku || x.item_id) === sku).reduce((n, x) => n + (Number(x.qty) || 0), 0);
+    const open = sku in openBySku ? openBySku[sku] : orderedQty;
     if (open <= 0) { closed++; continue; }
     const barcode = await lookupGRNBarcode(sku);
     const r = rates[sku];

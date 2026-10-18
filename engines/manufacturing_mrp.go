@@ -720,3 +720,65 @@ func runProductionCostVarianceReport(tenantID string, params map[string]string) 
 	}
 	return out, nil
 }
+
+// MaterialNeed is one component of a production order's material plan
+// (Stage 55.12): what the order needs at its location, what is there, and
+// whether it is issued up front or backflushed when output is reported.
+type MaterialNeed struct {
+	Sku       string  `json:"sku"`
+	Name      string  `json:"name,omitempty"`
+	PerUnit   float64 `json:"per_unit"`
+	Required  float64 `json:"required"`
+	Available float64 `json:"available"`
+	Short     float64 `json:"short"`
+	Backflush bool    `json:"backflush,omitempty"`
+}
+
+// ProductionMaterialPlan explodes a BOM for qty units and checks each
+// component against available stock at location - the same check
+// IssueProductionMaterial makes, shown before anyone presses Issue.
+func ProductionMaterialPlan(tenantID, bomID string, qty float64, location string) ([]MaterialNeed, error) {
+	if qty <= 0 {
+		return nil, &ValidationError{Message: "enter a quantity to produce"}
+	}
+	components, err := explodeBOMComponents(tenantID, bomID, 1.0, map[string]bool{}, 0)
+	if err != nil {
+		return nil, err
+	}
+	_, backflush := splitBackflushComponents(tenantID, components)
+	isBackflush := map[string]bool{}
+	for _, c := range backflush {
+		isBackflush[c.Sku] = true
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]MaterialNeed, 0, len(components))
+	for _, c := range components {
+		n := MaterialNeed{Sku: c.Sku, PerUnit: c.Qty, Required: round2(c.Qty * qty), Backflush: isBackflush[c.Sku]}
+		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT available FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2`, schema), c.Sku, location).Scan(&n.Available)
+		if n.Available < n.Required {
+			n.Short = round2(n.Required - n.Available)
+		}
+		if item, err := ResolveItemBySKU(tenantID, c.Sku); err == nil {
+			n.Name = strField(item.Data, "name")
+		}
+		out = append(out, n)
+	}
+	return out, nil
+}
+
+// ProductionOrderMaterialPlan is ProductionMaterialPlan for a saved order,
+// read from the order's own BOM, quantity and location.
+func ProductionOrderMaterialPlan(tenantID, orderID string) (bomID, location string, qty float64, lines []MaterialNeed, err error) {
+	data, _, err := fetchProductionOrder(tenantID, orderID)
+	if err != nil {
+		return "", "", 0, nil, &ValidationError{Message: "production order not found"}
+	}
+	bomID, _ = data["bom_id"].(string)
+	location, _ = data["location"].(string)
+	qty = numFromInterface(data["quantity"])
+	lines, err = ProductionMaterialPlan(tenantID, bomID, qty, location)
+	return
+}

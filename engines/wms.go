@@ -353,6 +353,13 @@ var validBinConditions = map[string]bool{"Good": true, "Damaged": true, "QC-Hold
 // here - the stock is still physically in the building throughout, exactly
 // like the existing reserved-stock pattern in engines/inventory.go.
 func TransitionBinStockCondition(tenantID, binCode, sku string, qty int, fromCondition, toCondition, userID string) error {
+	return TransitionBinStockConditionForOwner(tenantID, binCode, sku, qty, fromCondition, toCondition, "", userID)
+}
+
+// TransitionBinStockConditionForOwner (Stage 59.4) changes the condition of
+// one owner's units when the bin holds several owners' stock; the owner's
+// slice moves to the new condition with them.
+func TransitionBinStockConditionForOwner(tenantID, binCode, sku string, qty int, fromCondition, toCondition, ownerID, userID string) error {
 	if qty <= 0 {
 		return errors.New("qty must be positive")
 	}
@@ -415,6 +422,10 @@ func TransitionBinStockCondition(tenantID, binCode, sku string, qty int, fromCon
 		}
 	}
 
+	movedOwner, err := moveOwnerSliceTx(tx, tenantID, schema, binCode, binCode, sku, fromCondition, toCondition, locationCode, have, qty, ownerID)
+	if err != nil {
+		return err
+	}
 	if _, err := tx.Exec(fmt.Sprintf(
 		`UPDATE %s.bin_stock SET qty = qty - $1, updated_at = CURRENT_TIMESTAMP WHERE bin_code = $2 AND sku = $3 AND condition = $4`, schema),
 		qty, binCode, sku, fromCondition); err != nil {
@@ -453,7 +464,7 @@ func TransitionBinStockCondition(tenantID, binCode, sku string, qty int, fromCon
 	if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
 		ItemID: sku, WarehouseID: locationCode, Qty: float64(availabilityDelta),
 		VoucherType: "ConditionChange", VoucherID: binCode, UserID: userID,
-		ToLocationID: binCode, FromStatus: fromCondition, ToStatus: toCondition,
+		ToLocationID: binCode, FromStatus: fromCondition, ToStatus: toCondition, OwnerID: movedOwner,
 	}); lerr != nil {
 		LogSystemError(tenantID, "", "WARN", "TransitionBinStockCondition", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
 	}
@@ -470,9 +481,97 @@ func TransitionBinStockCondition(tenantID, binCode, sku string, qty int, fromCon
 // inventory unreviewed - satisfies 20.22's "posts to inventory only after
 // approval" requirement. Returns how many lines fell into each bucket.
 func ReconcileCycleCount(tenantID, countSession, actorUserID, actorRole string) (posted int, pendingApproval int, err error) {
+	res, err := ReconcileCycleCountDetailed(tenantID, countSession, actorUserID, actorRole)
+	return res.Posted, res.PendingApproval, err
+}
+
+// Stage 73.1.8: a first count whose variance crosses any of these (each 0 =
+// off) is not sent for approval - a blind recount is requested instead, and
+// only the recount's variance goes to the approver.
+const (
+	RecountTriggerQtySetting   = "wms.recount_trigger_qty"
+	RecountTriggerPctSetting   = "wms.recount_trigger_pct"
+	RecountTriggerValueSetting = "wms.recount_trigger_value"
+)
+
+func init() {
+	RegisterSetting(SettingDefinition{
+		Key: RecountTriggerQtySetting, Module: "Warehouse",
+		Label: "Recount when a count is off by", Type: SettingTypeInt, Default: "0", Unit: "units",
+		Min:         settingBound(0),
+		Description: "A first count that differs from the books by at least this many units gets a blind recount before anyone approves it. 0 = off.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: RecountTriggerPctSetting, Module: "Warehouse",
+		Label: "Recount when a count is off by (percent)", Type: SettingTypeFloat, Default: "0", Unit: "%",
+		Min:         settingBound(0),
+		Description: "A first count that differs from the books by at least this percentage gets a blind recount (a count against zero on the books is 100%). 0 = off.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: RecountTriggerValueSetting, Module: "Warehouse",
+		Label: "Recount when a count is off by (value)", Type: SettingTypeFloat, Default: "0", Unit: "₹",
+		Min:         settingBound(0),
+		Description: "A first count whose difference is worth at least this much at item cost gets a blind recount. 0 = off.",
+	})
+}
+
+// CycleCountReconcileResult is what one reconcile run did.
+type CycleCountReconcileResult struct {
+	Posted           int                 `json:"posted_no_variance"`
+	PendingApproval  int                 `json:"pending_approval"`
+	RecountRequested int                 `json:"recount_requested"`
+	Recounts         []CycleCountRecount `json:"recounts,omitempty"`
+	AwaitingCount    int                 `json:"awaiting_count"`
+}
+
+// CycleCountRecount names a line sent back for a blind recount and why.
+type CycleCountRecount struct {
+	LineID    string `json:"line_id"`
+	NewLineID string `json:"recount_line_id"`
+	Sku       string `json:"sku"`
+	Location  string `json:"location"`
+	Trigger   string `json:"trigger"`
+}
+
+// recountTrigger says which configured trigger a variance crosses, or "".
+func recountTrigger(tenantID, sku string, systemQty, variance int) string {
+	abs := variance
+	if abs < 0 {
+		abs = -abs
+	}
+	if abs == 0 {
+		return ""
+	}
+	if n := GetSettingInt(tenantID, RecountTriggerQtySetting); n > 0 && abs >= n {
+		return fmt.Sprintf("off by %d units (trigger %d)", abs, n)
+	}
+	if p := GetSettingFloat(tenantID, RecountTriggerPctSetting); p > 0 {
+		pct := 100.0
+		if systemQty != 0 {
+			pct = math.Abs(float64(abs) / float64(systemQty) * 100)
+		}
+		if pct >= p {
+			return fmt.Sprintf("off by %.1f%% (trigger %.1f%%)", pct, p)
+		}
+	}
+	if v := GetSettingFloat(tenantID, RecountTriggerValueSetting); v > 0 {
+		if cost, ok := ResolveQuoteUnitCostPaise(tenantID, sku); ok {
+			if worth := PaiseToRupees(cost * int64(abs)); worth >= v {
+				return fmt.Sprintf("off by ₹%.2f at cost (trigger ₹%.2f)", worth, v)
+			}
+		}
+	}
+	return ""
+}
+
+// ReconcileCycleCountDetailed is ReconcileCycleCount with the recount
+// outcome (Stage 73.1.8) reported too.
+func ReconcileCycleCountDetailed(tenantID, countSession, actorUserID, actorRole string) (res CycleCountReconcileResult, err error) {
+	posted, pendingApproval := 0, 0
+	defer func() { res.Posted, res.PendingApproval = posted, pendingApproval }()
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return 0, 0, err
+		return res, err
 	}
 
 	rows, err := db.DB.Query(fmt.Sprintf(`
@@ -480,7 +579,7 @@ func ReconcileCycleCount(tenantID, countSession, actorUserID, actorRole string) 
 		WHERE doctype = 'CycleCountLine' AND data->>'count_session' = $1
 		  AND status NOT IN ('Pending Approval', 'Approved', 'Rejected', 'Posted', 'Recount Requested')`, schema), countSession)
 	if err != nil {
-		return 0, 0, err
+		return res, err
 	}
 	type lineToProcess struct {
 		id   string
@@ -491,7 +590,7 @@ func ReconcileCycleCount(tenantID, countSession, actorUserID, actorRole string) 
 		var id, dataStr string
 		if err := rows.Scan(&id, &dataStr); err != nil {
 			rows.Close()
-			return 0, 0, err
+			return res, err
 		}
 		var data map[string]interface{}
 		if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
@@ -504,6 +603,12 @@ func ReconcileCycleCount(tenantID, countSession, actorUserID, actorRole string) 
 	for _, line := range toProcess {
 		sku, _ := line.data["sku"].(string)
 		location, _ := line.data["location"].(string)
+		// Stage 73.1.8: a recount placeholder nobody has counted yet is not a
+		// count of zero - it waits for SubmitRecountValue.
+		if raw, ok := line.data["counted_qty"]; !ok || raw == nil || raw == "" {
+			res.AwaitingCount++
+			continue
+		}
 		countedQty := numFromInterface(line.data["counted_qty"])
 
 		var systemQty int
@@ -522,10 +627,42 @@ func ReconcileCycleCount(tenantID, countSession, actorUserID, actorRole string) 
 				`UPDATE %s.documents SET data = $1, status = 'Posted', updated_at = CURRENT_TIMESTAMP WHERE id = $2`, schema),
 				marshaled, line.id)
 			if execErr != nil {
-				return posted, pendingApproval, execErr
+				return res, execErr
 			}
 			posted++
 			continue
+		}
+
+		// Stage 73.1.8: a first count past a recount trigger goes back for a
+		// blind recount (RequestRecount) instead of to an approver. A recount
+		// line is never re-triggered - its variance is what gets approved,
+		// with the first count kept beside it for the approver.
+		if origID, _ := line.data["recount_of"].(string); origID == "" {
+			if trigger := recountTrigger(tenantID, sku, systemQty, variance); trigger != "" {
+				line.data["recount_trigger"] = trigger
+				marshaled, _ := json.Marshal(line.data)
+				if _, execErr := db.DB.Exec(fmt.Sprintf(
+					`UPDATE %s.documents SET data = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, schema),
+					marshaled, line.id); execErr != nil {
+					return res, execErr
+				}
+				newID, rerr := RequestRecount(tenantID, line.id, actorUserID)
+				if rerr != nil {
+					return res, fmt.Errorf("line %s: %v", line.id, rerr)
+				}
+				res.RecountRequested++
+				res.Recounts = append(res.Recounts, CycleCountRecount{LineID: line.id, NewLineID: newID, Sku: sku, Location: location, Trigger: trigger})
+				continue
+			}
+		} else {
+			var origData string
+			if db.DB.QueryRow(fmt.Sprintf(`SELECT data FROM %s.documents WHERE doctype = 'CycleCountLine' AND id = $1`, schema), origID).Scan(&origData) == nil {
+				var orig map[string]interface{}
+				if json.Unmarshal([]byte(origData), &orig) == nil {
+					line.data["first_count_qty"] = orig["counted_qty"]
+					line.data["first_count_variance"] = orig["variance"]
+				}
+			}
 		}
 
 		// Stored under "variance_qty" (not "variance") for extractAmount's
@@ -541,14 +678,14 @@ func ReconcileCycleCount(tenantID, countSession, actorUserID, actorRole string) 
 		if _, execErr := db.DB.Exec(fmt.Sprintf(
 			`UPDATE %s.documents SET data = $1, status = 'Draft', updated_at = CURRENT_TIMESTAMP WHERE id = $2`, schema),
 			marshaled, line.id); execErr != nil {
-			return posted, pendingApproval, execErr
+			return res, execErr
 		}
 		if err := SubmitForApproval(tenantID, "CycleCountLine", line.id, actorUserID, actorRole); err != nil {
-			return posted, pendingApproval, fmt.Errorf("line %s: %v", line.id, err)
+			return res, fmt.Errorf("line %s: %v", line.id, err)
 		}
 		pendingApproval++
 	}
-	return posted, pendingApproval, nil
+	return res, nil
 }
 
 // PostCycleCountAdjustment (20.22) applies an Approved CycleCountLine's
@@ -563,9 +700,18 @@ func PostCycleCountAdjustment(tenantID, lineID, userID string) error {
 		return err
 	}
 
+	// Stage 73.1.8: one transaction under the line's row lock - the stock
+	// correction and the line's Posted status commit together or not at all,
+	// so a retry or a double click can never post the same variance twice
+	// (the old read-check-write could), and only an Approved line posts.
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 	var status, dataStr string
-	if err := db.DB.QueryRow(fmt.Sprintf(
-		`SELECT status, data FROM %s.documents WHERE doctype = 'CycleCountLine' AND id = $1`, schema), lineID).
+	if err := tx.QueryRow(fmt.Sprintf(
+		`SELECT status, data FROM %s.documents WHERE doctype = 'CycleCountLine' AND id = $1 FOR UPDATE`, schema), lineID).
 		Scan(&status, &dataStr); err != nil {
 		return fmt.Errorf("cycle count line not found: %v", err)
 	}
@@ -574,6 +720,9 @@ func PostCycleCountAdjustment(tenantID, lineID, userID string) error {
 	// rejected) - guard against double-posting the same adjustment twice.
 	if status == "Posted" {
 		return fmt.Errorf("cycle count line %s is already Posted", lineID)
+	}
+	if status != "Approved" {
+		return fmt.Errorf("cycle count line %s is %s - only an Approved variance posts", lineID, status)
 	}
 	var data map[string]interface{}
 	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
@@ -594,7 +743,7 @@ func PostCycleCountAdjustment(tenantID, lineID, userID string) error {
 		return fmt.Errorf("cycle count line %s cannot post: a variance root-cause reason code is required first (see SetCycleCountVarianceReason)", lineID)
 	}
 
-	if _, err := db.DB.Exec(fmt.Sprintf(`
+	if _, err := tx.Exec(fmt.Sprintf(`
 		INSERT INTO %s.inventory_availability (sku, location_code, on_hand, available)
 		VALUES ($1, $2, $3, $3)
 		ON CONFLICT (sku, location_code) DO UPDATE SET
@@ -606,10 +755,14 @@ func PostCycleCountAdjustment(tenantID, lineID, userID string) error {
 	}
 
 	data["status"] = "Posted"
+	data["posted_by"] = userID
 	marshaled, _ := json.Marshal(data)
-	if _, err = db.DB.Exec(fmt.Sprintf(
+	if _, err = tx.Exec(fmt.Sprintf(
 		`UPDATE %s.documents SET data = $1, status = 'Posted', updated_at = CURRENT_TIMESTAMP WHERE id = $2`, schema),
 		marshaled, lineID); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
 		return err
 	}
 	// 26.10.1: the physical count correction itself, signed the same way as
@@ -617,6 +770,9 @@ func PostCycleCountAdjustment(tenantID, lineID, userID string) error {
 	if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
 		ItemID: sku, WarehouseID: location, Qty: float64(variance),
 		VoucherType: "CycleCount", VoucherID: lineID, UserID: userID,
+		IdempotencyKey: "CYCLECOUNT:" + lineID,
+		// Stage 59.4: a count of one owner's stock says so on the ledger.
+		OwnerID: strField(data, "owner_id"),
 	}); lerr != nil {
 		LogSystemError(tenantID, "", "WARN", "PostCycleCountAdjustment", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
 	}
@@ -652,4 +808,80 @@ func numFromInterface(v interface{}) float64 {
 	default:
 		return 0
 	}
+}
+
+// CycleCountLineView is one line of a count session as the Cycle Count
+// screen shows it (Stage 55.6): the book quantity and difference only once
+// the line has been reconciled, so a counter is never shown what the system
+// expects, and a recount line never shows the first count.
+type CycleCountLineView struct {
+	ID            string   `json:"id"`
+	Sku           string   `json:"sku"`
+	ItemName      string   `json:"item_name,omitempty"`
+	Location      string   `json:"location"`
+	Bin           string   `json:"bin,omitempty"`
+	Status        string   `json:"status"`
+	CountedQty    *float64 `json:"counted_qty,omitempty"`
+	SystemQty     *float64 `json:"system_qty,omitempty"`
+	Variance      *float64 `json:"variance,omitempty"`
+	ReasonCode    string   `json:"variance_reason_code,omitempty"`
+	RecountOf     string   `json:"recount_of,omitempty"`
+	RecountLineID string   `json:"recount_line_id,omitempty"`
+	Trigger       string   `json:"recount_trigger,omitempty"`
+	FirstCountQty *float64 `json:"first_count_qty,omitempty"`
+	OwnerID       string   `json:"owner_id,omitempty"`
+}
+
+// CycleCountSessionLines lists a session's lines for the work table.
+func CycleCountSessionLines(tenantID, session string) ([]CycleCountLineView, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(`
+		SELECT id, COALESCE(status, ''), data FROM %s.documents
+		 WHERE doctype = 'CycleCountLine' AND deleted_at IS NULL AND data->>'count_session' = $1
+		 ORDER BY created_at, id`, schema), session)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []CycleCountLineView{}
+	recountOf := map[string]string{}
+	for rows.Next() {
+		var id, status, raw string
+		if err := rows.Scan(&id, &status, &raw); err != nil {
+			return nil, err
+		}
+		var d map[string]interface{}
+		_ = json.Unmarshal([]byte(raw), &d)
+		v := CycleCountLineView{ID: id, Sku: strField(d, "sku"), Location: strField(d, "location"), Bin: strField(d, "bin"),
+			Status: status, ReasonCode: strField(d, "variance_reason_code"), RecountOf: strField(d, "recount_of"),
+			Trigger: strField(d, "recount_trigger"), OwnerID: strField(d, "owner_id")}
+		num := func(k string) *float64 {
+			if x, ok := d[k]; ok && x != nil && x != "" {
+				f := numFromInterface(x)
+				return &f
+			}
+			return nil
+		}
+		v.CountedQty = num("counted_qty")
+		if _, reconciled := d["system_qty"]; reconciled {
+			v.SystemQty, v.Variance = num("system_qty"), num("variance")
+			if v.RecountOf != "" {
+				v.FirstCountQty = num("first_count_qty")
+			}
+		}
+		if v.RecountOf != "" {
+			recountOf[v.RecountOf] = id
+		}
+		if item, _, err := fetchDocData(tenantID, "Item", v.Sku); err == nil {
+			v.ItemName = strField(item, "name")
+		}
+		out = append(out, v)
+	}
+	for i := range out {
+		out[i].RecountLineID = recountOf[out[i].ID]
+	}
+	return out, rows.Err()
 }

@@ -386,6 +386,10 @@ func moduleRequest(t *testing.T, handler http.Handler, token, method, path strin
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Tenant-ID", "default")
+	if strings.HasPrefix(path, publicAPIPathPrefix) && publicAPIMutating(method) {
+		// A mutating public route needs a fresh key per call (Stage 73.2.13).
+		req.Header.Set("Idempotency-Key", fmt.Sprintf("bld021-%d-%p", seq, req))
+	}
 	// Distinct local peers keep this entitlement campaign separate from the
 	// rate-limit campaign; every request still executes the real limiter.
 	req.RemoteAddr = fmt.Sprintf("198.18.%d.%d:12345", seq/250, seq%250+1)
@@ -494,7 +498,7 @@ func TestModuleManifestPublicCredentialRoutes(t *testing.T) {
 	handler, _ := moduleHTTPFixture(t)
 	before := snapshotEntitlements(t, "tenant_default")
 	t.Cleanup(func() { restoreEntitlements("tenant_default", before) })
-	issued, err := engines.IssueAPICredential("default", "BLD-021 boundary fixture", []string{"items:read", "inventory:read", "orders:read"}, nil, "system")
+	issued, err := engines.IssueAPICredential("default", "BLD-021 boundary fixture", []string{"items:read", "inventory:read", "orders:read", "notifications:write"}, nil, "system")
 	if err != nil {
 		t.Fatal(err)
 	}

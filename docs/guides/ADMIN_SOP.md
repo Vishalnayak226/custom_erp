@@ -42,19 +42,19 @@ Sidebar: **Settings** → **Users**.
 6. **MFA reset**: if an Super Admin (or another MFA-required role) loses their authenticator device, there's no button for this on the Users screen — see ADMIN_GUIDE §B.2: run `cmd/reset_mfa` (`go run ./cmd/reset_mfa`) or ask a developer.
 7. **Lockouts**: if a user is locked out after repeated failed logins, wait for the automatic lockout window to expire, or clear it directly at the database level (there's no in-app "unlock" button as of this writing).
 
-### A.2 Roles — the permission grant matrix
+### A.2 Roles — what each role can use
 
-Sidebar: **Settings** → **Roles**. This controls what each non-admin role can Read/Create/Update/Delete, per record type. **Super Admin itself always has full access everywhere and never needs a row here.**
+Sidebar: **Settings** → **Roles**. This controls what each non-admin role can Read/Create/Update/Delete, module by module and record type by record type. **Super Admin and HR/Admin always have full access everywhere** and show as *Full access (built in)*.
 
 
-![The Roles screen: the grant matrix above, the add-grant form below](img/roles.png)
+![A role's access page: every module with Full access / Read / Create / Update / Delete](img/roles.png)
 
-1. Pick a **Role** and a **Record Type** from the two dropdowns.
-2. Tick whichever of **Read / Create / Update / Delete** should apply (Read is ticked by default).
-3. Click **Save Grant**.
-4. The table above the form always shows every currently-granted (role, record type) pair with checkmarks/dashes for each permission — this is your source of truth for "what can Role X actually do."
-5. **A role with no row at all for a given record type has zero access to it — it fails closed, not open.** If a role should be able to see/use something and can't, the fix is almost always: add a grant row here for that exact (role, record type) pair, rather than a code change.
-6. There is no Edit or Delete action on an existing grant row — to change one, just submit the form again with the same Role + Record Type and the new checkbox combination; it upserts (creates or replaces) that row.
+1. The screen opens on the **list of roles**: what each can reach and which users hold it. **+ New Role** creates one (name, optional description, **Create Role**) and opens its access page.
+2. Click a role (or **Set access**) to open its **access page**. Every module is listed.
+3. Tick **Read / Create / Update / Delete** (or **Full access**) on a **module** row to give that right on all of its record types. Click the module name to expand it and tick single record types instead. A half-filled box means some of the module's record types have that right.
+4. Ticking Create, Update or Delete also ticks Read; clearing Read clears the other three.
+5. Click **Save access**. All the ticks on the page are saved together. Until then the bar at the bottom says how many record types changed, **Discard changes** undoes them, and leaving the page asks first.
+6. **A role with no access to a record type cannot use it at all — it fails closed, not open.** If a role should be able to see/use something and can't, open the role, tick that record type (or its module), and save — not a code change.
 
 ### A.3 Prefix Configs — document numbering formats
 
@@ -111,14 +111,16 @@ Sidebar: **Settings** → **Activity Log** (internally still called "Log Hub"). 
 3. **Integration Payloads**: every outbound webhook/integration event, its status (Dispatched/Success/Failed/etc.), attempt count, and payload preview. A **Failed** row shows a **Retry** button — click it, confirm, and the event is re-queued for delivery.
 4. **Test Panic Recovery** button (top right, next to the page title): deliberately triggers a backend panic to verify the recovery middleware is catching panics and the server stays up. Use this after any deployment change you're unsure about, not routinely — it's a diagnostic tool, not something to click during normal operation. A response (even an error response) means recovery worked; only a dropped connection means it didn't.
 
-### A.7 Industry Selector — switching the active industry profile
+### A.7 Industry — choosing the active industry profile
 
-Not under Settings — it's the dropdown in the header bar next to the Sync button, but it's an admin-level action (it changes tenant-wide configuration).
+Sidebar: **Settings** → **Configuration** → **Industry** (first in the list on the left). Admin only; other roles never see it. It changes tenant-wide configuration.
 
-1. Pick an industry from the dropdown (Jewelry, Food & Beverage, Automobile, Clothing, Pharmaceuticals & Biotechnology, Metal & Steel Fabrication, Construction & Contracting, Medical Devices, Semiconductors, Agriculture & Perishable Goods).
-2. Confirm the dialog warning that this reloads preset table field configurations.
-3. The app re-fetches labels and registered record types and re-renders the screen you are on with the new profile's preset fields active.
-4. There's no "current industry" indicator to read back later — this is a one-time overlay action, not a persistent setting you can review afterward from within the app (the browser just remembers your last selection locally).
+1. The panel shows the **current** industry, who set it and when, and how many times it has been changed.
+2. Click the industry you want (Jewelry, Food & Beverage, Automobile, Clothing, Pharmaceuticals & Biotechnology, Metal & Steel Fabrication, Construction & Contracting, Medical Devices, Semiconductors, Agriculture & Perishable Goods). Each shows what it covers. The panel then says what the change does: the industry's fields are added to Item and the setup lists, its labels replace the current ones, its common HSN codes are added, and nothing is deleted.
+3. If an industry is already set, type the **Reason for the change** — required, and kept in the audit log.
+4. Press **Set industry to …** / **Change industry to …** and confirm. The app re-fetches labels and record types; everyone sees the new fields after they refresh.
+
+Full detail: Admin Guide §B.3.2.1.
 
 ---
 
@@ -128,7 +130,7 @@ Sidebar: **Settings** → **Approval Rules**. The routing table behind every app
 
 1. The table lists every configured rule: **Record Type**, **Min Amount**, **Max Amount**, **Required Role**.
 2. To add or change one, fill in the form and click **Save Rule**. Re-saving the same record type and amount band replaces that rule rather than adding a second.
-3. **Leave no gap between bands.** A document whose amount falls in no band is not gated at all — it saves without any approval. If one band ends at 49,999 the next must start at 50,000.
+3. **Leave no gap between bands.** A document whose amount falls in no band cannot be submitted for approval — it is refused with "has no approval rule configured". If one band ends at 49,999 the next must start at 50,000.
 4. Overlapping bands are rejected at save time with a message naming the conflict.
 5. Every change is written to the Activity Log's Audit Logs tab as `SAVE_APPROVAL_RULE`.
 
@@ -263,9 +265,11 @@ Maker flow: **Procurement → Purchase Requisitions** (USER_SOP.md §15A). Creat
 
 Use **Settings → Approval Rules**. The screen lists every configured rule (record type, amount band, required role) and lets you add or edit one in place: pick the **Record Type**, set **Min Amount** / **Max Amount**, choose the **Required Role**, and click **Save Rule**. Saving the same record type and band again replaces that rule rather than adding a duplicate.
 
+Below the table, **Who approves what** reads the rules back per record type — each band and its role, with any gap below the first band, between bands, above the last, or overlap marked. Pick a record type and type an amount to see which role it goes to; a document submitted for approval at an amount no band covers is refused (*"has no approval rule configured"*), so close the gap before relying on it.
+
 Two things to get right:
 
-- **Leave no gap between bands.** A document whose amount falls in no band is not gated at all. If Store Manager covers 0–49,999, the next band must start at 50,000, not 50,001.
+- **Leave no gap between bands.** A document whose amount falls in no band cannot be submitted for approval - it is refused (automatic checks such as the till's discount gate treat it as needing no approval). If Store Manager covers 0–49,999, the next band must start at 50,000, not 50,001.
 - **A rule needs two people to be useful.** Maker-checker refuses self-approval, so whoever creates the document cannot approve it — see §B.10.
 
 The underlying API (`GET`/`POST /api/v1/approval/rules`, Super Admin-only for writes) is still there if you need to script a bulk change:

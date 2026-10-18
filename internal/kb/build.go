@@ -353,8 +353,31 @@ func Build(root string) (*BuildResult, error) {
 			screenMap[screen] = append(screenMap[screen], article.Slug)
 		}
 	}
-	for screen := range screenMap {
-		sort.Strings(screenMap[screen])
+	// The help drawer opens the first slug, so order by how directly an
+	// article documents the screen: a module handbook before a journey or an
+	// overview, then the article that lists this screen earlier in its own
+	// screens: (authors list what an article is about first), then slug.
+	// Alphabetical alone opened "A day as a warehouse operator" on Bin
+	// Conditions and Channel Connectors on every master list.
+	handbook := map[string]bool{}
+	position := map[string]int{}
+	for _, article := range result.Articles {
+		handbook[article.Slug] = strings.EqualFold(article.Section, "Module Handbooks")
+		for i, screen := range article.Screens {
+			position[article.Slug+"\x00"+strings.ToLower(strings.TrimSpace(screen))] = i
+		}
+	}
+	for screen, slugs := range screenMap {
+		sort.SliceStable(slugs, func(i, j int) bool {
+			a, b := slugs[i], slugs[j]
+			if handbook[a] != handbook[b] {
+				return handbook[a]
+			}
+			if pa, pb := position[a+"\x00"+screen], position[b+"\x00"+screen]; pa != pb {
+				return pa < pb
+			}
+			return a < b
+		})
 	}
 
 	result.Index = Index{

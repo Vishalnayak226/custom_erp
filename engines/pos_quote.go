@@ -110,9 +110,29 @@ type QuoteRequest struct {
 	Interstate  bool               `json:"interstate"`
 	CouponCodes []string           `json:"coupon_codes"`
 	Lines       []QuoteLineRequest `json:"items"`
+	// RedeemPoints (Stage 73.1.5) is the points the cashier wants this bill
+	// to take; the quote prices them and caps them at what the bill allows.
+	RedeemPoints int `json:"redeem_points"`
 	// AsOf lets a backdated or offline-replayed sale price against the rules
 	// that were in force when it happened. Zero means "now".
 	AsOf time.Time `json:"-"`
+}
+
+// QuoteLoyalty (Stage 73.1.5) is the points side of a bill, priced here at
+// the tenant's own point value - the screen used to assume 1 point = Rs 1 and
+// work the total out itself. MaxPoints is the most this bill can take (the
+// balance, or the net bill at the point value, whichever is smaller); Points
+// is the cashier's ask capped at it, Value what those points pay, and the
+// Needs* fields what the redemption controls (73.1.4) will ask for first.
+type QuoteLoyalty struct {
+	Balance       int     `json:"balance"`
+	ValuePerPoint int     `json:"value_per_point"`
+	MaxPoints     int     `json:"max_points"`
+	Points        int     `json:"points"`
+	Value         float64 `json:"value"`
+	NeedsOTP      bool    `json:"needs_otp,omitempty"`
+	NeedsApproval bool    `json:"needs_approval,omitempty"`
+	ApproverRole  string  `json:"approver_role,omitempty"`
 }
 
 // QuoteLine is one priced line. Every monetary field on it was computed here,
@@ -141,6 +161,11 @@ type QuoteLine struct {
 	PromotionRef string `json:"promotion_ref,omitempty"`
 	NotStocked   bool   `json:"not_stocked,omitempty"`
 	BillMode     string `json:"bill_mode,omitempty"`
+	// Stage 73.1.1: OfferShare is this line's part of the bill's offer
+	// discount and NetTotal = LineTotal - OfferShare, the value the customer
+	// is charged for the line. GST is backed out of NetTotal, not LineTotal.
+	OfferShare float64 `json:"offer_share"`
+	NetTotal   float64 `json:"net_total"`
 }
 
 // QuoteResult is the whole authoritative answer: what the receipt says, what
@@ -185,12 +210,20 @@ type QuoteResult struct {
 	AppliedOffers  []AppliedOffer `json:"applied_offers"`
 	OfferDiscount  float64        `json:"offer_discount"`
 	UnmatchedCodes []string       `json:"unmatched_coupon_codes,omitempty"`
+	// CouponMessages (Stage 73.2.10): why a code that IS an issued voucher
+	// cannot be used on this bill (expired, used up, another customer's).
+	CouponMessages map[string]string `json:"coupon_messages,omitempty"`
 
 	GSTBreakdown GSTBreakdown `json:"gst_breakdown"`
 
 	// Total is what the customer owes before loyalty redemption, which is
 	// applied at finalization because it burns a real balance.
 	Total float64 `json:"total"`
+	// Stage 73.1.5: Loyalty is set whenever the cart has a customer, and
+	// AmountDue = Total - Loyalty.Value is what the till asks the customer for
+	// (before any gift card).
+	Loyalty   *QuoteLoyalty `json:"loyalty,omitempty"`
+	AmountDue float64       `json:"amount_due"`
 
 	// HasUnverifiedPrice is true when any line fell through to
 	// PriceSourceCashierEntered. Checkout treats such a cart as needing
@@ -365,17 +398,15 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 	// GST and offers are both computed from the RESOLVED prices, never the
 	// requested ones - this is what makes the receipt, the GST return and the
 	// revenue posting agree with each other by construction.
-	gstLines := make([]GSTLineInput, len(result.Lines))
+	//
+	// Stage 73.1.1: offers first, then GST on what is left. A discount given
+	// at the time of supply and shown on the bill is not part of the value of
+	// supply, so tax is backed out of each line's net total; before this the
+	// tax was worked out on the list price and the offer never reached the GL.
 	offerLines := make([]OfferCartLine, len(result.Lines))
 	for i, l := range result.Lines {
-		gstLines[i] = GSTLineInput{Sku: l.Sku, Qty: l.Qty, UnitRate: l.UnitPrice}
 		offerLines[i] = OfferCartLine{Sku: l.Sku, Qty: l.Qty, SalePrice: l.UnitPrice}
 	}
-	breakdown, err := ComputeGSTForLines(tenantID, gstLines, req.Interstate)
-	if err != nil {
-		return nil, err
-	}
-	result.GSTBreakdown = breakdown
 
 	offerEval, err := EvaluatePOSOffers(tenantID, OfferEvaluationInput{
 		Lines:       offerLines,
@@ -392,14 +423,133 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 	if err := authorizePromoLines(tenantID, req, result); err != nil {
 		return nil, err
 	}
+	applyTillVoucher(tenantID, req.CustomerID, result, offerEval)
+
+	gstLines := make([]GSTLineInput, len(result.Lines))
+	for i := range result.Lines {
+		l := &result.Lines[i]
+		if i < len(offerEval.LineDiscounts) {
+			l.OfferShare = offerEval.LineDiscounts[i]
+		}
+		l.NetTotal = round2(l.LineTotal - l.OfferShare)
+		unitNet := 0.0
+		if l.Qty > 0 {
+			unitNet = l.NetTotal / float64(l.Qty)
+		}
+		gstLines[i] = GSTLineInput{Sku: l.Sku, Qty: l.Qty, UnitRate: unitNet}
+	}
+	breakdown, err := ComputeGSTForLines(tenantID, gstLines, req.Interstate)
+	if err != nil {
+		return nil, err
+	}
+	result.GSTBreakdown = breakdown
 
 	result.Total = round2(result.Subtotal - result.OfferDiscount)
 	if result.Total < 0 {
 		result.Total = 0
 	}
+	result.AmountDue = result.Total
+	if strings.TrimSpace(req.CustomerID) != "" {
+		loyalty, err := quoteLoyalty(tenantID, req.CustomerID, req.RedeemPoints, result.Total)
+		if err != nil {
+			return nil, err
+		}
+		result.Loyalty = loyalty
+		result.AmountDue = round2(result.Total - loyalty.Value)
+	}
 
 	result.Version = signQuoteVersion(tenantID, result)
 	return result, nil
+}
+
+// applyTillVoucher (Stage 73.2.10) tries the coupon codes no offer claimed as
+// issued vouchers. The first usable one is applied after the offers, on what
+// they left, shared across the lines by their remaining value exactly like an
+// offer - so it reaches the net, the GST and a later return the same way -
+// and listed with the applied offers (type Voucher) so checkout redeems it.
+// A code that is a voucher but cannot be used here gets its reason.
+func applyTillVoucher(tenantID, customerID string, result *QuoteResult, offerEval *OfferEvaluation) {
+	if len(result.UnmatchedCodes) == 0 {
+		return
+	}
+	weights := make([]int64, len(result.Lines))
+	var left int64
+	for i, l := range result.Lines {
+		share := 0.0
+		if i < len(offerEval.LineDiscounts) {
+			share = offerEval.LineDiscounts[i]
+		}
+		weights[i] = RupeesToPaise(l.LineTotal) - RupeesToPaise(share)
+		if weights[i] > 0 {
+			left += weights[i]
+		}
+	}
+	voucher, reasons := resolveTillVoucher(tenantID, customerID, result.UnmatchedCodes, left)
+	if len(reasons) > 0 {
+		result.CouponMessages = reasons
+	}
+	if voucher == nil || voucher.DiscountPaise <= 0 {
+		return
+	}
+	for i, share := range allocatePaise(voucher.DiscountPaise, weights) {
+		if i < len(offerEval.LineDiscounts) {
+			offerEval.LineDiscounts[i] = PaiseToRupees(RupeesToPaise(offerEval.LineDiscounts[i]) + share)
+		}
+	}
+	discount := PaiseToRupees(voucher.DiscountPaise)
+	result.AppliedOffers = append(result.AppliedOffers, AppliedOffer{
+		OfferID: "VOUCHER:" + voucher.Code, Name: "Voucher " + voucher.Code, OfferType: OfferTypeVoucher, Scope: offerScopeBill,
+		CouponCode: voucher.Code, Discount: discount, Description: "issued voucher",
+	})
+	result.OfferDiscount = round2(result.OfferDiscount + discount)
+	unmatched := result.UnmatchedCodes[:0]
+	for _, c := range result.UnmatchedCodes {
+		if !strings.EqualFold(c, voucher.Code) {
+			unmatched = append(unmatched, c)
+		}
+	}
+	result.UnmatchedCodes = unmatched
+}
+
+// OfferTypeVoucher marks an applied "offer" that is an issued voucher.
+const OfferTypeVoucher = "Voucher"
+
+// quoteLoyalty prices the points a cart wants to redeem against what the bill
+// and the customer's balance allow. A negative balance (a return took back
+// points already spent - D03) redeems nothing.
+func quoteLoyalty(tenantID, customerID string, wanted int, total float64) (*QuoteLoyalty, error) {
+	balance, err := GetLoyaltyBalance(tenantID, customerID)
+	if err != nil {
+		return nil, err
+	}
+	v := redemptionValuePerPointFor(tenantID)
+	if v <= 0 {
+		v = 1
+	}
+	l := &QuoteLoyalty{Balance: balance, ValuePerPoint: v}
+	l.MaxPoints = int(RupeesToPaise(total) / RupeesToPaise(float64(v)))
+	if balance < l.MaxPoints {
+		l.MaxPoints = balance
+	}
+	if l.MaxPoints < 0 {
+		l.MaxPoints = 0
+	}
+	l.Points = wanted
+	if l.Points > l.MaxPoints {
+		l.Points = l.MaxPoints
+	}
+	if l.Points < 0 {
+		l.Points = 0
+	}
+	l.Value = float64(l.Points * v)
+	if l.Points > 0 {
+		req, err := LoyaltyRedemptionRequirementFor(tenantID, l.Points)
+		if err != nil {
+			return nil, err
+		}
+		l.NeedsOTP, l.NeedsApproval, l.ApproverRole = req.NeedsOTP, req.NeedsApproval, req.ApproverRole
+	}
+	return l, nil
 }
 
 // signQuoteVersion produces the tamper-evident version digest. It covers every
@@ -415,6 +565,12 @@ func signQuoteVersion(tenantID string, q *QuoteResult) string {
 		fmt.Fprintf(&sb, "|%s:%d:%.2f:%.2f:%s:%s", l.Sku, l.Qty, l.UnitPrice, l.ReferencePrice, l.PriceSource, l.OverrideID)
 	}
 	fmt.Fprintf(&sb, "|%.2f|%.2f|%.2f|%.2f|%.2f", q.Subtotal, q.ReferenceSubtotal, q.OfferDiscount, q.GSTBreakdown.TotalTax, q.Total)
+	// 73.1.5: points change what the customer pays, so a changed point value
+	// makes the quote stale like a changed price. A cart redeeming nothing
+	// keeps the version it always had.
+	if q.Loyalty != nil && q.Loyalty.Points > 0 {
+		fmt.Fprintf(&sb, "|L%d:%d", q.Loyalty.Points, q.Loyalty.ValuePerPoint)
+	}
 	// Offers can change what is applied without changing the totals (a
 	// like-for-like swap), which still means the cashier is looking at a
 	// different bill than the one that will print.

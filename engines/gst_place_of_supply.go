@@ -30,43 +30,22 @@ import (
 // display on the printed PO ("Maharashtra (27)"), never for the interstate
 // decision itself - that only ever compares the two codes.
 //
-// Codes 97 (Other Territory) and 99 (Centre Jurisdiction) are the two
-// non-geographic codes the GSTN issues; they are included so a GSTIN
-// carrying one is recognised rather than treated as malformed.
-var indianStateNames = map[string]string{
-	"01": "Jammu & Kashmir", "02": "Himachal Pradesh", "03": "Punjab",
-	"04": "Chandigarh", "05": "Uttarakhand", "06": "Haryana",
-	"07": "Delhi", "08": "Rajasthan", "09": "Uttar Pradesh",
-	"10": "Bihar", "11": "Sikkim", "12": "Arunachal Pradesh",
-	"13": "Nagaland", "14": "Manipur", "15": "Mizoram",
-	"16": "Tripura", "17": "Meghalaya", "18": "Assam",
-	"19": "West Bengal", "20": "Jharkhand", "21": "Odisha",
-	"22": "Chhattisgarh", "23": "Madhya Pradesh", "24": "Gujarat",
-	"25": "Daman & Diu", "26": "Dadra & Nagar Haveli and Daman & Diu",
-	"27": "Maharashtra", "28": "Andhra Pradesh (Old)", "29": "Karnataka",
-	"30": "Goa", "31": "Lakshadweep", "32": "Kerala",
-	"33": "Tamil Nadu", "34": "Puducherry", "35": "Andaman & Nicobar Islands",
-	"36": "Telangana", "37": "Andhra Pradesh", "38": "Ladakh",
-	"97": "Other Territory", "99": "Centre Jurisdiction",
-}
-
-// stateNameToCode is the reverse lookup, built once from indianStateNames so
-// the two cannot drift. It resolves a hand-typed `state` field ("Maharashtra")
-// on a vendor with no GSTIN. Matching is case-insensitive and ignores spaces
-// and punctuation, so "Tamil Nadu", "tamilnadu" and "TAMIL-NADU" all resolve.
-var stateNameToCode = func() map[string]string {
-	out := make(map[string]string, len(indianStateNames))
-	for code, name := range indianStateNames {
-		out[normalizeStateName(name)] = code
+// Stage 76.1: derived from the one India table in engines/regions.go, which
+// also carries each state's short code and the spellings in real use, so the
+// GST view and the state dropdown cannot disagree. Codes 97 (Other Territory)
+// and the legacy 25, 28 and 99 are included so a GSTIN carrying one is
+// recognised rather than treated as malformed.
+var indianStateNames = func() map[string]string {
+	out := map[string]string{}
+	for _, r := range regionsByCountry["IN"] {
+		out[r.TaxCode] = r.Name
 	}
-	// The two spellings in real use that the canonical names above do not
-	// cover on their own.
-	out["orissa"] = "21"
-	out["pondicherry"] = "34"
-	out["newdelhi"] = "07"
 	return out
 }()
 
+// normalizeStateName is the matching key for a state spelling: lower case,
+// letters and digits only, so "Tamil Nadu", "tamilnadu" and "TAMIL-NADU" all
+// resolve to the same region.
 func normalizeStateName(s string) string {
 	var b strings.Builder
 	for _, r := range strings.ToLower(s) {
@@ -94,8 +73,9 @@ func StateCodeFromGSTIN(gstin string) string {
 	return code
 }
 
-// StateCodeFromName resolves a hand-typed state name (or a bare two-digit
-// code) to its GSTIN state code. Returns "" when nothing matches.
+// StateCodeFromName resolves a hand-typed state name, its short code ("KA")
+// or a bare two-digit code to its GSTIN state code. Returns "" when nothing
+// matches.
 func StateCodeFromName(state string) string {
 	s := strings.TrimSpace(state)
 	if s == "" {
@@ -104,7 +84,10 @@ func StateCodeFromName(state string) string {
 	if _, known := indianStateNames[s]; known {
 		return s
 	}
-	return stateNameToCode[normalizeStateName(s)]
+	if r, ok := ResolveRegion("IN", s); ok {
+		return r.TaxCode
+	}
+	return ""
 }
 
 // StateLabel renders a state code for display: "Maharashtra (27)". An unknown

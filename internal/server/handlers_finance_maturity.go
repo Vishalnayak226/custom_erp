@@ -136,7 +136,9 @@ func handlePostCreditNote(w http.ResponseWriter, r *http.Request) {
 	noteID := r.PathValue("id")
 	amount, err := engines.PostCreditNote(tenantID, noteID, userID)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		// Stage 73 / 55.10: coded refusals (FIN-0522, a closed period's
+		// FIN-0260) keep their code; anything else reads as before.
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "Posted", "id": noteID, "amount": amount})
@@ -173,12 +175,31 @@ func handleSettleSalesInvoice(w http.ResponseWriter, r *http.Request) {
 	// Without this the engine's SettlementOptions would be unreachable over
 	// HTTP, and a finance team entering a receipt three days late would have no
 	// way to say so.
-	amount, err := engines.SettleSalesInvoice(tenantID, invoiceID, userID, settlementOptionsFromRequest(r))
+	//
+	// Stage 73 / 55.10: the same body may also carry `amount` (a part-receipt;
+	// omitted or 0 = the whole outstanding balance) and `reference` (makes a
+	// retry idempotent). A request with neither settles in full exactly as
+	// before; the response now says what is left.
+	var body struct {
+		SettlementDate string  `json:"settlement_date"`
+		ExchangeRate   float64 `json:"exchange_rate"`
+		Amount         float64 `json:"amount"`
+		Reference      string  `json:"reference"`
+	}
+	if r.Body != nil {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+	}
+	res, err := engines.SettleSalesInvoiceAmount(tenantID, invoiceID, userID, body.Amount, body.Reference,
+		engines.SettlementOptions{SettlementDate: body.SettlementDate, ExchangeRate: body.ExchangeRate})
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "Paid", "id": invoiceID, "amount": amount})
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": res.Status, "id": invoiceID, "amount": res.Amount, "functional_amount": res.FunctionalAmount,
+		"settled_amount": res.SettledAmount, "outstanding_amount": res.OutstandingAmount,
+		"reference": res.Reference, "replayed": res.Replayed,
+	})
 }
 
 func handleReceivablesAgeingReport(w http.ResponseWriter, r *http.Request) {

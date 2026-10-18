@@ -554,6 +554,8 @@ func SweepPublicAPIRuntime(tenantID string) (idempotencyDeleted, logDeleted int6
 		return idempotencyDeleted, 0, err
 	}
 	logDeleted, _ = result.RowsAffected()
+	// Stage 38.2d: expired OAuth token digests go with the same sweep.
+	_, _ = SweepExpiredOAuthTokens(tenantID)
 	return idempotencyDeleted, logDeleted, nil
 }
 

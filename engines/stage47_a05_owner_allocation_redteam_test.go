@@ -101,7 +101,7 @@ func TestA05AllocationIgnoresOwnerSegregationAndCrossesOwnerBoundary(t *testing.
 			location, ownerA, ownerB)
 	}
 	var verr *ValidationError
-	if !errors.As(err, &verr) || verr.Code != "INVENT-0104" {
+	if !errors.As(err, &verr) || verr.Code != "INVENT-0491" {
 		t.Errorf("the refusal is not a coded ValidationError an operator or an API caller can act on: %v", err)
 	}
 	if !strings.Contains(err.Error(), ownerA) {

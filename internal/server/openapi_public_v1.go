@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"custom_erp/engines"
 )
 
 // Stage 38.8 - OpenAPI generated from the route table, not written by hand.
@@ -247,11 +249,13 @@ func PublicAPIOpenAPISpec() ([]byte, error) {
 		},
 		"security": []interface{}{
 			map[string]interface{}{"ApiKeyAuth": []string{}},
+			map[string]interface{}{"OAuth2ClientCredentials": []string{}},
 		},
 		"tags": []interface{}{
 			map[string]interface{}{"name": "Items", "description": "Curated product identity."},
 			map[string]interface{}{"name": "Inventory", "description": "Availability reads."},
 			map[string]interface{}{"name": "Orders", "description": "Order tracking."},
+			map[string]interface{}{"name": "Notifications", "description": "Delivery receipts from a notification provider."},
 		},
 		"paths": paths,
 		"components": map[string]interface{}{
@@ -267,6 +271,17 @@ func PublicAPIOpenAPISpec() ([]byte, error) {
 				"ApiKeyAuth": map[string]interface{}{
 					"type": "http", "scheme": "bearer",
 					"description": "An opaque `erp_v1_...` API credential issued by a Super Admin. Never a user session token.",
+				},
+				// Stage 38.2d: the same credentials, issued in oauth_client mode.
+				"OAuth2ClientCredentials": map[string]interface{}{
+					"type":        "oauth2",
+					"description": "OAuth2 client_credentials grant. POST the client_id and client_secret (HTTP Basic or form body) with grant_type=client_credentials and the X-Tenant-ID header to the token URL; send the returned 15-minute token as `Authorization: Bearer erp_at_...`. An optional space-separated `scope` narrows the token. No other grant exists.",
+					"flows": map[string]interface{}{
+						"clientCredentials": map[string]interface{}{
+							"tokenUrl": engines.OAuthTokenEndpointPath,
+							"scopes":   openAPIScopeDescriptions(),
+						},
+					},
 				},
 			},
 		},
@@ -314,4 +329,14 @@ func handlePublicAPIOpenAPISpec(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write(spec)
+}
+
+// openAPIScopeDescriptions lists every public scope for the OAuth2 flow
+// (Stage 38.2d) - the same catalog an API key is issued from.
+func openAPIScopeDescriptions() map[string]string {
+	out := map[string]string{}
+	for _, scope := range engines.PublicAPIScopes() {
+		out[scope] = "Grants the endpoints that require " + scope + "."
+	}
+	return out
 }

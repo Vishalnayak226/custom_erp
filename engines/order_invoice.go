@@ -108,6 +108,9 @@ func CreateSalesInvoiceFromOrder(tenantID, orderID, userID string) (string, erro
 		"customer": orderData["customer_name"], "location": location,
 		"total_amount": total, "status": "Draft",
 	}
+	if ref, _ := orderData["customer_reference"].(string); ref != "" {
+		invoiceData["customer_reference"] = ref // Stage 73.2.9: the customer's PO, onto its invoice
+	}
 	if shortValue > 0 {
 		invoiceData["short_shipped_value"] = shortValue
 	}

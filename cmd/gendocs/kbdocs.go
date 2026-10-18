@@ -59,7 +59,17 @@ func kbContents(headings []string, suffix func(string) string) string {
 	return b.String()
 }
 
-func kbErrorCodeReference(stamp string) string {
+// kbErrorCodePartBytes is how much Markdown table one error-code page holds.
+// NFR-DOC-001 caps a Knowledge Center article at 120 KiB of rendered HTML,
+// which runs about 1.4x the Markdown, and the catalog only grows - so once the
+// areas no longer fit one page they continue on error-code-reference-2.md and
+// so on, whole areas at a time, instead of the release budget tripping.
+const kbErrorCodePartBytes = 64 * 1024
+
+// kbErrorCodeReference returns the error-code pages keyed by file name.
+// error-code-reference.md keeps its name, so every existing link still lands,
+// and its contents list covers every area wherever the area's table is.
+func kbErrorCodeReference(stamp string) map[string]string {
 	entries := server.CatalogEntries()
 
 	byModule := map[string][]server.CatalogEntry{}
@@ -71,6 +81,42 @@ func kbErrorCodeReference(stamp string) string {
 		byModule[module] = append(byModule[module], entry)
 	}
 	modules := sortedKeys(byModule)
+
+	sections := map[string]string{}
+	var parts [][]string
+	partBytes := 0
+	for _, module := range modules {
+		rows := byModule[module]
+		sort.Slice(rows, func(i, j int) bool { return rows[i].Code < rows[j].Code })
+		var s strings.Builder
+		s.WriteString(fmt.Sprintf("## %s\n\n", module))
+		s.WriteString("| Code | When it happens | What you see | What to do | Severity | HTTP |\n")
+		s.WriteString("|---|---|---|---|---|---|\n")
+		for _, entry := range rows {
+			s.WriteString(fmt.Sprintf("| `%s` | %s | %s | %s | %s | %d |\n",
+				entry.Code, cell(entry.Scenario), cell(entry.UserMessage), cell(entry.UserAction), cell(entry.Severity), entry.HTTPStatus))
+		}
+		s.WriteString("\n")
+		sections[module] = s.String()
+		if len(parts) == 0 || (partBytes > 0 && partBytes+s.Len() > kbErrorCodePartBytes) {
+			parts = append(parts, nil)
+			partBytes = 0
+		}
+		parts[len(parts)-1] = append(parts[len(parts)-1], module)
+		partBytes += s.Len()
+	}
+	fileOf := func(part int) string {
+		if part == 0 {
+			return "error-code-reference.md"
+		}
+		return fmt.Sprintf("error-code-reference-%d.md", part+1)
+	}
+	partOf := map[string]int{}
+	for part, names := range parts {
+		for _, module := range names {
+			partOf[module] = part
+		}
+	}
 
 	var b strings.Builder
 	b.WriteString(kbFrontmatter(
@@ -95,24 +141,54 @@ func kbErrorCodeReference(stamp string) string {
 		"> A code with an HTTP status of 500 or above is an internal failure, not\n" +
 		"> something you did. The detail line is deliberately withheld in that case -\n" +
 		"> give your administrator the correlation id shown in the dialog instead.\n\n")
-
-	b.WriteString(kbContents(modules, func(module string) string {
-		return fmt.Sprintf(" - %d codes", len(byModule[module]))
-	}))
-
-	for _, module := range modules {
-		rows := byModule[module]
-		sort.Slice(rows, func(i, j int) bool { return rows[i].Code < rows[j].Code })
-		b.WriteString(fmt.Sprintf("## %s\n\n", module))
-		b.WriteString("| Code | When it happens | What you see | What to do | Severity | HTTP |\n")
-		b.WriteString("|---|---|---|---|---|---|\n")
-		for _, entry := range rows {
-			b.WriteString(fmt.Sprintf("| `%s` | %s | %s | %s | %s | %d |\n",
-				entry.Code, cell(entry.Scenario), cell(entry.UserMessage), cell(entry.UserAction), cell(entry.Severity), entry.HTTPStatus))
-		}
-		b.WriteString("\n")
+	if len(parts) > 1 {
+		b.WriteString(fmt.Sprintf("The list runs over **%d** pages. The contents below cover every area and\n"+
+			"open the right page.\n\n", len(parts)))
 	}
-	return b.String()
+
+	b.WriteString("## Contents\n\n")
+	for _, module := range modules {
+		target := "#" + kb.HeadingSlug(module)
+		if part := partOf[module]; part > 0 {
+			target = fileOf(part) + target
+		}
+		b.WriteString(fmt.Sprintf("- [%s](%s) - %d codes\n", module, target, len(byModule[module])))
+	}
+	b.WriteString("\n")
+	for _, module := range parts[0] {
+		b.WriteString(sections[module])
+	}
+
+	pages := map[string]string{fileOf(0): b.String()}
+	for part := 1; part < len(parts); part++ {
+		names := parts[part]
+		codes := 0
+		for _, module := range names {
+			codes += len(byModule[module])
+		}
+		title := fmt.Sprintf("Error code reference (part %d)", part+1)
+		var p strings.Builder
+		p.WriteString(kbFrontmatter(
+			title,
+			"Troubleshooting",
+			20+part,
+			fmt.Sprintf("Error codes for %s to %s, continued from the error code reference.", names[0], names[len(names)-1]),
+			"everyone",
+			stamp,
+			nil))
+		p.WriteString("# " + title + "\n\n")
+		p.WriteString(fmt.Sprintf("This page continues the [error code reference](error-code-reference.md), which\n"+
+			"lists every area and explains how to read a code. It holds **%d** codes, from\n"+
+			"%s to %s.\n\n", codes, names[0], names[len(names)-1]))
+		p.WriteString(kbContents(names, func(module string) string {
+			return fmt.Sprintf(" - %d codes", len(byModule[module]))
+		}))
+		for _, module := range names {
+			p.WriteString(sections[module])
+		}
+		pages[fileOf(part)] = p.String()
+	}
+	return pages
 }
 
 func kbReportCatalog(stamp string) string {

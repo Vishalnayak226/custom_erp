@@ -36,19 +36,20 @@ module.exports = {
   // --- Administration: roles and users ------------------------------------
   role_setup: async (page, h, state) => {
     const role = `SOP Store Keeper ${state.tag}`;
+    // Stage 79: list first; + New Role is its own page, and creating a role
+    // opens its access page - every module, ticked and saved at once.
     await h.open('/#/view/roles', 'Roles decide what each person can see and do. Create the role first, then give it access.');
+    const newRole = '#roles-screen .page-section-actions .btn-primary';
+    await h.step('Start a new role.', () => page.locator(newRole).click(), newRole);
     await h.step(`Name the new role: ${role}.`, () => h.type('#new-role-name', role), '#new-role-name');
-    await h.step('Create the role. A new role can see nothing until it is given access.',
-      () => h.post('/api/v1/admin/roles', () => page.locator('#new-role-btn').click()), '#new-role-btn');
-    await page.locator('#grant-scope').waitFor();
-    await h.step('Give it a whole module at once: Inventory.', async () => {
-      await page.locator('#grant-scope').selectOption('module');
-      await page.locator('#grant-module').selectOption('Inventory');
-    }, '#grant-module');
-    await h.step('Allow Read and Create, then save the access.', async () => {
-      await page.locator('#grant-create').check();
-      await h.post('/api/v1/admin/role-permissions', () => page.locator('#grant-save-btn').click());
-    }, '#grant-save-btn');
+    await h.step('Create the role. It opens on its access page - a new role can see nothing until it is given access.',
+      () => h.post('/api/v1/admin/roles', () => page.locator('#roles-new-form button[type="submit"]').click()), '#roles-new-form button[type="submit"]');
+    const inventoryCreate = '#roles-matrix-body input[data-mod="Inventory"][data-col="c"]';
+    await page.locator(inventoryCreate).waitFor();
+    await h.step('Every module is listed. Tick Create on the Inventory module - Read is ticked with it, for every Inventory record type.',
+      () => page.locator(inventoryCreate).check(), inventoryCreate);
+    await h.step('Save the access.', () => h.post('/api/v1/admin/role-permissions', () => page.locator('#roles-save').click()), '#roles-save');
+    await page.locator('#roles-screen .txn-crumb').click();
     await showRow(page, h, role, `${role} can now use the Inventory module, and nothing else.`);
     state.role = role;
     return `Role created with Inventory access: ${role}`;

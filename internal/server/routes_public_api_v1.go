@@ -86,6 +86,16 @@ func publicAPIV1Routes() []publicAPIRoute {
 			Response: engines.PublicOrderStatus{},
 			Handler:  handlePublicOrderStatus,
 		},
+		{
+			Method: http.MethodPost, Path: "/api/public/v1/notifications/{id}/delivery-status", Scope: "notifications:write", ModuleKey: "oms",
+			Summary:     "Report a notification's delivery",
+			Description: "The provider's delivery receipt. {id} is the delivery_id the notification webhook carried (also sent as the X-Notification-Delivery header). Body: {\"status\": \"delivered\" | \"failed\", \"provider_ref\": \"...\", \"detail\": \"...\"}. Delivered is final; repeating the same status is a no-op.",
+			Params: []publicAPIParam{
+				{Name: "id", In: "path", Required: true, Type: "string", Description: "The notification's delivery_id."},
+			},
+			Response: PublicNotificationDeliveryStatusResponse{},
+			Handler:  handlePublicNotificationDeliveryStatus,
+		},
 	}
 }
 
@@ -100,6 +110,11 @@ func registerPublicAPIV1Routes() {
 	for _, route := range publicAPIV1Routes() {
 		http.HandleFunc(route.Method+" "+route.Path, publicAPIMiddleware(route.Scope, moduleGate(route.ModuleKey, route.Handler)))
 	}
+	// Stage 38.2d: where an OAuth client exchanges its secret for a token.
+	// Written out (= engines.OAuthTokenEndpointPath) so cmd/surfacescan lists
+	// it; oauth_token_test.go reaches it through that constant, so the two
+	// cannot drift apart unnoticed.
+	http.HandleFunc("POST /api/public/v1/oauth/token", handleOAuthToken)
 	// Anything else under the public prefix answers a JSON 404 rather than
 	// falling through to the static file server, which would hand an API client
 	// an HTML page. Go 1.22's mux prefers the more specific patterns above, so

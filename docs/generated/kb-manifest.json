@@ -81,8 +81,17 @@
       ]
     },
     {
+      "path": "internal/kb/content/articles/error-code-reference-2.html",
+      "sha256": "c96d15de841306d26516d37f788e97d74ea707ae06f24509ce2b4e66017f1654",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
       "path": "internal/kb/content/articles/error-code-reference.html",
-      "sha256": "9b065cebc98951db534dabed75a441ca0e5a4b154b67dc9c38e6a614997b65fd",
+      "sha256": "6cc2bf9b38ef05ac1e5780977d28748820be5b7da8f2dd4e60e26f81f0e40c58",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -289,7 +298,7 @@
     },
     {
       "path": "internal/kb/content/articles/pim-pxm.html",
-      "sha256": "332e7f0558eae35c5a750601cc737a1c726d2ccf4fc5a32bf7e9b3e303be302c",
+      "sha256": "c4a7456a6478e01f6da89efe0e84167cc15c9d1635e5f89cca554e0582c81671",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -298,7 +307,7 @@
     },
     {
       "path": "internal/kb/content/articles/place-hold.html",
-      "sha256": "0efb74e1b04f4b93170a331774c66ae737d5229db0427237ac9dde222e6d3d15",
+      "sha256": "76b356e8f84fe12ce2ac412cd2fc70e42c980ee287c9266fc322a4d21731c6ad",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -308,6 +317,15 @@
     {
       "path": "internal/kb/content/articles/pos-operations.html",
       "sha256": "8c706e4067534793e7a2206ecedb6bc67320ad01b122aa2f53c9eb9cbe91af01",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/printing-stickers-and-documents.html",
+      "sha256": "d14006ad656332d0874c3da616d432d20ee6b7a6ec7cebc8351dc0c114e721c2",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -343,7 +361,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes.html",
-      "sha256": "1a2ec367f02a6c704706459fe202d41610ff15db1e180f6c8f6c66471920574c",
+      "sha256": "9dd1ad92b6424f74f04b39b5886e7acb902a7ddd2adca1bb9de49e7fdc6ae8ba",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -352,7 +370,7 @@
     },
     {
       "path": "internal/kb/content/articles/report-catalog.html",
-      "sha256": "9910e1e1564961e4efe2fde67a3cff0ad8c93ad125aa322fb1c5d54981b1aa51",
+      "sha256": "4caea5f671f859d628b824900d9fd36dfca1db7ffe7479cb8adeed059797b90e",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -388,7 +406,7 @@
     },
     {
       "path": "internal/kb/content/articles/security-approvals.html",
-      "sha256": "406a2707a50209bd2c0ca3cf7d3ff1b396e003b2cd236561b6a25851f5f05289",
+      "sha256": "394e2e58d79efcfd15068470167afd541f9832d1deddedce498b1f702789c6a5",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -441,6 +459,15 @@
       ]
     },
     {
+      "path": "internal/kb/content/articles/wms-start-here.html",
+      "sha256": "89e0faa9507c14f11117d2d3d4ff52599135faad45ed7888d949dc2891488e16",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
       "path": "internal/kb/content/articles/yard-board.html",
       "sha256": "06873e1f064d25dac6d8168abeb682bf38860f88ff240ed50ad39541624af480",
       "sources": [
@@ -451,7 +478,7 @@
     },
     {
       "path": "internal/kb/content/index.json",
-      "sha256": "87d5f528f72d861174ce30c4fa67cec645953952d47675d1729abcbbfe48e6a2",
+      "sha256": "2e784eb0496ec12e02c6b49c6ec1bee56c3d93aa5eee40ccc196e0f9c67d12cd",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -460,7 +487,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "f5c507b2094bee4580aafffa0d172ff868b95affcfd5fc0cf79f264c9b7f2ec9",
+      "sha256": "227cdf95dd89c8b048fac8d3fba826b5b3b656f461f10c61bf8fb7e75434c464",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

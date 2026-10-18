@@ -210,6 +210,7 @@ func handleBinMove(w http.ResponseWriter, r *http.Request) {
 		Qty         int    `json:"qty"`
 		BatchNo     string `json:"batch_no"`
 		Reason      string `json:"reason"`
+		OwnerID     string `json:"owner_id"` // Stage 59.4: whose units, in a shared bin
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request body")
@@ -217,7 +218,7 @@ func handleBinMove(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := engines.MoveBinStock(tenantID, engines.BinMoveInput{
 		FromBin: req.FromBinCode, ToBin: req.ToBinCode, SKU: req.Sku, Qty: req.Qty,
-		BatchNo: req.BatchNo, Reason: req.Reason, UserID: r.Header.Get("Resolved-User-ID"),
+		BatchNo: req.BatchNo, Reason: req.Reason, UserID: r.Header.Get("Resolved-User-ID"), OwnerID: req.OwnerID, // Stage 59.4
 	}); err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return

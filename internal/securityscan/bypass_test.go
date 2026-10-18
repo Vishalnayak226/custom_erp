@@ -53,6 +53,11 @@ var reviewedBypassFindings = map[string]map[string]struct {
 			tell a description of a hole from a description of the plug - a human read it and this is
 			the plug.`},
 	},
+	"privileged-shortcut": {
+		"engines/pim_import_schedule.go": {1, `PIMImportScheduleRunAs refuses a schedule whose owner
+			would be the "system" actor (Stage 55.11) - the comparison takes a privilege away rather
+			than granting one. The imports then run as the named owner, through that owner's own role.`},
+	},
 	// Stage 72.8's gift cards. A gift card number is a closed-loop stored-value
 	// instrument the ERP itself registers and funds - not a payment card: no
 	// PAN, CVV, track data or PIN is captured anywhere (the till takes card and

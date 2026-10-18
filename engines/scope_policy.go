@@ -130,7 +130,10 @@ var doctypeScopes = map[string]DoctypeScope{
 	"Hold":                   locScope("location_code", true),
 	"Manifest":               locScope("location_code", true),
 	"ConsumptionEntry":       locScope("location", true), // Stage 72.6
+	"ExchangeCredit":         locScope("location", true), // Stage 73.2.6
 	"POSCart":                locScope("location", true),
+	"POSCashMovement":        locScope("location", true), // Stage 73.2.7
+	"POSHeldBill":            locScope("location", true), // Stage 73.2.5
 	"POSOfflineQueueGap":     locScope("location", true),
 	"POSOfflineSyncVariance": locScope("location", true),
 	"POSPriceOverride":       locScope("location", true),
@@ -142,6 +145,7 @@ var doctypeScopes = map[string]DoctypeScope{
 	"ReorderPointConfig":     locScope("location_code", true),
 	"SalesInvoice":           locScope("location", true),
 	"SubcontractOrder":       locScope("location", true),
+	"SupplyProposal":         locScope("location", true), // Stage 73.2.18
 	"WarehouseTask":          locScope("location_code", true),
 	"Wave":                   locScope("location_code", true),
 
@@ -179,6 +183,9 @@ var doctypeScopes = map[string]DoctypeScope{
 	"TaskDispatchStrategy":  locScope("location_code", false),
 	"WaveTemplate":          locScope("location_code", false),
 	"Zone":                  locScope("location", false),
+
+	// Stage 73.1.4: the store a redemption was asked at (blank = not store-specific).
+	"LoyaltyRedemptionRequest": locScope("location", false),
 
 	// --- location mandatory AND owner-scoped (3PL storage billing) ------
 	"StorageBalanceSnapshot": {LocationFields: []string{"location_code"}, LocationMandatory: true, OwnerField: "owner_id"},

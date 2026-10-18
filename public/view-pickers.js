@@ -72,6 +72,26 @@ if (!document.getElementById('view-pickers-css')) {
 .hsn-rate-chip.primary { border-color: var(--primary-color); background: var(--primary-light); }
 .hsn-rate-chip.active { background: var(--primary-color); border-color: var(--primary-color); color: var(--on-primary); }
 .hsn-rate-note { flex-basis: 100%; color: var(--warning-strong); }
+/* Stage 80.1: the record form's named sections (Item). */
+#dynamic-modal-body .form-section { grid-column: 1 / -1; border-top: 1px solid var(--border-color); padding-top: 12px; }
+#dynamic-modal-body .form-section:first-of-type { border-top: 0; padding-top: 0; }
+.form-section > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; font-size: 13px; font-weight: 700; color: var(--text-main); margin-bottom: 12px; }
+.form-section > summary::-webkit-details-marker { display: none; }
+.form-section > summary::before { content: '\\25B8'; color: var(--text-muted); transition: transform 0.12s ease; }
+.form-section[open] > summary::before { transform: rotate(90deg); }
+.form-section:not([open]) > summary { margin-bottom: 0; }
+.form-section-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 16px 20px; align-items: start; }
+.form-section-grid .form-group-wide { grid-column: 1 / -1; }
+/* Stage 80.2: variant options as option + value rows. */
+.variant-editor { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.variant-editor > div { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.variant-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; align-items: center; max-width: 560px; }
+/* Stage 81: an attribute's values as removable chips. */
+.value-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.value-chip { display: inline-flex; align-items: center; gap: 2px; padding: 2px 2px 2px 10px; border: 1px solid var(--border-color); border-radius: 999px; background: var(--panel-bg); font-size: 13px; }
+.value-chip button { border: 0; background: none; color: var(--text-muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 2px 6px; border-radius: 999px; }
+.value-chip button:hover { color: var(--danger-color); background: var(--surface-subtle); }
+.value-add { display: flex; gap: 8px; margin-top: 8px; max-width: 420px; }
 `;
   document.head.appendChild(style);
 }
@@ -324,10 +344,13 @@ async function openQuickCreateDialog(doctype, seedText) {
   if (!fields) return null;
   const activeDoc = state.activeDoctypes.find(d => d.name === doctype);
   const isMaster = activeDoc && activeDoc.document_type === 'Master';
-  const isCode = f => f.auto_generated || (isMaster && f.fieldname.toLowerCase() === 'code');
+  // Stage 76.5: a master's code is numbered on the server; a typed-code
+  // master (Currency, UOM, HSN) asks for it like any required field.
+  const series = isMaster ? await loadMasterCodeSeries(doctype) : null;
+  const isCode = f => f.auto_generated || (isMaster && f.fieldname.toLowerCase() === 'code' && !(series && series.typed));
   const seedField = ['name', 'hsn', 'description'].find(n => fields.some(f => f.fieldname === n));
   const asked = fields.filter(f =>
-    f.fieldname !== 'id' && !f.mirrored && !isCode(f) && !isDerivedCompanionField(f.fieldname) &&
+    f.fieldname !== 'id' && !f.mirrored && !isCode(f) && !isDerivedCompanionField(f.fieldname) && !isStateCodeFieldName(f.fieldname) &&
     (f.mandatory || f.fieldname === seedField));
   // A required table/map field needs the full editor - hand over to the
   // full form rather than render half a record.
@@ -370,15 +393,18 @@ async function openQuickCreateDialog(doctype, seedText) {
     const errorEl = overlay.querySelector('.login-error');
     const form = overlay.querySelector('form');
     const submitBtn = overlay.querySelector('button[type="submit"]');
+    if (series && !series.typed && !series.configured) holder.appendChild(masterCodeSetupRow(series, label));
 
     asked.forEach(f => {
       const fg = document.createElement('div');
       fg.className = 'form-group';
       const id = `qc-${doctype}-${f.fieldname}`;
       fg.innerHTML = `<label class="form-label" for="${id}"></label>`;
-      fg.querySelector('label').innerHTML = `${escapeHTMLText(getTranslatedLabel(f.label))}${f.mandatory ? '<span class="required">*</span>' : ''}`;
+      fg.querySelector('label').innerHTML = `${escapeHTMLText(taxIdLabel(f.fieldname, getTranslatedLabel(f.label)))}${f.mandatory ? '<span class="required">*</span>' : ''}`;
       let input;
-      if (f.fieldtype === 'Select') {
+      if (f.fieldtype === 'Data' && isStateFieldName(f.fieldname) && fieldRegions().length) {
+        input = buildStateSelect({ name: f.fieldname, required: f.mandatory });
+      } else if (f.fieldtype === 'Select') {
         input = document.createElement('select');
         input.className = 'form-select';
         const opts = String(f.options || '').split(',').map(o => o.trim()).filter(Boolean);
@@ -486,21 +512,10 @@ async function openQuickCreateDialog(doctype, seedText) {
       submitBtn.disabled = true;
       submitBtn.textContent = 'Creating…';
       try {
-        // Same numbering the full form uses for a master's code (Stage 30.6
-        // leaves masters on the sequence endpoint).
-        const codeField = isMaster && fields.find(f => f.fieldname.toLowerCase() === 'code' && !f.auto_generated);
-        if (codeField) {
-          const seqRes = await apiFetch('/api/v1/sequence', {
-            method: 'POST',
-            body: JSON.stringify({ doc_type: doctype, store_code: 'HQ', financial_year: new Date().getFullYear().toString() })
-          });
-          if (!seqRes || !seqRes.ok) {
-            errorEl.textContent = seqRes ? await getErrorMessage(seqRes, 'Could not number the new record.') : 'Could not number the new record.';
-            errorEl.classList.remove('hidden');
-            return;
-          }
-          payload[codeField.fieldname] = (await seqRes.json()).code;
-        }
+        // Stage 76.5: the server numbers the master (V00001); the first one
+        // of its type carries the code format chosen above.
+        const codeFormat = readMasterCodeFormat(form);
+        if (codeFormat) payload._code_format = codeFormat;
         const res = await apiFetch(`/api/v1/doc/${encodeURIComponent(doctype)}`, { method: 'POST', body: JSON.stringify(payload) });
         if (!res) return;
         if (!res.ok) {
@@ -595,6 +610,11 @@ function attachSmartHSNPicker(hsnInput, gstInput) {
   chips.className = 'hsn-rate-chips';
   gstInput.insertAdjacentElement('afterend', chips);
   let current = null; // the suggestion row for the code now in the HSN box
+  // Stage 80.3: the rate follows Tax Treatment on the same form - the server
+  // rejects a positive rate on an Exempt / Nil-Rated / Zero-Rated item and a
+  // 0 on a Taxable one (MASTER-0044), so the form stops offering either.
+  const treatment = scope.querySelector('[name="tax_treatment"]');
+  const untaxed = () => !!(treatment && treatment.value && treatment.value !== 'Taxable');
 
   const paint = () => {
     const own = current ? ((current.rates && current.rates.length) ? current.rates : (hsnRateOf(current) !== null ? [{ rate: hsnRateOf(current) }] : [])) : [];
@@ -606,7 +626,7 @@ function attachSmartHSNPicker(hsnInput, gstInput) {
     let html = '';
     if (own.length) html += `<span class="hsn-rate-label">For HSN ${escapeHTMLText(current.hsn)}:</span>${own.map(r => chip(r.rate, r.note, true)).join('')}`;
     html += `<span class="hsn-rate-label">${own.length ? 'Other' : 'Common rates'}:</span>${others.map(s => chip(s, '', false)).join('')}`;
-    if (gstInput.value !== '' && Number(gstInput.value) === 0) {
+    if (gstInput.value !== '' && Number(gstInput.value) === 0 && !untaxed()) {
       html += '<span class="hsn-rate-note">A 0% rate needs Tax Treatment set to Exempt, Nil-Rated or Zero-Rated.</span>';
     }
     chips.innerHTML = html;
@@ -646,6 +666,365 @@ function attachSmartHSNPicker(hsnInput, gstInput) {
   };
   hsnInput.addEventListener('change', follow);
   follow();
+
+  const followTreatment = (opening) => {
+    const off = untaxed();
+    gstInput.readOnly = off;
+    chips.style.display = off ? 'none' : '';
+    if (off && gstInput.value !== '0') setRate(0, false);
+    else if (!off && !opening && gstInput.value === '0') setRate(null, false);
+  };
+  treatment?.addEventListener('change', () => followTreatment(false));
+  followTreatment(true);
 }
 
-export { openDatePicker, closeDatePicker, openQuickCreateDialog, attachSmartHSNPicker };
+// ---------------------------------------------------------------------------
+// Stage 76: states as a dropdown, the GSTIN choosing the state, a master's
+// first-time code format. Kept here with the other shared form widgets so the
+// shell stays inside its NFR-COST-001 budget. The home country, its states
+// and its tax-ID rule arrive with the field formats (window.FIELD_META).
+// ---------------------------------------------------------------------------
+function fieldRegions() { return (window.FIELD_META && window.FIELD_META.regions) || []; }
+
+// isStateFieldName mirrors the server's isStateField: "state" or "<x>_state"
+// on a Data field (a Select "*_state" is a workflow state, not a place).
+function isStateFieldName(name) {
+  const n = String(name || '').toLowerCase().trim();
+  return n === 'state' || n.endsWith('_state');
+}
+
+// The short code (KA) next to a state is set by the server, never typed.
+function isStateCodeFieldName(name) { return /(^|_)state_code$/.test(String(name || '').toLowerCase()); }
+
+// buildStateSelect renders a state field as the home country's list. The
+// value is the state's name - what the server stores. A value saved before
+// states were a list stays visible, flagged, so an edit cannot drop it
+// silently; the server asks for a real one on save.
+function buildStateSelect({ id, name, value, required }) {
+  const sel = document.createElement('select');
+  sel.className = 'form-select';
+  if (id) sel.id = id;
+  sel.name = name;
+  sel.required = !!required;
+  sel.dataset.stateField = '1';
+  const current = String(value ?? '').trim();
+  const key = current.toLowerCase();
+  let found = '';
+  const opts = ['<option value="">— Select State —</option>'];
+  fieldRegions().forEach(r => {
+    if (!found && key && (r.name.toLowerCase() === key || r.short.toLowerCase() === key || r.tax_code === current)) found = r.name;
+    opts.push(`<option value="${escapeHTMLText(r.name)}">${escapeHTMLText(r.name)}</option>`);
+  });
+  if (current && !found) opts.push(`<option value="${escapeHTMLText(current)}">${escapeHTMLText(current)} (not on the list - choose one)</option>`);
+  sel.innerHTML = opts.join('');
+  sel.value = found || current;
+  return sel;
+}
+
+// GSTIN check digit: Luhn mod 36, as GSTN issues them (engines/tax_ids.go).
+function gstinChecksumOK(v) {
+  const C = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  v = String(v || '').toUpperCase();
+  if (v.length !== 15) return false;
+  let total = 0;
+  for (let i = 0; i < 14; i++) {
+    const c = C.indexOf(v[i]);
+    if (c < 0) return false;
+    const d = c * (i % 2 ? 2 : 1);
+    total += Math.floor(d / 36) + d % 36;
+  }
+  return C[(36 - total % 36) % 36] === v[14];
+}
+
+// Australian Business Number: first digit minus 1, weighted, divides by 89.
+function abnChecksumOK(v) {
+  const w = [10, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19];
+  if (!/^[0-9]{11}$/.test(v)) return false;
+  return [...v].reduce((sum, ch, i) => sum + (Number(ch) - (i ? 0 : 1)) * w[i], 0) % 89 === 0;
+}
+
+function fieldChecksumOK(kind, v) {
+  if (kind === 'gstin') return gstinChecksumOK(v);
+  if (kind === 'abn') return abnChecksumOK(v);
+  return true;
+}
+
+// fillStateFromTaxId: a complete, real GSTIN names its state in its first
+// two digits - choose it in the same form's State box, as the server would.
+function fillStateFromTaxId(input) {
+  if (!window.FIELD_META || window.FIELD_META.country !== 'IN') return;
+  const v = String(input.value || '').trim().toUpperCase();
+  if (v.length !== 15 || !gstinChecksumOK(v)) return;
+  const region = fieldRegions().find(r => r.tax_code === v.slice(0, 2));
+  const scope = input.closest('form') || input.closest('.modal-body') || document;
+  const sel = scope.querySelector('select[data-state-field="1"][name="state"]');
+  if (region && sel && sel.value !== region.name) {
+    sel.value = region.name;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+}
+
+// taxIdLabel: the field the product calls "gstin" is a TRN in the UAE, a VAT
+// number in the UK... - shown by the home country's own name for it.
+function taxIdLabel(fieldname, label) {
+  const spec = typeof detectFieldFormat === 'function' ? detectFieldFormat(fieldname) : null;
+  if (spec && spec.key === 'gstin' && window.FIELD_META && window.FIELD_META.country !== 'IN' && spec.label) return spec.label;
+  return label;
+}
+
+async function loadMasterCodeSeries(doctype) {
+  try {
+    const res = await apiFetch(`/api/v1/master-codes/${encodeURIComponent(doctype)}`);
+    if (res && res.ok) return await res.json();
+  } catch (e) { /* no format shown; the server still numbers the record */ }
+  return null;
+}
+
+// masterCodeSetupRow: the first time a master type is created, its form asks
+// how the codes look - prefix and number of digits, with the first code
+// shown as you type. Sent with that first record as _code_format; afterwards
+// every new record takes the next number with no question.
+function masterCodeSetupRow(series, label, codeInput) {
+  const row = document.createElement('div');
+  row.className = 'form-group form-group-wide master-code-setup';
+  const lengths = [3, 4, 5, 6, 7, 8].map(n => `<option value="${n}"${n === series.length ? ' selected' : ''}>${n}</option>`).join('');
+  row.innerHTML = `
+    <span class="form-label">${escapeHTMLText(label)} code format (asked once)</span>
+    <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+      <label style="display:flex; gap:6px; align-items:center;">Prefix
+        <input class="form-input" name="_code_prefix" maxlength="6" style="width:90px; text-transform:uppercase;" value="${escapeHTMLText(series.prefix)}"></label>
+      <label style="display:flex; gap:6px; align-items:center;">Digits
+        <select class="form-select" name="_code_length" style="width:80px;">${lengths}</select></label>
+      <span>First code: <strong class="master-code-preview"></strong></span>
+    </div>`;
+  const prefix = row.querySelector('[name="_code_prefix"]');
+  const length = row.querySelector('[name="_code_length"]');
+  const preview = row.querySelector('.master-code-preview');
+  const paint = () => {
+    prefix.value = prefix.value.toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^[0-9]+/, '').slice(0, 6);
+    const code = `${prefix.value}${'1'.padStart(Number(length.value), '0')}`;
+    preview.textContent = code;
+    if (codeInput) codeInput.placeholder = `${code} (first code)`;
+  };
+  prefix.addEventListener('input', paint);
+  length.addEventListener('change', paint);
+  paint();
+  return row;
+}
+
+function readMasterCodeFormat(form) {
+  const prefix = form.querySelector('[name="_code_prefix"]');
+  const length = form.querySelector('[name="_code_length"]');
+  if (!prefix || !length) return null;
+  return { prefix: prefix.value.trim().toUpperCase(), length: Number(length.value) };
+}
+
+// ---------------------------------------------------------------------------
+// Stage 80.1 (user, 2026-10-18, on the New Item form): "Make it easy and
+// co-related." Item's ~40 fields were one flat grid in registry order, so
+// HSN sat beside Weight and Traceability beside Parent Product Code. The
+// generic form still builds every field exactly as before; this only moves
+// the finished .form-group nodes into named sections, so nothing the save
+// reads changes. A field not listed (an industry profile's own, a tenant's
+// custom field) lands in "More details" rather than disappearing.
+// ---------------------------------------------------------------------------
+const FORM_SECTIONS = {
+  Item: [
+    { title: 'Basics', fields: ['name', 'code', 'item_type', 'category', 'barcode'] },
+    { title: 'Price and tax', fields: ['sale_price', 'mrp', 'standard_cost', 'hsn_code', 'tax_treatment', 'gst_rate'] },
+    { title: 'Design and variant', fields: ['family', 'parent_product_code', 'variant_option_values'] },
+    { title: 'Batch, serial and expiry', fields: ['tracking_mode', 'grn_batch_number', 'shelf_life_days', 'min_shelf_life_on_receipt_days', 'min_shelf_life_on_pick_days'] },
+    { title: 'Barcode and label', closed: true, fields: ['barcode_generate_at', 'barcode_per_receipt_date', 'gtin', 'sticker_template'] },
+    { title: 'Handling and storage', closed: true, fields: ['weight', 'volume', 'is_catch_weight', 'temperature_class', 'hazmat_class', 'country_of_origin'] },
+    { title: 'Selling and accounting', closed: true, fields: ['commercial_class', 'free_with', 'sellability', 'bill_mode', 'capture_method', 'consumption_method', 'stock_tracking', 'valuation', 'accounting_treatment', 'expense_account'] }
+  ]
+};
+
+// A closed section still opens on its own when it holds something to see:
+// a required box, or (editing) a value other than blank / the item type's.
+function groupFormSections(body, doctype, record) {
+  const plan = FORM_SECTIONS[doctype];
+  if (!plan || body.querySelector(':scope > .form-section, :scope > fieldset, :scope > details')) return;
+  const groupOf = name => body.querySelector(`[name="${name}"]`)?.closest('.form-group');
+  const placed = new Set();
+  const make = (title, groups, closed) => {
+    if (!groups.length) return null;
+    const section = document.createElement('details');
+    section.className = 'form-section';
+    const set = groups.some(g => [...g.querySelectorAll('[name]')].some(el => {
+      const v = record ? record[el.name] : undefined;
+      return el.required || (v !== undefined && v !== null && v !== '' && v !== false && v !== 'Item type default');
+    }));
+    section.open = !closed || set;
+    section.innerHTML = `<summary>${escapeHTMLText(title)}</summary><div class="form-section-grid"></div>`;
+    groups.forEach(g => { section.lastChild.appendChild(g); placed.add(g); });
+    return section;
+  };
+  const sections = plan.map(s => make(s.title, s.fields.map(groupOf).filter(Boolean), s.closed));
+  const rest = [...body.querySelectorAll(':scope > .form-group')].filter(g => !placed.has(g) && !g.classList.contains('form-group-wide'));
+  sections.splice(4, 0, make('More details', rest, false));
+  sections.filter(Boolean).forEach(s => body.appendChild(s));
+  // Browser validation cannot point at a box inside a closed section.
+  if (!body.dataset.sectionHook) {
+    body.dataset.sectionHook = '1';
+    body.addEventListener('invalid', e => { const s = e.target.closest('details.form-section'); if (s) s.open = true; }, true);
+  }
+}
+
+// Stage 80.2: variant options were one text box asking the user to type
+// "Key:Value;Key:Value". Rows of attribute + value now write that same string
+// into the same input, so every reader of variant_option_values (variant
+// codes, the duplicate-combination check, PO designs, stickers) is unchanged.
+// Attributes come from Product Attribute setup and are stored by their code,
+// as PO designs store them; a key that matches none stays as typed.
+async function attachVariantOptionsEditor(input) {
+  if (!input || input.dataset.variantEditor) return;
+  input.dataset.variantEditor = '1';
+  let defs = [];
+  let closed = false;
+  if (canReadDoctype('ProductAttributeDef')) {
+    const res = await apiFetch('/api/v1/doc/ProductAttributeDef?limit=500');
+    const all = res && res.ok ? ((await res.json()) || []) : [];
+    // Stage 81: Product information is PIM's, not a variant option; and once
+    // the operator has set attributes up from the library they are the whole
+    // list - the form offers no "Other..." to invent one.
+    defs = all.filter(d => d.status !== 'Inactive' && d.used_for !== 'Product information');
+    closed = all.some(d => d.library_id);
+  }
+  const byCode = new Map(defs.map(d => [String(d.code || d.id), d]));
+  const clean = s => String(s || '').replace(/[:;\s]+/g, ' ').trim();
+  const opt = (value, text, on) => `<option value="${escapeHTMLText(value)}"${on ? ' selected' : ''}>${escapeHTMLText(text)}</option>`;
+  const OTHER = '__other__';
+
+  input.type = 'hidden';
+  input.closest('.form-group')?.classList.add('form-group-wide');
+  const wrap = document.createElement('div');
+  wrap.className = 'variant-editor';
+  input.after(wrap);
+  const rows = document.createElement('div');
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'btn btn-outline btn-sm';
+  add.textContent = '+ Add option';
+  wrap.append(rows, add);
+
+  const sync = () => {
+    input.value = [...rows.children].map(row => {
+      const k = clean(row.querySelector('[data-v="key"]').value), v = clean(row.querySelector('[data-v="val"]').value);
+      return k && k !== OTHER && v ? `${k}:${v}` : '';
+    }).filter(Boolean).join(';');
+  };
+  const choicesOf = key => String((byCode.get(key) || {}).value_type === 'Select' ? byCode.get(key).value_options || '' : '')
+    .split(',').map(s => s.trim()).filter(Boolean);
+  const valueControl = (key, value) => {
+    const choices = choicesOf(key);
+    if (!choices.length) return `<input type="text" class="form-input" data-v="val" placeholder="Value" value="${escapeHTMLText(value)}">`;
+    if (value && !choices.includes(value)) choices.push(value);
+    return `<select class="form-select" data-v="val">${opt('', '— Value —', !value)}${choices.map(c => opt(c, c, c === value)).join('')}</select>`;
+  };
+  const keyControl = (key, typed) => {
+    if (typed || !defs.length || (key && !byCode.has(key))) {
+      return `<input type="text" class="form-input" data-v="key" placeholder="Option, e.g. Size" value="${escapeHTMLText(key)}">`;
+    }
+    return `<select class="form-select" data-v="key">${opt('', '— Option —', !key)}${defs.map(d => opt(String(d.code || d.id), d.label || d.code, String(d.code || d.id) === key)).join('')}${closed ? '' : opt(OTHER, 'Other…', false)}</select>`;
+  };
+  const addRow = (key = '', value = '') => {
+    const row = document.createElement('div');
+    row.className = 'variant-row';
+    row.innerHTML = `${keyControl(key)}${valueControl(key, value)}<button type="button" class="btn btn-ghost btn-sm" data-v="remove" aria-label="Remove option">&times;</button>`;
+    rows.appendChild(row);
+    return row;
+  };
+  // Only an option picked from the list can change what its value box should
+  // be; a typed option name always takes a typed value, so leave it alone.
+  rows.addEventListener('change', e => {
+    const row = e.target.closest('.variant-row');
+    if (e.target.dataset.v === 'key' && e.target.tagName === 'SELECT') {
+      if (e.target.value === OTHER) {
+        e.target.outerHTML = keyControl('', true);
+        row.querySelector('[data-v="key"]').focus();
+      }
+      const key = row.querySelector('[data-v="key"]').value;
+      const val = row.querySelector('[data-v="val"]');
+      val.outerHTML = valueControl(key, val.tagName === 'INPUT' && !choicesOf(key).length ? val.value : '');
+    }
+    sync();
+  });
+  rows.addEventListener('input', sync);
+  rows.addEventListener('click', e => {
+    if (e.target.dataset.v !== 'remove') return;
+    e.target.closest('.variant-row').remove();
+    if (!rows.children.length) addRow();
+    sync();
+  });
+  add.addEventListener('click', () => addRow().querySelector('[data-v="key"]').focus());
+
+  const pairs = String(input.value || '').split(';').map(p => p.split(':')).filter(p => p[0] && p[0].trim());
+  pairs.forEach(([k, ...v]) => addRow(k.trim(), v.join(':').trim()));
+  if (!pairs.length) addRow();
+}
+
+// Stage 81: "All attribute value deletable." An attribute's Select values were
+// one comma-separated box; now each value is a chip with × and new ones are
+// typed below. Writes the same comma list into the same (hidden) input, so
+// every reader of value_options is unchanged. Items that already carry a
+// removed value keep it - only new choices stop offering it.
+// On an attribute that came from the library, its code and library id are
+// shown but not editable (the server keeps them too).
+function wireAttributeDefForm(body) {
+  const input = body.querySelector('input[name="value_options"]');
+  const libraryBox = body.querySelector('input[name="library_id"]');
+  const fromLibrary = !!(libraryBox && libraryBox.value);
+  if (libraryBox) {
+    libraryBox.readOnly = true;
+    if (!fromLibrary) libraryBox.closest('.form-group').style.display = 'none';
+  }
+  const code = body.querySelector('input[name="code"]');
+  if (code && fromLibrary) code.readOnly = true;
+  if (!input || input.dataset.valueList) return;
+  input.dataset.valueList = '1';
+  input.type = 'hidden';
+  const group = input.closest('.form-group');
+  group?.classList.add('form-group-wide');
+  const box = document.createElement('div');
+  box.className = 'value-list';
+  box.innerHTML = '<div class="value-chips"></div><div class="value-add"><input type="text" class="form-input" placeholder="Add a value" aria-label="Add a value"><button type="button" class="btn btn-outline btn-sm">Add</button></div>';
+  input.after(box);
+  const chips = box.querySelector('.value-chips');
+  const add = box.querySelector('.value-add input');
+  const values = () => String(input.value || '').split(',').map(s => s.trim()).filter(Boolean);
+  const paint = () => {
+    chips.innerHTML = values().map((v, i) => `<span class="value-chip">${escapeHTMLText(v)}<button type="button" data-i="${i}" aria-label="Remove ${escapeHTMLText(v)}">&times;</button></span>`).join('')
+      || '<span class="text-muted">No values yet.</span>';
+  };
+  const push = () => {
+    const v = add.value.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!v) return;
+    const list = values();
+    if (!list.some(x => x.toLowerCase() === v.toLowerCase())) list.push(v);
+    input.value = list.join(',');
+    add.value = '';
+    paint();
+    add.focus();
+  };
+  chips.addEventListener('click', e => {
+    const b = e.target.closest('button[data-i]');
+    if (!b) return;
+    const list = values();
+    list.splice(Number(b.dataset.i), 1);
+    input.value = list.join(',');
+    paint();
+  });
+  add.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); push(); } });
+  box.querySelector('.value-add button').addEventListener('click', push);
+  paint();
+  // Values belong to a Select attribute only.
+  const type = body.querySelector('[name="value_type"]');
+  const follow = () => { if (group) group.style.display = !type || !type.value || type.value === 'Select' ? '' : 'none'; };
+  type?.addEventListener('change', follow);
+  follow();
+}
+
+export { openDatePicker, closeDatePicker, openQuickCreateDialog, attachSmartHSNPicker, wireAttributeDefForm,
+  isStateFieldName, isStateCodeFieldName, buildStateSelect, fieldChecksumOK, fillStateFromTaxId, taxIdLabel,
+  loadMasterCodeSeries, masterCodeSetupRow, readMasterCodeFormat, groupFormSections, attachVariantOptionsEditor };

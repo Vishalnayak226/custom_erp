@@ -63,6 +63,7 @@ func handleEditOrder(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CustomerName    *string           `json:"customer_name"`
 		CustomerPhone   *string           `json:"customer_phone"`
+		CustomerRef     *string           `json:"customer_reference"` // Stage 73.2.9
 		ShippingAddress *string           `json:"shipping_address"`
 		BillingAddress  *string           `json:"billing_address"`
 		PaymentStatus   *string           `json:"payment_status"`
@@ -75,6 +76,7 @@ func handleEditOrder(w http.ResponseWriter, r *http.Request) {
 	err := engines.EditSalesOrder(tenantID, r.PathValue("id"), engines.OrderEdit{
 		CustomerName:    req.CustomerName,
 		CustomerPhone:   req.CustomerPhone,
+		CustomerRef:     req.CustomerRef,
 		ShippingAddress: req.ShippingAddress,
 		BillingAddress:  req.BillingAddress,
 		PaymentStatus:   req.PaymentStatus,
@@ -168,4 +170,48 @@ func handlePickQueue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"tasks": tasks})
+}
+
+// handleEditOrderLines is Stage 73.2.15: quantity changes, removals and new
+// lines up to the pick cutoff, re-reserving stock and rechecking payment.
+func handleEditOrderLines(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Changes []engines.OrderLineChange `json:"changes"`
+		Reason  string                    `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid payload")
+		return
+	}
+	result, err := engines.EditOrderLines(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("id"), req.Changes, req.Reason, r.Header.Get("Resolved-User-ID"))
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(result)
+}
+
+// handleCreateReplacementOrder is Stage 73.2.15: a no-charge Replacement or
+// Reship linked to a shipped order. request_key makes a retry safe.
+func handleCreateReplacementOrder(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Kind       string                    `json:"kind"`
+		Lines      []engines.ReplacementLine `json:"lines"`
+		Reason     string                    `json:"reason"`
+		RequestKey string                    `json:"request_key"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid payload")
+		return
+	}
+	orderID, created, err := engines.CreateReplacementOrder(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("id"),
+		req.Kind, req.Lines, req.Reason, req.RequestKey, r.Header.Get("Resolved-User-ID"))
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	if created {
+		w.WriteHeader(http.StatusCreated)
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"order_id": orderID, "created": created})
 }

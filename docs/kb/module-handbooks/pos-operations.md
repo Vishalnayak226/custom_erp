@@ -5,7 +5,7 @@ order: 10
 summary: Open a till, ring up a sale with automatic offers and tax, take a return, print silently, and reconcile the drawer at close — all backed by the same server-side checks whether the till is online or not.
 audience: cashier, store manager, admin
 last_verified: 2026-09-02
-screens: [pos, doctype-table, reports, approvals, configuration]
+screens: [pos, module:pos, module:sales, doctype:offer, reports, approvals, configuration]
 doc_id: DOC-446204194D
 type: procedure
 status: draft

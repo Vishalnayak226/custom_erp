@@ -40,6 +40,7 @@ func TestAccountingPeriodClosesBlockPostingsAndOpenPeriodsStillWork(t *testing.T
 		t.Fatalf("expected posting to succeed while period is Open: %v", err)
 	}
 
+	signAllCloseTasksForTest(t, tenantID, periodID) // Stage 73.1.10
 	if err := CloseAccountingPeriod(tenantID, periodID, "system"); err != nil {
 		t.Fatalf("CloseAccountingPeriod: %v", err)
 	}

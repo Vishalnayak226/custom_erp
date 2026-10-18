@@ -62,12 +62,8 @@ type posCart struct {
 	// ResolvePOSQuote's resolved lines before storing), not the browser's.
 	// cost_price is gone from the shape entirely - see the cost resolution in
 	// finalizePOSCheckoutTx.
-	Items []struct {
-		Sku       string  `json:"sku"`
-		Qty       int     `json:"qty"`
-		SalePrice float64 `json:"sale_price"`
-	} `json:"items"`
-	GSTBreakdown GSTBreakdown `json:"gst_breakdown"`
+	Items        []posCartLine `json:"items"`
+	GSTBreakdown GSTBreakdown  `json:"gst_breakdown"`
 	// RedeemPoints (Stage 30.2.5) is the loyalty redemption the cashier
 	// applied to this cart. It is an INTENT recorded on the cart, not an
 	// already-burned balance: the burn happens at finalization, once the sale
@@ -77,6 +73,10 @@ type posCart struct {
 	// customer's points outright, and forgetting to type the discount charged
 	// them full price for a sale they had already paid for in points.
 	RedeemPoints int `json:"redeem_points"`
+	// Stage 73.1.4: what authorised the redemption - the verified one-time
+	// code and the manager's approval, when the tenant's controls need them.
+	RedemptionChallengeID string `json:"redemption_challenge_id"`
+	RedemptionApprovalID  string `json:"redemption_approval_id"`
 	// 20.13: stamped by handleCheckout from the client's own "offline_synced"
 	// request field - true only when this cart is being replayed from a
 	// cashier's offline queue after reconnecting, never for a normal live
@@ -94,6 +94,26 @@ type posCart struct {
 	// read only to cap them at what the customer actually owed.
 	GiftCardTenders []GiftCardTender `json:"gift_card_tenders"`
 	OfferDiscount   float64          `json:"offer_discount"`
+	// Tenders (Stage 73.1.6) are the fixed parts of a split payment;
+	// PaymentMode takes the rest - see settlePOSTenders.
+	Tenders []POSTender `json:"tenders"`
+	// ExchangeCreditID (Stage 73.2.6) is the credit an exchange's returned
+	// items carry to this sale; POSSession is the till session it ran in.
+	ExchangeCreditID string `json:"exchange_credit_id"`
+	POSSession       string `json:"pos_session"`
+	// AppliedOffers are the quote's; an issued voucher among them (Stage
+	// 73.2.10) is redeemed in this transaction.
+	AppliedOffers []AppliedOffer `json:"applied_offers"`
+}
+
+// posCartLine is one stored cart line.
+type posCartLine struct {
+	Sku       string  `json:"sku"`
+	Qty       int     `json:"qty"`
+	SalePrice float64 `json:"sale_price"`
+	// OfferShare (Stage 73.1.1) is the quote's per-line share of the cart's
+	// OfferDiscount - see cartOfferShares for carts stored without it.
+	OfferShare float64 `json:"offer_share"`
 }
 
 // FinalizeOutcome is what one committed sale produced. Returned so the caller
@@ -182,14 +202,10 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	// durability audit's finding #7 named (a fractional-rupee item lost its
 	// fraction on every unit sold, not just once per sale).
 	//
-	// totalSaleRupees/totalCostRupees stay the OLD truncating computation,
-	// unchanged, because the loyalty points economy (redemption cap,
-	// EarnLoyaltyPoints below) is denominated in whole rupees by its own
-	// rupees_per_point setting and is not part of this migration -
-	// recomputing it from the precise paise total instead would shift
-	// point-earning behavior, which is a separate decision.
+	// Stage 73.1.1 retired the whole-rupee totals Stage 45 had kept for the
+	// loyalty cap and the earn base: both now work from the net paise below,
+	// so the points economy and the posted revenue are the same figure.
 	totalSalePaise, totalCostPaise := int64(0), int64(0)
-	totalSaleRupees, totalCostRupees := 0, 0
 	var costingGaps []CostingGapLine
 	for _, item := range cart.Items {
 		issue := saleStockIssue(tenantID, item.Sku, item.Qty)
@@ -204,8 +220,6 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 			if !issue.costResolved {
 				costingGaps = append(costingGaps, CostingGapLine{SKU: item.Sku, Qty: item.Qty, SaleValue: item.SalePrice * float64(item.Qty)})
 			}
-			totalSaleRupees += int(item.SalePrice) * item.Qty
-			totalCostRupees += int(PaiseToRupees(issue.costPaise))
 			continue
 		}
 		// Stage 47.2.2: cost is resolved entirely server-side - a real
@@ -221,8 +235,6 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 			costingGaps = append(costingGaps, CostingGapLine{SKU: item.Sku, Qty: item.Qty, SaleValue: item.SalePrice * float64(item.Qty)})
 		}
 		totalCostPaise += resolvedCostPaise * int64(item.Qty)
-		totalSaleRupees += int(item.SalePrice) * item.Qty
-		totalCostRupees += int(PaiseToRupees(resolvedCostPaise)) * item.Qty
 	}
 
 	negativeEvents, ledgerLines, err := PostInventoryLedgerWithVoucherTx(tx, schema, cart.Location, itemsInterface, cart.OfflineSynced)
@@ -230,53 +242,121 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 		return nil, fmt.Errorf("inventory decrement failed: %w", err)
 	}
 
+	// Stage 73.1.1: the bill's offer discount, line by line. Revenue, the
+	// points cap, gift cards and the earn base all work from the net - what
+	// the customer was actually charged - not the lines' list prices.
+	lineSKUs := make([]string, len(cart.Items))
+	lineQtys := make([]int, len(cart.Items))
+	lineGross := make([]int64, len(cart.Items))
+	storedOffer := make([]float64, len(cart.Items))
+	for i, item := range cart.Items {
+		lineSKUs[i], lineQtys[i], storedOffer[i] = item.Sku, item.Qty, item.OfferShare
+		lineGross[i] = RupeesToPaise(item.SalePrice) * int64(item.Qty)
+	}
+	lineOffer := cartOfferShares(lineGross, storedOffer, cart.OfferDiscount)
+	netSalePaise := totalSalePaise
+	for _, o := range lineOffer {
+		netSalePaise -= o
+	}
+
+	// Stage 73.2.10: an issued voucher the quote applied is spent here, with
+	// the sale - locked, re-checked and counted - so it is used if and only if
+	// the sale posts, and a voucher used up since the quote stops the sale.
+	for _, o := range cart.AppliedOffers {
+		if o.OfferType != OfferTypeVoucher || o.CouponCode == "" {
+			continue
+		}
+		if _, err := redeemVoucherTx(tx, schema, o.CouponCode, cart.CustomerID, cartNumber, func(v Voucher) error {
+			return checkVoucherUsable(v, cart.CustomerID, VoucherChannelPOS)
+		}); err != nil {
+			return nil, &ValidationError{Code: "POSOFF-0613", Message: fmt.Sprintf("%v - remove the code, or price the bill again", err)}
+		}
+	}
+
 	// Loyalty redemption (Stage 30.2.5), now inside the sale's transaction.
-	// RedeemLoyaltyPointsTx re-checks the balance against the ledger under a
-	// row lock, so a balance that changed between adding the points to the
-	// cart and completing the sale is caught rather than overdrawn - and a
+	// RedeemLoyaltyPointsTx re-checks the balance under the customer's
+	// loyalty lock, so a balance that changed between adding the points to
+	// the cart and completing the sale is caught rather than overdrawn - and a
 	// rolled-back sale un-burns the points by definition, which is what
 	// removed the compensating-reversal branches this function used to carry.
-	loyaltyDiscount := 0
+	loyaltyDiscount, pointsUsed := 0, 0
+	valuePerPoint := redemptionValuePerPointFor(tenantID)
+	if valuePerPoint <= 0 {
+		valuePerPoint = 1
+	}
 	if cart.RedeemPoints > 0 && cart.CustomerID != "" {
-		loyaltyDiscount, err = RedeemLoyaltyPointsTx(tx, schema, tenantID, cart.CustomerID, cart.RedeemPoints, cartNumber)
+		loyaltyDiscount, err = RedeemLoyaltyPointsTx(tx, schema, tenantID, cart.CustomerID, cart.RedeemPoints, cartNumber,
+			LoyaltyRedemptionAuth{ChallengeID: cart.RedemptionChallengeID, ApprovalID: cart.RedemptionApprovalID})
 		if err != nil {
 			return nil, err
 		}
-		if loyaltyDiscount > totalSaleRupees {
+		pointsUsed = cart.RedeemPoints
+		if RupeesToPaise(float64(loyaltyDiscount)) > netSalePaise {
 			// Cap rather than reject: the points were already accepted, and a
 			// customer covering more than the bill simply pays nothing. The
-			// unused remainder goes straight back - in the same transaction,
-			// so it can no longer be lost to a failed compensating write.
+			// unused POINTS go straight back - in the same transaction, so they
+			// can no longer be lost to a failed compensating write. 73.1.1: the
+			// cap is the net bill, and what goes back is points, not rupees
+			// (the two differ whenever a point is worth more than Rs 1).
+			pointsUsed = int(netSalePaise / RupeesToPaise(float64(valuePerPoint)))
 			if _, err := tx.Exec(fmt.Sprintf(`
 				INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id)
 				VALUES ($1, 'Earn', $2, 'POSCart', $3)`, schema),
-				cart.CustomerID, loyaltyDiscount-totalSaleRupees, cartNumber+":REDEMPTION-REVERSAL"); err != nil {
+				cart.CustomerID, cart.RedeemPoints-pointsUsed, cartNumber+":REDEMPTION-REVERSAL"); err != nil {
 				return nil, err
 			}
-			loyaltyDiscount = totalSaleRupees
+			loyaltyDiscount = pointsUsed * valuePerPoint
 		}
 	}
 
 	loyaltyDiscountPaise := RupeesToPaise(float64(loyaltyDiscount))
-	if err := PostSalesFinanceBookingTx(tx, schema, tenantID, cartNumber, totalSalePaise, totalCostPaise, cart.PaymentMode, loyaltyDiscountPaise); err != nil {
+	if err := PostSalesFinanceBookingTx(tx, schema, tenantID, cartNumber, netSalePaise, totalCostPaise, cart.PaymentMode, loyaltyDiscountPaise); err != nil {
 		return nil, fmt.Errorf("GL booking failed: %v", err)
+	}
+	// Stage 73.2.12: when accruing, points redeemed release the liability.
+	if err := postLoyaltyValueTx(tx, tenantID, schema, "POSCart", cartNumber, "POSCart:"+cartNumber+":LOYALTY_RELEASE", loyaltyDiscountPaise, false, accountLoyaltyRedeemedExp); err != nil {
+		return nil, err
 	}
 	if err := PostSalesGSTBookingTx(tx, schema, tenantID, cartNumber, cart.GSTBreakdown); err != nil {
 		return nil, fmt.Errorf("GST booking failed: %v", err)
 	}
 	// Stage 72.8: gift cards paying the bill - liability down, payment
 	// clearing credited by the same amount, all or nothing with the sale.
+	var giftTotal int64
+	for _, t := range cart.GiftCardTenders {
+		giftTotal += t.AmountPaise
+	}
 	if len(cart.GiftCardTenders) > 0 {
-		var giftTotal int64
-		for _, t := range cart.GiftCardTenders {
-			giftTotal += t.AmountPaise
-		}
-		if owed := totalSalePaise - loyaltyDiscountPaise - RupeesToPaise(cart.OfferDiscount); giftTotal > owed {
+		if owed := netSalePaise - loyaltyDiscountPaise; giftTotal > owed {
 			return nil, &ValidationError{Code: "POSOFF-0435", Message: fmt.Sprintf("gift cards cover %.2f but the bill comes to %.2f", PaiseToRupees(giftTotal), PaiseToRupees(owed))}
 		}
 		if err := redeemGiftCardTendersTx(tx, schema, tenantID, cartNumber, cart.Location, cashier, cart.PaymentMode, cart.GiftCardTenders); err != nil {
 			return nil, err
 		}
+	}
+	// Stage 73.2.6: an exchange's credit pays next; any of it the sale does
+	// not need is paid back from the till.
+	var exchangeUse int64
+	if cart.ExchangeCreditID != "" {
+		exchangeUse, _, err = useExchangeCreditTx(tx, tenantID, schema, cartNumber, cart.ExchangeCreditID, cart.PaymentMode, cart.POSSession,
+			netSalePaise-loyaltyDiscountPaise-giftTotal)
+		if err != nil {
+			return nil, err
+		}
+	}
+	// Stage 73.1.6: what is left after points and gift cards is paid in money,
+	// split across the cart's tenders, each in its own clearing account.
+	moneyParts, err := settlePOSTenders(cart.Tenders, cart.PaymentMode, netSalePaise-loyaltyDiscountPaise-giftTotal-exchangeUse)
+	if err != nil {
+		return nil, err
+	}
+	if err := postTenderReclassTx(tx, tenantID, schema, cartNumber, cart.PaymentMode, moneyParts); err != nil {
+		return nil, err
+	}
+	// The credit is its own tender in the allocation (posted above, against
+	// 2620), so a later return of these items refunds it like money.
+	if exchangeUse > 0 {
+		moneyParts = append([]tenderPart{{Key: TenderExchangeCredit, Paise: exchangeUse}}, moneyParts...)
 	}
 	// Stage 26.6.11: move any exempt/nil-rated/zero-rated turnover out of 4100
 	// so it is not later reported as taxable value. A wholly taxable cart
@@ -302,11 +382,21 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 		return nil, err
 	}
 
+	// Stage 73.1.1: the sale's allocation is stored with the sale it describes,
+	// and (73.3.1) amount_paid - the net bill - which tiers, campaigns, RFM and
+	// Customer 360 read as the customer's spend; nothing stored it before.
+	// in the same transaction - a return, the drawer and the reports read it
+	// rather than re-deriving it.
+	allocation, err := json.Marshal(buildSaleAllocation(lineSKUs, lineQtys, lineGross, lineOffer,
+		pointsUsed, RupeesToPaise(float64(valuePerPoint)), giftTotal, moneyParts))
+	if err != nil {
+		return nil, err
+	}
 	if _, err := tx.Exec(fmt.Sprintf(
 		`UPDATE %s.documents SET status = 'Paid',
-		   data = jsonb_set(data, '{payment_state}', to_jsonb('Posted'::text)),
+		   data = jsonb_set(data, '{payment_state}', to_jsonb('Posted'::text)) || jsonb_build_object('allocation', $2::jsonb, 'amount_paid', $3::numeric),
 		   updated_at = CURRENT_TIMESTAMP
-		 WHERE doctype = 'POSCart' AND id = $1`, schema), cartNumber); err != nil {
+		 WHERE doctype = 'POSCart' AND id = $1`, schema), cartNumber, string(allocation), PaiseToRupees(netSalePaise)); err != nil {
 		return nil, err
 	}
 
@@ -388,9 +478,10 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	}
 	// Loyalty earn stays outside the transaction, same as before this refactor:
 	// it is purely additive and must never undo an already-completed sale. The
-	// earn base nets off anything paid for with points.
+	// earn base is what was paid in money: 73.1.1 nets off the offer as well
+	// as anything paid for with points, matching what a return reverses.
 	if cart.CustomerID != "" {
-		if errEarn := EarnLoyaltyPoints(tenantID, cart.CustomerID, totalSaleRupees-loyaltyDiscount, cartNumber); errEarn != nil {
+		if errEarn := EarnLoyaltyPoints(tenantID, cart.CustomerID, int(PaiseToRupees(netSalePaise-loyaltyDiscountPaise)), cartNumber); errEarn != nil {
 			LogSystemError(tenantID, correlationID, "LOYALTY_EARN_FAILED", "/api/v1/checkout", errEarn.Error(), "")
 		}
 	}

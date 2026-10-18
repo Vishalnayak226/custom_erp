@@ -210,7 +210,7 @@ func TestBLD046CancellationImportPath(t *testing.T) {
 		preErrors := make([]string, totalRows)
 		for i := range docRows {
 			id := fmt.Sprintf("%s-%03d", prefix, i)
-			docRows[i] = map[string]interface{}{"id": id, "code": id, "name": "Cancellation Probe " + id}
+			docRows[i] = map[string]interface{}{"id": id, "code": id, "name": "Cancellation Probe " + id, "state": "Karnataka"} // Stage 76.2: a Vendor needs its State
 		}
 		return docRows, preErrors
 	}

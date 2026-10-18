@@ -189,10 +189,18 @@ func ReleaseOrderToFulfillment(tenantID, orderID, actor string) (taskIDs []strin
 		return nil, false, &ValidationError{Code: "GLOBAL-0019", Message: fmt.Sprintf("order %s has no reserved lines to release", orderID)}
 	}
 
+	orderOwner, _ := order["owner_id"].(string)
 	for _, loc := range locations {
+		// Stage 59.2: the task works for the order's owner (or the location's
+		// own); an ownerless order at a mixed-owner location is refused.
+		taskOwner, err := ResolveTaskOwnerQ(tx, tenantID, schema, loc, orderOwner)
+		if err != nil {
+			return nil, false, err
+		}
 		taskID := NewDocID("TSK")
 		taskBytes, err := json.Marshal(map[string]interface{}{
 			"code": taskID, "order_id": orderID, "location_code": loc, "status": "Pending", "items": byLocation[loc],
+			"owner_id": taskOwner,
 		})
 		if err != nil {
 			return nil, false, err
@@ -282,7 +290,7 @@ func TransitionTaskStatus(tenantID string, taskID string, newStatus string) erro
 	if err != nil {
 		return fmt.Errorf("task %s not found: %v", taskID, err)
 	}
-	if currentStatus == "Dispatched" || currentStatus == "Rejected" {
+	if currentStatus == "Dispatched" || currentStatus == "Rejected" || currentStatus == FulfillmentTaskCancelled {
 		return &ValidationError{Code: "GLOBAL-0019", Message: fmt.Sprintf("task %s is already %s", taskID, currentStatus)}
 	}
 

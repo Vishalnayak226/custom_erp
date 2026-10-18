@@ -196,7 +196,7 @@ func filterStickerLines(lines []DocStickerLine, selections []StickerLineSelectio
 // "print the whole GRN"; one selection - "print this one line"), and carries
 // each line's copy count, e.g. after the user edits the review table. See
 // StickerLineSelection for why a line is addressed by SKU *and* batch.
-func PrintStickersForDocument(tenantID, sourceDoctype, sourceDocID, printerCode, printedBy, reprintReason string, selections []StickerLineSelection) ([]StickerLabel, error) {
+func PrintStickersForDocument(tenantID, sourceDoctype, sourceDocID, printerCode, printedBy, reprintReason string, selections []StickerLineSelection, opts ...StickerPrintOptions) ([]StickerLabel, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
@@ -215,14 +215,14 @@ func PrintStickersForDocument(tenantID, sourceDoctype, sourceDocID, printerCode,
 	}
 
 	labels := make([]StickerLabel, 0, len(lines))
-	for _, line := range lines {
+	for lineIndex, line := range lines {
 		// filterStickerLines has already applied the selection's own copy count
 		// to line.Qty, so a line reaching here always carries its final count.
 		copies := line.Qty
 		if copies <= 0 {
 			copies = 1
 		}
-		label, err := resolveAndLogSticker(tenantID, schema, line.SKU, copies, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, line.BatchNo, line.ExpiryDate, line.TemplateID)
+		label, err := resolveAndLogSticker(tenantID, schema, line.SKU, copies, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, line.BatchNo, line.ExpiryDate, line.TemplateID, stickerRequestKey(opts), lineIndex)
 		if err != nil {
 			return nil, err
 		}

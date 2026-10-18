@@ -4,8 +4,11 @@
 // print data the server assembles (GET /api/v1/print/document/{txn}/{id}) -
 // the same code paints the studio canvas, the print dialog preview and the
 // printed pages, so what is designed is what prints. A line-items table flows
-// across pages with its header repeated; elements print on every page, the
-// first, or the last (totals, signature). The brand always prints.
+// across pages with its column headings repeated. Around it the position
+// decides: the header above it prints on the first page only, the tax
+// summary, totals, words, signatures and anything else under it on the last
+// page only; a page number, and an element beside the table, keep their own
+// "Prints on". The brand always prints on the first page.
 //
 // Loaded on demand (with the calling view's ?v=) and kept out of the
 // cold-core app.js/styles.css, which have a release budget. Shell services
@@ -201,17 +204,17 @@ export function defaultLayout(txn) {
     version: 1,
     page: { size: 'A4', orientation: 'portrait', margin: 10, font: 'Inter, Arial, sans-serif' },
     elements: [
-      E({ type: 'field', key: 'brand.name', x: 10, y: 8, w: 105, h: 9, fontSize: 16, bold: true, pages: 'all' }),
+      E({ type: 'field', key: 'brand.name', x: 10, y: 8, w: 105, h: 9, fontSize: 16, bold: true }),
       E({ type: 'text', text: 'Financial year: {fields.financial_year}', x: 10, y: 17, w: 80, h: 4.5, fontSize: 8 }),
       E({ type: 'text', text: 'Status: {status}', x: 10, y: 21.5, w: 80, h: 4.5, fontSize: 8 }),
-      E({ type: 'field', key: 'title', x: 105, y: 8, w: 95, h: 7, fontSize: 12, bold: true, align: 'right', pages: 'all' }),
-      E({ type: 'text', text: 'No: {number}', x: 125, y: 15, w: 75, h: 5, align: 'right', pages: 'all' }),
+      E({ type: 'field', key: 'title', x: 105, y: 8, w: 95, h: 7, fontSize: 12, bold: true, align: 'right' }),
+      E({ type: 'text', text: 'No: {number}', x: 125, y: 15, w: 75, h: 5, align: 'right' }),
       E({ type: 'text', text: 'Date: {date|date}', x: 125, y: 20, w: 75, h: 5, align: 'right' }),
-      E({ type: 'line', x: 10, y: 27, w: 190, h: 0.4, thickness: 0.4, pages: 'all' }),
+      E({ type: 'line', x: 10, y: 27, w: 190, h: 0.4, thickness: 0.4 }),
       E({ type: 'block', block: 'store', title: blockTitle, x: 10, y: 30, w: 93, h: 30, border: true }),
       E({ type: 'block', block: 'party', title: '{party_title}', x: 107, y: 30, w: 93, h: 30, border: true }),
       ...info.map(([text, c, r]) => E({ type: 'text', text, x: c === 1 ? 107 : 10, y: 62 + r * 5, w: c === 2 ? 190 : 93, h: 5, fontSize: 8 })),
-      E({ type: 'table', x: 10, y: tableY, w: 190, h: 218 - tableY, contY: 30, columns: TXN_COLUMNS[txn] || TXN_COLUMNS.PurchaseOrder, fontSize: 8, headerBg: '#f1f3f5', imageSize: 14, pages: 'all' }),
+      E({ type: 'table', x: 10, y: tableY, w: 190, h: 218 - tableY, columns: TXN_COLUMNS[txn] || TXN_COLUMNS.PurchaseOrder, fontSize: 8, headerBg: '#f1f3f5', imageSize: 14, pages: 'all' }),
       ...(noMoney ? [] : [E({ type: 'taxSummary', x: 10, y: 222, w: 112, h: 30, fontSize: 8, pages: 'last' })]),
       E({ type: 'totals', x: 128, y: 222, w: 72, h: 32, fontSize: 9, pages: 'last', rows: TXN_TOTALS[txn] || TXN_TOTALS.PurchaseOrder }),
       ...(noMoney ? [] : [E({ type: 'text', text: 'Amount in words: {amount_in_words}', x: 10, y: 255, w: 190, h: 6, fontSize: 8.5, italic: true, pages: 'last' })]),
@@ -357,8 +360,54 @@ export function elementClass(el) {
 }
 
 // ---------------------------------------------------------------------------
-// Pagination: measure every row once, then cut the rows into each page's
-// table box (the first page's box, then the continuation box from contY).
+// Which page an element prints on, and where the items table sits on a page.
+// ---------------------------------------------------------------------------
+
+const zoneOf = (el, table) => {
+  const mid = el.y + el.h / 2;
+  return mid < table.y ? 'above' : mid > table.y + table.h ? 'below' : 'beside';
+};
+
+// pagesByPosition is the page an element's position fixes - 'first' above the
+// items table, 'last' under it - or '' where its own setting applies (no
+// table, a page number, beside the table).
+export function pagesByPosition(el, table) {
+  if (!table || el === table || el.type === 'table' || el.type === 'pageNo') return '';
+  const z = zoneOf(el, table);
+  return z === 'above' ? 'first' : z === 'below' ? 'last' : '';
+}
+
+// printsOn is 'first', 'last' or 'all' for an element of the layout.
+export function printsOn(el, table) {
+  if (el.type === 'table') return 'all';
+  return pagesByPosition(el, table) || (el.pages === 'all' || el.pages === 'last' ? el.pages : 'first');
+}
+
+const itemsTable = (layout) => (layout.elements || []).find(el => el.type === 'table');
+const printsOnPage = (el, table, first, last) => {
+  const on = printsOn(el, table);
+  return on === 'all' || (on === 'last' ? last : first);
+};
+
+// tableBox is the table's top and bottom on a page: its designed box on the
+// first / last page; a later page starts at the top margin, and a page before
+// the last runs to the bottom margin - or 2 mm clear of a page number or
+// other element still printing there.
+function tableBox(layout, table, first, last) {
+  const ph = pageDims(layout.page)[1];
+  const margin = layout.page?.margin ?? 10;
+  const others = (layout.elements || []).filter(el => el !== table && !el.hidden && printsOnPage(el, table, first, last));
+  let top = table.y, bottom = table.y + table.h;
+  if (!first) top = Math.min(top, others.filter(el => zoneOf(el, table) === 'above').reduce((t, el) => Math.max(t, el.y + el.h + 2), margin));
+  if (!last) bottom = Math.max(bottom, others.filter(el => zoneOf(el, table) === 'below').reduce((b, el) => Math.min(b, el.y - 2), ph - margin));
+  return { top, bottom };
+}
+
+// ---------------------------------------------------------------------------
+// Pagination: measure every row once, then fill each page's table box. The
+// rows left go to the last page once they fit above its footer; a page that
+// takes the final rows but leaves no room for the footer hands one row on.
+// design: one page, every element, the designed box (the studio canvas).
 // ---------------------------------------------------------------------------
 
 function measureTable(el, lines, fontFamily) {
@@ -374,27 +423,34 @@ function measureTable(el, lines, fontFamily) {
   return { headMM, rowsMM };
 }
 
-export function paginate(layout, doc) {
-  const table = (layout.elements || []).find(el => el.type === 'table');
+export function paginate(layout, doc, opts = {}) {
+  const table = itemsTable(layout);
   const lines = doc.lines || [];
   if (!table) return [lines];
   const { headMM, rowsMM } = measureTable(table, lines, layout.page?.font || 'Arial');
-  const firstCap = table.h - headMM;
-  const contTop = Number(table.contY) > 0 ? Number(table.contY) : table.y;
-  const contCap = (table.y + table.h) - contTop - headMM;
-  const pages = [[]];
-  let used = 0;
-  lines.forEach((l, i) => {
-    const cap = pages.length === 1 ? firstCap : contCap;
-    const h = rowsMM[i] || 5;
-    if (pages[pages.length - 1].length && used + h > cap + 0.01) {
-      pages.push([]);
-      used = 0;
+  const cap = (first, last) => {
+    if (opts.design) return table.h - headMM;
+    const b = tableBox(layout, table, first, last);
+    return b.bottom - b.top - headMM;
+  };
+  const h = (i) => rowsMM[i] || 5;
+  const rest = [];
+  for (let i = lines.length - 1, s = 0; i >= 0; i--) rest[i] = (s += h(i));
+  const pages = [];
+  let i = 0;
+  for (;;) {
+    const first = !pages.length;
+    if (i >= lines.length || rest[i] <= cap(first, true) + 0.01) {
+      pages.push(lines.slice(i));
+      return pages;
     }
-    pages[pages.length - 1].push(l);
-    used += h;
-  });
-  return pages;
+    const room = cap(first, false);
+    let j = i, used = 0;
+    while (j < lines.length && (j === i || used + h(j) <= room + 0.01)) used += h(j++);
+    if (j === lines.length && j - i > 1) j--;
+    pages.push(lines.slice(i, j));
+    i = j;
+  }
 }
 
 // printContext is what tokens and field keys resolve against.
@@ -420,34 +476,34 @@ function printedAt() {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-// renderPages returns page elements (not yet attached) for the layout.
-export function renderPages(layout, doc) {
+// renderPages returns page elements (not yet attached) for the layout;
+// opts.design paints the studio's one design page.
+export function renderPages(layout, doc, opts = {}) {
   const [pw, ph] = pageDims(layout.page);
   const ctx = printContext(doc);
-  const chunks = paginate(layout, doc);
+  const table = itemsTable(layout);
+  const chunks = paginate(layout, doc, opts);
   const total = chunks.length;
   const hasBrand = (layout.elements || []).some(el =>
     (el.type === 'field' && el.key === 'brand.name') || (el.type === 'text' && /\{brand\.name\}/.test(el.text || '')));
-  return chunks.map((rows, i) => {
+  return (opts.design ? chunks.slice(0, 1) : chunks).map((rows, i) => {
     const pageNo = i + 1;
-    const first = pageNo === 1, last = pageNo === total;
+    const first = opts.design || pageNo === 1, last = opts.design || pageNo === total;
     const page = document.createElement('div');
     page.className = 'tdp-page';
     page.style.width = `${pw}mm`;
     page.style.height = `${ph}mm`;
     page.style.fontFamily = layout.page?.font || 'Inter, Arial, sans-serif';
     let html = '';
-    if (!hasBrand && ctx.brand.name) {
+    if (first && !hasBrand && ctx.brand.name) {
       html += `<div class="tdp-el tdp-brand-auto" style="left:${layout.page?.margin ?? 10}mm;top:3mm;width:${pw - 2 * (layout.page?.margin ?? 10)}mm;height:6mm;">${esc(ctx.brand.name)}</div>`;
     }
     (layout.elements || []).forEach(el => {
       if (el.hidden) return;
-      const on = el.pages === 'all' || el.type === 'table' || (el.pages === 'last' ? last : first);
-      if (!on) return;
+      if (!printsOnPage(el, table, first, last)) return;
       if (el.type === 'table') {
-        const y = first ? el.y : (Number(el.contY) > 0 ? Number(el.contY) : el.y);
-        const h = (el.y + el.h) - y;
-        html += `<div class="${elementClass(el)}" style="${boxStyle({ ...el, y, h, border: false, bg: '' })}"><table class="tdp-table${el.rowLines === false ? ' tdp-norules' : ''}" style="font-size:${el.fontSize || 8}pt">${tableHead(el)}<tbody>${tableRowsHTML(el, rows)}</tbody></table></div>`;
+        const { top, bottom } = el === table && !opts.design ? tableBox(layout, el, first, last) : { top: el.y, bottom: el.y + el.h };
+        html += `<div class="${elementClass(el)}" style="${boxStyle({ ...el, y: top, h: bottom - top, border: false, bg: '' })}"><table class="tdp-table${el.rowLines === false ? ' tdp-norules' : ''}" style="font-size:${el.fontSize || 8}pt">${tableHead(el)}<tbody>${tableRowsHTML(el, rows)}</tbody></table></div>`;
         return;
       }
       const inner = elementHTML(el, ctx, { page: pageNo, pages: total });

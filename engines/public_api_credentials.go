@@ -23,6 +23,7 @@ const publicAPIKeyMarker = "erp_v1_"
 var PublicAPIScopeCatalog = []string{
 	"inventory:read",
 	"items:read",
+	"notifications:write",
 	"orders:read",
 	"orders:write",
 	"pim:read",
@@ -44,6 +45,9 @@ type APICredential struct {
 	RotatedFrom string     `json:"rotated_from,omitempty"`
 	CreatedBy   string     `json:"created_by"`
 	CreatedAt   time.Time  `json:"created_at"`
+	// AuthMode is api_key (sent on every call) or oauth_client (exchanged at
+	// /api/public/v1/oauth/token for short-lived tokens, Stage 38.2d).
+	AuthMode string `json:"auth_mode"`
 }
 
 type IssuedAPICredential struct {
@@ -164,6 +168,7 @@ func insertAPICredential(q apiCredentialQueryRower, schema, name string, scopes 
 		}
 		credential := APICredential{
 			Name: name, KeyPrefix: prefix, Scopes: scopes, Status: "Active",
+			AuthMode:  "api_key",
 			ExpiresAt: expiresAt, CreatedBy: createdBy,
 		}
 		err = q.QueryRow(fmt.Sprintf(`INSERT INTO %s.api_credentials
@@ -209,7 +214,7 @@ func scanAPICredential(scanner interface{ Scan(...interface{}) error }) (APICred
 	err := scanner.Scan(
 		&credential.ID, &credential.Name, &credential.KeyPrefix, &scopeJSON,
 		&credential.Status, &expiresAt, &lastUsedAt, &revokedAt, &rotatedFrom,
-		&credential.CreatedBy, &credential.CreatedAt,
+		&credential.CreatedBy, &credential.CreatedAt, &credential.AuthMode,
 	)
 	if err != nil {
 		return APICredential{}, err
@@ -233,7 +238,7 @@ func scanAPICredential(scanner interface{ Scan(...interface{}) error }) (APICred
 }
 
 const apiCredentialPublicColumns = `id, name, key_prefix, scopes::text, status,
-	expires_at, last_used_at, revoked_at, rotated_from::text, created_by, created_at`
+	expires_at, last_used_at, revoked_at, rotated_from::text, created_by, created_at, auth_mode`
 
 func ListAPICredentials(tenantID string) ([]APICredential, error) {
 	schema, err := db.GetTenantSchema(tenantID)
@@ -279,7 +284,7 @@ func AuthenticateAPICredential(tenantID, rawKey string) (*APICredential, error) 
 		}
 		return nil, err
 	}
-	if credential.Status != "Active" || (credential.ExpiresAt != nil && !credential.ExpiresAt.After(time.Now())) || !publicAPIKeyMatches(rawKey, storedHash) {
+	if credential.Status != "Active" || (credential.ExpiresAt != nil && !credential.ExpiresAt.After(time.Now())) || !publicAPIKeyMatches(rawKey, storedHash) || credential.AuthMode != "api_key" {
 		return nil, ErrInvalidAPICredential
 	}
 	if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.api_credentials SET last_used_at = CURRENT_TIMESTAMP WHERE id = $1`, schema), credential.ID); err != nil {
@@ -298,7 +303,7 @@ func scanAPICredentialWithHash(scanner interface{ Scan(...interface{}) error }, 
 	err := scanner.Scan(
 		&credential.ID, &credential.Name, &credential.KeyPrefix, &scopeJSON,
 		&credential.Status, &expiresAt, &lastUsedAt, &revokedAt, &rotatedFrom,
-		&credential.CreatedBy, &credential.CreatedAt, storedHash,
+		&credential.CreatedBy, &credential.CreatedAt, &credential.AuthMode, storedHash,
 	)
 	if err != nil {
 		return APICredential{}, err
@@ -335,6 +340,9 @@ func RevokeAPICredential(tenantID, credentialID string) error {
 	if affected, _ := result.RowsAffected(); affected == 0 {
 		return &ValidationError{Code: "GLOBAL-0004", Message: "active API credential not found"}
 	}
+	if err := revokeOAuthTokensTx(db.DB, schema, credentialID); err != nil {
+		return err
+	}
 	// Stage 38.3: drop this key's in-process burst window. A revoked key can no
 	// longer authenticate anyway; this just stops its spent budget lingering in
 	// memory until the window ages out.
@@ -353,10 +361,10 @@ func RotateAPICredential(tenantID, credentialID, rotatedBy string) (*IssuedAPICr
 		return nil, err
 	}
 	defer tx.Rollback()
-	var name, scopeRaw, status string
+	var name, scopeRaw, status, authMode string
 	var expiresAt sql.NullTime
-	err = tx.QueryRow(fmt.Sprintf(`SELECT name, scopes::text, status, expires_at
-		FROM %s.api_credentials WHERE id = $1 FOR UPDATE`, schema), credentialID).Scan(&name, &scopeRaw, &status, &expiresAt)
+	err = tx.QueryRow(fmt.Sprintf(`SELECT name, scopes::text, status, expires_at, auth_mode
+		FROM %s.api_credentials WHERE id = $1 FOR UPDATE`, schema), credentialID).Scan(&name, &scopeRaw, &status, &expiresAt, &authMode)
 	if err == sql.ErrNoRows {
 		return nil, &ValidationError{Code: "GLOBAL-0004", Message: "active API credential not found"}
 	}
@@ -379,6 +387,19 @@ func RotateAPICredential(tenantID, credentialID, rotatedBy string) (*IssuedAPICr
 	}
 	issued, err := insertAPICredential(tx, schema, name, scopes, expiry, rotatedBy, &credentialID)
 	if err != nil {
+		return nil, err
+	}
+	// Stage 38.2d: a rotated OAuth client stays an OAuth client, and every
+	// token the old secret obtained dies with it.
+	if authMode != "" && authMode != "api_key" {
+		if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.api_credentials SET auth_mode = $1 WHERE id = $2`, schema), authMode, issued.Credential.ID); err != nil {
+			return nil, err
+		}
+		issued.Credential.AuthMode = authMode
+	} else {
+		issued.Credential.AuthMode = "api_key"
+	}
+	if err := revokeOAuthTokensTx(tx, schema, credentialID); err != nil {
 		return nil, err
 	}
 	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.api_credentials

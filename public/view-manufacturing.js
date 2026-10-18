@@ -1,8 +1,8 @@
 // Manufacturing (Stage 13.13e, scoped MVP) - single-level BOM + a linear
 // Production Order (Draft -> Material Issued -> Completed). BOM's
-// "components" field is JSON under the hood; this screen offers a simple
-// "sku:qty, sku:qty" shorthand input instead of asking a user to hand-type
-// JSON (BOM can still be edited directly via Master Definition if needed -
+// "components" field is JSON under the hood; this screen offers one typed
+// row per component (Stage 55.12, was a "sku:qty, sku:qty" shorthand) instead
+// of asking a user to hand-type JSON (BOM can still be edited directly via Master Definition if needed -
 // it's a Master-type doctype, so it already has a generic CRUD screen there).
 //
 // BLD-041: native ES module loaded with import() by the authorized view
@@ -16,10 +16,21 @@ let currentMfgTab = 'orders';
 const MFG_TABS = [
   { id: 'orders', label: 'Orders' },
   { id: 'quality', label: 'Quality Inspections' },
+  { id: 'certificates', label: 'Certificates' },
+  { id: 'ncr', label: 'Non-conformance' },
   { id: 'mrp', label: 'MRP Suggestions' },
+  { id: 'proposals', label: 'Supply Proposals' },
   { id: 'schedule', label: 'Production Schedule' },
-  { id: 'subcontracting', label: 'Subcontracting' }
+  { id: 'subcontracting', label: 'Subcontracting' },
+  { id: 'maintenance', label: 'Maintenance' }
 ];
+// Stage 55.13: the quality and maintenance tabs live in view-quality.js.
+const QUALITY_TABS = ['quality', 'certificates', 'ncr', 'maintenance'];
+
+function openManufacturingTab(id) {
+  currentMfgTab = id;
+  renderView('manufacturing');
+}
 
 // Stage 26.9: Manufacturing/MRP Maturity Sprint - Work Centers and Routing
 // are Master doctypes (managed under Setup, free generic form/table, same
@@ -76,13 +87,17 @@ async function renderManufacturingView(container) {
 
   if (currentMfgTab === 'orders') {
     await renderManufacturingOrdersTab(container);
-  } else if (currentMfgTab === 'quality') {
-    currentDoctype = 'QualityInspection';
-    currentSearchQuery = '';
-    currentTablePage = 1;
-    await renderLazyView('manufacturing', container, LAZY_VIEW_MODULES['doctype-table']);
+  } else if (QUALITY_TABS.includes(currentMfgTab)) {
+    const mod = await import('./view-quality.js' + new URL(import.meta.url).search);
+    Object.assign(window, mod);
+    await mod.renderQualityTab(container, currentMfgTab);
   } else if (currentMfgTab === 'mrp') {
     await renderMRPSuggestionsTab(container);
+  } else if (currentMfgTab === 'proposals') {
+    // Stage 73.2.18: the planner's proposals - its own lazy module.
+    const mod = await import('./view-planning.js' + new URL(import.meta.url).search);
+    Object.assign(window, mod);
+    await mod.renderSupplyProposalsTab(container);
   } else if (currentMfgTab === 'schedule') {
     await renderProductionScheduleTab(container);
   } else if (currentMfgTab === 'subcontracting') {
@@ -119,11 +134,17 @@ async function renderManufacturingOrdersTab(container) {
         <label class="form-label" for="bom-parent-item">Parent Item (Finished Good SKU)</label>
         <input type="text" id="bom-parent-item" class="form-input" style="width: 180px;">
       </div>
-      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 220px;">
-        <label class="form-label" for="bom-components">Components (sku:qty, sku:qty, ...)</label>
-        <input type="text" id="bom-components" class="form-input" placeholder="e.g. RAW-A:2, RAW-B:1">
+    </div>
+    <div class="form-group" style="margin: 16px 0 0;">
+      <label class="form-label">Components - what one finished unit uses</label>
+      <div style="overflow-x: auto;"><table>
+        <thead><tr><th>Item</th><th class="num">Qty per finished unit</th><th class="num">Expected scrap %</th><th></th></tr></thead>
+        <tbody id="bom-lines"></tbody>
+      </table></div>
+      <div style="display: flex; gap: 12px; margin-top: 12px;">
+        <button type="button" class="btn btn-secondary" id="bom-add-line">+ Add component</button>
+        <button class="btn btn-primary" id="bom-create-btn">Create BOM</button>
       </div>
-      <button class="btn btn-primary" id="bom-create-btn">Create BOM</button>
     </div>
     <div id="bom-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
   `;
@@ -153,6 +174,7 @@ async function renderManufacturingOrdersTab(container) {
       </div>
       <button class="btn btn-primary" id="po-mfg-create-btn">Create Order</button>
     </div>
+    <div id="po-mfg-materials" style="margin-top: 16px;"></div>
     <div id="po-mfg-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
   `;
 
@@ -160,20 +182,24 @@ async function renderManufacturingOrdersTab(container) {
   listPanel.className = 'table-panel';
   let html = `
     <table>
-      <thead><tr><th>Order #</th><th>BOM</th><th>Quantity</th><th>Location</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Order #</th><th>BOM / output</th><th class="num">Made / ordered</th><th>Location</th><th>Status</th><th>Next step</th><th></th></tr></thead>
       <tbody>
   `;
+  // Stage 55.12: what each BOM makes, and where each order stands.
+  const bomOutput = Object.fromEntries(boms.map(b => [b.code || b.id, b.parent_item || '']));
   html += orders.length === 0
-    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No production orders yet. Use <b>+ New BOM</b> first if you have none, then <b>+ New Production Order</b>.</td></tr>`
+    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No production orders yet. Use <b>+ New BOM</b> first if you have none, then <b>+ New Production Order</b>.</td></tr>`
     : orders.map(o => `
         <tr>
-          <td style="font-family: monospace;">${o.code || o.id}</td>
-          <td>${o.bom_id || ''}</td>
-          <td>${o.quantity ?? ''}</td>
-          <td>${o.location || ''}</td>
-          <td><span class="badge ${o.status === 'Completed' ? 'badge-success' : 'badge-secondary'}">${o.status}</span></td>
+          <td style="font-family: monospace;">${escapeHTMLText(o.code || o.id)}</td>
+          <td>${escapeHTMLText(o.bom_id || '')}${bomOutput[o.bom_id] ? `<div style="font-size: 11px; color: var(--text-muted);">makes ${escapeHTMLText(bomOutput[o.bom_id])}</div>` : ''}</td>
+          <td class="num">${Number(o.completed_qty || 0)} / ${o.quantity ?? ''}</td>
+          <td>${escapeHTMLText(o.location || '')}</td>
+          <td><span class="badge ${o.status === 'Completed' ? 'badge-success' : 'badge-secondary'}">${escapeHTMLText(o.status)}</span></td>
+          <td style="font-size: 12px;">${productionNextStep(o)}</td>
           <td>${renderProductionOrderActions(o)}</td>
         </tr>
+        <tr class="hidden" id="mfg-mat-${escapeHTMLText(o.id)}"><td colspan="7"></td></tr>
       `).join('');
   html += `</tbody></table>`;
   listPanel.innerHTML = html;
@@ -185,11 +211,89 @@ async function renderManufacturingOrdersTab(container) {
   document.getElementById('po-mfg-create-btn').addEventListener('click', createProductionOrder);
   attachLinkTypeahead(document.getElementById('bom-parent-item'), 'Item');
   attachLinkTypeahead(document.getElementById('po-mfg-location'), 'Location');
+  document.getElementById('bom-add-line').addEventListener('click', () => addBOMLine());
+  addBOMLine(); addBOMLine();
+  let planTimer = null;
+  const replan = () => { clearTimeout(planTimer); planTimer = setTimeout(refreshNewOrderMaterials, 300); };
+  ['po-mfg-bom', 'po-mfg-qty', 'po-mfg-location'].forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener('change', replan);
+    el.addEventListener('input', replan);
+  });
+}
+
+// Stage 55.12: typed component lines replace the old "sku:qty" text.
+function addBOMLine() {
+  const body = document.getElementById('bom-lines');
+  if (!body) return;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" class="form-input bom-line-sku" style="min-width: 220px;" aria-label="Component item"></td>
+    <td class="num"><input type="number" class="form-input bom-line-qty" min="0" step="any" style="width: 110px;" aria-label="Quantity per finished unit"></td>
+    <td class="num"><input type="number" class="form-input bom-line-scrap" min="0" step="any" style="width: 90px;" placeholder="0" aria-label="Expected scrap percent"></td>
+    <td><button type="button" class="action-btn" aria-label="Remove component">Remove</button></td>`;
+  body.appendChild(tr);
+  attachLinkTypeahead(tr.querySelector('.bom-line-sku'), 'Item');
+  tr.querySelector('button').addEventListener('click', () => tr.remove());
+}
+
+// The materials check: required vs available at the order's location, from
+// the same explosion Issue Material uses. Backflushed components are only
+// consumed as output is reported, so they never block the issue.
+function renderMaterialPlan(plan) {
+  const n = v => Number(v) === Math.round(Number(v)) ? String(Number(v)) : Number(v).toFixed(3);
+  const lines = plan.lines || [];
+  const head = plan.short_lines > 0
+    ? `<div class="login-error" style="margin-bottom: 8px;">${plan.short_lines} component(s) short at ${escapeHTMLText(plan.location)} - Issue Material will be refused until the stock arrives (transfer it in or receive a purchase).</div>`
+    : `<div style="color: var(--success, #15803d); margin-bottom: 8px;">All components are available at ${escapeHTMLText(plan.location)} for ${n(plan.qty)} unit(s).</div>`;
+  return head + `<div style="overflow-x: auto;"><table>
+    <thead><tr><th>Component</th><th class="num">Per unit</th><th class="num">Required</th><th class="num">Available</th><th class="num">Short</th><th>Taken</th></tr></thead>
+    <tbody>${lines.map(l => `<tr>
+      <td>${escapeHTMLText(l.name || l.sku)}<div style="font-size: 11px; color: var(--text-muted);">${escapeHTMLText(l.sku)}</div></td>
+      <td class="num">${n(l.per_unit)}</td><td class="num">${n(l.required)}</td><td class="num">${n(l.available)}</td>
+      <td class="num">${l.short > 0 ? `<b style="color: var(--danger, #b91c1c);">${n(l.short)}</b>` : ''}</td>
+      <td style="font-size: 12px;">${l.backflush ? 'as output is reported (backflush)' : 'at Issue Material'}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+async function refreshNewOrderMaterials() {
+  const el = document.getElementById('po-mfg-materials');
+  if (!el) return;
+  const bom = document.getElementById('po-mfg-bom').value;
+  const qty = parseFloat(document.getElementById('po-mfg-qty').value);
+  const loc = document.getElementById('po-mfg-location').value.trim();
+  if (!bom || !qty || qty <= 0 || !loc) { el.innerHTML = ''; return; }
+  const res = await apiFetch(`/api/v1/manufacturing/material-plan?bom=${encodeURIComponent(bom)}&qty=${qty}&location=${encodeURIComponent(loc)}`);
+  if (!res) return;
+  if (!res.ok) { el.innerHTML = `<div class="login-error">${escapeHTMLText((await res.json().catch(() => ({}))).error || 'The materials check could not run.')}</div>`; return; }
+  el.innerHTML = renderMaterialPlan(await res.json());
+}
+
+async function toggleProductionMaterials(orderId) {
+  const row = document.getElementById(`mfg-mat-${orderId}`);
+  if (!row) return;
+  if (!row.classList.contains('hidden')) { row.classList.add('hidden'); return; }
+  const cell = row.firstElementChild;
+  cell.innerHTML = 'Checking materials...';
+  row.classList.remove('hidden');
+  const res = await apiFetch(`/api/v1/manufacturing/material-plan?order=${encodeURIComponent(orderId)}`);
+  if (!res) return;
+  if (!res.ok) { cell.innerHTML = `<div class="login-error">${escapeHTMLText((await res.json().catch(() => ({}))).error || 'The materials check could not run.')}</div>`; return; }
+  cell.innerHTML = renderMaterialPlan(await res.json());
+}
+
+function productionNextStep(o) {
+  const made = Number(o.completed_qty || 0), qty = Number(o.quantity || 0);
+  if (o.status === 'Draft') return `Planner: check materials, then issue them from ${escapeHTMLText(o.location || 'the location')}`;
+  if (o.status === 'Material Issued' || o.status === 'In Process') return `Floor: report output (${qty - made} still to make)`;
+  if (o.status === 'Completed' && (o.actual_cost === undefined || o.actual_cost === null)) return 'Planner: record the actual cost';
+  if (o.status === 'Completed') return 'Done';
+  return '';
 }
 
 function renderProductionOrderActions(order) {
   if (order.status === 'Draft') {
-    return `<button class="action-btn" ${actionAttrs('issueProductionMaterial', [order.id])}>Issue Material</button>`;
+    return `<button class="action-btn" ${actionAttrs('toggleProductionMaterials', [order.id])}>Materials</button>
+      <button class="action-btn" ${actionAttrs('issueProductionMaterial', [order.id])}>Issue Material</button>`;
   }
   if (order.status === 'Material Issued' || order.status === 'In Process') {
     // Stage 26.9.3/26.9.4/26.9.6: WIP actions alongside the original
@@ -234,6 +338,9 @@ export {
   renderManufacturingView,
   renderManufacturingOrdersTab,
   renderProductionOrderActions,
+  openManufacturingTab,
+  toggleProductionMaterials,
+  addBOMLine,
   reportPartialProductionCompletion,
   confirmProductionOperation,
   postProductionScrap,
@@ -485,26 +592,25 @@ async function createBOMInner() {
 
   const code = document.getElementById('bom-code').value.trim();
   const parentItem = document.getElementById('bom-parent-item').value.trim();
-  const componentsRaw = document.getElementById('bom-components').value.trim();
+  const fail = msg => { errorEl.textContent = msg; errorEl.classList.remove('hidden'); };
+  if (!code || !parentItem) return fail('Enter a BOM code and the finished item it makes.');
 
-  if (!code || !parentItem || !componentsRaw) {
-    errorEl.textContent = 'BOM Code, Parent Item, and Components are all required.';
-    errorEl.classList.remove('hidden');
-    return;
+  // Stage 55.12: one typed row per component; blank rows are skipped.
+  const components = [];
+  for (const tr of document.querySelectorAll('#bom-lines tr')) {
+    const sku = tr.querySelector('.bom-line-sku').value.trim();
+    const qtyRaw = tr.querySelector('.bom-line-qty').value;
+    const scrapRaw = tr.querySelector('.bom-line-scrap').value;
+    if (!sku && !qtyRaw) continue;
+    const qty = parseFloat(qtyRaw), scrap = scrapRaw === '' ? 0 : parseFloat(scrapRaw);
+    if (!sku) return fail('Pick the item on every component row that has a quantity.');
+    if (!(qty > 0)) return fail(`Enter how much of ${sku} one finished unit uses.`);
+    if (isNaN(scrap) || scrap < 0) return fail(`Scrap % for ${sku} must be 0 or more.`);
+    if (sku === parentItem) return fail('A BOM cannot use the item it makes.');
+    if (components.some(c => c.sku === sku)) return fail(`${sku} is on two rows - put the total on one row.`);
+    components.push(scrap > 0 ? { sku, qty, scrap_percent: scrap } : { sku, qty });
   }
-
-  let components;
-  try {
-    components = componentsRaw.split(',').map(part => {
-      const [sku, qty] = part.split(':').map(s => s.trim());
-      if (!sku || !qty || isNaN(parseFloat(qty))) throw new Error('bad format');
-      return { sku, qty: parseFloat(qty) };
-    });
-  } catch (e) {
-    errorEl.textContent = 'Components must look like "SKU:QTY, SKU:QTY" (e.g. RAW-A:2, RAW-B:1).';
-    errorEl.classList.remove('hidden');
-    return;
-  }
+  if (components.length === 0) return fail('Add at least one component.');
 
   const res = await apiFetch('/api/v1/doc/BOM', {
     method: 'POST',

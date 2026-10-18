@@ -357,7 +357,11 @@ func RunPIMImportTemplateContext(ctx context.Context, tenantID, templateID strin
 		}
 	}
 
-	return runDocDataImportContext(ctx, tenantID, targetDoctype, userID, role, dryRun, docRows, preErrors)
+	res, err := runDocDataImportContext(ctx, tenantID, targetDoctype, userID, role, dryRun, docRows, preErrors)
+	if err == nil {
+		attachFailedSourceRows(res, sourceHeaders, dataRows, targetDoctype, templateID)
+	}
+	return res, err
 }
 
 // ImportTemplateVariantFamily selects GenerateItemFamilyCSVTemplate on

@@ -100,7 +100,6 @@
           "screens": [
             "home",
             "reports",
-            "doctype-table",
             "inventory"
           ],
           "last_verified": "2026-09-24",
@@ -561,7 +560,6 @@
           "audience": "category manager",
           "screens": [
             "pim",
-            "doctype-table",
             "marketplace",
             "reports",
             "stickers"
@@ -761,7 +759,9 @@
           "audience": "cashier, store manager, admin",
           "screens": [
             "pos",
-            "doctype-table",
+            "module:pos",
+            "module:sales",
+            "doctype:offer",
             "reports",
             "approvals",
             "configuration"
@@ -886,6 +886,97 @@
           ]
         },
         {
+          "slug": "wms-start-here",
+          "title": "Warehouse (WMS) - what each screen is for",
+          "section": "Module Handbooks",
+          "order": 19,
+          "summary": "Start here for the WMS. What to set up once and in which order, how goods come in, sit in bins and go out, what every Stock → WMS menu entry does, and what the system does not do for you yet.",
+          "audience": "warehouse operator, warehouse manager, store manager, admin",
+          "screens": [
+            "doctype:bin",
+            "doctype:zone",
+            "bin-conditions",
+            "lpn",
+            "bin-replenishment",
+            "doctype:binreplenishmentrule",
+            "mobile-picking",
+            "location-movement",
+            "doctype:dockdoor",
+            "doctype:trailer",
+            "doctype:holdcode",
+            "doctype:hold",
+            "doctype:holdreleaserequest",
+            "doctype:crossdockplan",
+            "doctype:wave",
+            "doctype:putawaystrategy",
+            "doctype:wavetemplate",
+            "doctype:sortstation",
+            "doctype:preshipvalidationrule",
+            "warehouse-cockpit",
+            "putaway",
+            "wave-picking",
+            "cycle-count",
+            "rf-receiving",
+            "rf-traceability",
+            "appointment-calendar",
+            "yard-board",
+            "place-hold",
+            "sortation",
+            "loading-dock"
+          ],
+          "last_verified": "2026-10-18",
+          "owner": "inventory-process-owner",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "inventory",
+          "task": "Run a warehouse with the WMS screens",
+          "prerequisites": "A Location for the warehouse, and the Inventory module enabled for your role",
+          "applies_to": "source release 0.1.0; configured tenant permissions",
+          "source_path": "module-handbooks/wms-start-here.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Two kinds of stock count",
+              "slug": "two-kinds-of-stock-count"
+            },
+            {
+              "level": 2,
+              "text": "Set up once, in this order",
+              "slug": "set-up-once-in-this-order"
+            },
+            {
+              "level": 2,
+              "text": "Receiving goods",
+              "slug": "receiving-goods"
+            },
+            {
+              "level": 2,
+              "text": "Keeping stock right",
+              "slug": "keeping-stock-right"
+            },
+            {
+              "level": 2,
+              "text": "Shipping orders",
+              "slug": "shipping-orders"
+            },
+            {
+              "level": 2,
+              "text": "Watching the floor",
+              "slug": "watching-the-floor"
+            },
+            {
+              "level": 2,
+              "text": "Every WMS menu entry at a glance",
+              "slug": "every-wms-menu-entry-at-a-glance"
+            },
+            {
+              "level": 2,
+              "text": "What the system does not do for you yet",
+              "slug": "what-the-system-does-not-do-for-you-yet"
+            }
+          ]
+        },
+        {
           "slug": "inventory-wms-operations",
           "title": "Inventory \u0026 Warehouse Operations",
           "section": "Module Handbooks",
@@ -900,7 +991,8 @@
             "cycle-count",
             "transfers",
             "warehouse-cockpit",
-            "doctype-table",
+            "inventory",
+            "module:inventory",
             "reports"
           ],
           "last_verified": "2026-09-03",
@@ -1040,7 +1132,9 @@
           "screens": [
             "grn",
             "wave-picking",
-            "doctype-table",
+            "doctype:batch",
+            "doctype:serialnumber",
+            "doctype:lottableconstraint",
             "reports"
           ],
           "last_verified": "2026-08-31",
@@ -1154,7 +1248,8 @@
             "purchase-requisitions",
             "grn",
             "rfq",
-            "doctype-table",
+            "module:procurement",
+            "module:inbound",
             "vendor-invoices",
             "reports",
             "approvals",
@@ -1374,7 +1469,12 @@
           "screens": [
             "pim",
             "oms",
-            "doctype-table"
+            "doctype:channel",
+            "doctype:channelvalidationrule",
+            "doctype:channelcategorymap",
+            "doctype:channelfieldmap",
+            "doctype:channelsyncrun",
+            "doctype:channelskuexception"
           ],
           "last_verified": "2026-09-03",
           "owner": "documentation-maintainer",
@@ -1458,7 +1558,10 @@
           "screens": [
             "marketplace",
             "oms",
-            "doctype-table"
+            "doctype:courierservicearea",
+            "doctype:ndrcase",
+            "doctype:couriertrackingevent",
+            "doctype:manifest"
           ],
           "last_verified": "2026-09-03",
           "owner": "documentation-maintainer",
@@ -1531,7 +1634,9 @@
           "audience": "category manager, admin",
           "screens": [
             "pim",
-            "doctype-table",
+            "doctype:item",
+            "doctype:itemname",
+            "module:pim",
             "reports",
             "configuration"
           ],
@@ -1621,7 +1726,7 @@
           "audience": "category manager",
           "screens": [
             "pim",
-            "doctype-table"
+            "doctype:pimproductgroup"
           ],
           "last_verified": "2026-08-12",
           "owner": "documentation-maintainer",
@@ -1806,7 +1911,7 @@
           "screens": [
             "place-hold"
           ],
-          "last_verified": "2026-09-09",
+          "last_verified": "2026-10-18",
           "owner": "inventory-process-owner",
           "status": "draft",
           "topic_type": "how-to",
@@ -1825,6 +1930,46 @@
               "level": 2,
               "text": "Release through approval",
               "slug": "release-through-approval"
+            }
+          ]
+        },
+        {
+          "slug": "printing-stickers-and-documents",
+          "title": "Printing - stickers and document templates",
+          "section": "Module Handbooks",
+          "order": 64,
+          "summary": "The difference between a sticker template and a document print template, where each is made, and which one prints.",
+          "audience": "store manager, warehouse operator, category manager, admin",
+          "screens": [
+            "stickers",
+            "doctype:printtemplate",
+            "doctype:stickertemplate",
+            "doctype:printer"
+          ],
+          "last_verified": "2026-10-18",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "inventory",
+          "task": "Print item stickers and set up how documents print",
+          "prerequisites": "One Active Printer record for sticker printing",
+          "applies_to": "source release 0.1.0; configured tenant permissions",
+          "source_path": "module-handbooks/printing-stickers-and-documents.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Print stickers",
+              "slug": "print-stickers"
+            },
+            {
+              "level": 2,
+              "text": "Choose which sticker each item uses",
+              "slug": "choose-which-sticker-each-item-uses"
+            },
+            {
+              "level": 2,
+              "text": "Set up how a document prints",
+              "slug": "set-up-how-a-document-prints"
             }
           ]
         },
@@ -1965,7 +2110,7 @@
           "audience": "accountant, finance manager, admin",
           "screens": [
             "finance",
-            "doctype-table",
+            "module:finance",
             "reports",
             "configuration"
           ],
@@ -2049,7 +2194,8 @@
           "summary": "Earn and burn loyalty points on real sales, issue vouchers and run birthday/lapsed-customer campaigns, and read customer behaviour back through seven CRM reports.",
           "audience": "store manager, marketing, admin",
           "screens": [
-            "doctype-table",
+            "module:crm",
+            "doctype:customer",
             "reports",
             "configuration"
           ],
@@ -2679,6 +2825,11 @@
             },
             {
               "level": 3,
+              "text": "Loyalty Points Movement",
+              "slug": "loyalty-points-movement"
+            },
+            {
+              "level": 3,
               "text": "RFM Customer Segmentation",
               "slug": "rfm-customer-segmentation"
             },
@@ -2691,6 +2842,21 @@
               "level": 3,
               "text": "Failed Syncs",
               "slug": "failed-syncs"
+            },
+            {
+              "level": 3,
+              "text": "Inactive Items With Stock",
+              "slug": "inactive-items-with-stock"
+            },
+            {
+              "level": 3,
+              "text": "Item Exceptions",
+              "slug": "item-exceptions"
+            },
+            {
+              "level": 3,
+              "text": "Item Master Completeness",
+              "slug": "item-master-completeness"
             },
             {
               "level": 3,
@@ -2779,8 +2945,28 @@
             },
             {
               "level": 3,
+              "text": "GL Posting Review (by poster)",
+              "slug": "gl-posting-review-by-poster"
+            },
+            {
+              "level": 3,
               "text": "GST Return Summary",
               "slug": "gst-return-summary"
+            },
+            {
+              "level": 3,
+              "text": "General Journal (who posted what)",
+              "slug": "general-journal-who-posted-what"
+            },
+            {
+              "level": 3,
+              "text": "Gift Card Ledger",
+              "slug": "gift-card-ledger"
+            },
+            {
+              "level": 3,
+              "text": "Gift Card Liability",
+              "slug": "gift-card-liability"
             },
             {
               "level": 3,
@@ -2848,9 +3034,24 @@
               "slug": "attendance-summary"
             },
             {
+              "level": 3,
+              "text": "Payroll Reconciliation (gross to bank to GL)",
+              "slug": "payroll-reconciliation-gross-to-bank-to-gl"
+            },
+            {
               "level": 2,
               "text": "Inventory",
               "slug": "inventory"
+            },
+            {
+              "level": 3,
+              "text": "Backflush Consumption",
+              "slug": "backflush-consumption"
+            },
+            {
+              "level": 3,
+              "text": "Batch Lookup \u0026 Ageing",
+              "slug": "batch-lookup-ageing"
             },
             {
               "level": 3,
@@ -2869,6 +3070,16 @@
             },
             {
               "level": 3,
+              "text": "Item Classification Register",
+              "slug": "item-classification-register"
+            },
+            {
+              "level": 3,
+              "text": "Non-Valuated Stock",
+              "slug": "non-valuated-stock"
+            },
+            {
+              "level": 3,
               "text": "Pegged Demand \u0026 Supply",
               "slug": "pegged-demand-supply"
             },
@@ -2876,6 +3087,16 @@
               "level": 3,
               "text": "Reorder Suggestions (Configured)",
               "slug": "reorder-suggestions-configured"
+            },
+            {
+              "level": 3,
+              "text": "Stock Ageing (by GRN batch)",
+              "slug": "stock-ageing-by-grn-batch"
+            },
+            {
+              "level": 3,
+              "text": "Stock Book vs Ledger (drift finder)",
+              "slug": "stock-book-vs-ledger-drift-finder"
             },
             {
               "level": 3,
@@ -3004,6 +3225,11 @@
             },
             {
               "level": 3,
+              "text": "Open Purchase Commitments",
+              "slug": "open-purchase-commitments"
+            },
+            {
+              "level": 3,
               "text": "RFQ Comparison Export",
               "slug": "rfq-comparison-export"
             },
@@ -3029,8 +3255,23 @@
             },
             {
               "level": 3,
+              "text": "Gift With Purchase Register",
+              "slug": "gift-with-purchase-register"
+            },
+            {
+              "level": 3,
+              "text": "Post-Sale Edit History",
+              "slug": "post-sale-edit-history"
+            },
+            {
+              "level": 3,
               "text": "Sales Register",
               "slug": "sales-register"
+            },
+            {
+              "level": 3,
+              "text": "Sales by Customer Reference",
+              "slug": "sales-by-customer-reference"
             },
             {
               "level": 2,
@@ -3071,6 +3312,11 @@
               "level": 3,
               "text": "Batch Stock Inquiry",
               "slug": "batch-stock-inquiry"
+            },
+            {
+              "level": 3,
+              "text": "Bin Stock Reconciliation",
+              "slug": "bin-stock-reconciliation"
             },
             {
               "level": 3,
@@ -3124,6 +3370,11 @@
             },
             {
               "level": 3,
+              "text": "Owner Stock Exceptions (3PL)",
+              "slug": "owner-stock-exceptions-3pl"
+            },
+            {
+              "level": 3,
               "text": "Owner Stock Inquiry (3PL)",
               "slug": "owner-stock-inquiry-3pl"
             },
@@ -3166,6 +3417,31 @@
           "applies_to": "source registries; not release acceptance",
           "source_path": "reference/release-notes.md",
           "headings": [
+            {
+              "level": 2,
+              "text": "2026-10-18",
+              "slug": "2026-10-18"
+            },
+            {
+              "level": 2,
+              "text": "2026-10-17",
+              "slug": "2026-10-17"
+            },
+            {
+              "level": 2,
+              "text": "2026-10-16",
+              "slug": "2026-10-16"
+            },
+            {
+              "level": 2,
+              "text": "2026-10-15",
+              "slug": "2026-10-15"
+            },
+            {
+              "level": 2,
+              "text": "2026-10-14",
+              "slug": "2026-10-14"
+            },
             {
               "level": 2,
               "text": "2026-10-03",
@@ -3778,6 +4054,11 @@
             },
             {
               "level": 2,
+              "text": "Global",
+              "slug": "global"
+            },
+            {
+              "level": 2,
               "text": "Global / Common",
               "slug": "global-common"
             },
@@ -3843,6 +4124,11 @@
             },
             {
               "level": 2,
+              "text": "PIM",
+              "slug": "pim"
+            },
+            {
+              "level": 2,
               "text": "PIM / Product Publishing",
               "slug": "pim-product-publishing"
             },
@@ -3850,6 +4136,30 @@
               "level": 2,
               "text": "POS / Billing",
               "slug": "pos-billing"
+            }
+          ]
+        },
+        {
+          "slug": "error-code-reference-2",
+          "title": "Error code reference (part 2)",
+          "section": "Troubleshooting",
+          "order": 21,
+          "summary": "Error codes for POS / Offline \u0026 Cash Drawer to WMS / Logistics, continued from the error code reference.",
+          "audience": "everyone",
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Error code reference (part 2)",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
+          "source_path": "troubleshooting/error-code-reference-2.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Contents",
+              "slug": "contents"
             },
             {
               "level": 2,
@@ -3868,6 +4178,11 @@
             },
             {
               "level": 2,
+              "text": "Planning",
+              "slug": "planning"
+            },
+            {
+              "level": 2,
               "text": "Procurement / RFQ",
               "slug": "procurement-rfq"
             },
@@ -3878,8 +4193,23 @@
             },
             {
               "level": 2,
+              "text": "Purchase Return",
+              "slug": "purchase-return"
+            },
+            {
+              "level": 2,
               "text": "Purchase Return / RTV",
               "slug": "purchase-return-rtv"
+            },
+            {
+              "level": 2,
+              "text": "Quality \u0026 Maintenance",
+              "slug": "quality-maintenance"
+            },
+            {
+              "level": 2,
+              "text": "RFQ",
+              "slug": "rfq"
             },
             {
               "level": 2,
@@ -3938,19 +4268,20 @@
   ],
   "screen_map": {
     "appointment-calendar": [
-      "appointment-calendar"
+      "appointment-calendar",
+      "wms-start-here"
     ],
     "approval-rules": [
-      "journey-admin",
-      "security-approvals"
+      "security-approvals",
+      "journey-admin"
     ],
     "approvals": [
-      "journey-finance",
-      "journey-store-manager",
-      "open-a-shop-and-make-your-first-sale",
+      "security-approvals",
       "pos-operations",
       "procurement",
-      "security-approvals"
+      "journey-store-manager",
+      "open-a-shop-and-make-your-first-sale",
+      "journey-finance"
     ],
     "asn": [
       "journey-warehouse-operator"
@@ -3959,48 +4290,142 @@
       "assets"
     ],
     "audit-logs": [
-      "journey-admin",
-      "security-approvals"
+      "security-approvals",
+      "journey-admin"
     ],
     "bank-reconciliation": [
       "journey-finance"
     ],
     "bin-conditions": [
+      "wms-start-here",
       "journey-warehouse-operator"
     ],
     "bin-replenishment": [
+      "wms-start-here",
       "journey-warehouse-operator"
     ],
     "configuration": [
-      "country-phone-rules",
       "crm-loyalty",
       "finance-tax",
-      "first-login",
-      "journey-admin",
       "pim-pxm",
       "pos-operations",
-      "procurement"
+      "procurement",
+      "country-phone-rules",
+      "first-login",
+      "journey-admin"
     ],
     "cycle-count": [
       "inventory-wms-operations",
+      "wms-start-here",
       "journey-warehouse-operator"
     ],
     "doctype-builder": [
       "journey-admin"
     ],
-    "doctype-table": [
-      "channel-connectors",
-      "courier-integrations",
-      "crm-loyalty",
-      "finance-tax",
-      "finding-your-way-around",
-      "inventory-wms-operations",
-      "journey-category-manager",
-      "pim-product-groups",
-      "pim-pxm",
-      "pos-operations",
-      "procurement",
+    "doctype:batch": [
       "traceability-batch-serial"
+    ],
+    "doctype:bin": [
+      "wms-start-here"
+    ],
+    "doctype:binreplenishmentrule": [
+      "wms-start-here"
+    ],
+    "doctype:channel": [
+      "channel-connectors"
+    ],
+    "doctype:channelcategorymap": [
+      "channel-connectors"
+    ],
+    "doctype:channelfieldmap": [
+      "channel-connectors"
+    ],
+    "doctype:channelskuexception": [
+      "channel-connectors"
+    ],
+    "doctype:channelsyncrun": [
+      "channel-connectors"
+    ],
+    "doctype:channelvalidationrule": [
+      "channel-connectors"
+    ],
+    "doctype:courierservicearea": [
+      "courier-integrations"
+    ],
+    "doctype:couriertrackingevent": [
+      "courier-integrations"
+    ],
+    "doctype:crossdockplan": [
+      "wms-start-here"
+    ],
+    "doctype:customer": [
+      "crm-loyalty"
+    ],
+    "doctype:dockdoor": [
+      "wms-start-here"
+    ],
+    "doctype:hold": [
+      "wms-start-here"
+    ],
+    "doctype:holdcode": [
+      "wms-start-here"
+    ],
+    "doctype:holdreleaserequest": [
+      "wms-start-here"
+    ],
+    "doctype:item": [
+      "pim-pxm"
+    ],
+    "doctype:itemname": [
+      "pim-pxm"
+    ],
+    "doctype:lottableconstraint": [
+      "traceability-batch-serial"
+    ],
+    "doctype:manifest": [
+      "courier-integrations"
+    ],
+    "doctype:ndrcase": [
+      "courier-integrations"
+    ],
+    "doctype:offer": [
+      "pos-operations"
+    ],
+    "doctype:pimproductgroup": [
+      "pim-product-groups"
+    ],
+    "doctype:preshipvalidationrule": [
+      "wms-start-here"
+    ],
+    "doctype:printer": [
+      "printing-stickers-and-documents"
+    ],
+    "doctype:printtemplate": [
+      "printing-stickers-and-documents"
+    ],
+    "doctype:putawaystrategy": [
+      "wms-start-here"
+    ],
+    "doctype:serialnumber": [
+      "traceability-batch-serial"
+    ],
+    "doctype:sortstation": [
+      "wms-start-here"
+    ],
+    "doctype:stickertemplate": [
+      "printing-stickers-and-documents"
+    ],
+    "doctype:trailer": [
+      "wms-start-here"
+    ],
+    "doctype:wave": [
+      "wms-start-here"
+    ],
+    "doctype:wavetemplate": [
+      "wms-start-here"
+    ],
+    "doctype:zone": [
+      "wms-start-here"
     ],
     "dynamic-labels": [
       "journey-admin"
@@ -4028,12 +4453,12 @@
     ],
     "grn": [
       "inventory-wms-operations",
-      "journey-store-manager",
+      "traceability-batch-serial",
+      "procurement",
       "journey-warehouse-operator",
       "open-a-shop-and-make-your-first-sale",
-      "procurement",
-      "traceability-batch-serial",
-      "troubleshooting-index"
+      "troubleshooting-index",
+      "journey-store-manager"
     ],
     "help": [
       "using-task-help"
@@ -4045,15 +4470,21 @@
       "hr-payroll"
     ],
     "inventory": [
+      "inventory-wms-operations",
       "finding-your-way-around",
+      "troubleshooting-index",
       "journey-store-manager",
-      "open-a-shop-and-make-your-first-sale",
-      "troubleshooting-index"
+      "open-a-shop-and-make-your-first-sale"
     ],
     "loading-dock": [
-      "loading-dock"
+      "loading-dock",
+      "wms-start-here"
+    ],
+    "location-movement": [
+      "wms-start-here"
     ],
     "lpn": [
+      "wms-start-here",
       "journey-warehouse-operator"
     ],
     "manufacturing": [
@@ -4065,14 +4496,39 @@
       "troubleshooting-index"
     ],
     "mobile-picking": [
+      "wms-start-here",
       "journey-warehouse-operator"
     ],
+    "module:crm": [
+      "crm-loyalty"
+    ],
+    "module:finance": [
+      "finance-tax"
+    ],
+    "module:inbound": [
+      "procurement"
+    ],
+    "module:inventory": [
+      "inventory-wms-operations"
+    ],
+    "module:pim": [
+      "pim-pxm"
+    ],
+    "module:pos": [
+      "pos-operations"
+    ],
+    "module:procurement": [
+      "procurement"
+    ],
+    "module:sales": [
+      "pos-operations"
+    ],
     "oms": [
+      "oms-order-management",
       "channel-connectors",
       "courier-integrations",
       "first-order",
       "journey-store-manager",
-      "oms-order-management",
       "troubleshooting-index"
     ],
     "payment-proposals": [
@@ -4080,83 +4536,89 @@
     ],
     "pim": [
       "channel-connectors",
-      "journey-category-manager",
       "pim-product-groups",
-      "pim-pxm"
+      "pim-pxm",
+      "journey-category-manager"
     ],
     "place-hold": [
-      "place-hold"
+      "place-hold",
+      "wms-start-here"
     ],
     "pos": [
-      "first-order",
-      "journey-cashier",
-      "journey-store-manager",
-      "open-a-shop-and-make-your-first-sale",
       "pos-operations",
-      "troubleshooting-index"
+      "journey-cashier",
+      "open-a-shop-and-make-your-first-sale",
+      "troubleshooting-index",
+      "first-order",
+      "journey-store-manager"
     ],
     "prefix-configs": [
       "journey-admin"
     ],
     "profile": [
-      "first-login",
-      "security-approvals"
+      "security-approvals",
+      "first-login"
     ],
     "purchase-orders": [
-      "journey-store-manager",
-      "open-a-shop-and-make-your-first-sale",
       "procurement",
-      "troubleshooting-index"
+      "open-a-shop-and-make-your-first-sale",
+      "troubleshooting-index",
+      "journey-store-manager"
     ],
     "purchase-requisitions": [
       "procurement"
     ],
     "putaway": [
       "inventory-wms-operations",
+      "wms-start-here",
       "journey-warehouse-operator"
     ],
     "reports": [
       "crm-loyalty",
       "finance-tax",
-      "finding-your-way-around",
-      "inventory-wms-operations",
-      "journey-category-manager",
-      "journey-finance",
-      "journey-store-manager",
-      "open-a-shop-and-make-your-first-sale",
       "pim-pxm",
       "pos-operations",
-      "procurement",
-      "report-catalog",
       "traceability-batch-serial",
-      "what-is-this-system"
+      "procurement",
+      "inventory-wms-operations",
+      "journey-store-manager",
+      "report-catalog",
+      "what-is-this-system",
+      "finding-your-way-around",
+      "journey-category-manager",
+      "open-a-shop-and-make-your-first-sale",
+      "journey-finance"
     ],
     "returns": [
       "returns-and-refunds"
     ],
     "rf-receiving": [
-      "inventory-wms-operations"
+      "inventory-wms-operations",
+      "wms-start-here"
     ],
     "rf-traceability": [
-      "rf-lot-and-serial"
+      "rf-lot-and-serial",
+      "wms-start-here"
     ],
     "rfq": [
       "procurement"
     ],
     "roles": [
-      "journey-admin",
+      "security-approvals",
       "role-journeys-overview",
-      "security-approvals"
+      "journey-admin"
     ],
     "sales-invoices": [
-      "first-order",
       "journey-finance",
+      "first-order",
       "troubleshooting-index"
     ],
     "sortation": [
-      "sortation"
+      "sortation",
+      "wms-start-here"
     ],
     "stickers": [
+      "printing-stickers-and-documents",
       "journey-category-manager",
       "journey-warehouse-operator"
     ],
@@ -4174,28 +4636,31 @@
     "transfers": [
       "inventory-wms-operations",
       "journey-store-manager",
-      "journey-warehouse-operator",
-      "troubleshooting-index"
+      "troubleshooting-index",
+      "journey-warehouse-operator"
     ],
     "users": [
-      "journey-admin",
-      "security-approvals"
+      "security-approvals",
+      "journey-admin"
     ],
     "vendor-invoices": [
-      "journey-finance",
-      "procurement"
+      "procurement",
+      "journey-finance"
     ],
     "warehouse-cockpit": [
-      "inventory-wms-operations"
+      "inventory-wms-operations",
+      "wms-start-here"
     ],
     "wave-picking": [
+      "traceability-batch-serial",
       "inventory-wms-operations",
-      "journey-warehouse-operator",
-      "traceability-batch-serial"
+      "wms-start-here",
+      "journey-warehouse-operator"
     ],
     "yard-board": [
-      "yard-board"
+      "yard-board",
+      "wms-start-here"
     ]
   },
-  "article_count": 49
+  "article_count": 52
 }

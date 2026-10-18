@@ -8,57 +8,42 @@ import (
 	"time"
 )
 
-// AssetRegisterEntry is one asset with its calculated depreciation/net
-// block added on top of the stored fields - MB 16.1 asks for these to be
-// "calculated and reportable", not stored (a stored figure would drift out
-// of date the moment time passes without a matching write).
+// AssetRegisterEntry is one asset with its depreciation and net block added
+// on top of the stored fields. Stage 55.16 (Batch D): depreciation is now
+// posted monthly (engines/asset_depreciation.go), so AccumulatedDepreciation
+// is what the books hold - the asset's 1410 credits - and
+// CalculatedDepreciation is what the schedule says should be posted through
+// the last month that has ended; a gap between the two is a lag the next run
+// clears.
 type AssetRegisterEntry struct {
-	ID                      string `json:"id"`
-	Code                    string `json:"code"`
-	Category                string `json:"category"`
-	Cost                    int    `json:"cost"`
-	Location                string `json:"location"`
-	Custodian               string `json:"custodian"`
-	UsefulLifeYears         int    `json:"useful_life_years"`
-	CapitalisationDate      string `json:"capitalisation_date"`
-	Status                  string `json:"status"`
-	ItemCode                string `json:"item_code,omitempty"`
-	SourceGRN               string `json:"source_grn,omitempty"`
-	AccumulatedDepreciation int    `json:"accumulated_depreciation"`
-	NetBlock                int    `json:"net_block"`
+	ID                      string  `json:"id"`
+	Code                    string  `json:"code"`
+	Category                string  `json:"category"`
+	Cost                    int     `json:"cost"`
+	Location                string  `json:"location"`
+	Custodian               string  `json:"custodian"`
+	UsefulLifeYears         int     `json:"useful_life_years"`
+	CapitalisationDate      string  `json:"capitalisation_date"`
+	Status                  string  `json:"status"`
+	ItemCode                string  `json:"item_code,omitempty"`
+	SourceGRN               string  `json:"source_grn,omitempty"`
+	AccumulatedDepreciation float64 `json:"accumulated_depreciation"`
+	CalculatedDepreciation  float64 `json:"calculated_depreciation"`
+	NetBlock                float64 `json:"net_block"`
 }
 
-// calculateDepreciation applies straight-line depreciation: cost spread
-// evenly across useful_life_years, capped so accumulated depreciation
-// never exceeds cost (an asset is never worth less than zero on the books
-// under this method) and never applies before capitalisation.
-func calculateDepreciation(cost, usefulLifeYears int, capitalisationDate string) (accumulated, netBlock int) {
-	if usefulLifeYears <= 0 || capitalisationDate == "" {
-		return 0, cost
-	}
-	capDate, err := time.Parse("2006-01-02", capitalisationDate)
-	if err != nil {
-		return 0, cost
-	}
-	yearsElapsed := time.Since(capDate).Hours() / 24 / 365.25
-	if yearsElapsed < 0 {
-		yearsElapsed = 0
-	}
-	annualDepreciation := float64(cost) / float64(usefulLifeYears)
-	accumulated = int(annualDepreciation * yearsElapsed)
-	if accumulated > cost {
-		accumulated = cost
-	}
-	return accumulated, cost - accumulated
-}
-
-// GetAssetRegister lists every Asset document with depreciation calculated
-// as of now.
+// GetAssetRegister lists every Asset document with its posted and calculated
+// depreciation.
 func GetAssetRegister(tenantID string) ([]AssetRegisterEntry, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
 	}
+	postedPaise, err := postedAccumulatedDepreciation(schema)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, data, status FROM %s.documents WHERE doctype = 'Asset' ORDER BY id`, schema))
 	if err != nil {
 		return nil, err
@@ -108,16 +93,25 @@ func GetAssetRegister(tenantID string) ([]AssetRegisterEntry, error) {
 
 		switch status {
 		case "Capitalised":
-			entry.AccumulatedDepreciation, entry.NetBlock = calculateDepreciation(cost, usefulLife, entry.CapitalisationDate)
+			if plan, ok := assetDepreciationPlan(data, ""); ok {
+				var due int64
+				for i := 1; i <= plan.monthsDue(now); i++ {
+					due += plan.amount(i)
+				}
+				entry.CalculatedDepreciation = PaiseToRupees(due)
+			}
+			entry.AccumulatedDepreciation = PaiseToRupees(postedPaise[id])
+			entry.NetBlock = PaiseToRupees(int64(cost)*100 - postedPaise[id])
 		case "Disposed":
 			// Written off - DisposeAsset already posted the GL entry for
 			// whatever the net book value was at disposal time; the
 			// register should now show it has no remaining book value,
 			// not its original cost.
-			entry.AccumulatedDepreciation = cost
+			entry.AccumulatedDepreciation = float64(cost)
+			entry.CalculatedDepreciation = float64(cost)
 			entry.NetBlock = 0
 		default: // Draft
-			entry.NetBlock = cost
+			entry.NetBlock = float64(cost)
 		}
 		results = append(results, entry)
 	}
@@ -182,9 +176,9 @@ func CapitalizeAssetWithLife(tenantID, assetID string, usefulLifeYears float64) 
 	if cost <= 0 {
 		return fmt.Errorf("asset cost must be a positive number to capitalise")
 	}
-	// ASSET-0271: useful_life_years drives calculateDepreciation - without
-	// it, depreciation silently computes as zero forever (see that
-	// function's own usefulLifeYears <= 0 short-circuit) rather than
+	// ASSET-0271: useful_life_years drives the depreciation plan - without
+	// it, depreciation silently computes as zero forever (see
+	// assetDepreciationPlan's own months <= 0 short-circuit) rather than
 	// erroring where the missing input actually is.
 	if usefulLifeYears > 0 {
 		data["useful_life_years"] = usefulLifeYears
@@ -226,38 +220,13 @@ func TransferAsset(tenantID, assetID, newLocation, newCustodian, actorUsername s
 	return nil
 }
 
-// DisposeAsset writes off a Capitalised asset (sale/scrap/write-off) and
-// posts the disposal GL entry. Simplified deliberately: this treats the
-// full net book value at disposal time as a loss (Debit Loss on Disposal,
-// Credit Fixed Assets), not netting against a sale/disposal proceeds
-// figure - MB 16.1 doesn't specify a proceeds field, and inventing one
-// would be scope beyond what's asked for here.
+// DisposeAsset disposes of a Capitalised asset with no proceeds, kept for
+// existing callers. Stage 55.16 (Batch D): it is DisposeAssetWithProceeds
+// with zero proceeds - the depreciation due is posted first, and the entry
+// clears 1400 and 1410 with the remaining book value as the loss. (Before
+// this, depreciation was never posted and only the calculated net block was
+// written off to 5300; assets disposed that way keep that entry.)
 func DisposeAsset(tenantID, assetID, disposalType string) error {
-	data, status, err := fetchAssetData(tenantID, assetID)
-	if err != nil {
-		return fmt.Errorf("asset not found: %v", err)
-	}
-	if status != "Capitalised" {
-		return &ValidationError{Code: "ASSET-0270", Message: fmt.Sprintf("only a Capitalised asset can be disposed (current status: %s)", status)}
-	}
-
-	cost := 0
-	if v, ok := data["cost"].(float64); ok {
-		cost = int(v)
-	}
-	usefulLife := 0
-	if v, ok := data["useful_life_years"].(float64); ok {
-		usefulLife = int(v)
-	}
-	capDate, _ := data["capitalisation_date"].(string)
-	_, netBlock := calculateDepreciation(cost, usefulLife, capDate)
-
-	if netBlock > 0 {
-		if err := PostDoubleEntry(tenantID, "Asset-Disposal", assetID, PaiseMap(map[string]int{"5300": netBlock}), PaiseMap(map[string]int{"1400": netBlock}), "", fmt.Sprintf("Asset:%s:DISPOSE", assetID)); err != nil {
-			return fmt.Errorf("failed to post disposal GL entry: %v", err)
-		}
-	}
-
-	data["disposal_type"] = disposalType
-	return saveAssetData(tenantID, assetID, "Disposed", data)
+	_, err := DisposeAssetWithProceeds(tenantID, assetID, disposalType, 0, "")
+	return err
 }

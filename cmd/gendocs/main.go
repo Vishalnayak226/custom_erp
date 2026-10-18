@@ -137,18 +137,20 @@ func referenceFiles(root, stamp string) (map[string][]byte, error) {
 		return nil, err
 	}
 	for name, body := range map[string][]byte{
-		"docs/guides/ERROR_CODES.md":                      []byte(errorCodesDoc(stamp)),
-		"docs/guides/REPORT_CATALOG.md":                   []byte(reportCatalogDoc(stamp)),
-		"docs/kb/troubleshooting/error-code-reference.md": []byte(kbErrorCodeReference(stamp)),
-		"docs/kb/reference/report-catalog.md":             []byte(kbReportCatalog(stamp)),
-		"docs/kb/reference/country-phone-rules.md":        []byte(kbCountryPhoneRules(stamp)),
-		"docs/kb/reference/release-notes.md":              []byte(kbReleaseNotes(stamp, string(ledger))),
-		"docs/specs/openapi_public_v1.json":               append(spec, '\n'),
+		"docs/guides/ERROR_CODES.md":               []byte(errorCodesDoc(stamp)),
+		"docs/guides/REPORT_CATALOG.md":            []byte(reportCatalogDoc(stamp)),
+		"docs/kb/reference/report-catalog.md":      []byte(kbReportCatalog(stamp)),
+		"docs/kb/reference/country-phone-rules.md": []byte(kbCountryPhoneRules(stamp)),
+		"docs/kb/reference/release-notes.md":       []byte(kbReleaseNotes(stamp, string(ledger))),
+		"docs/specs/openapi_public_v1.json":        append(spec, '\n'),
 		// Preserve the published path as a generated compatibility projection
 		// for the governed transition window; both derive from one registry.
 		"docs/api/generated/public-v1.json": append(spec, '\n'),
 	} {
 		files[name] = body
+	}
+	for name, body := range kbErrorCodeReference(stamp) {
+		files["docs/kb/troubleshooting/"+name] = []byte(body)
 	}
 	return files, nil
 }

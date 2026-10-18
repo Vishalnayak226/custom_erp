@@ -527,7 +527,7 @@ func evaluateOrderShipmentClosure(tenantID, schema, orderID, userID string) erro
 
 	rows, err := db.DB.Query(fmt.Sprintf(
 		`SELECT status FROM %s.documents WHERE doctype = 'FulfillmentTask' AND data->>'order_id' = $1 AND deleted_at IS NULL
-		   AND status <> 'Rejected'`, schema), orderID)
+		   AND status NOT IN ('Rejected', 'Cancelled')`, schema), orderID)
 	// Rejected tasks are excluded (2026-10-07): a rejection re-routes the
 	// same lines to a new task, so counting the rejected one too meant an
 	// order that was rejected once could never reach Shipped.

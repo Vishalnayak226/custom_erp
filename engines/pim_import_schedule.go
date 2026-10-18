@@ -63,6 +63,15 @@ func ValidatePIMImportScheduleDocument(tenantID string, payload map[string]inter
 	default:
 		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Source Type", Message: "source_type must be 'Drop Directory' or 'API Hook'"}
 	}
+	// Stage 55.11: the named owner the schedule runs as must be a real, active
+	// user - a schedule owned by nobody is how imports ran as "system".
+	if owner := strings.TrimSpace(pimString(payload["owner"])); owner != "" && db.DB != nil {
+		if ok, err := pimUserExists(tenantID, owner); err != nil {
+			return err
+		} else if !ok {
+			return &ValidationError{Code: "META-0198", SubFor: "Owner", Message: fmt.Sprintf("no active user named %q to own this schedule", owner)}
+		}
+	}
 	return nil
 }
 
@@ -98,6 +107,7 @@ type PIMImportScheduleInfo struct {
 	Frequency     string `json:"frequency,omitempty"`
 	NextRunDate   string `json:"next_run_date,omitempty"`
 	HasHookToken  bool   `json:"has_hook_token"`
+	Owner         string `json:"owner"`
 	LastRunAt     string `json:"last_run_at,omitempty"`
 	LastRunStatus string `json:"last_run_status,omitempty"`
 	Status        string `json:"status"`
@@ -130,6 +140,7 @@ func ListPIMImportSchedules(tenantID string) ([]PIMImportScheduleInfo, error) {
 			Template: pimString(data["template"]), SourceType: pimString(data["source_type"]),
 			SourcePath: pimString(data["source_path"]), Frequency: pimString(data["frequency"]),
 			NextRunDate: pimString(data["next_run_date"]), HasHookToken: pimString(data["hook_token_hash"]) != "",
+			Owner:     pimString(data["owner"]),
 			LastRunAt: pimString(data["last_run_at"]), LastRunStatus: pimString(data["last_run_status"]),
 			Status: status,
 		})
@@ -293,13 +304,23 @@ func runPIMImportScheduleDropDirectory(tenantID, scheduleID string, data map[str
 			fmt.Sprintf("schedule %s: template %q: %v", scheduleID, template, tErr), "")
 		return
 	}
+	runAs, runRole, ownerErr := PIMImportScheduleRunAs(tenantID, scheduleID)
 	sourcePath := pimString(data["source_path"])
 	entries, err := os.ReadDir(sourcePath)
 	overallStatus := "Completed"
+	if ownerErr != nil {
+		// Files stay where they are for the next run once an owner is set.
+		err = ownerErr
+		entries = nil
+	}
 	if err != nil {
 		overallStatus = "Failed: " + err.Error()
+		what := fmt.Sprintf("cannot read %q", sourcePath)
+		if ownerErr != nil {
+			what = "not run"
+		}
 		LogSystemError(tenantID, "", "WARN", "runPIMImportScheduleDropDirectory",
-			fmt.Sprintf("schedule %s: cannot read %q: %v", scheduleID, sourcePath, err), "")
+			fmt.Sprintf("schedule %s: %s: %v", scheduleID, what, err), "")
 	} else {
 		importedDir := filepath.Join(sourcePath, "imported")
 		failedDir := filepath.Join(sourcePath, "failed")
@@ -318,7 +339,7 @@ func runPIMImportScheduleDropDirectory(tenantID, scheduleID string, data map[str
 			}
 			// "" role: a scheduled worker run has no operator session/role to
 			// check field-write restrictions against, same as the hook path.
-			result, runErr := RunPIMImportTemplate(tenantID, template, f, "system", "", false)
+			result, runErr := RunPIMImportTemplate(tenantID, template, f, runAs, runRole, false)
 			f.Close()
 
 			destDir := importedDir
@@ -334,7 +355,7 @@ func runPIMImportScheduleDropDirectory(tenantID, scheduleID string, data map[str
 					fmt.Sprintf("schedule %s: import of %q failed: %v", scheduleID, entry.Name(), runErr), "")
 				continue
 			}
-			if _, jobErr := RecordImportJob(tenantID, targetDoctype, result, "system"); jobErr != nil {
+			if _, jobErr := RecordImportJob(tenantID, targetDoctype, result, runAs); jobErr != nil {
 				LogSystemError(tenantID, "", "WARN", "runPIMImportScheduleDropDirectory",
 					fmt.Sprintf("schedule %s: could not record import job for %q: %v", scheduleID, entry.Name(), jobErr), "")
 			}
@@ -362,4 +383,34 @@ func runPIMImportScheduleDropDirectory(tenantID, scheduleID string, data map[str
 		marshaled, scheduleID); uErr != nil {
 		log.Printf("[PIM_IMPORT_SCHEDULE] update failed for %s: %v", scheduleID, uErr)
 	}
+}
+
+// PIMImportScheduleRunAs is who a schedule's imports run as (Stage 55.11):
+// its named owner, else the user who created it - never an anonymous
+// "system". The owner's own role applies, so a field the owner may not
+// write stays unwritten by their schedule too. An owner who has left (not
+// Active) stops the schedule with a reason rather than running unattributed.
+func PIMImportScheduleRunAs(tenantID, scheduleID string) (userID, role string, err error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return "", "", err
+	}
+	var owner, createdBy string
+	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'owner', ''), COALESCE(created_by, '') FROM %s.documents
+		WHERE doctype = 'PIMImportSchedule' AND id = $1 AND deleted_at IS NULL`, schema), scheduleID).Scan(&owner, &createdBy); err != nil {
+		return "", "", fmt.Errorf("import schedule %q not found", scheduleID)
+	}
+	who := strings.TrimSpace(owner)
+	if who == "" {
+		who = strings.TrimSpace(createdBy)
+	}
+	if who == "" || who == "system" {
+		return "", "", fmt.Errorf("schedule %s has no owner - set Owner to the person responsible for its imports", scheduleID)
+	}
+	err = db.DB.QueryRow(fmt.Sprintf(`SELECT id, COALESCE(role, '') FROM %s.users
+		WHERE (username = $1 OR id = $1) AND COALESCE(status, 'Active') = 'Active' LIMIT 1`, schema), who).Scan(&userID, &role)
+	if err != nil {
+		return "", "", fmt.Errorf("schedule %s's owner %q is not an active user - set a new Owner", scheduleID, who)
+	}
+	return userID, role, nil
 }

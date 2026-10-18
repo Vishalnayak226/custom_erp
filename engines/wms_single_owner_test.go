@@ -67,16 +67,16 @@ func TestSingleOwnerWarehouseGuard(t *testing.T) {
 		t.Error("the warehouse was reassigned while the previous owner still held stock in it")
 	}
 
-	// The unsupported mode exists and really does turn the guard off, so a
-	// 3PL pilot can opt in knowingly rather than patching the code.
-	if err := SetSetting(tenantID, StockOwnershipModeSetting, OwnershipMixedUnsupported, "test"); err != nil {
+	// The mixed mode (owner-isolated since Stage 59) really does turn the
+	// one-owner guard off.
+	if err := SetSetting(tenantID, StockOwnershipModeSetting, OwnershipMixed, "test"); err != nil {
 		t.Fatalf("failed to switch ownership mode: %v", err)
 	}
 	t.Cleanup(func() {
 		_ = SetSetting(tenantID, StockOwnershipModeSetting, OwnershipSingleOwner, "test cleanup")
 	})
 	if SingleOwnerEnforced(tenantID) {
-		t.Error("the guard still reports itself enforced after being switched to the unsupported mode")
+		t.Error("the guard still reports itself enforced after being switched to the mixed mode")
 	}
 	if err := RecordOwnerStock(tenantID, bin, sku, ownerB, "Good", 2, "system"); err != nil {
 		t.Errorf("the unsupported mixed mode still refused a second owner: %v", err)

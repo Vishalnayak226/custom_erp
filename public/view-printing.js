@@ -220,7 +220,6 @@ async function renderStickerPrintTab(container) {
     count: history.length, newLabel: 'Print Stickers', form: printPage, list: historyPanel, heading: 'h2' }));
   txnRestorePane('sticker-print');
 
-  renderQZSetupPanel(printPage);
   renderStickerSourcePanel(printPage, printers);
 
   const formPanel = document.createElement('div');
@@ -241,7 +240,7 @@ async function renderStickerPrintTab(container) {
         <input type="number" id="sticker-copies" class="form-input" style="width: 100px;" value="1" min="1">
       </div>
       <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 180px;">
-        <label class="form-label" for="sticker-reprint-reason">Reprint Reason (optional)</label>
+        <label class="form-label" for="sticker-reprint-reason">Reprint reason (kept in the print history)</label>
         <input type="text" id="sticker-reprint-reason" class="form-input">
       </div>
     </div>
@@ -257,6 +256,14 @@ async function renderStickerPrintTab(container) {
     <button class="btn btn-primary" id="sticker-print-btn">Print Stickers</button>
   `;
   printPage.appendChild(formPanel);
+
+  // Stage 55.19: printer setup (QZ Tray detect/test, channel label PDFs) is a
+  // one-time path per computer, so it sits collapsed below the daily flow.
+  const setup = document.createElement('details');
+  setup.className = 'sticker-printer-setup';
+  setup.innerHTML = '<summary style="cursor:pointer;font-weight:600;margin:0 0 12px;">Printer setup on this computer (QZ Tray) and channel label PDFs</summary>';
+  printPage.appendChild(setup);
+  renderQZSetupPanel(setup);
 
   let historyHtml = `
     <table>
@@ -412,16 +419,16 @@ function renderStickerSourceLines() {
       <tbody>
         ${stickerSourceLines.map((l, i) => `
           <tr>
-            <td><input type="checkbox" data-source-select="${i}" ${stickerSourceSelected[i] ? 'checked' : ''}></td>
+            <td><input type="checkbox" data-source-select="${i}" ${stickerSourceSelected[i] ? 'checked' : ''} aria-label="Print ${escapeHTMLText(l.sku)}"></td>
             <td style="font-family: monospace;">${escapeHTMLText(l.sku)}</td>
             <td>${escapeHTMLText(l.name || '')}</td>
             ${anyBatch ? `<td style="font-family: monospace;">${escapeHTMLText(l.batch_no || '')}</td>` : ''}
             <td>${escapeHTMLText(l.category || '')}</td>
-            <td><select data-source-template="${i}" class="form-input" style="min-width: 160px;" title="Rule that picked it: ${escapeHTMLText(l.template_rule || 'Standard')}">
+            <td><select data-source-template="${i}" class="form-input" style="min-width: 160px;" aria-label="Template for ${escapeHTMLText(l.sku)}" title="Rule that picked it: ${escapeHTMLText(l.template_rule || 'Standard')}">
               <option value="">${escapeHTMLText(l.template_name)} (${escapeHTMLText(STICKER_RULE_TEXT[l.template_rule] || 'no rule')})</option>
               ${choiceOptions(values[i])}
             </select></td>
-            <td><input type="number" min="1" data-source-copies="${i}" class="form-input" style="width: 70px;" value="${escapeHTMLText(stickerSourceCopies[i] ?? l.qty)}"></td>
+            <td><input type="number" min="1" data-source-copies="${i}" class="form-input" style="width: 70px;" aria-label="Copies of ${escapeHTMLText(l.sku)}" value="${escapeHTMLText(stickerSourceCopies[i] ?? l.qty)}"></td>
             <td><button class="action-btn" data-source-print-one="${i}">Print</button></td>
           </tr>
         `).join('')}
@@ -491,7 +498,7 @@ async function printStickerSourceLines(indexes) {
 
   const res = await apiFetch('/api/v1/stickers/print', {
     method: 'POST',
-    body: JSON.stringify({
+    body: stickerPrintBody({
       lines, printer_code: printerCode, reprint_reason: reprintReason,
       source_doctype: stickerSourceDoctype, source_doc_id: stickerSourceDocId
     })
@@ -503,6 +510,7 @@ async function printStickerSourceLines(indexes) {
     errorEl.classList.remove('hidden');
     return;
   }
+  stickerPendingPrint = null;
   await printStickerRun(data, { printerCode, copies: 1, jobRef: stickerSourceDocId });
   (await loadTxnScreen()).txnDone('sticker-print');
   renderView('stickers');
@@ -558,7 +566,7 @@ async function printStickers() {
   // the labels go silently to a thermal printer or to the print dialog.
   const res = await apiFetch('/api/v1/stickers/print', {
     method: 'POST',
-    body: JSON.stringify({ skus: stickerSKUs, printer_code: printerCode, reprint_reason: reprintReason, copies })
+    body: stickerPrintBody({ skus: stickerSKUs, printer_code: printerCode, reprint_reason: reprintReason, copies })
   });
   if (!res) return;
   const data = await res.json();
@@ -567,6 +575,7 @@ async function printStickers() {
     errorEl.classList.remove('hidden');
     return;
   }
+  stickerPendingPrint = null;
 
   await printStickerRun(data, { printerCode, copies });
   stickerSKUs = [];
@@ -654,3 +663,16 @@ async function printStickerRun(labels, { printerCode, copies = 1, jobRef = '' } 
 
 
 export { renderQZSetupPanel, qzRefreshStatus, qzDetectPrinters, qzTestPrint, qzPrintPickedDocument, renderStickersView, renderStickerPrintTab, renderStickerSourcePanel, loadStickerSourcePreview, renderStickerSourceLines, printStickerSourceLines, addStickerSKU, removeStickerSKU, renderStickerSKUList, printStickers, stickerFieldText, renderStickerElementHTML, renderStickerTemplatesTab, printStickerRun };
+
+// Stage 55.19: a print request carries a key that survives a failed or
+// timed-out attempt at the same selection, so pressing Print again re-sends
+// the same key and the server writes the print history once. Cleared on
+// success; a different selection gets a new key.
+let stickerPendingPrint = null;
+function stickerPrintBody(payload) {
+  const body = JSON.stringify(payload);
+  if (!stickerPendingPrint || stickerPendingPrint.body !== body) {
+    stickerPendingPrint = { body, key: (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`) };
+  }
+  return JSON.stringify({ ...payload, request_key: stickerPendingPrint.key });
+}

@@ -3,6 +3,16 @@
 // are published by the loader for legacy cross-view calls.
 import { documentSearchLink } from './view-document-links.js';
 
+// Stage 73.2.14: this module's own stylesheet, linked once on first load so
+// the cold-core styles.css stays inside its release budget.
+if (!document.querySelector('link[data-oms-css]')) {
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = 'oms.css' + new URL(import.meta.url).search;
+  link.dataset.omsCss = '1';
+  document.head.appendChild(link);
+}
+
 // omsConsoleState is the whole screen's state: the active filter, the current
 // selection, and the last result. Module-level rather than re-derived from the
 // DOM so a re-render after an action keeps the operator where they were -
@@ -59,6 +69,8 @@ async function renderOMSWorkbenchView(container) {
         <button class="btn btn-outline btn-sm" data-oms-queue="mapping">Unmapped channel items</button>
         <a class="btn btn-outline btn-sm" href="#/setup/ReturnRequest">Return requests</a>
       </div>
+      <div id="oms-exception-queues" class="oms-queue-buttons" aria-label="Exception queues"></div>
+      <div id="oms-queue-rows"></div>
     </div>
     <div class="table-panel" style="padding:24px;margin-bottom:24px;">
       <div class="oms-console-head">
@@ -78,7 +90,7 @@ async function renderOMSWorkbenchView(container) {
     </div>
     <div class="table-panel oms-compact-panel" style="padding:16px 24px;margin-bottom:24px;">
       <div class="oms-search-row">
-        <input type="search" id="oms-global-search" class="form-input" placeholder="Search any order: order id, channel order id, AWB, phone, customer or SKU">
+        <input type="search" id="oms-global-search" class="form-input" aria-label="Search orders" placeholder="Search any order: order id, channel order id, AWB, phone, customer or SKU">
         <button class="btn btn-outline" id="oms-search-btn">Search</button>
         <button class="btn btn-outline" id="oms-search-clear">Clear</button>
       </div>
@@ -88,7 +100,7 @@ async function renderOMSWorkbenchView(container) {
       <div class="oms-console-head">
         <h2 style="font-size:16px;margin:0;">Orders</h2>
         <div class="oms-view-actions">
-          <select id="oms-saved-views" class="form-input" style="max-width:220px;"><option value="">Saved views…</option></select>
+          <select id="oms-saved-views" class="form-input" style="max-width:220px;" aria-label="Saved views"><option value="">Saved views…</option></select>
           <button class="btn btn-outline btn-sm" id="oms-save-view">Save this view</button>
           <button class="btn btn-outline btn-sm" id="oms-delete-view">Delete view</button>
         </div>
@@ -140,7 +152,64 @@ async function renderOMSWorkbenchView(container) {
   renderManualOrderPanel(document.getElementById('oms-manual-panel'));
   // The tiles, the saved views and the order list are independent reads, so
   // they go out together rather than in sequence.
-  await Promise.all([loadOMSTiles(), loadOMSSavedViews(), loadOMSOrders(), loadOMSConnectorOperations(), loadOMSBundleOperations()]);
+  await Promise.all([loadOMSTiles(), loadOMSExceptionQueues(), loadOMSSavedViews(), loadOMSOrders(), loadOMSConnectorOperations(), loadOMSBundleOperations()]);
+}
+
+// Stage 73.2.14 - stuck payment, carrier, return/refund and settlement work.
+// Each button carries its live count; a row names the order, why it is stuck,
+// for how long, and the step the engines will accept next.
+function omsWhen(value) {
+  if (!value) return '—';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString();
+}
+
+async function loadOMSExceptionQueues() {
+  const host = document.getElementById('oms-exception-queues');
+  if (!host) return;
+  const res = await apiFetch('/api/v1/oms/queues');
+  if (!res || !res.ok) { host.innerHTML = '<p class="text-muted">Exception queues are unavailable right now.</p>'; return; }
+  const { queues = [] } = await res.json();
+  host.innerHTML = queues.map(q => `
+    <button class="btn btn-outline btn-sm" data-oms-exception="${escapeHTMLText(q.id)}" title="${escapeHTMLText(q.hint || '')}">
+      ${escapeHTMLText(q.label)} <span class="badge">${q.error ? '!' : escapeHTMLText(String(q.count))}</span>
+    </button>`).join('');
+  host.querySelectorAll('[data-oms-exception]').forEach(btn => btn.addEventListener('click', () => openOMSExceptionQueue(btn.dataset.omsException, btn.textContent.trim())));
+  // Stage 73.3.3: My work's Open lands here with its queue already showing.
+  let wanted = '';
+  try { wanted = sessionStorage.getItem('erp_oms_open_queue') || ''; sessionStorage.removeItem('erp_oms_open_queue'); } catch (_) { /* storage off */ }
+  const target = wanted && host.querySelector(`[data-oms-exception="${CSS.escape(wanted)}"]`);
+  if (target) {
+    await openOMSExceptionQueue(wanted, target.textContent.trim());
+    document.getElementById('oms-queue-rows')?.scrollIntoView({ block: 'start' });
+  }
+}
+
+async function openOMSExceptionQueue(queue, label) {
+  const host = document.getElementById('oms-queue-rows');
+  if (!host) return;
+  host.innerHTML = '<p class="text-muted">Loading…</p>';
+  const res = await apiFetch(`/api/v1/oms/queues/${encodeURIComponent(queue)}`);
+  if (!res) return;
+  if (!res.ok) { host.innerHTML = ''; await showApiError(res, 'Failed to load this queue.'); return; }
+  const { rows = [] } = await res.json();
+  if (rows.length === 0) {
+    host.innerHTML = `<p class="text-muted oms-detail-empty">Nothing is stuck in ${escapeHTMLText(label.replace(/\s*\d+$/, ''))}.</p>`;
+    return;
+  }
+  host.innerHTML = `
+    <div class="table-wrapper"><table>
+      <thead><tr><th>Order</th><th>Why it is here</th><th>Since</th><th class="num">Hours</th><th>Next step</th><th>Document</th></tr></thead>
+      <tbody>${rows.map(r => `<tr>
+        <td>${r.order_id ? `<button class="action-btn" data-open-queue-order="${escapeHTMLText(r.order_id)}">${escapeHTMLText(r.order_id)}</button>` : '—'}</td>
+        <td>${escapeHTMLText(r.reason || '')}</td>
+        <td>${escapeHTMLText(omsWhen(r.since))}</td>
+        <td class="num">${escapeHTMLText(String(r.age_hours ?? ''))}</td>
+        <td>${escapeHTMLText(r.next_action || '')}</td>
+        <td>${r.ref_id && r.ref_doctype !== 'SalesOrder' ? documentSearchLink(r.ref_doctype, r.ref_id) : ''}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  host.querySelectorAll('[data-open-queue-order]').forEach(btn => btn.addEventListener('click', () => openOMSOrderDetail(btn.dataset.openQueueOrder)));
 }
 
 async function loadOMSBundleOperations() {
@@ -202,7 +271,7 @@ async function loadOMSConnectorOperations() {
     const { channels = [] } = await healthRes.json();
     healthHost.innerHTML = channels.length === 0 ? '<div class="text-muted">No active channels configured.</div>' : `
       <table><thead><tr><th>Channel</th><th>Platform</th><th>Last sync</th><th>Lag</th><th>24h failures</th><th>Exceptions</th><th>Actions</th></tr></thead><tbody>${channels.map(h => `
-        <tr><td>${escapeHTMLText(h.channel)}</td><td>${escapeHTMLText(h.platform)}</td><td><span class="badge ${h.last_status === 'Failed' ? 'badge-danger' : 'badge-success'}">${escapeHTMLText(h.last_status || 'Never')}</span><div class="oms-channel-ref">${escapeHTMLText(h.last_sync_at || '—')}</div></td><td>${formatOMSLag(h.lag_seconds)}</td><td>${Number(h.failures_24h || 0)} / ${Number(h.runs_24h || 0)}</td><td>${Number(h.open_exceptions || 0)}</td><td>${h.can_pull_orders ? `<button class="btn btn-outline btn-sm" data-channel-sync="pull-orders" data-channel="${escapeHTMLText(h.channel)}">Pull orders</button>` : ''} ${h.can_push_ats ? `<button class="btn btn-outline btn-sm" data-channel-sync="sync-inventory" data-channel="${escapeHTMLText(h.channel)}">Push ATS</button>` : ''}${!h.can_pull_orders && !h.can_push_ats ? '<span class="text-muted">Catalogue only</span>' : ''}</td></tr>`).join('')}
+        <tr><td>${escapeHTMLText(h.channel)}</td><td>${escapeHTMLText(h.platform)}</td><td><span class="badge ${h.last_status === 'Failed' ? 'badge-danger' : h.last_status ? 'badge-success' : 'badge-warning'}">${escapeHTMLText(h.last_status || (h.credentials_set ? 'Never synced' : 'Not connected'))}</span><div class="oms-channel-ref">${escapeHTMLText(h.last_sync_at || (h.credentials_set ? '—' : 'Add its credentials on Marketplace'))}</div>${h.last_status === 'Failed' && h.last_error ? `<div class="oms-channel-ref" style="color:var(--danger-strong);">${escapeHTMLText(h.last_error)}</div>` : ''}</td><td>${formatOMSLag(h.lag_seconds)}</td><td>${Number(h.failures_24h || 0)} / ${Number(h.runs_24h || 0)}</td><td>${Number(h.open_exceptions || 0)}</td><td>${h.can_pull_orders ? `<button class="btn btn-outline btn-sm" data-channel-sync="pull-orders" data-channel="${escapeHTMLText(h.channel)}">Pull orders</button>` : ''} ${h.can_push_ats ? `<button class="btn btn-outline btn-sm" data-channel-sync="sync-inventory" data-channel="${escapeHTMLText(h.channel)}">Push ATS</button>` : ''}${!h.can_pull_orders && !h.can_push_ats ? '<span class="text-muted">Catalogue only</span>' : ''}</td></tr>`).join('')}
       </tbody></table>`;
     healthHost.querySelectorAll('[data-channel-sync]').forEach(button => button.addEventListener('click', () => runOMSChannelSync(button)));
   }
@@ -212,7 +281,7 @@ async function loadOMSConnectorOperations() {
     const { exceptions = [] } = await exceptionRes.json();
     exceptionHost.innerHTML = exceptions.length === 0 ? '<div class="text-muted">No open mapping exceptions.</div>' : `
       <table><thead><tr><th>Channel</th><th>Channel SKU</th><th>Latest order</th><th>Count</th><th>Map to ERP item</th><th>External product</th><th>Location</th><th></th></tr></thead><tbody>${exceptions.map((e, index) => `
-        <tr><td>${escapeHTMLText(e.channel)}</td><td style="font-family:monospace;">${escapeHTMLText(e.channel_sku)}</td><td>${escapeHTMLText(e.last_order_id || '—')}</td><td>${Number(e.occurrences || 1)}</td><td><input class="form-input" data-map-sku="${index}" placeholder="ERP SKU"></td><td><input class="form-input" data-map-product="${index}" placeholder="Product ID"></td><td><input class="form-input" data-map-location="${index}" placeholder="Location"></td><td><button class="btn btn-primary btn-sm" data-map-exception="${index}" data-channel="${escapeHTMLText(e.channel)}" data-channel-sku="${escapeHTMLText(e.channel_sku)}">Map</button></td></tr>`).join('')}
+        <tr><td>${escapeHTMLText(e.channel)}</td><td style="font-family:monospace;">${escapeHTMLText(e.channel_sku)}</td><td>${escapeHTMLText(e.last_order_id || '—')}</td><td>${Number(e.occurrences || 1)}</td><td><input class="form-input" data-map-sku="${index}" placeholder="ERP SKU" aria-label="ERP SKU for ${escapeHTMLText(e.channel_sku)}"></td><td><input class="form-input" data-map-product="${index}" placeholder="Product ID" aria-label="Product ID for ${escapeHTMLText(e.channel_sku)}"></td><td><input class="form-input" data-map-location="${index}" placeholder="Location" aria-label="Location for ${escapeHTMLText(e.channel_sku)}"></td><td><button class="btn btn-primary btn-sm" data-map-exception="${index}" data-channel="${escapeHTMLText(e.channel)}" data-channel-sku="${escapeHTMLText(e.channel_sku)}">Map</button></td></tr>`).join('')}
       </tbody></table>`;
     exceptionHost.querySelectorAll('[data-map-exception]').forEach(button => button.addEventListener('click', () => resolveOMSChannelSKU(button)));
   }
@@ -373,7 +442,7 @@ function renderOMSOrderTable(result) {
             const source = `${escapeHTMLText(channel)}${o.channel_order_id ? `<div class="oms-channel-ref" title="The order id in ${escapeHTMLText(channel)}">${escapeHTMLText(o.channel_order_id)}</div>` : ''}`;
             const age = o.age_minutes < 60 ? `${o.age_minutes}m` : o.age_minutes < 1440 ? `${Math.floor(o.age_minutes / 60)}h` : `${Math.floor(o.age_minutes / 1440)}d`;
             return `<tr>
-              <td><input type="checkbox" class="oms-row-select" data-order="${escapeHTMLText(o.order_id)}"${omsConsoleState.selected.has(o.order_id) ? ' checked' : ''}></td>
+              <td><input type="checkbox" class="oms-row-select" aria-label="Select order ${escapeHTMLText(o.order_id)}" data-order="${escapeHTMLText(o.order_id)}"${omsConsoleState.selected.has(o.order_id) ? ' checked' : ''}></td>
               <td style="font-family:monospace;">${copyableCell(o.order_id, o.order_id)}${o.priority === 'Expedite' ? '<div class="badge badge-warning oms-expedite">Expedite</div>' : ''}</td>
               <td>${source}</td>
               <td>${escapeHTMLText(o.customer_name || '—')}${o.customer_phone ? `<div class="oms-channel-ref">${escapeHTMLText(o.customer_phone)}</div>` : ''}</td>
@@ -572,13 +641,16 @@ window.openOMSOrderDetail = async function(orderID) {
   const taskForBooking = !terminal && !hasLiveBooking
     ? (d.fulfillment_tasks || []).find(task => ['Packed', 'Dispatched'].includes(task.status))
     : null;
+  // Stage 73.2.14: the server's next allowed step and one dated timeline.
+  const nextActions = d.next_actions || [];
+  const timeline = d.timeline || [];
 
   const section = (title, rows, columns, doctype = '') => `
     <h4 class="oms-detail-heading">${escapeHTMLText(title)} <span class="text-muted">(${rows.length})</span></h4>
     ${rows.length === 0
       ? `<p class="text-muted oms-detail-empty">None.</p>`
       : `<div class="table-wrapper"><table><thead><tr>${columns.map(c => `<th>${escapeHTMLText(c.label)}</th>`).join('')}</tr></thead>
-         <tbody>${rows.map(r => `<tr>${columns.map(c => `<td>${doctype && c.key === 'id' ? documentSearchLink(doctype, r.id) : escapeHTMLText(String(r[c.key] ?? '—'))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`}`;
+         <tbody>${rows.map(r => `<tr>${columns.map(c => `<td>${doctype && c.key === 'id' ? documentSearchLink(doctype, r.id) : (c.key === 'created_at' || c.key === 'expires_at' ? escapeHTMLText(omsWhen(r[c.key])) : escapeHTMLText(String(r[c.key] ?? '—')))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`}`;
 
   const lineRows = (d.lines || []).map(l => `
     <tr>
@@ -609,10 +681,13 @@ window.openOMSOrderDetail = async function(orderID) {
           <div><span class="stat-label">Status</span><div>${omsStatusBadge(status, order.hold_reason)}</div></div>
           <div><span class="stat-label">Source</span><div>${escapeHTMLText(order.channel || 'Manual')}${order.channel_order_id ? `<div class="oms-channel-ref">${escapeHTMLText(order.channel_order_id)}</div>` : ''}</div></div>
           <div><span class="stat-label">Customer</span><div>${escapeHTMLText(order.customer_name || '—')}${order.customer_phone ? `<div class="oms-channel-ref">${escapeHTMLText(order.customer_phone)}</div>` : ''}</div></div>
+          ${order.customer_reference ? `<div><span class="stat-label">Customer PO / Ref</span><div>${escapeHTMLText(order.customer_reference)}</div></div>` : ''}
           <div><span class="stat-label">Payment</span><div>${escapeHTMLText(order.payment_status || '—')}</div></div>
           <div><span class="stat-label">Priority</span><div>${escapeHTMLText(order.priority || 'Normal')}</div></div>
           <div><span class="stat-label">Value</span><div>${formatMoney(order.total_amount)}</div></div>
+          ${order.original_order_id ? `<div><span class="stat-label">${escapeHTMLText(order.replacement_kind || 'Replacement')} of</span><div><button class="action-btn" data-open-original="${escapeHTMLText(order.original_order_id)}">${escapeHTMLText(order.original_order_id)}</button></div></div>` : ''}
         </div>
+        ${nextActions.length ? `<div class="oms-next-step" role="status"><strong>Next step:</strong> ${escapeHTMLText(nextActions[0].label)} <span class="text-muted">- ${escapeHTMLText(nextActions[0].reason)}</span> <button class="btn btn-primary btn-sm" data-next-step="${escapeHTMLText(nextActions[0].action)}">${escapeHTMLText(nextActions[0].label)}</button>${nextActions.slice(1).map(a => `<div class="text-muted">Also: ${escapeHTMLText(a.label)} - ${escapeHTMLText(a.reason)}</div>`).join('')}</div>` : ''}
         <div class="oms-detail-address"><span class="stat-label">Ship to</span><div>${escapeHTMLText(order.shipping_address || '—')}</div></div>
 
         <div class="oms-action-bar">
@@ -620,6 +695,8 @@ window.openOMSOrderDetail = async function(orderID) {
           ${taskForBooking ? `<button class="btn btn-primary btn-sm" data-action="book" title="Create a carrier booking and AWB for this order">Book shipment</button>` : ''}
           ${status === 'On Hold' ? `<button class="btn btn-primary btn-sm" data-action="release">Release hold</button>` : `<button class="btn btn-outline btn-sm" data-action="hold"${terminal ? ' disabled' : ''}>Hold</button>`}
           <button class="btn btn-outline btn-sm" data-action="edit"${terminal ? ' disabled' : ''}>Edit</button>
+          ${['Draft', 'On Hold', 'Reserved', 'Released'].includes(status) ? `<button class="btn btn-outline btn-sm" data-action="lines" title="Change quantities, remove or add lines until the warehouse starts picking">Edit lines</button>` : ''}
+          ${['Shipped', 'Delivered', 'Closed', 'Dispatched', 'Partially Fulfilled'].includes(status) ? `<button class="btn btn-outline btn-sm" data-action="replace" title="Send lost, damaged or wrong goods again on a linked, no-charge order">Reship / replace</button>` : ''}
           <button class="btn btn-outline btn-sm" data-action="reallocate"${terminal ? ' disabled' : ''}>Reallocate</button>
           <button class="btn btn-outline btn-sm" data-action="switch"${terminal ? ' disabled' : ''}>Switch facility</button>
           <button class="btn btn-outline btn-sm" data-action="priority"${terminal ? ' disabled' : ''}>${order.priority === 'Expedite' ? 'Set Normal' : 'Expedite'}</button>
@@ -635,13 +712,26 @@ window.openOMSOrderDetail = async function(orderID) {
         </table></div>
 
         ${section('Reservations', d.reservations || [], [{ key: 'sku', label: 'SKU' }, { key: 'location_code', label: 'Location' }, { key: 'quantity', label: 'Qty' }, { key: 'reservation_type', label: 'Type' }, { key: 'expires_at', label: 'Expires' }])}
+        <h4 class="oms-detail-heading">Timeline <span class="text-muted">(${timeline.length})</span></h4>
+        <div class="table-wrapper"><table>
+          <thead><tr><th>When</th><th>What</th><th>Status</th><th>Document / by</th></tr></thead>
+          <tbody>${timeline.map(e => `<tr>
+            <td>${escapeHTMLText(omsWhen(e.at))}</td>
+            <td>${escapeHTMLText(e.title || '')}${e.detail ? `<div class="text-muted oms-timeline-detail">${escapeHTMLText(e.detail)}</div>` : ''}</td>
+            <td>${escapeHTMLText(e.status || '')}</td>
+            <td>${e.ref_id && e.ref_id !== orderID ? (e.ref_doctype === 'SalesOrder' ? `<button class="action-btn" data-open-original="${escapeHTMLText(e.ref_id)}">${escapeHTMLText(e.ref_id)}</button>` : documentSearchLink(e.ref_doctype, e.ref_id)) : escapeHTMLText(e.by || '')}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+        <details class="oms-related-docs"><summary>Related documents by type</summary>
         ${section('Fulfillment tasks', d.fulfillment_tasks || [], [{ key: 'id', label: 'Task' }, { key: 'status', label: 'Status' }, { key: 'detail', label: 'Location' }, { key: 'created_at', label: 'Created' }], 'FulfillmentTask')}
         ${section('Shipments', d.shipments || [], [{ key: 'id', label: 'Booking' }, { key: 'status', label: 'Status' }, { key: 'detail', label: 'AWB' }, { key: 'created_at', label: 'Created' }], 'LogisticsBooking')}
         ${section('Invoices', d.invoices || [], [{ key: 'id', label: 'Invoice' }, { key: 'status', label: 'Status' }, { key: 'detail', label: 'Amount' }, { key: 'created_at', label: 'Created' }], 'SalesInvoice')}
         ${section('Returns', d.returns || [], [{ key: 'id', label: 'Return' }, { key: 'status', label: 'Status' }, { key: 'detail', label: 'Type' }, { key: 'created_at', label: 'Created' }])}
         ${section('Refunds', d.refunds || [], [{ key: 'id', label: 'Refund' }, { key: 'status', label: 'Status' }, { key: 'detail', label: 'Mode' }, { key: 'created_at', label: 'Created' }])}
         ${section('Notifications', d.notifications || [], [{ key: 'id', label: 'Log' }, { key: 'status', label: 'Dispatch' }, { key: 'detail', label: 'Event' }, { key: 'created_at', label: 'At' }])}
+        ${section('Replacements and reships', d.replacements || [], [{ key: 'id', label: 'Order' }, { key: 'status', label: 'Status' }, { key: 'detail', label: 'Kind' }, { key: 'created_at', label: 'Created' }])}
         ${section('Audit trail', d.audit_trail || [], [{ key: 'created_at', label: 'At' }, { key: 'user_id', label: 'User' }, { key: 'action', label: 'Action' }, { key: 'status', label: 'Result' }, { key: 'details', label: 'Detail' }])}
+        </details>
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-secondary">Close</button></div>
     </div>`;
@@ -712,8 +802,166 @@ window.openOMSOrderDetail = async function(orderID) {
       return omsPost(`${path}/split`, { line_ids: lineIDs }, 'Failed to split this order.', after);
     }
     if (action === 'edit') return openOMSOrderEdit(orderID, order, after);
+    if (action === 'lines') return openOMSOrderLinesEdit(orderID, d.lines || [], () => openOMSOrderDetail(orderID));
+    if (action === 'replace') return openOMSReplacement(orderID, d.lines || []);
   }));
+  overlay.querySelectorAll('[data-open-original]').forEach(btn => btn.addEventListener('click', () => openOMSOrderDetail(btn.dataset.openOriginal)));
+  // The next step's button: an action on this order presses its action-bar
+  // button; a step done elsewhere opens that screen (Stage 73.2.14).
+  const omsNextScreens = { returns: ['returns', 'menu-returns'], invoice: ['sales-invoices', 'menu-sales-invoices'], fulfillment: ['fulfillment', 'menu-fulfillment'], marketplace: ['marketplace', 'menu-marketplace'] };
+  overlay.querySelector('[data-next-step]')?.addEventListener('click', event => {
+    const step = event.currentTarget.dataset.nextStep;
+    const inBar = overlay.querySelector(`.oms-action-bar [data-action="${CSS.escape(step)}"]`);
+    if (inBar) { inBar.click(); return; }
+    const target = omsNextScreens[step];
+    if (!target) return;
+    close();
+    setActiveMenu(target[1]);
+    renderView(target[0]);
+  });
 };
+
+// Stage 73.2.15 - line changes up to the pick cutoff. The server re-reserves
+// stock, recomputes the total and rechecks payment in one transaction; a
+// released order goes back to Reserved so the next release picks the edit.
+function openOMSOrderLinesEdit(orderID, lines, onSaved) {
+  const editable = lines.filter(l => ['Reserved', 'Pending', 'On Hold'].includes(l.line_status));
+  document.getElementById('oms-lines-edit-modal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'oms-lines-edit-modal';
+  overlay.innerHTML = `
+    <div class="modal-container">
+      <div class="modal-header"><h3 class="modal-title">Edit lines - ${escapeHTMLText(orderID)}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
+      <div class="modal-body">
+        <div class="table-wrapper"><table>
+          <thead><tr><th>Line</th><th>SKU</th><th class="num">Qty</th><th class="num">Unit price</th><th>Remove</th></tr></thead>
+          <tbody>${editable.map(l => `<tr data-line-row="${escapeHTMLText(l.line_id)}">
+            <td style="font-family:monospace;">${escapeHTMLText(l.line_id)}</td>
+            <td>${escapeHTMLText(l.sku)}</td>
+            <td class="num"><input type="number" min="1" step="1" class="form-input oms-line-qty" aria-label="Quantity for ${escapeHTMLText(l.sku)}" value="${escapeHTMLText(String(l.qty))}" data-original="${escapeHTMLText(String(l.qty))}" style="max-width:90px;"></td>
+            <td class="num"><input type="number" min="0" step="0.01" class="form-input oms-line-price" aria-label="Unit price for ${escapeHTMLText(l.sku)}" value="${escapeHTMLText(String(l.unit_price))}" data-original="${escapeHTMLText(String(l.unit_price))}" style="max-width:110px;"></td>
+            <td><input type="checkbox" class="oms-line-remove" aria-label="Remove ${escapeHTMLText(l.sku)}"></td>
+          </tr>`).join('') || '<tr><td colspan="5" class="text-muted">No line can change - every line is dispatched, cancelled or returned.</td></tr>'}</tbody>
+        </table></div>
+        <h4 class="oms-detail-heading">Add a line</h4>
+        <div class="oms-add-line-row">
+          <label class="form-label" for="oms-add-sku">Item code</label><input id="oms-add-sku" class="form-input" placeholder="Leave blank to add nothing">
+          <label class="form-label" for="oms-add-qty">Qty</label><input id="oms-add-qty" type="number" min="1" step="1" class="form-input" value="1">
+          <label class="form-label" for="oms-add-price">Unit price</label><input id="oms-add-price" type="number" min="0" step="0.01" class="form-input">
+        </div>
+        <div class="form-group"><label class="form-label" for="oms-lines-reason">Reason (kept on the order's history)</label>
+          <input id="oms-lines-reason" class="form-input" placeholder="e.g. customer called to add a second pair"></div>
+        <p class="text-muted">Lines change only until the warehouse starts picking and before the order is invoiced. More stock is reserved for any increase; if the confirmed payment no longer covers the new total, the order waits for payment.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-lines-cancel>Cancel</button>
+        <button type="button" class="btn btn-primary" data-lines-save>Save line changes</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('.modal-close').addEventListener('click', close);
+  overlay.querySelector('[data-lines-cancel]').addEventListener('click', close);
+  overlay.querySelector('[data-lines-save]').addEventListener('click', async () => {
+    const changes = [];
+    overlay.querySelectorAll('[data-line-row]').forEach(row => {
+      const lineID = row.dataset.lineRow;
+      const qtyInput = row.querySelector('.oms-line-qty');
+      const priceInput = row.querySelector('.oms-line-price');
+      if (row.querySelector('.oms-line-remove').checked) { changes.push({ line_id: lineID, remove: true }); return; }
+      const qtyChanged = qtyInput.value !== qtyInput.dataset.original;
+      const priceChanged = priceInput.value !== priceInput.dataset.original;
+      if (!qtyChanged && !priceChanged) return;
+      const change = { line_id: lineID, qty: parseInt(qtyInput.value, 10) };
+      if (priceChanged) change.unit_price = parseFloat(priceInput.value);
+      changes.push(change);
+    });
+    const addSKU = document.getElementById('oms-add-sku').value.trim();
+    if (addSKU) {
+      const price = document.getElementById('oms-add-price').value;
+      if (price === '') { showToast('Give the unit price for the new line.'); document.getElementById('oms-add-price').focus(); return; }
+      changes.push({ sku: addSKU, qty: parseInt(document.getElementById('oms-add-qty').value, 10), unit_price: parseFloat(price) });
+    }
+    if (changes.length === 0) { showToast('Nothing changed.'); return; }
+    const reason = document.getElementById('oms-lines-reason').value.trim();
+    if (!reason) { showToast('Say why the lines are changing.'); document.getElementById('oms-lines-reason').focus(); return; }
+    const res = await apiFetch(`/api/v1/orders/${encodeURIComponent(orderID)}/lines`, { method: 'POST', body: JSON.stringify({ changes, reason }) });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'The line changes were not saved.'); return; }
+    const result = await res.json();
+    close();
+    showToast(`Lines saved. Total ${formatMoney(result.total_before)} -> ${formatMoney(result.total_after)}; order ${result.order_status}.${result.payment_consequence ? ' ' + result.payment_consequence + '.' : ''}`);
+    if (onSaved) await onSaved();
+  });
+  overlay.querySelector('.oms-line-qty, #oms-add-sku')?.focus();
+}
+
+// Stage 73.2.15 - a no-charge Reship (same goods again) or Replacement (same
+// or exchanged item) linked to the shipped original. The request key is made
+// once per dialog, so a double click returns the first order, not a second.
+function openOMSReplacement(orderID, lines) {
+  const shipped = lines.filter(l => !['Cancelled'].includes(l.line_status));
+  const requestKey = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+  document.getElementById('oms-replacement-modal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'oms-replacement-modal';
+  overlay.innerHTML = `
+    <div class="modal-container">
+      <div class="modal-header"><h3 class="modal-title">Reship or replace - ${escapeHTMLText(orderID)}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label class="form-label" for="oms-repl-kind">Kind</label>
+          <select id="oms-repl-kind" class="form-input">
+            <option value="Reship">Reship - the same goods again (lost or undelivered)</option>
+            <option value="Replacement">Replacement - same or exchanged item (damaged or wrong)</option>
+          </select></div>
+        <div class="table-wrapper"><table>
+          <thead><tr><th>Original line</th><th>SKU shipped</th><th class="num">Shipped</th><th class="num">Send again</th><th>Exchange to SKU</th></tr></thead>
+          <tbody>${shipped.map(l => `<tr data-repl-line="${escapeHTMLText(l.line_id)}">
+            <td style="font-family:monospace;">${escapeHTMLText(l.line_id)}</td>
+            <td>${escapeHTMLText(l.sku)}</td>
+            <td class="num">${escapeHTMLText(String(l.qty))}</td>
+            <td class="num"><input type="number" min="0" max="${escapeHTMLText(String(l.qty))}" step="1" value="0" class="form-input oms-repl-qty" aria-label="Quantity to send again for ${escapeHTMLText(l.sku)}" style="max-width:90px;"></td>
+            <td><input class="form-input oms-repl-sku" aria-label="Exchange ${escapeHTMLText(l.sku)} to" placeholder="same item" disabled></td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+        <div class="form-group"><label class="form-label" for="oms-repl-reason">Reason</label>
+          <input id="oms-repl-reason" class="form-input" placeholder="e.g. courier lost the parcel"></div>
+        <p class="text-muted">The new order is free of charge, ships from available stock and links both ways. Collect the damaged or wrong item with a return request.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-repl-cancel>Cancel</button>
+        <button type="button" class="btn btn-primary" data-repl-save>Create order</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('.modal-close').addEventListener('click', close);
+  overlay.querySelector('[data-repl-cancel]').addEventListener('click', close);
+  const kind = overlay.querySelector('#oms-repl-kind');
+  kind.addEventListener('change', () => overlay.querySelectorAll('.oms-repl-sku').forEach(input => { input.disabled = kind.value !== 'Replacement'; if (input.disabled) input.value = ''; }));
+  overlay.querySelector('[data-repl-save]').addEventListener('click', async () => {
+    const replLines = [];
+    overlay.querySelectorAll('[data-repl-line]').forEach(row => {
+      const qty = parseInt(row.querySelector('.oms-repl-qty').value, 10) || 0;
+      if (qty > 0) replLines.push({ original_line_id: row.dataset.replLine, qty, sku: row.querySelector('.oms-repl-sku').value.trim() });
+    });
+    if (replLines.length === 0) { showToast('Enter how many to send again on at least one line.'); return; }
+    const reason = document.getElementById('oms-repl-reason').value.trim();
+    if (!reason) { showToast('Give a reason.'); document.getElementById('oms-repl-reason').focus(); return; }
+    const res = await apiFetch(`/api/v1/orders/${encodeURIComponent(orderID)}/replacement`, {
+      method: 'POST', body: JSON.stringify({ kind: kind.value, lines: replLines, reason, request_key: requestKey })
+    });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'The order was not created.'); return; }
+    const result = await res.json();
+    close();
+    showToast(result.created ? `${kind.value} order ${result.order_id} created.` : `This request already created order ${result.order_id}.`);
+    await openOMSOrderDetail(result.order_id);
+  });
+  kind.focus();
+}
 
 // omsPost is the one place the console's actions POST from, so the
 // error-surfacing and refresh behaviour cannot drift between eight buttons.
@@ -739,6 +987,8 @@ function openOMSOrderEdit(orderID, order, onSaved) {
           <input type="text" id="oms-edit-customer" class="form-input" value="${escapeHTMLText(order.customer_name || '')}"></div>
         <div class="form-group"><label class="form-label" for="oms-edit-phone">Customer phone</label>
           <input type="text" id="oms-edit-phone" name="customer_phone" class="form-input" value="${escapeHTMLText(order.customer_phone || '')}"></div>
+        <div class="form-group"><label class="form-label" for="oms-edit-custref">Customer PO / reference</label>
+          <input type="text" id="oms-edit-custref" class="form-input" value="${escapeHTMLText(order.customer_reference || '')}"></div>
         <div class="form-group"><label class="form-label" for="oms-edit-ship">Shipping address</label>
           <textarea id="oms-edit-ship" class="form-textarea" rows="2">${escapeHTMLText(order.shipping_address || '')}</textarea></div>
         <div class="form-group"><label class="form-label" for="oms-edit-bill">Billing address</label>
@@ -763,6 +1013,7 @@ function openOMSOrderEdit(orderID, order, onSaved) {
     const payload = {
       customer_name: document.getElementById('oms-edit-customer').value,
       customer_phone: document.getElementById('oms-edit-phone').value,
+      customer_reference: document.getElementById('oms-edit-custref').value.trim(),
       shipping_address: document.getElementById('oms-edit-ship').value,
       billing_address: document.getElementById('oms-edit-bill').value,
       payment_status: document.getElementById('oms-edit-payment').value
@@ -812,7 +1063,11 @@ function renderManualOrderPanel(panel) {
       </div>
       <div class="form-group">
         <label class="form-label" for="mo-ref">Reference <span class="po-optional">optional</span></label>
-        <input type="text" id="mo-ref" class="form-input" placeholder="Your own order/PO reference" title="Stored as the channel order id. Re-sending the same reference returns the existing order instead of creating a duplicate.">
+        <input type="text" id="mo-ref" class="form-input" placeholder="Your own order reference" title="Stored as the channel order id. Re-sending the same reference returns the existing order instead of creating a duplicate.">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="mo-custref">Customer PO / reference <span class="po-optional">optional</span></label>
+        <input type="text" id="mo-custref" class="form-input" placeholder="The customer's purchase order number" title="A business customer's own PO number or reference. Printed on the invoice.">
       </div>
       <div class="form-group">
         <label class="form-label" for="mo-payment">Payment</label>
@@ -860,9 +1115,9 @@ function renderManualOrderLines() {
   if (!body) return;
   body.innerHTML = manualOrderLines.map((l, i) => `
     <tr data-mo-line="${i}">
-      <td><input type="text" class="form-input" data-mo-field="sku" value="${escapeHTMLText(l.sku)}" placeholder="Search item..."></td>
-      <td><input type="number" class="form-input num" data-mo-field="qty" min="1" step="1" value="${escapeHTMLText(l.qty)}"></td>
-      <td><input type="number" class="form-input num" data-mo-field="unit_price" min="0" step="0.01" value="${escapeHTMLText(l.unit_price)}"></td>
+      <td><input type="text" class="form-input" data-mo-field="sku" value="${escapeHTMLText(l.sku)}" placeholder="Search item..." aria-label="Item for line ${i + 1}"></td>
+      <td><input type="number" class="form-input num" data-mo-field="qty" min="1" step="1" value="${escapeHTMLText(l.qty)}" aria-label="Quantity for line ${i + 1}"></td>
+      <td><input type="number" class="form-input num" data-mo-field="unit_price" min="0" step="0.01" value="${escapeHTMLText(l.unit_price)}" aria-label="Unit price for line ${i + 1}"></td>
       <td><button type="button" class="po-line-remove" data-mo-remove="${i}" aria-label="Remove line ${i + 1}">&times;</button></td>
     </tr>`).join('');
 
@@ -912,6 +1167,7 @@ async function createManualOrderInner() {
       channel_order_id: document.getElementById('mo-ref').value.trim(),
       customer_name: document.getElementById('mo-customer').value.trim(),
       customer_phone: document.getElementById('mo-phone').value.trim(),
+      customer_reference: document.getElementById('mo-custref').value.trim(),
       shipping_address: address,
       payment_status: document.getElementById('mo-payment').value,
       lines
@@ -922,7 +1178,12 @@ async function createManualOrderInner() {
 
   const data = await res.json();
   manualOrderLines = [{ sku: '', qty: '', unit_price: '' }];
-  await showCustomAlert(`Order ${data.order_id} created. It is now in the Orders table with its fulfillment, shipment and invoice state, exactly like a channel order.`, 'Order Created');
+  // FA-20261005-06: a repeated reference returns the order it already made.
+  if (data.existing) {
+    await showCustomAlert(`This reference already has order ${data.order_id}. Nothing new was created - the existing order is unchanged.`, 'Existing Order');
+  } else {
+    await showCustomAlert(`Order ${data.order_id} created. It is now in the Orders table with its fulfillment, shipment and invoice state, exactly like a channel order.`, 'Order Created');
+  }
   (await loadTxnScreen()).txnDone('oms-screen');
   renderView('oms');
 }

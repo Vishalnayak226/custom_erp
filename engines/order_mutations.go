@@ -269,6 +269,7 @@ func ReleaseOrderLineHold(tenantID, lineID, userID string) error {
 type OrderEdit struct {
 	CustomerName    *string
 	CustomerPhone   *string
+	CustomerRef     *string // Stage 73.2.9
 	ShippingAddress *string
 	BillingAddress  *string
 	PaymentStatus   *string
@@ -304,6 +305,7 @@ func EditSalesOrder(tenantID, orderID string, edit OrderEdit, userID string) err
 	apply("customer_name", edit.CustomerName)
 	apply("shipping_address", edit.ShippingAddress)
 	apply("billing_address", edit.BillingAddress)
+	apply("customer_reference", edit.CustomerRef) // Stage 73.2.9
 	apply("payment_status", edit.PaymentStatus)
 	if edit.CustomerPhone != nil {
 		// Cleaned through the same phone engine CreateSalesOrder uses, so an
@@ -570,7 +572,7 @@ func PickTasksInPriorityOrder(tenantID, locationCode string) ([]map[string]inter
 		FROM %s.documents t
 		LEFT JOIN %s.documents o ON o.doctype = 'SalesOrder' AND o.id = t.data->>'order_id' AND o.deleted_at IS NULL
 		WHERE t.doctype = 'FulfillmentTask' AND t.deleted_at IS NULL
-		  AND t.status NOT IN ('Dispatched', 'Rejected')%s
+		  AND t.status NOT IN ('Dispatched', 'Rejected', 'Cancelled')%s
 		ORDER BY (COALESCE(o.data->>'priority', 'Normal') = 'Expedite') DESC, t.created_at`,
 		schema, schema, locationClause), args...)
 	if err != nil {

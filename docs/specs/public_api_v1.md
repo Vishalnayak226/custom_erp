@@ -48,6 +48,7 @@ The first scope catalog is:
 | `pim:read` | Product content, groups and readiness reads |
 | `pim:write` | Explicit PIM mutations once idempotency is available |
 | `webhooks:manage` | Public webhook-subscription lifecycle once 38.4 exists |
+| `notifications:write` | A notification provider's delivery receipts (Stage 73.2.13) |
 
 These names are defined in `engines/public_api_credentials.go`; issuing an unknown or empty scope is
 rejected. Defining a scope does **not** mean its endpoint has shipped.
@@ -100,6 +101,8 @@ surface rather than the public one.
 | `GET` | `/api/public/v1/items/{code}` | `items:read` | One product |
 | `GET` | `/api/public/v1/inventory?sku=` | `inventory:read` | Available-to-sell per location |
 | `GET` | `/api/public/v1/orders/{id}/status` | `orders:read` | Order status, per-line status, shipments |
+| `POST` | `/api/public/v1/notifications/{id}/delivery-status` | `notifications:write` | Records `delivered` or `failed` for a notification; `{id}` is the `delivery_id` the webhook carried. Delivered is final; repeating the same status is a no-op. |
+| `POST` | `/api/public/v1/oauth/token` | none (client authentication) | OAuth2 client_credentials grant for an `oauth_client` credential (Stage 38.2d): client ID + secret by HTTP Basic or form body, `grant_type=client_credentials`, optional space-separated `scope`, `X-Tenant-ID`. Returns `{access_token, token_type: "Bearer", expires_in, scope}`; a token lives 15 minutes and never outlives its client. Errors use RFC 6749 codes (`invalid_client`, `invalid_scope`, `unsupported_grant_type`). |
 
 Each response is a **curated projection**, not a document dump: the generic internal document API
 returns every stored field, so publishing that shape would turn every future internal field into an
@@ -112,7 +115,7 @@ Every request carries:
 
 | Header | Required | Meaning |
 |---|---|---|
-| `Authorization: Bearer erp_v1_...` | always | The API credential. Never a user session token. |
+| `Authorization: Bearer erp_v1_...` or `Bearer erp_at_...` | always | An API key, or an OAuth access token from `/oauth/token` (Stage 38.2d). Never a user session token, and never an OAuth client's secret. |
 | `X-Tenant-ID` | always | The tenant the credential belongs to. |
 | `Idempotency-Key` | mutating methods | Makes a retry safe. Required, not optional. |
 

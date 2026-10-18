@@ -314,6 +314,7 @@ func TestStage62Designs(t *testing.T) {
 	}
 	cleanup()
 	defer cleanup()
+	preserveSeries(t, schema, "ProductFamily") // Stage 76.5: a design's first number confirms its series
 	ins := func(id, doctype string, data map[string]interface{}) {
 		raw, _ := json.Marshal(data)
 		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, $2, $3, 'Active', 'system')", id, doctype, raw); err != nil {
@@ -363,7 +364,7 @@ func TestStage62Designs(t *testing.T) {
 		t.Fatalf("a typed design code must be kept: %v %v", err, typed["code"])
 	}
 	blank := map[string]interface{}{"name": "x"}
-	if err := PrepareDesignNumber(tenantID, "HQ", true, blank); err != nil || !strings.Contains(strField(blank, "code"), "/") || blank["id"] != blank["code"] {
-		t.Fatalf("a blank design must be numbered from its series: %v %v", err, blank)
+	if err := PrepareDesignNumber(tenantID, "HQ", true, blank); err != nil || !shortMasterCode.MatchString(strField(blank, "code")) || blank["id"] != blank["code"] {
+		t.Fatalf("a blank design must get a short code from its series (Stage 76.5, e.g. D00001): %v %v", err, blank)
 	}
 }

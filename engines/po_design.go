@@ -39,12 +39,16 @@ type DesignAttribute struct {
 type DesignMatrix struct {
 	Attributes []DesignAttribute `json:"attributes"`
 	Mode       string            `json:"design_number_mode"`
+	// AttributesClosed (Stage 81): the operator set this client's attributes
+	// up from the library, so the panel offers no "new attribute" box.
+	AttributesClosed bool `json:"attributes_closed"`
 }
 
 // GetDesignMatrix lists every Active attribute, Select ones first, in label
 // order, with the tenant's design-number mode.
 func GetDesignMatrix(tenantID string) (DesignMatrix, error) {
 	out := DesignMatrix{Mode: DesignNumberMode(tenantID), Attributes: []DesignAttribute{}}
+	out.AttributesClosed = TenantHasLibraryAttributes(tenantID)
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return out, err
@@ -63,6 +67,10 @@ func GetDesignMatrix(tenantID string) (DesignMatrix, error) {
 		}
 		var d map[string]interface{}
 		if json.Unmarshal([]byte(raw), &d) != nil || strField(d, "status") == "Inactive" {
+			continue
+		}
+		// Product information is PIM's (Stage 81); a design is made of variants.
+		if strField(d, "used_for") == AttributeUsedForProduct {
 			continue
 		}
 		a := DesignAttribute{
@@ -198,9 +206,9 @@ func GetDesign(tenantID, code string) (DesignDetail, error) {
 	designCode := firstNonEmpty(strField(fam, "code"), code)
 	out := DesignDetail{
 		Code: designCode, Name: strField(fam, "name"),
-		Attributes:   parseOptionPairs(strField(fam, "design_attributes")),
-		HSNCode:      strField(fam, "hsn_code"), GSTRate: numFromInterface(fam["gst_rate"]),
-		MRP:          numFromInterface(fam["mrp"]), Rate: numFromInterface(fam["purchase_rate"]),
+		Attributes: parseOptionPairs(strField(fam, "design_attributes")),
+		HSNCode:    strField(fam, "hsn_code"), GSTRate: numFromInterface(fam["gst_rate"]),
+		MRP: numFromInterface(fam["mrp"]), Rate: numFromInterface(fam["purchase_rate"]),
 		Combinations: []DesignCombination{},
 	}
 	schema, err := db.GetTenantSchema(tenantID)

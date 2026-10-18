@@ -223,16 +223,27 @@ func PostDoubleEntryTx(tx *sql.Tx, tenantID, schema string, docType string, docI
 		return nil
 	}
 
+	// Stage 73.1.9: who posted these rows - the request user, or the job /
+	// service identity (engines/posting_actor.go). Only named once the
+	// schema has the columns, so a lagging migration never blocks a posting.
+	attrCols, attrVals := "", ""
+	var attrArgs []interface{}
+	if glAttributionReady(tx, schema) {
+		actor := currentPostingActor()
+		attrCols, attrVals = ", posted_by, source_command", ", $13, $14"
+		attrArgs = []interface{}{actor.PostedBy, actor.SourceCommand}
+	}
+
 	// Insert debits
 	for code, val := range debits {
 		if val <= 0 {
 			continue
 		}
 		query := fmt.Sprintf(`
-			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key, cost_center, department, currency, exchange_rate, transaction_debit, entity, project)
-			VALUES ($1, $2, 0, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`, schema)
-		_, err := tx.Exec(query, code, val, docType, docID, keyArg, costCenterArg, departmentArg,
-			currencyArg, rateArg, transactionAmount(opt.TransactionDebits, code, val), entityArg, projectArg)
+			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key, cost_center, department, currency, exchange_rate, transaction_debit, entity, project%s)
+			VALUES ($1, $2, 0, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12%s)`, schema, attrCols, attrVals)
+		_, err := tx.Exec(query, append([]interface{}{code, val, docType, docID, keyArg, costCenterArg, departmentArg,
+			currencyArg, rateArg, transactionAmount(opt.TransactionDebits, code, val), entityArg, projectArg}, attrArgs...)...)
 		if err != nil {
 			return fmt.Errorf("error posting debit for account %s: %v", code, err)
 		}
@@ -244,10 +255,10 @@ func PostDoubleEntryTx(tx *sql.Tx, tenantID, schema string, docType string, docI
 			continue
 		}
 		query := fmt.Sprintf(`
-			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key, cost_center, department, currency, exchange_rate, transaction_credit, entity, project)
-			VALUES ($1, 0, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`, schema)
-		_, err := tx.Exec(query, code, val, docType, docID, keyArg, costCenterArg, departmentArg,
-			currencyArg, rateArg, transactionAmount(opt.TransactionCredits, code, val), entityArg, projectArg)
+			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key, cost_center, department, currency, exchange_rate, transaction_credit, entity, project%s)
+			VALUES ($1, 0, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12%s)`, schema, attrCols, attrVals)
+		_, err := tx.Exec(query, append([]interface{}{code, val, docType, docID, keyArg, costCenterArg, departmentArg,
+			currencyArg, rateArg, transactionAmount(opt.TransactionCredits, code, val), entityArg, projectArg}, attrArgs...)...)
 		if err != nil {
 			return fmt.Errorf("error posting credit for account %s: %v", code, err)
 		}
@@ -485,10 +496,13 @@ func PostSalesFinanceBookingTx(tx *sql.Tx, schema, tenantID, checkoutID string, 
 	// received through a GRN and never given a standard_cost genuinely has no
 	// cost basis on record. The honest posting for that is no COGS leg at all
 	// (see below), plus the POSCostingGap engines/pos_quote.go records so the
-	// gap is visible to finance - NOT a number the till invented. salePrice
-	// keeps its original guard: a sale for nothing is still nonsense.
-	if salePrice <= 0 {
-		return errors.New("sale price must be positive")
+	// gap is visible to finance - NOT a number the till invented.
+	//
+	// Stage 73.1.1: salePrice is now the NET bill (after the offer discount),
+	// so a bill an offer makes wholly free is a real zero - it posts no
+	// revenue leg, only its cost. A negative one is still refused.
+	if salePrice < 0 {
+		return errors.New("sale price cannot be negative")
 	}
 	if costPrice < 0 {
 		return errors.New("cost price cannot be negative")
@@ -512,9 +526,10 @@ func PostSalesFinanceBookingTx(tx *sql.Tx, schema, tenantID, checkoutID string, 
 		revenueDebits["5250"] = loyaltyDiscount // Debit: Loyalty Points Redeemed (5250)
 	}
 	revenueCredits := map[string]int64{"4100": salePrice} // Credit: Sales Revenue Account
-	err := PostDoubleEntryTx(tx, tenantID, schema, "POSCart", checkoutID, revenueDebits, revenueCredits, "", fmt.Sprintf("POSCart:%s:SALE_REVENUE", checkoutID))
-	if err != nil {
-		return err
+	if salePrice > 0 {
+		if err := PostDoubleEntryTx(tx, tenantID, schema, "POSCart", checkoutID, revenueDebits, revenueCredits, "", fmt.Sprintf("POSCart:%s:SALE_REVENUE", checkoutID)); err != nil {
+			return err
+		}
 	}
 
 	// 2. Post COGS / Inventory Bookings. Skipped entirely when there is no

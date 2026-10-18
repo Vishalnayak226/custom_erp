@@ -209,8 +209,7 @@ func processDashboardDigests(ctx context.Context, schema string) {
 	}
 	today := time.Now().Format("2006-01-02")
 	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT id, data FROM %s.documents WHERE doctype = 'DashboardDigest' AND status = 'Active'
-		   AND data->>'next_run_date' IS NOT NULL AND data->>'next_run_date' != '' AND data->>'next_run_date' <= $1
+		`SELECT id, data FROM %s.documents WHERE doctype = 'DashboardDigest' AND `+scheduleDueSQL+`
 		 LIMIT $2`, schema),
 		today, asyncReportWorkerBatchSize)
 	if err != nil {
@@ -237,68 +236,84 @@ func processDashboardDigests(ctx context.Context, schema string) {
 	rows.Close()
 
 	for _, d := range due {
-		layoutID, _ := d.data["dashboard_layout_id"].(string)
-		role, _ := d.data["requested_role"].(string)
-		runStatus := "Delivered"
+		runDashboardDigest(ctx, schema, tenantID, d.id, "", d.data)
+	}
+}
 
-		tiles, terr := getDashboardLayoutTiles(schema, layoutID)
-		if terr != nil {
-			runStatus = "Failed: " + terr.Error()
-		} else if len(tiles) == 0 {
-			runStatus = "Failed: dashboard layout has no tiles"
-		} else {
-			var combinedCSV strings.Builder
-			totalRows := 0
-			for _, tile := range tiles {
-				def, resultRows, _, rerr := RunReportContext(ctx, tenantID, tile.ReportID, role, "", nil)
-				combinedCSV.WriteString("## " + tile.Title + "\n")
-				if rerr != nil {
-					combinedCSV.WriteString("(failed: " + rerr.Error() + ")\n\n")
-					continue
-				}
-				csvText, cerr := reportRowsToCSV(*def, resultRows)
-				if cerr != nil {
-					combinedCSV.WriteString("(failed: " + cerr.Error() + ")\n\n")
-					continue
-				}
-				combinedCSV.WriteString(csvText)
-				combinedCSV.WriteString("\n\n")
-				totalRows += len(resultRows)
+// runDashboardDigest runs every tile of one DashboardDigest's layout, delivers
+// the combined CSV and advances the digest - the worker's per-digest step,
+// and what "Run now" calls (report_schedule_view.go). runBy is who asked, ""
+// for the worker.
+func runDashboardDigest(ctx context.Context, schema, tenantID, id, runBy string, data map[string]interface{}) {
+	layoutID, _ := data["dashboard_layout_id"].(string)
+	role, _ := data["requested_role"].(string)
+	runStatus := "Delivered"
+	totalRows := -1
+
+	tiles, terr := getDashboardLayoutTiles(schema, layoutID)
+	if terr != nil {
+		runStatus = "Failed: " + terr.Error()
+	} else if len(tiles) == 0 {
+		runStatus = "Failed: dashboard layout has no tiles"
+	} else {
+		var combinedCSV strings.Builder
+		totalRows = 0
+		for _, tile := range tiles {
+			def, resultRows, _, rerr := RunReportContext(ctx, tenantID, tile.ReportID, role, runBy, nil)
+			combinedCSV.WriteString("## " + tile.Title + "\n")
+			if rerr != nil {
+				combinedCSV.WriteString("(failed: " + rerr.Error() + ")\n\n")
+				continue
 			}
+			csvText, cerr := reportRowsToCSV(*def, resultRows)
+			if cerr != nil {
+				combinedCSV.WriteString("(failed: " + cerr.Error() + ")\n\n")
+				continue
+			}
+			combinedCSV.WriteString(csvText)
+			combinedCSV.WriteString("\n\n")
+			totalRows += len(resultRows)
+		}
 
-			recipientEmail, _ := d.data["recipient_email"].(string)
-			webhookURL, _ := d.data["webhook_url"].(string)
-			tx, txErr := db.DB.Begin()
-			if txErr == nil {
-				_ = db.SetSearchPath(tx, schema)
-				if perr := PublishEvent(tx, schema, "dashboard.digest_delivery", map[string]interface{}{
-					"digest_id": d.id, "dashboard_layout_id": layoutID, "tile_count": len(tiles), "row_count": totalRows,
-					"recipient_email": recipientEmail, "webhook_url": webhookURL, "csv": combinedCSV.String(),
-				}); perr == nil {
-					_ = tx.Commit()
-				} else {
-					_ = tx.Rollback()
-					runStatus = "Failed: " + perr.Error()
-				}
+		recipientEmail, _ := data["recipient_email"].(string)
+		webhookURL, _ := data["webhook_url"].(string)
+		tx, txErr := db.DB.Begin()
+		if txErr == nil {
+			_ = db.SetSearchPath(tx, schema)
+			if perr := PublishEvent(tx, schema, "dashboard.digest_delivery", map[string]interface{}{
+				"digest_id": id, "dashboard_layout_id": layoutID, "tile_count": len(tiles), "row_count": totalRows,
+				"recipient_email": recipientEmail, "webhook_url": webhookURL, "csv": combinedCSV.String(),
+			}); perr == nil {
+				_ = tx.Commit()
 			} else {
-				runStatus = "Failed: " + txErr.Error()
+				_ = tx.Rollback()
+				runStatus = "Failed: " + perr.Error()
 			}
+		} else {
+			runStatus = "Failed: " + txErr.Error()
 		}
+	}
 
-		nextRun, _ := d.data["next_run_date"].(string)
-		frequency, _ := d.data["frequency"].(string)
-		d.data["next_run_date"] = advanceScheduleDate(nextRun, frequency)
-		d.data["last_run_at"] = time.Now().Format(time.RFC3339)
-		d.data["last_run_status"] = runStatus
-		marshaled, merr := json.Marshal(d.data)
-		if merr != nil {
-			log.Printf("[DASHBOARD_DIGEST] marshal failed for %s: %v", d.id, merr)
-			continue
-		}
-		if _, err := db.DB.Exec(fmt.Sprintf(
-			`UPDATE %s.documents SET data = $1, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'DashboardDigest' AND id = $2`, schema),
-			marshaled, d.id); err != nil {
-			log.Printf("[DASHBOARD_DIGEST] update failed for %s: %v", d.id, err)
-		}
+	// Stage 55.20: see runScheduledReport for last_run_rows and the blank
+	// next_run_date guard.
+	delete(data, "last_run_rows")
+	if totalRows >= 0 {
+		data["last_run_rows"] = totalRows
+	}
+	if nextRun, _ := data["next_run_date"].(string); nextRun != "" {
+		frequency, _ := data["frequency"].(string)
+		data["next_run_date"] = advanceScheduleDate(nextRun, frequency)
+	}
+	data["last_run_at"] = time.Now().Format(time.RFC3339)
+	data["last_run_status"] = runStatus
+	marshaled, merr := json.Marshal(data)
+	if merr != nil {
+		log.Printf("[DASHBOARD_DIGEST] marshal failed for %s: %v", id, merr)
+		return
+	}
+	if _, err := db.DB.Exec(fmt.Sprintf(
+		`UPDATE %s.documents SET data = $1, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'DashboardDigest' AND id = $2`, schema),
+		marshaled, id); err != nil {
+		log.Printf("[DASHBOARD_DIGEST] update failed for %s: %v", id, err)
 	}
 }

@@ -507,6 +507,10 @@ func stage42CaptureCharge(schema, eventKey, triggerEvent, chargeCode, ownerID, l
 		"charge_code": chargeCode, "owner_id": ownerID, "location_code": locationCode,
 		"quantity": quantity, "net_amount": net, "tax_rate": terms.TaxRate,
 		"tax_amount": tax, "total_amount": total, "occurred_on": occurredOn, "status": "Captured",
+		// Stage 55.8: the rate evidence behind the amount, so a review can
+		// show the arithmetic rather than only its result.
+		"base_rate": baseRate, "base_amount": roundTo2(quantity * baseRate), "markup_pct": terms.MarkupPct,
+		"discount_pct": terms.DiscountPct, "minimum_charge": terms.MinimumCharge,
 	}
 	payload, err := json.Marshal(data)
 	if err != nil {

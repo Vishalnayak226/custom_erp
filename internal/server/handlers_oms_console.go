@@ -175,3 +175,21 @@ func handleOMSDeleteSavedView(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
 }
+
+// handleOMSExceptionQueues is Stage 73.2.14: every exception queue with its
+// count (GET /api/v1/oms/queues), or one queue's rows
+// (GET /api/v1/oms/queues/{queue}).
+func handleOMSExceptionQueues(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	queue := r.PathValue("queue")
+	if queue == "" {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"queues": engines.OMSExceptionQueueCounts(tenantID)})
+		return
+	}
+	rows, err := engines.OMSExceptionQueue(tenantID, queue)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"queue": queue, "rows": rows, "count": len(rows)})
+}

@@ -72,8 +72,7 @@ func processScheduledReports(ctx context.Context, schema string) {
 	// schedules sorted after not-yet-due ones.
 	today := time.Now().Format("2006-01-02")
 	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT id, data FROM %s.documents WHERE doctype = 'ScheduledReport' AND status = 'Active'
-		   AND data->>'next_run_date' IS NOT NULL AND data->>'next_run_date' != '' AND data->>'next_run_date' <= $1
+		`SELECT id, data FROM %s.documents WHERE doctype = 'ScheduledReport' AND `+scheduleDueSQL+`
 		 LIMIT $2`, schema),
 		today, asyncReportWorkerBatchSize)
 	if err != nil {
@@ -100,57 +99,83 @@ func processScheduledReports(ctx context.Context, schema string) {
 	rows.Close()
 
 	for _, s := range due {
-		reportID, _ := s.data["report_id"].(string)
-		role, _ := s.data["requested_role"].(string)
-		paramsStr, _ := s.data["params_json"].(string)
-		var params map[string]string
-		if paramsStr != "" {
-			if err := json.Unmarshal([]byte(paramsStr), &params); err != nil {
-				log.Printf("[SCHEDULED_REPORT] corrupt params_json for %s: %v", s.id, err)
-			}
-		}
+		runScheduledReport(ctx, schema, tenantID, s.id, "", s.data)
+	}
+}
 
-		runStatus := "Delivered"
-		def, resultRows, _, err := RunReportContext(ctx, tenantID, reportID, role, "", params)
-		if err != nil {
-			runStatus = "Failed: " + err.Error()
-		} else if csvText, cerr := reportRowsToCSV(*def, resultRows); cerr != nil {
-			runStatus = "Failed: " + cerr.Error()
-		} else {
-			recipientEmail, _ := s.data["recipient_email"].(string)
-			webhookURL, _ := s.data["webhook_url"].(string)
-			tx, terr := db.DB.Begin()
-			if terr == nil {
-				_ = db.SetSearchPath(tx, schema)
-				if perr := PublishEvent(tx, schema, "report.scheduled_delivery", map[string]interface{}{
-					"schedule_id": s.id, "report_id": reportID, "row_count": len(resultRows),
-					"recipient_email": recipientEmail, "webhook_url": webhookURL, "csv": csvText,
-				}); perr == nil {
-					_ = tx.Commit()
-				} else {
-					_ = tx.Rollback()
-					runStatus = "Failed: " + perr.Error()
-				}
+// scheduleDueSQL is the one definition of "the worker runs this schedule on
+// its next tick", shared by both schedule workers (this one and
+// DashboardDigest's) and the Schedules view (report_schedule_view.go), so the
+// screen can never disagree with what the worker will do. $1 is today's date
+// as YYYY-MM-DD; columns are unqualified, so use it against one documents
+// table. Stage 55.20 added deleted_at: a schedule deleted through the generic
+// doc API keeps its Active status, and used to keep being delivered.
+const scheduleDueSQL = `status = 'Active' AND deleted_at IS NULL
+	AND data->>'next_run_date' IS NOT NULL AND data->>'next_run_date' != '' AND data->>'next_run_date' <= $1`
+
+// runScheduledReport runs and delivers one ScheduledReport, then advances it.
+// It is the worker's per-schedule step and also what "Run now" calls
+// (report_schedule_view.go), so a manual run behaves exactly like a scheduled
+// one. runBy is who asked - "" for the worker - and lands on the run log.
+func runScheduledReport(ctx context.Context, schema, tenantID, id, runBy string, data map[string]interface{}) {
+	reportID, _ := data["report_id"].(string)
+	role, _ := data["requested_role"].(string)
+	paramsStr, _ := data["params_json"].(string)
+	var params map[string]string
+	if paramsStr != "" {
+		if err := json.Unmarshal([]byte(paramsStr), &params); err != nil {
+			log.Printf("[SCHEDULED_REPORT] corrupt params_json for %s: %v", id, err)
+		}
+	}
+
+	runStatus := "Delivered"
+	def, resultRows, _, err := RunReportContext(ctx, tenantID, reportID, role, runBy, params)
+	if err != nil {
+		runStatus = "Failed: " + err.Error()
+	} else if csvText, cerr := reportRowsToCSV(*def, resultRows); cerr != nil {
+		runStatus = "Failed: " + cerr.Error()
+	} else {
+		recipientEmail, _ := data["recipient_email"].(string)
+		webhookURL, _ := data["webhook_url"].(string)
+		tx, terr := db.DB.Begin()
+		if terr == nil {
+			_ = db.SetSearchPath(tx, schema)
+			if perr := PublishEvent(tx, schema, "report.scheduled_delivery", map[string]interface{}{
+				"schedule_id": id, "report_id": reportID, "row_count": len(resultRows),
+				"recipient_email": recipientEmail, "webhook_url": webhookURL, "csv": csvText,
+			}); perr == nil {
+				_ = tx.Commit()
 			} else {
-				runStatus = "Failed: " + terr.Error()
+				_ = tx.Rollback()
+				runStatus = "Failed: " + perr.Error()
 			}
+		} else {
+			runStatus = "Failed: " + terr.Error()
 		}
+	}
 
-		nextRun, _ := s.data["next_run_date"].(string)
-		frequency, _ := s.data["frequency"].(string)
-		s.data["next_run_date"] = advanceScheduleDate(nextRun, frequency)
-		s.data["last_run_at"] = time.Now().Format(time.RFC3339)
-		s.data["last_run_status"] = runStatus
-		marshaled, merr := json.Marshal(s.data)
-		if merr != nil {
-			log.Printf("[SCHEDULED_REPORT] marshal failed for %s: %v", s.id, merr)
-			continue
-		}
-		if _, err := db.DB.Exec(fmt.Sprintf(
-			`UPDATE %s.documents SET data = $1, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'ScheduledReport' AND id = $2`, schema),
-			marshaled, s.id); err != nil {
-			log.Printf("[SCHEDULED_REPORT] update failed for %s: %v", s.id, err)
-		}
+	// Stage 55.20: the row count, for the Schedules view's last result. A
+	// blank next_run_date (only reachable through Run now - the worker never
+	// selects one) stays blank rather than starting a schedule nobody set.
+	delete(data, "last_run_rows")
+	if err == nil {
+		data["last_run_rows"] = len(resultRows)
+	}
+	if nextRun, _ := data["next_run_date"].(string); nextRun != "" {
+		frequency, _ := data["frequency"].(string)
+		data["next_run_date"] = advanceScheduleDate(nextRun, frequency)
+	}
+	data["last_run_at"] = time.Now().Format(time.RFC3339)
+	data["last_run_status"] = runStatus
+	marshaled, merr := json.Marshal(data)
+	if merr != nil {
+		log.Printf("[SCHEDULED_REPORT] marshal failed for %s: %v", id, merr)
+		return
+	}
+	if _, err := db.DB.Exec(fmt.Sprintf(
+		`UPDATE %s.documents SET data = $1, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'ScheduledReport' AND id = $2`, schema),
+		marshaled, id); err != nil {
+		log.Printf("[SCHEDULED_REPORT] update failed for %s: %v", id, err)
 	}
 }
 

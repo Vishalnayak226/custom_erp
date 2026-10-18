@@ -5,7 +5,7 @@ order: 50
 summary: Items, categories and attributes with locale/channel-aware values, a 0-100 completeness score every publish gate reads, and an effective-dated price list that exists in full but has no screen yet.
 audience: category manager, admin
 last_verified: 2026-09-03
-screens: [pim, doctype-table, reports, configuration]
+screens: [pim, doctype:item, doctype:itemname, module:pim, reports, configuration]
 doc_id: DOC-12FFD46675
 type: procedure
 status: draft
@@ -85,6 +85,31 @@ POS/OMS/Procurement, both already covered in
 article's job is what PIM adds on top of that core record: categorisation,
 enrichment content, locale/channel-aware attributes, and completeness
 scoring.
+
+The **New Item** form groups its fields into sections: **Basics**, **Price
+and tax**, **Design and variant**, **Batch, serial and expiry**, then
+**Barcode and label**, **Handling and storage** and **Selling and
+accounting**, which start closed unless they hold something you set. In
+**Price and tax**, choosing *Exempt*, *Nil-Rated* or *Zero-Rated* as **Tax
+Treatment** sets **GST Rate** to 0 and locks it. **Variant Options** are rows
+of **Option** and **Value**: the options are your **Attribute Definitions**
+(a *Select* attribute offers its values), **Other…** takes a name that is not
+set up, and **+ Add option** adds the next row. The item still stores them as
+one `Option:Value;Option:Value` string, so variant codes and the
+duplicate-combination check are unchanged.
+
+**Attributes set up for your business.** Your provider can give you your
+product attributes from the industry attribute library, each with its
+dropdown values already filled in. **Used for** on an Attribute Definition
+says where it appears: *Variant* attributes are the Item's variant options,
+the PO's design panel and the prints; *Product information* attributes are for
+PIM enrichment only. Once you have them, the Item form and the PO offer
+exactly those attributes - no one invents a new one mid-transaction (a PO can
+still add a new *value*). You can switch an attribute off (**Status**
+*Inactive*), and remove or add values as chips; items that already carry a
+removed value keep it. An attribute marked **From the attribute library**
+cannot be deleted or have its code changed - switch it off instead
+(`PIM-0690`).
 
 ## Categories and attributes (taxonomy)
 

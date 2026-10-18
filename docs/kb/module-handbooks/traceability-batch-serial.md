@@ -5,7 +5,7 @@ order: 25
 summary: Track a lot or an individual unit from receipt to dispatch, pick the right stock first by expiry, and answer a recall in two directions.
 audience: warehouse operator, category manager, admin
 last_verified: 2026-08-31
-screens: [grn, wave-picking, doctype-table, reports]
+screens: [grn, wave-picking, doctype:batch, doctype:serialnumber, doctype:lottableconstraint, reports]
 doc_id: DOC-60557E41E3
 type: procedure
 status: draft

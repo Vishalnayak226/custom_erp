@@ -146,6 +146,7 @@ async function renderControlPanelView(container) {
               <td class="po-row-actions">
                 <button class="action-btn" type="button" data-cp-open="tenant-entitlements" data-cp-tenant="${escapeHTMLText(c.tenant_id)}">Modules</button>
                 <button class="action-btn" type="button" data-cp-open="platform-console" data-cp-tenant="${escapeHTMLText(c.tenant_id)}">Data</button>
+                <button class="action-btn" type="button" data-cp-attrs="${i}">Attributes</button>
                 ${lifecycleActions(c, i, c.tenant_id === cp.operator_tenant)}
               </td>
             </tr>
@@ -194,6 +195,18 @@ async function renderControlPanelView(container) {
       }
       await new Promise(r => setTimeout(r, 100));
     }
+  }));
+
+  // Stage 81: the client's product attributes from the industry library.
+  panel.querySelectorAll('[data-cp-attrs]').forEach(btn => btn.addEventListener('click', async () => {
+    const c = clients[Number(btn.getAttribute('data-cp-attrs'))];
+    const { renderAttributeLibrary } = await import('./view-attribute-library.js' + new URL(import.meta.url).search);
+    // renderView builds into a scratch element and moves it into #view-root,
+    // so `container` is no longer on the page by the time anyone clicks.
+    const root = document.getElementById('view-root');
+    root.innerHTML = '';
+    root.scrollTop = 0;
+    await renderAttributeLibrary(root, c);
   }));
 
   // Stage 65.6: pause/resume and the free trial. Each change reloads the page

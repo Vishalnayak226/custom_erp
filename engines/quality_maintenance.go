@@ -480,6 +480,9 @@ func runMaintenanceSchedulingForSchema(schema string) {
 			"id": orderID, "code": orderID, "asset": asset, "description": description,
 			"maintenance_schedule_id": s.id, "scheduled_date": nextDueDate, "status": "Scheduled",
 		}
+		if checklist := checklistFromText(data["checklist"]); checklist != "" {
+			orderData["checklist"] = checklist // Stage 55.13
+		}
 		marshaled, err := json.Marshal(orderData)
 		if err != nil {
 			log.Printf("[MAINTENANCE-SCHEDULE] Failed to marshal order for schedule %s: %v", s.id, err)

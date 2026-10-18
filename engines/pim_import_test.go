@@ -228,6 +228,9 @@ func TestProcessPIMImportSchedulesDropDirectory(t *testing.T) {
 		"id": "PIMIMPTEST-DROPSCHED", "code": "PIMIMPTEST-DROPSCHED", "name": "Drop Directory Test Schedule",
 		"template": "PIMIMPTEST-DROPTPL", "source_type": "Drop Directory",
 		"source_path": dropDir, "frequency": "Daily", "next_run_date": yesterday,
+		// Stage 55.11: a schedule runs as its owner; one created by "system"
+		// with no owner is refused rather than run unattributed.
+		"owner": "admin",
 	})
 
 	processPIMImportSchedules(schema)

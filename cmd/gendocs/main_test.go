@@ -3,9 +3,11 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"custom_erp/internal/docgen"
+	"custom_erp/internal/server"
 )
 
 func TestReferenceOutputsStayUnderExplicitRoot(t *testing.T) {
@@ -22,8 +24,8 @@ func TestReferenceOutputsStayUnderExplicitRoot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(files) != 10 {
-		t.Fatalf("got %d outputs", len(files))
+	if want := 9 + len(kbErrorCodeReference("2026-09-06")); len(files) != want {
+		t.Fatalf("got %d outputs, want %d", len(files), want)
 	}
 	out := t.TempDir()
 	if string(files["docs/api/generated/public-v1.json"]) != string(files["docs/specs/openapi_public_v1.json"]) {
@@ -42,6 +44,27 @@ func TestReferenceOutputsStayUnderExplicitRoot(t *testing.T) {
 	}
 	if got := docgen.Diff(out, files); len(got) > 0 {
 		t.Fatal(got)
+	}
+}
+
+// The error-code reference spills onto further pages as the catalog grows.
+// Every code must still appear exactly once, and no page may outgrow its share.
+func TestErrorCodeReferenceSplitsWithoutLosingCodes(t *testing.T) {
+	pages := kbErrorCodeReference("2026-09-06")
+	if _, ok := pages["error-code-reference.md"]; !ok {
+		t.Fatal("the first page must keep its name; every existing link points at it")
+	}
+	all := ""
+	for name, body := range pages {
+		if name != "error-code-reference.md" && len(body) > 2*kbErrorCodePartBytes {
+			t.Errorf("%s is %d bytes", name, len(body))
+		}
+		all += body
+	}
+	for _, entry := range server.CatalogEntries() {
+		if n := strings.Count(all, "| `"+entry.Code+"` |"); n != 1 {
+			t.Errorf("%s appears %d times across the pages", entry.Code, n)
+		}
 	}
 }
 

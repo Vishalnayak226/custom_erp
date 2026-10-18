@@ -121,6 +121,25 @@
         ],
         "type": "object"
       },
+      "PublicNotificationDeliveryStatusResponse": {
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          },
+          "dispatch_status": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "changed",
+          "dispatch_status",
+          "id"
+        ],
+        "type": "object"
+      },
       "PublicOrderShipment": {
         "properties": {
           "carrier": {
@@ -206,6 +225,25 @@
         "description": "An opaque `erp_v1_...` API credential issued by a Super Admin. Never a user session token.",
         "scheme": "bearer",
         "type": "http"
+      },
+      "OAuth2ClientCredentials": {
+        "description": "OAuth2 client_credentials grant. POST the client_id and client_secret (HTTP Basic or form body) with grant_type=client_credentials and the X-Tenant-ID header to the token URL; send the returned 15-minute token as `Authorization: Bearer erp_at_...`. An optional space-separated `scope` narrows the token. No other grant exists.",
+        "flows": {
+          "clientCredentials": {
+            "scopes": {
+              "inventory:read": "Grants the endpoints that require inventory:read.",
+              "items:read": "Grants the endpoints that require items:read.",
+              "notifications:write": "Grants the endpoints that require notifications:write.",
+              "orders:read": "Grants the endpoints that require orders:read.",
+              "orders:write": "Grants the endpoints that require orders:write.",
+              "pim:read": "Grants the endpoints that require pim:read.",
+              "pim:write": "Grants the endpoints that require pim:write.",
+              "webhooks:manage": "Grants the endpoints that require webhooks:manage."
+            },
+            "tokenUrl": "/api/public/v1/oauth/token"
+          }
+        },
+        "type": "oauth2"
       }
     }
   },
@@ -528,6 +566,92 @@
         ]
       }
     },
+    "/api/public/v1/notifications/{id}/delivery-status": {
+      "post": {
+        "description": "The provider's delivery receipt. {id} is the delivery_id the notification webhook carried (also sent as the X-Notification-Delivery header). Body: {\"status\": \"delivered\" | \"failed\", \"provider_ref\": \"...\", \"detail\": \"...\"}. Delivered is final; repeating the same status is a no-op.\n\nRequired scope: `notifications:write`.",
+        "operationId": "postNotificationsIdDelivery-status",
+        "parameters": [
+          {
+            "description": "The notification's delivery_id.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicNotificationDeliveryStatusResponse"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The API credential is missing, malformed, revoked or expired. The response never says which."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential authenticated but does not hold the scope this endpoint requires."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such resource."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A parameter was present but not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Per-minute rate limit or daily quota exhausted. Retry-After says how long to wait."
+          }
+        },
+        "summary": "Report a notification's delivery",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
     "/api/public/v1/orders/{id}/status": {
       "get": {
         "description": "Order status with per-line status and any shipments. The path segment accepts either this system's order id or the channel order id the order was imported with.\n\nRequired scope: `orders:read`.",
@@ -618,6 +742,9 @@
   "security": [
     {
       "ApiKeyAuth": []
+    },
+    {
+      "OAuth2ClientCredentials": []
     }
   ],
   "servers": [
@@ -638,6 +765,10 @@
     {
       "description": "Order tracking.",
       "name": "Orders"
+    },
+    {
+      "description": "Delivery receipts from a notification provider.",
+      "name": "Notifications"
     }
   ]
 }

@@ -3,6 +3,7 @@ package server
 import (
 	"custom_erp/engines"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -135,4 +136,55 @@ func handleControlPanelTenantTrial(w http.ResponseWriter, r *http.Request) {
 		TenantID    string     `json:"tenant_id"`
 		TrialEndsAt *time.Time `json:"trial_ends_at"`
 	}{target, endsAt})
+}
+
+// GET /api/v1/platform/tenants/{tenant}/attribute-library?industry=JEW
+// (Stage 81): the industry attribute library as the operator sees it for one
+// client - which attributes it would get, for variants or for PIM, and which it
+// already has. The operator's own client is allowed: nothing here locks anyone out.
+func handleAttributeLibrary(w http.ResponseWriter, r *http.Request) {
+	if !requirePlatformOperator(w, r) {
+		return
+	}
+	target, ok := platformTargetTenant(w, r)
+	if !ok {
+		return
+	}
+	view, err := engines.AttributeLibraryForTenant(target, r.URL.Query().Get("industry"))
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(view)
+}
+
+// POST /api/v1/platform/tenants/{tenant}/attribute-library
+// {"attributes":[{"id":"JEW_PRIMARY_COLOUR","used_for":"Variant"}, ...]}
+// adds the ticked attributes to that client (Stage 81). One it already has is
+// skipped and left as the client keeps it.
+func handleApplyAttributeLibrary(w http.ResponseWriter, r *http.Request) {
+	if !requirePlatformOperator(w, r) {
+		return
+	}
+	target, ok := platformTargetTenant(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Attributes []engines.AttributeLibraryPick `json:"attributes"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.Attributes) == 0 {
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Tick at least one attribute to add")
+		return
+	}
+	res, err := engines.ApplyAttributeLibrary(target, controlPanelActor(r), req.Attributes)
+	if errors.Is(err, engines.ErrUnknownLibraryAttribute) {
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(res)
 }

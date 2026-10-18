@@ -72,6 +72,18 @@ async function renderPrefixConfigsView(container) {
   html += `</tbody></table>`;
   panel.innerHTML = html;
   container.appendChild(panel);
+  // Stage 55.3: arriving from a record form's "Numbering" link opens that
+  // record type's series (or a new one for it) straight away.
+  let wanted = '';
+  try { wanted = sessionStorage.getItem('erp_prefix_for') || ''; sessionStorage.removeItem('erp_prefix_for'); } catch (_) { /* storage off */ }
+  if (wanted) {
+    if (state.prefixConfigs.some(c => c.doc_type === wanted)) window.editPrefixConfig(wanted);
+    else {
+      openEditPrefixModal(null);
+      const typeInput = document.getElementById('edit-prefix-doctype');
+      if (typeInput) { typeInput.value = wanted; previewEditPrefix(); }
+    }
+  }
 }
 
 // loadSeriesStores lists every Location for the store-wise override rows. A
@@ -371,10 +383,10 @@ async function renderApprovalRulesView(container) {
         <tbody>
           ${state.approvalRules.length === 0 ? '<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No approval rules configured. Use <b>Save Rule</b> above to require approval for a record type &mdash; without a rule, documents skip maker-checker entirely.</td></tr>' : state.approvalRules.map(r => `
             <tr>
-              <td style="font-weight:600;">${r.doctype}</td>
-              <td>${r.min_amount}</td>
-              <td>${r.max_amount == null ? 'No limit' : r.max_amount}</td>
-              <td><span class="badge badge-secondary">${r.required_role}</span></td>
+              <td style="font-weight:600;">${escapeHTMLText(r.doctype)}</td>
+              <td>${escapeHTMLText(String(r.min_amount))}</td>
+              <td>${r.max_amount == null ? 'No limit' : escapeHTMLText(String(r.max_amount))}</td>
+              <td><span class="badge badge-secondary">${escapeHTMLText(r.required_role)}</span></td>
               <td style="text-align:right;">
                 <button class="action-btn" title="Edit" aria-label="Edit the ${escapeHTMLText(r.doctype)} approval rule" style="margin-right:4px;" ${actionAttrs('openApprovalRuleModal', [r.id])}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -390,6 +402,67 @@ async function renderApprovalRulesView(container) {
     </div>
   `;
   container.appendChild(panel);
+  renderApprovalRoutingPanel(container, state.approvalRules);
+}
+
+// Stage 55.21: what the rules above actually do. Per record type, the
+// amount bands in order with any gap (an amount no rule covers is refused at
+// submit, ADMINC-0032), and a check: type an amount, see who must approve.
+// The pick mirrors engines.requiredApproverRole exactly - of the bands that
+// contain the amount, the one with the highest minimum wins.
+function approvalRoleFor(rules, doctype, amount) {
+  const hits = rules.filter(r => r.doctype === doctype && Number(r.min_amount) <= amount && (r.max_amount == null || Number(r.max_amount) >= amount));
+  hits.sort((a, b) => Number(b.min_amount) - Number(a.min_amount));
+  return hits.length ? hits[0].required_role : '';
+}
+
+function renderApprovalRoutingPanel(container, rules) {
+  if (!rules.length) return;
+  const byType = {};
+  rules.forEach(r => { (byType[r.doctype] = byType[r.doctype] || []).push(r); });
+  const coverage = Object.keys(byType).sort().map(dt => {
+    const bands = byType[dt].slice().sort((a, b) => Number(a.min_amount) - Number(b.min_amount));
+    const notes = [];
+    let reach = 0;
+    bands.forEach((b, i) => {
+      const min = Number(b.min_amount);
+      if (i === 0 && min > 0) notes.push(`below ${min} no approval is routed - submitting is refused`);
+      else if (i > 0 && reach !== Infinity && min > reach) notes.push(`${reach} to ${min} is not covered`);
+      if (i > 0 && min <= reach) notes.push(`bands overlap from ${min} - the higher band's role decides`);
+      reach = Math.max(reach, b.max_amount == null ? Infinity : Number(b.max_amount));
+    });
+    if (reach !== Infinity) notes.push(`above ${reach} is not covered`);
+    const text = bands.map(b => `${b.min_amount}–${b.max_amount == null ? 'any amount' : b.max_amount}: ${b.required_role}`).join('; ');
+    return `<li><strong>${escapeHTMLText(dt)}</strong> - ${escapeHTMLText(text)}${notes.length ? ` <span class="badge badge-warning">${escapeHTMLText(notes.join('; '))}</span>` : ''}</li>`;
+  }).join('');
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.cssText = 'padding:16px 24px;margin-top:24px;';
+  panel.innerHTML = `
+    <h2 style="font-size:16px;margin:0 0 8px;">Who approves what</h2>
+    <ul style="margin:0 0 12px;padding-left:18px;">${coverage}</ul>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+      <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="approval-check-type">Record type</label>
+        <select id="approval-check-type" class="form-select">${Object.keys(byType).sort().map(dt => `<option value="${escapeHTMLText(dt)}">${escapeHTMLText(dt)}</option>`).join('')}</select></div>
+      <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="approval-check-amount">Amount</label>
+        <input id="approval-check-amount" type="number" min="0" step="0.01" class="form-input" style="width:140px;"></div>
+      <p id="approval-check-result" role="status" style="margin:0 0 6px;"></p>
+    </div>
+    <p style="margin:12px 0 0;"><a href="#" id="approval-rule-history">Rule changes are in the Activity Log (SAVE_APPROVAL_RULE / DELETE_APPROVAL_RULE)</a></p>`;
+  container.appendChild(panel);
+  const typeEl = panel.querySelector('#approval-check-type');
+  const amountEl = panel.querySelector('#approval-check-amount');
+  const out = panel.querySelector('#approval-check-result');
+  const check = () => {
+    if (amountEl.value === '') { out.textContent = ''; return; }
+    const role = approvalRoleFor(rules, typeEl.value, Number(amountEl.value));
+    out.textContent = role
+      ? `${typeEl.value} for ${amountEl.value}: needs approval by ${role} (not the person who submitted it).`
+      : `${typeEl.value} for ${amountEl.value}: no rule covers this amount - submitting it for approval is refused until a band covers it.`;
+  };
+  typeEl.addEventListener('change', check);
+  amountEl.addEventListener('input', check);
+  panel.querySelector('#approval-rule-history').addEventListener('click', e => { e.preventDefault(); setActiveMenu('menu-audit-logs'); renderView('audit-logs'); });
 }
 
 // openApprovalRuleModal: same real-form-modal pattern as the PIM bulk-edit
@@ -707,6 +780,12 @@ async function renderExtensionHooksView(container) {
       data.token
     );
   });
+
+  // Stage 38.2d / 55.21: API keys and OAuth clients sit beside the hooks -
+  // both are how an outside system connects. Loaded through the shell so the
+  // module is the one the loader published.
+  const apiAccess = await loadViewModule('/view-api-access.js' + new URL(import.meta.url).search);
+  await apiAccess.renderAPIAccessPanel(container);
 }
 
 window.deleteExtensionHookRow = async function(hookId) {
@@ -1161,6 +1240,37 @@ window.triggerPanicRecovery = async function() {
 let configSettings = [];       // full definitions+values from the server
 let configDirty = {};          // key -> new value, only for changed keys
 let configSelectedModule = '';
+let configSearch = '';      // Stage 55.21: filters every module at once
+
+// Stage 55.3: the core masters in dependency order (GET /api/v1/setup/path),
+// recomputed from live data each visit, so it resumes wherever the client is.
+async function renderSetupPathPanel(host) {
+  const res = await apiFetch('/api/v1/setup/path');
+  if (!res || !res.ok) return; // the settings below still work without it
+  const { steps = [] } = await res.json();
+  const remaining = steps.filter(s => !s.done).length;
+  const label = Object.fromEntries(steps.map(s => [s.id, s.label]));
+  const details = document.createElement('details');
+  details.className = 'table-panel';
+  details.style.cssText = 'padding:16px 24px;margin-bottom:24px;';
+  details.open = remaining > 0;
+  details.innerHTML = `
+    <summary style="cursor:pointer;font-weight:600;">Setup path - ${remaining === 0 ? 'all core masters are in place' : `${remaining} of ${steps.length} steps to go`}</summary>
+    <ol style="margin:12px 0 0;padding-left:20px;display:grid;gap:8px;">${steps.map(s => `
+      <li>
+        <span class="badge ${s.done ? 'badge-success' : s.next ? 'badge-warning' : ''}">${s.done ? 'Done' : s.next ? 'Next' : s.waiting_for.length ? 'Waiting' : 'To do'}</span>
+        <strong>${escapeHTMLText(s.label)}</strong>
+        <span class="text-muted">${s.count ? `(${escapeHTMLText(String(s.count))})` : ''}${!s.done && s.waiting_for.length ? ` - after ${escapeHTMLText(s.waiting_for.map(w => label[w] || w).join(', '))}` : ''}</span>
+        ${s.view
+          ? `<button class="action-btn" data-setup-view="${escapeHTMLText(s.view)}">Open</button>`
+          : (s.doctypes || []).map(dt => `<a class="action-btn" href="#/setup/${encodeURIComponent(dt)}">${escapeHTMLText(getDoctypeLabel(dt))}</a>`).join(' ')}
+      </li>`).join('')}</ol>`;
+  host.appendChild(details);
+  details.querySelectorAll('[data-setup-view]').forEach(btn => btn.addEventListener('click', () => {
+    setActiveMenu(`menu-${btn.dataset.setupView}`);
+    renderView(btn.dataset.setupView);
+  }));
+}
 
 async function renderConfigurationView(container) {
   const header = document.createElement('div');
@@ -1171,6 +1281,11 @@ async function renderConfigurationView(container) {
     </div>
   `;
   container.appendChild(header);
+  // Stage 55.3: the setup path sits above the settings; it loads on its own
+  // so a slow count never holds the settings back.
+  const pathHost = document.createElement('div');
+  container.appendChild(pathHost);
+  renderSetupPathPanel(pathHost);
 
   const res = await apiFetch('/api/v1/admin/settings');
   if (!res) return;
@@ -1195,6 +1310,7 @@ async function renderConfigurationView(container) {
   }
   configSettings = await res.json();
   configDirty = {};
+  configSearch = '';
 
   if (!Array.isArray(configSettings) || configSettings.length === 0) {
     const empty = document.createElement('p');
@@ -1214,12 +1330,17 @@ async function renderConfigurationView(container) {
   // the admin has to know exists. Rendered by renderConfigIntegrations().
   modules.push(CONFIG_INTEGRATIONS_MODULE);
   if (!configSelectedModule || !modules.includes(configSelectedModule)) configSelectedModule = modules[0];
+  // Stage 82: the industry heads the rail; the page still opens on settings.
+  modules.unshift(CONFIG_INDUSTRY_MODULE);
 
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.style.cssText = 'display:grid; grid-template-columns:220px 1fr; min-height:440px; overflow:hidden;';
   panel.innerHTML = `
-    <div id="config-modules" style="border-right:1px solid var(--border-color); padding:12px 0; background:var(--bg-color);"></div>
+    <div style="border-right:1px solid var(--border-color); background:var(--bg-color);">
+      <div style="padding:12px 12px 0;"><input type="search" id="config-search" class="form-input" placeholder="Find a setting" aria-label="Find a setting"></div>
+      <div id="config-modules" style="padding:12px 0;"></div>
+    </div>
     <div style="display:flex; flex-direction:column; min-width:0;">
       <div id="config-fields" style="padding:20px 24px; flex:1; overflow:auto;"></div>
       <div style="padding:14px 24px; border-top:1px solid var(--border-color); display:flex; align-items:center; gap:14px;">
@@ -1233,6 +1354,10 @@ async function renderConfigurationView(container) {
   renderConfigModuleRail(modules);
   renderConfigFields();
   document.getElementById('config-save-btn').addEventListener('click', saveConfiguration);
+  // Stage 55.21: search across every module, and a guard against leaving
+  // with unsaved changes.
+  document.getElementById('config-search').addEventListener('input', e => { configSearch = e.target.value.trim().toLowerCase(); renderConfigFields(); });
+  installConfigLeaveGuard();
 }
 
 function renderConfigModuleRail(modules) {
@@ -1256,6 +1381,95 @@ function renderConfigModuleRail(modules) {
 }
 
 function configInputId(key) { return 'config-input-' + key; }
+
+// --- Industry (Stage 82) -------------------------------------------------
+// The user (2026-10-18): "Give industry change in config. This will be shown
+// to the admin of that org. access can be hidden to normal role user.
+// Changing method can be better." The industry used to be a dropdown in every
+// user's top bar; once set it was disabled, and changing it meant an Override
+// button asking for a typed code. It lives here now - Configuration is for the
+// org's admin only - as named industries with what each covers, what a change
+// does, and the reason asked for in the panel itself. Same endpoints
+// (GET /admin/industries, GET /admin/industry/lock, POST /admin/industry).
+const CONFIG_INDUSTRY_MODULE = 'Industry';
+
+async function renderConfigIndustry(host) {
+  host.innerHTML = '<p class="text-muted">Loading…</p>';
+  const [listRes, lockRes] = await Promise.all([apiFetch('/api/v1/admin/industries'), apiFetch('/api/v1/admin/industry/lock')]);
+  if (!listRes || !lockRes) return;
+  if (!listRes.ok || !lockRes.ok) {
+    host.innerHTML = '<p class="text-muted">The industry could not be loaded. </p>';
+    const retry = document.createElement('button');
+    retry.className = 'btn btn-outline btn-sm';
+    retry.textContent = 'Try Again';
+    retry.addEventListener('click', () => renderConfigIndustry(host));
+    host.firstChild.appendChild(retry);
+    return;
+  }
+  const list = await listRes.json();
+  const lock = await lockRes.json();
+  if (configSelectedModule !== CONFIG_INDUSTRY_MODULE) return; // moved on meanwhile
+  const current = lock.locked ? String(lock.industry_code || '').toUpperCase() : '';
+  const nameOf = code => (list.find(i => i.code === code) || {}).name || code;
+  const setOn = lock.set_at ? new Date(lock.set_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  host.innerHTML = `
+    <h3 style="font-size:16px; font-weight:600; margin:0 0 12px;">Industry</h3>
+    <p style="margin:0 0 16px; font-size:14px;">${current
+      ? `Current: <b>${cfgEsc(nameOf(current))}</b> <span class="text-muted">· set by ${cfgEsc(lock.set_by || '')}${setOn ? ` on ${cfgEsc(setOn)}` : ''}${lock.override_count ? ` · changed ${cfgEsc(String(lock.override_count))} time(s) since` : ''}</span>`
+      : 'No industry chosen yet.'}</p>
+    <div role="radiogroup" aria-label="Industry" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap:10px;">
+      ${list.map(i => `
+        <label data-cfg-industry="${cfgEsc(i.code)}" style="display:flex; gap:10px; align-items:flex-start; padding:12px; border:1px solid ${i.code === current ? 'var(--primary-color)' : 'var(--border-color)'}; border-radius:8px; cursor:pointer; background:var(--panel-bg);">
+          <input type="radio" name="cfg-industry" value="${cfgEsc(i.code)}"${i.code === current ? ' checked' : ''} style="margin-top:3px;">
+          <span><b>${cfgEsc(i.name)}</b>${i.code === current ? ' <span class="badge badge-success">Current</span>' : ''}
+            ${i.focus ? `<span class="text-muted" style="display:block; font-size:12px; margin-top:4px;">${cfgEsc(i.focus)}</span>` : ''}</span>
+        </label>`).join('')}
+    </div>
+    <div id="cfg-industry-change" class="hidden" style="margin-top:18px; padding:16px; border:1px solid var(--border-color); border-radius:8px; max-width:720px;">
+      <p id="cfg-industry-effect" style="margin:0 0 12px; font-size:14px;"></p>
+      ${current ? `<label class="form-label" for="cfg-industry-reason">Reason for the change<span class="required">*</span></label>
+      <textarea id="cfg-industry-reason" class="form-input" rows="2" style="width:100%; margin:6px 0 12px;" placeholder="Kept in the audit log, e.g. client moved from clothing to jewellery"></textarea>` : ''}
+      <button type="button" class="btn btn-primary" id="cfg-industry-apply"></button>
+    </div>`;
+
+  const box = host.querySelector('#cfg-industry-change');
+  const chosen = () => (host.querySelector('input[name="cfg-industry"]:checked') || {}).value || '';
+  const paint = () => {
+    const code = chosen();
+    host.querySelectorAll('[data-cfg-industry]').forEach(el => {
+      el.style.borderColor = el.getAttribute('data-cfg-industry') === code ? 'var(--primary-color)' : 'var(--border-color)';
+    });
+    box.classList.toggle('hidden', !code || code === current);
+    if (!code || code === current) return;
+    const to = nameOf(code);
+    host.querySelector('#cfg-industry-effect').innerHTML = `${current ? 'Changing to' : 'Choosing'} <b>${cfgEsc(to)}</b> adds its fields to Item and the setup lists, replaces the screen labels with its own, and adds its common HSN codes. ${current
+      ? `Nothing is deleted: the ${cfgEsc(nameOf(current))} fields and every record stay as they are.`
+      : 'Nothing that already exists is changed.'} Everyone sees the new fields after they refresh.`;
+    host.querySelector('#cfg-industry-apply').textContent = `${current ? 'Change industry to' : 'Set industry to'} ${to}`;
+  };
+  host.querySelector('[role="radiogroup"]').addEventListener('change', paint);
+  host.querySelector('#cfg-industry-apply').addEventListener('click', async e => {
+    const btn = e.currentTarget; // null once the handler awaits
+    const code = chosen();
+    const reasonBox = host.querySelector('#cfg-industry-reason');
+    const reason = reasonBox ? reasonBox.value.trim() : '';
+    if (current && !reason) { await showCustomAlert('Enter the reason for changing the industry.', 'Industry'); reasonBox.focus(); return; }
+    if (!await showCustomConfirm(`${current ? `Change the industry from ${nameOf(current)} to ${nameOf(code)}` : `Set the industry to ${nameOf(code)}`}?`, 'Industry')) return;
+    btn.disabled = true;
+    const res = await apiFetch('/api/v1/admin/industry', {
+      method: 'POST',
+      body: JSON.stringify(current ? { industry_code: code.toLowerCase(), override: true, override_reason: reason } : { industry_code: code.toLowerCase() })
+    });
+    btn.disabled = false;
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'The industry could not be changed.'); return; }
+    showToast(`Industry set to ${nameOf(code)}.`, { variant: 'success' });
+    await fetchLabels();
+    await fetchRegisteredDoctypes();
+    renderConfigIndustry(host);
+  });
+  paint();
+}
 
 // --- Integrations (Stage 30.7) -------------------------------------------
 // Endpoint/credential config for the two external systems this ERP talks to:
@@ -1380,8 +1594,15 @@ function renderConfigFields() {
     updateConfigDirtyState();
     return;
   }
-  const items = configSettings.filter(s => s.module === configSelectedModule);
-  host.innerHTML = items.map(configFieldHtml).join('');
+  if (configSelectedModule === CONFIG_INDUSTRY_MODULE) {
+    renderConfigIndustry(host);
+    updateConfigDirtyState();
+    return;
+  }
+  const items = configSearch
+    ? configSettings.filter(s => `${s.label} ${s.description || ''} ${s.key} ${s.module}`.toLowerCase().includes(configSearch))
+    : configSettings.filter(s => s.module === configSelectedModule);
+  host.innerHTML = items.length ? items.map(configFieldHtml).join('') : `<p class="text-muted">No setting matches "${cfgEsc(configSearch)}".</p>`;
   items.forEach(s => {
     const input = document.getElementById(configInputId(s.key));
     if (!input) return;
@@ -1398,6 +1619,9 @@ function renderConfigFields() {
 
 function configFieldHtml(s) {
   const id = configInputId(s.key);
+  // An unsaved edit survives switching module or searching: the control
+  // shows what Save will write, not the stored value.
+  if (Object.prototype.hasOwnProperty.call(configDirty, s.key)) s = { ...s, value: configDirty[s.key] };
   const unit = s.unit ? `<span style="color:var(--text-muted); font-size:13px; margin-left:8px;">${cfgEsc(s.unit)}</span>` : '';
   let control = '';
   if (s.type === 'bool') {
@@ -1420,9 +1644,10 @@ function configFieldHtml(s) {
   }
   return `
     <div class="form-group" style="margin-bottom:22px; max-width:640px;">
-      <label class="form-label" for="${id}" style="font-weight:600;">${cfgEsc(s.label)}</label>
+      <label class="form-label" for="${id}" style="font-weight:600;">${cfgEsc(s.label)}${configSearch ? ` <span class="badge">${cfgEsc(s.module)}</span>` : ''}</label>
       ${s.description ? `<p class="page-subtitle" style="margin:2px 0 8px; font-size:12.5px;">${cfgEsc(s.description)}</p>` : ''}
       <div>${control}</div>
+      ${s.default !== undefined && String(s.default) !== String(s.value) ? `<p class="text-muted" style="margin:4px 0 0; font-size:12px;">Default: ${cfgEsc(s.default)}${s.unit ? ' ' + cfgEsc(s.unit) : ''}</p>` : ''}
     </div>
   `;
 }
@@ -1433,6 +1658,32 @@ function updateConfigDirtyState() {
   const n = Object.keys(configDirty).length;
   if (btn) btn.disabled = n === 0;
   if (note) note.textContent = n === 0 ? 'No unsaved changes.' : `${n} unsaved change${n === 1 ? '' : 's'}.`;
+}
+
+// Stage 55.21: leaving Configuration (sidebar, Home, reload) with unsaved
+// changes asks first. A capture-phase click handler stops the navigation
+// until the person confirms; installed once, inert when nothing is dirty or
+// the screen is gone.
+let configLeaveGuardInstalled = false;
+function installConfigLeaveGuard() {
+  if (configLeaveGuardInstalled) return;
+  configLeaveGuardInstalled = true;
+  const dirtyHere = () => Object.keys(configDirty).length > 0 && document.getElementById('config-save-btn');
+  document.addEventListener('click', async event => {
+    const link = event.target.closest('.menu-item, .submenu-item, a[href^="#/"]');
+    if (!link || !dirtyHere() || link.closest('#config-fields') || link.dataset.configLeaveOk) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const n = Object.keys(configDirty).length;
+    if (!await showCustomConfirm(`You have ${n} unsaved setting change${n === 1 ? '' : 's'}. Leave without saving?`, 'Unsaved changes')) return;
+    configDirty = {};
+    link.dataset.configLeaveOk = '1';
+    link.click();
+    delete link.dataset.configLeaveOk;
+  }, true);
+  window.addEventListener('beforeunload', event => {
+    if (dirtyHere()) { event.preventDefault(); event.returnValue = ''; }
+  });
 }
 
 async function saveConfiguration() {
@@ -1454,10 +1705,12 @@ async function saveConfiguration() {
 // overdue warnings off the Stage 17.10 error catalog) into one HR/Admin
 // screen. No new backend route or table.
 async function renderSystemStatusView(container) {
-  const [deployRes, backupRes] = await Promise.all([
+  const [deployRes, backupRes, alertRes] = await Promise.all([
     apiFetch('/api/v1/ops/deployment-status'),
-    apiFetch('/api/v1/ops/backup-status')
+    apiFetch('/api/v1/ops/backup-status'),
+    apiFetch('/api/v1/ops/alerting-status')
   ]);
+  const alerting = alertRes && alertRes.ok ? await alertRes.json() : null;
 
   const header = document.createElement('div');
   header.className = 'page-header';
@@ -1524,12 +1777,17 @@ async function renderSystemStatusView(container) {
     </div>
     <div class="stat-card">
       <span class="stat-label">Last Backup</span>
-      <div style="margin-top:4px;"><span class="badge ${backupOverdue ? 'badge-danger' : 'badge-success'}">${backupData.last_backup_at || 'Never'}</span></div>
+      <div style="margin-top:4px;"><span class="badge ${backupOverdue ? 'badge-danger' : backupData.last_backup_at ? 'badge-success' : 'badge-warning'}">${backupData.last_backup_at ? escapeHTMLText(backupData.last_backup_at) : 'Never recorded'}</span></div>
     </div>
     <div class="stat-card">
       <span class="stat-label">Last Restore Drill</span>
-      <div style="margin-top:4px;"><span class="badge ${drillOverdue ? 'badge-warning' : 'badge-success'}">${backupData.last_restore_drill_at || 'Never'}</span></div>
+      <div style="margin-top:4px;"><span class="badge ${drillOverdue || !backupData.last_restore_drill_at ? 'badge-warning' : 'badge-success'}">${backupData.last_restore_drill_at ? escapeHTMLText(backupData.last_restore_drill_at) : 'Never recorded'}</span></div>
     </div>
+    ${alerting ? `<div class="stat-card">
+      <span class="stat-label">Incident alerts</span>
+      <div style="margin-top:4px;"><span class="badge ${alerting.delivery_would_be_sent && alerting.responder_configured ? 'badge-success' : 'badge-warning'}">${alerting.delivery_would_be_sent ? (alerting.responder_configured ? `Delivered to ${escapeHTMLText(alerting.responder)}` : 'Delivered - no responder named') : alerting.webhook_configured ? 'Configured, not sent (external side effects off here)' : 'Never configured'}</span></div>
+      ${(alerting.unconfigured_variables || []).length ? `<div class="text-muted" style="font-size:11px;margin-top:4px;">Set ${escapeHTMLText(alerting.unconfigured_variables.join(', '))} on the server - runbook: docs/operations/incident_runbook.md</div>` : ''}
+    </div>` : ''}
   `;
   container.appendChild(statsRow);
 
@@ -1545,15 +1803,15 @@ async function renderSystemStatusView(container) {
         <tbody>
           ${envRows.length === 0 ? '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No deployments recorded yet. Rows appear here after a promote or deploy run records its result.</td></tr>' : envRows.map(d => `
             <tr>
-              <td style="font-weight:600; text-transform:capitalize;">${d.environment}</td>
+              <td style="font-weight:600; text-transform:capitalize;">${escapeHTMLText(d.environment)}</td>
               <td>
-                <span class="badge ${d.build_status === 'passed' ? 'badge-success' : d.build_status === 'failed' ? 'badge-danger' : 'badge-secondary'}">${d.build_status}</span>
-                ${d.code ? `<div style="font-size:11px; color:var(--danger-strong); margin-top:2px;">${d.code}: ${d.message}</div>` : ''}
+                <span class="badge ${d.build_status === 'passed' ? 'badge-success' : d.build_status === 'failed' ? 'badge-danger' : 'badge-secondary'}">${escapeHTMLText(d.build_status)}</span>
+                ${d.code ? `<div style="font-size:11px; color:var(--danger-strong); margin-top:2px;">${escapeHTMLText(d.code)}: ${escapeHTMLText(d.message)}</div>` : ''}
               </td>
-              <td style="font-family:Consolas,Monaco,monospace; font-size:12px;">${(d.git_commit || '').slice(0, 10)}</td>
-              <td>${d.app_version || ''}</td>
-              <td>${d.promoted_by || ''}</td>
-              <td style="font-size:11px; white-space:nowrap;">${d.promoted_at || ''}</td>
+              <td style="font-family:Consolas,Monaco,monospace; font-size:12px;">${escapeHTMLText((d.git_commit || '').slice(0, 10))}</td>
+              <td>${escapeHTMLText(d.app_version || '')}</td>
+              <td>${escapeHTMLText(d.promoted_by || '')}</td>
+              <td style="font-size:11px; white-space:nowrap;">${escapeHTMLText(d.promoted_at || '')}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -1573,12 +1831,12 @@ async function renderSystemStatusView(container) {
         <tbody>
           ${(deployData.history || []).length === 0 ? '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No deployment history yet. Rows appear here after a promote or deploy run records its result.</td></tr>' : deployData.history.map(d => `
             <tr>
-              <td style="text-transform:capitalize;">${d.environment}</td>
-              <td><span class="badge ${d.build_status === 'passed' ? 'badge-success' : d.build_status === 'failed' ? 'badge-danger' : 'badge-secondary'}">${d.build_status}</span></td>
-              <td style="font-family:Consolas,Monaco,monospace; font-size:12px;">${(d.git_commit || '').slice(0, 10)}</td>
-              <td>${d.promoted_by || ''}</td>
-              <td style="font-size:11px; white-space:nowrap;">${d.promoted_at || ''}</td>
-              <td style="font-size:12px; color:var(--text-muted);">${d.notes || ''}</td>
+              <td style="text-transform:capitalize;">${escapeHTMLText(d.environment)}</td>
+              <td><span class="badge ${d.build_status === 'passed' ? 'badge-success' : d.build_status === 'failed' ? 'badge-danger' : 'badge-secondary'}">${escapeHTMLText(d.build_status)}</span></td>
+              <td style="font-family:Consolas,Monaco,monospace; font-size:12px;">${escapeHTMLText((d.git_commit || '').slice(0, 10))}</td>
+              <td>${escapeHTMLText(d.promoted_by || '')}</td>
+              <td style="font-size:11px; white-space:nowrap;">${escapeHTMLText(d.promoted_at || '')}</td>
+              <td style="font-size:12px; color:var(--text-muted);">${escapeHTMLText(d.notes || '')}</td>
             </tr>
           `).join('')}
         </tbody>

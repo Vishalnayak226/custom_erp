@@ -1,0 +1,11 @@
+/* Stage 73.2.14/73.2.15 - Order Management additions, loaded by view-oms.js
+   (lazy), so the cold-core styles.css budget is untouched. */
+.oms-queue-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.oms-queue-buttons .badge { margin-left: 4px; }
+#oms-queue-rows:not(:empty) { margin-top: 12px; }
+.oms-next-step { margin: 12px 0; padding: 10px 14px; border-left: 4px solid var(--primary-color); background: var(--primary-light); border-radius: 6px; }
+.oms-timeline-detail { font-size: 12px; overflow-wrap: anywhere; }
+.oms-related-docs { margin-top: 16px; }
+.oms-related-docs > summary { cursor: pointer; font-weight: 600; }
+.oms-add-line-row { display: grid; grid-template-columns: auto 1fr auto 90px auto 120px; gap: 8px; align-items: center; margin-bottom: 12px; }
+@media (max-width: 640px) { .oms-add-line-row { grid-template-columns: 1fr; } }

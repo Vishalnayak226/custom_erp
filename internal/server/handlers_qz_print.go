@@ -107,6 +107,7 @@ func handleQZPrintPayload(w http.ResponseWriter, r *http.Request) {
 		SourceDocID    string                         `json:"source_doc_id"`
 		CopiesOverride map[string]int                 `json:"copies_override"`
 		Lines          []engines.StickerLineSelection `json:"lines"`
+		RequestKey     string                         `json:"request_key"` // Stage 55.19
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
@@ -150,13 +151,13 @@ func handleQZPrintPayload(w http.ResponseWriter, r *http.Request) {
 			// "print the whole document" and "print one line" the same
 			// request shape. Resolved by the same stickerSelections helper
 			// the browser-fallback handler uses.
-			labels, sErr = engines.PrintStickersForDocument(tenantID, req.SourceDoctype, req.SourceDocID, printer.Code, userID, req.Reprint, stickerSelections(req.Lines, req.SKUs, req.CopiesOverride))
+			labels, sErr = engines.PrintStickersForDocument(tenantID, req.SourceDoctype, req.SourceDocID, printer.Code, userID, req.Reprint, stickerSelections(req.Lines, req.SKUs, req.CopiesOverride), engines.StickerPrintOptions{RequestKey: req.RequestKey})
 		} else {
 			if len(req.SKUs) == 0 {
 				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'skus' is required for a sticker print")
 				return
 			}
-			labels, sErr = engines.PrintStickers(tenantID, req.SKUs, printer.Code, userID, req.Reprint, req.Copies)
+			labels, sErr = engines.PrintStickers(tenantID, req.SKUs, printer.Code, userID, req.Reprint, req.Copies, engines.StickerPrintOptions{RequestKey: req.RequestKey})
 		}
 		if sErr != nil {
 			writeEngineError(w, r, sErr, http.StatusUnprocessableEntity)

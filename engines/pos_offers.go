@@ -83,6 +83,11 @@ type OfferEvaluation struct {
 	UnmatchedCodes []string       `json:"unmatched_codes,omitempty"`
 	// Gifts are the Gift With Purchase offers this cart qualifies for.
 	Gifts []EligibleGift `json:"gifts,omitempty"`
+	// LineDiscounts (Stage 73.1.1) is each input line's share of
+	// TotalDiscount, index for index: every applied offer is split across the
+	// lines it applies to by what is left of their value, so the shares add
+	// up to the bill's discount exactly and no line goes below zero.
+	LineDiscounts []float64 `json:"line_discounts"`
 }
 
 // EligibleGift is one gift a cart has earned: up to Qty of GiftItem, free.
@@ -146,7 +151,12 @@ func EvaluatePOSOffers(tenantID string, input OfferEvaluationInput) (*OfferEvalu
 	}
 	gross = round2(gross)
 
-	result := &OfferEvaluation{Applied: []AppliedOffer{}, GrossAmount: gross, NetAmount: gross}
+	result := &OfferEvaluation{Applied: []AppliedOffer{}, GrossAmount: gross, NetAmount: gross, LineDiscounts: make([]float64, len(input.Lines))}
+	lineLeft := make([]int64, len(input.Lines))
+	lineOff := make([]int64, len(input.Lines))
+	for i, l := range input.Lines {
+		lineLeft[i] = RupeesToPaise(l.SalePrice) * int64(l.Qty)
+	}
 
 	rules, err := loadActiveOffers(tenantID)
 	if err == nil {
@@ -233,6 +243,23 @@ func EvaluatePOSOffers(tenantID string, input OfferEvaluationInput) (*OfferEvalu
 			Discount: discount, Description: description,
 		})
 		remaining = round2(remaining - discount)
+		weights := make([]int64, len(input.Lines))
+		var inScope int64
+		for i, l := range input.Lines {
+			if offerAppliesToLine(rule, l) {
+				weights[i] = lineLeft[i]
+				inScope += lineLeft[i]
+			}
+		}
+		if inScope < RupeesToPaise(discount) {
+			// Stacked offers have already used up its own lines; the bill
+			// still has the value (remaining capped it), so share it there.
+			copy(weights, lineLeft)
+		}
+		for i, share := range allocatePaise(RupeesToPaise(discount), weights) {
+			lineOff[i] += share
+			lineLeft[i] -= share
+		}
 		if rule.couponCode != "" {
 			usedCodes[strings.ToUpper(rule.couponCode)] = true
 		}
@@ -253,7 +280,21 @@ func EvaluatePOSOffers(tenantID string, input OfferEvaluationInput) (*OfferEvalu
 	}
 	result.TotalDiscount = round2(total)
 	result.NetAmount = round2(gross - result.TotalDiscount)
+	for i, p := range lineOff {
+		result.LineDiscounts[i] = PaiseToRupees(p)
+	}
 	return result, nil
+}
+
+// offerAppliesToLine is the set of lines an applied offer's discount is
+// shared across: the whole bill when it is bill-wide (or scoped to nothing),
+// otherwise the lines in its scope - the same reading offerScopedAmount uses
+// to size the discount in the first place.
+func offerAppliesToLine(rule offerRule, line OfferCartLine) bool {
+	if rule.scope == offerScopeBill || (rule.scopeValue == "" && rule.skuSet == nil) {
+		return true
+	}
+	return offerLineMatches(rule, line)
 }
 
 // offerDiscountFor computes one rule's rupee discount against the cart, and a

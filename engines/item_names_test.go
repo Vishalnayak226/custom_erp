@@ -28,20 +28,21 @@ func TestItemNamesAndInlineAttributes(t *testing.T) {
 	}
 
 	t.Run("server numbers a new master; a typed code is kept", func(t *testing.T) {
+		preserveSeries(t, "tenant_default", "Category", "Brand") // Stage 76.5
 		blank := map[string]interface{}{"name": "Rings"}
 		if err := PrepareMasterNumber(tenant, "HQ", "Category", true, blank); err != nil {
 			t.Fatal(err)
 		}
-		if code := strField(blank, "code"); !strings.HasPrefix(code, "CAT/") || blank["id"] != code {
-			t.Errorf("new Category code = %q id = %v, want CAT/... with id = code", code, blank["id"])
+		if code := strField(blank, "code"); !strings.HasPrefix(code, "CAT") || !shortMasterCode.MatchString(code) || blank["id"] != code {
+			t.Errorf("new Category code = %q id = %v, want a short CAT00001-style code with id = code (Stage 76.5)", code, blank["id"])
 		}
 		typed := map[string]interface{}{"code": "MY-CAT"}
 		if err := PrepareMasterNumber(tenant, "HQ", "Category", true, typed); err != nil || typed["code"] != "MY-CAT" {
 			t.Errorf("typed code changed: %v (%v)", typed["code"], err)
 		}
 		other := map[string]interface{}{}
-		if err := PrepareMasterNumber(tenant, "HQ", "Brand", true, other); err != nil || other["code"] != nil {
-			t.Errorf("Brand is not server-numbered, got %v (%v)", other["code"], err)
+		if err := PrepareMasterNumber(tenant, "HQ", "Brand", true, other); err != nil || !shortMasterCode.MatchString(strField(other, "code")) {
+			t.Errorf("every master is numbered since Stage 76.5 - Brand got %v (%v)", other["code"], err)
 		}
 	})
 

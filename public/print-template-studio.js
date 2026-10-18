@@ -23,7 +23,7 @@ const INSERTS = [
   { type: 'block', label: 'Store block', make: () => ({ block: 'store', title: 'From', w: 90, h: 28, border: true }) },
   { type: 'block', label: 'Vendor / party', make: () => ({ block: 'party', title: '{party_title}', w: 90, h: 28, border: true }) },
   { type: 'block', label: 'Ship-to block', make: () => ({ block: 'ship_to', title: 'Ship to', w: 90, h: 24, border: true }) },
-  { type: 'table', label: 'Items table', make: (S) => ({ w: 190, h: 120, contY: 30, fontSize: 8, headerBg: '#f1f3f5', imageSize: 14, pages: 'all', columns: clone((T.defaultLayout(S.txn).elements.find(e => e.type === 'table') || {}).columns || []) }) },
+  { type: 'table', label: 'Items table', make: (S) => ({ w: 190, h: 120, fontSize: 8, headerBg: '#f1f3f5', imageSize: 14, pages: 'all', columns: clone((T.defaultLayout(S.txn).elements.find(e => e.type === 'table') || {}).columns || []) }) },
   { type: 'taxSummary', label: 'Tax summary', make: () => ({ w: 110, h: 30, fontSize: 8, pages: 'last' }) },
   { type: 'totals', label: 'Totals', make: () => ({ w: 70, h: 32, pages: 'last' }) },
   { type: 'image', label: 'Logo / image', make: () => ({ w: 30, h: 15 }) },
@@ -32,6 +32,7 @@ const INSERTS = [
   { type: 'pageNo', label: 'Page number', make: () => ({ w: 40, h: 5, fontSize: 7, align: 'center', pages: 'all' }) }
 ];
 const TYPE_LABEL = { text: 'Text', field: 'Field', block: 'Block', table: 'Items table', taxSummary: 'Tax summary', totals: 'Totals', image: 'Image', line: 'Line', box: 'Box', pageNo: 'Page number' };
+const PAGES_LABEL = { first: 'first page', last: 'last page', all: 'every page' };
 const FORMATS = [['text', 'Text'], ['money', 'Money (1,23,456.00)'], ['qty', 'Quantity'], ['percent', 'Percent'], ['date', 'Date (dd-mm-yyyy)'], ['image', 'Picture']];
 
 let S = null; // the open studio
@@ -159,7 +160,9 @@ async function closeStudio() {
   document.removeEventListener('keydown', onKey, true);
   S.root.remove();
   S = null;
-  if (window.state?.currentView === 'stickers' || document.querySelector('[data-pts-gallery]')) window.renderView?.('stickers');
+  // The gallery sits in Sticker Printing and in Setup → Print Templates;
+  // redraw whichever one is open rather than jumping to Sticker Printing.
+  if (document.querySelector('[data-pts-gallery]')) window.renderView?.(currentView);
 }
 
 // ---------------------------------------------------------------------------
@@ -386,8 +389,7 @@ function renderCanvas() {
   canvas.style.width = `${pw * T.PX_PER_MM * k}px`;
   canvas.style.height = `${ph * T.PX_PER_MM * k}px`;
   // Every element shown on the design page, whichever pages it prints on.
-  const designLayout = { ...S.layout, elements: S.layout.elements.map(el => ({ ...el, pages: 'all' })) };
-  const page = T.renderPages(designLayout, S.sample)[0];
+  const page = T.renderPages(S.layout, S.sample, { design: true })[0];
   page.style.transform = `scale(${k})`;
   canvas.innerHTML = '';
   canvas.appendChild(page);
@@ -408,9 +410,10 @@ function renderOverlay() {
   const overlay = S.root.querySelector('[data-ps="overlay"]');
   if (!overlay) return;
   const k = scale() * T.PX_PER_MM;
+  const table = S.layout.elements.find(el => el.type === 'table');
   overlay.innerHTML = S.layout.elements.map(el => `
     <div class="pts-hit${el.id === S.sel ? ' sel' : ''}" data-id="${el.id}" data-type="${el.type}" style="left:${el.x * k}px;top:${el.y * k}px;width:${Math.max(4, el.w * k)}px;height:${Math.max(4, el.h * k)}px;">
-      <span class="pts-tag">${esc(TYPE_LABEL[el.type] || el.type)}${el.key ? ` · ${esc(el.key)}` : ''} · ${el.pages === 'last' ? 'last page' : el.pages === 'all' ? 'every page' : 'first page'}</span>
+      <span class="pts-tag">${esc(TYPE_LABEL[el.type] || el.type)}${el.key ? ` · ${esc(el.key)}` : ''} · ${PAGES_LABEL[T.printsOn(el, table)]}</span>
       ${el.id === S.sel ? '<span class="pts-handle" data-h="e"></span><span class="pts-handle" data-h="s"></span><span class="pts-handle" data-h="se"></span>' : ''}
     </div>`).join('');
   overlay.querySelectorAll('.pts-hit').forEach(hit => hit.addEventListener('pointerdown', startDrag));
@@ -524,10 +527,11 @@ function templateInspector() {
 }
 
 function elementInspector(el) {
+  const byPosition = T.pagesByPosition(el, S.layout.elements.find(e => e.type === 'table'));
   const common = `
     <div class="pts-section-title" style="margin-top:0;">${esc(TYPE_LABEL[el.type] || el.type)}</div>
     <div class="pts-grid4">${num('x', 'X', el.x)}${num('y', 'Y', el.y)}${num('w', 'W', el.w)}${num('h', 'H', el.h, el.type === 'line' ? 0.1 : 0.5)}</div>
-    ${el.type === 'table' ? '' : `<div class="form-group"><label class="form-label">Prints on</label><select class="form-input" data-prop="pages">${opt('first', 'First page', el.pages)}${opt('all', 'Every page', el.pages)}${opt('last', 'Last page', el.pages)}</select></div>`}
+    ${el.type === 'table' ? '' : byPosition ? `<div class="form-group"><label class="form-label">Prints on</label><select class="form-input" disabled>${opt(byPosition, byPosition === 'first' ? 'First page (above the items table)' : 'Last page (below the items table)', byPosition)}</select></div>` : `<div class="form-group"><label class="form-label">Prints on</label><select class="form-input" data-prop="pages">${opt('first', 'First page', el.pages)}${opt('all', 'Every page', el.pages)}${opt('last', 'Last page', el.pages)}</select></div>`}
     ${['line', 'image', 'box'].includes(el.type) ? '' : `
     <div class="pts-grid2">${num('fontSize', 'Font size (pt)', el.fontSize ?? 9)}<div class="form-group"><label class="form-label">Colour</label><input type="color" class="form-input" data-prop="color" value="${esc(el.color || '#111111')}"></div></div>
     <div class="pts-toggles">
@@ -565,7 +569,7 @@ function elementInspector(el) {
       break;
     case 'table':
       extra = `<div class="pts-grid2">${num('fontSize', 'Font size (pt)', el.fontSize ?? 8)}${num('imageSize', 'Picture size (mm)', el.imageSize ?? 14, 1)}
-          ${num('contY', 'Later pages start at Y', el.contY ?? '', 1)}<div class="form-group"><label class="form-label">Header shade</label><input type="text" class="form-input" data-prop="headerBg" value="${esc(el.headerBg || '')}"></div></div>
+          <div class="form-group"><label class="form-label">Header shade</label><input type="text" class="form-input" data-prop="headerBg" value="${esc(el.headerBg || '')}"></div></div>
         <label style="display:flex;gap:6px;font-size:12.5px;margin-bottom:8px;"><input type="checkbox" data-rowlines ${el.rowLines === false ? '' : 'checked'}>Line between rows</label>
         <div class="pts-section-title">Columns (width is relative)</div>
         <div class="pts-cols">${(el.columns || []).map((c, i) => `
@@ -578,7 +582,7 @@ function elementInspector(el) {
             <div class="pts-col-key">${esc(c.key)} · ${esc(c.format || 'auto')}</div>
           </div>`).join('')}</div>
         <div class="form-group" style="margin-top:8px;"><label class="form-label">Add column</label><select class="form-input" data-addcol><option value="">Choose...</option>${(S.catalog.line || []).map(f => opt(f.key, `${f.group}: ${f.label}`, '')).join('')}</select></div>
-        <p class="pts-hint">Rows that do not fit continue on the next page with the header repeated. Place totals and the signature below the table and set them to print on the last page.</p>`;
+        <p class="pts-hint">Rows that do not fit continue on the next page with the column headings repeated. Everything above the table prints on the first page only, everything below it (tax summary, totals, signatures) on the last page only.</p>`;
       break;
     case 'totals': {
       const rows = el.rows && el.rows.length ? el.rows : T.DEFAULT_TOTAL_ROWS;
@@ -693,7 +697,7 @@ function bindInspector(box, el) {
 export async function renderPrintTemplateGallery(container) {
   const res = await api('/api/v1/doc/PrintTemplate');
   if (!res) return;
-  if (!res.ok) { window.renderErrorPanel?.(container, 'Failed to load print templates.', () => window.renderView('stickers')); return; }
+  if (!res.ok) { window.renderErrorPanel?.(container, 'Failed to load print templates.', () => window.renderView(currentView)); return; }
   const all = await res.json();
   const panel = document.createElement('div');
   panel.className = 'table-panel';
@@ -702,8 +706,7 @@ export async function renderPrintTemplateGallery(container) {
   panel.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
       <div>
-        <h2 style="font-size:16px;font-weight:700;margin:0 0 4px;">Document print templates</h2>
-        <p class="pts-hint" style="margin:0;">How each transaction prints. Every transaction has a built-in standard layout; customise it, or make several and map them to a vendor or to product designs / categories.</p>
+        <h2 style="font-size:16px;font-weight:700;margin:0;">Document print templates</h2>
       </div>
       <div style="display:flex;gap:8px;align-items:flex-end;">
         <label class="form-label" style="display:flex;flex-direction:column;gap:4px;font-size:12px;">New template for
@@ -742,12 +745,12 @@ export async function renderPrintTemplateGallery(container) {
   panel.querySelectorAll('[data-gal-default]').forEach(b => b.addEventListener('click', async () => {
     const id = b.getAttribute('data-gal-default');
     if (await updateDocFields(id, { is_default: 'Yes' })) await clearOtherDefaults(b.getAttribute('data-txn'), id);
-    window.renderView('stickers');
+    window.renderView(currentView);
   }));
   panel.querySelectorAll('[data-gal-del]').forEach(b => b.addEventListener('click', async () => {
     if (!(await window.showCustomConfirm(`Delete the print template "${b.getAttribute('data-name')}"? Documents will print with the next best template, or the standard layout.`, 'Delete template'))) return;
     const r = await api(`/api/v1/doc/PrintTemplate/${encodeURIComponent(b.getAttribute('data-gal-del'))}`, { method: 'DELETE' });
     if (r && !r.ok) { await window.showApiError(r, 'Could not delete the template.'); return; }
-    window.renderView('stickers');
+    window.renderView(currentView);
   }));
 }

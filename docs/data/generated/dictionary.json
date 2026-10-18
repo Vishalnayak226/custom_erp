@@ -17290,7 +17290,10 @@
           "required": true
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Are we within budget?",
+      "description": "Budget against actual by account for the period."
     },
     {
       "id": "dunning-queue",
@@ -17335,7 +17338,10 @@
         }
       ],
       "params": [],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Which overdue customers need chasing?",
+      "description": "Overdue invoices with their dunning stage."
     },
     {
       "id": "cash-flow-forecast",
@@ -17378,7 +17384,10 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "What cash is expected in and out?",
+      "description": "Expected receipts and payments by due date."
     },
     {
       "id": "campaign-roi",
@@ -17418,7 +17427,10 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Did this campaign pay off?",
+      "description": "Campaign spend against the sales it drove."
     },
     {
       "id": "inventory-valuation",
@@ -17453,7 +17465,10 @@
         }
       ],
       "params": [],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": true,
+      "question": "What is our stock worth?",
+      "description": "On-hand quantity at moving average cost; control totals tie it to 1200 Inventory Control."
     },
     {
       "id": "customer-lifetime-value",
@@ -17500,7 +17515,10 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Which customers are worth the most?",
+      "description": "Spend and visits per customer over their history."
     },
     {
       "id": "cohort-retention",
@@ -17530,7 +17548,8 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "rfm-segmentation",
@@ -17580,7 +17599,10 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Which customers are loyal, lapsing or new?",
+      "description": "Recency, frequency and spend scores per customer."
     },
     {
       "id": "points-liability",
@@ -17605,7 +17627,10 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": true,
+      "question": "What do we owe in loyalty points?",
+      "description": "Unredeemed points per customer at their redemption value."
     },
     {
       "id": "customer-360",
@@ -17657,7 +17682,8 @@
           "required": true
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "fx-open-item-exposure",
@@ -17740,7 +17766,8 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "fx-gain-loss-register",
@@ -17824,7 +17851,8 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "trial-balance-presentation-currency",
@@ -17893,7 +17921,84 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "sales-by-customer-reference",
+      "label": "Sales by Customer Reference",
+      "category": "Sales",
+      "module_key": "sales",
+      "columns": [
+        {
+          "key": "customer_reference",
+          "label": "Customer PO / Ref",
+          "sensitive": false
+        },
+        {
+          "key": "document",
+          "label": "Document",
+          "sensitive": false
+        },
+        {
+          "key": "number",
+          "label": "Number",
+          "sensitive": false
+        },
+        {
+          "key": "date",
+          "label": "Date",
+          "sensitive": false
+        },
+        {
+          "key": "customer",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "order",
+          "label": "From order",
+          "sensitive": false
+        },
+        {
+          "key": "amount",
+          "label": "Amount",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from_date",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to_date",
+          "label": "To",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "customer_reference",
+          "label": "Customer PO / Ref",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "customer",
+          "label": "Customer",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "deferred-revenue-roll-forward",
@@ -17943,7 +18048,8 @@
         }
       ],
       "params": [],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "prepaid-expense-roll-forward",
@@ -17993,7 +18099,8 @@
         }
       ],
       "params": [],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "profit-and-loss",
@@ -18054,7 +18161,10 @@
           "required": false
         }
       ],
-      "has_drill_down": true
+      "has_drill_down": true,
+      "has_control_totals": false,
+      "question": "Did we make money in this period?",
+      "description": "Revenue less expenses by account for the dates chosen; each line drills to its GL postings."
     },
     {
       "id": "balance-sheet",
@@ -18109,7 +18219,10 @@
           "required": false
         }
       ],
-      "has_drill_down": true
+      "has_drill_down": true,
+      "has_control_totals": false,
+      "question": "What do we own and owe on a date?",
+      "description": "Assets, liabilities and equity as at the date chosen; each line drills to its GL postings."
     },
     {
       "id": "cash-flow-statement",
@@ -18152,7 +18265,10 @@
           "required": true
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Where did the cash come from and go?",
+      "description": "Cash in and out on 1100 for the dates chosen, by activity."
     },
     {
       "id": "gl-drilldown",
@@ -18199,7 +18315,10 @@
           "required": true
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "What makes up this account's balance?",
+      "description": "Every posting on one account, oldest first, with a running balance."
     },
     {
       "id": "customer-ledger",
@@ -18246,7 +18365,10 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "What has this customer been invoiced?",
+      "description": "Customer invoices with status and amount."
     },
     {
       "id": "tax-ledger",
@@ -18304,7 +18426,10 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "What GST did we post, line by line?",
+      "description": "Every posting on the GST accounts, optionally for a date range."
     },
     {
       "id": "statutory-gl-export",
@@ -18356,6 +18481,16 @@
           "key": "created_at",
           "label": "Date",
           "sensitive": false
+        },
+        {
+          "key": "posted_by",
+          "label": "Posted by",
+          "sensitive": false
+        },
+        {
+          "key": "source_command",
+          "label": "Source command",
+          "sensitive": false
         }
       ],
       "params": [
@@ -18372,7 +18507,166 @@
           "required": true
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "What does the auditor need from the ledger?",
+      "description": "The full GL for a closed period, with poster, for export."
+    },
+    {
+      "id": "gl-journal",
+      "label": "General Journal (who posted what)",
+      "category": "Finance",
+      "module_key": "finance",
+      "columns": [
+        {
+          "key": "created_at",
+          "label": "Posted at",
+          "sensitive": false
+        },
+        {
+          "key": "document_type",
+          "label": "Document Type",
+          "sensitive": false
+        },
+        {
+          "key": "document_id",
+          "label": "Document",
+          "sensitive": false
+        },
+        {
+          "key": "account_code",
+          "label": "Account",
+          "sensitive": false
+        },
+        {
+          "key": "account_name",
+          "label": "Account Name",
+          "sensitive": false
+        },
+        {
+          "key": "debit",
+          "label": "Debit",
+          "sensitive": true
+        },
+        {
+          "key": "credit",
+          "label": "Credit",
+          "sensitive": true
+        },
+        {
+          "key": "posted_by",
+          "label": "Posted by",
+          "sensitive": false
+        },
+        {
+          "key": "source_command",
+          "label": "Source command",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "start",
+          "label": "From",
+          "type": "date",
+          "required": true
+        },
+        {
+          "key": "end",
+          "label": "To",
+          "type": "date",
+          "required": true
+        },
+        {
+          "key": "document_type",
+          "label": "Document type (optional)",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "posted_by",
+          "label": "Posted by (username, service:job, or \"before attribution\")",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "attribution",
+          "label": "Attribution",
+          "type": "select",
+          "options": "All,Attributed,Before attribution",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Who posted what, and from which document?",
+      "description": "Every GL line in the period with the user, job or integration that posted it."
+    },
+    {
+      "id": "gl-posting-review",
+      "label": "GL Posting Review (by poster)",
+      "category": "Finance",
+      "module_key": "finance",
+      "columns": [
+        {
+          "key": "posted_by",
+          "label": "Posted by",
+          "sensitive": false
+        },
+        {
+          "key": "source_command",
+          "label": "Source commands",
+          "sensitive": false
+        },
+        {
+          "key": "lines",
+          "label": "GL lines",
+          "sensitive": false
+        },
+        {
+          "key": "documents",
+          "label": "Documents",
+          "sensitive": false
+        },
+        {
+          "key": "debit",
+          "label": "Debit",
+          "sensitive": true
+        },
+        {
+          "key": "credit",
+          "label": "Credit",
+          "sensitive": true
+        },
+        {
+          "key": "first_posted",
+          "label": "First posted",
+          "sensitive": false
+        },
+        {
+          "key": "last_posted",
+          "label": "Last posted",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "start",
+          "label": "From",
+          "type": "date",
+          "required": true
+        },
+        {
+          "key": "end",
+          "label": "To",
+          "type": "date",
+          "required": true
+        }
+      ],
+      "has_drill_down": true,
+      "has_control_totals": false,
+      "question": "Which people and jobs posted to the ledger?",
+      "description": "GL lines grouped by poster for the period; drills to that poster's lines."
     },
     {
       "id": "cost-center-pl",
@@ -18410,7 +18704,8 @@
           "required": true
         }
       ],
-      "has_drill_down": true
+      "has_drill_down": true,
+      "has_control_totals": false
     },
     {
       "id": "department-pl",
@@ -18448,7 +18743,8 @@
           "required": true
         }
       ],
-      "has_drill_down": true
+      "has_drill_down": true,
+      "has_control_totals": false
     },
     {
       "id": "help-article-feedback",
@@ -18488,7 +18784,8 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "entity-trial-balance",
@@ -18541,7 +18838,8 @@
           "required": true
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "intercompany-reconciliation",
@@ -18593,7 +18891,8 @@
           "required": true
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "consolidated-trial-balance",
@@ -18645,7 +18944,455 @@
           "required": true
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "item-classification-register",
+      "label": "Item Classification Register",
+      "category": "Inventory",
+      "module_key": "inventory",
+      "columns": [
+        {
+          "key": "sku",
+          "label": "SKU",
+          "sensitive": false
+        },
+        {
+          "key": "name",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "profile",
+          "label": "Item Type",
+          "sensitive": false
+        },
+        {
+          "key": "commercial_class",
+          "label": "Class",
+          "sensitive": false
+        },
+        {
+          "key": "stock_tracking",
+          "label": "Stock",
+          "sensitive": false
+        },
+        {
+          "key": "valuation",
+          "label": "Valuation",
+          "sensitive": false
+        },
+        {
+          "key": "accounting_treatment",
+          "label": "Accounting",
+          "sensitive": false
+        },
+        {
+          "key": "sellability",
+          "label": "Sellability",
+          "sensitive": false
+        },
+        {
+          "key": "bill_mode",
+          "label": "Bill",
+          "sensitive": false
+        },
+        {
+          "key": "capture_method",
+          "label": "Capture",
+          "sensitive": false
+        },
+        {
+          "key": "consumption_method",
+          "label": "Consumption",
+          "sensitive": false
+        },
+        {
+          "key": "overrides",
+          "label": "Item overrides",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "item_type",
+          "label": "Item Type",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "sellability",
+          "label": "Sellability",
+          "type": "select",
+          "options": ",Normal sale,Promo only,Not sellable,Stored-value issue only",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "item-master-completeness",
+      "label": "Item Master Completeness",
+      "category": "Exceptions",
+      "module_key": "reports",
+      "columns": [
+        {
+          "key": "sku",
+          "label": "SKU",
+          "sensitive": false
+        },
+        {
+          "key": "name",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "profile",
+          "label": "Item Type",
+          "sensitive": false
+        },
+        {
+          "key": "missing",
+          "label": "Missing",
+          "sensitive": false
+        }
+      ],
+      "params": [],
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "backflush-consumption",
+      "label": "Backflush Consumption",
+      "category": "Inventory",
+      "module_key": "inventory",
+      "columns": [
+        {
+          "key": "date",
+          "label": "Date",
+          "sensitive": false
+        },
+        {
+          "key": "bill",
+          "label": "Bill",
+          "sensitive": false
+        },
+        {
+          "key": "store",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "sold_sku",
+          "label": "Sold item",
+          "sensitive": false
+        },
+        {
+          "key": "group",
+          "label": "Group",
+          "sensitive": false
+        },
+        {
+          "key": "component",
+          "label": "Consumed",
+          "sensitive": false
+        },
+        {
+          "key": "qty",
+          "label": "Qty",
+          "sensitive": false
+        },
+        {
+          "key": "default_component",
+          "label": "Default",
+          "sensitive": false
+        },
+        {
+          "key": "overridden",
+          "label": "Changed",
+          "sensitive": false
+        },
+        {
+          "key": "reason",
+          "label": "Reason",
+          "sensitive": false
+        },
+        {
+          "key": "rule",
+          "label": "Rule (version)",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "store",
+          "label": "Store",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "gwp-issue-register",
+      "label": "Gift With Purchase Register",
+      "category": "Sales",
+      "module_key": "sales",
+      "columns": [
+        {
+          "key": "date",
+          "label": "Date",
+          "sensitive": false
+        },
+        {
+          "key": "bill",
+          "label": "Bill",
+          "sensitive": false
+        },
+        {
+          "key": "store",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "customer",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "gift",
+          "label": "Gift",
+          "sensitive": false
+        },
+        {
+          "key": "qty",
+          "label": "Qty",
+          "sensitive": false
+        },
+        {
+          "key": "offer",
+          "label": "Offer",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "non-valuated-stock",
+      "label": "Non-Valuated Stock",
+      "category": "Inventory",
+      "module_key": "inventory",
+      "columns": [
+        {
+          "key": "sku",
+          "label": "SKU",
+          "sensitive": false
+        },
+        {
+          "key": "name",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "profile",
+          "label": "Item Type",
+          "sensitive": false
+        },
+        {
+          "key": "store",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "on_hand",
+          "label": "On hand",
+          "sensitive": false
+        },
+        {
+          "key": "available",
+          "label": "Available",
+          "sensitive": false
+        }
+      ],
+      "params": [],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Which stock has no cost on record?",
+      "description": "Items with stock but no unit cost - valued at zero until costed."
+    },
+    {
+      "id": "inactive-items-with-stock",
+      "label": "Inactive Items With Stock",
+      "category": "Exceptions",
+      "module_key": "reports",
+      "columns": [
+        {
+          "key": "sku",
+          "label": "SKU",
+          "sensitive": false
+        },
+        {
+          "key": "name",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        },
+        {
+          "key": "store",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "on_hand",
+          "label": "On hand",
+          "sensitive": false
+        }
+      ],
+      "params": [],
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "item-exceptions",
+      "label": "Item Exceptions",
+      "category": "Exceptions",
+      "module_key": "reports",
+      "columns": [
+        {
+          "key": "date",
+          "label": "Date",
+          "sensitive": false
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "sensitive": false
+        },
+        {
+          "key": "source",
+          "label": "Source",
+          "sensitive": false
+        },
+        {
+          "key": "sku",
+          "label": "SKU",
+          "sensitive": false
+        },
+        {
+          "key": "store",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "code",
+          "label": "Code",
+          "sensitive": false
+        },
+        {
+          "key": "message",
+          "label": "What happened",
+          "sensitive": false
+        },
+        {
+          "key": "qty",
+          "label": "Qty",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "select",
+          "options": ",Open,Logged,Resolved",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "loyalty-points-movement",
+      "label": "Loyalty Points Movement",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "movement",
+          "label": "Movement",
+          "sensitive": false
+        },
+        {
+          "key": "points",
+          "label": "Points",
+          "sensitive": false
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "sensitive": true
+        }
+      ],
+      "params": [
+        {
+          "key": "from_date",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to_date",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "production_cost_variance",
@@ -18695,7 +19442,8 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "competitor-price-gap",
@@ -18792,7 +19540,8 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "oms-exception-queue",
@@ -18832,7 +19581,8 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "oms-reconciliation-variance",
@@ -18867,7 +19617,8 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "order-aging",
@@ -18892,7 +19643,10 @@
         }
       ],
       "params": null,
-      "has_drill_down": true
+      "has_drill_down": true,
+      "has_control_totals": false,
+      "question": "Which orders are waiting too long?",
+      "description": "Open orders by age and status."
     },
     {
       "id": "sla-breach",
@@ -18939,7 +19693,10 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Which orders missed their promise?",
+      "description": "Orders past their dispatch or delivery SLA."
     },
     {
       "id": "allocation-pending",
@@ -18974,7 +19731,8 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "stock-mismatch",
@@ -19039,7 +19797,8 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "return-aging",
@@ -19059,7 +19818,10 @@
         }
       ],
       "params": null,
-      "has_drill_down": true
+      "has_drill_down": true,
+      "has_control_totals": false,
+      "question": "Which returns are waiting to be processed?",
+      "description": "Open returns by age and status."
     },
     {
       "id": "reserved-stock",
@@ -19099,7 +19861,8 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "courier-performance",
@@ -19139,7 +19902,8 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "orphaned-channel-orders",
@@ -19174,7 +19938,74 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "payroll-reconciliation",
+      "label": "Payroll Reconciliation (gross to bank to GL)",
+      "category": "HR",
+      "module_key": "hr",
+      "columns": [
+        {
+          "key": "step",
+          "label": "Step",
+          "sensitive": false
+        },
+        {
+          "key": "label",
+          "label": "What is compared",
+          "sensitive": false
+        },
+        {
+          "key": "payslips",
+          "label": "Payslips",
+          "sensitive": false
+        },
+        {
+          "key": "source_total",
+          "label": "Source total",
+          "sensitive": true
+        },
+        {
+          "key": "gl_total",
+          "label": "Compared with",
+          "sensitive": true
+        },
+        {
+          "key": "difference",
+          "label": "Difference",
+          "sensitive": true
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        },
+        {
+          "key": "note",
+          "label": "Note",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "start",
+          "label": "Pay periods ending from",
+          "type": "date",
+          "required": true
+        },
+        {
+          "key": "end",
+          "label": "Pay periods ending to",
+          "type": "date",
+          "required": true
+        }
+      ],
+      "has_drill_down": true,
+      "has_control_totals": false,
+      "question": "Does payroll agree from gross pay to the bank and the ledger?",
+      "description": "Payslip gross, deductions and net against the GL, salary paid, and payments confirmed on the bank statement."
     },
     {
       "id": "pim-product-group-readiness",
@@ -19221,7 +20052,8 @@
           "required": true
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "pim-task-workload",
@@ -19261,7 +20093,8 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "pim-task-overdue",
@@ -19318,7 +20151,8 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "pim-workflow-stalled",
@@ -19368,7 +20202,8 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "demand-forecast",
@@ -19412,7 +20247,8 @@
           "required": true
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "reorder-suggestions",
@@ -19481,7 +20317,10 @@
           "required": true
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "What should we reorder?",
+      "description": "Items under their reorder level with the suggested quantity."
     },
     {
       "id": "pegged-demand-supply",
@@ -19529,7 +20368,8 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "production-capacity-schedule",
@@ -19574,7 +20414,8 @@
         }
       ],
       "params": [],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "pos-sale-reconciliation",
@@ -19667,7 +20508,10 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Did every till sale post correctly?",
+      "description": "Each POS sale against the tender, revenue, tax and stock it posted."
     },
     {
       "id": "project-pl",
@@ -19705,7 +20549,8 @@
           "required": true
         }
       ],
-      "has_drill_down": true
+      "has_drill_down": true,
+      "has_control_totals": false
     },
     {
       "id": "current-stock",
@@ -19750,7 +20595,10 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "How much do we have, and where?",
+      "description": "On hand, available, committed and reserved per item and location."
     },
     {
       "id": "sales-register",
@@ -19795,7 +20643,10 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": true,
+      "question": "What did we sell at the till?",
+      "description": "Paid and settled POS sales with their total; control totals tie them to revenue and output GST."
     },
     {
       "id": "vendor-ledger",
@@ -19842,7 +20693,10 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "What have we ordered from this vendor?",
+      "description": "Purchase orders by vendor with status and amount."
     },
     {
       "id": "payables-ageing",
@@ -19857,7 +20711,7 @@
         },
         {
           "key": "count",
-          "label": "PO Count",
+          "label": "Open Items",
           "sensitive": false
         },
         {
@@ -19867,7 +20721,38 @@
         }
       ],
       "params": null,
-      "has_drill_down": true
+      "has_drill_down": true,
+      "has_control_totals": true,
+      "question": "What do we owe suppliers for goods received, and for how long?",
+      "description": "Goods received and not yet paid, per receipt, by age from the bill's due date (else the receipt date); part-payments are taken off. Control totals tie it to 2100 GRN Suspense."
+    },
+    {
+      "id": "po-commitments",
+      "label": "Open Purchase Commitments",
+      "category": "Procurement",
+      "module_key": "procurement",
+      "columns": [
+        {
+          "key": "bucket",
+          "label": "Age Bucket",
+          "sensitive": false
+        },
+        {
+          "key": "count",
+          "label": "PO Count",
+          "sensitive": false
+        },
+        {
+          "key": "amount",
+          "label": "Committed Amount",
+          "sensitive": true
+        }
+      ],
+      "params": null,
+      "has_drill_down": true,
+      "has_control_totals": true,
+      "question": "What have we committed to buy, and how old is it?",
+      "description": "Approved purchase orders not yet closed, by age. These are commitments, not ledger liabilities - the control totals say so."
     },
     {
       "id": "receivables-ageing",
@@ -19892,7 +20777,10 @@
         }
       ],
       "params": null,
-      "has_drill_down": true
+      "has_drill_down": true,
+      "has_control_totals": true,
+      "question": "Who owes us, and for how long?",
+      "description": "Open customer invoices by age from their due date; control totals tie them to 1300 Accounts Receivable."
     },
     {
       "id": "gst-return-summary",
@@ -19985,7 +20873,10 @@
           "required": true
         }
       ],
-      "has_drill_down": true
+      "has_drill_down": true,
+      "has_control_totals": true,
+      "question": "What GST do we owe for this return period?",
+      "description": "Output GST, taxable and non-taxable value and input credit for the dates chosen; control totals tie the tax lines to the ledger."
     },
     {
       "id": "grn-register",
@@ -20020,7 +20911,10 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "What have we received?",
+      "description": "Goods receipts with their purchase order and lines."
     },
     {
       "id": "cash-book",
@@ -20060,7 +20954,10 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "What went through the cash account?",
+      "description": "Every 1100 Cash/Bank posting with a running balance."
     },
     {
       "id": "bank-book",
@@ -20107,7 +21004,10 @@
           "required": true
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "What went through this bank account?",
+      "description": "Every posting on the bank account's GL code with a running balance."
     },
     {
       "id": "asset-register",
@@ -20162,7 +21062,10 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "What fixed assets do we hold, and what are they worth?",
+      "description": "Each asset with cost, accumulated depreciation and book value."
     },
     {
       "id": "loyalty-summary",
@@ -20197,7 +21100,10 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "How are points being earned and used?",
+      "description": "Earned, redeemed and balance per customer."
     },
     {
       "id": "production-order-status",
@@ -20237,7 +21143,8 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "rfq-comparison",
@@ -20274,7 +21181,10 @@
           "required": true
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Which vendor quoted best?",
+      "description": "Quotes side by side for one request for quotation."
     },
     {
       "id": "stock-ledger",
@@ -20375,7 +21285,10 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "What moved in and out of stock?",
+      "description": "Every stock movement with its source document."
     },
     {
       "id": "exception-stale-approvals",
@@ -20412,7 +21325,8 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "exception-failed-syncs",
@@ -20442,7 +21356,8 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "attendance-summary",
@@ -20520,7 +21435,10 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Who was present, absent or on leave?",
+      "description": "Attendance days per employee for the dates chosen."
     },
     {
       "id": "exception-negative-stock",
@@ -20565,7 +21483,10 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Where has stock gone negative?",
+      "description": "Item and location pairs below zero."
     },
     {
       "id": "report-performance",
@@ -20618,7 +21539,90 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "post-sale-edit-history",
+      "label": "Post-Sale Edit History",
+      "category": "Sales",
+      "module_key": "sales",
+      "columns": [
+        {
+          "key": "edited_at",
+          "label": "When",
+          "sensitive": false
+        },
+        {
+          "key": "document_type",
+          "label": "Document",
+          "sensitive": false
+        },
+        {
+          "key": "document_id",
+          "label": "Number",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status then",
+          "sensitive": false
+        },
+        {
+          "key": "field",
+          "label": "Field",
+          "sensitive": false
+        },
+        {
+          "key": "before",
+          "label": "Before",
+          "sensitive": false
+        },
+        {
+          "key": "after",
+          "label": "After",
+          "sensitive": false
+        },
+        {
+          "key": "edited_by",
+          "label": "Changed by",
+          "sensitive": false
+        },
+        {
+          "key": "reason",
+          "label": "Reason",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from_date",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to_date",
+          "label": "To",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "document_type",
+          "label": "Document type",
+          "type": "select",
+          "options": ",Sales Invoice,Sales Order,Till bill",
+          "required": false
+        },
+        {
+          "key": "document_id",
+          "label": "Number",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "serial-inquiry",
@@ -20688,7 +21692,8 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "serial-movement-history",
@@ -20756,7 +21761,8 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "service-sla-breaches",
@@ -20796,7 +21802,8 @@
         }
       ],
       "params": [],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "oms-unsettled-settlements",
@@ -20831,7 +21838,10 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Which marketplace orders are not yet paid out?",
+      "description": "Delivered marketplace orders with no settlement line."
     },
     {
       "id": "oms-settlement-variance",
@@ -20891,7 +21901,217 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Where did a marketplace pay us a different amount?",
+      "description": "Settlement lines held as variance for dispute or write-off."
+    },
+    {
+      "id": "stock-book-vs-ledger",
+      "label": "Stock Book vs Ledger (drift finder)",
+      "category": "Inventory",
+      "module_key": "inventory",
+      "columns": [
+        {
+          "key": "sku",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "location_code",
+          "label": "Location",
+          "sensitive": false
+        },
+        {
+          "key": "on_hand",
+          "label": "On hand (book)",
+          "sensitive": false
+        },
+        {
+          "key": "ledger_sum",
+          "label": "Ledger total",
+          "sensitive": false
+        },
+        {
+          "key": "difference",
+          "label": "Difference",
+          "sensitive": false
+        },
+        {
+          "key": "ledger_lines",
+          "label": "Ledger lines",
+          "sensitive": false
+        },
+        {
+          "key": "hint",
+          "label": "What it suggests",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "sku",
+          "label": "Item Code (optional)",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "location",
+          "label": "Location (optional)",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "all",
+          "label": "Include rows that agree",
+          "type": "select",
+          "options": "No,Yes",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "stored-value-liability",
+      "label": "Gift Card Liability",
+      "category": "Finance",
+      "module_key": "finance",
+      "columns": [
+        {
+          "key": "card",
+          "label": "Card",
+          "sensitive": false
+        },
+        {
+          "key": "profile",
+          "label": "Profile",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        },
+        {
+          "key": "loaded",
+          "label": "Loaded",
+          "sensitive": false
+        },
+        {
+          "key": "redeemed",
+          "label": "Used / cancelled",
+          "sensitive": false
+        },
+        {
+          "key": "balance",
+          "label": "Outstanding",
+          "sensitive": false
+        },
+        {
+          "key": "expires_on",
+          "label": "Expires",
+          "sensitive": false
+        },
+        {
+          "key": "issued_at",
+          "label": "Store issued",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "select",
+          "options": ",Inactive,Active,Partially redeemed,Fully redeemed,Blocked,Cancelled",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "What do we owe on gift cards?",
+      "description": "Outstanding gift card balances against the liability account."
+    },
+    {
+      "id": "stored-value-ledger",
+      "label": "Gift Card Ledger",
+      "category": "Finance",
+      "module_key": "finance",
+      "columns": [
+        {
+          "key": "at",
+          "label": "When",
+          "sensitive": false
+        },
+        {
+          "key": "card",
+          "label": "Card",
+          "sensitive": false
+        },
+        {
+          "key": "seq",
+          "label": "#",
+          "sensitive": false
+        },
+        {
+          "key": "event",
+          "label": "Event",
+          "sensitive": false
+        },
+        {
+          "key": "amount",
+          "label": "Amount",
+          "sensitive": false
+        },
+        {
+          "key": "balance_after",
+          "label": "Balance after",
+          "sensitive": false
+        },
+        {
+          "key": "source",
+          "label": "Source",
+          "sensitive": false
+        },
+        {
+          "key": "location",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "user",
+          "label": "User",
+          "sensitive": false
+        },
+        {
+          "key": "reason",
+          "label": "Reason",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "card",
+          "label": "Last 4 digits",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "batch-near-expiry",
@@ -20943,7 +22163,8 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "batch-stock-inquiry",
@@ -21017,7 +22238,8 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "batch-movement-history",
@@ -21090,7 +22312,166 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "batch-ageing",
+      "label": "Batch Lookup \u0026 Ageing",
+      "category": "Inventory",
+      "module_key": "inventory",
+      "columns": [
+        {
+          "key": "batch_no",
+          "label": "Batch",
+          "sensitive": false
+        },
+        {
+          "key": "sku",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "received_on",
+          "label": "Received On",
+          "sensitive": false
+        },
+        {
+          "key": "age_days",
+          "label": "Age (days)",
+          "sensitive": false
+        },
+        {
+          "key": "age_band",
+          "label": "Age Band",
+          "sensitive": false
+        },
+        {
+          "key": "grn",
+          "label": "GRN",
+          "sensitive": false
+        },
+        {
+          "key": "vendor",
+          "label": "Supplier",
+          "sensitive": false
+        },
+        {
+          "key": "received_qty",
+          "label": "Received Qty",
+          "sensitive": false
+        },
+        {
+          "key": "est_qty_left",
+          "label": "Est. Left (FIFO)",
+          "sensitive": false
+        },
+        {
+          "key": "expiry_date",
+          "label": "Expires",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Batch Status",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "scan",
+          "label": "Scan batch, barcode or SKU",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "min_age_days",
+          "label": "Older than (days)",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "show",
+          "label": "Show",
+          "type": "select",
+          "options": "All batches,Only with stock left",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Where is this batch, and how old is it?",
+      "description": "Batch lookup with its age and remaining quantity."
+    },
+    {
+      "id": "stock-ageing",
+      "label": "Stock Ageing (by GRN batch)",
+      "category": "Inventory",
+      "module_key": "inventory",
+      "columns": [
+        {
+          "key": "sku",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "on_hand",
+          "label": "On Hand",
+          "sensitive": false
+        },
+        {
+          "key": "band_0_30",
+          "label": "0-30 days",
+          "sensitive": false
+        },
+        {
+          "key": "band_31_60",
+          "label": "31-60 days",
+          "sensitive": false
+        },
+        {
+          "key": "band_61_90",
+          "label": "61-90 days",
+          "sensitive": false
+        },
+        {
+          "key": "band_91_180",
+          "label": "91-180 days",
+          "sensitive": false
+        },
+        {
+          "key": "band_180_plus",
+          "label": "Over 180 days",
+          "sensitive": false
+        },
+        {
+          "key": "before_batches",
+          "label": "Before batch numbers",
+          "sensitive": false
+        },
+        {
+          "key": "oldest_batch",
+          "label": "Oldest Batch Held",
+          "sensitive": false
+        },
+        {
+          "key": "oldest_received_on",
+          "label": "Oldest Received On",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "scan",
+          "label": "Scan barcode or SKU (optional)",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "How old is the stock on the shelf?",
+      "description": "Stock by receipt batch and age."
     },
     {
       "id": "3pl-storage-billing",
@@ -21169,7 +22550,74 @@
           "required": true
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "bin-stock-reconciliation",
+      "label": "Bin Stock Reconciliation",
+      "category": "WMS",
+      "module_key": "wms",
+      "columns": [
+        {
+          "key": "location_code",
+          "label": "Location",
+          "sensitive": false
+        },
+        {
+          "key": "sku",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "on_hand",
+          "label": "On Hand",
+          "sensitive": false
+        },
+        {
+          "key": "binned",
+          "label": "In Bins",
+          "sensitive": false
+        },
+        {
+          "key": "in_pick",
+          "label": "Picked, Not Dispatched",
+          "sensitive": false
+        },
+        {
+          "key": "unbinned",
+          "label": "Difference",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "sku",
+          "label": "Item Code (optional)",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "location",
+          "label": "Location (optional)",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "mismatches_only",
+          "label": "Show",
+          "type": "select",
+          "options": "Mismatches only,All rows",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "cross-facility-stock",
@@ -21211,7 +22659,8 @@
           "required": true
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "facility-rollup",
@@ -21253,7 +22702,8 @@
           "required": true
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "labor-enterprise-productivity",
@@ -21301,7 +22751,8 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "labor-facility-performance",
@@ -21349,7 +22800,8 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "labor-task-productivity",
@@ -21397,7 +22849,8 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "labor-user-performance",
@@ -21445,7 +22898,8 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "labor-standards-audit",
@@ -21485,7 +22939,8 @@
         }
       ],
       "params": null,
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "labor-cost",
@@ -21533,7 +22988,8 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "storage-billing-v2",
@@ -21607,7 +23063,59 @@
           "required": true
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "owner-stock-exceptions",
+      "label": "Owner Stock Exceptions (3PL)",
+      "category": "WMS",
+      "module_key": "wms",
+      "columns": [
+        {
+          "key": "kind",
+          "label": "Exception",
+          "sensitive": false
+        },
+        {
+          "key": "location_code",
+          "label": "Location",
+          "sensitive": false
+        },
+        {
+          "key": "bin_code",
+          "label": "Bin",
+          "sensitive": false
+        },
+        {
+          "key": "sku",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "condition",
+          "label": "Condition",
+          "sensitive": false
+        },
+        {
+          "key": "bin_qty",
+          "label": "Bin Qty",
+          "sensitive": false
+        },
+        {
+          "key": "owner_qty",
+          "label": "Owner Qty",
+          "sensitive": false
+        },
+        {
+          "key": "detail",
+          "label": "What to do",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "owner-stock-inquiry",
@@ -21666,7 +23174,8 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "labor-productivity",
@@ -21719,7 +23228,8 @@
           "required": false
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "slotting-suggestions",
@@ -21776,7 +23286,8 @@
           "required": true
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "unslotting-suggestions",
@@ -21823,7 +23334,8 @@
           "required": true
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "consolidation-suggestions",
@@ -21870,7 +23382,8 @@
           "required": true
         }
       ],
-      "has_drill_down": false
+      "has_drill_down": false,
+      "has_control_totals": false
     }
   ]
 }

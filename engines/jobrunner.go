@@ -3,6 +3,7 @@ package engines
 import (
 	"context"
 	"custom_erp/db"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -110,6 +111,19 @@ func EnqueueJobContext(ctx context.Context, tenantID, jobType string, payload ma
 }
 
 func enqueueJobInSchema(schema, jobType string, payload map[string]interface{}, idempotencyKey, correlationID string) (string, error) {
+	return enqueueJobWith(db.DB, schema, jobType, payload, idempotencyKey, correlationID)
+}
+
+// jobEnqueuer is satisfied by both *sql.DB and *sql.Tx, so a caller that
+// must commit a job together with its own row (Stage 73.2.13's notification
+// log) enqueues inside its transaction - the outbox guarantee - rather than
+// after it.
+type jobEnqueuer interface {
+	Exec(query string, args ...interface{}) (sql.Result, error)
+	QueryRow(query string, args ...interface{}) *sql.Row
+}
+
+func enqueueJobWith(q jobEnqueuer, schema, jobType string, payload map[string]interface{}, idempotencyKey, correlationID string) (string, error) {
 	if jobType == "" {
 		return "", fmt.Errorf("a job needs a job_type")
 	}
@@ -121,7 +135,7 @@ func enqueueJobInSchema(schema, jobType string, payload map[string]interface{}, 
 		return "", fmt.Errorf("job payload of %d bytes exceeds the %d byte limit", len(payloadBytes), jobMaxPayloadBytes)
 	}
 	jobID := NewDocID("JOB")
-	_, err = db.DB.Exec(fmt.Sprintf(`
+	_, err = q.Exec(fmt.Sprintf(`
 		INSERT INTO %s.async_jobs (id, job_type, payload, idempotency_key, correlation_id)
 		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (job_type, idempotency_key) WHERE idempotency_key <> '' DO NOTHING`, schema),
@@ -137,7 +151,7 @@ func enqueueJobInSchema(schema, jobType string, payload map[string]interface{}, 
 	// re-read so the caller always gets back the job that actually owns this
 	// idempotency key, not the id it merely tried to insert.
 	var existingID string
-	if err := db.DB.QueryRow(fmt.Sprintf(
+	if err := q.QueryRow(fmt.Sprintf(
 		`SELECT id FROM %s.async_jobs WHERE job_type = $1 AND idempotency_key = $2`, schema),
 		jobType, idempotencyKey).Scan(&existingID); err != nil {
 		return "", err
@@ -207,7 +221,12 @@ func runClaimedJobsContext(ctx context.Context, schema string) {
 		runningJobs.Unlock()
 		watchDone := make(chan struct{})
 		go watchJobCancellation(jobCtx, schema, job.ID, cancel, watchDone)
-		result, err := handler(jobCtx, schema, job)
+		// Stage 73.1.9: GL rows a job posts name the job, not a user.
+		var result map[string]interface{}
+		func() {
+			defer BindPostingActor(PostingActor{PostedBy: "service:job", SourceCommand: "job:" + job.JobType})()
+			result, err = handler(jobCtx, schema, job)
+		}()
 		cancel()
 		<-watchDone
 		runningJobs.Lock()
@@ -458,7 +477,7 @@ func ListJobs(tenantID, statusFilter, jobTypeFilter string, limit int) ([]map[st
 func quarantineStaleExternalDispatchJobsInSchema(schema string) (int64, error) {
 	result, err := db.DB.Exec(fmt.Sprintf(`
 		UPDATE %s.async_jobs SET status = 'Quarantined', updated_at = CURRENT_TIMESTAMP
-		WHERE job_type = $1 AND status = 'Pending'`, schema), webhookDeliveryJobType)
+		WHERE job_type IN ($1, $2) AND status = 'Pending'`, schema), webhookDeliveryJobType, notificationDeliveryJobType)
 	if err != nil {
 		return 0, err
 	}

@@ -173,6 +173,8 @@
         "engines/document_mirror_fields.go",
         "engines/numbering.go",
         "engines/number_series.go",
+        "engines/master_codes.go",
+        "engines/document_regions.go",
         "engines/master_data_validation.go",
         "engines/hsn_catalog.go",
         "engines/hsn_suggest.go",
@@ -235,6 +237,8 @@
         "engines/settings_registry.go",
         "engines/settings_definitions.go",
         "engines/setup_advisor.go",
+        "engines/setup_path.go",
+        "internal/server/handlers_setup_path.go",
         "engines/labels.go",
         "internal/server/handlers_settings.go",
         "internal/server/handlers_setup_advisor.go",
@@ -247,7 +251,9 @@
       "name": "Approval Engine (maker-checker)",
       "role": "Amount-banded approval rules, submit → decide → log, bulk decisions, and reset-to-pending when an approved document is edited. Every approval-gated flow in the system routes through this one engine rather than rolling its own.",
       "match": [
-        "engines/approval.go"
+        "engines/approval.go",
+        "engines/task_inbox.go",
+        "internal/server/handlers_task_inbox.go"
       ]
     },
     {
@@ -284,11 +290,18 @@
         "engines/accounting_periods.go",
         "engines/voucher.go",
         "engines/bank_reconciliation.go",
+        "engines/bank_reconciliation_workbench.go",
+        "engines/partial_settlement.go",
+        "engines/period_close.go",
+        "engines/posting_actor.go",
+        "engines/gl_attribution_reports.go",
+        "internal/server/handlers_finance_close.go",
         "engines/payment_proposal.go",
         "engines/payment_file.go",
         "engines/sales_invoice.go",
         "engines/vendor_invoice.go",
         "engines/order_invoice.go",
+        "engines/customer_reference_report.go",
         "engines/notes.go",
         "internal/server/handlers_finance_maturity.go",
         "internal/server/handlers_finance_stage26.go",
@@ -314,6 +327,8 @@
         "engines/gst.go",
         "engines/tds.go",
         "engines/gst_place_of_supply.go",
+        "engines/regions.go",
+        "engines/tax_ids.go",
         "engines/amount_words.go"
       ]
     },
@@ -334,7 +349,12 @@
         "internal/server/handlers_po_design.go",
         "engines/item_names.go",
         "engines/purchase_return.go",
-        "internal/server/handlers_purchase_return.go"
+        "internal/server/handlers_purchase_return.go",
+        "engines/po_receipt_policy.go",
+        "engines/po_auto_cancel.go",
+        "internal/server/handlers_po_policy.go",
+        "engines/rfq_sourcing.go",
+        "internal/server/handlers_rfq.go"
       ]
     },
     {
@@ -356,7 +376,12 @@
         "engines/location_masters.go",
         "engines/optimization.go",
         "engines/reservation_sweeper.go",
-        "engines/planning.go"
+        "engines/planning.go",
+        "engines/transfer_lifecycle.go",
+        "internal/server/handlers_transfers.go",
+        "engines/stock_book_ledger.go",
+        "engines/supply_proposals.go",
+        "internal/server/handlers_supply_proposals.go"
       ]
     },
     {
@@ -373,7 +398,10 @@
         "engines/warehouse_*.go",
         "internal/server/handlers_wms*.go",
         "internal/server/handlers_traceability.go",
-        "internal/server/handlers_warehouse_task.go"
+        "internal/server/handlers_warehouse_task.go",
+        "internal/server/handlers_owner_isolation.go",
+        "internal/server/handlers_inbound_work.go",
+        "internal/server/handlers_outbound_work.go"
       ]
     },
     {
@@ -384,6 +412,9 @@
       "match": [
         "engines/orders.go",
         "engines/oms_console.go",
+        "engines/oms_exception_queues.go",
+        "engines/order_changes.go",
+        "public/oms.css",
         "engines/order_mutations.go",
         "engines/fulfillment.go",
         "engines/fulfillment_pickpack.go",
@@ -421,7 +452,17 @@
         "engines/command_idempotency.go",
         "engines/returns_atomic.go",
         "engines/field_semantics.go",
-        "internal/server/handlers_pos_offers.go"
+        "internal/server/handlers_pos_offers.go",
+        "engines/sale_allocation.go",
+        "engines/sale_edit_history.go",
+        "engines/pos_tenders.go",
+        "engines/pos_cash_movements.go",
+        "engines/pos_held_bills.go",
+        "engines/pos_exchange.go",
+        "engines/pos_customer_context.go",
+        "internal/server/handlers_pos_loyalty.go",
+        "internal/server/handlers_pos_cash.go",
+        "internal/server/handlers_pos_held.go"
       ]
     },
     {
@@ -431,6 +472,8 @@
       "role": "Family/attribute framework, taxonomy, approval-gated content with versions and rollback, completeness scoring, media library, bulk edit and CSV round-trip, channel publish queue, and barcode/label printing. Stage 36.2 adds the task & workflow engine: assignable tasks with a terminal-state machine and an append-only comment thread, reusable task templates instantiated against a product group, and declarative table-driven workflow definitions whose runs advance on task completion against a closed condition vocabulary. Stage 36.5 adds declarative value-transform rules (a closed function vocabulary, applied by both the channel-publish and import paths); Stage 36.3 adds import depth on top of it: column-mapping templates, a scheduled directory scan, an inbound webhook, and variant-parent-aware preview.",
       "match": [
         "engines/pim*.go",
+        "engines/attribute_library*",
+        "cmd/genattrlib/*",
         "engines/stickers.go",
         "engines/sticker_document_source.go",
         "engines/barcode_policy.go",
@@ -455,7 +498,9 @@
         "engines/crm_analytics.go",
         "engines/crm_reports_stage26.go",
         "internal/server/handlers_crm_analytics.go",
-        "internal/server/handlers_crm_stage26.go"
+        "internal/server/handlers_crm_stage26.go",
+        "internal/server/handlers_loyalty_admin.go",
+        "engines/marketing_consent.go"
       ]
     },
     {
@@ -466,7 +511,12 @@
       "match": [
         "engines/hr.go",
         "engines/hr_payroll.go",
-        "internal/server/handlers_hr_payroll_stage26.go"
+        "internal/server/handlers_hr_payroll_stage26.go",
+        "engines/hr_leave_balance.go",
+        "engines/payroll_reconciliation.go",
+        "internal/server/handlers_hr_usability.go",
+        "engines/hr_journeys.go",
+        "internal/server/handlers_hr_journeys.go"
       ]
     },
     {
@@ -476,7 +526,8 @@
       "role": "BOM, production orders (issue → receive), MRP netting, and production scheduling / subcontracting.",
       "match": [
         "engines/manufacturing*.go",
-        "internal/server/handlers_manufacturing_stage26.go"
+        "internal/server/handlers_manufacturing_stage26.go",
+        "internal/server/handlers_material_plan.go"
       ]
     },
     {
@@ -487,19 +538,27 @@
       "match": [
         "engines/assets.go",
         "engines/asset_items.go",
+        "engines/asset_lifecycle.go",
+        "engines/asset_depreciation.go",
+        "internal/server/handlers_asset_depreciation.go",
         "engines/service_management.go",
         "internal/server/handlers_service_management.go",
+        "engines/service_desk.go",
+        "internal/server/handlers_service_desk.go",
         "engines/quality_maintenance.go",
-        "internal/server/handlers_quality_maintenance.go"
+        "internal/server/handlers_quality_maintenance.go",
+        "engines/quality_inspection.go"
       ]
     },
     {
       "id": "expenses",
       "lobe": "business",
       "name": "Expense Management",
-      "role": "Claim → verify → pay, reusing the approval engine and posting to the GL at payment.",
+      "role": "Claim → verify → pay, reusing the approval engine and posting to the GL at payment; receipts are kept in the generic document-attachment store (sniffed types, size/count limits, readable by whoever can read the claim).",
       "match": [
-        "engines/expense.go"
+        "engines/expense.go",
+        "engines/attachments.go",
+        "internal/server/handlers_attachments.go"
       ]
     },
     {
@@ -511,6 +570,9 @@
         "engines/reports*.go",
         "engines/report_*.go",
         "engines/scheduled_reports.go",
+        "engines/control_totals.go",
+        "engines/payables_subledger.go",
+        "internal/server/handlers_report_schedules.go",
         "engines/market_intelligence*.go",
         "engines/dashboard*.go",
         "internal/server/handlers_report_engine.go",
@@ -533,9 +595,11 @@
       "id": "data-io",
       "lobe": "business",
       "name": "Bulk Data I/O",
-      "role": "BulkImportCSV — the shared CSV import path (validation, error rows, formula-injection sanitisation) every line-item upload in the system is expected to reuse.",
+      "role": "BulkImportCSV — the shared CSV import path (validation, error rows, formula-injection sanitisation) every line-item upload in the system is expected to reuse — plus resuming a job from its kept failed rows (Stage 55.11).",
       "match": [
-        "engines/import.go"
+        "engines/import.go",
+        "engines/import_resume.go",
+        "internal/server/handlers_import_resume.go"
       ]
     },
     {
@@ -583,6 +647,8 @@
       "match": [
         "engines/extensions.go",
         "engines/public_api_credentials.go",
+        "engines/oauth_client_credentials.go",
+        "internal/server/handlers_oauth_token.go",
         "internal/server/handlers_public_api_admin.go",
         "engines/patchintake.go",
         "extension-sdk/*",

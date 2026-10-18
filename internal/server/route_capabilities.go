@@ -149,6 +149,8 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/approval/log":                                      {LevelAuthenticated, "approval.default"},
 	"GET /api/v1/approval/pending":                                  {LevelAuthenticated, "approval.default"},
 	"GET /api/v1/assets/register":                                   {LevelAuthenticated, "assets.manage"},
+	"GET /api/v1/assets/{id}/lifecycle":                             {LevelAuthenticated, "assets.manage"},
+	"GET /api/v1/assets/{id}/disposal-preview":                      {LevelAuthenticated, "assets.manage"},
 	"GET /api/v1/availability":                                      {LevelAuthenticated, "availability.default"},
 	"GET /api/v1/clevertap/credentials":                             {LevelAuthenticated, "clevertap.default"},
 	"GET /api/v1/clevertap/logs":                                    {LevelAuthenticated, "clevertap.default"},
@@ -160,6 +162,9 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/finance/payment-proposal/{id}/utrs":                {LevelAuthenticated, "finance.default"},
 	"GET /api/v1/finance/periods":                                   {LevelAuthenticated, "finance.default"},
 	"GET /api/v1/finance/periods/{id}/close-checklist":              {LevelAuthenticated, "finance.default"},
+	"GET /api/v1/finance/periods/{id}/close-board":                  {LevelAuthenticated, "finance.default"},
+	"GET /api/v1/finance/bank-reconciliation/workbench":             {LevelAuthenticated, "finance.default"},
+	"GET /api/v1/finance/bank-reconciliation/lines/{id}/candidates": {LevelAuthenticated, "finance.default"},
 	"GET /api/v1/finance/trial-balance":                             {LevelAuthenticated, "finance.statements"},
 	"GET /api/v1/finance/trial-balance/presentation":                {LevelAuthenticated, "finance.statements"},
 	"GET /api/v1/health":                                            {LevelPublic, "health.default"},
@@ -171,14 +176,21 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/help/public/search-index":                          {LevelPublic, "help.default"},
 	"GET /api/v1/help/search-index":                                 {LevelAuthenticated, "help.default"},
 	"GET /api/v1/hr/my-employee":                                    {LevelAuthenticated, "hr.default"},
+	"GET /api/v1/hr/leave-balance":                                  {LevelAuthenticated, "hr.default"},
+	"GET /api/v1/hr/grievance-access":                               {LevelAuthenticated, "hr.default"},
 	"GET /api/v1/hr/payroll-export":                                 {LevelAuthenticated, "hr.payroll"},
 	"GET /api/v1/hr/salary-components":                              {LevelAuthenticated, "hr.payroll"},
 	"GET /api/v1/import/{doctype}/template":                         {LevelAuthenticated, "import.default"},
+	"GET /api/v1/inbox":                                             {LevelAuthenticated, "approval.default"}, // Stage 73.3.3
 	"GET /api/v1/integration/logs":                                  {LevelAuthenticated, "integration.default"},
 	"GET /api/v1/jobs":                                              {LevelAuthenticated, "jobs.default"},
 	"GET /api/v1/localization":                                      {LevelAuthenticated, "localization.default"},
 	"GET /api/v1/loyalty/ledger":                                    {LevelAuthenticated, "crm_loyalty.default"},
+	"/api/v1/loyalty/adjustments":                                   {LevelAuthenticated, "crm_loyalty.default"}, // Stage 73.2.11, manager-only to post
+	"GET /api/v1/loyalty/vouchers":                                  {LevelAuthenticated, "crm_loyalty.default"}, // Stage 55.17
+	"GET /api/v1/loyalty/campaigns":                                 {LevelAuthenticated, "crm_loyalty.default"}, // Stage 55.17
 	"GET /api/v1/manufacturing/active-bom":                          {LevelAuthenticated, "manufacturing.default"},
+	"GET /api/v1/manufacturing/material-plan":                       {LevelAuthenticated, "manufacturing.default"}, // Stage 55.12
 	"GET /api/v1/manufacturing/mrp-suggestions":                     {LevelAuthenticated, "manufacturing.default"},
 	"GET /api/v1/manufacturing/production-schedule":                 {LevelAuthenticated, "manufacturing.default"},
 	"GET /api/v1/marketplace/channels/{channel}/credentials":        {LevelAuthenticated, "oms.default"},
@@ -197,15 +209,22 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/me/permissions":                                    {LevelAuthenticated, "me.default"},
 	"GET /api/v1/meta/doctypes":                                     {LevelAuthenticated, "meta.default"},
 	"GET /api/v1/meta/field-formats":                                {LevelAuthenticated, "meta.default"},
+	"GET /api/v1/master-codes/{doctype}":                            {LevelAuthenticated, "meta.default"},
 	"GET /api/v1/oms/bundles/{sku}/availability":                    {LevelAuthenticated, "oms.default"},
 	"GET /api/v1/oms/gate-passes":                                   {LevelAuthenticated, "oms.default"},
 	"GET /api/v1/oms/orders":                                        {LevelAuthenticated, "oms.default"},
 	"GET /api/v1/oms/orders/search":                                 {LevelAuthenticated, "oms.default"},
 	"GET /api/v1/oms/orders/{id}":                                   {LevelAuthenticated, "oms.default"},
 	"GET /api/v1/oms/pick-queue":                                    {LevelAuthenticated, "oms.default"},
+	"GET /api/v1/oms/queues":                                        {LevelAuthenticated, "oms.default"},
+	"GET /api/v1/oms/queues/{queue}":                                {LevelAuthenticated, "oms.default"},
+	"GET /api/v1/service/desk":                                      {LevelAuthenticated, "service.default"}, // Stage 55.18
+	"GET /api/v1/service/contracts/{id}":                            {LevelAuthenticated, "service.default"}, // Stage 55.18
+	"GET /api/v1/projects/{id}/ledger":                              {LevelAuthenticated, "finance.default"}, // Stage 55.18
 	"GET /api/v1/oms/shipping-packages":                             {LevelAuthenticated, "oms.default"},
 	"GET /api/v1/oms/tiles":                                         {LevelAuthenticated, "oms.default"},
 	"GET /api/v1/oms/views":                                         {LevelAuthenticated, "oms.default"},
+	"GET /api/v1/ops/alerting-status":                               {LevelAuthenticated, "ops.default"}, // Stage 55.21
 	"GET /api/v1/ops/backup-status":                                 {LevelAuthenticated, "ops.default"},
 	"GET /api/v1/ops/deployment-status":                             {LevelAuthenticated, "ops.default"},
 	"GET /api/v1/optimization/replenishment-suggestions":            {LevelAuthenticated, "optimization.default"},
@@ -258,21 +277,29 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/print/document/{txn}/{id}":                         {LevelAuthenticated, "doc.default"},
 	"GET /api/v1/print/catalog":                                     {LevelAuthenticated, "doc.default"},
 	"GET /api/v1/procurement/purchase-order/{id}/excel":             {LevelAuthenticated, "procurement.default"},
+	"GET /api/v1/procurement/purchase-order/{id}/reconciliation":    {LevelAuthenticated, "procurement.default"},
 	"GET /api/v1/reports/catalog":                                   {LevelAuthenticated, "reports.default"},
 	"GET /api/v1/reports/current-stock":                             {LevelAuthenticated, "reports.default"},
 	"GET /api/v1/reports/drilldown/{id}":                            {LevelAuthenticated, "reports.default"},
 	"GET /api/v1/reports/export/{id}":                               {LevelAuthenticated, "reports.default"},
+	"GET /api/v1/reports/exports":                                   {LevelAuthenticated, "reports.default"},
 	"GET /api/v1/reports/gst-return-summary":                        {LevelAuthenticated, "finance.statements"},
 	"GET /api/v1/reports/payables-ageing":                           {LevelAuthenticated, "finance.statements"},
 	"GET /api/v1/reports/receivables-ageing":                        {LevelAuthenticated, "finance.statements"},
 	"GET /api/v1/reports/run/{id}":                                  {LevelAuthenticated, "reports.default"},
+	"GET /api/v1/reports/runs/{id}":                                 {LevelAuthenticated, "reports.default"},
+	"GET /api/v1/reports/schedules":                                 {LevelAuthenticated, "reports.default"},
 	"GET /api/v1/reports/sales-register":                            {LevelAuthenticated, "finance.statements"},
 	"GET /api/v1/reports/vendor-ledger":                             {LevelAuthenticated, "finance.statements"},
 	"GET /api/v1/rfq/quotes":                                        {LevelAuthenticated, "rfq.default"},
+	"GET /api/v1/rfq/{id}/comparison":                               {LevelAuthenticated, "rfq.default"},
 	"GET /api/v1/setup/status":                                      {LevelAuthenticated, "setup.default"},
+	"GET /api/v1/setup/path":                                        {LevelAuthenticated, "setup.default"}, // Stage 55.3
 	"GET /api/v1/stickers/history":                                  {LevelAuthenticated, "stickers.default"},
 	"GET /api/v1/stickers/preview":                                  {LevelAuthenticated, "stickers.default"},
 	"GET /api/v1/system/environment":                                {LevelAuthenticated, "system.default"},
+	"GET /api/v1/transfer/detail":                                   {LevelAuthenticated, "inventory.default"},
+	"GET /api/v1/planning/proposals":                                {LevelAuthenticated, "inventory.default"},
 	"GET /api/v1/unicommerce/credentials":                           {LevelAuthenticated, "oms.default"},
 	"GET /api/v1/unicommerce/inventory-syncs":                       {LevelAuthenticated, "oms.default"},
 	"GET /api/v1/unicommerce/orders":                                {LevelAuthenticated, "oms.default"},
@@ -288,6 +315,14 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/wms/cockpit":                                       {LevelAuthenticated, "wms.default"},
 	"GET /api/v1/wms/cycle-count/abc-plan":                          {LevelAuthenticated, "wms.default"},
 	"GET /api/v1/wms/cycle-count/plan":                              {LevelAuthenticated, "wms.default"},
+	"GET /api/v1/wms/cycle-count/session":                           {LevelAuthenticated, "wms.default"},
+	"GET /api/v1/wms/inbound-work":                                  {LevelAuthenticated, "wms.default"}, // Stage 55.7
+	"POST /api/v1/wms/yard/check-in":                                {LevelAuthenticated, "wms.default"}, // Stage 55.7
+	"POST /api/v1/wms/yard/{id}/door":                               {LevelAuthenticated, "wms.default"}, // Stage 55.7
+	"GET /api/v1/wms/outbound-work":                                 {LevelAuthenticated, "wms.default"}, // Stage 55.8
+	"POST /api/v1/wms/wave/from-selection":                          {LevelAuthenticated, "wms.default"}, // Stage 55.8
+	"GET /api/v1/wms/labor/standard-preview":                        {LevelAuthenticated, "wms.default"}, // Stage 55.8
+	"GET /api/v1/wms/billing/review":                                {LevelAuthenticated, "wms.default"}, // Stage 55.8
 	"GET /api/v1/wms/facility/children":                             {LevelAuthenticated, "wms.default"},
 	"GET /api/v1/wms/facility/descendants":                          {LevelAuthenticated, "wms.default"},
 	"GET /api/v1/wms/labor/plan":                                    {LevelAuthenticated, "wms.default"},
@@ -328,6 +363,7 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/approval/decide":                                  {LevelAuthenticated, "approval.default"},
 	"POST /api/v1/approval/submit":                                  {LevelAuthenticated, "approval.default"},
 	"POST /api/v1/assets/capitalize":                                {LevelAuthenticated, "assets.manage"},
+	"POST /api/v1/assets/depreciation/run":                          {LevelAuthenticated, "assets.manage"},
 	"POST /api/v1/assets/dispose":                                   {LevelAuthenticated, "assets.manage"},
 	"POST /api/v1/assets/transfer":                                  {LevelAuthenticated, "assets.manage"},
 	"POST /api/v1/auth/forgot-password":                             {LevelPublic, "auth.default"},
@@ -346,7 +382,20 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/doc/{doctype}/{id}/reactivate":                    {LevelAuthenticated, "doc.default"},
 	"POST /api/v1/expenses/pay":                                     {LevelAuthenticated, "expenses.manage"},
 	"POST /api/v1/expenses/verify":                                  {LevelAuthenticated, "expenses.manage"},
+	// Stage 55.15b: like /api/v1/doc, open to any signed-in role at the route;
+	// each handler applies the parent document's own read/update rule.
+	"POST /api/v1/attachments/{doctype}/{id}":                       {LevelAuthenticated, "attachments.default"},
+	"GET /api/v1/attachments/{doctype}/{id}":                        {LevelAuthenticated, "attachments.default"},
+	"GET /api/v1/attachments/{doctype}":                             {LevelAuthenticated, "attachments.default"},
+	"GET /api/v1/attachments/file/{attachmentID}":                   {LevelAuthenticated, "attachments.default"},
+	"DELETE /api/v1/attachments/file/{attachmentID}":                {LevelAuthenticated, "attachments.default"},
+	"POST /api/v1/attachments/file/{attachmentID}/remove":           {LevelAuthenticated, "attachments.default"},
 	"POST /api/v1/finance/bank-reconcile":                           {LevelAuthenticated, "finance.default"},
+	"POST /api/v1/finance/periods/{id}/close-tasks/{task}/{action}": {LevelAuthenticated, "finance.default"},
+	"POST /api/v1/finance/periods/{id}/reopen-request":              {LevelAuthenticated, "finance.default"},
+	"POST /api/v1/finance/period-reopen/{request}/apply":            {LevelAuthenticated, "finance.default"},
+	"POST /api/v1/finance/bank-reconciliation/lines/{id}/{action}":  {LevelAuthenticated, "finance.default"},
+	"POST /api/v1/finance/bank-reconciliation/rule-match":           {LevelAuthenticated, "finance.default"},
 	"POST /api/v1/finance/credit-note/{id}/post":                    {LevelAuthenticated, "finance.default"},
 	"POST /api/v1/finance/debit-note/{id}/post":                     {LevelAuthenticated, "finance.default"},
 	"POST /api/v1/finance/fx-revaluation":                           {LevelAuthenticated, "finance.default"},
@@ -369,9 +418,13 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/fulfillment/task/transition":                      {LevelAuthenticated, "wms.default"},
 	"POST /api/v1/gst/calculate":                                    {LevelAuthenticated, "gst.default"},
 	"POST /api/v1/hr/disburse-loan":                                 {LevelAuthenticated, "hr.payroll"},
+	"POST /api/v1/hr/onboarding/{id}/steps":                         {LevelAuthenticated, "hr.default"},
 	"POST /api/v1/hr/post-payslip":                                  {LevelAuthenticated, "hr.payroll"},
 	"POST /api/v1/hr/run-payroll":                                   {LevelAuthenticated, "hr.payroll"},
 	"POST /api/v1/import/{doctype}":                                 {LevelAuthenticated, "import.default"},
+	"GET /api/v1/import-jobs/{id}":                                  {LevelAuthenticated, "import.default"}, // Stage 55.11
+	"GET /api/v1/import-jobs/{id}/failed-rows.csv":                  {LevelAuthenticated, "import.default"}, // Stage 55.11
+	"POST /api/v1/import-jobs/{id}/resume":                          {LevelAuthenticated, "import.default"}, // Stage 55.11
 	"POST /api/v1/integration/bigcommerce/webhook/{channelCode}":    {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/integration/courier/{provider}/tracking":          {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/integration/retry":                                {LevelAuthenticated, "integration.default"},
@@ -439,9 +492,11 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/orders/{id}/credit-notes":                         {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/orders/{id}/edit":                                 {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/orders/{id}/hold":                                 {LevelAuthenticated, "oms.default"},
+	"POST /api/v1/orders/{id}/lines":                                {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/orders/{id}/priority":                             {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/orders/{id}/release-hold":                         {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/orders/{id}/release-to-fulfillment":               {LevelAuthenticated, "oms.default"},
+	"POST /api/v1/orders/{id}/replacement":                          {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/orders/{id}/split":                                {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/orders/{id}/switch-facility":                      {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/pim/barcode/generate":                             {LevelAuthenticated, "pim.default"},
@@ -476,6 +531,17 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/pos/quote":                                        {LevelAuthenticated, "pos.default"},
 	"POST /api/v1/pos/payment/confirm":                              {LevelAuthenticated, "pos.default"},
 	"POST /api/v1/pos/payment/void":                                 {LevelAuthenticated, "pos.default"},
+	"POST /api/v1/pos/loyalty/redemption/start":                     {LevelAuthenticated, "pos.default"},       // Stage 73.1.4
+	"POST /api/v1/pos/loyalty/redemption/verify":                    {LevelAuthenticated, "pos.default"},       // Stage 73.1.4
+	"GET /api/v1/pos/loyalty/redemption/status":                     {LevelAuthenticated, "pos.default"},       // Stage 73.1.4
+	"GET /api/v1/pos/customer-context":                              {LevelAuthenticated, "pos.default"},       // Stage 73.3.2
+	"POST /api/v1/pos/session/cash-movement":                        {LevelAuthenticated, "pos.default"},       // Stage 73.2.7
+	"POST /api/v1/pos/session/takeover":                             {LevelAuthenticated, "pos.default"},       // Stage 73.2.7
+	"GET /api/v1/pos/session/summary":                               {LevelAuthenticated, "pos.default"},       // Stage 73.2.7
+	"POST /api/v1/pos/held-bills":                                   {LevelAuthenticated, "pos.default"},       // Stage 73.2.5
+	"GET /api/v1/pos/held-bills":                                    {LevelAuthenticated, "pos.default"},       // Stage 73.2.5
+	"POST /api/v1/pos/held-bills/{id}/{action}":                     {LevelAuthenticated, "pos.default"},       // Stage 73.2.5
+	"POST /api/v1/pos/exchange/start":                               {LevelAuthenticated, "pos.default"},       // Stage 73.2.6
 	"POST /api/v1/pos/gift-card/issue":                              {LevelAuthenticated, "pos.default"},       // Stage 72.8
 	"POST /api/v1/pos/gift-card/balance":                            {LevelAuthenticated, "pos.default"},       // Stage 72.8
 	"POST /api/v1/stored-value/cards":                               {LevelAuthenticated, "pos.default"},       // Stage 72.8, manager-only in handler
@@ -494,6 +560,7 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/procurement/purchase-returns/context":              {LevelAuthenticated, "procurement.default"},
 	"POST /api/v1/procurement/purchase-returns/{id}/post":           {LevelAuthenticated, "procurement.default"},
 	"POST /api/v1/procurement/purchase-order/{id}/send":             {LevelAuthenticated, "procurement.default"},
+	"POST /api/v1/procurement/purchase-order/{id}/short-close":      {LevelAuthenticated, "procurement.default"},
 	"POST /api/v1/procurement/vendor-invoice/match":                 {LevelAuthenticated, "procurement.default"},
 	"POST /api/v1/procurement/vendor-invoice/pay":                   {LevelAuthenticated, "procurement.default"},
 	"POST /api/v1/procurement/vendor-invoice/pay-with-tds":          {LevelAuthenticated, "procurement.default"},
@@ -507,10 +574,16 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/quality/ncr/{id}/close":                           {LevelAuthenticated, "quality.default"},
 	"POST /api/v1/quality/ncr/{id}/investigate":                     {LevelAuthenticated, "quality.default"},
 	"POST /api/v1/quality/ncr/{id}/plan-corrective-action":          {LevelAuthenticated, "quality.default"},
+	"POST /api/v1/quality/inspection":                               {LevelAuthenticated, "quality.default"}, // Stage 55.13
+	"POST /api/v1/quality/inspection/{id}/dispose":                  {LevelAuthenticated, "quality.default"}, // Stage 55.13
+	"POST /api/v1/quality/maintenance-order/{id}/schedule":          {LevelAuthenticated, "quality.default"}, // Stage 55.13
+	"POST /api/v1/quality/maintenance-order":                        {LevelAuthenticated, "quality.default"}, // Stage 55.13
 	"POST /api/v1/refunds/{id}/approve":                             {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/refunds/{id}/process":                             {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/refunds/{id}/reject":                              {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/reports/export":                                   {LevelAuthenticated, "reports.default"},
+	"POST /api/v1/reports/export/{id}/cancel":                       {LevelAuthenticated, "reports.default"},
+	"POST /api/v1/reports/schedules/{kind}/{id}/{action}":           {LevelAuthenticated, "reports.default"},
 	"POST /api/v1/reserve":                                          {LevelAuthenticated, "reserve.default"},
 	"GET /api/v1/returns/eligibility":                               {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/returns":                                          {LevelAuthenticated, "oms.default"},
@@ -520,6 +593,11 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/returns/{id}/reject":                              {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/returns/{id}/reverse-pickup":                      {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/rfq/select-quote":                                 {LevelAuthenticated, "rfq.default"},
+	"POST /api/v1/rfq/save":                                         {LevelAuthenticated, "rfq.default"},
+	"POST /api/v1/rfq/{id}/invite":                                  {LevelAuthenticated, "rfq.default"},
+	"POST /api/v1/rfq/{id}/decline":                                 {LevelAuthenticated, "rfq.default"},
+	"POST /api/v1/rfq/{id}/quote":                                   {LevelAuthenticated, "rfq.default"},
+	"POST /api/v1/rfq/{id}/award":                                   {LevelAuthenticated, "rfq.default"},
 	// 47.8.2: a browser posts a CSP violation report with no Authorization
 	// header (and, for a report-to endpoint, as an uncredentialed request), so
 	// this cannot be LevelAuthenticated without discarding every report the
@@ -534,8 +612,15 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/service/ticket/{id}/resolve":                  {LevelAuthenticated, "service.default"},
 	"POST /api/v1/service/ticket/{id}/start":                    {LevelAuthenticated, "service.default"},
 	"POST /api/v1/stickers/print":                               {LevelAuthenticated, "stickers.default"},
+	"POST /api/v1/transfer/approve-direct":                      {LevelAuthenticated, "inventory.default"},
+	"POST /api/v1/transfer/cancel":                              {LevelAuthenticated, "inventory.default"},
 	"POST /api/v1/transfer/dispatch":                            {LevelAuthenticated, "inventory.default"},
 	"POST /api/v1/transfer/receive":                             {LevelAuthenticated, "inventory.default"},
+	"POST /api/v1/transfer/return":                              {LevelAuthenticated, "inventory.default"},
+	"POST /api/v1/transfer/submit":                              {LevelAuthenticated, "inventory.default"},
+	"POST /api/v1/planning/proposals/generate":                  {LevelAuthenticated, "inventory.default"},
+	"POST /api/v1/planning/proposals/approve":                   {LevelAuthenticated, "inventory.default"},
+	"POST /api/v1/planning/proposals/reject":                    {LevelAuthenticated, "inventory.default"},
 	"POST /api/v1/unicommerce/credentials":                      {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/unicommerce/order":                            {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/wms/batch/consume":                            {LevelAuthenticated, "wms.default"},
@@ -573,6 +658,9 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/wms/owner/mixed-locations":                     {LevelAuthenticated, "wms.default"},
 	"POST /api/v1/wms/owner-stock/assign":                       {LevelAuthenticated, "wms.default"},
 	"POST /api/v1/wms/owner-stock/consume":                      {LevelAuthenticated, "wms.default"},
+	"POST /api/v1/wms/owner-stock/correct":                      {LevelAuthenticated, "wms.default"},
+	"POST /api/v1/wms/order-owner":                              {LevelAuthenticated, "wms.default"},
+	"GET /api/v1/wms/owner-availability":                        {LevelAuthenticated, "wms.default"},
 	"POST /api/v1/wms/pack-complete":                            {LevelAuthenticated, "wms.default"},
 	"POST /api/v1/wms/pack-scan":                                {LevelAuthenticated, "wms.default"},
 	"POST /api/v1/wms/physical-inventory/cancel":                {LevelAuthenticated, "wms.default"},
@@ -611,6 +699,8 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/platform/control-panel":                            {LevelAdmin, "platform.console"},
 	"POST /api/v1/platform/tenants/{tenant}/status":                 {LevelAdmin, "platform.console"},
 	"POST /api/v1/platform/tenants/{tenant}/trial":                  {LevelAdmin, "platform.console"},
+	"GET /api/v1/platform/tenants/{tenant}/attribute-library":       {LevelAdmin, "platform.console"},
+	"POST /api/v1/platform/tenants/{tenant}/attribute-library":      {LevelAdmin, "platform.console"},
 	"GET /api/v1/platform/tenants/{tenant}/tables":                  {LevelAdmin, "platform.console"},
 	"GET /api/v1/platform/tenants/{tenant}/tables/{table}":          {LevelAdmin, "platform.console"},
 	"POST /api/v1/platform/tenants/{tenant}/tables/{table}/row":     {LevelAdmin, "platform.console"},

@@ -57,21 +57,24 @@ func ReconcileSale(tenantID, cartNumber string) (*SaleReconciliationRow, error) 
 	row := &SaleReconciliationRow{CartNumber: cartNumber}
 
 	var qty int
-	var saleValue float64
+	var saleValue, offerDiscount float64
 	if err := db.DB.QueryRow(fmt.Sprintf(`
 		SELECT d.status,
 		       COALESCE(d.data->>'payment_state', ''),
 		       COALESCE(SUM((line->>'qty')::int), 0),
-		       COALESCE(SUM((line->>'qty')::numeric * (line->>'sale_price')::numeric), 0)
+		       COALESCE(SUM((line->>'qty')::numeric * (line->>'sale_price')::numeric), 0),
+		       COALESCE((d.data->>'offer_discount')::numeric, 0)
 		FROM %s.documents d
 		LEFT JOIN LATERAL jsonb_array_elements(COALESCE(d.data->'items', '[]'::jsonb)) line ON TRUE
 		WHERE d.doctype = 'POSCart' AND d.id = $1
-		GROUP BY d.status, d.data->>'payment_state'`, schema), cartNumber).
-		Scan(&row.Status, &row.PaymentState, &qty, &saleValue); err != nil {
+		GROUP BY d.status, d.data->>'payment_state', d.data->>'offer_discount'`, schema), cartNumber).
+		Scan(&row.Status, &row.PaymentState, &qty, &saleValue, &offerDiscount); err != nil {
 		return nil, fmt.Errorf("cart %s not found: %v", cartNumber, err)
 	}
 	row.CartQty = qty
-	row.CartSaleValue = round2(saleValue)
+	// Stage 73.1.1: a sale posts what the customer was charged - the lines
+	// less the bill's offer discount - so that is what the ledgers are held to.
+	row.CartSaleValue = round2(saleValue - offerDiscount)
 
 	// Stock ledger: quantity is negative for a sale, so it is negated here to
 	// compare like with like.
@@ -99,9 +102,16 @@ func ReconcileSale(tenantID, cartNumber string) (*SaleReconciliationRow, error) 
 	row.RevenuePosted = PaiseToRupees(revenuePaise)
 	row.COGSPosted = glSum([]string{"5100"})
 	row.TaxPosted = glSum([]string{"2200", "2201", "2202"})
-	// Tender: whichever clearing account this sale settled into, plus the
-	// loyalty-redemption expense account that stands in for points paid with.
-	row.TenderPosted = glSum([]string{"1100", "1101", "1102", "5250"})
+	// Tender: what the clearing accounts NET of this sale hold, plus points
+	// (5250) and gift cards (2610) paid with. Stage 73.1.6: net, not debit +
+	// credit - a split sale moves money between clearing accounts, and a gift
+	// card settles against one, so summing both sides double-counted them.
+	var clearingNet, pointsAndCards int64
+	_ = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT COALESCE(SUM(CASE WHEN account_code IN ('1100','1101','1102') THEN debit - credit ELSE 0 END), 0),
+		       COALESCE(SUM(CASE WHEN account_code IN ('5250','2610','2620') THEN debit ELSE 0 END), 0)
+		FROM %s.gl_postings WHERE document_type = 'POSCart' AND document_id = $1`, schema), cartNumber).Scan(&clearingNet, &pointsAndCards)
+	row.TenderPosted = PaiseToRupees(clearingNet + pointsAndCards)
 
 	_ = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT COALESCE(SUM(CASE WHEN transaction_type = 'Burn' THEN points ELSE -points END), 0)

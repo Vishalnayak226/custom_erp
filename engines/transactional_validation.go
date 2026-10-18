@@ -37,6 +37,13 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 		return err
 	}
 
+	// Stage 73.2.8: an edit to an issued sale needs a reason - same choke
+	// point, same reason. The edit itself is recorded after the save
+	// (RecordPostSaleEdit, sale_edit_history.go).
+	if err := validatePostSaleEdit(doctype, docID, priorStatus, priorData, payload); err != nil {
+		return err
+	}
+
 	switch doctype {
 	case "StatusTransitionRule":
 		return validateStatusTransitionRule(tenantID, payload)
@@ -64,6 +71,10 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 		return validatePurchaseRequisitionEditRules(priorStatus, priorData)
 	case "PurchaseReturn":
 		return validatePurchaseReturnRules(tenantID, docID, priorStatus, priorData, payload)
+	case "VendorQuote": // Stage 73.2.3: the award selects a quote
+		return validateVendorQuoteRules(priorStatus, payload)
+	case "RFQ": // Stage 73.2.3: an awarded RFQ is final
+		return validateRFQEditRules(priorData)
 	}
 	return nil
 }
@@ -276,6 +287,17 @@ func fetchPOItemQuantities(tenantID, poID string) (map[string]float64, error) {
 // being validated, so its own not-yet-saved lines aren't double-counted
 // against themselves).
 func fetchGRNReceivedQuantities(tenantID, poID, excludeGRNID string) (map[string]float64, error) {
+	return fetchGRNQuantities(tenantID, poID, excludeGRNID, false)
+}
+
+// fetchGRNAcceptedQuantities is fetchGRNReceivedQuantities counting only
+// ACCEPTED units - Stage 73.2.4 (decision D05): a rejected or damaged unit
+// does not fulfil the PO, it stays open for the vendor to replace.
+func fetchGRNAcceptedQuantities(tenantID, poID, excludeGRNID string) (map[string]float64, error) {
+	return fetchGRNQuantities(tenantID, poID, excludeGRNID, true)
+}
+
+func fetchGRNQuantities(tenantID, poID, excludeGRNID string, acceptedOnly bool) (map[string]float64, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
@@ -312,7 +334,11 @@ func fetchGRNReceivedQuantities(tenantID, poID, excludeGRNID string) (map[string
 		headerPO, _ := data["po_id"].(string)
 		for _, l := range lines {
 			if l.POID == poID || (l.POID == "" && headerPO == poID) {
-				received[l.Sku] += l.Qty
+				if acceptedOnly { // Stage 73.2.4
+					received[l.Sku] += l.derivedAcceptedQty()
+				} else {
+					received[l.Sku] += l.Qty
+				}
 			}
 		}
 	}
@@ -327,7 +353,8 @@ func purchaseOrderFullyReceived(tenantID, poID, excludeGRNID string) (bool, erro
 	if err != nil || len(ordered) == 0 {
 		return false, err
 	}
-	received, err := fetchGRNReceivedQuantities(tenantID, poID, excludeGRNID)
+	// Stage 73.2.4 (D05): only accepted units fulfil the PO.
+	received, err := fetchGRNAcceptedQuantities(tenantID, poID, excludeGRNID)
 	if err != nil {
 		return false, err
 	}
@@ -345,6 +372,13 @@ func purchaseOrderFullyReceived(tenantID, poID, excludeGRNID string) (bool, erro
 // can only get wrong in relation to the PO/GRNs it references, so they live
 // together rather than split across GRN vs PurchaseOrder validators.
 func validateGRNRules(tenantID, docID string, payload map[string]interface{}) error {
+	// Stage 55.7: a new receipt against an ASN already received in full (or
+	// cancelled) would receive the same delivery twice.
+	if asnID, _ := payload["asn_id"].(string); asnID != "" {
+		if err := checkASNOpenForReceipt(tenantID, docID, asnID); err != nil {
+			return err
+		}
+	}
 	receivedStr, _ := payload["received_items"].(string)
 	var lines []grnReceivedLine
 	if receivedStr != "" {
@@ -483,6 +517,15 @@ func validateGRNAgainstPO(tenantID, docID, poID string, lines []grnReceivedLine)
 		return err
 	}
 
+	// Stage 73.2.4 (D05): a closed (short-closed) PO takes no further receipts.
+	if poStatus == "Closed" {
+		closedHow := ""
+		if sc, _ := poData["short_closed"].(bool); sc {
+			closedHow = " (short-closed)"
+		}
+		return &ValidationError{Code: "PURCHA-0489", Message: fmt.Sprintf("PO %s is closed%s - no further goods can be received against it", poID, closedHow)}
+	}
+
 	// PURCHA-0082 / PURCHA-0086: only meaningful when PurchaseOrder is
 	// actually approval-gated (an admin configured a rule for it) - an
 	// ungated PO has no "pending approval" state to block receiving on.
@@ -505,7 +548,9 @@ func validateGRNAgainstPO(tenantID, docID, poID string, lines []grnReceivedLine)
 		}
 	}
 
-	receivedBefore, err := fetchGRNReceivedQuantities(tenantID, poID, docID)
+	// Stage 73.2.4 (D05): only accepted units count against the order - a
+	// rejected unit stays open for its replacement.
+	receivedBefore, err := fetchGRNAcceptedQuantities(tenantID, poID, docID)
 	if err != nil {
 		return err
 	}
@@ -528,8 +573,9 @@ func validateGRNAgainstPO(tenantID, docID, poID string, lines []grnReceivedLine)
 			continue
 		}
 		allowedQty := orderedQty * (1 + overReceiptTolerancePct/100)
-		if receivedBefore[line.Sku]+line.Qty > allowedQty+1e-9 {
-			return &ValidationError{Code: "PURCHA-0087", Message: fmt.Sprintf("received quantity for SKU %q (%v) would exceed open PO quantity (%v) plus tolerance (%v)", line.Sku, receivedBefore[line.Sku]+line.Qty, orderedQty, allowedQty)}
+		// Stage 73.2.4 (D05): the delivery counts by what was accepted.
+		if accepted := line.derivedAcceptedQty(); receivedBefore[line.Sku]+accepted > allowedQty+1e-9 {
+			return &ValidationError{Code: "PURCHA-0087", Message: fmt.Sprintf("accepted quantity for SKU %q (%v) would exceed open PO quantity (%v) plus tolerance (%v)", line.Sku, receivedBefore[line.Sku]+accepted, orderedQty, allowedQty)}
 		}
 	}
 	return nil
@@ -654,6 +700,10 @@ func validatePurchaseOrderEditRules(tenantID, docID, priorStatus string, priorDa
 		return nil
 	}
 
+	// Stage 73.2.4: a Closed (short-closed) PO is final.
+	if priorStatus == "Closed" {
+		return &ValidationError{Code: "PURCHA-0489", Message: "a closed purchase order cannot be amended - raise a new one for anything still needed"}
+	}
 	fullyReceived, err := purchaseOrderFullyReceived(tenantID, docID, "")
 	if err != nil {
 		return err

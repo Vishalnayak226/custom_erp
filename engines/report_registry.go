@@ -59,6 +59,11 @@ type ReportDefinition struct {
 	HasDrillDown bool                `json:"has_drill_down"`
 	Run          ReportRunFunc       `json:"-"`
 	DrillDown    ReportDrillDownFunc `json:"-"`
+	// Stage 73.2.19 / 55.20: filled by ListReportDefinitions from
+	// control_totals.go and report_questions.go, never set by a report.
+	HasControlTotals bool   `json:"has_control_totals"`
+	Question         string `json:"question,omitempty"`
+	Description      string `json:"description,omitempty"`
 }
 
 var reportRegistry = map[string]ReportDefinition{}
@@ -85,7 +90,12 @@ func RegisterReport(def ReportDefinition) {
 func ListReportDefinitions() []ReportDefinition {
 	out := make([]ReportDefinition, 0, len(reportRegistryOrder))
 	for _, id := range reportRegistryOrder {
-		out = append(out, reportRegistry[id])
+		def := reportRegistry[id]
+		def.HasControlTotals = HasReportControlTotals(id)
+		if q, ok := reportQuestions[id]; ok {
+			def.Question, def.Description = q.Question, q.Description
+		}
+		out = append(out, def)
 	}
 	return out
 }

@@ -178,72 +178,13 @@ func outputGSTCreditsPaise(data map[string]interface{}) map[string]int64 {
 // callers needed no change; it carries the date the money actually moved and,
 // optionally, the rate the bank actually gave.
 func SettleSalesInvoice(tenantID, invoiceID, userID string, opts ...SettlementOptions) (amount int, err error) {
-	schema, err := db.GetTenantSchema(tenantID)
+	// Stage 73 / 55.10: one code path for every receipt. Amount 0 settles the
+	// whole outstanding balance - for an invoice nothing has been received
+	// against, the same posting under the same SalesInvoice:<id>:SETTLE key
+	// this function always made; for a part-paid one, only what is left.
+	res, err := SettleSalesInvoiceAmount(tenantID, invoiceID, userID, 0, "", opts...)
 	if err != nil {
 		return 0, err
 	}
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return 0, err
-	}
-	defer tx.Rollback()
-	if err := db.SetSearchPath(tx, schema); err != nil {
-		return 0, err
-	}
-
-	var dataStr, status string
-	if err := tx.QueryRow(fmt.Sprintf(
-		`SELECT data, status FROM %s.documents WHERE doctype = 'SalesInvoice' AND id = $1 FOR UPDATE`, schema),
-		invoiceID).Scan(&dataStr, &status); err != nil {
-		return 0, fmt.Errorf("sales invoice not found: %v", err)
-	}
-	if status != "Approved" {
-		return 0, fmt.Errorf("only an Approved sales invoice can be settled (current status: %s)", status)
-	}
-	var data map[string]interface{}
-	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
-		return 0, err
-	}
-	// Stage 37.1.3. The cash actually received is the transaction amount at the
-	// SETTLEMENT rate; the receivable being cleared is what the ledger carries
-	// for it, which is the booking rate plus any period-end revaluation already
-	// posted. The gap between those two is a realised gain or loss, and it is
-	// the whole reason this stage exists.
-	position := documentFXPosition(tenantID, data, "total_amount")
-	settlement, err := resolveSettlementFX(tenantID, position, true, settlementOption(opts))
-	if err != nil {
-		return 0, err
-	}
-	amount = settlement.SettlementAmount
-
-	debits := map[string]int{"1100": settlement.SettlementAmount}
-	credits := map[string]int{"1300": position.CarryingAmount}
-	applyRealisedFXLine(debits, credits, settlement.RealisedGainLoss)
-	if err := PostDoubleEntry(tenantID, "SalesInvoice", invoiceID, PaiseMap(debits), PaiseMap(credits), settlement.PostingDate(), fmt.Sprintf("SalesInvoice:%s:SETTLE", invoiceID),
-		// The cash and receivable lines carry the full foreign amount; the
-		// realised gain/loss line is left at zero, because it has no
-		// foreign-currency value by construction.
-		postingOptionsFor(position, settlement.SettlementRate, debits, credits, map[string]float64{
-			"1100": position.TransactionAmount,
-			"1300": position.TransactionAmount,
-		})); err != nil {
-		return 0, fmt.Errorf("GL posting failed, invoice not marked Paid: %v", err)
-	}
-	recordSettlementFX(data, settlement)
-
-	data["status"] = "Paid"
-	updatedBytes, err := json.Marshal(data)
-	if err != nil {
-		return 0, err
-	}
-	if _, err := tx.Exec(fmt.Sprintf(
-		`UPDATE %s.documents SET data = $1, status = 'Paid', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'SalesInvoice' AND id = $2`, schema),
-		updatedBytes, invoiceID); err != nil {
-		return 0, err
-	}
-	if err := tx.Commit(); err != nil {
-		return 0, err
-	}
-	LogAuditEvent(tenantID, userID, "SETTLE_SALES_INVOICE", "SUCCESS", settlementAuditDetail("sales invoice", invoiceID, settlement))
-	return amount, nil
+	return roundToRupees(res.FunctionalAmount), nil
 }

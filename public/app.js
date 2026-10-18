@@ -316,7 +316,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '46';
+const VIEW_MODULE_VERSION = '47';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -341,6 +341,7 @@ const LAZY_VIEW_MODULES = {
   pos: ['view-pos.js', 'renderPOSView', 'POS', 'txn-screen.css'],
   'rf-traceability': ['view-rf-traceability.js', 'renderRFTraceabilityView', 'RF Traceability'],
   returns: ['view-returns.js', 'renderReturnsView', 'Returns', 'txn-screen.css'],
+  loyalty: ['view-loyalty.js', 'renderLoyaltyView', 'Loyalty'],
   finance: ['view-finance.js', 'renderFinanceView', 'Finance'],
   'vendor-invoices': ['view-finance.js', 'renderVendorInvoicesView', 'Vendor Invoices', 'txn-screen.css'],
   'payment-proposals': ['view-finance.js', 'renderPaymentProposalsView', 'Payment Proposals'],
@@ -348,6 +349,7 @@ const LAZY_VIEW_MODULES = {
   'finance-notes': ['view-finance.js', 'renderFinanceNotesView', 'Finance Notes', 'txn-screen.css'],
   'sales-invoices': ['view-finance.js', 'renderSalesInvoicesView', 'Sales Invoices', 'txn-screen.css'],
   'journal-vouchers': ['view-journal.js', 'renderJournalVouchersView', 'Journal Vouchers', 'txn-screen.css'],
+  roles: ['view-roles.js', 'renderRolesView', 'Roles', 'txn-screen.css'],
   fulfillment: ['view-warehouse.js', 'renderFulfillmentView', 'Fulfillment'],
   putaway: ['view-warehouse.js', 'renderPutawayView', 'Putaway'],
   'warehouse-cockpit': ['view-warehouse.js', 'renderWarehouseCockpitView', 'Warehouse Cockpit'],
@@ -367,13 +369,13 @@ const LAZY_VIEW_MODULES = {
   'mobile-picking': ['view-warehouse.js', 'renderMobilePickingView', 'Mobile Picking'],
   marketplace: ['view-oms.js', 'renderMarketplaceView', 'Marketplace'],
   oms: ['view-oms.js', 'renderOMSWorkbenchView', 'OMS'],
-  approvals: ['view-procurement.js', 'renderApprovalsView', 'Approvals'],
+  approvals: ['view-inbox.js', 'renderTaskInboxView', 'Approvals'],
   'purchase-orders': ['view-procurement.js', 'renderPurchaseOrdersView', 'Purchase Orders', 'txn-screen.css'],
   grn: ['view-procurement.js', 'renderGRNWorkbenchView', 'Goods Receipt', 'txn-screen.css'],
   'purchase-returns': ['view-procurement.js', 'renderPurchaseReturnsView', 'Purchase Return', 'txn-screen.css'],
   reports: ['view-reports.js', 'renderReportsView', 'Reports'],
   inventory: ['view-reports.js', 'renderInventoryView', 'Inventory'],
-  rfq: ['view-reports.js', 'renderRFQView', 'Request for Quotation'],
+  rfq: ['view-rfq.js', 'renderRFQView', 'Request for Quotation'],
   stickers: ['view-printing.js', 'renderStickersView', 'Sticker Printing'],
   hr: ['view-hr.js', 'renderHRView', 'HR'],
   assets: ['view-assets.js', 'renderAssetsView', 'Fixed Assets'],
@@ -1253,6 +1255,8 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
       rows = await res.json();
       if (seq !== requestSeq) return;
     }
+    // 55.0F: the form closed while this was in flight - no stray list.
+    if (!inputEl.getClientRects().length) { closeMenu(); return; }
     items = rows;
     resultsCapped = !opts.source && browse && items.length >= pageSize;
     openMenu();
@@ -1301,7 +1305,8 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
         pick(items[activeIndex]);
       }
     }
-    else if (e.key === 'Escape') { closeMenu(); }
+    // Escape closes the list only - not the form it sits in (55.0F).
+    else if (e.key === 'Escape') { e.stopPropagation(); closeMenu(); }
   }, { signal: listeners.signal });
 }
 
@@ -1740,17 +1745,17 @@ function enhanceDateInput(input) {
   });
 }
 
-// No up/down on number boxes anywhere (user rule, 2026-10-17): spinners are
-// hidden in styles.css; this stops wheel and arrow-key stepping. Still
-// type="number", so only a valid number is accepted. Screens' own arrow-key
-// handlers still run (preventDefault only cancels the step).
+// Number boxes (user rules, 2026-10-17): no up/down (spinners hidden in
+// styles.css, wheel/arrow steps stopped here) and only a number typed or
+// pasted - browsers let e, + (Firefox: any text) in.
 let numberStepGuardsInstalled = false;
 function installNumberStepGuards() {
   if (numberStepGuardsInstalled) return;
   numberStepGuardsInstalled = true;
   const isNum = el => el instanceof HTMLInputElement && el.type === 'number';
   document.addEventListener('wheel', e => { if (isNum(e.target) && e.target === document.activeElement) e.target.blur(); }, { passive: true });
-  document.addEventListener('keydown', e => { if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && isNum(e.target)) e.preventDefault(); }, true);
+  document.addEventListener('keydown', e => { if (isNum(e.target) && (/^Arrow(Up|Down)$|^[^\d.-]$/.test(e.key) && !e.ctrlKey && !e.metaKey)) e.preventDefault(); }, true);
+  document.addEventListener('paste', e => { if (isNum(e.target) && !/^\s*-?\d*\.?\d*\s*$/.test(e.clipboardData.getData('text'))) e.preventDefault(); }, true);
 }
 
 let datePickerObserver = null;
@@ -2226,6 +2231,7 @@ async function loadFieldFormats() {
     const res = await apiFetch('/api/v1/meta/field-formats');
     if (!res || !res.ok) return;
     const data = await res.json();
+    window.FIELD_META = data; // Stage 76: country, its states, its tax-ID rule
     FIELD_FORMATS = (data && data.formats) || [];
     FIELD_FORMAT_EXCLUDED_SUFFIXES = (data && data.excluded_suffixes) || [];
     FIELD_SEMANTICS = (data && data.semantics) || {};
@@ -2359,7 +2365,7 @@ function validateFieldFormatInput(el, spec) {
 function fieldFormatValueIsValid(spec, v) {
   switch (spec.key) {
     case 'email':   return /^[^\s@,;]+@[^\s@,;]+\.[A-Za-z]{2,}$/.test(v);
-    case 'gstin':   return v.length === 15;
+    case 'gstin':   return (!spec.pattern || new RegExp(spec.pattern).test(v)) && (!spec.checksum || !window.fieldChecksumOK || fieldChecksumOK(spec.checksum, v));
     case 'pan':     return v.length === 10;
     case 'ifsc':    return v.length === 11 && v[4] === '0';
     case 'pincode': return /^[1-9][0-9]{5}$/.test(v);
@@ -2395,6 +2401,7 @@ function initFieldFormatListeners() {
   document.addEventListener('input', (e) => {
     const spec = fieldFormatFor(e.target);
     if (spec) applyFieldFormatInput(e.target, spec);
+    if (spec && spec.key === 'gstin' && window.fillStateFromTaxId) fillStateFromTaxId(e.target);
   }, true);
 
   document.addEventListener('blur', (e) => {
@@ -3060,73 +3067,10 @@ function showApp() {
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app-root').classList.remove('hidden');
   updateSidebarUserInfo();
-  applyIndustryLockUI();
 }
 
-// Stage 51.3: the industry-profile switch is now locked server-side after
-// the first successful switch (engines.SwitchIndustryProfile's industry_lock
-// row) - this reads that real state via GET /api/v1/admin/industry/lock and
-// disables the selector with an Override affordance, replacing the old
-// client-only localStorage memory ("There's no backend 'current industry'
-// endpoint to read back" was true before this Stage; it no longer is).
-async function applyIndustryLockUI() {
-  const sel = document.getElementById('industry-selector');
-  const overrideBtn = document.getElementById('industry-override-btn');
-  if (!sel) return;
-  // Admin-only endpoint: other roles take the fallback below without asking
-  // (it used to log a 403 for every non-admin session at startup).
-  const res = isAdminRoleName(localStorage.getItem('erp_role')) ? await apiFetch('/api/v1/admin/industry/lock') : null;
-  if (!res || !res.ok) {
-    // Not a Super Admin (403), or the check itself failed - fall back to the
-    // old per-browser memory rather than showing nothing, and leave the
-    // selector enabled since we can't confirm a lock either way.
-    const saved = localStorage.getItem('erp_industry_code');
-    if (saved && Array.from(sel.options).some(o => o.value === saved)) sel.value = saved;
-    return;
-  }
-  const lock = await res.json();
-  if (lock.locked) {
-    const optionValue = (lock.industry_code || '').toLowerCase();
-    if (Array.from(sel.options).some(o => o.value === optionValue)) sel.value = optionValue;
-    sel.disabled = true;
-    sel.title = `Locked to ${lock.industry_code} by ${lock.set_by} on ${new Date(lock.set_at).toLocaleDateString()}`;
-    if (overrideBtn) overrideBtn.classList.remove('hidden');
-  } else {
-    sel.disabled = false;
-    sel.title = '';
-    if (overrideBtn) overrideBtn.classList.add('hidden');
-  }
-}
-
-// switchIndustryProfile posts the switch, transparently retrying with an
-// explicit override + reason if the server reports the tenant is already
-// locked (409) - so the override path works whether the user got here via
-// the (disabled, once locked) selector directly or the Override button.
-async function switchIndustryProfile(code) {
-  if (!(await showCustomConfirm(`Switch to active industry profile: ${code}? This will re-load preset table field configurations.`))) return;
-  let res = await apiFetch('/api/v1/admin/industry', {
-    method: 'POST',
-    body: JSON.stringify({ industry_code: code })
-  });
-  if (res && res.status === 409) {
-    const reason = await showCustomPrompt("This tenant's industry profile is already locked. Enter a reason to override and change it anyway:", '');
-    if (!reason || !reason.trim()) return;
-    res = await apiFetch('/api/v1/admin/industry', {
-      method: 'POST',
-      body: JSON.stringify({ industry_code: code, override: true, override_reason: reason.trim() })
-    });
-  }
-  if (res && res.ok) {
-    localStorage.setItem('erp_industry_code', code);
-    await showCustomAlert('Industry configuration updated successfully!', 'Success');
-    await fetchLabels();
-    await fetchRegisteredDoctypes();
-    renderView(currentView);
-    await applyIndustryLockUI();
-  } else if (res) {
-    await showApiError(res, 'Failed to switch industry profile.');
-  }
-}
+// Stage 82: the industry profile is chosen in Configuration → Industry
+// (view-admin.js renderConfigIndustry), not in the top bar.
 
 function updateSidebarUserInfo() {
   const username = localStorage.getItem('erp_username') || '';
@@ -3668,6 +3612,7 @@ const MENU_PERMISSION_MAP = {
   'menu-customers': { doctypes: ['Customer'] },
   // Stage 57.17: these two had no rule at all, so every role saw them.
   'menu-returns': { doctypes: ['SalesReturn'] },
+  'menu-loyalty': { doctypes: ['LoyaltyPointAdjustment'] },
   'menu-rf-traceability': { modules: ['Inventory'] },
 
   'menu-reports': { open: true },
@@ -3856,6 +3801,12 @@ const MENU_MODULE_MAP = {
     "module": "oms",
     "views": [
       "returns"
+    ]
+  },
+  "menu-loyalty": {
+    "module": "crm_loyalty",
+    "views": [
+      "loyalty"
     ]
   },
   "menu-rf-traceability": {
@@ -4116,7 +4067,7 @@ const MENU_MODULE_MAP = {
       "users"
     ]
   },
-  "grant-save-btn": {
+  "menu-roles": {
     "module": "core",
     "views": [
       "roles"
@@ -4704,6 +4655,13 @@ function setupEventListeners() {
       renderView('returns');
     });
   }
+  // Stage 73.2.11: the Loyalty screen (view-loyalty.js).
+  document.getElementById('menu-loyalty')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-loyalty');
+    closeSubmenus();
+    renderView('loyalty');
+  });
 
   document.getElementById('menu-approvals').addEventListener('click', (e) => {
     e.preventDefault();
@@ -4947,23 +4905,6 @@ function setupEventListeners() {
 
   // Stage 39.5: contextual help for the screen you are on.
   document.getElementById('help-btn')?.addEventListener('click', () => openHelpDrawer(currentView));
-
-  const indSelector = document.getElementById('industry-selector');
-  if (indSelector) {
-    indSelector.addEventListener('change', async (e) => {
-      const code = e.target.value;
-      if (!code) return;
-      await switchIndustryProfile(code);
-    });
-  }
-  const industryOverrideBtn = document.getElementById('industry-override-btn');
-  if (industryOverrideBtn) {
-    industryOverrideBtn.addEventListener('click', async () => {
-      const code = await showCustomPrompt('Industry code to switch to (jewelry, food_bev, auto, clothing, pharma, metal, construction, medical, semiconductor, agriculture):', indSelector ? indSelector.value : '');
-      if (!code || !code.trim()) return;
-      await switchIndustryProfile(code.trim());
-    });
-  }
 
   setupAccountMenu();
 }
@@ -5793,6 +5734,7 @@ const STATIC_VIEW_MENU_IDS = {
 	oms: 'menu-oms',
   'rf-traceability': 'menu-rf-traceability',
   returns: 'menu-returns',
+  loyalty: 'menu-loyalty',
   approvals: 'menu-approvals',
   reports: 'menu-reports',
   help: 'menu-knowledge-center',
@@ -6071,8 +6013,6 @@ async function renderViewContent(view, root) {
     await renderProfileView(root);
   } else if (view === 'users') {
     await renderUsersView(root);
-  } else if (view === 'roles') {
-    await renderRolesView(root);
   } else {
     renderMockModuleView(root, view);
   }
@@ -6781,188 +6721,9 @@ window.setUserSupplier = async function(id, currentCode) {
   renderView('users');
 };
 
-// Roles (Stage 21 QA fix): "Roles" had the exact same dead-mock-screen bug
-// as Users above. Shows every currently-granted (role, doctype) permission
-// row and lets an HR/Admin edit or add one - directly usable to close gaps
-// like the one Stage 18 flagged and deliberately left unfixed ("Store
-// Manager/Cashier lack read access to Vendor/Item, so the new typeahead
-// pickers are code-correct but not usable by their intended roles").
-async function renderRolesView(container) {
-  const [permsRes, rolesRes] = await Promise.all([
-    apiFetch('/api/v1/admin/role-permissions'),
-    apiFetch('/api/v1/admin/roles')
-  ]);
-  if (!permsRes || !rolesRes) return;
-  if (!permsRes.ok) { renderErrorPanel(container, 'Failed to load role permissions.', () => renderView('roles')); return; }
-  const grants = await permsRes.json();
-  const roles = rolesRes.ok ? await rolesRes.json() : [];
-  const doctypeOptions = state.activeDoctypes.map(d => d.name).sort();
-
-  // Stage 57.17: roles are created here before anyone holds one, and a role
-  // can be given a whole module at once - "the user sees that module only".
-  const moduleOptions = [...new Set(state.activeDoctypes.map(d => d.module).filter(Boolean))].sort();
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">Roles</h1>
-    </div>
-  `;
-  container.appendChild(header);
-
-  const createPanel = document.createElement('div');
-  createPanel.className = 'table-panel';
-  createPanel.style.padding = '24px';
-  createPanel.style.marginBottom = '24px';
-  createPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 4px;">Create a Role</h2>
-    <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">A new role can see nothing until you grant it access below. Then assign it to users on the Users screen.</p>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="new-role-name">Role name</label>
-        <input type="text" id="new-role-name" class="form-input" style="width: 200px;" placeholder="e.g. Purchase Clerk" maxlength="60">
-      </div>
-      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
-        <label class="form-label" for="new-role-description">Description (optional)</label>
-        <input type="text" id="new-role-description" class="form-input" placeholder="What this role is for">
-      </div>
-      <button class="btn btn-primary" id="new-role-btn" type="button">Create Role</button>
-    </div>
-    <div id="new-role-error" class="login-error hidden" style="margin-top: 12px;"></div>
-  `;
-  container.appendChild(createPanel);
-
-  const formPanel = document.createElement('div');
-  formPanel.className = 'table-panel';
-  formPanel.style.padding = '24px';
-  formPanel.style.marginBottom = '24px';
-  formPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Add or Update Access</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="grant-role">Role</label>
-        <select id="grant-role" class="form-select" style="width: 170px;">
-          ${roles.filter(r => !isAdminRoleName(r)).map(r => `<option value="${escapeHTMLText(r)}" ${r === rolesScreenSelectedRole ? 'selected' : ''}>${escapeHTMLText(r)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="grant-scope">Grant on</label>
-        <select id="grant-scope" class="form-select" style="width: 170px;">
-          <option value="module">A whole module</option>
-          <option value="doctype">One record type</option>
-        </select>
-      </div>
-      <div class="form-group" style="margin-bottom: 0;" id="grant-module-group">
-        <label class="form-label" for="grant-module">Module</label>
-        <select id="grant-module" class="form-select" style="width: 190px;">
-          ${moduleOptions.map(m => `<option value="${escapeHTMLText(m)}">${escapeHTMLText(m)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-group hidden" style="margin-bottom: 0;" id="grant-doctype-group">
-        <label class="form-label" for="grant-doctype">Record Type</label>
-        <select id="grant-doctype" class="form-select" style="width: 190px;">
-          ${doctypeOptions.map(d => `<option value="${escapeHTMLText(d)}">${escapeHTMLText(getDoctypeLabel(d))}</option>`).join('')}
-        </select>
-      </div>
-      <label style="display:flex; align-items:center; gap:6px; font-size:13.5px;"><input type="checkbox" id="grant-read" checked> Read</label>
-      <label style="display:flex; align-items:center; gap:6px; font-size:13.5px;"><input type="checkbox" id="grant-create"> Create</label>
-      <label style="display:flex; align-items:center; gap:6px; font-size:13.5px;"><input type="checkbox" id="grant-update"> Update</label>
-      <label style="display:flex; align-items:center; gap:6px; font-size:13.5px;"><input type="checkbox" id="grant-delete"> Delete</label>
-      <button class="btn btn-primary" id="grant-save-btn">Save Grant</button>
-    </div>
-  `;
-  container.appendChild(formPanel);
-
-  const listPanel = document.createElement('div');
-  listPanel.className = 'table-panel';
-  let html = `
-    <table>
-      <thead><tr><th>Role</th><th>Record Type</th><th>Read</th><th>Create</th><th>Update</th><th>Delete</th></tr></thead>
-      <tbody>
-  `;
-  html += grants.length === 0
-    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No grants configured yet. Pick a role and a record type above, then <b>Save Grant</b> &mdash; roles other than Super Admin see only what a grant allows.</td></tr>`
-    : grants.map(g => `
-        <tr>
-          <td style="font-weight:600;">${g.role}</td>
-          <td>${g.doctype_name}</td>
-          <td>${g.allow_read ? '&#10003;' : '&mdash;'}</td>
-          <td>${g.allow_create ? '&#10003;' : '&mdash;'}</td>
-          <td>${g.allow_update ? '&#10003;' : '&mdash;'}</td>
-          <td>${g.allow_delete ? '&#10003;' : '&mdash;'}</td>
-        </tr>
-      `).join('');
-  html += `</tbody></table>`;
-  listPanel.innerHTML = html;
-  container.appendChild(listPanel);
-
-  document.getElementById('grant-save-btn').addEventListener('click', saveRoleGrant);
-  document.getElementById('new-role-btn').addEventListener('click', createRole);
-  const scopeSel = document.getElementById('grant-scope');
-  scopeSel.addEventListener('change', () => {
-    const whole = scopeSel.value === 'module';
-    document.getElementById('grant-module-group').classList.toggle('hidden', !whole);
-    document.getElementById('grant-doctype-group').classList.toggle('hidden', whole);
-  });
-}
-
-// The role the Roles screen should have selected after a re-render - the
-// one just created, so its first grant is one click away.
-let rolesScreenSelectedRole = '';
-
+// Built-in roles with full access (the Roles screen itself is view-roles.js).
 function isAdminRoleName(name) {
   return ['superadmin', 'hr/admin', 'hradmin'].includes(String(name || '').toLowerCase().replace(/\s+/g, ''));
-}
-
-async function createRole() {
-  const nameEl = document.getElementById('new-role-name');
-  const errorEl = document.getElementById('new-role-error');
-  errorEl.classList.add('hidden');
-  const name = nameEl.value.trim();
-  if (!name) { errorEl.textContent = 'Enter a role name.'; errorEl.classList.remove('hidden'); nameEl.focus(); return; }
-  const res = await apiFetch('/api/v1/admin/roles', {
-    method: 'POST',
-    body: JSON.stringify({ name, description: document.getElementById('new-role-description').value.trim() })
-  });
-  if (!res) return;
-  if (!res.ok) {
-    errorEl.textContent = await getErrorMessage(res, 'Failed to create the role.');
-    errorEl.classList.remove('hidden');
-    return;
-  }
-  const data = await res.json().catch(() => ({}));
-  rolesScreenSelectedRole = data.name || name;
-  showToast(`Role "${rolesScreenSelectedRole}" created. Grant it a module below, then assign it to users.`, { variant: 'success' });
-  renderView('roles');
-}
-
-async function saveRoleGrant() {
-  const role = document.getElementById('grant-role').value;
-  if (!role) { await showCustomAlert('Create a role first.', 'No role selected'); return; }
-  const whole = document.getElementById('grant-scope').value === 'module';
-  const body = {
-    role,
-    allow_read: document.getElementById('grant-read').checked,
-    allow_create: document.getElementById('grant-create').checked,
-    allow_update: document.getElementById('grant-update').checked,
-    allow_delete: document.getElementById('grant-delete').checked
-  };
-  if (whole) {
-    const mod = document.getElementById('grant-module').value;
-    body.doctype_names = state.activeDoctypes.filter(d => d.module === mod).map(d => d.name);
-    if (body.doctype_names.length === 0) { await showCustomAlert('That module has no record types.', 'Nothing to grant'); return; }
-  } else {
-    body.doctype_name = document.getElementById('grant-doctype').value;
-  }
-  const res = await apiFetch('/api/v1/admin/role-permissions', { method: 'POST', body: JSON.stringify(body) });
-  if (!res) return;
-  if (!res.ok) {
-    await showApiError(res, 'Failed to save grant.');
-    return;
-  }
-  rolesScreenSelectedRole = role;
-  showToast(whole ? `${role} now has access to ${body.doctype_names.length} record types.` : `${role}'s access saved.`, { variant: 'success' });
-  renderView('roles');
 }
 
 // ===========================================================================
@@ -7877,12 +7638,17 @@ window.handleBulkImportSubmit = async function(e) {
       });
       html += `</ul>`;
       if (result.import_job_id) {
-        const tenantID = localStorage.getItem('erp_tenant_id') || 'default';
-        html += `<div style="margin-top:8px;"><a href="/api/v1/pim/import-jobs/${encodeURIComponent(result.import_job_id)}/errors.csv?tenant_id=${encodeURIComponent(tenantID)}" target="_blank" rel="noopener">Download error rows (CSV)</a></div>`;
+        html += `<button type="button" class="btn btn-primary btn-sm" id="import-fix-resume" style="margin-top:8px;">Fix and resume the failed rows</button>`;
       }
     }
 
     summary.innerHTML = html;
+    // Stage 55.11: a run with failed rows stays open on its resume step.
+    const resumeBtn = document.getElementById('import-fix-resume');
+    if (resumeBtn) {
+      resumeBtn.onclick = () => { closeImportModal(); loadViewModule('/view-import-jobs.js?v=1').then(m => m.openImportResume(result.import_job_id)); };
+      return;
+    }
 
     setTimeout(() => {
       closeImportModal();

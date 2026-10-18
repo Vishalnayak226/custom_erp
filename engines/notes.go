@@ -4,6 +4,7 @@ import (
 	"custom_erp/db"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // PostDebitNote transitions a Draft DebitNote to Posted and books the GL
@@ -108,10 +109,30 @@ func PostCreditNote(tenantID, noteID, userID string) (amount int, err error) {
 	}
 	amount = int(amountF)
 
-	debits := map[string]int64{"4150": RupeesToPaise(amountF)}
-	credits := map[string]int64{"1100": RupeesToPaise(amountF)}
-	if err := PostDoubleEntry(tenantID, "CreditNote", noteID, debits, credits, "", fmt.Sprintf("CreditNote:%s:POST", noteID)); err != nil {
-		return 0, fmt.Errorf("GL posting failed, note not marked Posted: %v", err)
+	// Stage 73 / 55.10: a note that names an open (Approved) SalesInvoice -
+	// every cancellation note does - first reduces what that customer still
+	// owes (Cr 1300), and only the excess is a cash refund (Cr 1100). Before
+	// this the whole note credited cash, so the receivable it was raised to
+	// reverse stayed open in 1300 for ever. A note with no invoice, or one
+	// against an invoice already Paid, is a refund exactly as before.
+	appliedToInvoice := false
+	if invoiceID, _ := data["sales_invoice_id"].(string); strings.TrimSpace(invoiceID) != "" {
+		applied, refunded, ok, aerr := applyCreditNoteToInvoice(tx, schema, tenantID, noteID, strings.TrimSpace(invoiceID), userID, RupeesToPaise(amountF))
+		if aerr != nil {
+			return 0, aerr
+		}
+		if ok {
+			appliedToInvoice = true
+			data["applied_to_invoice"] = PaiseToRupees(applied)
+			data["refunded_amount"] = PaiseToRupees(refunded)
+		}
+	}
+	if !appliedToInvoice {
+		debits := map[string]int64{"4150": RupeesToPaise(amountF)}
+		credits := map[string]int64{"1100": RupeesToPaise(amountF)}
+		if err := PostDoubleEntry(tenantID, "CreditNote", noteID, debits, credits, "", fmt.Sprintf("CreditNote:%s:POST", noteID)); err != nil {
+			return 0, fmt.Errorf("GL posting failed, note not marked Posted: %v", err)
+		}
 	}
 
 	data["status"] = "Posted"

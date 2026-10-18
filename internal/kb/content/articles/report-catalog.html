@@ -1,9 +1,9 @@
 <h1 id="report-catalog">Report catalog <a class="kb-anchor" href="#report-catalog" aria-label="Copy link to this section">#</a></h1>
-<p><strong>92</strong> reports across <strong>15</strong> categories, all reachable from <strong>Sales &amp; Marketplace » Reports</strong>.</p>
+<p><strong>113</strong> reports across <strong>15</strong> categories, all reachable from <strong>Sales &amp; Marketplace » Reports</strong>.</p>
 <p>Pick one from the catalog list on that screen, fill in any parameter marked <strong>required</strong>, and run it. Where a report supports drill-down, clicking a figure opens the individual transactions behind it. <strong>Export in Background</strong> queues a CSV for any report large enough to time out a normal request.</p>
 <p>Columns marked <em>sensitive</em> are masked as <code>•••</code> for roles other than Super Admin and Store Manager. They are masked rather than dropped, so the table has the same shape whoever runs it and a screenshot from one person lines up with a screenshot from another.</p>
 <h2 id="contents">Contents <a class="kb-anchor" href="#contents" aria-label="Copy link to this section">#</a></h2>
-<ul><li><a href="#admin">Admin</a> - 1 reports</li><li><a href="#assets">Assets</a> - 1 reports</li><li><a href="#bi">BI</a> - 1 reports</li><li><a href="#crm">CRM</a> - 7 reports</li><li><a href="#exceptions">Exceptions</a> - 3 reports</li><li><a href="#finance">Finance</a> - 26 reports</li><li><a href="#hr">HR</a> - 1 reports</li><li><a href="#inventory">Inventory</a> - 6 reports</li><li><a href="#manufacturing">Manufacturing</a> - 3 reports</li><li><a href="#oms">OMS</a> - 12 reports</li><li><a href="#pim">PIM</a> - 4 reports</li><li><a href="#procurement">Procurement</a> - 3 reports</li><li><a href="#sales">Sales</a> - 3 reports</li><li><a href="#service">Service</a> - 1 reports</li><li><a href="#wms">WMS</a> - 20 reports</li></ul>
+<ul><li><a href="#admin">Admin</a> - 1 reports</li><li><a href="#assets">Assets</a> - 1 reports</li><li><a href="#bi">BI</a> - 1 reports</li><li><a href="#crm">CRM</a> - 8 reports</li><li><a href="#exceptions">Exceptions</a> - 6 reports</li><li><a href="#finance">Finance</a> - 30 reports</li><li><a href="#hr">HR</a> - 2 reports</li><li><a href="#inventory">Inventory</a> - 12 reports</li><li><a href="#manufacturing">Manufacturing</a> - 3 reports</li><li><a href="#oms">OMS</a> - 12 reports</li><li><a href="#pim">PIM</a> - 4 reports</li><li><a href="#procurement">Procurement</a> - 4 reports</li><li><a href="#sales">Sales</a> - 6 reports</li><li><a href="#service">Service</a> - 1 reports</li><li><a href="#wms">WMS</a> - 22 reports</li></ul>
 <h2 id="admin">Admin <a class="kb-anchor" href="#admin" aria-label="Copy link to this section">#</a></h2>
 <h3 id="knowledge-center-feedback">Knowledge Center Feedback <a class="kb-anchor" href="#knowledge-center-feedback" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>help-article-feedback</code></p>
@@ -56,6 +56,12 @@
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Outstanding Points · Liability Value <em>(sensitive)</em> · Customers</p>
 <p><strong>Drill-down:</strong> no.</p>
+<h3 id="loyalty-points-movement">Loyalty Points Movement <a class="kb-anchor" href="#loyalty-points-movement" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>loyalty-points-movement</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from_date</code>) - date, optional</li><li><strong>To</strong> (<code>to_date</code>) - date, optional</li></ul>
+<p><strong>Columns:</strong> Movement · Points · Value <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> no.</p>
 <h3 id="rfm-customer-segmentation">RFM Customer Segmentation <a class="kb-anchor" href="#rfm-customer-segmentation" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>rfm-segmentation</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
@@ -66,6 +72,22 @@
 <p><strong>Report id:</strong> <code>exception-failed-syncs</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Event ID · Event · Attempts · Queued</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="inactive-items-with-stock">Inactive Items With Stock <a class="kb-anchor" href="#inactive-items-with-stock" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>inactive-items-with-stock</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> SKU · Item · Status · Store · On hand</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="item-exceptions">Item Exceptions <a class="kb-anchor" href="#item-exceptions" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>item-exceptions</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Status</strong> (<code>status</code>) - select, optional, one of: ,Open,Logged,Resolved</li></ul>
+<p><strong>Columns:</strong> Date · Type · Source · SKU · Store · Code · What happened · Qty · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="item-master-completeness">Item Master Completeness <a class="kb-anchor" href="#item-master-completeness" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>item-master-completeness</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> SKU · Item · Item Type · Missing</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h3 id="negative-stock-flags">Negative Stock Flags <a class="kb-anchor" href="#negative-stock-flags" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>exception-negative-stock</code></p>
@@ -160,12 +182,36 @@
 <ul><li><strong>Account Code</strong> (<code>account_code</code>) - text, <strong>required</strong></li></ul>
 <p><strong>Columns:</strong> Document Type · Document ID · Debit <em>(sensitive)</em> · Credit <em>(sensitive)</em> · Running Balance <em>(sensitive)</em> · Date</p>
 <p><strong>Drill-down:</strong> no.</p>
+<h3 id="gl-posting-review-by-poster">GL Posting Review (by poster) <a class="kb-anchor" href="#gl-posting-review-by-poster" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>gl-posting-review</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>start</code>) - date, <strong>required</strong></li><li><strong>To</strong> (<code>end</code>) - date, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> Posted by · Source commands · GL lines · Documents · Debit <em>(sensitive)</em> · Credit <em>(sensitive)</em> · First posted · Last posted</p>
+<p><strong>Drill-down:</strong> yes - a row&#39;s <strong>View Details</strong> opens the transactions behind it.</p>
 <h3 id="gst-return-summary">GST Return Summary <a class="kb-anchor" href="#gst-return-summary" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>gst-return-summary</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>start</code>) - date, <strong>required</strong></li><li><strong>To</strong> (<code>end</code>) - date, <strong>required</strong></li></ul>
 <p><strong>Columns:</strong> From · To · Taxable Value <em>(sensitive)</em> · Output CGST <em>(sensitive)</em> · Output SGST <em>(sensitive)</em> · Output IGST <em>(sensitive)</em> · Total Tax Liability <em>(sensitive)</em> · Input Tax Credit <em>(sensitive)</em> · Net GST Payable <em>(sensitive)</em> · Exempt Value <em>(sensitive)</em> · Nil-Rated Value <em>(sensitive)</em> · Zero-Rated Value <em>(sensitive)</em> · Total Non-Taxable <em>(sensitive)</em> · Transactions</p>
 <p><strong>Drill-down:</strong> yes - a row&#39;s <strong>View Details</strong> opens the transactions behind it.</p>
+<h3 id="general-journal-who-posted-what">General Journal (who posted what) <a class="kb-anchor" href="#general-journal-who-posted-what" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>gl-journal</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>start</code>) - date, <strong>required</strong></li><li><strong>To</strong> (<code>end</code>) - date, <strong>required</strong></li><li><strong>Document type (optional)</strong> (<code>document_type</code>) - text, optional</li><li><strong>Posted by (username, service:job, or &#34;before attribution&#34;)</strong> (<code>posted_by</code>) - text, optional</li><li><strong>Attribution</strong> (<code>attribution</code>) - select, optional, one of: All,Attributed,Before attribution</li></ul>
+<p><strong>Columns:</strong> Posted at · Document Type · Document · Account · Account Name · Debit <em>(sensitive)</em> · Credit <em>(sensitive)</em> · Posted by · Source command</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="gift-card-ledger">Gift Card Ledger <a class="kb-anchor" href="#gift-card-ledger" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>stored-value-ledger</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Last 4 digits</strong> (<code>card</code>) - text, optional</li><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
+<p><strong>Columns:</strong> When · Card · # · Event · Amount · Balance after · Source · Store · User · Reason</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="gift-card-liability">Gift Card Liability <a class="kb-anchor" href="#gift-card-liability" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>stored-value-liability</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Status</strong> (<code>status</code>) - select, optional, one of: ,Inactive,Active,Partially redeemed,Fully redeemed,Blocked,Cancelled</li></ul>
+<p><strong>Columns:</strong> Card · Profile · Status · Loaded · Used / cancelled · Outstanding · Expires · Store issued</p>
+<p><strong>Drill-down:</strong> no.</p>
 <h3 id="intercompany-reconciliation">Intercompany Reconciliation <a class="kb-anchor" href="#intercompany-reconciliation" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>intercompany-reconciliation</code></p>
 <p><strong>Parameters:</strong></p>
@@ -187,7 +233,7 @@
 <h3 id="payables-ageing">Payables Ageing <a class="kb-anchor" href="#payables-ageing" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>payables-ageing</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
-<p><strong>Columns:</strong> Age Bucket · PO Count · Outstanding Amount <em>(sensitive)</em></p>
+<p><strong>Columns:</strong> Age Bucket · Open Items · Outstanding Amount <em>(sensitive)</em></p>
 <p><strong>Drill-down:</strong> yes - a row&#39;s <strong>View Details</strong> opens the transactions behind it.</p>
 <h3 id="prepaid-expense-roll-forward">Prepaid Expense Roll-Forward <a class="kb-anchor" href="#prepaid-expense-roll-forward" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>prepaid-expense-roll-forward</code></p>
@@ -215,7 +261,7 @@
 <p><strong>Report id:</strong> <code>statutory-gl-export</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Period Start</strong> (<code>start</code>) - date, <strong>required</strong></li><li><strong>Period End</strong> (<code>end</code>) - date, <strong>required</strong></li></ul>
-<p><strong>Columns:</strong> Posting ID · Account Code · Account Name · Type · Document Type · Document ID · Debit <em>(sensitive)</em> · Credit <em>(sensitive)</em> · Date</p>
+<p><strong>Columns:</strong> Posting ID · Account Code · Account Name · Type · Document Type · Document ID · Debit <em>(sensitive)</em> · Credit <em>(sensitive)</em> · Date · Posted by · Source command</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h3 id="tax-ledger">Tax Ledger <a class="kb-anchor" href="#tax-ledger" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>tax-ledger</code></p>
@@ -236,7 +282,25 @@
 <ul><li><strong>From (optional)</strong> (<code>start</code>) - date, optional</li><li><strong>To (optional)</strong> (<code>end</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Employee ID · Employee · Department · Present · Absent · Late · Leave · Holiday · Weekly Off · Total Marked Days · Attendance %</p>
 <p><strong>Drill-down:</strong> no.</p>
+<h3 id="payroll-reconciliation-gross-to-bank-to-gl">Payroll Reconciliation (gross to bank to GL) <a class="kb-anchor" href="#payroll-reconciliation-gross-to-bank-to-gl" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>payroll-reconciliation</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Pay periods ending from</strong> (<code>start</code>) - date, <strong>required</strong></li><li><strong>Pay periods ending to</strong> (<code>end</code>) - date, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> Step · What is compared · Payslips · Source total <em>(sensitive)</em> · Compared with <em>(sensitive)</em> · Difference <em>(sensitive)</em> · Status · Note</p>
+<p><strong>Drill-down:</strong> yes - a row&#39;s <strong>View Details</strong> opens the transactions behind it.</p>
 <h2 id="inventory">Inventory <a class="kb-anchor" href="#inventory" aria-label="Copy link to this section">#</a></h2>
+<h3 id="backflush-consumption">Backflush Consumption <a class="kb-anchor" href="#backflush-consumption" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>backflush-consumption</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>store</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Date · Bill · Store · Sold item · Group · Consumed · Qty · Default · Changed · Reason · Rule (version)</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="batch-lookup-ageing">Batch Lookup &amp; Ageing <a class="kb-anchor" href="#batch-lookup-ageing" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>batch-ageing</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Scan batch, barcode or SKU</strong> (<code>scan</code>) - text, optional</li><li><strong>Older than (days)</strong> (<code>min_age_days</code>) - text, optional</li><li><strong>Show</strong> (<code>show</code>) - select, optional, one of: All batches,Only with stock left</li></ul>
+<p><strong>Columns:</strong> Batch · Item · Received On · Age (days) · Age Band · GRN · Supplier · Received Qty · Est. Left (FIFO) · Expires · Batch Status</p>
+<p><strong>Drill-down:</strong> no.</p>
 <h3 id="current-stock">Current Stock <a class="kb-anchor" href="#current-stock" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>current-stock</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
@@ -253,6 +317,17 @@
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> SKU · Qty On Hand · Unit Cost (Avg) <em>(sensitive)</em> · Total Value <em>(sensitive)</em> · Costed</p>
 <p><strong>Drill-down:</strong> no.</p>
+<h3 id="item-classification-register">Item Classification Register <a class="kb-anchor" href="#item-classification-register" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>item-classification-register</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Item Type</strong> (<code>item_type</code>) - text, optional</li><li><strong>Sellability</strong> (<code>sellability</code>) - select, optional, one of: ,Normal sale,Promo only,Not sellable,Stored-value issue only</li></ul>
+<p><strong>Columns:</strong> SKU · Item · Item Type · Class · Stock · Valuation · Accounting · Sellability · Bill · Capture · Consumption · Item overrides · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="non-valuated-stock">Non-Valuated Stock <a class="kb-anchor" href="#non-valuated-stock" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>non-valuated-stock</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> SKU · Item · Item Type · Store · On hand · Available</p>
+<p><strong>Drill-down:</strong> no.</p>
 <h3 id="pegged-demand-supply">Pegged Demand &amp; Supply <a class="kb-anchor" href="#pegged-demand-supply" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>pegged-demand-supply</code></p>
 <p><strong>Parameters:</strong></p>
@@ -264,6 +339,18 @@
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Location</strong> (<code>location_code</code>) - text, <strong>required</strong></li><li><strong>Default Lead Time (days)</strong> (<code>default_lead_time_days</code>) - text, <strong>required</strong></li><li><strong>Default Safety Stock</strong> (<code>default_safety_stock</code>) - text, <strong>required</strong></li></ul>
 <p><strong>Columns:</strong> SKU · Location · Available · Daily Velocity · Reorder Point · Suggested Qty · Safety Stock · Lead Time (days)</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="stock-ageing-by-grn-batch">Stock Ageing (by GRN batch) <a class="kb-anchor" href="#stock-ageing-by-grn-batch" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>stock-ageing</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Scan barcode or SKU (optional)</strong> (<code>scan</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Item · On Hand · 0-30 days · 31-60 days · 61-90 days · 91-180 days · Over 180 days · Before batch numbers · Oldest Batch Held · Oldest Received On</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="stock-book-vs-ledger-drift-finder">Stock Book vs Ledger (drift finder) <a class="kb-anchor" href="#stock-book-vs-ledger-drift-finder" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>stock-book-vs-ledger</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Item Code (optional)</strong> (<code>sku</code>) - text, optional</li><li><strong>Location (optional)</strong> (<code>location</code>) - text, optional</li><li><strong>Include rows that agree</strong> (<code>all</code>) - select, optional, one of: No,Yes</li></ul>
+<p><strong>Columns:</strong> Item · Location · On hand (book) · Ledger total · Difference · Ledger lines · What it suggests</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h3 id="stock-ledger">Stock Ledger <a class="kb-anchor" href="#stock-ledger" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>stock-ledger</code></p>
@@ -378,6 +465,11 @@
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> GRN ID · PO Reference · Item Lines · Status · Date</p>
 <p><strong>Drill-down:</strong> no.</p>
+<h3 id="open-purchase-commitments">Open Purchase Commitments <a class="kb-anchor" href="#open-purchase-commitments" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>po-commitments</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Age Bucket · PO Count · Committed Amount <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> yes - a row&#39;s <strong>View Details</strong> opens the transactions behind it.</p>
 <h3 id="rfq-comparison-export">RFQ Comparison Export <a class="kb-anchor" href="#rfq-comparison-export" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>rfq-comparison</code></p>
 <p><strong>Parameters:</strong></p>
@@ -403,10 +495,28 @@
 <ul><li><strong>Customer (optional)</strong> (<code>customer</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Invoice ID · Customer · Invoice Number · Total Amount <em>(sensitive)</em> · Status · Date</p>
 <p><strong>Drill-down:</strong> no.</p>
+<h3 id="gift-with-purchase-register">Gift With Purchase Register <a class="kb-anchor" href="#gift-with-purchase-register" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>gwp-issue-register</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
+<p><strong>Columns:</strong> Date · Bill · Store · Customer · Gift · Qty · Offer</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="post-sale-edit-history">Post-Sale Edit History <a class="kb-anchor" href="#post-sale-edit-history" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>post-sale-edit-history</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from_date</code>) - date, optional</li><li><strong>To</strong> (<code>to_date</code>) - date, optional</li><li><strong>Document type</strong> (<code>document_type</code>) - select, optional, one of: ,Sales Invoice,Sales Order,Till bill</li><li><strong>Number</strong> (<code>document_id</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> When · Document · Number · Status then · Field · Before · After · Changed by · Reason</p>
+<p><strong>Drill-down:</strong> no.</p>
 <h3 id="sales-register">Sales Register <a class="kb-anchor" href="#sales-register" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>sales-register</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Cart Number · Location · Payment Mode · Status · Sale Total <em>(sensitive)</em> · Date · Data Issue</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="sales-by-customer-reference">Sales by Customer Reference <a class="kb-anchor" href="#sales-by-customer-reference" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>sales-by-customer-reference</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from_date</code>) - date, optional</li><li><strong>To</strong> (<code>to_date</code>) - date, optional</li><li><strong>Customer PO / Ref</strong> (<code>customer_reference</code>) - text, optional</li><li><strong>Customer</strong> (<code>customer</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Customer PO / Ref · Document · Number · Date · Customer · From order · Amount · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h2 id="service">Service <a class="kb-anchor" href="#service" aria-label="Copy link to this section">#</a></h2>
 <h3 id="service-sla-breaches">Service SLA Breaches <a class="kb-anchor" href="#service-sla-breaches" aria-label="Copy link to this section">#</a></h3>
@@ -444,6 +554,12 @@
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Item Code (optional)</strong> (<code>sku</code>) - text, optional</li><li><strong>Location (optional)</strong> (<code>location</code>) - text, optional</li><li><strong>Batch / Lot (optional)</strong> (<code>batch_no</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Item · Batch / Lot · Location · Bin · Condition · Qty · Expires · Days Left · Batch Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="bin-stock-reconciliation">Bin Stock Reconciliation <a class="kb-anchor" href="#bin-stock-reconciliation" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>bin-stock-reconciliation</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Item Code (optional)</strong> (<code>sku</code>) - text, optional</li><li><strong>Location (optional)</strong> (<code>location</code>) - text, optional</li><li><strong>Show</strong> (<code>mismatches_only</code>) - select, optional, one of: Mismatches only,All rows</li></ul>
+<p><strong>Columns:</strong> Location · Item · On Hand · In Bins · Picked, Not Dispatched · Difference · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h3 id="clean-location-consolidation-suggestions">Clean-Location Consolidation Suggestions <a class="kb-anchor" href="#clean-location-consolidation-suggestions" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>consolidation-suggestions</code></p>
@@ -503,6 +619,11 @@
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From (optional)</strong> (<code>start</code>) - date, optional</li><li><strong>To (optional)</strong> (<code>end</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> User · Tasks · Quantity · Standard Hours · Labour Cost <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="owner-stock-exceptions-3pl">Owner Stock Exceptions (3PL) <a class="kb-anchor" href="#owner-stock-exceptions-3pl" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>owner-stock-exceptions</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Exception · Location · Bin · Item · Condition · Bin Qty · Owner Qty · What to do</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h3 id="owner-stock-inquiry-3pl">Owner Stock Inquiry (3PL) <a class="kb-anchor" href="#owner-stock-inquiry-3pl" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>owner-stock-inquiry</code></p>

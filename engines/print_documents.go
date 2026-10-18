@@ -140,7 +140,7 @@ func LoadPrintStore(tenantID, locationCode string) PrintStore {
 	}
 	out.Code = firstNonEmpty(str(loc, "code"), locationCode)
 	out.Name = firstNonEmpty(str(loc, "name"), out.Code)
-	out.Address, out.City, out.Pincode = str(loc, "address"), str(loc, "city"), str(loc, "pincode")
+	out.Address, out.City, out.Pincode = addressLines(loc), str(loc, "city"), str(loc, "pincode")
 	out.Phone = str(loc, "contact_phone")
 	if e, _, errE := fetchDocData(tenantID, "LegalEntity", str(loc, "legal_entity")); errE == nil {
 		out.LegalName = str(e, "name")
@@ -149,7 +149,7 @@ func LoadPrintStore(tenantID, locationCode string) PrintStore {
 		out.StateCode = code
 		out.State = StateLabel(code)
 		if out.Address == "" {
-			out.Address = str(e, "address")
+			out.Address = addressLines(e)
 		}
 	}
 	if out.State == "Not set" {
@@ -164,7 +164,7 @@ func loadPrintVendor(tenantID, vendorID string) PrintStore {
 	if v, _, err := fetchDocData(tenantID, "Vendor", vendorID); err == nil {
 		out.Code = firstNonEmpty(str(v, "code"), vendorID)
 		out.Name = firstNonEmpty(str(v, "name"), vendorID)
-		out.Address, out.City, out.Pincode = str(v, "address"), str(v, "city"), str(v, "pincode")
+		out.Address, out.City, out.Pincode = addressLines(v), str(v, "city"), str(v, "pincode")
 		out.GSTIN = str(v, "gstin")
 		out.StateCode = firstNonEmpty(StateCodeFromGSTIN(out.GSTIN), StateCodeFromName(str(v, "state")))
 		out.State = StateLabel(out.StateCode)
@@ -250,10 +250,10 @@ func ItemImageBytes(tenantID, sku string) ([]byte, string) {
 
 // printLine builds one line: the tax split, the Item's fields, and its image.
 type printLineIn struct {
-	SKU, POID, BatchNo         string
-	Qty, Rate, Taxable, GST    float64
-	GSTRate, MRP               float64
-	Extra                      map[string]interface{}
+	SKU, POID, BatchNo      string
+	Qty, Rate, Taxable, GST float64
+	GSTRate, MRP            float64
+	Extra                   map[string]interface{}
 }
 
 func (d *PrintDocument) addLine(tenantID string, in printLineIn, cache map[string]map[string]interface{}, withImages bool) {
@@ -673,7 +673,7 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 				GST: round2(value - taxable), GSTRate: gstRate,
 				Extra: map[string]interface{}{"return_qty": float64(l.Qty), "original_qty": originalQty[l.SKU],
 					"original_disc": round2(math.Max(numFromInterface(item["mrp"])-l.OriginalUnitPrice, 0)),
-					"condition": l.Disposition, "exchange_sku": l.ExchangeSKU}}, cache, withImages)
+					"condition":     l.Disposition, "exchange_sku": l.ExchangeSKU}}, cache, withImages)
 		}
 	}
 

@@ -97,12 +97,13 @@ the route the way the others are):
 }
 
 // A route reachable with no middleware at all answers before any
-// authentication, tenant resolution or capability check runs. There is exactly
-// one today, and it exists for a reason that cannot be met any other way. Any
-// second one is a deliberate decision that has to be made here, in a reviewed
+// authentication, tenant resolution or capability check runs. There are two
+// today, and each exists for a reason that cannot be met any other way. Any
+// further one is a deliberate decision that has to be made here, in a reviewed
 // diff, not noticed later in an audit.
 var reviewedUnauthenticatedRoutes = map[string]string{
-	"GET /internal/tls-ask": "Caddy's on_demand_tls ask hook - called mid-TLS-handshake, before any request exists, so it cannot carry a bearer token. Answers only whether a hostname is a known tenant.",
+	"GET /internal/tls-ask":           "Caddy's on_demand_tls ask hook - called mid-TLS-handshake, before any request exists, so it cannot carry a bearer token. Answers only whether a hostname is a known tenant.",
+	"POST /api/public/v1/oauth/token": "Stage 38.2d's OAuth2 client_credentials grant - where an integration without a bearer gets one, so it cannot sit behind publicAPIMiddleware, which requires one. The client authenticates itself: its secret is checked against the stored hash in the named client's schema, only an Active oauth_client credential qualifies, requested scopes must already be held, 30 requests a minute per address, a 16 KiB body cap, and the issued token is stored hashed and never outlives its client. Reviewed at the 2026-10-18 release, when the scanner first saw it.",
 }
 
 func TestNoUnauthenticatedRouteOutsideTheReviewedSet(t *testing.T) {

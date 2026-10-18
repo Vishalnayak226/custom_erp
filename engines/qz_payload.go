@@ -579,17 +579,42 @@ func BuildReceiptPayload(tenantID, cartNumber string, printer QZPrinter) (*QZPri
 	// 30.2.5 stores redeem_points for the same reason. The redemption value is
 	// recomputed through LoyaltyRedemptionValue rather than re-read from the
 	// ledger, so this stays a pure read - printing must not touch a balance.
-	if pts := int(numFromInterface(data["redeem_points"])); pts > 0 {
+	totals.offerDiscount = numFromInterface(data["offer_discount"])
+	// Stage 73.1.6: the money tenders of a split bill, printed under the total.
+	moneyPaid := map[string]int64{}
+	if alloc, ok := data["allocation"].([]interface{}); ok && len(alloc) > 0 {
+		// Stage 73.1.1: a posted sale records what points actually paid - after
+		// the cap - so the receipt prints that, not the cashier's intent.
+		for _, raw := range alloc {
+			if a, ok := raw.(map[string]interface{}); ok {
+				for key, v := range paiseMapFrom(a["tenders"]) {
+					switch key {
+					case TenderLoyaltyPoints:
+						totals.loyaltyDiscount += PaiseToRupees(v)
+					case TenderGiftCard:
+					default:
+						moneyPaid[key] += v
+					}
+				}
+			}
+		}
+	} else if pts := int(numFromInterface(data["redeem_points"])); pts > 0 {
 		totals.loyaltyDiscount = float64(LoyaltyRedemptionValue(tenantID, pts))
-		if totals.loyaltyDiscount > totals.saleTotal {
-			// FinalizePOSCheckout caps an over-redemption at the bill value and
+		if net := totals.saleTotal - totals.offerDiscount; totals.loyaltyDiscount > net {
+			// FinalizePOSCheckout caps an over-redemption at the net bill and
 			// returns the remainder; the receipt has to show the same cap or it
 			// prints a negative amount due.
-			totals.loyaltyDiscount = totals.saleTotal
+			totals.loyaltyDiscount = net
 		}
 	}
-	totals.offerDiscount = numFromInterface(data["offer_discount"])
 	totals.amountDue = totals.saleTotal - totals.loyaltyDiscount - totals.offerDiscount
+	var splitLines []receiptLine
+	if len(moneyPaid) > 1 {
+		paymentMode = "Split"
+		for _, mode := range sortedPaiseKeys(moneyPaid) {
+			splitLines = append(splitLines, receiptLine{sku: mode, amount: PaiseToRupees(moneyPaid[mode])})
+		}
+	}
 	// Stage 72.8: gift cards that paid part of the bill print as tenders (masked).
 	var giftTenders []receiptLine
 	if raw, ok := data["gift_card_tenders"].([]interface{}); ok {
@@ -677,6 +702,9 @@ func BuildReceiptPayload(tenantID, cartNumber string, printer QZPrinter) (*QZPri
 		b.WriteString(escBoldOn)
 		b.WriteString(escposRow("TOTAL ("+paymentMode+")", money(totals.amountDue), cols))
 		b.WriteString(escBoldOff)
+		for _, s := range splitLines {
+			b.WriteString(escposRow("  Paid by "+s.sku, money(s.amount), cols))
+		}
 		b.WriteString(strings.Repeat("-", cols) + "\n")
 		b.WriteString(escAlignCenter)
 		b.WriteString(escposCentered("Thank you", cols))
@@ -755,7 +783,13 @@ table{width:100%;border-collapse:collapse;} td{padding:1px 0;} td.r{text-align:r
 <div>` + html.EscapeString(cartNumber) + `</div>
 <div>` + createdAt.Format("02 Jan 2006 15:04") + `</div>` + cashierLine + customerLine + `</div><hr>
 <table>` + rows.String() + `<tr class="total"><td>TOTAL (` + html.EscapeString(paymentMode) + `)</td>
-<td class="r">` + money(totals.amountDue) + `</td></tr></table><hr>
+<td class="r">` + money(totals.amountDue) + `</td></tr>` + func() string {
+				out := ""
+				for _, s := range splitLines {
+					out += `<tr><td>&nbsp; Paid by ` + html.EscapeString(s.sku) + `</td><td class="r">` + money(s.amount) + `</td></tr>`
+				}
+				return out
+			}() + `</table><hr>
 <div class="c">Thank you</div>
 </body></html>`,
 		}},
@@ -793,6 +827,7 @@ func BuildInvoicePayload(tenantID, invoiceID string, printer QZPrinter) (*QZPrin
 		location = ReceiptStoreHeader(tenantID, location).Line()
 	}
 	amount := numFromInterface(data["total_amount"])
+	customerRef := strings.TrimSpace(pimString(data["customer_reference"])) // Stage 73.2.9
 
 	if isESCPOS(printer.Language) {
 		cols := escposColumns(printer.WidthMM)
@@ -811,6 +846,9 @@ func BuildInvoicePayload(tenantID, invoiceID string, printer QZPrinter) (*QZPrin
 		b.WriteString(escposRow("Date", createdAt.Format("02 Jan 2006"), cols))
 		if customer != "" {
 			b.WriteString(escposRow("Customer", customer, cols))
+		}
+		if customerRef != "" {
+			b.WriteString(escposRow("Cust PO/Ref", customerRef, cols))
 		}
 		if location != "" {
 			b.WriteString(escposRow("Store", location, cols))
@@ -860,7 +898,7 @@ table{border-collapse:collapse;} td{padding:4px 0;} td.k{font-weight:700;padding
 </style></head><body>
 <h1>Tax Invoice</h1>` + watermark + `<hr>
 <table>` + row("Invoice", number) + row("Date", createdAt.Format("02 Jan 2006")) +
-				row("Customer", customer) + row("Store", location) + row("Status", status) + `</table>
+				row("Customer", customer) + row("Customer PO / Ref", customerRef) + row("Store", location) + row("Status", status) + `</table>
 <div class="total">Total: ` + money(amount) + `</div>
 </body></html>`,
 		}},

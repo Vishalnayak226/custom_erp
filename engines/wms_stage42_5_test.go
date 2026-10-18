@@ -361,8 +361,9 @@ func TestStage42_5InventoryControlDepth(t *testing.T) {
 		// below is unchanged and still worth testing; what changed is that
 		// reaching this state is now a deliberate, named choice rather than the
 		// default.
-		if err := SetSetting(tenantID, StockOwnershipModeSetting, OwnershipMixedUnsupported, "stage42.5 test"); err != nil {
-			t.Fatalf("failed to opt into the unsupported mixed-owner mode: %v", err)
+		// Stage 59.6: the mixed mode is now the supported, owner-isolated one.
+		if err := SetSetting(tenantID, StockOwnershipModeSetting, OwnershipMixed, "stage42.5 test"); err != nil {
+			t.Fatalf("failed to opt into the mixed-owner mode: %v", err)
 		}
 		t.Cleanup(func() {
 			_ = SetSetting(tenantID, StockOwnershipModeSetting, OwnershipSingleOwner, "stage42.5 test cleanup")

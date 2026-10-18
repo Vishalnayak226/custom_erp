@@ -370,7 +370,9 @@ func appendSVEvent(tx *sql.Tx, schema string, c *svCard, event string, amount in
 		return 0, err
 	}
 	c.Balance = newBalance
-	if amount > 0 {
+	if amount > 0 && event != SVEventReversal {
+		// A REVERSAL (Stage 73.1.6, a returned item paid by card) gives back
+		// value already funded; it is not new funding.
 		c.Funded += amount
 	}
 	if status == "" {

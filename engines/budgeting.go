@@ -136,8 +136,8 @@ func GetBudgetVarianceReport(tenantID, periodStart, periodEnd string) ([]map[str
 func customerOutstandingReceivable(schema, customerName string) (float64, error) {
 	var total float64
 	err := db.DB.QueryRow(fmt.Sprintf(
-		`SELECT COALESCE(SUM((data->>'total_amount')::numeric), 0) FROM %s.documents
-		 WHERE doctype = 'SalesInvoice' AND status = 'Approved' AND deleted_at IS NULL AND data->>'customer' = $1`, schema),
+		`SELECT COALESCE(SUM(%s), 0) FROM %s.documents
+		 WHERE doctype = 'SalesInvoice' AND status = 'Approved' AND deleted_at IS NULL AND data->>'customer' = $1`, salesInvoiceOutstandingSQL, schema),
 		customerName).Scan(&total)
 	return total, err
 }
@@ -225,10 +225,10 @@ func runDunningForSchema(tenantID, schema string) (notified int, err error) {
 
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, COALESCE(data->>'customer', ''), data->>'due_date',
-		       COALESCE(data->>'dunning_last_notified_tier', ''), COALESCE((data->>'total_amount')::numeric, 0)
+		       COALESCE(data->>'dunning_last_notified_tier', ''), %s
 		FROM %s.documents
 		WHERE doctype = 'SalesInvoice' AND status = 'Approved' AND deleted_at IS NULL
-		  AND COALESCE(data->>'due_date', '') <> ''`, schema))
+		  AND COALESCE(data->>'due_date', '') <> ''`, salesInvoiceOutstandingSQL, schema))
 	if err != nil {
 		return 0, err
 	}
@@ -328,11 +328,11 @@ func GetDunningQueue(tenantID string) ([]map[string]interface{}, error) {
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, COALESCE(data->>'customer', ''), data->>'due_date',
-		       COALESCE(data->>'dunning_last_notified_tier', ''), COALESCE((data->>'total_amount')::numeric, 0)
+		       COALESCE(data->>'dunning_last_notified_tier', ''), %s
 		FROM %s.documents
 		WHERE doctype = 'SalesInvoice' AND status = 'Approved' AND deleted_at IS NULL
 		  AND COALESCE(data->>'due_date', '') <> ''
-		ORDER BY data->>'due_date'`, schema))
+		ORDER BY data->>'due_date'`, salesInvoiceOutstandingSQL, schema))
 	if err != nil {
 		return nil, err
 	}
@@ -384,7 +384,7 @@ func openInvoiceDueTotalsByDate(schema, doctype, amountField, asOfDate, horizonE
 	// direct %s interpolation into the JSON field name is as safe as this
 	// codebase's many other doctype/column-name interpolations elsewhere.
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT data->>'due_date', COALESCE((data->>'%s')::numeric, 0)
+		SELECT data->>'due_date', COALESCE((data->>'outstanding_amount')::numeric, (data->>'%s')::numeric, 0)
 		FROM %s.documents
 		WHERE doctype = $1 AND status = 'Approved' AND deleted_at IS NULL
 		  AND data->>'due_date' >= $2 AND data->>'due_date' <= $3`, amountField, schema),

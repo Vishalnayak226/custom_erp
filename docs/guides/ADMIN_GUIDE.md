@@ -87,11 +87,16 @@ Add `-Env test` or `-Env live` to target an environment other than the default (
 ### B.2 User and Role Management
 
 - **The order to set people up in**: create the **role** first (Roles screen), give it access (usually a whole module), then create the **user** with that role. A user and a role are both required — there is no user without a role, and the role must already exist.
-- **Creating a role (Stage 57.17)**: **Roles** screen → **Create a Role**. Give it a name people will recognise ("Purchase Clerk", "Store Keeper") and, optionally, a one-line description. A new role **can see nothing** until you grant it access (below) — the safe default while you are still setting it up. Names that mean the administrator role ("Super Admin", "HR/Admin") are refused, as is a name that differs from an existing role only by capitals.
+- **Creating a role (Stage 57.17, Stage 79)**: **Roles** screen → **+ New Role**. Give it a name people will recognise ("Purchase Clerk", "Store Keeper") and, optionally, a one-line description, then **Create Role**. The new role opens straight on its access page (below). A new role **can see nothing** until you give it access — the safe default while you are still setting it up. Names that mean the administrator role ("Super Admin", "HR/Admin") are refused, as is a name that differs from an existing role only by capitals.
 - **Creating a user**: **Users** screen (Super Admin only — the menu entry and the API both refuse every other role). Fill in username, password, email, and role, then **Create User**. New accounts start **Active**. The role must be one that exists (a mistyped role is refused rather than creating a user who sees an empty system); capitals don't matter, the stored spelling is the role's own. The password must clear the same baseline (Stage 49.2.2) a self-service change/reset does: at least 12 characters by default (`security.password_min_length`, editable in Configuration), not one of the most common/breached passwords, not the username itself, and not a simple repeated or sequential pattern — the API rejects one that doesn't with a specific reason.
 - **The password you type is temporary (Stage 57.17).** Give it to the user; the first time they sign in they get a **Set your own password** screen and cannot do anything else in the system — through the screens *or* the API — until they have chosen their own. Ordinary roles sign in with username and password only, no authenticator code; only Super Admin / HR/Admin accounts need two-factor.
 - **Deactivating/reactivating a user**: same **Users** screen, the **Deactivate**/**Reactivate** action on each row. You can't deactivate the account you're currently logged in as. A deactivated user's login is rejected the same as a wrong password, **and any session they already have open stops working on their next click** — you do not have to wait for their sign-in to time out. The same applies to changing someone's role or location: it takes effect on their live session, not at their next login. (If you make the change directly in the database rather than through this screen, allow up to 30 seconds — see `AUTH_STATE_CACHE_SECONDS` in `deploy/erp.env.example`.)
-- **Granting access**: **Roles** screen (also Super Admin only) → **Add or Update Access**. Pick the role, then choose **Grant on: A whole module** (the usual case — e.g. *Procurement* covers Purchase Requisition, RFQ, Vendor Quote, Purchase Order, Goods Receipt, Vendor and Vendor Invoice in one go) or **One record type** for a finer grant. Tick Read/Create/Update/Delete and **Save Grant**. The table below lists every (role, record type) grant. A role with no row for a record type gets **no access at all** to it (fails closed) — Super Admin always has full access and never needs a row here. See `../ERP_BLUEPRINT.md` §3 for how role checks are enforced (server-side, on every action — never trust a UI-only restriction).
+- **Giving a role access (Stage 79)**: **Roles** screen (also Super Admin only). It opens on the list of roles — each with what it can reach ("3 modules · 24 record types") and who holds it. Click a role (or **Set access**) to open its access page: **every module** is listed with **Full access / Read / Create / Update / Delete** tick boxes.
+  - Tick a box on a **module** row to give that right on every record type in the module at once (the usual case — e.g. *Procurement* covers Purchase Requisition, RFQ, Vendor Quote, Purchase Order, Goods Receipt, Vendor and Vendor Invoice in one go). A half-filled box means only some of its record types have that right; "3 of 12" beside the module name counts the record types with any access.
+  - Click the module name (or **Expand all**) to see its record types and tick them one by one for a finer grant. **Find a module or record type** narrows the list.
+  - **Full access** ticks all four. **Create, Update and Delete include Read** — ticking one of them ticks Read, and clearing Read clears them.
+  - Nothing is stored until **Save access**: the bar at the bottom counts the record types changed, **Discard changes** puts the ticks back, and leaving the page with unsaved ticks asks first. Everything ticked is saved together, in one go.
+  - Super Admin and HR/Admin show as **Full access (built in)** and have nothing to set. A role with no access to a record type gets **no access at all** to it (fails closed) — Super Admin always has full access and never needs a row here. See `../ERP_BLUEPRINT.md` §3 for how role checks are enforced (server-side, on every action — never trust a UI-only restriction).
 - **What a role sees in the menu (Stage 57.17)**: a module appears once the role can read something in it, and only then. A "Store Keeper" granted the Inventory module sees **Home, Reports, Knowledge Center, Stock** and the matching **Setup** lists — not POS, Finance, Sales, Procurement, HRM or PIM. **Approvals** is shared by every module: an approver reaches it from the "waiting on you" card on Home even when their role has no Finance menu. (Before Stage 57 most module screens were shown to every role regardless of grants; the server still refused the data, but the menu did not reflect the role.)
 - **Super Admin** and other privileged roles require MFA (Multi-Factor Authentication — a 6-digit code from an authenticator app).
 - **Resetting a user's two-factor setup.** On the **Users** screen each row has a **Reset 2FA** action. Use it when someone has lost both their phone *and* their recovery codes. It clears their authenticator and every recovery code they hold, and forces them to set two-factor up again on a new device at their next login — it does **not** turn MFA off for that account. (The old route, the `cmd/reset_mfa` command-line utility, still exists for the case where nobody can log in at all; it needs shell and database access on the server.)
@@ -117,7 +122,7 @@ Several things are configurable through the app's admin screens, not by editing 
 - **Operational settings, module by module** (return windows, tolerances, timeouts, limits, offer-free thresholds) — the **Configuration** screen. This is the main one; see §B.3.0. If you are looking for "where do I change *that number*", start here.
 - **Document number formats** (invoice numbers, PO numbers, etc.) — **Prefix Configurations** screen. This is where every transaction number comes from; see §B.3.2, it has more to it than the name suggests.
 - **Renaming terms** to match your industry's vocabulary (e.g. "Design Number" instead of "SKU") — **Dynamic Labels** screen.
-- **The industry profile** (which industry's extra fields are overlaid onto the standard record types) — the **"Select Industry"** dropdown in the top bar. **This locks itself after the first time you set it** and needs a reasoned override to change afterwards; see §B.3.2.1.
+- **The industry profile** (which industry's extra fields are overlaid onto the standard record types) — **Settings → Configuration → Industry**, for the org's admin only. **Once set, changing it needs a written reason**; see §B.3.2.1.
 - **Adding new record types or custom fields** — **Database Schema Design** screen (this is the same "metadata-driven" engine described in `../architecture/framework_architecture.md` — new master/transaction types don't need a code change). This is different from adding an actual *record* of an existing type (a new Vendor, a new Brand, etc.) — that's a business-user task, see [User Guide](USER_GUIDE.md) §8.
 - **Turning modules on/off per tenant** — module entitlements, admin-only.
 - **Silent printing** (labels, barcode stickers, POS receipts, sales invoices going straight to the right printer with no browser dialog) — a **Printer** record per physical printer, plus QZ Tray on each PC that prints. Full steps in **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)**. The field that makes it one-click is **Default For** (`Shipping Label` / `Invoice` / `Sticker` / `Receipt` / `General`) — the server resolves the job to the printer holding that role, so operators never pick a printer. **Nothing depends on QZ Tray being set up**: with no Printer records, or with QZ Tray not running, every one of those screens falls back to the browser print dialog exactly as before. The one exception is **Sticker Printing**, which needs at least one Printer record even for the browser fallback, because the print is logged against a printer — see §B.3.4.
@@ -127,10 +132,14 @@ Several things are configurable through the app's admin screens, not by editing 
 
 **Settings → Configuration** (Super Admin only). The left rail lists modules; pick one and you get that module's settings, each with a plain-English description of what it actually controls. Change what you need, then **Save Changes**.
 
+**Setup path (Stage 55.3).** At the top of the page, **Setup path** lists the core masters in the order they depend on each other — Legal entity → Stores and warehouses / Departments and cost centres → Units and HSN codes → Item types and categories → Items → Vendors and customers → Document numbering → Users and their roles — each marked **Done** (with how many active records), **Next**, **To do** or **Waiting** (and what it waits for). Each step links to its list or screen. It is worked out from the records you already have every time the page opens, so it picks up where you left off and never removes anything; once every step is done it folds away to one line.
+
 Two things worth knowing:
 
 - **A change takes effect immediately, everywhere, with no restart.** Every setting is read at the moment it is used, not cached when the server starts. Lower the sales return window and the very next return attempt is judged by the new value.
 - **Out-of-range values are refused, not clamped.** Settings that could destabilise the server if set absurdly (page sizes, concurrency, batch sizes) carry a permitted range; a value outside it is rejected at save time with a message naming the limit. Nothing is silently "corrected" behind your back.
+
+**Finding and changing a setting.** **Find a setting** (top of the page) searches every module at once — each result shows its module. An unsaved change survives switching module or searching, a setting you changed shows its **Default** underneath, and leaving the page (sidebar, Home, reload) with unsaved changes asks first; **Cancel** keeps you on the page with your changes.
 
 **The Settings menu is grouped** (Stage 67.3): **Users & Access** (Users, Roles, Approval Rules), **Customize** (Configuration, Prefix Configs, Dynamic Labels, Database Schema Design, Extension Hooks), **Monitoring** (Activity Log, System Status) and **Platform** (Control Panel, Tenant Entitlements, Tenant Usage, Data Console). A heading only shows when you can open at least one screen under it. The **Setup** menu is grouped the same way, by module (CRM, Core, Finance, HR, Inventory...), with the filter box at the top.
 
@@ -144,9 +153,9 @@ What lives where (37 settings across 13 modules):
 | Module | Examples of what you can change |
 |---|---|
 | Sales & Returns | How many days after a sale a return is still accepted (0 = no returns at all) |
-| Procurement | Vendor-invoice 3-way match tolerance %; **how many days a PO or a GRN stays editable** (0 = no time limit) |
+| Procurement | Vendor-invoice 3-way match tolerance %; **how many days a PO or a GRN stays editable** (0 = no time limit); **Purchase Order auto-cancel** — days after approval an Approved PO stays open, then (checked every hour) one with nothing received is cancelled and one partly received has its open balance short-closed, reason `AUTO-EXPIRY`, rejected goods put on a draft purchase return (0 = never; POs already older than the limit are handled on the first check after you set it; the approval date is the PO's approval in **Approvals**, or its creation when no approval rule applies); **Purchase return window** — days after a goods receipt its **accepted** stock may still be returned (PURCHA-0620; rejected / damaged goods can always go back; 0 = no limit) |
 | Point of Sale | Cash-drawer variance a cashier may close a shift with before a written reason is required |
-| Loyalty | Point expiry, spend-per-point earned, rupee value per point redeemed, tier-recompute toggle |
+| Loyalty | Point expiry, spend-per-point earned, rupee value per point redeemed, tier-recompute toggle; **customer confirms every redemption with a one-time code**; how long points a return gives back stay valid (at least 30 days) — see *Loyalty redemption controls* below |
 | Inventory | How long an online stock reservation is held before it releases |
 | Manufacturing | Max BOM nesting depth, production cost-variance tolerance, default MRP lead time |
 | HR & Payroll | ESI wage ceiling (change it here when the statutory figure changes — no code release needed) |
@@ -156,6 +165,44 @@ What lives where (37 settings across 13 modules):
 | Security | Session length, password-reset link validity, failed-logins-before-lockout and lockout duration, two-factor clock tolerance |
 | Platform | API page-size default and cap, per-tenant concurrency, CSV import batch size, max rows for an on-screen report, default field length cap |
 | Localization | **Home country** — the country this business operates from. Sets the phone-number length every module validates against and the dialling code stripped when cleaning imported data. See §B.3.0.2. |
+
+**Loyalty redemption controls** (Stage 73.1.4). Every way points are spent — the till, the `/loyalty/redeem` API, the OTP flow — passes the same checks at the moment the points burn, so none can be bypassed:
+
+- **Daily limit** — **Security → Max loyalty redemptions per customer per day** (5 as shipped). Once a customer has redeemed that many times today, the next redemption is refused until tomorrow.
+- **One-time code** — turn on **Loyalty → Customer confirms every redemption with a one-time code** to have the customer read back a code sent to them. It is sent through the **Loyalty Redemption OTP** notification event, so set up a **Notification Template** for that event *before* turning this on — without one the code never reaches the customer and redemptions cannot complete.
+- **Manager approval above a value** — **Settings → Approval Rules**, document type **LoyaltyRedemptionRequest**. As shipped: points worth ₹500 or more need a **Store Manager**. The cashier picks a reason, the request appears under **Approvals**, and the manager who approves must be at the same store and must not be the cashier who raised it. The approval is spent by the one bill it was raised for.
+- **Reasons** — add **Reason Codes** with the category **Loyalty Redemption** (Setup → Reason Codes). With none, a cashier cannot raise an approval request and is told to ask you.
+
+**Loyalty administration** (Stages 73.2.11, 73.2.12, 73.3.1 — the **Loyalty** screen, User Guide §4.8).
+
+- **Manual adjustments** need **Reason Codes** with the category **Loyalty Adjustment**. The approval value is the **LoyaltyPointAdjustment** approval rule (Settings → Approval Rules; shipped *500 and over → Store Manager*, measured on the points' value). Only a Store Manager or an administrator can adjust.
+- **Tiers.** **Loyalty → Tier spend counted over the last** (days): 0 counts all-time spend, so a tier is never lost; 365 counts the last year, so ageing spend can lower a tier after its grace days. Spend is what each paid bill took (net of offers) less refunds. Earlier builds never recorded what a bill took, so every customer's spend read zero and nobody moved up a tier, and campaign revenue, the RFM report and Customer 360 showed zero spend too. Bills sold since this release record it; older bills are worked out from their lines.
+- **Accounting for points.** **Loyalty → Account for loyalty points**: *As an expense when they are redeemed* (the default, unchanged — 5250 at the till) or *As a liability when they are earned*: the value of points earned or credited is booked *Dr 5260 Loyalty Points Expense / Cr 2630 Loyalty Points Liability*, released as points are redeemed, taken back on returns, debited or expire (breakage), and booked again when a return gives points back. **Switching to the liability method does not book the points already outstanding** — post that opening balance by journal (the movement report's *Books less points outstanding* line shows the amount). Report: **Loyalty Points Movement** (Reports → CRM, or the Loyalty screen).
+
+**Vouchers and campaigns in words** (Stage 55.17, User Guide §4.8). **Loyalty → Vouchers & campaigns** is read-only. Vouchers and campaigns are still set up on their own records (**Add or edit …** opens them). A voucher's *Now* column is the till's own check, run for the customer the voucher is meant for. A campaign's *Would pick today* uses the same selection the daily campaign worker sends to. **Consent** (Stage 55.17a): no consent, no SMS / WhatsApp.
+- Each Customer has **Agrees to offers by SMS** and **Agrees to offers by WhatsApp**. **Consent recorded on / by** are filled in by the save that changes them.
+- The till's **+ New Customer** asks the customer, with both unticked.
+- Each Campaign names what it is **Sent by** (WhatsApp or SMS) and goes only to customers who agreed to that channel. A campaign without one sends nothing, and the Vouchers & campaigns tab says so.
+- Existing customers start with neither ticked, so campaigns reach no one until consent is recorded. A CSV import of customers can carry the two columns (Yes / No) and **consent_updated_at**.
+- An approved **consent withdrawal** (data-subject request) clears both.
+- Order, return and invoice messages and the redemption one-time code are not offers and are not affected.
+
+**Till cash control** (Stage 73.2.7). Cashiers record **Paid In / Paid Out / Safe Drop** from **More… → Cash in / out** (User Guide §4.0). Set up:
+
+- **Reason Codes** with the category **Cash Movement** (Setup → Reason Codes) — a movement cannot be recorded without one.
+- A **Paid Out** posts *Dr 5290 Till Petty Cash Expenses / Cr 1100*. Paid In and Safe Drop move cash between the till and the safe, both inside 1100, so they post nothing — they are the drawer's record.
+- **Point of Sale → Cash drawer variance tolerance** (₹50 as shipped) is still where a reason becomes necessary at close. Above it, the close also waits for the **POSSession** approval rule (**Settings → Approval Rules**, shipped as *0 and over → Store Manager*, applied only above the tolerance). The approving manager must be at the store and must not be the cashier. Delete the rule to go back to "reason only".
+- Expected cash at close = opening float + cash taken in sales (after offers, points, gift cards and any split) − cash refunds processed while a session was open at the store the goods came back to + paid in − paid out − safe drops.
+
+**Post-sale edit history** (Stage 73.2.8, User Guide §9B.4). An edit to an issued sale (a sales invoice or sales order past Draft, or a paid till bill) needs a reason, and each one is recorded. **Reports → Report Catalog → Post-Sale Edit History** has one row per changed field: when, the document and its number, its status at the time, the field, the before and after values, who changed it and why. Filter it by dates, document type or number. The records are read-only to every role and cannot be edited or deleted. Status steps made with their own buttons (**Post**, **Settle**, completing a till bill) are not edits and need no reason.
+
+**Customer PO / reference on B2B sales** (Stage 73.2.9, User Guide §9A.1). Sales orders and sales invoices have an optional **Customer PO / Reference** field for a business customer's own PO number. It goes from an order onto every invoice raised from it (the whole-order invoice and the per-package invoices), and it prints on the invoice. **Sales by Customer Reference** (Report Catalog, Sales) lists the orders and invoices that have one. You can filter it by dates, reference (part of it is enough) and customer. Orders and invoices made before this stage have no reference. Nothing is backfilled.
+
+**Second-person approval of returns and refunds** (Stage 55.5a). **Settings → OMS → A second person approves returns and refunds** (off as shipped). When on, the person who raised a return cannot **Approve** it, nor approve its refund. Anyone else with Returns can, and is refused with *"Another person must approve this"* if they raised it themselves. Who approved is taken from the signed-in user, not typed. Receiving, inspecting and paying the refund out are unchanged. An **exchange at the till** is still approved at the counter (it is one transaction there).
+
+**Exchanges at the till** (Stage 73.2.6, User Guide §4.7). The returned items go through the ordinary return (raised, received and inspected by the cashier at the counter — so an exchange needs no manager), and their refund's money is credited to **2620 Exchange Credit Clearing** instead of being paid back. The new bill debits 2620 as a tender; any credit it does not need is paid out of the till (*Dr 2620 / Cr cash*). Every completed exchange leaves 2620 at zero — a balance on it is an exchange that was started and never finished: look up the **ExchangeCredit** documents with status *Open*.
+
+How a **return** treats points and tenders is described for cashiers in the User Guide §4.7: points spent come back as points, points earned are reversed pro rata (a balance may go negative), money goes back by the tender each item was paid with, and a gift-card share goes back onto the card.
 
 **Integrations** is the last entry in the rail. It holds the endpoint and credentials for the two external systems this ERP talks to — **Pine Labs** card terminals (one entry per terminal ID) and **Unicommerce**, the OMS middleware (one entry per store code). Fill in the fields and save; saving an entry whose terminal ID / store code already exists updates it in place. Existing entries are listed above the form with secrets masked. The background workers pick up a changed Base URL on their next call.
 
@@ -230,7 +277,7 @@ The receipt header is built from **two master records**, not from anything typed
 
 Plus the bill number, the date and time, and the cashier's username (taken from their resolved identity at checkout, never from the browser).
 
-**Fill in the Legal Entity to get a tax-compliant receipt.** Setup → Core → **LegalEntity**, set `name`, `gstin` and `state`, then set **Legal Entity** on each selling Location. Until you do, the receipt prints the shop name and bill details but carries **no company name and no GSTIN**.
+**Fill in the Legal Entity to get a tax-compliant receipt.** Setup → Core → **LegalEntity**, set `name`, `gstin` (the **State** then fills itself from the GSTIN, and **State Code** shows its short code, e.g. KA) and the address lines, then set **Legal Entity** on each selling Location — a Location left without a State takes its Legal Entity's. Until you do, the receipt prints the shop name and bill details but carries **no company name and no GSTIN**.
 
 This degrades rather than failing, deliberately: a missing Location record, a Location with no legal entity, or an entity with no GSTIN each simply leave that line off. A receipt must always print — the alternative is a cashier holding a paid sale and no paper.
 
@@ -301,6 +348,9 @@ Three behaviours worth knowing before you design a promotion:
 - **A sale can never go below zero.** If offers add up to more than the bill, the discount is capped at the bill.
 - **To switch an offer off, set Status to Inactive** — it stops applying immediately, and you keep the record and its history. Don't delete it.
 
+
+**Issued vouchers at the till** (Stage 73.2.10). A **Voucher** (CRM → Voucher, or a bulk CSV of codes) is a code you hand out: *Flat* or *Percentage*, with **Max Uses**, an **Expiry Date**, and optionally **Restricted to Customer**, **Valid From** and **Where it can be used** (*Any*, *POS* or *Online* — blank is Any). A cashier types it into the till's **Coupon code** box; a code no Offer claims is looked up as a voucher, applied after the offers (one voucher per bill), shared across the lines like an offer so it reaches the GST and any later return the same way, and used up only when the sale posts. The panel tells the cashier why a voucher was refused. Max Uses is enforced under a row lock, so the last use cannot be spent twice.
+
 #### B.3.0.3 Database Schema Design — adding, editing and removing fields
 
 **Settings → Database Schema Design.** Hover a module on the left, pick a record type, and you get its field list.
@@ -336,6 +386,8 @@ Nobody types a document number in this system. Purchase Orders, Goods Receipts, 
 
 Each row is one series, and each transaction has its own: PO, GRN and Transfer numbers can all look different. The table shows the prefix, length, suffix, how often it restarts, whether the store is in the number, how many stores have their own prefix, and a **Next number looks like** example. **Edit** opens one form with every setting and a live preview:
 
+You can also get here from the record itself: a **New** form for a numbered record type shows **Numbering for this record type** under its code, which opens this screen on that type's series with its next number previewed.
+
 | Setting | What it does |
 |---|---|
 | **Prefix** | The leading text. `PO`, `GRN`, `TRF` — whatever your business calls it. Letters, digits, `-`, `_` and `.`; no spaces. |
@@ -359,11 +411,14 @@ Things to understand before you change one:
 
 ##### Adding a series for a record type that isn't listed yet (New Series)
 
-The table only ever showed record types that already had a series row. Master records — Vendor, Item, Customer, Employee and the rest — were *always* auto-numbered (the engine falls back to sensible defaults when no row exists), but with no row on this screen there was nothing to edit.
+**Master record codes are short, and set up the first time (Stage 76.5).** A master record — Vendor, Customer, Item, Employee, Category, a design and the rest — is numbered `V00001`, `V00002` …: a prefix and a zero-padded number, with no store, no year and no separator, never restarting. The **first** time anyone creates a record of a kind, its New form (and the inline **+ New** dialog) shows **"… code format (asked once)"** with a suggested prefix (`V` vendors, `C` customers, `I` items, `D` designs, `LE` legal entities, otherwise the name's initials — never a prefix another series already prints) and **Digits** (3–8, default 5). Saving that first record confirms the format; from then on every record of that kind takes the next number and the question is gone. A CSV import or API call that arrives first gets the suggested format. To change a confirmed format later, edit its row here — it applies to the next record only.
 
-**Vendor, Item and ProductFamily ship with explicit rows**, so they appear in the table like any other series and are editable straight away. Their shipped settings are identical to the defaults the engine was already using, so **no code that has already been issued changes shape**.
+- The server numbers every master itself, for every role: the forms no longer call the admin-only number endpoint, so a Store Manager can create a vendor.
+- A save that is refused gives its number back; an import row is numbered only after it passes validation. A number already used by any record is skipped, never overwritten.
+- **Currency, UOM and HSN Code** are not numbered: their code *is* the value (`INR`, `PCS`, `7113`) and is typed on the form.
+- Codes issued before Stage 76 keep their long shape (`Vendor/HQ/2026/000006`) until they are re-coded (Stage 76.6, planned).
 
-For anything else, use **New Series** (the plus-icon button) at the top of the screen:
+For a record type that has no row here yet, use **New Series** (the plus-icon button) at the top of the screen:
 
 1. Click **New Series**. The same form opens, with the **Transaction** box editable.
 2. **Transaction** — type the record type's name **exactly as the system spells it**: `Vendor`, `Item`, `Customer`, `PurchaseOrder`. This is the internal doctype name, not the friendly label, and it is case-sensitive. If you get it wrong you create a series that nothing will ever draw from — harmless, but it does nothing. Check the spelling on the **Database Schema Design** screen if you are unsure.
@@ -371,32 +426,32 @@ For anything else, use **New Series** (the plus-icon button) at the top of the s
 
 One caution: **it applies to the next record only.** Adding a series for a record type that has been auto-numbering for months does **not** renumber the existing ones, and the counter starts from 1 — so if you choose a new prefix, choose one that cannot collide with what has already been issued. If in doubt, keep the default prefix (the record type's own name, which is what the engine was already using).
 
-#### B.3.2.1 Locking the industry profile
+#### B.3.2.1 Choosing the industry, and changing it later
 
-The **"Select Industry"** dropdown sits in the **top bar** of the app, to the left of the **Sync** button — not under Settings. Choosing an industry profile (Jewelry, Food & Beverage, Clothing, Pharmaceuticals and the rest) overlays that industry's extra fields onto the standard record types — see §B.3.0.3 and User Guide §8d. It is a wide-reaching change: it rewrites field definitions across the system and reloads preset table configurations.
+**Settings → Configuration → Industry** (the first entry in the list on the left). Only the org's admin sees it — Configuration is admin-only, and other roles never see the industry at all. Choosing an industry profile (Jewelry, Food & Beverage, Clothing, Pharmaceuticals and the rest) overlays that industry's extra fields onto the standard record types — see §B.3.0.3 and User Guide §8d. It is a wide-reaching change: it rewrites field definitions across the system and replaces the screen labels with the industry's own.
 
-Because of that, **the profile locks itself the first time it is set.**
+The panel shows the **current** industry, **who** set it and **when**, and how many times it has been changed since. Below it, every industry is listed by name with what it covers (for example *Fashion and fine jewellery; stones, precious metals, plating, workmanship*).
 
-**Setting it the first time:** pick an industry from the dropdown, confirm the "Switch to active industry profile" prompt, and it applies. From that moment the dropdown is **disabled** and an **Override** button appears beside it. Hover the disabled dropdown and it tells you what it is locked to, **who** set it and **when**.
+**Setting it the first time:** click an industry. The panel says what will happen — its fields are added to Item and the setup lists, the labels are replaced, its common HSN codes are added, and nothing that already exists changes. Press **Set industry to …** and confirm.
 
-The lock is real server-side state, not a browser setting — clearing your browser, using another machine, or signing in as a different admin will not unlock it.
+**Once set, the profile is locked**: changing it needs a written reason. The lock is real server-side state, not a browser setting — clearing your browser, using another machine, or signing in as a different admin will not unlock it.
 
 **Choosing the industry also loads its HSN codes (Stage 66).** The industry's common HSN/SAC codes are added to **Setup → Core → HSN Code**, each with a description and, where the code has a single GST rate, that rate. For example, a jewellery client gets 7113 silver and gold jewellery, 7117 imitation jewellery, coins, bullion and diamonds; a clothing client gets fabrics, garments, made-ups and footwear. Codes already on the list are left exactly as they were, so a description or rate you set is never overwritten. An override to another industry adds that industry's codes too and removes none. From then on, the **HSN Code** box on every Item suggests codes ranked for the item's name and your industry (User Guide §8.1.2). Without an industry the suggestions still work from the item name, but the *Common in your industry* group is missing. Set the industry early.
 
 **The HSN rates you set win.** If a code on your HSN Code list carries a **Default GST Rate**, that rate is what the item picker fills, and its button reads *Set on your HSN list*. The system's own rates (GST from 22 September 2025) appear beside it. A list that still holds an old rate (a pre-September-2025 12%, say) therefore keeps suggesting it until you correct it on the list. The full list the system suggests from ships with the system (`engines/hsn_master.json`, about 290 codes across the ten industries). It is suggestions only: an Item can carry any valid 4, 6 or 8-digit code.
 
-**To change a locked profile:**
+**To change it:**
 
-1. Click **Override** next to the disabled dropdown.
-2. **Type the industry code** you want. This step is a typed prompt, not a dropdown, and it lists the valid codes for you: `jewelry`, `food_bev`, `auto`, `clothing`, `pharma`, `metal`, `construction`, `medical`, `semiconductor`, `agriculture`. It is pre-filled with the current one. Type it exactly — an unrecognised code does nothing.
-3. **Confirm** the "Switch to active industry profile … This will re-load preset table field configurations" prompt.
-4. **Enter a reason.** This is where the override is actually authorised, and it is **mandatory** — cancelling, or entering nothing, abandons the change and the profile stays as it was. Write why the profile is genuinely changing ("client confirmed they sell apparel, not jewellery"), because this text is what an auditor reads later.
+1. In **Settings → Configuration → Industry**, click the industry you are moving to. The panel says what the change does: the new industry's fields are added, the labels are replaced, its HSN codes are added — and **nothing is deleted**: the current industry's fields and every record stay.
+2. **Enter the reason for the change.** It is **mandatory** — the button refuses without one. Write why the profile is genuinely changing ("client confirmed they sell apparel, not jewellery"), because this text is what an auditor reads later.
+3. Press **Change industry to …** and confirm.
 
-The system then records **who** overrode it, **when**, **why**, and increments an override counter.
+The system then records **who** changed it, **when**, **why**, and increments the change counter shown on the panel.
 
 Notes:
 
-- **Only a Super Admin / HR-Admin can switch or override the profile**, exactly as before the lock existed. The lock is an extra barrier on top of that permission, not a replacement for it. A non-admin does not get the lock treatment at all — the dropdown stays enabled for them, and the server refuses the switch if they try it.
+- **Only a Super Admin can choose or change the profile.** The lock is an extra barrier on top of that permission, not a replacement for it. Other roles see neither the panel nor the industry, and the server refuses the change if one tries it anyway.
+- **(Until Stage 82 the industry was a dropdown in every user's top bar with an Override button that asked for a typed code. Both are gone.)**
 - **The counter is never reset.** Repeated overrides accumulate, so a profile that has been changed five times cannot later be presented as having been set once.
 - **An override is not a rollback.** Switching profiles overlays the new industry's fields; it does not remove data already captured in the old industry's fields. Treat it as a forward change, and expect to tidy up now-unused fields on **Database Schema Design** afterwards.
 - **Decide the profile before go-live if you can.** The lock exists precisely because this is not a setting to experiment with on a tenant that already holds real catalog data.
@@ -760,6 +815,7 @@ A pasted design number always loads that design, whichever mode is set.
 - All POs must be the **same vendor** — otherwise **GOODSR-0318**.
 - Approval, over-receipt tolerance, unexpected-item and fully-received checks run **per PO on that PO's own lines**.
 - Received quantity is counted per line PO, so a later GRN loads only what is still open.
+- **Decision D05 (Stage 73.2.4):** only **accepted** units fulfil a PO line (`fetchGRNAcceptedQuantities`; the over-receipt tolerance and "fully received" checks use accepted quantity), so rejected / damaged units stay open for replacement. The buyer ends that with **Short-close** (`POST /api/v1/procurement/purchase-order/{id}/short-close`, reason code category *Cancellation*, audited `PURCHASE_ORDER_SHORT_CLOSED`): status **Closed**, `short_closed_lines` recorded, further receipts refused (PURCHA-0489) and amendments refused (PURCHA-0489); every rejected / damaged unit still returnable is put on a Draft **PurchaseReturn** per receipt (`short_close_claims`). `GET /api/v1/procurement/purchase-order/{id}/reconciliation` is the PO balance view (ordered / received / accepted / rejected / damaged / returned / short-closed / open / invoiced / paid, plus money totals); invoiced and paid quantities are the accepted units of receipts carrying a billed or paid vendor invoice.
 
 **PO rate vs invoice rate.**
 
@@ -802,9 +858,11 @@ A pasted design number always loads that design, whichever mode is set.
 
 **Brand.**
 
-- **Configuration → Printing → Brand name on prints** (`print.brand_name`) is printed on every page.
+- **Configuration → Printing → Brand name on prints** (`print.brand_name`) is printed on the first page, with the rest of the header.
 - Blank uses the generating store's legal entity name.
-- A template that does not place the brand gets it at the top of every page anyway.
+- A template that does not place the brand gets it at the top of the first page anyway.
+
+**Multi-page documents.** With an items table, position decides the page, for the built-in layouts and every saved template alike: everything above the table prints on the first page only, everything below it (tax summary, totals, amount in words, signatures, audit line) on the last page only. Rows carry over with the column headings repeated; later pages start at the top margin, pages before the last run to the bottom margin, and the last page keeps at least one row with the totals. The page number, and anything beside the table, follow their own **Prints on**.
 
 **Generating store.**
 
@@ -893,6 +951,117 @@ The rule behind all of this: **one list cannot answer six questions.** "Gift", "
 
 **Not built yet - each needs your decision first** (checklist 72.D): item release maker-checker and a Draft / Blocked lifecycle; effective-dated item and tax versions; cancelling a posted bill (today: a return); per-store item policy overrides; the audit trail recording the editor and a reason; negative-stock policy per profile; gift return policy; gift card refund-to-card and transfer.
 
+#### B.3.9 Stock transfers — approval, reason codes and tracked stock (Stage 73.1.7)
+
+**Approval is maker-checker by default (decision D04).** The release adds one approval rule for `TransferOrder` — any value, approver role **Store Manager** — to every client that had none (Settings → Approval Rules; edit or add slabs there like any other rule). The person who created a transfer can never approve it. The rule routes by the transfer's **value at item cost** (moving-average cost, else the item's Standard Cost), written onto the transfer as `total_amount` when it is sent for approval.
+
+**Direct approval below a limit.** **Settings → Configuration → Inventory → Transfer direct-approval limit** (`inventory.transfer_direct_approval_limit`, ₹, default **0 = off**). Above 0, a Store Manager of the sending or receiving store (or an administrator) may approve a transfer worth *less* than the limit alone, with **Approve now**. A transfer containing an item with no cost on record is never approved directly. Each direct approval is written to the approval log as "Direct approval: ₹X is below the ₹Y limit".
+
+**Access.** The release grants **Store Manager** read / create / update (not delete) on `TransferOrder`, unless the client had already set that role's permission. Change it under Settings → Roles.
+
+**Reason codes.** Damaged, lost and extra units at receipt, and a return to source, need a **Reason Code** (Masters → Reason Codes) of the new category **Transfer Discrepancy**; cancelling a transfer needs one of category **Cancellation**. Create a few before go-live (for example *Damaged in transit*, *Short shipped*, *Over shipped*, *Refused at delivery*). The receive and return dialogs link to the master when none exist.
+
+**What moves where.**
+- **Dispatch** takes stock off the sending store (`on_hand`, `available`) into its `in_transit`. A batch-tracked item leaves as named lots, picked earliest-expiry-first from the bins (or named at dispatch); its bins' lot quantities go down at the same moment. A serial-tracked item needs one serial number per unit; the units become *Allocated* to the transfer.
+- **Receipt** moves each unit out of `in_transit` once: good units into the receiving store's `on_hand` and `available`; damaged units into `on_hand` and the `damaged` bucket (not sellable); lost units nowhere (they already left the sender's books at dispatch); extra units into `on_hand` and `available`. Serial units become *InStock* at the receiving store (lost ones *Scrapped*). Each receipt is stored as an event with who and when; a repeated receipt key is ignored.
+- **Return to source** moves in-transit units back into the sending store's stock; serial units become *InStock* there again.
+- Every movement writes stock-ledger lines, one per lot or serial number for tracked items.
+- No GL is posted: a transfer moves stock between stores of the same business.
+
+**Statuses** now include **Pending Approval**, **Partially Received**, **Returned** and **Cancelled** (added to the TransferOrder status list by the release migration).
+
+#### B.3.10 Cycle count recount triggers (Stage 73.1.8)
+
+**Settings → Configuration → Warehouse** has three triggers, each **0 = off** (the default, which keeps the old behaviour):
+- **Recount when a count is off by** (`wms.recount_trigger_qty`, units)
+- **… (percent)** (`wms.recount_trigger_pct`; a count against zero on the books counts as 100%)
+- **… (value)** (`wms.recount_trigger_value`, ₹ at item cost — moving average, else Standard Cost; an item with no cost never trips this one)
+
+When **Reconcile Session** meets a first count whose difference reaches any switched-on trigger, it does not send that line for approval: the line becomes **Recount Requested** (with `recount_trigger` saying why) and a blind recount line is created in the same session. Only the recount's difference is approved, and the recount line carries `first_count_qty` / `first_count_variance` for the approver. A recount is never itself re-triggered.
+
+**Posting is one transaction.** An Approved line's difference and its **Posted** status are written together under the line's row lock, and only an **Approved** line posts (the retry button on the Cycle Count screen cannot post a line that was never approved). The variance root-cause reason (category *Cycle Count Variance*) is still required before it posts. The stock-ledger line carries the key `CYCLECOUNT:<line>`, so it is written once. Counts still adjust the location's stock, not individual bins.
+
+#### B.3.11 Warehouses for several 3PL owners (Stage 59)
+
+**The setting.** **Settings → Configuration → Warehouse → Stock ownership model** (`wms.stock_ownership_mode`):
+- **One owner per warehouse** (default) — a location's first owner claims it (`warehouse_owner`) and any other owner's stock, bin or order there is refused (INVENT-0491).
+- **Several owners per warehouse (stock kept apart per owner)** — supported since Stage 59. The pre-59 value `mixed_unsupported` is still read as this mode.
+
+**Whose is a unit?** Per bin, item and condition: explicit owner slices (`bin_stock_owner`) if there are any (an unsplit remainder then belongs to nobody); else the bin's own **Owner** field; else the warehouse's dedicated owner; else nobody. When another owner's units join a bin whose stock is owned by implication, the existing units are first written down as their owner's slice, so they never lose their owner.
+
+**What enforces it.**
+- **Orders:** `SalesOrder.owner_id` (intake field `owner_id` on `POST /api/v1/orders`, or `POST /api/v1/wms/order-owner` before release, audited `ORDER_OWNER_SET`). At release each pick task gets the order's owner, else the warehouse's owner, else the only owner holding stock there; with several owners and no order owner, release is refused (INVENT-0492). After release the owner is fixed (INVENT-0493).
+- **Sourcing:** a new owner's order is only planned at a location where that owner's own stock covers it (otherwise it is re-sourced on the owner's stock, or held for allocation). `GET /api/v1/wms/owner-availability?sku=&location=&owner_id=` reads one owner's available-to-sell. Re-allocating an order that was held does not yet re-check the owner — allocation and picking still do.
+- **Allocation / picking:** reservations (`bin_allocation.owner_id`) and picks take only the task owner's units, FIFO / FEFO / nearest-bin order unchanged; scans and dispatch take them off that owner's slice.
+- **Putaway / moves / condition changes:** carry the owner (fields on the screens, `owner_id` on the APIs; putaway also takes `grn_id` and uses the GRN's **Owner**). Refusals: a bin owned by someone else (INVENT-0495); several owners in the bin and no owner named (INVENT-0496).
+- **Bin owner field:** cannot change while the bin holds stock it attributes (INVENT-0494); move the stock out or record whose it is first.
+- **Counts** carry `CycleCountLine.owner_id` onto the stock ledger. Counts still adjust the location, not owner slices — reconcile slices with the exception queue.
+
+**Exception queue.** **Reports → Owner Stock Exceptions** (`owner-stock-exceptions`). Fix a slice after counting the bin with `POST /api/v1/wms/owner-stock/correct` `{bin_code, sku, condition, owner_id, qty, reason}` (Store Manager or administrator; never more than the bin holds; audited `WMS_OWNER_STOCK_CORRECTED`).
+
+**Banner.** The page-wide "Conditionally supported" banner no longer carries the 3PL caveat (47.5 is closed); the RF device certification and legacy audit coverage lines remain.
+
+#### B.3.12 Finance controls — who posted, period close and reopen, bank reconciliation, control totals (Stage 73, 55.10–55.20)
+
+Six migrations ship with this release and run with `-migrate` like any other: `migrations_stage73_1_9_gl_posting_attribution.sql`, `migrations_stage73_1_10_period_close_tasks.sql`, `migrations_stage73_2_16_bank_reconciliation_exceptions.sql`, `migrations_stage73_55_15_expense_receipt_reference.sql`, `migrations_stage73_55_15b_attachments.sql` and `migrations_stage73_55_16_asset_depreciation.sql`. All are additive; nothing existing is changed or removed. **Deploy them together with the binary** — without the new GL accounts, depreciation runs fail and disposals are refused (ASSET-0539).
+
+- **Who posted each GL line.** Every new GL line records **Posted by** and **Source command**: the signed-in username and the screen's API route; `service:job` and `job:<type>` for background jobs; `service:api-key:<prefix>` for a public-API key; `service:inbound` for an unauthenticated webhook; `service:background` plus the engine function for anything else. Lines posted before the release stay blank and read **before attribution** — they are not back-filled, because a guess would be worse than a blank. Users review it in Reports → **GL Posting Review** and **General Journal** (User Guide §9B).
+- **Who may close.** Creating, closing and requesting a reopen of an accounting period is allowed to **Accountant** and **Super Admin** (before this release, Super Admin only). The decision this follows (D09) names "Finance Head / Admin"; there is no Finance Head role, so the Accountant role template — the one that owns period close — plays it. A tenant role literally named *Finance Head* is treated the same.
+- **The close tasks are mandatory.** A period cannot close until its five tasks are signed by their owners (FIN-0501). Owners must be active users (FIN-0505); only the owner signs (FIN-0508).
+- **Reopen approval rule.** The release adds an approval rule for `PeriodReopenRequest` — any value, approver role **Accountant** (Super Admin may always decide) — in **Settings → Approval Rules**. Change the role there if a different role should approve reopens. The requester can never approve their own request. If an approval went through but the period did not reopen (the reopen runs just after the approval is saved; a failure is logged to System Status), the period's close board shows **Reopen now** to finish it.
+- **Bank reconciliation.** A new GL account **5230 Card / UPI Settlement Fees** takes the acquirer's fee when a card or UPI payout is matched (clearing 1101 / 1102 is moved to the bank account's GL code). Closing an exception as **Explained** is limited to Accountant and Super Admin. Reconciliation of statement lines dated in a closed period is frozen (FIN-0511).
+- **Control totals** on Inventory Valuation, Receivables Ageing, Payables Ageing, Sales Register, GST Return Summary and Loyalty Points Liability read the documents and the GL in one consistent snapshot at the cut-off they state. A role that may not see amounts (the sensitive-column rule) sees only whether they tie. **Payables Ageing** ages the 2100 GRN Suspense sub-ledger — one open item per goods receipt, cleared by bill payments, debit / vendor credit notes and purchase-return reversals — and ties to 2100; the former PO-based view is the **Open Purchase Commitments** report.
+- **Part settlement.** Sales Invoice **Settle** and Vendor Invoice **Pay** take a part amount; each receipt or payment posts once under its own reference, so a retried request never double-posts. Refusals: FIN-0517 (more than outstanding), FIN-0518 (foreign currency: full only), FIN-0519 (reference reused for a different amount), FIN-0520 (invalid reference), FIN-0521 (TDS on a part-paid bill), FIN-0522 (credit note against an open foreign-currency invoice). A posted credit note naming an open invoice reduces its outstanding before any refund.
+- **Scheduled reports and digests.** Reports → **Schedules** shows a Super Admin every ScheduledReport and DashboardDigest with owner, next run (the worker's own rule: Active, not deleted, next run date on or before today; checked hourly), last result and masked recipients. **Pause** sets the record Inactive; **Resume** sets it back; **Run now** (owner or Super Admin) sends through the same path as the worker and is refused while running or within a minute of the last run. All three are audited. A schedule deleted in Setup is no longer sent (before this release it kept going out).
+- **Report exports are private.** A background export can be listed, downloaded and cancelled only by the person who requested it (or a Super Admin). Another user asking for it by id gets "not found".
+- **Expense payments.** Paying a claim now credits the bank with what is actually reimbursed (claim + GST − advance adjusted) and clears the advance from **1600 Staff Loans & Advances**, where advances are booked (Loans/Advances). Before, the bank was credited with the full claim even when an advance was adjusted.
+- **Receipts on expense claims are stored on disk, not in the database.** Files live under `media_store/attachments/<tenant schema>/` in the server's working directory (`/opt/erp/media_store` on Linux), under random names, with their details in each tenant's `document_attachments` table. JPEG, PNG, WebP and PDF only (checked from the file's bytes), 5 MB each, 5 per claim; changeable only while the claim is Draft or Rejected (a Super Admin can remove one later). **`deploy/backup.sh` and `manage.ps1 backup` dump only PostgreSQL**, so add `media_store/` to your backup (for example a nightly `tar` beside the dump, kept as long as the dumps) and restore it with the database; PIM product media live there too. A row whose file is missing downloads as "The stored file is missing".
+- **Leave balance.** `GET /api/v1/hr/leave-balance` returns a person's own balance only, unless the role has HR self scope (Store Manager, Super Admin).
+- **Fixed assets — depreciation and disposal.** New accounts `1410` Accumulated Depreciation, `5310` Depreciation Expense and `4300` Gain on Asset Disposal. Each ended month posts Dr 5310 / Cr 1410 under key `Asset:<id>:DEP:<YYYY-MM>`, dated at the month-end so period reports show it in its own month, and never twice. An `asset_depreciation` job is queued once per calendar month for every client with Fixed Assets on (checked hourly; the first check is an hour after the server starts); an Accountant or Super Admin can post at once with **Run depreciation**. **First run after this release catches up:** every Capitalised asset gets one posting per month ended since its capitalisation month (an asset capitalised two years ago gets about 24 at once); Draft and already-Disposed assets are untouched; months in a closed period are skipped until it is reopened. Disposal posts due depreciation first, then Dr 1410, Dr the cash/bank account for the proceeds, Cr 1400, and the difference to 5300 (loss) or 4300 (gain).
+- **HR journeys and who sees what.** Appraisals route by the **Appraisal** approval rule (seeded: Store Manager) and grievances by the **Grievance** rule (seeded: Super Admin); whoever submitted can never decide. Grievance description and resolution notes are readable only by Super Admin; a Store Manager lists every case without its content; other roles see only their own employee's cases — `GET /api/v1/hr/grievance-access` returns exactly this and the screens print it. The Approvals inbox now applies the same self scope and hidden fields as the record API (before, it showed every pending grievance's text to every role). Employee Self-Service cannot read AppraisalCycle or TrainingProgram, so its screens use the cycles and programs on the employee's own records. For My Requests, set the Employee's **Linked ERP User ID**.
+
+| Code | When you see it | What to do |
+|---|---|---|
+| FIN-0501 | Closing with unsigned close tasks | Have each owner sign their task, then close |
+| FIN-0503 | Changing a task on a closed period | Request a reopen |
+| FIN-0504 | A non-Accountant/Super Admin assigning tasks, requesting a reopen, or explaining a bank exception | Ask an Accountant or Super Admin |
+| FIN-0509 | Requesting a reopen of an open period, or a second one while one waits | Check Approvals for the pending request |
+| FIN-0511 | Changing reconciliation on a line in a closed period | Request a reopen of that period |
+| FIN-0513 | Match amounts that do not agree | Post the bank charge / correction first, then match |
+
+#### B.3.12 RFQ to purchase order (Stages 73.2.1-73.2.3, decision D06)
+
+- **Screen and API.** Procurement → RFQ / Quotes is its own lazy module (`public/view-rfq.js`). APIs: `POST /api/v1/rfq/save` (create, or update a Draft's lines), `POST /api/v1/rfq/{id}/invite` and `/decline`, `POST /api/v1/rfq/{id}/quote`, `GET /api/v1/rfq/{id}/comparison`, `POST /api/v1/rfq/{id}/award` (`quote_id`, optional `location`, `line_items` for free-text lines, `leave_out`). The older `/api/v1/rfq/quotes` and `/rfq/select-quote` still work.
+- **Stored on the RFQ:** `lines` (line_no, sku or free text, uom, qty), `vendor_invitations` (vendor, Invited / Responded / Declined, due date, quote id; the old `invited_vendors` list is kept in step), `location`, `response_due_date`, and after the award `awarded_po_id` / `awarded_quote_id`.
+- **Stored on a VendorQuote:** priced `lines` (quoted unit, conversion to the RFQ unit, unit price, tax %, lead days, not quoted), `subtotal`, `tax_total`, `freight_amount`, `landed_total` (also written to the old `quoted_price`), `payment_terms`, `valid_until`. A unit conversion comes from the quote line or the item's **UOMConversion** master. A newer quote from the same vendor marks the earlier one **Superseded**.
+- **Award** runs under the RFQ's row lock: it creates a **Draft** PurchaseOrder (numbered from the PO series; `items` at the quote's price per RFQ unit, ex-GST; `freight_amount`, `payment_terms`, `quote_valid_until`, `source_rfq_id`, `source_quote_id`, `source_requisition_id`), marks the quote Selected with `po_id`, the other live quotes Rejected, and the RFQ Closed. A repeat of the same award returns the same PO; any other is refused (RFQ-0555). PO quantities must be whole units; an expired quote cannot be awarded (RFQ-0556). The PO's GST is computed from the item master as for any PO - the quoted tax % is for comparison.
+- Generic edits cannot select a quote or change an awarded RFQ (RFQ-0555). Codes: RFQ-0551 (lines), RFQ-0552 (state), RFQ-0553 (vendor), RFQ-0554 (quote terms), RFQ-0555/0556 (award).
+
+#### B.3.13 Supply proposals (Stage 73.2.18)
+
+`SupplyProposal` (module Inventory) is written only by `engines/supply_proposals.go`: `POST /api/v1/planning/proposals/generate` (`location`, `source` reorder | mrp, `lead_time_days`, `safety_stock`), `GET /api/v1/planning/proposals?location=&status=`, `POST .../approve` (`ids`, `action` Purchase | Transfer | Production, `vendor`, `from_location`, `quantities`, `note`) and `POST .../reject` (`ids`, `reason`). One open proposal per source, item and location (regenerating refreshes it). Approval locks the proposals, converts them in one transaction into Draft documents numbered from the PO / TO / PRO series that carry `source_proposal_ids`, and records `target_doctype` / `target_id`, quantity, decider and time on each proposal; a non-open proposal is refused (PLAN-0557). The release grants HR/Admin and Store Manager read/update on SupplyProposal; approving also needs create on the target doctype. The screen is a tab of Manufacturing, so a client without the Manufacturing module uses the API.
+
+#### B.3.14 Quality and maintenance (Stage 55.13)
+
+Screens: **Manufacturing → Quality Inspections / Certificates / Non-conformance / Maintenance** (lazy module `view-quality.js`; the endpoints are gated by the *quality* module, the tabs sit in Manufacturing). Set up before first use:
+
+- **Inspection plans** (Setup → Inspection Plan): the item, sample size, **Applies to** (Incoming / Production / Outgoing) and the parameters with their specification. An inspection on a plan must record a Pass/Fail reading for every parameter.
+- **A hold code of category Quality** (Setup → Hold Code) — used when a failed incoming or outgoing inspection holds stock. The first active one is the default.
+- **Reason codes of category Quality** (Setup → Reason Code) — the root causes a non-conformance investigation picks from.
+- **Maintenance schedules** (Maintenance → + New Schedule) with a checklist; the background scheduler raises a Scheduled order on each due date and copies the checklist onto it.
+
+Rules the server enforces (`engines/quality_inspection.go`, codes QUALIT-0561..0566): an inspection names a source that exists (Incoming = a GRN and an item received on it; Production = a production order; Outgoing = a sales order) and, for Incoming/Outgoing, a location and quantity; the result is derived (one Fail fails it). A production inspection is decided only through Approvals (the order's QC gate). An incoming/outgoing one is decided once: Pass → Accept; Fail → **Hold stock** / **Rework** (a Hold for the inspected quantity, in the same transaction — released only by an approved hold release) or **Use as-is (concession)** (a note, and not by the inspector). Every failed inspection raises one NonConformanceReport linked to it. A report needs a Quality root cause, then a corrective action with an **owner** (and optional due date), then closing **evidence** (`closed_by` recorded). Maintenance orders go Draft → Scheduled (a date) → In progress (`started_by`) → Completed (notes, every checklist task ticked, parts with quantities, hours, `completed_by`/`completed_at`); parts are recorded, not issued from stock. Each action needs the role's create/update permission on the doctype (HR/Admin and Store Manager have them by default). A Certificate of Analysis records your own lot test results and is not a regulatory certificate; rejecting one moves the lot's binned stock to QC-Hold.
+
+#### B.3.16 Outbound, labour and billing (Stage 55.8)
+
+`GET /api/v1/wms/outbound-work?location=` (`engines/wms_outbound_work.go`, read on FulfillmentTask): Pending/Picking tasks in no wave, open waves with tasks per status and the registered Wave's lifecycle status, open LoadingTasks, and Invoiced ShippingPackages not yet loaded (with their booking's manifest). `POST /api/v1/wms/wave/from-selection` (`location`, optional `wave_id`, `task_ids`; update on FulfillmentTask) checks each task — same location, Pending/Picking, no other wave — and then uses the existing `CreateWave` (a registered Wave, Planned) or `AssignTasksToWave` for an open wave at that location (Planned / Released / In Progress); refused tasks come back by name, INVENT-0499 when none qualify. The wave lifecycle (Release, Complete) and pick-list allocation are unchanged. Mobile Picking's **Mark packed** uses the ordinary fulfillment transition (Pending → Picking → Packed) only for orders with no shortfall; nothing moves stock until Dispatch.
+
+Labour: `GET /api/v1/wms/labor/standard-preview?code=&qty=` (`engines/wms_labour_explain.go`) returns each component's seconds next to `ResolveLaborStandardTime`'s total and an `agrees` flag; the masters (LaborOperation, LaborElement, TravelSection, LaborAllowance, LaborStandard) stay ordinary records, which the Cockpit's wizard creates in that order. Billing: `GET /api/v1/wms/billing/review?owner=&start=&end=` (read on CapturedCharge) explains each captured charge and storage rate and lists exceptions (missing snapshot days, minimum charge applied, no rate evidence); INVENT-0500 without an owner or a valid period. From this release every captured charge also stores its `base_rate`, `base_amount`, `markup_pct`, `discount_pct` and `minimum_charge`; charges captured earlier show as *no rate evidence*. CapturedCharge and StorageBalanceSnapshot remain read-only to every role (written only by the engine). Billing policy — which events are charged, at what rate, with which minimums — is the client's decision, configured in ChargeCode / RateGroup / ChargeContract / StorageBillingRate.
+
+#### B.3.15 Inbound: yard, RF receiving and putaway work (Stage 55.7)
+
+`GET /api/v1/wms/inbound-work?location=` (`engines/wms_inbound_work.go`, needs read on ASN) returns the Expected ASNs with their appointment (`Appointment.asn_id`) and yard record (`YardCheckIn.appointment_id`) and a stage, door-side first, plus *putaway waiting* = on hand − everything in `bin_stock`, for locations with at least one active Bin. Two yard actions are now server actions: `POST /api/v1/wms/yard/check-in` (a trailer not already in the yard; an optional Scheduled appointment becomes CheckedIn — INVENT-0498) and `POST /api/v1/wms/yard/{id}/door` (an active DockDoor with no other trailer AtDoor; the appointment becomes InProgress — INVENT-0497); check-out is unchanged. A GRN carrying `asn_id` is refused when that ASN is no longer Expected (GOODSR-0558, edits of an existing GRN excepted); after a GRN posts, the ASN becomes **Received** (and its appointment **Completed**) once the GRNs against it cover every expected line — a partial receipt leaves it Expected. Set up for operators: Dock Doors, Bins per location (and a putaway strategy for bin suggestions), and the supervisors who watch **FloorAssistRequest** (raised from RF Receiving's *Get a supervisor*). Physical RF-gun acceptance is still to be done on site.
+
 ### B.4 Where to Look When Something Seems Wrong
 
 1. **`.\manage.ps1 logs`** — the fastest first check. Shows the server's own output and error logs, plus the database log.
@@ -966,6 +1135,8 @@ Full procedure and the latest verified restore-drill record: **[`../operations/b
 ### C.4 Incident Response and Alerting
 
 Full procedure: **[`../operations/incident_runbook.md`](../operations/incident_runbook.md)** — severity levels (P0-P3), escalation contacts, rollback steps, and every log location in one place. Automated alerting is built and only needs `OPS_ALERT_WEBHOOK_URL` set to your real destination — see that doc §3 for exact setup. Four things alert: the system panicking, a nightly backup **failing**, a nightly backup **not existing at all**, and a spike in errors.
+
+**Is alerting actually on?** **Settings → System Status → Incident alerts** says which: **Delivered to …** (alerts reach your webhook and responder), **Delivered - no responder**, **Configured, not sent** (this environment has outbound delivery switched off), or **Never configured** — with the server settings still missing (`OPS_ALERT_WEBHOOK_URL`, `OPS_ALERT_RESPONDER`) and the runbook. On the same screen a backup or restore drill that has never run shows **Never recorded** as a warning, not as healthy.
 
 The third one is worth understanding, because it is the failure the other three cannot catch. A backup job that fails tells you it failed; a backup job that was never installed, or that stopped being scheduled, says nothing — and silence looks exactly like success. The server therefore checks every hour when the last successful whole-database backup was **recorded in the database** (`deploy/backup.sh` writes one row per run to `public.backup_runs`), and alerts if there is none or it is more than 36 hours old, independently of whether any job ran. Single-tenant exports never count as the nightly backup. On a production server (`ENV=production`) "no backup recorded at all" is also printed at every start as finding **SB-026** — it is never silent there. To see the record yourself: `psql "$DATABASE_URL" -c "SELECT finished_at, scope, outcome, size_bytes FROM public.backup_runs ORDER BY finished_at DESC LIMIT 5"`. **Until you set the webhook URL, all four are written to the server log only and nobody is notified.**
 
@@ -1120,7 +1291,7 @@ Set it in the server's environment (`/etc/erp/erp.env` on the droplet) and resta
 
 **The Clients table, one row per client.** Name, client id and schema; **Status** (active / suspended…, a *sandbox* or *legal hold* tag, and "admin not signed in yet" while the client's one-time admin login is unused); **Address** (opens it in a new tab — "main address" when the client has none of its own); **Created**; **Version** ("follows release" unless the client is pinned to one); **Modules** — how many are on and off; click it to list them; **Users** (active), **Records**, **Last activity** (its newest Activity Log entry) and **Errors (24h)** with the time of the last one (open them in the Data Console's `system_error_logs`, §C.7).
 
-**Actions on each row.** **Modules** opens **Tenant Entitlements** with that client chosen — turn a module on or off there, or apply a plan. **Data** opens the **Data Console** on that client. Browser **Back** returns here. **Pause / Resume**, **Trial** and **Mark paid** are below. The row of the client you are signed in to says *your client* instead of those buttons: pausing it, or letting a trial run out on it, would lock you out of this page.
+**Actions on each row.** **Modules** opens **Tenant Entitlements** with that client chosen — turn a module on or off there, or apply a plan. **Data** opens the **Data Console** on that client. **Attributes** gives the client its product attributes from the industry library (§C.9). Browser **Back** returns here. **Pause / Resume**, **Trial** and **Mark paid** are below. The row of the client you are signed in to says *your client* instead of those buttons: pausing it, or letting a trial run out on it, would lock you out of this page.
 
 **Pausing a client** (non-payment, a customer's request, suspected misuse). Click **Pause**, type the reason, and click **OK**. Everyone at that client is signed out within a minute and cannot sign in again; nothing is deleted. The row shows *suspended* with your reason under it. **Resume** (again with a reason) lets them sign in straight away. Both go into the client's history (`tenant_lifecycle_events`) with your name, exactly as the server command `tenantctl suspend` / `resume` does (§C.6).
 
@@ -1134,6 +1305,32 @@ Set it in the server's environment (`/etc/erp/erp.env` on the droplet) and resta
 The **Clients** card counts how many are *on trial* and how many are *paused* (by you or by a trial end). A sandbox has its own expiry and takes no trial.
 
 **Releases** lists the last ten entries of the release ledger (`public.deployments`: when, environment, version, commit, who, status). Only `promote.ps1` writes to it; releases shipped with `deploy\deploy.ps1` do not, so the running release in the first card is the reliable answer to "what is live".
+
+### C.9 A client's product attributes, from the industry library (Stage 81)
+
+Each client gets its product attributes from you, once — Colour, Polish, Size, Stone Colour for a jewellery client — each with its dropdown values already filled in. The client then uses them everywhere (the Item's variant options, PO designs, prints, PIM) without anyone being asked to invent an attribute. They stay with the client: it can switch an attribute off and remove values, but never delete one.
+
+The attributes come from the **industry attribute library** that ships with the system — your workbook *ERP_Industry_Product_Attribute_Master.xlsx* (10 industries, about 670 attributes, about 190 dropdown lists), converted into the server by `go run ./cmd/genattrlib -xlsx "<path to the workbook>"`. Edit the workbook, rerun that command, and the next release carries the new library. Clients that already have attributes keep theirs; the next time you add from the library they get only what they do not have yet.
+
+**To give a client its attributes:**
+
+1. **Settings → Control Panel**, and on the client's row click **Attributes**.
+2. **Industry** — the client's own industry is chosen (Jewelry when it has none yet). Pick another to see its list.
+3. Three lists, decided by the workbook's own *Variant Driver* and *Value Scope* columns:
+   - **Variant attributes** — what tells one sellable combination from another. The workbook's definite variant drivers (Primary Colour, Metal Tone, Metal Type, Purity, Ring Size, Bangle Size, Chain Length…) are ticked; the ones that are variant drivers only for some categories (Surface Finish — polish, Stone Colour, Plating, Clasp…) are listed but not ticked, so you tick what this client actually varies by.
+   - **Product information (PIM)** — descriptive attributes for enrichment. All are ticked when the client has the PIM module.
+   - **Not added** — attributes the ERP already keeps elsewhere (GTIN, HSN, shelf life, weight… on the Item) and ones recorded per batch or serial unit, not per item.
+4. Each row shows its dropdown values, the workbook's note and whether the client **has it** already. **Use as** moves a row between Variant and Product information. A row marked *Similar: …* is not ticked because the client already has an attribute with a similar name — tick it only if you really want both.
+5. **Add to <client>** and confirm. The summary says how many were added and how many it already had.
+
+**What the client sees afterwards** (User Guide §8.1.2):
+
+- **Item form → Variant Options** offers exactly the client's variant attributes and their values — there is no "Other…" to type a new one.
+- **Purchase Order → Add by item name** offers the same attributes; a buyer can still add a *value* there (a new colour from a vendor), but not a new attribute — that is refused with *PIM-0691*.
+- **PIM → Attribute Definitions** lists every attribute with **Used for** (Variant / Product information). The client can set **Status** to *Inactive* to switch one off, and remove or add values as chips. An item that already carries a removed value keeps it. Deleting an attribute that came from the library is refused (*PIM-0690*): its code and the *From the attribute library* field cannot be edited either.
+- Adding from the library again never touches what the client has — an attribute it switched off stays off, values it removed stay removed.
+
+**Overlap with the Jewellery industry profile.** That profile also puts free-text **Color**, **Polish**, **Size** and **Stone Type** fields on the Item. They are left as they are — clients already hold data in them — and work alongside the variant attributes. Which of the two a jewellery client should use going forward is open (checklist 81.6).
 
 ## Part D — Developer / CTO Level
 
@@ -1220,7 +1417,17 @@ These are different from extension tokens and browser sessions. Extension tokens
 
 After `db/migrations_stage38_2_api_credentials.sql` is applied, a Super Admin can issue/list/rotate/revoke credentials through the private `/api/v1/admin/api-credentials` endpoints documented in `../specs/public_api_v1.md`. A newly issued or rotated key is shown once and the response is marked `Cache-Control: no-store`; copy it directly into the integrator's secret store. The database retains only a one-way digest and an operator-visible prefix, so a lost key cannot be recovered—rotate it.
 
-No public business endpoint accepts these credentials yet. That is deliberate: Stage 38.3's per-credential limiter and 38.5's idempotency contract must exist before the first `/api/public/v1` route is exposed. Do not try to send an API key to the private `/api/v1` application routes; it is not a user session and will be rejected.
+The curated `/api/public/v1` routes (items, inventory, order status, notification delivery receipts) accept these credentials, behind the per-credential limiter (38.3) and the idempotency contract (38.5). Do not try to send an API key to the private `/api/v1` application routes; it is not a user session and will be rejected.
+
+**The API access screen (Stage 38.2d / 55.21).** **Settings → Extension Hooks**, below the hooks, has **API access**: the list of every key and OAuth client with its type, client ID / key prefix, scopes, status, expiry and last use. **+ New API access** opens the form:
+
+1. **Name** — who or what will use it (e.g. *Shopify stock sync*).
+2. **Sign-in type** — **API key**: the integration sends the key on every call (`Authorization: Bearer erp_v1_…` plus `X-Tenant-ID`). **OAuth client**: for platforms that expect OAuth2 — the integration posts its client ID and client secret (HTTP Basic, or `client_id`/`client_secret` in the body) with `grant_type=client_credentials` and `X-Tenant-ID` to `/api/public/v1/oauth/token`, and gets back a token valid for 15 minutes (`Authorization: Bearer erp_at_…`). An optional `scope` narrows a token to some of the client's scopes. There is no password grant and no refresh token; an OAuth client's secret is refused if sent directly as a bearer.
+3. **Expires on** (optional) and the **Scopes** — tick only what the integration needs; each endpoint names the one scope it requires (`notifications:write` is for a notification provider's delivery receipts).
+
+**Issue** shows the secret once (and, for an OAuth client, its client ID and the token URL) — copy it into the integrator's secret store now. On the list: **Rotate** issues a new secret and immediately ends the old one *and every token it obtained*; **Revoke** ends the credential and its tokens for good; **Recent calls** lists the latest requests with their status, outcome and correlation ID (never the secret) — the first place to look when an integrator says "it stopped working". Expired token digests are swept with the API logs.
+
+**Notification delivery (Stage 73.2.13).** Order and return notifications no longer report "Sent" on a fire-and-forget call. Each one is written **Queued** together with its delivery job; the job POSTs to the channel's **Notification Channel Config** webhook (HTTPS only, public addresses only) with a `delivery_id` and an `X-Notification-Delivery` header, retries with backoff on a network error, timeout, HTTP 408/429 or 5xx (**Retrying**), and stops at **Failed** after the last attempt — **Replay** on the job in **Integration Logs → Async Jobs** resends it. A 2xx answer makes it **Accepted**; if the provider's answer says delivered or failed, that is recorded straight away. Otherwise give the provider (Zapier, Make or your own service) an API key or OAuth client with `notifications:write` and have it call `POST /api/public/v1/notifications/{delivery_id}/delivery-status` with `{"status":"delivered"|"failed","provider_ref":"…"}` (plus an `Idempotency-Key`). Delivered is final; a repeated receipt is harmless. Every step is kept in the notification's history.
 
 #### D.6.1a PIM setup and navigation (Stage 55.11)
 
@@ -1230,7 +1437,7 @@ The Workbench's selected-channel check now uses the same publish-readiness rules
 
 Product Family is a required core completeness check; a family-less Item cannot become publish-ready by filling unrelated fields. **Min Images** counts active customer-facing image assets in Main, Gallery, Variant Image or Lifestyle roles, not PDF certificates, Internal QC assets or video. A custom validation message retains its rule type prefix so the Workbench can show the relevant correction action. The isolated browser run verified rule block → Add an image → upload → ready; it does not prove a marketplace accepted the media.
 
-For mapped imports, **Advanced setup → Import Templates** has a row action to inspect the resolved mapping, preview a CSV without writes, and import only a zero-error preview of the selected file. The resulting import job ID and authenticated error-row download are shown in the dialog. A corrected file must be previewed as a new run; this is not checkpoint/resume of a partly processed job. Assign a named data steward operationally to review these job results and **Import Schedules → Last Run Status**; the schedule record has no owner field yet. **Supplier Submissions** Draft rows now have Submit for Approval. The shipped supplier-submission rule requires a **Super Admin** checker who differs from the maker; approval copies content to ProductContent as a Draft. ProductContent then needs its own separate **HR/Admin** checker and will load into Workbench for editing. The supplier-login/vendor isolation path itself remains to be browser-tested. Do not mark the Stage 55.11 schedule-owner/resume Done bar complete until those are implemented and live-tested.
+For mapped imports, **Advanced setup → Import Templates** has a row action to inspect the resolved mapping, preview a CSV without writes, and import only a zero-error preview of the selected file. The resulting import job ID and authenticated error-row download are shown in the dialog. Rows that fail stay on the job: **Fix and resume** (on the import result, the **Import Job** list lookup, and **My work**) downloads them with their reasons and imports only the corrected rows, after a **Check** that saves nothing (User Guide §3, *When some rows of a Bulk Import fail*). Every **Import Schedule** has an **Owner**: its imports run and are recorded as that person, with their field-write restrictions (blank = whoever created the schedule, never "system"); a missing or inactive owner stops the run with the reason in **Last Run Status**, and a failed run lands in the owner's **My work**. **Supplier Submissions** Draft rows now have Submit for Approval. The shipped supplier-submission rule requires a **Super Admin** checker who differs from the maker; approval copies content to ProductContent as a Draft. ProductContent then needs its own separate **HR/Admin** checker and will load into Workbench for editing. The supplier-login/vendor isolation path itself remains to be browser-tested. Schedule owners and resume were built and browser-tested on 2026-10-18; the Stage 55.11 Done bar still waits on the Supplier-login run.
 
 #### D.6.2 PIM tasks and workflows (Stage 36.2)
 

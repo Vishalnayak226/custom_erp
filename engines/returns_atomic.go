@@ -191,8 +191,19 @@ func createReturnRequestLocked(tenantID, requestType, returnLocation, originalOr
 			}
 			return "", err
 		}
-		if err := assertReturnEligibleTx(tx, schema, prepared.originalOrderID, prepared.soldBySku, items); err != nil {
+		claimed, err := assertReturnEligibleTx(tx, schema, prepared.originalOrderID, prepared.soldBySku, items)
+		if err != nil {
 			return "", err
+		}
+		// Stage 73.1.1: price each line from the sale's own allocation for the
+		// units it claims - under this lock, so "already claimed" is exact and
+		// a line returned in pieces refunds its whole value exactly once.
+		alloc, _, found, err := loadSaleAllocation(tx, tenantID, schema, prepared.originalOrderID)
+		if err != nil {
+			return "", err
+		}
+		if found {
+			applySaleAllocationToRecords(prepared.records, alloc, claimed)
 		}
 	}
 
@@ -255,12 +266,15 @@ func createReturnRequestLocked(tenantID, requestType, returnLocation, originalOr
 // It counts BOTH already-processed legacy returns and open ReturnRequests, for
 // the same reason the un-serialized version did: a unit with a request already
 // raised against it is spoken for even though it has not physically come back.
-func assertReturnEligibleTx(tx *sql.Tx, schema, originalOrderID string, soldBySku map[string]int, items []ReturnItemInput) error {
+//
+// It returns what earlier returns had already claimed per SKU, which is where
+// this return's units start in the sale's allocation (Stage 73.1.1).
+func assertReturnEligibleTx(tx *sql.Tx, schema, originalOrderID string, soldBySku map[string]int, items []ReturnItemInput) (map[string]int, error) {
 	if len(soldBySku) == 0 {
 		// Nothing resolvable was sold - the caller's own SALESR-0131 check has
 		// already run, so this is a sale whose lines could not be parsed. Not
 		// a case to silently allow an unbounded return against.
-		return &ValidationError{Code: "SALESR-0131",
+		return nil, &ValidationError{Code: "SALESR-0131",
 			Message: fmt.Sprintf("the original bill %q has no readable sold lines to return against", originalOrderID)}
 	}
 	claimed := map[string]int{}
@@ -269,10 +283,10 @@ func assertReturnEligibleTx(tx *sql.Tx, schema, originalOrderID string, soldBySk
 		SELECT data->'items' FROM %s.documents
 		WHERE doctype = 'SalesReturn' AND deleted_at IS NULL AND data->>'original_order_id' = $1`, schema), originalOrderID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := accumulateReturnedQty(rows, claimed); err != nil {
-		return err
+		return nil, err
 	}
 	// Open/settled ReturnRequests. Rejected ones release their claim, which is
 	// the whole point of rejecting one.
@@ -281,10 +295,10 @@ func assertReturnEligibleTx(tx *sql.Tx, schema, originalOrderID string, soldBySk
 		WHERE doctype = 'ReturnRequest' AND deleted_at IS NULL
 		  AND data->>'original_order_id' = $1 AND COALESCE(data->>'status', '') <> 'Rejected'`, schema), originalOrderID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := accumulateReturnedQty(rows, claimed); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Deterministic order so two concurrent requests that both over-claim
@@ -298,12 +312,12 @@ func assertReturnEligibleTx(tx *sql.Tx, schema, originalOrderID string, soldBySk
 			remaining = 0
 		}
 		if it.Qty > remaining {
-			return &ValidationError{Code: "SALESR-0130",
+			return nil, &ValidationError{Code: "SALESR-0130",
 				Message: fmt.Sprintf("return quantity for SKU %q (%d) exceeds the remaining returnable quantity (%d of %d sold, %d already claimed)",
 					it.SKU, it.Qty, remaining, soldBySku[it.SKU], claimed[it.SKU])}
 		}
 	}
-	return nil
+	return claimed, nil
 }
 
 // accumulateReturnedQty sums a result set of items JSON arrays into totals.
@@ -555,7 +569,10 @@ func ReconcileReturn(tenantID, returnRequestID string) (*ReturnReconciliation, e
 		`SELECT id FROM %s.documents WHERE doctype = 'RefundRequest' AND data->>'return_request_id' = $1
 		 AND data->>'status' = 'Processed' LIMIT 1`, schema), returnRequestID).Scan(&refundID)
 	if refundID != "" {
-		rec.RefundProcessed = glSum("RefundRequest", refundID, "1100", "credit")
+		// Stage 73.1.6: money goes back to whichever tender paid it.
+		for _, acct := range []string{"1100", "1101", "1102", "2610"} {
+			rec.RefundProcessed += glSum("RefundRequest", refundID, acct, "credit")
+		}
 	}
 
 	var problems []string

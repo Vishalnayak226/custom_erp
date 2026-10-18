@@ -39,6 +39,7 @@ func TestBLD020LeapDayAccountingPeriodBoundary(t *testing.T) {
 		map[string]int64{"1100": 100}, map[string]int64{"4100": 100}, "2024-02-29", "TESTBLD020:LEAP-DAY-POST"); err != nil {
 		t.Fatalf("counterexample: posting dated exactly on the leap day (2024-02-29) inside its own open period was refused: %v", err)
 	}
+	signAllCloseTasksForTest(t, tenantID, periodID) // Stage 73.1.10
 	if err := CloseAccountingPeriod(tenantID, periodID, "system"); err != nil {
 		t.Fatalf("CloseAccountingPeriod: %v", err)
 	}
@@ -57,6 +58,7 @@ func TestBLD020LeapDayAccountingPeriodBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateAccountingPeriod (non-leap year period): %v", err)
 	}
+	signAllCloseTasksForTest(t, tenantID, period2) // Stage 73.1.10
 	if err := CloseAccountingPeriod(tenantID, period2, "system"); err != nil {
 		t.Fatalf("CloseAccountingPeriod (non-leap): %v", err)
 	}

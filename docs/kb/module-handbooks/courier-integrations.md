@@ -5,7 +5,7 @@ order: 46
 summary: Book a shipment, check serviceability, print a label, and track it to delivery or RTO — the manual carrier-agnostic flow every warehouse uses today, and the real Delhivery/Shiprocket API layer built alongside it but not yet reachable from a screen.
 audience: warehouse operator, admin
 last_verified: 2026-09-03
-screens: [marketplace, oms, doctype-table]
+screens: [marketplace, oms, doctype:courierservicearea, doctype:ndrcase, doctype:couriertrackingevent, doctype:manifest]
 doc_id: DOC-1512253FF0
 type: procedure
 status: draft

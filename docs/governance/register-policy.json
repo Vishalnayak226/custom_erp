@@ -418,7 +418,7 @@
       "disposition": "keep"
     },
     {
-      "prefix": "docs/kb/troubleshooting/error-code-reference.md",
+      "prefix": "docs/kb/troubleshooting/error-code-reference",
       "type": "generated",
       "status": "active",
       "owner": "documentation-maintainer",

@@ -485,6 +485,15 @@ func handleRequestPasswordReset(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// rolePermissionRow is one record type's rights for a role.
+type rolePermissionRow struct {
+	DoctypeName string `json:"doctype_name"`
+	AllowRead   bool   `json:"allow_read"`
+	AllowCreate bool   `json:"allow_create"`
+	AllowUpdate bool   `json:"allow_update"`
+	AllowDelete bool   `json:"allow_delete"`
+}
+
 func handleRolePermissions(w http.ResponseWriter, r *http.Request) {
 	role := r.Header.Get("Resolved-Role")
 	if !requireHRAdmin(w, r, role) {
@@ -535,6 +544,10 @@ func handleRolePermissions(w http.ResponseWriter, r *http.Request) {
 			AllowCreate  bool     `json:"allow_create"`
 			AllowUpdate  bool     `json:"allow_update"`
 			AllowDelete  bool     `json:"allow_delete"`
+			// Grants (Stage 79) carries each record type's own rights, so the
+			// Roles screen saves a whole role's module-by-module ticks in one
+			// transaction instead of a request per combination.
+			Grants []rolePermissionRow `json:"grants"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
@@ -545,8 +558,17 @@ func handleRolePermissions(w http.ResponseWriter, r *http.Request) {
 		if req.DoctypeName != "" {
 			names = append([]string{req.DoctypeName}, names...)
 		}
-		if req.Role == "" || len(names) == 0 {
-			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'role' and 'doctype_name' (or 'doctype_names') are required")
+		grants := make([]rolePermissionRow, 0, len(names)+len(req.Grants))
+		for _, name := range names {
+			grants = append(grants, rolePermissionRow{name, req.AllowRead, req.AllowCreate, req.AllowUpdate, req.AllowDelete})
+		}
+		for _, g := range req.Grants {
+			if g.DoctypeName = strings.TrimSpace(g.DoctypeName); g.DoctypeName != "" {
+				grants = append(grants, g)
+			}
+		}
+		if req.Role == "" || len(grants) == 0 {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'role' and 'doctype_name' (or 'doctype_names' or 'grants') are required")
 			return
 		}
 		tx, err := db.DB.Begin()
@@ -555,15 +577,15 @@ func handleRolePermissions(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer tx.Rollback()
-		for _, name := range names {
+		for _, g := range grants {
 			if _, err := tx.Exec(fmt.Sprintf(`
 				INSERT INTO %s.role_permissions (role, doctype_name, allow_read, allow_create, allow_update, allow_delete)
 				VALUES ($1, $2, $3, $4, $5, $6)
 				ON CONFLICT (role, doctype_name) DO UPDATE SET
 					allow_read = EXCLUDED.allow_read, allow_create = EXCLUDED.allow_create,
 					allow_update = EXCLUDED.allow_update, allow_delete = EXCLUDED.allow_delete`, schema),
-				req.Role, name, req.AllowRead, req.AllowCreate, req.AllowUpdate, req.AllowDelete); err != nil {
-				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("%s: %v", name, err))
+				req.Role, g.DoctypeName, g.AllowRead, g.AllowCreate, g.AllowUpdate, g.AllowDelete); err != nil {
+				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("%s: %v", g.DoctypeName, err))
 				return
 			}
 		}
@@ -572,11 +594,11 @@ func handleRolePermissions(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		actorUsername := r.Header.Get("Resolved-Username")
-		for _, name := range names {
+		for _, g := range grants {
 			engines.LogAuditEvent(tenantID, actorUsername, "ROLE_PERMISSIONS", "GRANT_UPDATED",
-				fmt.Sprintf("Set %s permissions on %s: read=%v create=%v update=%v delete=%v", req.Role, name, req.AllowRead, req.AllowCreate, req.AllowUpdate, req.AllowDelete))
+				fmt.Sprintf("Set %s permissions on %s: read=%v create=%v update=%v delete=%v", req.Role, g.DoctypeName, g.AllowRead, g.AllowCreate, g.AllowUpdate, g.AllowDelete))
 		}
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success", "granted": len(names)})
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success", "granted": len(grants)})
 
 	default:
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")

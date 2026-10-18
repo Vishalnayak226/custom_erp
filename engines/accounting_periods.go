@@ -17,6 +17,10 @@ type AccountingPeriod struct {
 	ClosedAt   *string `json:"closed_at,omitempty"`
 	CreatedBy  string  `json:"created_by"`
 	CreatedAt  string  `json:"created_at"`
+	// Stage 73.1.10: the close round (1 + reopens) and how many of its close
+	// tasks are still unsigned.
+	CloseRound    int `json:"close_round"`
+	TasksUnsigned int `json:"tasks_unsigned"`
 }
 
 // CreateAccountingPeriod registers a new Open period. Rejects a date range
@@ -70,10 +74,13 @@ func CreateAccountingPeriod(tenantID, name, startDate, endDate, userID string) (
 	return id, nil
 }
 
-// CloseAccountingPeriod is a one-way transition: Open -> Closed. Once closed,
-// PostDoubleEntry rejects new postings dated inside the period; there is no
-// reopen path by design, matching the "reversal, never mutation" correction
-// model this feature exists to enforce.
+// CloseAccountingPeriod moves a period Open -> Closed. Once closed,
+// PostDoubleEntry rejects new postings dated inside the period.
+//
+// Stage 73.1.10 (D09): the close is refused until every close task of the
+// current round is signed off by its owner (engines/period_close.go), and the
+// only way back to Open is an approved PeriodReopenRequest - corrections are
+// still reversal entries, never edits of what was posted.
 func CloseAccountingPeriod(tenantID, periodID, userID string) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -87,19 +94,27 @@ func CloseAccountingPeriod(tenantID, periodID, userID string) error {
 	defer tx.Rollback()
 
 	var status, name string
+	var round int
 	err = tx.QueryRow(fmt.Sprintf(`
-		SELECT status, period_name FROM %s.accounting_periods WHERE id = $1 FOR UPDATE`, schema), periodID).Scan(&status, &name)
+		SELECT status, period_name, close_round FROM %s.accounting_periods WHERE id = $1 FOR UPDATE`, schema), periodID).Scan(&status, &name, &round)
 	if err != nil {
 		return fmt.Errorf("period not found: %v", err)
 	}
 	if status != "Open" {
 		return fmt.Errorf("period is already %s", status)
 	}
+	if err := requireSignedCloseTasks(tx, schema, periodID, round); err != nil {
+		return err
+	}
 
 	_, err = tx.Exec(fmt.Sprintf(`
 		UPDATE %s.accounting_periods SET status = 'Closed', closed_by = $1, closed_at = CURRENT_TIMESTAMP
 		WHERE id = $2`, schema), userID, periodID)
 	if err != nil {
+		return err
+	}
+	if err := writePeriodCloseLog(tx, schema, periodID, round, "CLOSED", "", usernameForUserID(schema, userID),
+		fmt.Sprintf("round %d closed with every task signed", round)); err != nil {
 		return err
 	}
 
@@ -118,8 +133,9 @@ func ListAccountingPeriods(tenantID string) ([]AccountingPeriod, error) {
 	}
 
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT id, period_name, start_date, end_date, status, closed_by, closed_at, created_by, created_at
-		FROM %s.accounting_periods ORDER BY start_date DESC`, schema))
+		SELECT p.id, p.period_name, p.start_date::text, p.end_date::text, p.status, COALESCE(u.username, p.closed_by), p.closed_at, p.created_by, p.created_at,
+		       p.close_round, %d - (SELECT COUNT(*) FROM %s.period_close_tasks t WHERE t.period_id = p.id AND t.status <> 'Open')
+		FROM %s.accounting_periods p LEFT JOIN %s.users u ON u.id = p.closed_by ORDER BY p.start_date DESC`, len(periodCloseTaskDefs), schema, schema, schema))
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +145,7 @@ func ListAccountingPeriods(tenantID string) ([]AccountingPeriod, error) {
 	for rows.Next() {
 		var p AccountingPeriod
 		var closedBy, closedAt sql.NullString
-		if err := rows.Scan(&p.ID, &p.PeriodName, &p.StartDate, &p.EndDate, &p.Status, &closedBy, &closedAt, &p.CreatedBy, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.PeriodName, &p.StartDate, &p.EndDate, &p.Status, &closedBy, &closedAt, &p.CreatedBy, &p.CreatedAt, &p.CloseRound, &p.TasksUnsigned); err != nil {
 			return nil, err
 		}
 		if closedBy.Valid {

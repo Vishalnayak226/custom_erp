@@ -58,6 +58,10 @@ the ways a real user goes wrong.
 | Buyer/procurement user | _TBD_ | Scenario C |
 | Finance user | _TBD_ | Scenarios D, G |
 | Manager/approver | _TBD_ | Scenario E, plus approvals throughout |
+| Warehouse user at a second location | _TBD_ | Scenario H (receiving end) |
+| Production planner / shop floor / quality | _TBD_ | Scenario I |
+| HR and payroll user | _TBD_ | Scenario J |
+| Merchandiser / catalog user | _TBD_ | Scenario K |
 | Business owner | _TBD_ | Final sign-off (§6) |
 
 One person may hold several roles — but **the approver must be a different
@@ -127,6 +131,48 @@ approve the variance adjustment.
 **Pass:** the CSV imports the quantities *as counted* (this is where the Stage
 20.20 parser bug lived — worth watching); the adjustment posts once, correctly
 signed.
+
+### Scenarios H–K — the four further reference journeys (73.J.1)
+
+Added from the transaction-gap PDF's journey set (J3, J6, J8, J9) so that
+transfer, manufacturing, hire-to-pay and product-to-channel are accepted the
+same way as A–F. Run them after F and before G. **Evidence, for each step:**
+the actor and role; the screen (or API) used; the source document ids and the
+numbers the system generated; quantity and money before and after; the stock,
+GL, points or tender effect; every approval; any retry; every denied path that
+was tried; and the final reconciliation. A screenshot of a successful screen is
+not evidence on its own.
+
+### Scenario H — Inventory transfer (J3) *(warehouse, two locations)*
+Raise a transfer for a batch-tracked item → pick it FEFO at the source →
+dispatch (stock in transit) → receive part of it at the destination → record
+the shortfall or damage with a reason → count both locations.
+**Pass:** source on-hand falls at dispatch, destination rises only by what was
+received, the in-transit balance closes to the discrepancy line, the same lot
+arrives that left, and the count shows no unexplained difference.
+
+### Scenario I — Manufacture (J6) *(planner + shop floor + quality + finance)*
+Run MRP → create a production order from its proposal → issue materials →
+confirm part of the output → record scrap and a rework → pass QC → receive
+finished goods → close the order and read its variance.
+**Pass:** materials leave stock once, finished goods enter once, scrap and
+rework are visible with their cost, QC gates the receipt, and the variance on
+the order agrees with what the GL shows for it.
+
+### Scenario J — Hire to pay (J8) *(HR + manager + payroll + finance)*
+Onboard an employee → record attendance and an approved leave → run payroll →
+generate the bank file → post to the GL → offboard the employee.
+**Pass:** gross, deductions and net reconcile from payslip to bank file to GL;
+the leave reduced the right balance; and after offboarding the employee's
+login no longer works.
+
+### Scenario K — Product to channel (J9) *(merchandiser + approver + order desk)*
+Create a product family → a variant → its media → get the content approved →
+print its label → set price and tax → publish to a channel → re-import the
+channel's listing → take an order for it.
+**Pass:** the order line resolves to the same SKU and barcode that was
+published and labelled, the price and tax on the order match what was set,
+and nothing was published before approval.
 
 ### Scenario G — The awkward cases *(any user — do not skip)*
 Deliberately misuse the system:

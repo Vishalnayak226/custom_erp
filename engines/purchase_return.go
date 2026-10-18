@@ -69,6 +69,10 @@ type PurchaseReturnable struct {
 	VendorID string                   `json:"vendor_id"`
 	Location string                   `json:"location"`
 	Lines    []PurchaseReturnableLine `json:"lines"`
+	// Days since the receipt, and procurement.purchase_return_window_days
+	// (0 = no limit) - accepted stock only; rejected / damaged always go back.
+	AgeDays    int `json:"age_days"`
+	WindowDays int `json:"window_days,omitempty"`
 }
 
 type purchaseReturnKey struct{ sku, batch, bucket string }
@@ -114,9 +118,10 @@ func purchaseReturnable(q queryRower, tenantID, schema, grnID, excludeReturnID s
 		lockClause = " FOR UPDATE"
 	}
 	var dataStr, status string
+	var ageDays int
 	err := q.QueryRow(fmt.Sprintf(
-		`SELECT data, status FROM %s.documents WHERE doctype = 'GRN' AND id = $1 AND deleted_at IS NULL`+lockClause, schema),
-		grnID).Scan(&dataStr, &status)
+		`SELECT data, status, CURRENT_DATE - created_at::date FROM %s.documents WHERE doctype = 'GRN' AND id = $1 AND deleted_at IS NULL`+lockClause, schema),
+		grnID).Scan(&dataStr, &status, &ageDays)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, &ValidationError{Code: "PURCHA-0118", SubFor: "Goods Receipt (GRN)", Message: fmt.Sprintf("goods receipt %s does not exist", grnID)}
 	}
@@ -132,7 +137,8 @@ func purchaseReturnable(q queryRower, tenantID, schema, grnID, excludeReturnID s
 			"goods receipt %s is cancelled - its stock was never posted, so there is nothing to return against it", grnID)}
 	}
 
-	out := &PurchaseReturnable{GRNID: grnID, POID: strField(grn, "po_id"), VendorID: strField(grn, "vendor"), Location: strField(grn, "location")}
+	out := &PurchaseReturnable{GRNID: grnID, POID: strField(grn, "po_id"), VendorID: strField(grn, "vendor"), Location: strField(grn, "location"),
+		AgeDays: ageDays, WindowDays: GetSettingInt(tenantID, "procurement.purchase_return_window_days")}
 	if out.VendorID == "" && out.POID != "" {
 		if po, _, poErr := fetchDocData(tenantID, "PurchaseOrder", out.POID); poErr == nil {
 			out.VendorID = strField(po, "vendor")
@@ -287,6 +293,10 @@ func resolvePurchaseReturnLines(ctx *PurchaseReturnable, lines []PurchaseReturnL
 				"line %d: stock must be Accepted, Rejected or Damaged, not %q", i+1, l.StockBucket)}
 		}
 		l.StockBucket = bucket
+		if bucket == PurchaseReturnBucketAccepted && ctx.WindowDays > 0 && ctx.AgeDays > ctx.WindowDays {
+			return nil, 0, &ValidationError{Code: "PURCHA-0620", SubFor: "Return Lines", Message: fmt.Sprintf(
+				"line %d: accepted goods on %s can be returned for %d days after receipt - it was received %d days ago", i+1, ctx.GRNID, ctx.WindowDays, ctx.AgeDays)}
+		}
 		if l.SKU == "" {
 			return nil, 0, &ValidationError{Code: "GLOBAL-0001", SubFor: "Return Lines", Message: fmt.Sprintf("line %d is missing its SKU", i+1)}
 		}

@@ -66,6 +66,11 @@ type FieldFormat struct {
 	ErrorCode string `json:"-"`
 	// MaxLen bounds the value where the format has a fixed width.
 	MaxLen int `json:"max_len,omitempty"`
+	// Checksum names a check-digit algorithm ("gstin", "abn") the frontend
+	// also runs; Check is the server's implementation, applied after the
+	// pattern matches (Stage 76.4).
+	Checksum string            `json:"checksum,omitempty"`
+	Check    func(string) bool `json:"-"`
 }
 
 // The patterns. gstinPattern is deliberately NOT redeclared - it already
@@ -101,6 +106,8 @@ var fieldFormats = []FieldFormat{
 		Uppercase:    true,
 		ErrorCode:    "MASTER-0049",
 		MaxLen:       15,
+		Checksum:     "gstin",
+		Check:        ValidGSTINChecksum,
 	},
 	{
 		Key: "pan", Label: "PAN",
@@ -244,9 +251,17 @@ func DetectFieldFormat(fieldname string) (FieldFormat, bool) {
 // format key, plus the tokens it should match fieldnames against. Serving the
 // tokens rather than duplicating them in JavaScript is what keeps one list.
 func FieldFormatSpecs() map[string]interface{} {
+	return FieldFormatSpecsFor(DefaultPhoneCountry)
+}
+
+// FieldFormatSpecsFor is FieldFormatSpecs for a tenant's home country: the
+// tax-ID format is that country's, and its state list rides along so every
+// state field can be a dropdown without a second request (Stage 76.1/76.4).
+func FieldFormatSpecsFor(country string) map[string]interface{} {
 	specs := make([]map[string]interface{}, 0, len(fieldFormats))
-	for _, f := range fieldFormats {
-		specs = append(specs, map[string]interface{}{
+	for _, base := range fieldFormats {
+		f := formatForCountry(base, country)
+		spec := map[string]interface{}{
 			"key":           f.Key,
 			"label":         f.Label,
 			"tokens":        f.Tokens,
@@ -255,9 +270,22 @@ func FieldFormatSpecs() map[string]interface{} {
 			"allowed_chars": f.AllowedChars,
 			"uppercase":     f.Uppercase,
 			"max_len":       f.MaxLen,
-		})
+			"checksum":      f.Checksum,
+		}
+		if f.Key == "gstin" && f.Pattern != nil {
+			// The browser checks the shape with the server's own pattern,
+			// which is written in the subset JavaScript reads the same way.
+			spec["pattern"] = f.Pattern.String()
+		}
+		specs = append(specs, spec)
+	}
+	regions := CountryRegions(country)
+	if regions == nil {
+		regions = []Region{}
 	}
 	out := map[string]interface{}{
+		"country": strings.ToUpper(strings.TrimSpace(country)),
+		"regions": regions,
 		"formats": specs,
 		// The frontend does its own substring matching against the tokens
 		// above, so it needs the same exclusions or it would put a phone
@@ -309,6 +337,15 @@ func ValidateFieldFormat(spec FieldFormat, label, value string) error {
 	}
 
 	if spec.Pattern == nil || spec.Pattern.MatchString(v) {
+		if spec.Check != nil && spec.Pattern != nil && !spec.Check(v) {
+			// Right shape, wrong number: a GSTIN with one character mistyped
+			// still looks like a GSTIN, and only the check digit catches it.
+			return &ValidationError{
+				Code:    spec.ErrorCode,
+				SubFor:  name,
+				Message: fmt.Sprintf("%s %q is not a real %s - its last character (the check digit) does not match the rest. One character is probably mistyped; copy it from the registration certificate.", name, value, spec.Label),
+			}
+		}
 		return nil
 	}
 	return &ValidationError{
@@ -328,6 +365,12 @@ func ValidateFieldFormat(spec FieldFormat, label, value string) error {
 // the doctype does not declare - and so the field's own Label is what appears
 // in the message.
 func ValidateDocumentFieldFormats(fields []FieldMeta, docData map[string]interface{}) error {
+	return ValidateDocumentFieldFormatsFor(DefaultPhoneCountry, fields, docData)
+}
+
+// ValidateDocumentFieldFormatsFor is ValidateDocumentFieldFormats for a home
+// country: the tax-ID field family takes that country's rule (Stage 76.4).
+func ValidateDocumentFieldFormatsFor(country string, fields []FieldMeta, docData map[string]interface{}) error {
 	if len(docData) == 0 {
 		return nil
 	}
@@ -336,6 +379,7 @@ func ValidateDocumentFieldFormats(fields []FieldMeta, docData map[string]interfa
 		if !ok {
 			continue
 		}
+		spec = formatForCountry(spec, country)
 		raw, isString := docData[f.Fieldname].(string)
 		if !isString || strings.TrimSpace(raw) == "" {
 			continue

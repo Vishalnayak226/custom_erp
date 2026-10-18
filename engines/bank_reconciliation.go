@@ -68,11 +68,14 @@ func ReconcileBankStatement(tenantID, bankAccountID, userID string) (*BankReconc
 		return nil, err
 	}
 
-	// Load every statement line for this bank account not already Matched.
+	// Load every statement line for this bank account still open (Unmatched
+	// or in the 73.2.16 exception queue) and not frozen in a closed period.
 	rows, err := tx.Query(fmt.Sprintf(`
-		SELECT id, data FROM %s.documents
-		WHERE doctype = 'BankStatementLine' AND data->>'bank_account' = $1
-		  AND COALESCE(data->>'match_status', 'Unmatched') != 'Matched'`, schema), bankAccountID)
+		SELECT d.id, d.data FROM %s.documents d
+		WHERE d.doctype = 'BankStatementLine' AND d.data->>'bank_account' = $1
+		  AND COALESCE(d.data->>'match_status', 'Unmatched') IN ('Unmatched', 'Exception')
+		  AND NOT EXISTS (SELECT 1 FROM %s.accounting_periods p WHERE p.status = 'Closed'
+		                  AND (d.data->>'txn_date')::date BETWEEN p.start_date AND p.end_date)`, schema, schema), bankAccountID)
 	if err != nil {
 		return nil, err
 	}
@@ -172,9 +175,7 @@ func ReconcileBankStatement(tenantID, bankAccountID, userID string) (*BankReconc
 			line.ID, p.ID); err != nil {
 			return nil, err
 		}
-		if _, err := tx.Exec(fmt.Sprintf(
-			`UPDATE %s.documents SET data = jsonb_set(data, '{match_status}', '"Matched"'), updated_at = CURRENT_TIMESTAMP
-			 WHERE doctype = 'BankStatementLine' AND id = $1`, schema), line.ID); err != nil {
+		if err := patchBankLine(tx, schema, line.ID, matchedPatch("auto:exact", usernameForUserID(schema, userID), 0)); err != nil {
 			return nil, err
 		}
 		result.Matched++

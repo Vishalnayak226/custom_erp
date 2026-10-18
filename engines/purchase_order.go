@@ -327,7 +327,7 @@ func resolvePrintParties(tenantID, vendorID, locationCode string) (buyer, vendor
 		out.Vendor = POParty{
 			Name:    firstNonEmpty(str(v, "name"), vendorID),
 			Code:    firstNonEmpty(str(v, "code"), vendorID),
-			Address: str(v, "address"),
+			Address: addressLines(v),
 			GSTIN:   str(v, "gstin"),
 			State:   StateLabel(firstNonEmpty(StateCodeFromGSTIN(str(v, "gstin")), StateCodeFromName(str(v, "state")))),
 			Email:   str(v, "contact_email"),
@@ -344,7 +344,7 @@ func resolvePrintParties(tenantID, vendorID, locationCode string) (buyer, vendor
 			out.Buyer = POParty{
 				Name:    str(e, "name"),
 				Code:    str(e, "code"),
-				Address: str(e, "address"),
+				Address: addressLines(e),
 				GSTIN:   str(e, "gstin"),
 				State:   StateLabel(firstNonEmpty(StateCodeFromGSTIN(str(e, "gstin")), StateCodeFromName(str(e, "state")))),
 			}
@@ -380,6 +380,9 @@ func MarkPurchaseOrderSent(tenantID, poID, userID string) (POPrint, error) {
 	}
 	if doc.Status == "Draft" {
 		return POPrint{}, &ValidationError{Message: "a Draft purchase order cannot be sent to a vendor - submit it for approval first"}
+	}
+	if doc.Status == "Cancelled" {
+		return POPrint{}, &ValidationError{Code: "PURCHA-0621", Message: "a cancelled purchase order cannot be sent to a vendor - raise a new one"}
 	}
 
 	schema, err := db.GetTenantSchema(tenantID)

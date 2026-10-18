@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -46,6 +47,16 @@ type returnItemRecord struct {
 	// ExchangeSKU (Stage 35.9.2) is set only when this line was resolved as
 	// an exchange rather than a refund - see ApplyReturnQC's own comment.
 	ExchangeSKU string `json:"exchange_sku,omitempty"`
+	// Stage 73.1.1: these units' share of what the customer actually paid,
+	// from the sale's allocation (engines/sale_allocation.go), fixed under the
+	// original sale's lock when the return is raised. NetPaise is after the
+	// offer; Tenders splits it by how it was paid; Points is the points that
+	// share was paid with. Not set for an RTO, a No Receipt return or a
+	// SalesInvoice reference - those keep OriginalUnitPrice x Qty.
+	Allocated bool             `json:"allocated,omitempty"`
+	NetPaise  int64            `json:"net_paise,omitempty"`
+	Points    int              `json:"points,omitempty"`
+	Tenders   map[string]int64 `json:"tenders,omitempty"`
 }
 
 // originalLinePrice is what resolveOriginalSaleLinePrices/
@@ -123,10 +134,22 @@ func resolveOriginalSaleLinePrices(tenantID, orderID string) (map[string]origina
 	if err := json.Unmarshal([]byte(dataStr), &cart); err != nil {
 		return nil, err
 	}
+	// Stage 73.1.1: the price a unit comes back at is what the customer was
+	// charged for it - after the bill's offer - not its list price. The exact
+	// per-unit money and points shares are fixed later, under the sale's lock
+	// (applySaleAllocationToRecords); this is the figure a screen shows.
+	alloc, _, _, err := loadSaleAllocation(db.DB, tenantID, schema, orderID)
+	if err != nil {
+		return nil, err
+	}
 	prices := map[string]originalLinePrice{}
 	for _, l := range cart.Items {
 		costPaise, _ := ResolveQuoteUnitCostPaise(tenantID, l.Sku)
-		prices[l.Sku] = originalLinePrice{SalePrice: l.SalePrice, CostPrice: PaiseToRupees(costPaise)}
+		price := l.SalePrice
+		if s := alloc[l.Sku]; s != nil && s.Qty > 0 {
+			price = round2(PaiseToRupees(s.NetPaise) / float64(s.Qty))
+		}
+		prices[l.Sku] = originalLinePrice{SalePrice: price, CostPrice: PaiseToRupees(costPaise)}
 	}
 	return prices, nil
 }
@@ -413,12 +436,24 @@ func saveReturnRequest(schema, returnRequestID string, data map[string]interface
 // ApproveReturnRequest is the workflow's approval-before-receipt gate -
 // nothing is received or QC'd until a request has moved past Requested.
 func ApproveReturnRequest(tenantID, returnRequestID, approvedBy string) error {
+	return approveReturnRequest(tenantID, returnRequestID, approvedBy, true)
+}
+
+// approveReturnRequest is ApproveReturnRequest with the second-person rule
+// optional: the till's exchange (pos_exchange.go) raises, approves, receives
+// and inspects its return in one counter transaction, so it passes false.
+func approveReturnRequest(tenantID, returnRequestID, approvedBy string, secondPerson bool) error {
 	schema, data, err := fetchReturnRequest(tenantID, returnRequestID)
 	if err != nil {
 		return err
 	}
 	if data["status"] != "Requested" {
 		return fmt.Errorf("return request %s is not Requested (currently %v)", returnRequestID, data["status"])
+	}
+	if secondPerson {
+		if err := requireSecondPersonApproval(tenantID, strField(data, "requested_by"), approvedBy, "Return "+returnRequestID); err != nil {
+			return err
+		}
 	}
 	data["status"] = "Approved"
 	data["approved_by"] = approvedBy
@@ -587,6 +622,11 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 	}
 
 	var refundTotal, costReceivedTotal, exchangeCostTotal float64
+	// Stage 73.1.1: what goes back, split the way the sale was paid. money is
+	// every tender except points; points go back as points (73.1.3).
+	var moneyPaise, pointsPaise, netPaise int64
+	refundPoints := 0
+	refundTenders := map[string]int64{}
 	for i := range items {
 		disposition := dispositions[items[i].SKU]
 		rule, ok := returnDispositionRule[disposition]
@@ -628,12 +668,23 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 		}
 
 		if rule.RefundEligible {
-			refundTotal += items[i].OriginalUnitPrice * float64(items[i].Qty)
+			moneyPaise += items[i].moneyPaise()
+			if items[i].Allocated {
+				netPaise += items[i].NetPaise
+				pointsPaise += items[i].Tenders[TenderLoyaltyPoints]
+				refundPoints += items[i].Points
+				for k, v := range items[i].Tenders {
+					refundTenders[k] += v
+				}
+			} else {
+				netPaise += items[i].moneyPaise()
+			}
 		}
 	}
+	refundTotal = PaiseToRupees(moneyPaise)
 
 	finalStatus := "QC Complete"
-	if refundTotal <= 0 {
+	if moneyPaise <= 0 && refundPoints <= 0 {
 		finalStatus = "Closed"
 	}
 	data["items"] = items
@@ -649,11 +700,20 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 		return 0, "", err
 	}
 
-	if refundTotal > 0 {
+	if moneyPaise > 0 || refundPoints > 0 {
 		refundRequestID = NewDocID("RF")
+		// amount stays the money paid back (what every screen and report has
+		// always read); 73.1.1 adds the points share beside it, the net value
+		// whose revenue the refund reverses, and the per-tender split.
+		originalOrderID, _ := data["original_order_id"].(string)
 		refundDoc := map[string]interface{}{
 			"code": refundRequestID, "return_request_id": returnRequestID, "amount": refundTotal,
 			"status": "Pending", "refund_method": "", "approved_by": "", "processed_by": "", "rejection_reason": "",
+			"points": refundPoints, "points_value": PaiseToRupees(pointsPaise), "net_amount": PaiseToRupees(netPaise),
+			"original_order_id": originalOrderID,
+		}
+		if len(refundTenders) > 0 {
+			refundDoc["tenders"] = refundTenders
 		}
 		refundMarshaled, err := json.Marshal(refundDoc)
 		if err != nil {
@@ -779,6 +839,11 @@ func saveRefundRequest(schema, refundRequestID string, data map[string]interface
 // ApplyReturnQC's inventory-side GL post, this is the money-movement side
 // that stays gated until a human signs off.
 func ApproveRefundRequest(tenantID, refundRequestID, approvedBy string) error {
+	return approveRefundRequest(tenantID, refundRequestID, approvedBy, true)
+}
+
+// approveRefundRequest - see approveReturnRequest for secondPerson.
+func approveRefundRequest(tenantID, refundRequestID, approvedBy string, secondPerson bool) error {
 	schema, data, err := fetchRefundRequest(tenantID, refundRequestID)
 	if err != nil {
 		return err
@@ -786,9 +851,37 @@ func ApproveRefundRequest(tenantID, refundRequestID, approvedBy string) error {
 	if data["status"] != "Pending" {
 		return fmt.Errorf("refund request %s is not Pending (currently %v)", refundRequestID, data["status"])
 	}
+	if secondPerson {
+		raisedBy := ""
+		if returnID := strField(data, "return_request_id"); returnID != "" {
+			if _, ret, err := fetchReturnRequest(tenantID, returnID); err == nil {
+				raisedBy = strField(ret, "requested_by")
+			}
+		}
+		if err := requireSecondPersonApproval(tenantID, raisedBy, approvedBy, "The refund for return "+strField(data, "return_request_id")); err != nil {
+			return err
+		}
+	}
 	data["status"] = "Approved"
 	data["approved_by"] = approvedBy
 	return saveRefundRequest(schema, refundRequestID, data, "Approved")
+}
+
+// requireSecondPersonApproval (Stage 55.5a): with returns.second_person_approval
+// on, a return and its refund are approved by someone other than the person
+// who raised the return. Off (the default) it changes nothing. An approver
+// that cannot be identified is refused while it is on - "someone else" cannot
+// be checked against no one.
+func requireSecondPersonApproval(tenantID, raisedBy, approver, what string) error {
+	if !GetSettingBool(tenantID, "returns.second_person_approval") {
+		return nil
+	}
+	approver, raisedBy = strings.TrimSpace(approver), strings.TrimSpace(raisedBy)
+	if approver == "" || (raisedBy != "" && strings.EqualFold(approver, raisedBy)) {
+		return &ValidationError{Code: "SALESR-0617", Message: fmt.Sprintf(
+			"%s was raised by %s - another person must approve it", what, firstNonEmpty(raisedBy, "you"))}
+	}
+	return nil
 }
 
 // RejectRefundRequest requires the same mandatory 'Return'-category
@@ -864,17 +957,75 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 		return fmt.Errorf("refund request %s is not Approved (currently %s)", refundRequestID, lockedStatus)
 	}
 
-	revenueDebits := map[string]int64{"4100": RupeesToPaise(amountF)}
-	revenueCredits := map[string]int64{"1100": RupeesToPaise(amountF)}
-	if err := PostDoubleEntryTx(tx, tenantID, schema, "RefundRequest", refundRequestID, revenueDebits, revenueCredits, "",
-		fmt.Sprintf("RefundRequest:%s:REFUND", refundRequestID)); err != nil {
-		return err
+	// Stage 73.1.1/73.1.3: revenue is reversed for the whole net value that
+	// came back; money goes back for the money-paid part and the points-paid
+	// part goes back to the loyalty-redemption account it was tendered from
+	// (5250), mirroring how the sale booked it. A refund raised before 73.1.1
+	// has no points share and posts exactly as before.
+	moneyPaise := RupeesToPaise(amountF)
+	pointsPaise := RupeesToPaise(numFromInterface(data["points_value"]))
+	refundPoints := int(numFromInterface(data["points"]))
+	revenueDebits := map[string]int64{"4100": moneyPaise + pointsPaise}
+	revenueCredits := map[string]int64{}
+	// Stage 73.1.6: money goes back the way the returned units were paid -
+	// each mode to its own clearing account, the gift-card share back onto the
+	// card. A refund with no tender split (an RTO, a No Receipt return, one
+	// raised before 73.1.1) goes to the clearing account of the refund method
+	// chosen - before this stage it always went to cash, whatever was chosen.
+	exchange := refundMethod == RefundMethodExchangeCredit
+	if exchange {
+		// Stage 73.2.6: an exchange - the money stays with the store as a
+		// credit for the new sale (2620), whatever it was first paid with.
+		if moneyPaise > 0 {
+			revenueCredits["2620"] = moneyPaise
+		}
+	} else if tenders := paiseMapFrom(data["tenders"]); len(tenders) > 0 {
+		liability := "2610"
+		if tenders[TenderGiftCard] > 0 {
+			saleGift, errG := saleGiftCardTenders(tx, schema, strField(data, "original_order_id"))
+			if errG != nil {
+				return errG
+			}
+			acct, errG := refundGiftCardShareTx(tx, tenantID, schema, strField(data, "original_order_id"), refundRequestID, processedBy, tenders[TenderGiftCard], saleGift)
+			if errG != nil {
+				return errG
+			}
+			if acct != "" {
+				liability = acct
+			}
+		}
+		for k, v := range refundCreditsByTender(tenders, liability) {
+			revenueCredits[k] += v
+		}
+	} else if moneyPaise > 0 {
+		revenueCredits[paymentModeClearingAccount(refundMethod)] = moneyPaise
+	}
+	if pointsPaise > 0 {
+		revenueCredits["5250"] += pointsPaise
+	}
+	if moneyPaise+pointsPaise > 0 {
+		if err := PostDoubleEntryTx(tx, tenantID, schema, "RefundRequest", refundRequestID, revenueDebits, revenueCredits, "",
+			fmt.Sprintf("RefundRequest:%s:REFUND", refundRequestID)); err != nil {
+			return err
+		}
 	}
 
 	data["status"] = "Processed"
 	data["processed_by"] = processedBy
 	if refundMethod != "" {
 		data["refund_method"] = refundMethod
+	}
+	// Stage 73.2.7: cash paid back comes out of the till open at the store
+	// the goods came back to, so that session's expected cash allows for it.
+	if revenueCredits["1100"] > 0 && returnRequestID != "" {
+		var sessionID string
+		_ = tx.QueryRow(fmt.Sprintf(`
+			SELECT s.id FROM %s.documents s, %s.documents rr
+			WHERE rr.doctype = 'ReturnRequest' AND rr.id = $1 AND s.doctype = 'POSSession' AND s.status = 'Open'
+			  AND s.data->>'location' = rr.data->>'return_location' LIMIT 1`, schema, schema), returnRequestID).Scan(&sessionID)
+		if sessionID != "" {
+			data["pos_session"] = sessionID
+		}
 	}
 	refundMarshaled, err := json.Marshal(data)
 	if err != nil {
@@ -885,6 +1036,11 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 		refundMarshaled, "Processed", refundRequestID); err != nil {
 		return err
 	}
+	if exchange {
+		if err := createExchangeCreditTx(tx, schema, refundRequestID, returnRequestID, strField(data, "original_order_id"), moneyPaise, refundPoints); err != nil {
+			return err
+		}
+	}
 
 	originalOrderID := ""
 	if returnRequestID != "" {
@@ -893,6 +1049,37 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 			return errRR
 		}
 		originalOrderID, _ = rrData["original_order_id"].(string)
+
+		// Stage 73.1.2 / 73.1.3: the points side of the return, in this same
+		// transaction - the redeemed share back as points, and the points the
+		// returned money had earned taken back (see engines/loyalty_returns.go).
+		if originalOrderID != "" {
+			alloc, customerID, found, errAlloc := loadSaleAllocation(tx, tenantID, schema, originalOrderID)
+			if errAlloc != nil {
+				return errAlloc
+			}
+			if found && customerID != "" {
+				if err := restoreRedeemedPointsTx(tx, tenantID, schema, customerID, originalOrderID, refundRequestID, refundPoints); err != nil {
+					return err
+				}
+				// Stage 73.2.12: when accruing, points given back are a liability again.
+				if err := postLoyaltyValueTx(tx, tenantID, schema, "RefundRequest", refundRequestID, "RefundRequest:"+refundRequestID+":LOYALTY_RESTORE", pointsPaise, true, accountLoyaltyRedeemedExp); err != nil {
+					return err
+				}
+				var saleMoney int64
+				for _, s := range alloc {
+					saleMoney += s.NetPaise - s.Tenders[TenderLoyaltyPoints]
+				}
+				reversed, err := reverseEarnedPointsTx(tx, schema, customerID, originalOrderID, refundRequestID, saleMoney)
+				if err != nil {
+					return err
+				}
+				if err := postLoyaltyValueTx(tx, tenantID, schema, "RefundRequest", refundRequestID, "RefundRequest:"+refundRequestID+":LOYALTY_REVERSE",
+					int64(reversed)*loyaltyPointValuePaise(tenantID), false, ""); err != nil {
+					return err
+				}
+			}
+		}
 
 		// 47.4.4 tax reversal. Reversed from the RETURNED lines at their
 		// original prices, using the same ComputeGSTForLines the sale used, so
@@ -949,7 +1136,13 @@ func refundedGSTLines(returnData map[string]interface{}) []GSTLineInput {
 		if !ok || !rule.RefundEligible || it.ExchangeSKU != "" || it.OriginalUnitPrice <= 0 {
 			continue
 		}
-		lines = append(lines, GSTLineInput{Sku: it.SKU, Qty: it.Qty, UnitRate: it.OriginalUnitPrice})
+		rate := it.OriginalUnitPrice
+		if it.Allocated && it.Qty > 0 {
+			// 73.1.1: tax comes off the units' exact net share, the value the
+			// sale's own GST was backed out of.
+			rate = PaiseToRupees(it.NetPaise) / float64(it.Qty)
+		}
+		lines = append(lines, GSTLineInput{Sku: it.SKU, Qty: it.Qty, UnitRate: rate})
 	}
 	return lines
 }

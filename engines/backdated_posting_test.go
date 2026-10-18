@@ -34,6 +34,7 @@ func TestBackdatedPostingApproval(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateAccountingPeriod: %v", err)
 	}
+	signAllCloseTasksForTest(t, tenantID, periodID) // Stage 73.1.10
 	if err := CloseAccountingPeriod(tenantID, periodID, "system"); err != nil {
 		t.Fatalf("CloseAccountingPeriod: %v", err)
 	}

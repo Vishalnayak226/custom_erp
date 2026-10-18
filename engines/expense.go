@@ -9,10 +9,11 @@ import (
 
 // ValidateExpenseClaimControls implements MB 16.2's "Controls" for a new
 // claim: a date window (not in the future, not stale) and a duplicate-bill
-// check. Mandatory attachment and a hard amount limit aren't implemented -
-// this codebase has no file-upload infrastructure to attach a bill to, and
-// the amount limit is already enforced by routing through the amount-slab
-// approval engine (Stage 13.8) rather than a separate hard cutoff.
+// check. A hard amount limit isn't implemented - it is already enforced by
+// routing through the amount-slab approval engine (Stage 13.8). Receipts are
+// attached after the claim is saved (Stage 55.15b, engines/attachments.go)
+// and are deliberately not mandatory: the claims list shows "no receipt" so
+// an approver or AP can ask for one, rather than payment being blocked.
 func ValidateExpenseClaimControls(tenantID string, payload map[string]interface{}) error {
 	expenseDateStr, _ := payload["expense_date"].(string)
 	expenseDate, err := time.Parse("2006-01-02", expenseDateStr)
@@ -29,6 +30,19 @@ func ValidateExpenseClaimControls(tenantID string, payload map[string]interface{
 	employeeID, _ := payload["employee_id"].(string)
 	category, _ := payload["category"].(string)
 	amount, _ := payload["amount"].(float64)
+
+	// Stage 55.15: the amounts must make sense together before anything else.
+	gst := numFromInterface(payload["gst_amount"])
+	advance := numFromInterface(payload["advance_adjusted"])
+	if amount <= 0 {
+		return fmt.Errorf("amount must be more than zero")
+	}
+	if gst < 0 || gst > amount {
+		return fmt.Errorf("GST amount must be between 0 and the claim amount")
+	}
+	if advance < 0 || advance > amount+gst {
+		return fmt.Errorf("advance adjusted cannot be more than the claim total (amount + GST)")
+	}
 
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -128,12 +142,23 @@ func PayExpenseClaim(tenantID, claimID string) (payableAmount int, err error) {
 	if amount <= 0 {
 		return 0, fmt.Errorf("claim amount must be positive to pay")
 	}
+	if advanceAdjusted < 0 || advanceAdjusted > amount+gstAmount {
+		return 0, fmt.Errorf("advance adjusted (%d) must be between 0 and the claim total (%d)", advanceAdjusted, amount+gstAmount)
+	}
 
 	debits := map[string]int{"5400": amount}
 	if gstAmount > 0 {
 		debits["1500"] = gstAmount
 	}
-	credits := map[string]int{"1100": amount + gstAmount}
+	// Stage 55.15: the cash leaving the bank is what the employee is actually
+	// reimbursed - the claim less any advance already paid to them - and the
+	// advance itself is cleared from 1600 Staff Loans & Advances, where an
+	// advance is booked (DisburseEmployeeLoan). Crediting 1100 with the whole
+	// claim overstated the payment by the advance and left 1600 uncleared.
+	credits := map[string]int{"1100": amount + gstAmount - advanceAdjusted}
+	if advanceAdjusted > 0 {
+		credits["1600"] = advanceAdjusted
+	}
 	// Stage 37.7.3: a real, adjacent gap found while wiring Project onto
 	// this same call - ExpenseClaim.department (a field this doctype has
 	// had since Stage 1) was never actually passed as PostingOptions, so it

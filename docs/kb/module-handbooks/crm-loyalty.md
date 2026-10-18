@@ -5,7 +5,7 @@ order: 80
 summary: Earn and burn loyalty points on real sales, issue vouchers and run birthday/lapsed-customer campaigns, and read customer behaviour back through seven CRM reports.
 audience: store manager, marketing, admin
 last_verified: 2026-09-03
-screens: [doctype-table, reports, configuration]
+screens: [module:crm, doctype:customer, reports, configuration]
 doc_id: DOC-F07FAE98C4
 type: procedure
 status: draft

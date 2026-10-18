@@ -2,12 +2,12 @@
 
 <!-- GENERATED FILE - DO NOT EDIT BY HAND.
      Source: `engines`' report registry (`report_definitions.go`)
-     Regenerate: `go run ./cmd/gendocs` -->
+     Regenerate: `pwsh docs/update-docs.ps1 -Group Content` -->
 
 > **Generated 2026-09-10.** This page is produced from `engines`' report registry (`report_definitions.go`), for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-Every report reachable from **Sales & Marketplace -> Reports**. There are **92**
+Every report reachable from **Sales & Marketplace -> Reports**. There are **113**
 across **15** categories.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -24,18 +24,18 @@ table has the same shape whoever runs it.
 - [Admin](#admin) - 1 reports
 - [Assets](#assets) - 1 reports
 - [BI](#bi) - 1 reports
-- [CRM](#crm) - 7 reports
-- [Exceptions](#exceptions) - 3 reports
-- [Finance](#finance) - 26 reports
-- [HR](#hr) - 1 reports
-- [Inventory](#inventory) - 6 reports
+- [CRM](#crm) - 8 reports
+- [Exceptions](#exceptions) - 6 reports
+- [Finance](#finance) - 30 reports
+- [HR](#hr) - 2 reports
+- [Inventory](#inventory) - 12 reports
 - [Manufacturing](#manufacturing) - 3 reports
 - [OMS](#oms) - 12 reports
 - [PIM](#pim) - 4 reports
-- [Procurement](#procurement) - 3 reports
-- [Sales](#sales) - 3 reports
+- [Procurement](#procurement) - 4 reports
+- [Sales](#sales) - 6 reports
 - [Service](#service) - 1 reports
-- [WMS](#wms) - 20 reports
+- [WMS](#wms) - 22 reports
 
 ---
 
@@ -147,6 +147,19 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Loyalty Points Movement
+
+**Report id:** `loyalty-points-movement`
+
+**Parameters:**
+
+- **From** (`from_date`) - date, optional
+- **To** (`to_date`) - date, optional
+
+**Columns:** Movement · Points · Value *(sensitive)*
+
+**Drill-down:** no.
+
 ### RFM Customer Segmentation
 
 **Report id:** `rfm-segmentation`
@@ -167,6 +180,38 @@ table has the same shape whoever runs it.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Event ID · Event · Attempts · Queued
+
+**Drill-down:** no.
+
+### Inactive Items With Stock
+
+**Report id:** `inactive-items-with-stock`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** SKU · Item · Status · Store · On hand
+
+**Drill-down:** no.
+
+### Item Exceptions
+
+**Report id:** `item-exceptions`
+
+**Parameters:**
+
+- **Status** (`status`) - select, optional, one of: ,Open,Logged,Resolved
+
+**Columns:** Date · Type · Source · SKU · Store · Code · What happened · Qty · Status
+
+**Drill-down:** no.
+
+### Item Master Completeness
+
+**Report id:** `item-master-completeness`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** SKU · Item · Item Type · Missing
 
 **Drill-down:** no.
 
@@ -368,6 +413,19 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### GL Posting Review (by poster)
+
+**Report id:** `gl-posting-review`
+
+**Parameters:**
+
+- **From** (`start`) - date, **required**
+- **To** (`end`) - date, **required**
+
+**Columns:** Posted by · Source commands · GL lines · Documents · Debit *(sensitive)* · Credit *(sensitive)* · First posted · Last posted
+
+**Drill-down:** yes - a row's **View Details** opens the transactions behind it.
+
 ### GST Return Summary
 
 **Report id:** `gst-return-summary`
@@ -380,6 +438,48 @@ table has the same shape whoever runs it.
 **Columns:** From · To · Taxable Value *(sensitive)* · Output CGST *(sensitive)* · Output SGST *(sensitive)* · Output IGST *(sensitive)* · Total Tax Liability *(sensitive)* · Input Tax Credit *(sensitive)* · Net GST Payable *(sensitive)* · Exempt Value *(sensitive)* · Nil-Rated Value *(sensitive)* · Zero-Rated Value *(sensitive)* · Total Non-Taxable *(sensitive)* · Transactions
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
+
+### General Journal (who posted what)
+
+**Report id:** `gl-journal`
+
+**Parameters:**
+
+- **From** (`start`) - date, **required**
+- **To** (`end`) - date, **required**
+- **Document type (optional)** (`document_type`) - text, optional
+- **Posted by (username, service:job, or "before attribution")** (`posted_by`) - text, optional
+- **Attribution** (`attribution`) - select, optional, one of: All,Attributed,Before attribution
+
+**Columns:** Posted at · Document Type · Document · Account · Account Name · Debit *(sensitive)* · Credit *(sensitive)* · Posted by · Source command
+
+**Drill-down:** no.
+
+### Gift Card Ledger
+
+**Report id:** `stored-value-ledger`
+
+**Parameters:**
+
+- **Last 4 digits** (`card`) - text, optional
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** When · Card · # · Event · Amount · Balance after · Source · Store · User · Reason
+
+**Drill-down:** no.
+
+### Gift Card Liability
+
+**Report id:** `stored-value-liability`
+
+**Parameters:**
+
+- **Status** (`status`) - select, optional, one of: ,Inactive,Active,Partially redeemed,Fully redeemed,Blocked,Cancelled
+
+**Columns:** Card · Profile · Status · Loaded · Used / cancelled · Outstanding · Expires · Store issued
+
+**Drill-down:** no.
 
 ### Intercompany Reconciliation
 
@@ -425,7 +525,7 @@ table has the same shape whoever runs it.
 
 **Parameters:** none - it runs as soon as you pick it.
 
-**Columns:** Age Bucket · PO Count · Outstanding Amount *(sensitive)*
+**Columns:** Age Bucket · Open Items · Outstanding Amount *(sensitive)*
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
@@ -487,7 +587,7 @@ table has the same shape whoever runs it.
 - **Period Start** (`start`) - date, **required**
 - **Period End** (`end`) - date, **required**
 
-**Columns:** Posting ID · Account Code · Account Name · Type · Document Type · Document ID · Debit *(sensitive)* · Credit *(sensitive)* · Date
+**Columns:** Posting ID · Account Code · Account Name · Type · Document Type · Document ID · Debit *(sensitive)* · Credit *(sensitive)* · Date · Posted by · Source command
 
 **Drill-down:** no.
 
@@ -534,8 +634,49 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Payroll Reconciliation (gross to bank to GL)
+
+**Report id:** `payroll-reconciliation`
+
+**Parameters:**
+
+- **Pay periods ending from** (`start`) - date, **required**
+- **Pay periods ending to** (`end`) - date, **required**
+
+**Columns:** Step · What is compared · Payslips · Source total *(sensitive)* · Compared with *(sensitive)* · Difference *(sensitive)* · Status · Note
+
+**Drill-down:** yes - a row's **View Details** opens the transactions behind it.
+
 
 ## Inventory
+
+### Backflush Consumption
+
+**Report id:** `backflush-consumption`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`store`) - text, optional
+
+**Columns:** Date · Bill · Store · Sold item · Group · Consumed · Qty · Default · Changed · Reason · Rule (version)
+
+**Drill-down:** no.
+
+### Batch Lookup & Ageing
+
+**Report id:** `batch-ageing`
+
+**Parameters:**
+
+- **Scan batch, barcode or SKU** (`scan`) - text, optional
+- **Older than (days)** (`min_age_days`) - text, optional
+- **Show** (`show`) - select, optional, one of: All batches,Only with stock left
+
+**Columns:** Batch · Item · Received On · Age (days) · Age Band · GRN · Supplier · Received Qty · Est. Left (FIFO) · Expires · Batch Status
+
+**Drill-down:** no.
 
 ### Current Stock
 
@@ -571,6 +712,29 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Item Classification Register
+
+**Report id:** `item-classification-register`
+
+**Parameters:**
+
+- **Item Type** (`item_type`) - text, optional
+- **Sellability** (`sellability`) - select, optional, one of: ,Normal sale,Promo only,Not sellable,Stored-value issue only
+
+**Columns:** SKU · Item · Item Type · Class · Stock · Valuation · Accounting · Sellability · Bill · Capture · Consumption · Item overrides · Status
+
+**Drill-down:** no.
+
+### Non-Valuated Stock
+
+**Report id:** `non-valuated-stock`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** SKU · Item · Item Type · Store · On hand · Available
+
+**Drill-down:** no.
+
 ### Pegged Demand & Supply
 
 **Report id:** `pegged-demand-supply`
@@ -595,6 +759,32 @@ table has the same shape whoever runs it.
 - **Default Safety Stock** (`default_safety_stock`) - text, **required**
 
 **Columns:** SKU · Location · Available · Daily Velocity · Reorder Point · Suggested Qty · Safety Stock · Lead Time (days)
+
+**Drill-down:** no.
+
+### Stock Ageing (by GRN batch)
+
+**Report id:** `stock-ageing`
+
+**Parameters:**
+
+- **Scan barcode or SKU (optional)** (`scan`) - text, optional
+
+**Columns:** Item · On Hand · 0-30 days · 31-60 days · 61-90 days · 91-180 days · Over 180 days · Before batch numbers · Oldest Batch Held · Oldest Received On
+
+**Drill-down:** no.
+
+### Stock Book vs Ledger (drift finder)
+
+**Report id:** `stock-book-vs-ledger`
+
+**Parameters:**
+
+- **Item Code (optional)** (`sku`) - text, optional
+- **Location (optional)** (`location`) - text, optional
+- **Include rows that agree** (`all`) - select, optional, one of: No,Yes
+
+**Columns:** Item · Location · On hand (book) · Ledger total · Difference · Ledger lines · What it suggests
 
 **Drill-down:** no.
 
@@ -832,6 +1022,16 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Open Purchase Commitments
+
+**Report id:** `po-commitments`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Age Bucket · PO Count · Committed Amount *(sensitive)*
+
+**Drill-down:** yes - a row's **View Details** opens the transactions behind it.
+
 ### RFQ Comparison Export
 
 **Report id:** `rfq-comparison`
@@ -886,6 +1086,34 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Gift With Purchase Register
+
+**Report id:** `gwp-issue-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Date · Bill · Store · Customer · Gift · Qty · Offer
+
+**Drill-down:** no.
+
+### Post-Sale Edit History
+
+**Report id:** `post-sale-edit-history`
+
+**Parameters:**
+
+- **From** (`from_date`) - date, optional
+- **To** (`to_date`) - date, optional
+- **Document type** (`document_type`) - select, optional, one of: ,Sales Invoice,Sales Order,Till bill
+- **Number** (`document_id`) - text, optional
+
+**Columns:** When · Document · Number · Status then · Field · Before · After · Changed by · Reason
+
+**Drill-down:** no.
+
 ### Sales Register
 
 **Report id:** `sales-register`
@@ -893,6 +1121,21 @@ table has the same shape whoever runs it.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Cart Number · Location · Payment Mode · Status · Sale Total *(sensitive)* · Date · Data Issue
+
+**Drill-down:** no.
+
+### Sales by Customer Reference
+
+**Report id:** `sales-by-customer-reference`
+
+**Parameters:**
+
+- **From** (`from_date`) - date, optional
+- **To** (`to_date`) - date, optional
+- **Customer PO / Ref** (`customer_reference`) - text, optional
+- **Customer** (`customer`) - text, optional
+
+**Columns:** Customer PO / Ref · Document · Number · Date · Customer · From order · Amount · Status
 
 **Drill-down:** no.
 
@@ -976,6 +1219,20 @@ table has the same shape whoever runs it.
 - **Batch / Lot (optional)** (`batch_no`) - text, optional
 
 **Columns:** Item · Batch / Lot · Location · Bin · Condition · Qty · Expires · Days Left · Batch Status
+
+**Drill-down:** no.
+
+### Bin Stock Reconciliation
+
+**Report id:** `bin-stock-reconciliation`
+
+**Parameters:**
+
+- **Item Code (optional)** (`sku`) - text, optional
+- **Location (optional)** (`location`) - text, optional
+- **Show** (`mismatches_only`) - select, optional, one of: Mismatches only,All rows
+
+**Columns:** Location · Item · On Hand · In Bins · Picked, Not Dispatched · Difference · Status
 
 **Drill-down:** no.
 
@@ -1100,6 +1357,16 @@ table has the same shape whoever runs it.
 - **To (optional)** (`end`) - date, optional
 
 **Columns:** User · Tasks · Quantity · Standard Hours · Labour Cost *(sensitive)*
+
+**Drill-down:** no.
+
+### Owner Stock Exceptions (3PL)
+
+**Report id:** `owner-stock-exceptions`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Exception · Location · Bin · Item · Condition · Bin Qty · Owner Qty · What to do
 
 **Drill-down:** no.
 

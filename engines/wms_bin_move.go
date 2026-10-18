@@ -35,6 +35,9 @@ type BinMoveInput struct {
 	// stock ledger and the WarehouseTask log.
 	VoucherType string
 	TaskType    string
+	// OwnerID (Stage 59.4) names whose units move when the bin holds several
+	// owners' stock; blank means the bin's only owner, or its unsplit part.
+	OwnerID string
 }
 
 // MoveBinStock moves Good-condition stock between two bins at the same
@@ -143,6 +146,11 @@ func MoveBinStock(tenantID string, in BinMoveInput) error {
 	if err != nil {
 		return err
 	}
+	// Stage 59.4: the owner's slice travels with the units.
+	movedOwner, err := moveOwnerSliceTx(tx, tenantID, schema, in.FromBin, in.ToBin, in.SKU, "Good", "Good", locationCode, have, in.Qty, in.OwnerID)
+	if err != nil {
+		return err
+	}
 
 	if _, err := tx.Exec(fmt.Sprintf(
 		`UPDATE %s.bin_stock SET qty = qty - $1, updated_at = CURRENT_TIMESTAMP WHERE bin_code = $2 AND sku = $3 AND condition = 'Good'`, schema),
@@ -180,7 +188,7 @@ func MoveBinStock(tenantID string, in BinMoveInput) error {
 	if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
 		ItemID: in.SKU, WarehouseID: locationCode, Qty: 0,
 		VoucherType: in.VoucherType, VoucherID: fmt.Sprintf("%s-%s", in.FromBin, in.ToBin), UserID: in.UserID,
-		FromLocationID: in.FromBin, ToLocationID: in.ToBin, BatchNo: batchNo,
+		FromLocationID: in.FromBin, ToLocationID: in.ToBin, BatchNo: batchNo, OwnerID: movedOwner,
 	}); lerr != nil {
 		LogSystemError(tenantID, "", "WARN", "MoveBinStock", fmt.Sprintf("stock ledger write failed for %s: %v", in.SKU, lerr), "")
 	}

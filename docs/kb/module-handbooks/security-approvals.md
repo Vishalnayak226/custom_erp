@@ -277,7 +277,12 @@ any other doctype selected in bulk.
 `GET /api/v1/approval/pending` (screen id `approvals`) lists every
 `Pending Approval` document across every approval-gated doctype. Super Admin
 sees everything tenant-wide; every other role sees only documents at their
-own location (or with no location on the document at all).
+own location (or with no location on the document at all). On top of that,
+the inbox applies the same rules as the record API (Stage 55.14): HR
+records (leave, grievances, appraisals and the like) are limited to the
+user's own employee unless the role has HR's exemption, and fields the role
+may not read (a grievance's description and resolution notes, for example)
+are left out.
 
 ### Managing the rules themselves
 

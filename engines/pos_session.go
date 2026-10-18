@@ -69,7 +69,9 @@ func OpenPOSSession(tenantID, posProfile, location, cashier, userID string, open
 		  AND (data->>'cashier' = $1 OR data->>'location' = $2)
 		LIMIT 1`, schema), cashier, location).Scan(&existing)
 	if err == nil {
-		return "", fmt.Errorf("a session is already open for this cashier or location (%s) - close it first", existing)
+		// Stage 73.2.7: the next cashier takes the till over rather than
+		// waiting for the first to sign back in and close.
+		return "", fmt.Errorf("a session is already open for this cashier or location (%s) - close it first, or take it over from More... -> Take over this till", existing)
 	} else if err != sql.ErrNoRows {
 		return "", err
 	}
@@ -101,11 +103,31 @@ func OpenPOSSession(tenantID, posProfile, location, cashier, userID string, open
 // on top of the session's own opening float. A cart with no payment_mode at
 // all (pre-Stage-20 data) is treated as Cash, matching the implicit-cash-only
 // assumption that was true before 20.9.
+//
+// Stage 73.2.7: the whole day - opening float + cash sales - cash refunds +
+// paid in - paid out - safe drops (engines/pos_cash_movements.go).
 func expectedCashForSession(tenantID, sessionID string, openingCash float64) (float64, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return 0, err
 	}
+	sales, err := sessionCashSales(schema, sessionID)
+	if err != nil {
+		return 0, err
+	}
+	refunds, err := sessionCashRefunds(schema, sessionID)
+	if err != nil {
+		return 0, err
+	}
+	moves, err := sessionCashMovements(schema, sessionID)
+	if err != nil {
+		return 0, err
+	}
+	return round2(openingCash + sales - refunds + moves[CashPaidIn] - moves[CashPaidOut] - moves[CashSafeDrop]), nil
+}
+
+// sessionCashSales is the cash a session's paid sales took in.
+func sessionCashSales(schema, sessionID string) (float64, error) {
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT data FROM %s.documents
 		WHERE doctype = 'POSCart' AND status = 'Paid' AND data->>'pos_session' = $1`, schema), sessionID)
@@ -114,7 +136,7 @@ func expectedCashForSession(tenantID, sessionID string, openingCash float64) (fl
 	}
 	defer rows.Close()
 
-	total := openingCash
+	total := 0.0
 	for rows.Next() {
 		var dataStr string
 		if err := rows.Scan(&dataStr); err != nil {
@@ -126,8 +148,18 @@ func expectedCashForSession(tenantID, sessionID string, openingCash float64) (fl
 				Qty       float64 `json:"qty"`
 				SalePrice float64 `json:"sale_price"`
 			} `json:"items"`
+			Allocation []SaleLineAllocation `json:"allocation"`
 		}
 		if err := json.Unmarshal([]byte(dataStr), &cart); err != nil {
+			continue
+		}
+		// Stage 73.1.6: a sale posted since 73.1.1 says exactly what it took in
+		// cash - after offers, points, gift cards and any split - so the drawer
+		// is held to that, not to the bill's list total.
+		if len(cart.Allocation) > 0 {
+			for _, a := range cart.Allocation {
+				total += PaiseToRupees(a.Tenders["Cash"])
+			}
 			continue
 		}
 		if cart.PaymentMode != "" && cart.PaymentMode != "Cash" {
@@ -212,12 +244,12 @@ func detectOfflineQueueGap(tenantID, schema, sessionID string) (missing []string
 	missingJSON, _ := json.Marshal(missing)
 	gapID := NewDocID("POSGAP")
 	gapData := map[string]interface{}{
-		"session_id":            sessionID,
-		"cashier":               cashier,
-		"location":              location,
-		"missing_cart_numbers":  string(missingJSON),
-		"missing_count":         float64(len(missing)),
-		"status":                "Open",
+		"session_id":           sessionID,
+		"cashier":              cashier,
+		"location":             location,
+		"missing_cart_numbers": string(missingJSON),
+		"missing_count":        float64(len(missing)),
+		"status":               "Open",
 	}
 	marshaled, _ := json.Marshal(gapData)
 	if _, err := db.DB.Exec(fmt.Sprintf(`
@@ -262,13 +294,26 @@ func posDrawerVarianceToleranceFor(tenantID string) float64 {
 // close (same "flag for review" posture as the cash-variance/stock-
 // shortfall paths already use), it's returned purely so the caller can
 // surface a warning.
-func ClosePOSSession(tenantID, sessionID, cashier string, countedCash float64, varianceReason string) (expected float64, variance float64, offlineGapCartNumbers []string, err error) {
+//
+// Stage 73.2.7: above the tolerance a reason is still required, and the
+// session then waits for a manager (the POSSession approval rule) instead of
+// closing - Pending Approval, so nothing more can be sold on it. The approver
+// must not be the cashier and must be at the store; an approval closes it, a
+// rejection reopens it for a recount. With no POSSession rule configured it
+// closes with the reason on record, as before.
+func ClosePOSSession(tenantID, sessionID, cashier string, countedCash float64, varianceReason string) (*POSSessionCloseResult, error) {
+	return closePOSSession(tenantID, sessionID, cashier, countedCash, varianceReason, "")
+}
+
+// closePOSSession is the close itself; handedOverTo names the cashier taking
+// the till over in a shift handover (TakeOverPOSSession), "" for a close.
+func closePOSSession(tenantID, sessionID, cashier string, countedCash float64, varianceReason, handedOverTo string) (*POSSessionCloseResult, error) {
 	if countedCash < 0 {
-		return 0, 0, nil, errors.New("counted cash cannot be negative")
+		return nil, errors.New("counted cash cannot be negative")
 	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return 0, 0, nil, err
+		return nil, err
 	}
 
 	var dataStr, status string
@@ -276,56 +321,79 @@ func ClosePOSSession(tenantID, sessionID, cashier string, countedCash float64, v
 		SELECT data, status FROM %s.documents WHERE doctype = 'POSSession' AND id = $1`, schema), sessionID).
 		Scan(&dataStr, &status)
 	if err != nil {
-		return 0, 0, nil, fmt.Errorf("session not found: %v", err)
+		return nil, fmt.Errorf("session not found: %v", err)
 	}
 	if status != "Open" {
-		return 0, 0, nil, fmt.Errorf("session is not open (current status: %s)", status)
+		return nil, fmt.Errorf("session is not open (current status: %s)", status)
 	}
 	var data map[string]interface{}
 	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
-		return 0, 0, nil, err
+		return nil, err
 	}
 	if sessionCashier, _ := data["cashier"].(string); sessionCashier != cashier {
-		return 0, 0, nil, errors.New("only the cashier who opened this session can close it")
+		return nil, errors.New("only the cashier who opened this session can close it")
 	}
 
 	openingCash := 0.0
 	if v, ok := data["opening_cash"].(float64); ok {
 		openingCash = v
 	}
-	expected, err = expectedCashForSession(tenantID, sessionID, openingCash)
+	res := &POSSessionCloseResult{VarianceTolerance: posDrawerVarianceToleranceFor(tenantID)}
+	res.Expected, err = expectedCashForSession(tenantID, sessionID, openingCash)
 	if err != nil {
-		return 0, 0, nil, err
+		return nil, err
 	}
-	variance = countedCash - expected
+	res.Variance = round2(countedCash - res.Expected)
 
-	drawerTolerance := posDrawerVarianceToleranceFor(tenantID)
-	if math.Abs(variance) > drawerTolerance && strings.TrimSpace(varianceReason) == "" {
+	if math.Abs(res.Variance) > res.VarianceTolerance && strings.TrimSpace(varianceReason) == "" {
 		// POSOFF-0240 (Stage 25.7): "Drawer variance exceeds tolerance."
-		return expected, variance, nil, &ValidationError{Code: "POSOFF-0240", Message: fmt.Sprintf("cash variance of %.2f exceeds the %.2f tolerance - a reason is required to close this session", variance, drawerTolerance)}
+		return res, &ValidationError{Code: "POSOFF-0240", Message: fmt.Sprintf("cash variance of %.2f exceeds the %.2f tolerance - a reason is required to close this session", res.Variance, res.VarianceTolerance)}
+	}
+	res.RequiredApprover, err = varianceNeedsApproval(tenantID, res.Variance)
+	if err != nil {
+		return nil, err
 	}
 
-	data["status"] = "Closed"
-	data["expected_cash"] = expected
+	res.Status = "Closed"
+	if res.RequiredApprover != "" {
+		// SubmitForApproval moves a Draft to Pending Approval and routes on
+		// the document's amount - the size of the variance.
+		res.Status = "Draft"
+		data["amount"] = math.Abs(res.Variance)
+	}
+	data["status"] = res.Status
+	data["expected_cash"] = res.Expected
 	data["closing_counted_cash"] = countedCash
-	data["variance"] = variance
+	data["variance"] = res.Variance
 	if strings.TrimSpace(varianceReason) != "" {
 		data["variance_reason"] = varianceReason
 	}
+	if handedOverTo != "" {
+		data["handed_over_to"] = handedOverTo
+	}
 	marshaled, err := json.Marshal(data)
 	if err != nil {
-		return 0, 0, nil, err
+		return nil, err
 	}
 	_, err = db.DB.Exec(fmt.Sprintf(`
-		UPDATE %s.documents SET data = $1, status = 'Closed', updated_at = CURRENT_TIMESTAMP
-		WHERE id = $2`, schema), marshaled, sessionID)
+		UPDATE %s.documents SET data = $1, status = $3, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $2`, schema), marshaled, sessionID, res.Status)
 	if err != nil {
-		return 0, 0, nil, err
+		return nil, err
+	}
+	if res.RequiredApprover != "" {
+		var createdBy string
+		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT created_by FROM %s.documents WHERE id = $1`, schema), sessionID).Scan(&createdBy)
+		if err := SubmitForApproval(tenantID, "POSSession", sessionID, createdBy, "Cashier"); err != nil {
+			return nil, err
+		}
+		res.Status = "Pending Approval"
 	}
 
-	offlineGapCartNumbers, gapErr := detectOfflineQueueGap(tenantID, schema, sessionID)
+	gap, gapErr := detectOfflineQueueGap(tenantID, schema, sessionID)
 	if gapErr != nil {
 		log.Printf("[WARN] offline queue gap detection failed for session %s: %v", sessionID, gapErr)
 	}
-	return expected, variance, offlineGapCartNumbers, nil
+	res.OfflineGapCarts = gap
+	return res, nil
 }

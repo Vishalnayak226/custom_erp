@@ -15,11 +15,105 @@ applies_to: source registries; not release acceptance
 ---
 
 <!-- GENERATED ARTICLE - DO NOT EDIT BY HAND.
-     Regenerate: go run ./cmd/gendocs && go run ./cmd/genkb -->
+     Regenerate: pwsh docs/update-docs.ps1 -Group Content -->
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **115** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **136** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+
+## 2026-10-18
+
+**Release of §229-237 — Stage 73 batches A-D, Stages 76, 78-82, 71.8** *(one commit, pushed + deployed)*
+
+At the user's *"if all task done, push all and deploy all to minn and app"*. This supersedes the "NOT COMMITTED" tags on §229-237. Full detail in `micro_checklist.md` 73.R and 84.7-84.9.
+
+**Stage 82 — The industry is chosen in Configuration, by the org's admin only** *(code + docs, NOT COMMITTED)*
+
+From the user's screenshot of the top bar's industry dropdown and its typed-code Override prompt. Full detail in `micro_checklist.md` Stage 82.
+
+**Stage 81 — Product attributes per client from the industry attribute library** *(code + docs, NOT COMMITTED)*
+
+From the user's message and draft workbook `ERP_Industry_Product_Attribute_Master.xlsx`. Full detail in `micro_checklist.md` Stage 81.
+
+**Stage 80 — New Item form in sections with a variant-option picker; Help opens the right article on every list; one place for print templates; WMS start-here guide** *(code + docs, NOT COMMITTED)*
+
+Four screenshots from the user on the deployed build. Full detail in `micro_checklist.md` Stage 80.
+
+**Stage 79 — Number boxes take only numbers; PO record form pickers and status; Roles screen rebuilt** *(code + docs, NOT COMMITTED)*
+
+Four messages from the user on the deployed build, all on screens reached from GRN → "create the PO" and Settings → Roles. Full detail in `micro_checklist.md` Stage 79.
+
+## 2026-10-17
+
+**71.8 multi-page prints, PO / GRN rules pinned, Stage 78 day limits** *(code + docs, NOT COMMITTED)*
+
+Three of the user's messages in one session; full detail in `micro_checklist.md` 71.8, the 65.2 re-check note and Stage 78.
+
+**Stage 73 batch C — OMS, platform, shared shell, masters: truthful notifications, exception queues and one order timeline, order changes after release, one task inbox, OAuth2 client credentials** *(code + docs, NOT COMMITTED)*
+
+One of four parallel batches over Stage 73 / 55. Detail and verification notes are on each item in **micro_checklist.md**.
+
+**Stage 73 batch D — Finance, HR, expenses, assets, reports: posting attribution, signed close with controlled reopen, bank workbench, payroll reconciliation, control totals** *(code + docs, NOT COMMITTED)*
+
+One of four parallel batches over Stage 73 (decision D09: corrections by reversal only; reopen through maker-checker). Detail and verification notes are on each item in **micro_checklist.md**.
+
+**Stage 72 — Item & Material Master: independent classification, packaging backflush at the POS, gifts with purchase, gift cards as stored value** *(code + docs; committed `0845470`, deployed 2026-10-17)*
+
+From two PDFs of the user's: *Backflush vs Non-Sellable Items in Retail ERP/POS* (*"Build this also for pos"*) and the 41-page *Enterprise Item & Material Master Module - Build Blueprint* that grew out of it (*"Read and update checklist and build"*). The blueprint's rule - one item-type list cannot answer what an item is, whether stock is kept, whether it is valued, whether the till sells it, how it is consumed and where its cost goes - is now how the item master works: the Stage 60 **Item Type became the reusable profile** with eight independent dimensions (+ expense account) that any Item may override, resolved in one place (`engines/item_policy.go`), checked on every save against the blueprint's compatibility rules and frozen once an item has stock history. At the till (`ResolvePOSQuote`, the one pricing path): packaging and other non-sellable items are refused, promo-only gifts ring at zero only when a new **Gift With Purchase** offer earns them, and a stored-value item cannot be a bill line. **Backflush Rules** consume the store's usual box and butter paper with every sale, inside the sale's transaction, with a **Packaging** override for the cashier, a short-stock policy (default never blocks - the user's decision) and an **Item Exception** queue. Items that keep no stock (services, non-stock expense) and non-valuated stock now behave distinctly at GRN, at the till and on transfers; **virtual kits** issue their components at the POS. **Gift cards** are stored value: registered numbers, funded only when payment and liability posting commit, redeemed as a tender inside checkout, append-only ledger, masked everywhere, block / release / cancel. **Consumption Entry** posts periodic counts and manual issues. Nine section-20 reports. Found and fixed on the way: the POS screen had refused every zero-priced line since Stage 60.4, so no gift or free item could ever be billed. Full detail and verification: `micro_checklist.md` Stage 72; decisions still needed (item release maker-checker, effective-dated versions, posted-bill cancellation, per-store item policy, editor + reason in the audit trail, negative stock per profile, gift returns, gift-card refunds / transfer): 72.D.
+
+**Stage 69 — Create and history on separate pages, everywhere** *(code + docs, NOT COMMITTED)*
+
+From the user's HR Attendance screenshot: *"All txn where there is create and history both will be different page … Make it standard practice how it is in best erp being followed."* Every screen that records something now opens on its **list** (count beside the title) with **+ New …** top right; the form is a page of its own with a breadcrumb back, and saving returns to the list - the Odoo / ERPNext / Zoho shape. One shared mechanism in `public/txn-screen.js` (outside the cold core, `app.js` untouched): each page is a browser history entry on the same address, so Back / Forward move between list and form without a re-render and keep half-typed work, and `history.state` decides which page a re-render shows. Applied to the five Stage 65.8 / 68 screens that had New-first tabs (PO, GRN, Purchase Return, Stock Transfer, Journal Vouchers) and to sixteen more: HR (Attendance, Leave, Payroll, Loans/Advances, My Requests with three New pages), Expenses, Fixed Assets, Manufacturing orders + BOM, ASN, RFQ and its quotes, Order Management's manual order, Marketplace's three sections, Payment Proposals, Yard Board, Sticker Printing's Print tab, and Location Movement - which had no history of moves at all and now lists the completed Move warehouse tasks, each of which now records its batch and reason (`engines/wms_bin_move.go`). Guides, SOP and UAT checklist updated. Full detail and verification: checklist Stage 69.
+
+**Stage 71 — Transaction prints follow the company's standard print-format pack** *(code + docs; committed `0845470`, deployed 2026-10-17)*
+
+From the user's `ERP_Standard_Transaction_Print_Formats.docx`: the Standard layouts of every transaction print now follow the pack. Each has a common header with financial year and status, the pack's columns, reference lines that drop out when blank, totals, three signature lines and an audit line (created / approved / printed by and when). GRN and Transfer In print quantities only. Four documents that existed without a print gained one: the GRN's Vendor Copy (values stripped from the payload), Purchase Return, Credit Note to a customer and Sales Return (`migrations_stage71_1_print_formats.sql` adds them to the template transaction list). Found and fixed: Transfer In printed its received qty as "Sent". Fields the ERP does not hold were left out, and the eleven modules the pack implies but the ERP lacks (delivery challan, customer advance, material issue, inventory adjustment, job work, store credit, e-invoice / e-way bill, document print log, reason codes, PO / GRN fields, print profiles) are listed for the user's decision. Full detail: checklist Stage 71.
+
+**Stage 70 — Sticker templates: variant on the standard label, duplicate it, template rules, template chosen at print** *(code + docs; committed `0845470`, deployed 2026-10-17)*
+
+The built-in standard label now prints the variant's values ("Silver / 7") under the name, and appears as the first card on the Sticker templates gallery with a **Duplicate** that copies it into an editable template. Which template a label uses is now a rule: Item → Item type → category → default → standard (`pickStickerTemplate`), with `Item.sticker_template` / `ItemType.sticker_template` added by `migrations_stage70_1_sticker_template_rules.sql` and a **Template rules** tab to set them. A GRN / Transfer Order print can choose a template per line or for the whole run, for that print only (`StickerLineSelection.TemplateID`). Found and fixed on the way: a soft-deleted template still printed, and two templates on one category or two defaults resolved in scan order. Full detail: checklist Stage 70.
+
+**Stage 68 (with 65.7, 65.8) — Every transaction screen one frozen screen** *(code + docs, NOT COMMITTED)*
+
+From the user's POS / PO screenshots and their Gofrugal RetailEasy reference: POS, Purchase Order, Goods Receipt, Purchase Return, Stock Transfer, Returns, Vendor / Sales Invoice, Debit / Credit Notes and Journal Vouchers now share one layout (`public/txn-screen.css` + `txn-screen.js`, loaded with those screens via a stylesheet entry in `LAZY_VIEW_MODULES`) - a bar with the totals and tax, a user · store chip and the main action; a compact header; the entry row; the items as the only scroller; New / History (Sale / Return) tabs that keep half-typed work. Also: PO **Billing / Shipping address** with the store's address and **Edit store** (fixes the store master and comes back), **Edit** = the full PO page with the same number, a Gmail-style menu toggle, readable **+ Create "<typed>"** in every picker, and the environment banner no longer cutting off the bottom of every screen. Cold core 184,127 / 184,320 for this change alone (net −119 vs HEAD). Full detail: `micro_checklist.md` 65.7, 65.8, Stage 68.
+
+**Stage 67 — Stay signed in for a 12-hour shift; grouped Setup and Settings menus** *(code + docs, NOT COMMITTED)*
+
+Users were being signed out after 30 minutes. That was the idle auto-logout every user was seeded with; the server token itself lasts 24 h. An ERP tab left idle in the background also signed out the tab being worked in, because each tab ran its own timer against one shared token. The timer now reads the last activity from any tab, and scrolling inside tables counts. There is a new 12-hour choice, and it is the default for new users and for a new client's first admin. A one-time migration moves everyone still on the old 30-minute seed to 12 hours; anyone who chose otherwise, and any client whose admin set their own default, is left alone. The Settings flyout is grouped under four headings. The Setup flyout's module headings, built since 30.5.4 but hidden by a Stage 57 selector that named a non-existent id, show again. Screen titles no longer have a descriptive line under them, on any screen; the help docs cover that. A CSS rule stops one coming back (67.4). Detail: `micro_checklist.md` Stage 67.
+
+**Stage 66 — Smart HSN and GST rate suggestions; no number spinners** *(code + docs, NOT COMMITTED)*
+
+The HSN box now suggests codes instead of waiting for a number. A shipped master list (`engines/hsn_master.json`, 290 codes over the ten industries, GST 2.0 rates) is read against the item's name: the material words decide, so silver goes to 7113 and zircon, AD or gold-plated go to 7117; it also tells cloth from fabric from garment. Codes the client's own similar items already carry rank first, and the client's industry breaks ties. Choosing an industry loads its codes into the HSN Code list. The GST rate follows the code: auto-filled for single-rate codes, offered as price-banded choices for garments and footwear, and the client's own list rate always wins. Quick-create now asks Tax Treatment when the rate is 0. Number boxes lost their spinners, and wheel and arrow-key stepping, everywhere. Picker logic is in the lazy `view-pickers.js`, so the cold core shrank by 225 bytes. Detail: `micro_checklist.md` Stage 66.
+
+## 2026-10-16
+
+**Stage 61.6-61.11 — GRN batch numbers with full flexibility** *(code + docs; committed `f017bd2` and deployed 2026-10-17)*
+
+The user asked whether Stage 61 was "ready with expected flexibility"; the honest answer was no, six gaps were listed, and the user said build all of them, the expectation being drag-and-drop label design. Detail in micro_checklist.md Stage 61.
+
+**Stage 64 — every client kept in step with tenant_default; background failures reach the client's error log** *(code + docs)*
+
+Found while preparing the minn.wholeops.in handover: production's `tenant_minn` (provisioned 2026-09-22) was missing 16 tables, 11 columns (`audit_logs.signature`, so every audit write on that client failed), 53 record types with 446 fields, their permissions, 12 number series, all 230 status-change rules, the INR currency and the TDS sections; 10 of its tables drew ids from `tenant_default`'s sequences. Cause: most migrations change only `tenant_default`, the tenant-looping ones only reach clients that already exist, and provisioning clones a hand-kept table list. Fix at the two choke points: `db/tenant_schema_sync.go` (catalog-driven, insert-only) runs after every `-migrate` and inside `ProvisionTenantSchema`. Also: 11 per-client background-worker failure sites now go through `LogBackgroundJobError`, which records each distinct failure in that client's `system_error_logs` once an hour (the user: "all logs should be captured if a data issue is found; I should be able to browse the db and fix it in both instances"). Detail in micro_checklist.md Stage 64.
+
+## 2026-10-15
+
+**Stages 62 + 63 — designs inside the PO, multi-PO GRN at invoice price with automatic notes, designed transaction prints** *(code + docs, NOT COMMITTED)*
+
+The user: create SKUs / design combinations in the PO from the org's attribute matrix (design number new or reused per config); one GRN for several POs of a vendor; PO price and invoice price on every line, the vendor's invoice amount at the top, the difference raised as debit / credit notes — "never on hold"; then, mid-stage, "print templates customisable by the user, drag and drop, mapped product-wise, PO / Vendor PO (images, Excel) / Transfer Out / In / GRN / notes, brand always there, which store I am generating from". Detail in micro_checklist.md Stages 62 and 63.
+
+**Stage 61 — GRN batch numbers and scan-to-age lookup** *(code + docs, NOT COMMITTED)*
+
+The user: a SKU keeps one barcode, so "in each GRN, each Combination ID/SKU will have a batch number" (every SKU), and "after scanning I should know the batch, so I will know ageing or which day it came in". Detail in micro_checklist.md Stage 61.
+
+**Stage 60.8/60.9 — only the platform operator reaches other clients; one table per transaction** *(code + docs, NOT COMMITTED)*
+
+The user: "Only Super admin I can, no one else. Client can't change other" and "I need individual table for all txn ... I should be fixing it". Detail in micro_checklist.md 60.8/60.9.
+
+## 2026-10-14
+
+**Stage 60 — number series per transaction and store, item types, names not codes, platform data console** *(code + docs, NOT COMMITTED)*
+
+The user asked whether PO/GRN/barcode were ready and what was missing, then said "Build" with decisions: lengths 5 (purchase, HR) / 6 (stock, sales, production, assets); the store's Short Code inside numbers; Store Name / Store Code / Short Code / Facility Code with Facility Code for OMS; item types with barcode rules **and** behaviour; a raw-edit console over every table of any client with customer details hidden; no internal codes in the UI except Design, Combination and barcode. Full detail in micro_checklist.md Stage 60.
 
 ## 2026-10-03
 

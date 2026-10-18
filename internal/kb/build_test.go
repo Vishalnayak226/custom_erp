@@ -205,3 +205,31 @@ func TestEmbeddedContentIsReadableAndPublicSubsetIsNarrower(t *testing.T) {
 		t.Fatalf("path traversal error = %v, want ErrArticleNotFound - only slugs the build wrote may be read", err)
 	}
 }
+
+// The help drawer opens screen_map's first slug. A role journey that lists a
+// screen must not beat the handbook for it, and an article that only lists a
+// screen in passing must not beat the one written about that screen.
+func TestScreenMapPutsTheArticleAboutTheScreenFirst(t *testing.T) {
+	dir := t.TempDir()
+	article := func(name, title, section, screens string) {
+		writeArticle(t, dir, name, "---\ntitle: "+title+"\nsection: "+section+"\norder: 1\nsummary: s.\nscreens: "+screens+"\nlast_verified: 2026-10-18\n---\n\n# "+title+"\n\nBody.\n")
+	}
+	article("role-journeys/a-journey.md", "A journey", "Role Journeys", "[bin-conditions, yard-board]")
+	article("module-handbooks/b-wms.md", "WMS guide", "Module Handbooks", "[doctype:bin, bin-conditions, yard-board]")
+	article("module-handbooks/c-yard.md", "Yard", "Module Handbooks", "[yard-board]")
+
+	result, err := Build(dir)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	for screen, want := range map[string][]string{
+		"bin-conditions": {"b-wms", "a-journey"},
+		"yard-board":     {"c-yard", "b-wms", "a-journey"},
+		"doctype:bin":    {"b-wms"},
+	} {
+		got := result.Index.ScreenMap[screen]
+		if strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Errorf("screen_map[%s] = %v, want %v", screen, got, want)
+		}
+	}
+}

@@ -78,3 +78,40 @@ func handlePublicOrderStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewEncoder(w).Encode(status)
 }
+
+// POST /api/public/v1/notifications/{id}/delivery-status - scope
+// notifications:write. Stage 73.2.13: the provider's delivery receipt for a
+// notification it was sent (the id is the delivery_id it received).
+func handlePublicNotificationDeliveryStatus(w http.ResponseWriter, r *http.Request) {
+	var req PublicNotificationDeliveryStatusRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Send JSON with status (delivered or failed), and optionally provider_ref and detail.")
+		return
+	}
+	source := "provider"
+	if r.Header.Get("Resolved-API-Credential") != "" {
+		source = "provider:" + r.Header.Get("Resolved-API-Credential")
+	}
+	result, err := engines.RecordNotificationDeliveryStatus(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("id"), req.Status, req.ProviderRef, req.Detail, source)
+	if err != nil {
+		writePublicError(w, r, err)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(PublicNotificationDeliveryStatusResponse{
+		ID: result["id"].(string), DispatchStatus: result["dispatch_status"].(string), Changed: result["changed"].(bool),
+	})
+}
+
+// PublicNotificationDeliveryStatusRequest is the delivery-receipt body.
+type PublicNotificationDeliveryStatusRequest struct {
+	Status      string `json:"status"`
+	ProviderRef string `json:"provider_ref,omitempty"`
+	Detail      string `json:"detail,omitempty"`
+}
+
+// PublicNotificationDeliveryStatusResponse names the result for the OpenAPI generator.
+type PublicNotificationDeliveryStatusResponse struct {
+	ID             string `json:"id"`
+	DispatchStatus string `json:"dispatch_status"`
+	Changed        bool   `json:"changed"`
+}

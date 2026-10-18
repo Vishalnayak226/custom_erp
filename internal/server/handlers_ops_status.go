@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"custom_erp/db"
+	"custom_erp/engines"
 )
 
 // Stage 25.8: DEPLOY-0204..0210 / DR-0211..0214 (Production Mandatory tier,
@@ -181,4 +182,15 @@ func handleBackupStatus(w http.ResponseWriter, r *http.Request) {
 		"warnings":              warnings,
 		"history":               history,
 	})
+}
+
+// handleAlertingStatus is Stage 55.21: GET /api/v1/ops/alerting-status - can
+// an incident alert actually reach someone? Whether the webhook and the
+// responder are set and whether this environment sends anything at all;
+// never the webhook URL itself (it is a bearer credential).
+func handleAlertingStatus(w http.ResponseWriter, r *http.Request) {
+	if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+		return
+	}
+	_ = json.NewEncoder(w).Encode(engines.OpsAlertDeliveryStatus())
 }

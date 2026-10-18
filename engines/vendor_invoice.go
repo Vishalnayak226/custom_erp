@@ -402,7 +402,16 @@ func PayVendorInvoice(tenantID, invoiceID, userID, actorRole, overrideReason str
 	debits := inputGSTDebits(data, position)                       // clear GRN Suspense (goods) + input GST
 	credits := map[string]int{"1100": settlement.SettlementAmount} // Cash/Bank paid out
 	applyRealisedFXLine(debits, credits, settlement.RealisedGainLoss)
-	if err := PostDoubleEntry(tenantID, "VendorInvoice", invoiceID, PaiseMap(debits), PaiseMap(credits), settlement.PostingDate(), fmt.Sprintf("VendorInvoice:%s:PAY", invoiceID),
+	// Stage 73 / 55.10: a part-paid bill clears only what is still open.
+	final, perr := vendorFinalPaymentFor(invoiceID, data, position, debits, credits)
+	if perr != nil {
+		return 0, false, perr
+	}
+	if final.PartPaid {
+		amountInt = roundToRupees(PaiseToRupees(final.Total))
+	}
+	payKey := fmt.Sprintf("VendorInvoice:%s:PAY", invoiceID)
+	if err := PostDoubleEntry(tenantID, "VendorInvoice", invoiceID, final.Debits, final.Credits, settlement.PostingDate(), payKey,
 		postingOptionsFor(position, settlement.SettlementRate, debits, credits, map[string]float64{
 			"2100": position.TransactionAmount,
 			"1100": position.TransactionAmount,
@@ -410,6 +419,7 @@ func PayVendorInvoice(tenantID, invoiceID, userID, actorRole, overrideReason str
 		return 0, false, fmt.Errorf("GL posting failed, invoice not marked Paid: %v", err)
 	}
 	recordSettlementFX(data, settlement)
+	noteVendorPayment(data, final.Entries, settlementKindPayment, "", payKey, userID, settlement.SettlementDate, final.Legs, position, float64(settlement.SettlementAmount))
 
 	data["status"] = "Paid"
 	updatedBytes, _ := json.Marshal(data)
@@ -476,7 +486,16 @@ func FinalizeVendorInvoiceOverridePayment(tenantID, invoiceID, userID string, op
 	debits := inputGSTDebits(data, position)
 	credits := map[string]int{"1100": settlement.SettlementAmount}
 	applyRealisedFXLine(debits, credits, settlement.RealisedGainLoss)
-	if err := PostDoubleEntry(tenantID, "VendorInvoice", invoiceID, PaiseMap(debits), PaiseMap(credits), settlement.PostingDate(), fmt.Sprintf("VendorInvoice:%s:PAY_OVERRIDE", invoiceID),
+	// Stage 73 / 55.10: a part-paid bill clears only what is still open.
+	final, perr := vendorFinalPaymentFor(invoiceID, data, position, debits, credits)
+	if perr != nil {
+		return 0, perr
+	}
+	if final.PartPaid {
+		amountInt = roundToRupees(PaiseToRupees(final.Total))
+	}
+	payKey := fmt.Sprintf("VendorInvoice:%s:PAY_OVERRIDE", invoiceID)
+	if err := PostDoubleEntry(tenantID, "VendorInvoice", invoiceID, final.Debits, final.Credits, settlement.PostingDate(), payKey,
 		postingOptionsFor(position, settlement.SettlementRate, debits, credits, map[string]float64{
 			"2100": position.TransactionAmount,
 			"1100": position.TransactionAmount,
@@ -484,6 +503,7 @@ func FinalizeVendorInvoiceOverridePayment(tenantID, invoiceID, userID string, op
 		return 0, fmt.Errorf("GL posting failed, invoice not marked Paid: %v", err)
 	}
 	recordSettlementFX(data, settlement)
+	noteVendorPayment(data, final.Entries, settlementKindPayment, "", payKey, userID, settlement.SettlementDate, final.Legs, position, float64(settlement.SettlementAmount))
 
 	data["status"] = "Paid"
 	updatedBytes, _ := json.Marshal(data)

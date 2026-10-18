@@ -5,7 +5,7 @@ order: 5
 summary: Own the product record, get it complete enough to publish, and keep it that way as the range changes.
 audience: category manager
 last_verified: 2026-08-17
-screens: [pim, doctype-table, marketplace, reports, stickers]
+screens: [pim, marketplace, reports, stickers]
 doc_id: DOC-2D597A7FCF
 type: procedure
 status: draft

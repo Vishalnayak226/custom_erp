@@ -28,13 +28,9 @@ import (
 // before this file existed. Only a bin/SKU an operator has actually split
 // with RecordOwnerStock stops using the whole-bin approximation.
 //
-// Deliberately out of scope: allocation/picking does not filter by owner.
-// SalesOrder has no owner_id anywhere in this tree, and giving an order a
-// real owner (so picking can refuse another client's stock) is a materially
-// larger feature than "26.5.15's billing currently approximates around
-// owner_id's absence" - the exact sentence the plan scopes 42.5.5 to. This
-// closes the billing gap; order-level owner attribution is a future item if
-// a real 3PL pilot needs it.
+// Stage 59 (wms_owner_isolation.go) made allocation and picking honour the
+// same attribution: an order carries an owner, its pick tasks only take that
+// owner's units, and bin movements keep each owner's slice with its units.
 
 // OwnerStockRow is one bin's owner-segregated slice of a SKU - the row shape
 // GetOwnerStock and the owner-stock-inquiry report return.
@@ -95,10 +91,8 @@ func RecordOwnerStock(tenantID, binCode, sku, ownerID, condition string, qty int
 	// the rest of this repo follows. It runs after location_code is resolved
 	// from bin_stock and before any write, so a refusal mutates nothing.
 	//
-	// Why the rule is a guard rather than isolation: allocation and picking are
-	// owner-blind (see this file own header), so two owners under one roof means
-	// one client order can be filled from another client stock. Removing the
-	// second owner removes the boundary that was going unenforced.
+	// In mixed mode (Stage 59) the guard steps aside: picking is owner-isolated,
+	// so several owners may share a building.
 	if err := AssertSingleOwnerForLocation(tenantID, locationCode, ownerID); err != nil {
 		return err
 	}

@@ -5,7 +5,7 @@ order: 3
 summary: The sidebar's twelve entries, the two search boxes that do different things, and the shape every list screen shares.
 audience: everyone
 last_verified: 2026-09-24
-screens: [home, reports, doctype-table, inventory]
+screens: [home, reports, inventory]
 doc_id: DOC-D4BCCBCC10
 type: procedure
 status: draft

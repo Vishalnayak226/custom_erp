@@ -28,11 +28,10 @@ import (
 // owner for a location cannot be stored). With one owner in the building there
 // is no cross-owner boundary left for allocation to violate.
 //
-// WHAT THIS DELIBERATELY DOES NOT CLAIM. It is not mixed-owner isolation and
-// must never be described as such. `AllocateFromStock` still takes no owner
-// parameter; nothing here changes picking. The claim being removed from the
-// Production documentation is exactly the one this cannot support. 47.5.2-6
-// remain the real thing, if a 3PL pilot ever needs it.
+// Stage 59 built the real thing (47.5.2-6): engines/wms_owner_isolation.go
+// gives orders, pick tasks, allocation, availability and bin movements an
+// owner, so the mixed mode below is now a supported setting. One owner per
+// warehouse stays the default and the simplest configuration.
 
 // StockOwnershipModeSetting selects how strictly ownership is enforced.
 const StockOwnershipModeSetting = "wms.stock_ownership_mode"
@@ -41,19 +40,18 @@ const (
 	// OwnershipSingleOwner is the default and the supported configuration: a
 	// warehouse holds one owner's stock, so there is no boundary to breach.
 	OwnershipSingleOwner = "single_owner"
-	// OwnershipMixedUnsupported permits more than one owner per warehouse.
-	// It exists so a tenant piloting a real 3PL arrangement can opt in with
-	// their eyes open - NOT as a supported mode. Allocation and picking are
-	// owner-blind, so choosing this means accepting that one client's demand
-	// can be filled from another client's stock. ListMixedOwnerLocations
-	// reports every location in that state.
+	// OwnershipMixedUnsupported is the pre-Stage-59 value of the mixed mode,
+	// when picking was owner-blind. It is still read as mixed (now isolated -
+	// see OwnershipMixed in wms_owner_isolation.go), so a tenant that opted in
+	// before keeps its setting.
 	OwnershipMixedUnsupported = "mixed_unsupported"
 )
 
 // SingleOwnerEnforced reports whether the tenant is running the supported,
 // guarded configuration.
 func SingleOwnerEnforced(tenantID string) bool {
-	return GetSettingString(tenantID, StockOwnershipModeSetting) != OwnershipMixedUnsupported
+	mode := GetSettingString(tenantID, StockOwnershipModeSetting)
+	return mode != OwnershipMixedUnsupported && mode != OwnershipMixed
 }
 
 // WarehouseOwnerOf returns the owner a location is dedicated to, or "" when it
@@ -99,7 +97,7 @@ func AssignWarehouseOwner(tenantID, locationCode, ownerID, assignedBy, note stri
 		return err
 	}
 	if otherOwners > 0 {
-		return &ValidationError{Code: "INVENT-0104", SubFor: "",
+		return &ValidationError{Code: "INVENT-0494", SubFor: "",
 			Message: fmt.Sprintf("%s still holds stock for %d other owner slice(s); move or re-attribute that stock before dedicating the warehouse to %s", locationCode, otherOwners, ownerID)}
 	}
 
@@ -149,8 +147,8 @@ func AssertSingleOwnerForLocation(tenantID, locationCode, ownerID string) error 
 			"Auto-dedicated on first owner-stock assignment (Stage 47.5.1 single-owner rule).")
 	}
 	if existing != ownerID {
-		return &ValidationError{Code: "INVENT-0104", SubFor: "",
-			Message: fmt.Sprintf("%s is dedicated to owner %s, so stock cannot be assigned to %s there. This build supports one owner per warehouse: allocation and picking are owner-blind, so mixing owners in one building would let one client's order be filled from another client's stock. Use a separate location for %s.",
+		return &ValidationError{Code: "INVENT-0491", SubFor: "",
+			Message: fmt.Sprintf("%s is dedicated to owner %s, so stock cannot be assigned to %s there. This business runs one owner per warehouse - use a separate location for %s, or switch Settings > Warehouse > Stock ownership model to several owners per warehouse.",
 				locationCode, existing, ownerID, ownerID)}
 	}
 	return nil

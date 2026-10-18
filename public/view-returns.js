@@ -57,6 +57,7 @@ async function renderReturnsView(root) {
           <option value="QC Complete">Awaiting refund</option>
         </select>
         <button class="btn btn-outline btn-sm" id="returns-refresh-btn" type="button">Refresh</button>
+        <button class="btn btn-primary btn-sm" id="returns-new-btn" type="button">+ New Return</button>
       </div>
     </div>
     <div class="txn-hint"><span>A return moves Requested &rarr; Approved &rarr; Received &rarr; QC Complete &rarr; Closed.
@@ -78,6 +79,12 @@ async function renderReturnsView(root) {
   root.appendChild(panel);
 
   document.getElementById('returns-refresh-btn').addEventListener('click', loadReturnsView);
+  // Stage 55.5: a return is raised at the till, against the original bill -
+  // + New Return opens the till on its Return tab.
+  document.getElementById('returns-new-btn').addEventListener('click', async () => {
+    await renderView('pos');
+    window.txnShowPane?.('pos-screen:return');
+  });
   document.getElementById('returns-filter').addEventListener('change', (e) => {
     returnsViewFilter = e.target.value;
     renderReturnsTable();
@@ -112,7 +119,12 @@ async function loadReturnsView() {
       returnLocation: data.return_location || '',
       status: data.status || d.status || '',
       items: Array.isArray(data.items) ? data.items : [],
-      refundEligible: Number(data.total_refund_eligible) || 0
+      refundEligible: Number(data.total_refund_eligible) || 0,
+      // Stage 55.5: before inspection the refund is not fixed yet, but each
+      // line already carries its share of what the bill was paid in money
+      // (Stage 73.1.1) - shown as the expected refund.
+      expectedRefund: (Array.isArray(data.items) ? data.items : []).reduce((n, it) =>
+        n + Object.entries(it.tenders || {}).reduce((m, [k, v]) => m + (k === 'Loyalty Points' ? 0 : Number(v) || 0), 0), 0) / 100
     };
   });
   renderReturnsTable();
@@ -139,7 +151,7 @@ function renderReturnsTable() {
   const emptyEl = document.getElementById('returns-empty');
   if (emptyEl) {
     emptyEl.textContent = rows.length ? '' :
-      (returnsViewRows.length ? 'No returns match this filter.' : 'No returns have been raised yet. A return starts at the till, from the original bill.');
+      (returnsViewRows.length ? 'No returns match this filter.' : 'No returns have been raised yet. Click + New Return to take one back at the till, against the original bill.');
   }
 
   rows.forEach(r => {
@@ -152,7 +164,7 @@ function renderReturnsTable() {
       <td>${cfgEsc(r.originalOrderID)}</td>
       <td>${cfgEsc(r.returnLocation)}</td>
       <td>${qtySummary} unit(s) across ${r.items.length} line(s)</td>
-      <td>${r.refundEligible ? r.refundEligible.toFixed(2) : '-'}</td>
+      <td>${r.refundEligible ? r.refundEligible.toFixed(2) : (r.expectedRefund ? `<span title="Expected - the money this bill's lines were paid. Fixed at inspection.">${r.expectedRefund.toFixed(2)} expected</span>` : '-')}</td>
       <td>${cfgEsc(r.status)}</td>
       <td>${actions.map(a => returnActionButton(r.id, a)).join(' ')} <button class="action-btn" ${actionAttrs('printTransactionDocument', ['ReturnRequest', r.id])}>Print</button></td>
     `;
@@ -209,32 +221,40 @@ async function postReturnAction(url, body) {
 // computed by the SERVER from these dispositions and shown afterwards, never
 // typed here.
 async function openReturnQCDialog(row) {
+  // Stage 55.5: one form - each line by its item name, its condition picked
+  // from a list (Sellable first), and an optional item to exchange it for -
+  // instead of a typed word per line that a typo would throw away.
+  const { posFormDialog } = await import('./view-pos-extras.js' + new URL(import.meta.url).search);
+  const names = await Promise.all(row.items.map(it => apiFetch(`/api/v1/doc/Item/${encodeURIComponent(it.sku)}`)
+    .then(r => (r && r.ok ? r.json() : null)).then(d => (d && d.name) || it.sku, () => it.sku)));
+  const html = row.items.map((it, i) => `<div class="form-group">
+      <label class="form-label" for="qc-disposition-${i}">${cfgEsc(names[i])} (${cfgEsc(it.sku)}) - ${Number(it.qty) || 0} unit(s)</label>
+      <select id="qc-disposition-${i}" class="form-input" data-qc-sku="${cfgEsc(it.sku)}">${RETURN_DISPOSITIONS.map(d => `<option value="${d}">${d}</option>`).join('')}</select>
+      <input type="text" class="form-input" style="margin-top:6px;" data-qc-exchange="${cfgEsc(it.sku)}" aria-label="Exchange ${cfgEsc(names[i])} for (item code, optional)" placeholder="Exchange for item code (optional - blank refunds it)">
+    </div>`).join('');
+  const picked = await posFormDialog(`Inspect ${row.id}`,
+    'Record the condition of each item. Sellable goes back to stock; an exchange applies only to Sellable, Repairable or Damaged items.',
+    html, (el) => [...el.querySelectorAll('[data-qc-sku]')].map(s => ({
+      sku: s.dataset.qcSku, disposition: s.value,
+      exchange: (el.querySelector(`[data-qc-exchange="${CSS.escape(s.dataset.qcSku)}"]`) || {}).value || ''
+    })));
+  if (!picked) return;
   const dispositions = {};
   const exchanges = {};
-  for (const item of row.items) {
-    const choice = await showCustomPrompt(
-      `Disposition for ${item.sku} (${item.qty} unit(s)).\nOne of: ${RETURN_DISPOSITIONS.join(', ')}`,
-      'Sellable', `Inspect ${row.id}`);
-    if (!choice) return;
-    const normalized = RETURN_DISPOSITIONS.find(d => d.toLowerCase() === choice.trim().toLowerCase());
-    if (!normalized) {
-      await showCustomAlert(`"${choice}" is not a valid disposition. Nothing was inspected.`, 'Invalid Disposition');
-      return;
-    }
-    dispositions[item.sku] = normalized;
-    if (normalized === 'Sellable' || normalized === 'Repairable' || normalized === 'Damaged') {
-      const exchangeSKU = await showCustomPrompt(
-        `Exchange ${item.sku} for a different SKU? Leave blank to refund instead.`, '', 'Exchange (optional)');
-      if (exchangeSKU && exchangeSKU.trim()) exchanges[item.sku] = exchangeSKU.trim();
-    }
-  }
+  picked.forEach(p => {
+    dispositions[p.sku] = p.disposition;
+    if (p.exchange.trim() && ['Sellable', 'Repairable', 'Damaged'].includes(p.disposition)) exchanges[p.sku] = p.exchange.trim();
+  });
   const payload = { dispositions };
   if (Object.keys(exchanges).length) payload.exchange_for = exchanges;
   const result = await postReturnAction(`/api/v1/returns/${encodeURIComponent(row.id)}/qc`, payload);
   if (!result) return;
-  const refund = Number(result.total_refund) || 0;
+  // Stage 55.5: the QC endpoint answers total_refund_eligible - this read a
+  // total_refund that is never sent, so every inspection said "nothing is
+  // refundable" while the refund waited under Refund.
+  const refund = Number(result.total_refund_eligible) || 0;
   await showCustomAlert(
-    refund > 0
+    refund > 0 || result.refund_request_id
       ? `Inspection recorded. A refund of ${refund.toFixed(2)} is now pending approval${result.refund_request_id ? ` as ${result.refund_request_id}` : ''}.`
       : 'Inspection recorded. Nothing on this return is refundable, so it is now closed.',
     'Inspection Complete');
@@ -257,16 +277,36 @@ async function runReturnRefundFlow(row) {
     await showCustomAlert('No refund is pending for this return.', 'Refund');
     return;
   }
+  // Stage 73.1.6: a till sale's refund goes back the way the returned items
+  // were paid - the split is fixed by the sale, so it is shown, not asked.
+  const split = refundTenderSummary(refund);
   if (refund.status === 'Pending') {
-    const ok = await showCustomConfirm(`Approve a refund of ${Number(refund.amount).toFixed(2)} for return ${row.id}?`, 'Approve Refund');
+    const ok = await showCustomConfirm(`Approve a refund of ${Number(refund.amount).toFixed(2)} for return ${row.id}?${split ? `\n\nIt goes back as: ${split}.` : ''}`, 'Approve Refund');
     if (!ok) return;
     if (!await postReturnAction(`/api/v1/refunds/${encodeURIComponent(refund.id)}/approve`, {})) return;
   }
-  const method = await showCustomPrompt('How is the refund being paid (Cash / Card / UPI / Store Credit)?', 'Cash', 'Process Refund');
-  if (!method) return;
+  let method = '';
+  if (split) {
+    const ok = await showCustomConfirm(`Pay refund ${refund.id} back the way the items were paid: ${split}.\n\nReverse any card or UPI part on the terminal or app; cash comes out of the drawer.`, 'Process Refund');
+    if (!ok) return;
+  } else {
+    method = await showCustomPrompt('How is the refund being paid (Cash / Card / UPI)?', 'Cash', 'Process Refund');
+    if (!method) return;
+  }
   if (await postReturnAction(`/api/v1/refunds/${encodeURIComponent(refund.id)}/process`, { refund_method: method.trim() })) {
     await showCustomAlert(`Refund ${refund.id} processed. The return is now closed and the tax on the returned goods has been reversed.`, 'Refund Processed');
   }
+}
+
+// refundTenderSummary reads a refund's per-tender split (Stage 73.1.6) as
+// words, e.g. "Card 400.00, Cash 66.67, 100 points". Empty when the refund has
+// no split (an online-order return), which is when the clerk is asked.
+function refundTenderSummary(refund) {
+  const t = refund.tenders || {};
+  const parts = Object.keys(t).filter(k => k !== 'Loyalty Points' && Number(t[k]) > 0)
+    .sort().map(k => `${k} ${(Number(t[k]) / 100).toFixed(2)}`);
+  if (Number(refund.points) > 0) parts.push(`${refund.points} points back to the customer`);
+  return parts.join(', ');
 }
 
 export { renderReturnsView, loadReturnsView, renderReturnsTable, returnActionButton, runReturnAction, postReturnAction, openReturnQCDialog, runReturnRefundFlow };

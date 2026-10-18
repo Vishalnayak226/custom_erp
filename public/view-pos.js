@@ -134,10 +134,11 @@ function renderPOSView(container) {
       </div>
       <div class="pos-customer-actions">
         <button class="btn btn-outline btn-sm" id="pos-customer-new-btn" type="button" title="Add a customer standing at the counter">+ New Customer</button>
-        <button class="btn btn-outline btn-sm" id="pos-loyalty-check-btn" type="button">Check Points</button>
+        <button class="btn btn-outline btn-sm" id="pos-loyalty-check-btn" type="button">Customer details</button>
         <button class="btn btn-outline btn-sm" id="pos-loyalty-redeem-btn" type="button">Redeem Points</button>
         <!-- Stage 72.8: pay with a gift card, issue one, check a balance. -->
         <button class="btn btn-outline btn-sm" id="pos-giftcard-btn" type="button">Gift Card</button>
+        <button class="btn btn-outline btn-sm" id="pos-more-btn" type="button">More&hellip;</button>
         <span id="pos-loyalty-info"></span>
       </div>
 
@@ -227,6 +228,7 @@ function renderPOSView(container) {
   document.getElementById('pos-add-btn').addEventListener('click', addSKUToPOSCart);
   document.getElementById('pos-packaging-btn').addEventListener('click', openPOSPackaging);
   document.getElementById('pos-giftcard-btn').addEventListener('click', openPOSGiftCard);
+  document.getElementById('pos-more-btn').addEventListener('click', openPOSMore);
   document.getElementById('pos-sku-input').addEventListener('keydown', onPOSScanKeyDown);
   document.getElementById('pos-checkout-btn').addEventListener('click', submitPOSCheckout);
   document.getElementById('pos-loyalty-check-btn').addEventListener('click', checkPOSLoyaltyBalance);
@@ -247,7 +249,7 @@ function renderPOSView(container) {
   returnPane.id = 'pos-return-pane';
   returnPane.dataset.pane = 'return';
   panel.appendChild(returnPane);
-  posExtras().then(m => { if (returnPane.isConnected) m.renderPOSReturnPanel(returnPane); }, () => {});
+  posExtras().then(m => { if (returnPane.isConnected) { m.renderPOSReturnPanel(returnPane); if (!posLocation) m.defaultPOSStore(); } }, () => {});
   txnRestorePane('pos-screen');
   renderOfflineQueueBadge();
   trySyncOfflineQueue();
@@ -430,49 +432,8 @@ async function openPOSSessionFlow() {
   await refreshPOSSessionStatus();
 }
 
-async function closePOSSessionFlow() {
-  if (!posOpenSessionId) return;
-
-  // 20.13: the offline window is this cashier's own open session - refuse
-  // to close (client-side; the server has no way to see a queue that
-  // hasn't synced yet) while sales are still waiting to sync, so a synced
-  // sale can never land against the *next* session's cash-variance figures.
-  const stillQueued = getOfflineQueue().length;
-  if (stillQueued > 0) {
-    await showCustomAlert(`${stillQueued} sale${stillQueued === 1 ? '' : 's'} still need${stillQueued === 1 ? 's' : ''} to sync before this session can close. Reconnect and try again, or click the offline badge above to sync now.`, 'Offline Sales Pending');
-    return;
-  }
-
-  const countedStr = await showCustomPrompt('Counted cash in the till?');
-  if (countedStr === null) return;
-  const counted = parseFloat(countedStr);
-  const res = await apiFetch('/api/v1/pos/session/close', {
-    method: 'POST',
-    body: JSON.stringify({ session_id: posOpenSessionId, counted_cash: isNaN(counted) ? 0 : counted })
-  });
-  if (!res) return;
-  if (!res.ok) {
-    await showApiError(res, 'Failed to close session.');
-    return;
-  }
-  // 21.9 QA-follow-up: this alert previously referenced an undefined `data`
-  // variable (the response body was never parsed) - would have thrown a
-  // ReferenceError on every successful close. Found while touching this
-  // function for the offline-queue guard above.
-  const data = await res.json();
-  let msg = `Session closed. Expected: ${data.expected_cash.toFixed(2)}, Counted: ${data.counted_cash.toFixed(2)}, Variance: ${data.variance.toFixed(2)}`;
-  // 24.36: the server diffed this session's last offline-queue heartbeat
-  // against what actually synced - a non-empty list here means at least
-  // one sale was queued (and beaconed) but never arrived, logged to
-  // POSOfflineQueueGap for HR/Admin and Store Manager to review. Shown to
-  // the closing cashier too, not just the reviewers - deliberate, so
-  // there's no incentive to stay quiet about it.
-  if (data.offline_queue_gap && data.offline_queue_gap.length > 0) {
-    msg += `\n\nWarning: ${data.offline_queue_gap.length} offline sale(s) were queued but never synced (${data.offline_queue_gap.join(', ')}). This has been flagged for manager review.`;
-  }
-  await showCustomAlert(msg, 'Session Closed');
-  await refreshPOSSessionStatus();
-}
+// closePOSSessionFlow is in view-pos-extras.js (Stage 73.2.7 - it asks for the
+// variance reason and handles a close that waits for a manager).
 
 // --- Stage 53.6: scan-or-search product entry -------------------------------
 //
@@ -728,22 +689,13 @@ function renderPOSCartTable(skipQuote) {
   });
 
   // Stage 30.2.5: a redemption on this cart is shown as its own line and
-  // subtracted from the total the cashier reads out, instead of being a number
-  // the cashier was told to type into a line's Sale Price by hand.
+  // subtracted from the total the cashier reads out. 73.1.5: what the points
+  // are worth, and the cap, come from the quote - never 1 point = Rs 1 here.
   const redeemRow = document.getElementById('pos-loyalty-discount-row');
+  const pointsValue = posRedeemPoints && posLoyalty ? Number(posLoyalty.value) || 0 : 0;
   if (redeemRow) {
-    if (posRedeemPoints > 0) {
-      redeemRow.textContent = `Loyalty: -${posRedeemPoints.toFixed(2)} (${posRedeemPoints} pt)`;
-      redeemRow.classList.remove('hidden');
-    } else {
-      redeemRow.textContent = '';
-      redeemRow.classList.add('hidden');
-    }
-  }
-  if (posRedeemPoints > total) {
-    // The cart shrank below what was pledged - keep the two consistent
-    // rather than showing a negative total.
-    posRedeemPoints = Math.floor(total);
+    redeemRow.textContent = pointsValue ? `Loyalty: -${pointsValue.toFixed(2)} (${posRedeemPoints} pt)` : '';
+    redeemRow.classList.toggle('hidden', !pointsValue);
   }
 
   // Stage 72.8: gift cards paying the bill come off what is still due.
@@ -753,7 +705,10 @@ function renderPOSCartTable(skipQuote) {
     giftRow.textContent = giftPaid > 0 ? `Gift card: -${giftPaid.toFixed(2)} (${posGiftCardTenders.map(g => g.card).join(', ')})` : '';
     giftRow.classList.toggle('hidden', !(giftPaid > 0));
   }
-  document.getElementById('pos-cart-total').textContent = Math.max(0, total - posRedeemPoints - posOfferDiscount - giftPaid).toFixed(2);
+  const due = total - pointsValue - posOfferDiscount - giftPaid;
+  const exRow = document.getElementById('pos-exchange-row');
+  if (exRow && posExchange) exRow.textContent = `Exchange credit: -${posExchange.amount.toFixed(2)}${posExchange.amount > due ? ` (${(posExchange.amount - due).toFixed(2)} back to the customer)` : ''}`;
+  document.getElementById('pos-cart-total').textContent = Math.max(0, due - (posExchange ? posExchange.amount : 0)).toFixed(2);
   renderPOSTender();
   if (!skipQuote) refreshPOSQuote();
 }
@@ -812,7 +767,7 @@ function renderPOSTender() {
     return;
   }
   group.classList.remove('hidden');
-  const due = parseFloat(totalEl.textContent) || 0;
+  const due = (parseFloat(totalEl.textContent) || 0) - posTenders.reduce((s, t) => s + t.amount, 0);
   const tendered = parseFloat(tenderedEl.value);
   if (isNaN(tendered) || tenderedEl.value === '') {
     changeEl.classList.add('hidden');
@@ -991,6 +946,7 @@ async function refreshPOSQuote() {
         location: posLocation,
         customer_id: customerId.trim(),
         coupon_codes: currentPOSCouponCodes(),
+        redeem_points: posRedeemPoints,
         // Selection only, plus the operator's own figure for anything the
         // tenant has not priced - which the server uses ONLY if it can find
         // no price of its own (and then flags for approval).
@@ -1026,6 +982,8 @@ async function refreshPOSQuote() {
   // makes the screen authoritative: whatever the cashier typed is replaced by
   // what the ERP says, every time the cart changes.
   posQuoteVersion = data.quote_version || '';
+  posLoyalty = data.loyalty || null;
+  posRedeemPoints = posLoyalty ? posLoyalty.points : 0;
   (data.lines || []).forEach(ql => {
     const line = posCart.find(l => l.sku === ql.sku);
     if (!line) return;
@@ -1064,7 +1022,7 @@ async function refreshPOSQuote() {
       </ul>
       <div style="font-size:13px; font-weight:600;">Total offer discount: -${newDiscount.toFixed(2)}</div>` : ''}
     ${unmatched.length ? `<div style="font-size:12.5px; color:var(--warning-color, #b26a00); margin-top:${posAppliedOffers.length ? '6px' : '0'};">
-        Coupon code${unmatched.length > 1 ? 's' : ''} ${unmatched.map(cfgEsc).join(', ')} did not match any live offer for this cart.
+        Coupon code${unmatched.length > 1 ? 's' : ''} ${unmatched.map(c => cfgEsc(c) + ((data.coupon_messages || {})[c] ? ` (${cfgEsc(data.coupon_messages[c])})` : '')).join(', ')} did not apply to this cart.
       </div>` : ''}
   `;
 
@@ -1155,6 +1113,9 @@ async function submitPOSCheckoutInner() {
       customer_id: customerId,
       discount_pct: discountPct,
       redeem_points: redeemPoints,
+      ...posRedemptionAuth,
+      tenders: posTenders,
+      exchange_credit_id: posExchange ? posExchange.id : '',
       coupon_codes: currentPOSCouponCodes(),
       // 47.2.4: what the cashier is looking at. If the server re-resolves to
       // something else, it says so rather than charging either figure.
@@ -1165,12 +1126,12 @@ async function submitPOSCheckoutInner() {
       items: cartItems
     };
     let res;
-    if (posGiftCardTenders.length) {
+    if (posGiftCardTenders.length || posExchange) {
       // Stage 72.8: a gift card sale is online only - it is never queued, so a
       // card number never lands in the device's offline store.
       checkoutPayload.gift_cards = posGiftCardTenders.map(g => ({ card_number: g.card_number, amount: g.amount }));
       if (!navigator.onLine) {
-        errorEl.textContent = 'No connection - a gift card cannot be used offline. Remove it (Gift Card -> Remove) and take another payment.';
+        errorEl.textContent = posExchange ? 'No connection - an exchange is settled online. Try again once the connection is back.' : 'No connection - a gift card cannot be used offline. Remove it (Gift Card -> Remove) and take another payment.';
         errorEl.classList.remove('hidden');
         return;
       }
@@ -1225,6 +1186,7 @@ async function submitPOSCheckoutInner() {
         });
         posOfferDiscount = Number(data.quote.offer_discount) || 0;
         posAppliedOffers = data.quote.applied_offers || [];
+        posLoyalty = data.quote.loyalty || null;
         renderPOSCartTable(true);
       }
       const confirmed = await showCustomConfirm(
@@ -1243,7 +1205,7 @@ async function submitPOSCheckoutInner() {
       return;
     }
     if (!res.ok) {
-      errorEl.textContent = data.error || 'Checkout failed.';
+      errorEl.textContent = composeErrorText({ message: data.error, detail: data.detail, userAction: data.user_action }) || 'Checkout failed.';
       errorEl.classList.remove('hidden');
       return;
     }
@@ -1281,12 +1243,15 @@ async function submitPOSCheckoutInner() {
     // reprice could have moved.
     const tenderedRaw = (document.getElementById('pos-cash-tendered') || {}).value;
     const tendered = paymentMode === 'Cash' ? parseFloat(tenderedRaw) : NaN;
+    // 73.1.6: a split bill shows each part; the cash change is on the rest.
+    const rest = (Number(amountDue) || 0) - posTenders.reduce((s, t) => s + t.amount, 0);
     freezePOSTill({
       cartNumber: data.cart_number,
       status: 'paid',
       heading: 'Sale complete',
-      note: '',
-      paymentMode,
+      // 73.2.6: an exchange whose credit was more than the new bill.
+      note: data.exchange_paid_back > 0 ? `Exchange: give the customer ${Number(data.exchange_paid_back).toFixed(2)} back from the till.` : '',
+      paymentMode: posTenders.length ? posTenders.map(t => `${t.mode} ${t.amount.toFixed(2)} + `).join('') + `${paymentMode} ${rest.toFixed(2)}` : paymentMode,
       items: posReceiptItems(cartItems),
       saleTotal: Number(data.sale_total) || 0,
       amountDue: Number(amountDue) || 0,
@@ -1296,7 +1261,7 @@ async function submitPOSCheckoutInner() {
       // Stage 72.8: read before freezePOSTill clears the tenders.
       giftCards: posGiftCardTenders.map(g => ({ card: g.card, amount: g.amount })),
       tendered: isNaN(tendered) ? null : tendered,
-      changeDue: isNaN(tendered) ? null : tendered - (Number(amountDue) || 0),
+      changeDue: isNaN(tendered) ? null : tendered - rest,
       canPrint: true
     });
 }
@@ -1511,80 +1476,33 @@ async function loadPOSStoreProfile() {
   posStoreProfile = profile;
 }
 
-// Stage 20.14: reuses the sticker-print-area's hidden-until-printing @media
-// print pattern (styles.css) rather than a new PDF/print dependency. This is
-// the fallback behind the 31.1.9 QZ path - what prints when QZ Tray is not
-// running, or when no printer is set as Default For Receipt.
-//
-// 31.1.9 fix: offerDiscount was missing here. Checkout returns amount_due as
-// sale_total - loyalty_discount - offer_discount, so a sale with a Stage 30.7
-// offer applied printed a receipt whose total was higher than the cash
-// actually collected. Kept as a defaulted parameter so the shape of the call
-// is unchanged for anything that does not pass it.
-function printPOSReceipt(cartNumber, location, paymentMode, items, saleTotal, loyaltyDiscount = 0, offerDiscount = 0) {
-  const area = document.getElementById('receipt-print-area');
-  if (!area) return;
-  // Stage 53.12: name the product the way the customer recognises it. The code
-  // stays as the fallback for a line whose name never resolved.
-  const lines = items.map(it => `
-    <div class="receipt-line"><span>${cfgEsc(it.name || it.sku)} x${it.qty}</span><span>${(it.qty * it.sale_price).toFixed(2)}</span></div>
-  `).join('');
-  // Stage 30.2.5: points spent on the sale are shown on the receipt as their
-  // own line, so the customer can see what their points paid for and the
-  // printed total matches what was actually collected.
-  const subtotalLine = (loyaltyDiscount > 0 || offerDiscount > 0) ? `
-      <div class="receipt-line"><span>Subtotal</span><span>${Number(saleTotal).toFixed(2)}</span></div>
-  ` : '';
-  const offerLine = offerDiscount > 0 ? `
-      <div class="receipt-line"><span>Offer discount</span><span>-${Number(offerDiscount).toFixed(2)}</span></div>
-  ` : '';
-  const loyaltyLine = loyaltyDiscount > 0 ? `
-      <div class="receipt-line"><span>Loyalty points applied</span><span>-${Number(loyaltyDiscount).toFixed(2)}</span></div>
-  ` : '';
-  const amountDue = Number(saleTotal) - Number(loyaltyDiscount) - Number(offerDiscount);
-  // Stage 53.12: the header says WHICH SHOP and WHICH COMPANY, not just a
-  // location code. Kept deliberately in step with BuildReceiptPayload's
-  // ESC-POS header (engines/qz_payload.go) - a receipt that reads differently
-  // depending on which printer it reached is the same class of defect as
-  // 31.1.9's missing offer line.
-  const p = posStoreProfile && posStoreProfile.code === location ? posStoreProfile : null;
-  const storeName = p ? p.name : location;
-  const header = `
-      <div class="receipt-title">${cfgEsc(p && p.entityName ? p.entityName : 'Sales Receipt')}</div>
-      ${p && p.entityName ? '<div>Sales Receipt</div>' : ''}
-      <div>${cfgEsc(storeName)}</div>
-      ${p && p.gstin ? `<div>GSTIN ${cfgEsc(p.gstin)}</div>` : ''}
-      ${p && p.stateName ? `<div>${cfgEsc(p.stateName)}</div>` : ''}
-      <div>${cfgEsc(cartNumber)}</div>
-      <div>${new Date().toLocaleString()}</div>
-      ${p && p.cashier ? `<div>Cashier: ${cfgEsc(p.cashier)}</div>` : ''}`;
-  area.innerHTML = `
-    <div class="receipt">
-      <div class="receipt-header">
-        ${header}
-      </div>
-      <hr>
-      ${lines}
-      <hr>
-      ${subtotalLine}
-      ${offerLine}
-      ${loyaltyLine}
-      <div class="receipt-line receipt-total"><span>Total (${paymentMode})</span><span>${amountDue.toFixed(2)}</span></div>
-    </div>
-  `;
-  area.classList.add('printing');
-  window.print();
-  setTimeout(() => area.classList.remove('printing'), 500);
-}
+// The browser receipt (the fallback behind QZ Tray) is in view-pos-extras.js;
+// Stage 73.1.6 moved it out of the cold core.
+const printPOSReceipt = (...a) => posExtras().then(m => m.printPOSReceipt(posTill, ...a));
 
 // Stage 30.2.5: the points a cashier has added to THIS cart, not yet burned.
 // The burn happens server-side when the sale completes. Cleared whenever the
 // cart is (completed, queued offline, or abandoned by leaving the screen), so
 // points can never be spent on a sale that didn't happen.
 let posRedeemPoints = 0;
+// 73.1.4/73.1.5: the quote's points pricing, and what authorised the
+// redemption (sent with the sale as redemption_challenge_id/_approval_id).
+let posLoyalty = null;
+let posRedemptionAuth = {};
+// 73.1.6: fixed parts of a split payment ({mode, amount}); Payment Mode takes
+// the rest.
+let posTenders = [];
+// 73.2.6: an exchange's credit ({id, amount}) paying this bill.
+let posExchange = null;
 
 function clearPOSRedemption() {
   posRedeemPoints = 0;
+  posLoyalty = null;
+  posRedemptionAuth = {};
+  posTenders = [];
+  posExchange = null;
+  document.getElementById('pos-split-row')?.remove();
+  document.getElementById('pos-exchange-row')?.remove();
   // Stage 30.7: a completed/queued sale must not leave its offers or coupon
   // sitting on the next customer's cart.
   posOfferDiscount = 0;
@@ -1677,6 +1595,20 @@ const posTill = {
   get tenders() { return posGiftCardTenders; },
   set tenders(v) { posGiftCardTenders = v; },
   set redeemPoints(v) { posRedeemPoints = v; },
+  get loyalty() { return posLoyalty; },
+  set auth(v) { posRedemptionAuth = v; },
+  get split() { return posTenders; },
+  set split(v) { posTenders = v; renderPOSTender(); },
+  set exchange(v) { posExchange = v; renderPOSCartTable(true); },
+  get exchangeActive() { return !!posExchange; },
+  get storeProfile() { return posStoreProfile; },
+  get cart() { return posCurrentCartNumber(); },
+  get location() { return posLocation; },
+  quote: refreshPOSQuote,
+  get session() { return posOpenSessionId; },
+  refreshSession: refreshPOSSessionStatus,
+  set cartNumber(v) { posCartNumber = v; },
+  clear: clearPOSTillState,
   key: posPackagingKey,
   choice: posPackagingChoice,
   renderPackaging: renderPOSPackagingRow,
@@ -1686,6 +1618,8 @@ const posTill = {
 const posLazy = (name) => async () => (await posExtras())[name](posTill);
 const openPOSPackaging = posLazy('openPOSPackaging');
 const openPOSGiftCard = posLazy('openPOSGiftCard');
+const openPOSMore = posLazy('openPOSMore');
+const closePOSSessionFlow = posLazy('closePOSSessionFlow');
 const quickAddPOSCustomer = posLazy('quickAddPOSCustomer');
 const checkPOSLoyaltyBalance = posLazy('checkPOSLoyaltyBalance');
 const redeemPOSLoyaltyPoints = posLazy('redeemPOSLoyaltyPoints');

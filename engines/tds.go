@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"time"
 )
 
 // CalculateTDS looks up a TDSSection by code and, if paymentAmount meets or
@@ -79,6 +80,13 @@ func PayVendorInvoiceWithTDS(tenantID, invoiceID, sectionCode, userID string) (n
 	if amount <= 0 {
 		return 0, 0, fmt.Errorf("invoice_amount must be positive to pay")
 	}
+	// Stage 73 / 55.10: TDS is deducted on the whole bill below, so a bill
+	// already part-paid would be paid (and taxed) twice over. It is finished
+	// with a plain payment of what is left instead.
+	if vendorInvoiceHasPayments(data) {
+		return 0, 0, &ValidationError{Code: "FIN-0521", Message: fmt.Sprintf(
+			"vendor invoice %s is already part-paid (%.2f outstanding); TDS is withheld on a whole bill, so pay the rest without TDS", invoiceID, numFromInterface(data["outstanding_amount"]))}
+	}
 	// Input Tax Credit (2026-10-07): when the bill's GST was recorded at match
 	// time, TDS is deducted on the value EXCLUDING GST (CBDT Circular 23/2017,
 	// GST shown separately on the invoice) and the GST goes to 1500 GST Input
@@ -108,6 +116,11 @@ func PayVendorInvoiceWithTDS(tenantID, invoiceID, sectionCode, userID string) (n
 	if err := PostDoubleEntry(tenantID, "VendorInvoice", invoiceID, debits, credits, "", fmt.Sprintf("VendorInvoice:%s:PAY_TDS", invoiceID)); err != nil {
 		return 0, 0, fmt.Errorf("GL posting failed, invoice not marked Paid: %v", err)
 	}
+	// Stage 73 / 55.10: the bill's payment history. The basis is this
+	// posting's own legs - a TDS payment always clears the whole bill.
+	data["payment_basis_paise"] = debits
+	noteVendorPayment(data, nil, settlementKindPaymentTDS, "", fmt.Sprintf("VendorInvoice:%s:PAY_TDS", invoiceID), userID,
+		time.Now().Format("2006-01-02"), debits, documentFXPosition(tenantID, data, "invoice_amount"), amount)
 
 	data["status"] = "Paid"
 	data["tds_section"] = sectionCode
