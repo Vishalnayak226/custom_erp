@@ -33,6 +33,10 @@ var embeddedVersion string
 var (
 	gitCommit = "dev"
 	buildTime = "unknown"
+	// releaseVersion is the release number deploy.ps1 stamps on a production
+	// build (cmd/releasever applies the numbering rule). Empty on any other
+	// build, which then reports the VERSION file.
+	releaseVersion = ""
 )
 
 // currentAppVersion returns the embedded VERSION file's content with
@@ -45,7 +49,16 @@ var (
 // routes.go for where these are actually wired together.
 
 func currentAppVersion() string {
+	if v := strings.TrimSpace(releaseVersion); v != "" {
+		return v
+	}
 	return strings.TrimSpace(embeddedVersion)
+}
+
+// BuildIdentity is the running binary's version, commit and build time, for
+// cmd/server's -record-release.
+func BuildIdentity() (version, commit, built string) {
+	return currentAppVersion(), gitCommit, buildTime
 }
 
 // releaseDate is the calendar day the running binary was built, derived from
@@ -959,7 +972,7 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 					// location reassignment takes effect on the live session
 					// rather than at next login.
 					role = live.Role
-					// Stage 85.A: the token's store is the working store the
+					// Stage 90.A: the token's store is the working store the
 					// user switched to - kept only while they may still work
 					// there, otherwise their home store.
 					locationCode = live.WorkingStore(locationCode)

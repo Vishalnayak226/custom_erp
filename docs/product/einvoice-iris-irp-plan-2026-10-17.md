@@ -1,3 +1,20 @@
+---
+doc_id: DOC-PRODUCT-STAGE75-EINVOICE-PLAN
+title: E-invoice readiness - IRIS IRP-6 direct integration plan
+type: reference
+status: approved
+owner: product-owner
+approvers: [product-owner]
+audience: [product, engineering]
+applies_to: docs/micro_checklist.md Stage 75.2
+authority: proposed-design
+confidentiality: internal
+last_verified: 2026-10-17
+review_by: 2026-11-17
+supersedes: none
+superseded_by: none
+---
+
 # E-invoice readiness: IRIS IRP-6 direct integration plan
 
 **As of 2026-10-17. Approved by the user on 2026-10-17.** This is Stage 75.2 in `docs/micro_checklist.md`, and part of the [Stage 75 plan](hosting-media-reports-gst-plan-2026-10-17.md). Source: `IRIS_IRP6_Direct_EInvoice_Integration_Dev_Ready_BRD.pdf` (18 pp.). This stage builds the IRN half of 74.4.1–74.4.5 and 74.4.7. The e-way bill (74.4.6) stays in Stage 74, behind its own gate.

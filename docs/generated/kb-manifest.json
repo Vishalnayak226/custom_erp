@@ -315,6 +315,15 @@
       ]
     },
     {
+      "path": "internal/kb/content/articles/platform-control-panel.html",
+      "sha256": "29ccf7fe743f501405bd6ebc10a927deaedaf080032280b8e7c25da118139717",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
       "path": "internal/kb/content/articles/pos-operations.html",
       "sha256": "8c706e4067534793e7a2206ecedb6bc67320ad01b122aa2f53c9eb9cbe91af01",
       "sources": [
@@ -334,7 +343,7 @@
     },
     {
       "path": "internal/kb/content/articles/procurement.html",
-      "sha256": "4d61de2c2c94d2bf5789ff4f67b7f46584540721c518a7f30259b01dc091cb04",
+      "sha256": "e5c94437e16125613d4e8e95c0af4070189bcbdc2230d5227e5521ec8541b1bf",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -360,8 +369,17 @@
       ]
     },
     {
+      "path": "internal/kb/content/articles/release-notes-2.html",
+      "sha256": "3390a61482479d38630e0c41ae34e6311e3e28dfbc70764ea305e8750cf36ad8",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
       "path": "internal/kb/content/articles/release-notes.html",
-      "sha256": "7496cb502b52f2eeec2ec58d24a1650431fcff7296de21bcd1dc6d655838e149",
+      "sha256": "c354cafca8979940445e4e9efb6d64bfc39ecae48bfb8750aca6c6536107b699",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -478,7 +496,7 @@
     },
     {
       "path": "internal/kb/content/index.json",
-      "sha256": "44d34af1f9300a35f04a63ec0439e03b09a255e9df22de4056a811a43686a4cd",
+      "sha256": "32e19cadc2748832144be2ee1a84844959f844cf2bcd2d3df7dfe55259d00c75",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -487,7 +505,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "30efb5e5a37b3caa8101e19d6f7bb50e50da6e3d06d94ee6cc05377cba9839f2",
+      "sha256": "cf91eef02cb2e9bcb030beb2cceb7a75322f62c89f830b622624f13c5333d487",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

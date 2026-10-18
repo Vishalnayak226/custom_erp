@@ -1140,26 +1140,35 @@ Every signed-in user sees a small grey number in the bottom-right corner of thei
 
 The UI deliberately surfaces only `version` and `release_date`. `git_commit` and `build_time` stay on the endpoint for you and for health checks — they are what tells you *which* build is actually on a box, which is the question that matters after a deploy that may or may not have restarted cleanly.
 
-**The two halves come from different places, and only one of them is hand-maintained:**
+**Both halves are automatic on a production release (Stage 90):**
 
 | Shown as | Comes from | Who updates it |
 |---|---|---|
-| `v0.1.0` | `internal/server/VERSION`, compiled into the binary with `go:embed` | **You**, by editing that file |
-| `Oct 4, 2026` | the `buildTime` value stamped in at build with `-ldflags` | Automatic — every build stamps it |
+| `0.2.0` | the release number `deploy\deploy.ps1` works out and stamps into the binary (`-ldflags`) | Automatic, by the rule below |
+| `18/10/26` | the `buildTime` value stamped in at build with `-ldflags` | Automatic — every build stamps it |
 
-So **a deploy always refreshes the date on its own**; nobody has to remember anything. Bumping the *number* is a deliberate release decision:
+**The numbering rule** (semantic versioning, from the commit types this repo uses). `deploy.ps1` asks the live server for its version and commit (`/api/v1/version`), and `cmd/releasever` reads the commits between that commit and the one being deployed:
 
-1. Edit `internal/server/VERSION` — one line, just the number (`0.2.0`). No `v`, no date.
-2. Deploy normally (`.\deploy\deploy.ps1`, `.\promote.ps1`, or CI). The embed picks it up at compile time, so there is no config to change and no migration.
-3. Confirm with `curl -s https://<host>/api/v1/version` before telling anyone it shipped.
+| The release contains | Number | Example |
+|---|---|---|
+| any `feat:` commit | MINOR up, PATCH to 0 | 0.1.0 → 0.2.0 |
+| only `fix:` / `docs:` / `chore:` / `refactor:` commits | PATCH up | 0.2.0 → 0.2.1 |
+| nothing new (a redeploy of the live commit) | unchanged | 0.2.1 → 0.2.1 |
+| go-live, or a deliberate breaking release | MAJOR, **only by hand**: `.\deploy\deploy.ps1 -Target ... -Version 1.0.0` | 0.9.4 → 1.0.0 |
+
+Once the new build passes its health check, `remote_deploy.sh` runs `erp-server -record-release`. It writes the release to the ledger (`public.deployments`: environment, version, commit, who, when, `passed`) and sets every client's version to it (`public.tenants.app_version`, except a client pinned to another version). The **Control Panel** (§C.8) shows both. Confirm with `curl -s https://<host>/api/v1/version` before telling anyone it shipped.
+
+`deploy.ps1` stops if it cannot read the live version (the server is down, or it reports `dev`) or if the live commit is not in your history. Pass `-Version` to set the number yourself. To record an earlier build in the ledger without touching the clients, run `erp-server -record-release -version 0.1.0 -commit 840909b -at 2026-10-18T04:45:51Z -notes "..."` on the server, with `/etc/erp/erp.env` loaded.
+
+`internal/server/VERSION` (`go:embed`) is now only the number an **unstamped** build reports: a developer's `go build`, `manage.ps1`, `promote.ps1`, Docker. Keep it at the last released number.
 
 **Things worth knowing:**
 
-- **Never set the version by hand anywhere else.** It is embedded at compile time precisely so it cannot drift from the binary that reports it. A number typed into a config file or a database row would eventually lie.
+- **Never set the version by hand anywhere else.** It is stamped into the binary at build time precisely so it cannot drift from the binary that reports it. A number typed into a config file or a database row would eventually lie.
 - **`dev build` instead of a date in the popup** means the binary was built with a plain `go build`, with no ldflags. That is correct and expected on a developer's machine; on a server it means someone built it outside the normal scripts, and you should not trust that deploy — rebuild it with `deploy/deploy.ps1`, `manage.ps1 release`, `promote.ps1` or CI, all of which stamp it.
 - **The release date is derived from the build timestamp, not stored separately**, so the two can never disagree.
 - **A user reporting a bug should be asked for this line first.** It is the cheapest way to find out whether they are on the build you think they are.
-- Roughly 47 documents under `docs/` carry `applies_to: source release 0.1.0` in their frontmatter. They are documentation metadata, not read by the app, and `cmd/doclint` only checks that the key is present — so they will not break a build if left behind, but they are worth sweeping in the same change as a version bump so the docs and the product agree.
+- Roughly 47 documents under `docs/` carry `applies_to: source release 0.1.0` in their frontmatter. That records the release they were last checked against, not the current one, so they are not changed at each release; `cmd/doclint` only checks that the key is present.
 
 ### C.3 Backup and Restore
 
@@ -1331,7 +1340,7 @@ Set it in the server's environment (`/etc/erp/erp.env` on the droplet) and resta
 - **Hosted at** — the domain each client's own address sits under (`TENANT_BASE_DOMAIN`, e.g. `wholeops.in`).
 - **Last backup** — the most recent whole-database backup (time, outcome, size) from the nightly job's ledger; if it failed, the time of the last good one. "None recorded" means the backup job has never written its record on this server.
 
-**The Clients table, one row per client.** Name, client id and schema; **Status** (active / suspended…, a *sandbox* or *legal hold* tag, and "admin not signed in yet" while the client's one-time admin login is unused); **Address** (opens it in a new tab — "main address" when the client has none of its own); **Created**; **Version** ("follows release" unless the client is pinned to one); **Modules** — how many are on and off; click it to list them; **Users** (active), **Records**, **Last activity** (its newest Activity Log entry) and **Errors (24h)** with the time of the last one (open them in the Data Console's `system_error_logs`, §C.7).
+**The Clients table, one row per client.** Name, client id and schema; **Status** (active / suspended…, a *sandbox* or *legal hold* tag, and "admin not signed in yet" while the client's one-time admin login is unused); **Address** (opens it in a new tab — "main address" when the client has none of its own); **Created**; **Version** (the release the client is on, set at every release; "follows release" for a client no release has stamped yet, "pinned …" for a pinned one); **Modules** — how many are on and off; click it to list them; **Users** (active), **Records**, **Last activity** (its newest Activity Log entry) and **Errors (24h)** with the time of the last one (open them in the Data Console's `system_error_logs`, §C.7).
 
 **Actions on each row.** **Modules** opens **Tenant Entitlements** with that client chosen — turn a module on or off there, or apply a plan. **Data** opens the **Data Console** on that client. **Attributes** gives the client its product attributes from the industry library (§C.9). Browser **Back** returns here. **Pause / Resume**, **Trial** and **Mark paid** are below. The row of the client you are signed in to says *your client* instead of those buttons: pausing it, or letting a trial run out on it, would lock you out of this page.
 
@@ -1346,7 +1355,7 @@ Set it in the server's environment (`/etc/erp/erp.env` on the droplet) and resta
 
 The **Clients** card counts how many are *on trial* and how many are *paused* (by you or by a trial end). A sandbox has its own expiry and takes no trial.
 
-**Releases** lists the last ten entries of the release ledger (`public.deployments`: when, environment, version, commit, who, status). Only `promote.ps1` writes to it; releases shipped with `deploy\deploy.ps1` do not, so the running release in the first card is the reliable answer to "what is live".
+**Releases** lists the last ten entries of the release ledger (`public.deployments`: when, environment, version, commit, who, status, and a note such as "from 0.1.0 (840909b)"). Since Stage 90 every `deploy\deploy.ps1` release writes its row once the new build is healthy, with the number from the rule in §C.2.1; `promote.ps1` writes its own rows too. Releases before 2026-10-18 were not recorded, except `840909b`, which was entered as `0.1.0`, the number it ran under.
 
 ### C.9 A client's product attributes, from the industry library (Stage 81)
 

@@ -9,8 +9,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"custom_erp/db"
+	"custom_erp/engines"
 	"custom_erp/internal/server"
 )
 
@@ -23,7 +25,46 @@ func main() {
 	migrate := flag.Bool("migrate", false, "apply pending database migrations, then exit")
 	migrateStatus := flag.Bool("migrate-status", false, "list migrations not yet applied to this database, then exit")
 	migrateBaseline := flag.Bool("migrate-baseline", false, "record all migrations as applied WITHOUT running them (for a database whose migrations were applied by hand before this runner existed), then exit")
+	// Stage 90: remote_deploy.sh runs this once the new build is healthy, so
+	// the Control Panel's Releases table and every client's version follow
+	// the release. -version/-commit/-at record an earlier build instead
+	// (a backfill), which leaves the clients alone.
+	recordRelease := flag.Bool("record-release", false, "record this build in the release ledger (public.deployments) and stamp every unpinned client with its version, then exit")
+	releaseBy := flag.String("by", "", "with -record-release: who released it")
+	releaseNotes := flag.String("notes", "", "with -record-release: a note for the ledger")
+	releaseVersion := flag.String("version", "", "with -record-release: record this version instead of the running build's (backfill)")
+	releaseCommit := flag.String("commit", "", "with -record-release: record this commit instead of the running build's (backfill)")
+	releaseAt := flag.String("at", "", "with -record-release: when it was released, RFC 3339 (backfill; default now)")
 	flag.Parse()
+
+	if *recordRelease {
+		db.InitDB(db.ConnStringFromEnv())
+		version, commit, _ := server.BuildIdentity()
+		backfill := *releaseVersion != "" || *releaseCommit != ""
+		if *releaseVersion != "" {
+			version = *releaseVersion
+		}
+		if *releaseCommit != "" {
+			commit = *releaseCommit
+		}
+		rec := engines.ReleaseRecord{Environment: os.Getenv("ENV"), Version: version, Commit: commit,
+			By: *releaseBy, Notes: *releaseNotes, StampClients: !backfill}
+		if *releaseAt != "" {
+			at, err := time.Parse(time.RFC3339, *releaseAt)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "-at must be RFC 3339: %v\n", err)
+				os.Exit(1)
+			}
+			rec.At = at
+		}
+		stamped, err := engines.RecordRelease(rec)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "release not recorded: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Release %s (%s) recorded; %d client(s) now show it.\n", version, commit, stamped)
+		return
+	}
 
 	if *migrate || *migrateStatus || *migrateBaseline {
 		db.InitDB(db.ConnStringFromEnv())

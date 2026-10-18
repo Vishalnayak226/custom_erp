@@ -172,6 +172,12 @@ fi
 sudo systemctl restart erp || true
 
 if wait_healthy "$DEPLOY_COMMIT"; then
+  # Stage 90: the healthy build records itself in the release ledger and stamps
+  # every client with its version. A failure here is reported, not fatal - the
+  # deploy itself already succeeded.
+  if ! "$REMOTE_DIR/erp-server" -record-release -by "${DEPLOY_BY:-deploy}" -notes "${DEPLOY_NOTES:-}"; then
+    echo "[WARN] $DEPLOY_COMMIT is live but was not recorded in the release ledger" >&2
+  fi
   echo DEPLOY-OK
   exit 0
 fi

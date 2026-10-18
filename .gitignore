@@ -68,3 +68,7 @@ deploy/build/
 # in docs/sop-video, shared with clients outside git (checklist 57.12a).
 docs/sop-video/media/
 docs/sop-video/output/
+
+# Local exports of the trackers (e.g. a printable micro_checklist.pdf) -
+# working copies, never source; the Markdown is the record.
+docs/micro_checklist.pdf

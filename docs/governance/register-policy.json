@@ -410,7 +410,7 @@
       "disposition": "keep"
     },
     {
-      "prefix": "docs/kb/reference/release-notes.md",
+      "prefix": "docs/kb/reference/release-notes",
       "type": "generated",
       "status": "active",
       "owner": "documentation-maintainer",

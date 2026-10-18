@@ -18,12 +18,12 @@ superseded_by: none
 # Modular ERP process videos
 
 Open [the chapter player](index.html) for step navigation, or play a whole
-chapter as one seekable video from [output/](output/) - one file per chapter,
-named by its id (for example [output/online_order.webm](output/online_order.webm)).
+chapter as one seekable video from `output/` - one file per chapter,
+named by its id (for example `output/online_order.webm`).
 As of 2026-10-11 there are **25 chapters, one per module, all 64 steps recorded**;
 [coverage.md](coverage.md) lists what each module has and what is not yet filmed. This is still a **draft training edition**: the clips come from a
 disposable training database, there is no voice track, and no business owner has
-signed a chapter off. [output/all-ready.webm](output/all-ready.webm) is the
+signed a chapter off. `output/all-ready.webm` is the
 earlier Purchase Requisition walkthrough, kept as it was.
 
 The recordings themselves (`media/` and `output/`, about 500 MB) are **not in git** -

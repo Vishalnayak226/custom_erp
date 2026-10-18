@@ -17,7 +17,10 @@ Usage:
 #>
 param(
     [Parameter(Mandatory)][string]$Target,       # user@host
-    [string]$RemoteDir = "/opt/erp"
+    [string]$RemoteDir = "/opt/erp",
+    # Stage 90: the release number is worked out from what is live (see below).
+    # Pass it only to override the rule - e.g. -Version 1.0.0 at go-live.
+    [string]$Version = ""
 )
 $ErrorActionPreference = "Stop"
 
@@ -27,7 +30,32 @@ if (-not (Test-Path $GoBin)) { throw "go.exe not found at $GoBin" }
 
 $commit    = (& git -C $RepoRoot rev-parse --short HEAD).Trim()
 $buildTime = (Get-Date -AsUTC -Format "yyyy-MM-ddTHH:mm:ssZ")
-$ldflags   = "-s -w -X custom_erp/internal/server.gitCommit=$commit -X custom_erp/internal/server.buildTime=$buildTime"
+
+# Stage 90: the release number. The live build reports its own version and
+# commit; cmd/releasever applies the rule to the commits since then (a feat
+# commit bumps MINOR, anything else PATCH; MAJOR only through -Version).
+$live = $null
+try { $live = (& ssh $Target "curl -s -m 5 http://127.0.0.1:8080/api/v1/version") | ConvertFrom-Json } catch { $live = $null }
+$notes = ""
+if ($Version) {
+    $notes = "version set by hand"
+} elseif ($live -and $live.version -and $live.git_commit -and $live.git_commit -ne "dev") {
+    Push-Location $RepoRoot
+    try {
+        $Version = "$(& $GoBin run ./cmd/releasever -previous $live.version -since $live.git_commit | Select-Object -Last 1)".Trim()
+        if ($LASTEXITCODE -ne 0) { throw "cmd/releasever could not number this release (reason above); pass -Version" }
+    } finally { Pop-Location }
+    $notes = "from $($live.version) ($($live.git_commit))"
+} else {
+    throw "Could not read the live build's version from $Target (/api/v1/version). Pass -Version to set the release number by hand."
+}
+if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "Release version '$Version' is not MAJOR.MINOR.PATCH" }
+$by = (& git -C $RepoRoot config user.name)
+if (-not $by) { $by = $env:USERNAME }
+$by = ($by -replace "[^A-Za-z0-9 ._-]", "").Trim()
+Write-Host "Release $Version ($notes)" -ForegroundColor Cyan
+
+$ldflags   = "-s -w -X custom_erp/internal/server.gitCommit=$commit -X custom_erp/internal/server.buildTime=$buildTime -X custom_erp/internal/server.releaseVersion=$Version"
 
 $buildDir = Join-Path $PSScriptRoot "build"
 New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
@@ -96,7 +124,7 @@ Write-Host "Migrating + swapping binary + health-checking + restarting on the bo
 $remote = @"
 set -e
 set -a; source /etc/erp/erp.env; set +a
-REMOTE_DIR=$RemoteDir DEPLOY_COMMIT=$commit bash $RemoteDir/deploy/remote_deploy.sh
+REMOTE_DIR=$RemoteDir DEPLOY_COMMIT=$commit DEPLOY_BY='$by' DEPLOY_NOTES='$($notes -replace "[^A-Za-z0-9 ._()-]", '')' bash $RemoteDir/deploy/remote_deploy.sh
 "@
 $remote = $remote -replace "`r`n", "`n"
 
@@ -108,7 +136,7 @@ $remoteOut | ForEach-Object { Write-Host $_ }
 # fails loudly, so this branches on the marker rather than trusting a 0 exit
 # code alone.
 if ($remoteOut -contains "DEPLOY-OK") {
-    Write-Host "Deployed $commit to $Target." -ForegroundColor Green
+    Write-Host "Deployed $Version ($commit) to $Target." -ForegroundColor Green
 } elseif ($remoteOut -contains "DEPLOY-ROLLED-BACK") {
     throw "Deploy of $commit FAILED its health check and was automatically rolled back -- $Target is back on the previous build and confirmed healthy. See the journalctl tail above for why the new build didn't come up."
 } elseif ($remoteOut -contains "DEPLOY-ROLLBACK-FAILED") {

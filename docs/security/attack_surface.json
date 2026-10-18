@@ -4086,6 +4086,10 @@
       "path": "cmd/releasemanifest"
     },
     {
+      "name": "releasever",
+      "path": "cmd/releasever"
+    },
+    {
       "name": "reset_mfa",
       "path": "cmd/reset_mfa"
     },
@@ -4108,13 +4112,13 @@
   ],
   "migrations": {
     "base_schema_file": "db/migration.sql",
-    "incremental_files": 235,
+    "incremental_files": 236,
     "newest": [
-      "migrations_stage85_2_stock_locations.sql",
       "migrations_stage85_3_customer_details.sql",
       "migrations_stage85_4_customer_advance.sql",
       "migrations_stage85_5_pos_tenders_salesmen.sql",
-      "migrations_stores_master_fields.sql"
+      "migrations_stores_master_fields.sql",
+      "migrations_stores_retire_again.sql"
     ]
   },
   "environment_flags": [
@@ -4183,6 +4187,7 @@
       "name": "ENV",
       "security_critical": true,
       "read_by": [
+        "cmd/server/main.go",
         "db/db.go",
         "engines/auth.go",
         "engines/environment.go",
@@ -4424,12 +4429,12 @@
   ],
   "totals": {
     "background_jobs": 34,
-    "cli_commands": 15,
+    "cli_commands": 16,
     "dependencies": 2,
     "direct_dependencies": 2,
     "environment_flags": 32,
     "environment_flags_security_critical": 13,
-    "incremental_migrations": 235,
+    "incremental_migrations": 236,
     "outbound_call_sites": 9,
     "routes": 639,
     "routes_integration_credential": 5,

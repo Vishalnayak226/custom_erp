@@ -5,7 +5,7 @@ order: 70
 summary: Every posting is balanced double-entry against a period that can be locked shut, with multi-currency revaluation and 25 registered reports behind it - though several of the deepest entry points are API-only today.
 audience: accountant, finance manager, admin
 last_verified: 2026-09-03
-screens: [finance, module:finance, reports, configuration]
+screens: [finance, module:finance, journal-vouchers, reports, configuration]
 doc_id: DOC-DDBD8E5B5F
 type: procedure
 status: draft

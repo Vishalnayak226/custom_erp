@@ -64,3 +64,26 @@ func TestVersionPayloadShape(t *testing.T) {
 		}
 	}
 }
+
+// Stage 90: a production build carries the release number deploy.ps1 stamped;
+// any other build reports the VERSION file.
+func TestStampedReleaseVersionWins(t *testing.T) {
+	original := releaseVersion
+	defer func() { releaseVersion = original }()
+	releaseVersion = ""
+	file := currentAppVersion()
+	if file == "" {
+		t.Fatal("the VERSION file is empty")
+	}
+	releaseVersion = "0.9.1"
+	if got := currentAppVersion(); got != "0.9.1" {
+		t.Fatalf("currentAppVersion() = %q with a stamped release, want 0.9.1", got)
+	}
+	if v, _, _ := BuildIdentity(); v != "0.9.1" {
+		t.Fatalf("BuildIdentity version = %q, want 0.9.1", v)
+	}
+	releaseVersion = "  "
+	if got := currentAppVersion(); got != file {
+		t.Fatalf("a blank stamp gave %q, want the VERSION file's %q", got, file)
+	}
+}

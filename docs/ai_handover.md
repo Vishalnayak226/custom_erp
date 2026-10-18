@@ -125,6 +125,17 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-18 CI blockers 84.7-84.10 + Stage 90 (release version numbers) - COMMITTED, NOT PUSHED, NOT DEPLOYED.**
+  Ledger §245; checklist 84.7-84.10, Stage 90.
+  - **Versioning:** `deploy\deploy.ps1` now reads the live `/api/v1/version`, runs `cmd/releasever` (feat → MINOR,
+    else PATCH; `-Version` overrides) and stamps `internal/server.releaseVersion`. `remote_deploy.sh` runs
+    `erp-server -record-release` after the health check (ledger row + client `app_version`). The next deploy should
+    first record `840909b` as `0.1.0` (`-record-release -version 0.1.0 -commit 840909b -at 2026-10-18T04:45:51Z`,
+    on the box with the new binary), then become 0.2.0.
+  - **Waiting on the user:** the capability register's new dates (classifier: "CI Bypass"), the expired doc-review
+    policy (84.8), push + deploy.
+  - **Scratch DBs** `custom_erp_rel20261018` and `custom_erp_rel2_20261018` on 5490 can be dropped.
+
 - **2026-10-18 Stage 85 (POS billing for a real store) - COMMITTED LOCALLY on its own, NOT PUSHED, NOT DEPLOYED.** Ledger §243;
   checklist Stage 85; plan `docs/product/pos-store-billing-plan-2026-10-18.md`. The user chose "Stage 85 on its own" and "Commit
   only" (2026-10-18): push and deploy wait for them.

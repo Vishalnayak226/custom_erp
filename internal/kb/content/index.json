@@ -1255,6 +1255,7 @@
             "purchase-requisitions",
             "grn",
             "rfq",
+            "purchase-returns",
             "module:procurement",
             "module:inbound",
             "vendor-invoices",
@@ -1326,6 +1327,11 @@
               "level": 3,
               "text": "4. Goods Receipt (GRN)",
               "slug": "4-goods-receipt-grn"
+            },
+            {
+              "level": 2,
+              "text": "Sending goods back: Purchase Return",
+              "slug": "sending-goods-back-purchase-return"
             },
             {
               "level": 2,
@@ -2118,6 +2124,7 @@
           "screens": [
             "finance",
             "module:finance",
+            "journal-vouchers",
             "reports",
             "configuration"
           ],
@@ -2203,6 +2210,7 @@
           "screens": [
             "module:crm",
             "doctype:customer",
+            "loyalty",
             "reports",
             "configuration"
           ],
@@ -2275,6 +2283,44 @@
               "level": 2,
               "text": "What is not here yet",
               "slug": "what-is-not-here-yet"
+            }
+          ]
+        },
+        {
+          "slug": "platform-control-panel",
+          "title": "Control Panel and Data Console (platform operators)",
+          "section": "Module Handbooks",
+          "order": 90,
+          "summary": "For whoever runs the platform - every client on one page, which release is live and what number it carries, pausing a client or giving it a free trial, and repairing a record in any client with the Data Console.",
+          "audience": "platform operator",
+          "screens": [
+            "control-panel",
+            "platform-console"
+          ],
+          "last_verified": "2026-10-18",
+          "owner": "operations-owner",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "platform",
+          "task": "Run the platform for every client",
+          "prerequisites": "A Super Admin login listed in the server setting ERP_PLATFORM_OPERATORS",
+          "applies_to": "source release 0.2.0; platform operators listed in ERP_PLATFORM_OPERATORS",
+          "source_path": "module-handbooks/platform-control-panel.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "The Control Panel",
+              "slug": "the-control-panel"
+            },
+            {
+              "level": 2,
+              "text": "Releases and version numbers",
+              "slug": "releases-and-version-numbers"
+            },
+            {
+              "level": 2,
+              "text": "The Data Console",
+              "slug": "the-data-console"
             }
           ]
         },
@@ -3648,6 +3694,30 @@
               "level": 2,
               "text": "2026-08-19",
               "slug": "2026-08-19"
+            }
+          ]
+        },
+        {
+          "slug": "release-notes-2",
+          "title": "Release notes (part 2)",
+          "section": "Reference",
+          "order": 26,
+          "summary": "Earlier releases, 2026-07-27 to 2026-08-19, continued from the release notes.",
+          "audience": "everyone",
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Release notes (part 2)",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
+          "source_path": "reference/release-notes-2.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "2026-08-19",
+              "slug": "2026-08-19"
             },
             {
               "level": 2,
@@ -4356,6 +4426,9 @@
       "first-login",
       "journey-admin"
     ],
+    "control-panel": [
+      "platform-control-panel"
+    ],
     "cycle-count": [
       "inventory-wms-operations",
       "wms-start-here",
@@ -4518,12 +4591,18 @@
       "journey-store-manager",
       "open-a-shop-and-make-your-first-sale"
     ],
+    "journal-vouchers": [
+      "finance-tax"
+    ],
     "loading-dock": [
       "loading-dock",
       "wms-start-here"
     ],
     "location-movement": [
       "wms-start-here"
+    ],
+    "loyalty": [
+      "crm-loyalty"
     ],
     "lpn": [
       "wms-start-here",
@@ -4586,6 +4665,9 @@
       "place-hold",
       "wms-start-here"
     ],
+    "platform-console": [
+      "platform-control-panel"
+    ],
     "pos": [
       "pos-operations",
       "journey-cashier",
@@ -4608,6 +4690,9 @@
       "journey-store-manager"
     ],
     "purchase-requisitions": [
+      "procurement"
+    ],
+    "purchase-returns": [
       "procurement"
     ],
     "putaway": [
@@ -4710,5 +4795,5 @@
       "wms-start-here"
     ]
   },
-  "article_count": 52
+  "article_count": 54
 }

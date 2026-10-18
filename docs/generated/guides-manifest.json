@@ -87,8 +87,21 @@
       ]
     },
     {
+      "path": "docs/kb/reference/release-notes-2.md",
+      "sha256": "f65aa187764f5b647159c6625838a9c4b3bfa2ce0e1220d32bacd7fbab3fab19",
+      "sources": [
+        "cmd/gendocs/*.go",
+        "engines/*.go",
+        "internal/server/*.go",
+        "docs/project_ledger.md",
+        "docs/governance/generation.json",
+        "docs/data/registry-snapshot.json",
+        "docs/data/business-definitions.json"
+      ]
+    },
+    {
       "path": "docs/kb/reference/release-notes.md",
-      "sha256": "9a90d9c116de14c9507fe6433a403e599a32544bc5aaffb95d8c2aa31db9eff2",
+      "sha256": "e81199e1045aa6e28abbccd917f20855e16eff64cf0642f12fba3c60f2d294c4",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",

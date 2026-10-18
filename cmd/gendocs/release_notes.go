@@ -99,37 +99,97 @@ func delinkRepoFileReferences(text string) string {
 	})
 }
 
-func kbReleaseNotes(stamp, source string) string {
+// kbReleaseNotesPartBytes is how much Markdown one release-notes page holds.
+// The ledger grows with every Stage and NFR-DOC-001 caps an article at
+// 120 KiB of rendered HTML, so - like the error-code reference - older
+// entries continue on release-notes-2.md and so on, whole entries at a time.
+// The ledger is newest first, so the first page always has the latest.
+const kbReleaseNotesPartBytes = 64 * 1024
+
+// kbReleaseNotes returns the release-notes pages keyed by file name.
+// release-notes.md keeps its name, so every existing link still lands.
+func kbReleaseNotes(stamp, source string) map[string]string {
 	entries := parseLedgerEntries(source)
 
-	var b strings.Builder
-	b.WriteString(kbFrontmatter(
-		"Release notes",
-		"Reference",
-		25,
-		"What shipped and when, generated from the build ledger so this page can't say something the ledger doesn't.",
-		"everyone",
-		stamp,
-		nil))
-
-	b.WriteString("# Release notes\n\n")
-	b.WriteString(fmt.Sprintf(
-		"Generated from `docs/project_ledger.md`'s own Stage sections - **%d** entries as of this build. "+
-			"Each excerpt is that section's own opening paragraph, not a rewritten summary, "+
-			"so it reads like an engineering build log because that is what it is. "+
-			"For the full detail behind any entry, including what was verified and how, read the ledger itself.\n\n",
-		len(entries)))
-
-	currentDate := ""
+	pages := [][]ledgerEntry{nil}
+	size := 0
 	for _, entry := range entries {
-		if entry.Date != currentDate {
-			currentDate = entry.Date
-			b.WriteString(fmt.Sprintf("## %s\n\n", currentDate))
+		n := len(entry.Title) + len(entry.Kind) + len(entry.Excerpt) + 32
+		if size > 0 && size+n > kbReleaseNotesPartBytes {
+			pages = append(pages, nil)
+			size = 0
 		}
-		b.WriteString(fmt.Sprintf("**%s** *(%s)*\n\n", entry.Title, entry.Kind))
-		if entry.Excerpt != "" {
-			b.WriteString(entry.Excerpt + "\n\n")
-		}
+		pages[len(pages)-1] = append(pages[len(pages)-1], entry)
+		size += n
 	}
-	return b.String()
+	fileOf := func(page int) string {
+		if page == 0 {
+			return "release-notes.md"
+		}
+		return fmt.Sprintf("release-notes-%d.md", page+1)
+	}
+	span := func(page []ledgerEntry) string {
+		if len(page) == 0 {
+			return ""
+		}
+		return page[len(page)-1].Date + " to " + page[0].Date
+	}
+
+	out := map[string]string{}
+	for p, page := range pages {
+		var b strings.Builder
+		if p == 0 {
+			b.WriteString(kbFrontmatter(
+				"Release notes",
+				"Reference",
+				25,
+				"What shipped and when, generated from the build ledger so this page can't say something the ledger doesn't.",
+				"everyone",
+				stamp,
+				nil))
+			b.WriteString("# Release notes\n\n")
+			b.WriteString(fmt.Sprintf(
+				"Generated from `docs/project_ledger.md`'s own Stage sections - **%d** entries as of this build. "+
+					"Each excerpt is that section's own opening paragraph, not a rewritten summary, "+
+					"so it reads like an engineering build log because that is what it is. "+
+					"For the full detail behind any entry, including what was verified and how, read the ledger itself.\n\n",
+				len(entries)))
+			if len(pages) > 1 {
+				b.WriteString("Newest first. Earlier entries continue on:\n\n")
+				for older := 1; older < len(pages); older++ {
+					b.WriteString(fmt.Sprintf("- [Part %d](%s) - %s\n", older+1, fileOf(older), span(pages[older])))
+				}
+				b.WriteString("\n")
+			}
+		} else {
+			title := fmt.Sprintf("Release notes (part %d)", p+1)
+			b.WriteString(kbFrontmatter(
+				title,
+				"Reference",
+				25+p,
+				"Earlier releases, "+span(page)+", continued from the release notes.",
+				"everyone",
+				stamp,
+				nil))
+			b.WriteString("# " + title + "\n\n")
+			b.WriteString(fmt.Sprintf("This page continues the [release notes](release-notes.md) with **%d** earlier entries, %s.\n\n",
+				len(page), span(page)))
+			if p+1 < len(pages) {
+				b.WriteString(fmt.Sprintf("Older still: [part %d](%s).\n\n", p+2, fileOf(p+1)))
+			}
+		}
+		currentDate := ""
+		for _, entry := range page {
+			if entry.Date != currentDate {
+				currentDate = entry.Date
+				b.WriteString(fmt.Sprintf("## %s\n\n", currentDate))
+			}
+			b.WriteString(fmt.Sprintf("**%s** *(%s)*\n\n", entry.Title, entry.Kind))
+			if entry.Excerpt != "" {
+				b.WriteString(entry.Excerpt + "\n\n")
+			}
+		}
+		out[fileOf(p)] = b.String()
+	}
+	return out
 }

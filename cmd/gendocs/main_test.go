@@ -24,7 +24,7 @@ func TestReferenceOutputsStayUnderExplicitRoot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := 9 + len(kbErrorCodeReference("2026-09-06")); len(files) != want {
+	if want := 8 + len(kbErrorCodeReference("2026-09-06")) + len(kbReleaseNotes("2026-09-06", "# Ledger\n")); len(files) != want {
 		t.Fatalf("got %d outputs, want %d", len(files), want)
 	}
 	out := t.TempDir()

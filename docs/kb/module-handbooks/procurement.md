@@ -5,7 +5,7 @@ order: 30
 summary: Turn a need into stock on the shelf — raise a requisition, shop it round vendors with an optional RFQ, commit to a fully tax-classified Purchase Order, and post the Goods Receipt that actually moves the stock.
 audience: procurement officer, store manager, admin
 last_verified: 2026-09-03
-screens: [purchase-orders, purchase-requisitions, grn, rfq, module:procurement, module:inbound, vendor-invoices, reports, approvals, configuration]
+screens: [purchase-orders, purchase-requisitions, grn, rfq, purchase-returns, module:procurement, module:inbound, vendor-invoices, reports, approvals, configuration]
 doc_id: DOC-7252AA9770
 type: procedure
 status: draft
@@ -358,6 +358,33 @@ covers the GRN Workbench's batch/serial rows in full. If an admin has set a
 **GRN edit window** (`procurement.grn_edit_window_days`, same Configuration
 screen, default 0), editing a GRN past that many days from creation is
 refused the same way a PO's edit window is.
+
+## Sending goods back: Purchase Return
+
+**Procurement → Purchase Return** (`purchase-returns`) sends goods back to the
+supplier against the goods receipt they arrived on, so the supplier, PO,
+location, lot and price are already known.
+
+1. Click **+ New Purchase Return** and choose the **Goods Receipt (GRN)**. Each
+   line shows what can still go back: **Accepted** stock (with its unit cost,
+   because the supplier owes you for it) and **Rejected** / **Damaged** stock
+   that QC set aside at receipt (no cost - the supplier was never owed for it).
+2. Enter the **Reason for Return** and a **Return qty** on each line going back,
+   no more than **Can return**.
+3. **Save Return** saves a Draft. Nothing moves yet.
+4. Click **Post** on the list. The stock leaves, and for accepted units a
+   **Debit Note** to the supplier is raised and posted, so what you owe drops.
+   If the supplier's bill was already entered, the GST claimed on those units
+   is taken back in the same step.
+
+If approval is required for returns, the row shows **Submit for approval**
+instead, and someone else approves it in **Approvals** before it can be
+posted. Returning accepted goods after the **Purchase return window** your
+administrator set is refused; rejected and damaged goods can still go back.
+Error codes: `PURCHA-0116` (no reason), `PURCHA-0117` (more than can be
+returned), `PURCHA-0118` (no valid GRN), `PURCHA-0119` (already returned or
+posted), `PURCHA-0120` (Debit Note raised but not posted - post it from
+**Financial Accounting → Debit / Credit Notes**).
 
 ## After the GRN: vendor invoice and payment
 

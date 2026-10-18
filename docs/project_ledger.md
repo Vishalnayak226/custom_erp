@@ -44,6 +44,14 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 245. CI blockers 84.7-84.10 and Stage 90 — version numbers follow each release (2026-10-18, code + docs, NOT DEPLOYED)
+
+From the user's "do what needs to be done to fix" (the 840909b release's open items) and their Control Panel screenshot showing `0.1.0` and an empty Releases table. Full detail in `micro_checklist.md` 84.7-84.10 and Stage 90.
+
+- **84.7** `migrations_stores_retire_again.sql`: a from-zero database no longer keeps the retired `Stores` doctype. **84.9** release notes split across pages like the error-code reference. **84.10** brainmap and doclint skip git-ignored files; broken links, workstation paths, plan front matter, help coverage (new KB article `platform-control-panel.md`), document register refreshed.
+- **84.8** found CI red since 2026-07-17, not 2026-10-09. Capability register reviewed (71 evidence tests pass; CAP-WMS limits corrected for Stage 59). The new review dates were refused by the permission classifier ("CI Bypass") and wait on the user, as does the policy for 142 expired doc reviews.
+- **Stage 90** semantic version numbers from the commits since the live build (feat → MINOR, else PATCH, MAJOR by hand). `deploy.ps1` stamps the number into the binary, and `erp-server -record-release` writes the Releases ledger and every client's version once the deploy is healthy.
+
 ## 243. Stage 85 — POS billing for a real store: store access, the working store on top, store stock locations, phone-first customers, GST bill, customer advance, and the rest of Stage 77 (2026-10-18, committed locally - not pushed, not deployed)
 
 Full detail in `micro_checklist.md` Stage 85; plan `docs/product/pos-store-billing-plan-2026-10-18.md`. Opened from the user's POS screenshot: *"I know i asked and it was built"* - it had been asked (Stage 77, 2026-10-17) but only its decisions were recorded.

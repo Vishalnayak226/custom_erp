@@ -180,7 +180,8 @@ func inspect(root string, rules []Rule, now time.Time) (Register, Report, error)
 		report.Counts[code]++
 	}
 	paths := map[string]bool{}
-	for _, dir := range []string{"docs", "internal/kb/content", "cmd/gendocs", "cmd/genkb", "cmd/brainmap", "cmd/doclint", "internal/docgen"} {
+	walked := []string{"docs", "internal/kb/content", "cmd/gendocs", "cmd/genkb", "cmd/brainmap", "cmd/doclint", "internal/docgen"}
+	for _, dir := range walked {
 		err := filepath.WalkDir(filepath.Join(root, dir), func(path string, d fs.DirEntry, err error) error {
 			if os.IsNotExist(err) {
 				return nil
@@ -203,6 +204,22 @@ func inspect(root string, rules []Rule, now time.Time) (Register, Report, error)
 		})
 		if err != nil {
 			return reg, report, err
+		}
+	}
+	// Files git ignores under those folders (the SOP video recordings, a
+	// local PDF export) exist on one disk only. Inventorying them made the
+	// register list files a clean checkout - CI - does not have.
+	ignoredOut := git(root, append([]string{"ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "--"}, walked...)...)
+	if ignoredOut != "unknown" {
+		for _, ignored := range strings.Split(ignoredOut, "\n") {
+			if ignored = strings.TrimSpace(ignored); ignored == "" {
+				continue
+			}
+			for path := range paths {
+				if path == ignored || (strings.HasSuffix(ignored, "/") && strings.HasPrefix(path, ignored)) {
+					delete(paths, path)
+				}
+			}
 		}
 	}
 	for _, path := range []string{"README.md", ".github/workflows/ci.yml", ".github/pull_request_template.md"} {

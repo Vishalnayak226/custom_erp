@@ -31,6 +31,7 @@ import (
 	"html/template"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -418,7 +419,37 @@ func walkRepo(root string, ignore []string) ([]string, error) {
 		return nil
 	})
 	sort.Strings(out)
-	return out, err
+	return dropGitIgnored(root, out), err
+}
+
+// dropGitIgnored removes the files git ignores - local-only material such as
+// the SOP video recordings or an exported PDF. BRAIN.md is committed, so
+// listing them made it differ between machines and gave every clean checkout
+// (CI) dead links to files that exist on one disk only. Outside a git
+// checkout the list is returned unchanged.
+func dropGitIgnored(root string, files []string) []string {
+	cmd := exec.Command("git", "-C", root, "check-ignore", "--stdin")
+	cmd.Stdin = strings.NewReader(strings.Join(files, "\n") + "\n")
+	out, err := cmd.Output()
+	// Exit status 1 means "nothing is ignored"; anything else is no answer.
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); !ok || exitErr.ExitCode() != 1 {
+			return files
+		}
+	}
+	ignored := map[string]bool{}
+	for _, line := range strings.Split(string(out), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			ignored[normPath(line)] = true
+		}
+	}
+	kept := files[:0:0]
+	for _, f := range files {
+		if !ignored[f] {
+			kept = append(kept, f)
+		}
+	}
+	return kept
 }
 
 func loadMap(path string) (brainMap, error) {

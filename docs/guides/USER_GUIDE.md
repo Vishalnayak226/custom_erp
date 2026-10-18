@@ -1868,6 +1868,8 @@ The date is day/month/year — so `4/10/26` is 4 October 2026.
 
 **Why it matters:** if you ever report a problem, quote both lines. They tell whoever helps you exactly which release you were on, which is often the difference between "that was fixed last week" and a real bug. It updates by itself whenever your company deploys an update — there is nothing to refresh and nothing you can change here.
 
+**How the number goes up:** a release that adds something new raises the middle number (`0.1.0` → `0.2.0`); a release with only fixes raises the last one (`0.2.0` → `0.2.1`). The first number changes only for a major milestone such as go-live (`1.0.0`).
+
 If the popup says **`dev build`** instead of a date, you are on a test or development copy rather than a released one. On your company's live system it will always show a date.
 
 ## 12. If You Get Logged Out or See an Error

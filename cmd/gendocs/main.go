@@ -141,7 +141,6 @@ func referenceFiles(root, stamp string) (map[string][]byte, error) {
 		"docs/guides/REPORT_CATALOG.md":            []byte(reportCatalogDoc(stamp)),
 		"docs/kb/reference/report-catalog.md":      []byte(kbReportCatalog(stamp)),
 		"docs/kb/reference/country-phone-rules.md": []byte(kbCountryPhoneRules(stamp)),
-		"docs/kb/reference/release-notes.md":       []byte(kbReleaseNotes(stamp, string(ledger))),
 		"docs/specs/openapi_public_v1.json":        append(spec, '\n'),
 		// Preserve the published path as a generated compatibility projection
 		// for the governed transition window; both derive from one registry.
@@ -151,6 +150,9 @@ func referenceFiles(root, stamp string) (map[string][]byte, error) {
 	}
 	for name, body := range kbErrorCodeReference(stamp) {
 		files["docs/kb/troubleshooting/"+name] = []byte(body)
+	}
+	for name, body := range kbReleaseNotes(stamp, string(ledger)) {
+		files["docs/kb/reference/"+name] = []byte(body)
 	}
 	return files, nil
 }

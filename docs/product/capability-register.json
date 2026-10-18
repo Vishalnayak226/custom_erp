@@ -22,7 +22,7 @@
       "deployment": "one Go service + PostgreSQL; tenant schemas",
       "devices": "browser/RF candidate; physical verification pending",
       "owner_model": "one stock owner per warehouse; Stage 47.5 single_owner guard",
-      "limit": "Preview evaluation of the selected single-owner configuration; deployment and release acceptance required. mixed_unsupported mode provides no allocation/picking isolation and is outside supported use."
+      "limit": "Preview evaluation of the selected single-owner configuration; deployment and release acceptance required. Mixed-owner mode (Stage 59, owner isolation in allocation, picking and movements) is built but not part of this reference configuration's evaluation."
     }
   ],
   "capabilities": [
@@ -159,11 +159,13 @@
       ],
       "design": [
         "engines/wms_owner_stock.go",
-        "engines/wms_single_owner.go"
+        "engines/wms_single_owner.go",
+        "engines/wms_owner_isolation.go"
       ],
       "tests": [
         "engines/stage47_a05_owner_allocation_redteam_test.go",
-        "engines/wms_single_owner_test.go"
+        "engines/wms_single_owner_test.go",
+        "engines/wms_owner_isolation_test.go"
       ],
       "help": [
         "docs/kb/module-handbooks/inventory-wms-operations.md"
@@ -171,9 +173,10 @@
       "stages": [
         "47.5",
         "47.6",
-        "42"
+        "42",
+        "59"
       ],
-      "limits": "Single-owner-per-warehouse guard implemented; mixed-owner operation explicitly unsupported. Physical device, deployment and qualified release acceptance remain open.",
+      "limits": "Single-owner-per-warehouse guard implemented (47.5). Mixed-owner warehouses are a supported setting since Stage 59: orders, allocation, availability and every bin movement carry the owner, with an owner-stock exception report. Physical device, deployment and qualified release acceptance remain open.",
       "last_verified": "2026-09-10",
       "review_by": "2026-10-09",
       "approver": "",

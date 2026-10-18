@@ -1,3 +1,20 @@
+---
+doc_id: DOC-PRODUCT-STAGE75-HOSTING-PLAN
+title: Stage 75 plan - off-box backups, e-invoice readiness, reports, media, hosting
+type: reference
+status: approved
+owner: product-owner
+approvers: [product-owner]
+audience: [product, engineering]
+applies_to: docs/micro_checklist.md Stage 75
+authority: proposed-design
+confidentiality: internal
+last_verified: 2026-10-17
+review_by: 2026-11-17
+supersedes: none
+superseded_by: none
+---
+
 # Stage 75 plan: off-box backups, e-invoice readiness, reports, media, hosting
 
 **As of 2026-10-17. Approved by the user on 2026-10-17.** Status is tracked as **Stage 75** in `docs/micro_checklist.md`. The e-invoice phase has its own plan: [einvoice-iris-irp-plan-2026-10-17.md](einvoice-iris-irp-plan-2026-10-17.md).
