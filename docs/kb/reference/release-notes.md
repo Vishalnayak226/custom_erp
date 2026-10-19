@@ -19,13 +19,15 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **156** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **157** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
 - [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-03
 
 ## 2026-10-19
+
+**Release 0.3.0 to app and minn** *(release)*
 
 **"Fix all": the report catalog built - 252 of the user's 290 reports (Stage 75.3.2, 75.3.5-75.3.7)** *(code + docs, NOT COMMITTED)*
 

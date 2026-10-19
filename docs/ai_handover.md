@@ -125,6 +125,11 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-19 Release 0.3.0 - COMMITTED, PUSHED, DEPLOYED to app and minn.** Ledger §260. `06547bb` on origin/main; prod
+  reports 0.3.0 (06547bb), both hosts 200, `/store/` live. Backup `custom_erp_20261019T023744Z`, rollback dir
+  `rollback_20261019_023745`. Everything that was in the tree at the snapshot shipped; only the Stage 101 CRM plan (§259)
+  is still uncommitted. Still to do by hand: the 0.1.0 backfill row for 840909b (see the 0.2.0 entry).
+
 - **2026-10-19 Report catalog built - 252 of the user's 290 reports (75.3.2, 75.3.5-75.3.7) - BUILT AND VERIFIED, NOT
   COMMITTED, NOT DEPLOYED.** Ledger §258. No migration, no new route.
   - **New files (mine):** `engines/report_catalog.go`, `_common.go`, `_coverage.go`, `_controls.go`, `_sales.go`, `_inventory.go`,

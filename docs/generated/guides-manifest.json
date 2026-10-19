@@ -101,7 +101,7 @@
     },
     {
       "path": "docs/kb/reference/release-notes.md",
-      "sha256": "dd085da31a7a18e048224693b80747ba1bde7a35edb7875bf1757da0c07768d3",
+      "sha256": "8177611632534abdfd604c3db9d4dafc1046c5884a197e24b22ccc7de91f68de",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
