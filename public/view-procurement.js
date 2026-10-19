@@ -599,7 +599,8 @@ function renderPOComposer(panel) {
   renderPOAddresses();
   // Coming back to this page (from History, or from Edit store) re-reads the
   // stores, so a corrected address shows without retyping anything.
-  if (d.vendor || d.location || d.target_warehouse || d.lines.length) schedulePOPreview();
+  // A new PO previews at once too, to learn the GST mode it starts on.
+  if (!d.id || d.vendor || d.location || d.target_warehouse || d.lines.length) schedulePOPreview();
 }
 
 // renderPOAddresses fills the line under Billing / Shipping address with the
@@ -1414,9 +1415,16 @@ async function runPOPreview() {
     return;
   }
   poPreview = await res.json();
-  // The server resolves '' to the tenant default; reflect what it actually
-  // chose so the select stops saying "Tenant default" without saying which.
+  // Stage 110.2: a new PO starts on the tenant's default (Inclusive unless an
+  // admin chose Exclusive), shown and saved as that choice.
   const modeSel = document.getElementById('po-gst-mode');
+  if (!d.id && !d.gst_mode && poPreview.default_gst_mode) {
+    d.gst_mode = poPreview.default_gst_mode;
+    if (modeSel) modeSel.value = d.gst_mode;
+    if (poPreview.gst_mode !== d.gst_mode) { schedulePOPreview(); return; }
+  }
+  // An older PO saved on '' is resolved by the server; reflect what it
+  // chose so the select stops saying "Tenant default" without saying which.
   if (modeSel && !d.gst_mode && poPreview.gst_mode) {
     const opt = modeSel.querySelector('option[value=""]');
     if (opt) opt.textContent = `Tenant default (${poPreview.gst_mode})`;
@@ -2247,9 +2255,11 @@ function renderGRNLinesList() {
     return `<input type="number" class="form-input num grn-qty-input" min="0" step="any" data-grn-setaside="${idx}" data-kind="${kind}" value="${q}" aria-label="${kind === 'rejected' ? 'Rejected' : 'Damaged'} qty for ${escapeHTMLText(line.sku)}">`
       + (q > 0 ? `<input type="text" class="form-input grn-reason-input${reason.trim() ? '' : ' grn-reason-missing'}" data-grn-reason="${idx}" data-kind="${kind}" placeholder="Reason" value="${escapeHTMLText(reason)}" aria-label="${kind === 'rejected' ? 'Rejection' : 'Damage'} reason for ${escapeHTMLText(line.sku)}">` : '');
   };
+  const grnPriced = grnLineItems.filter(l => grnHas(l.po_rate));
+  const grnAllIncl = grnPriced.length > 0 && grnPriced.every(l => l.gst_inclusive);
   el.innerHTML = `
     <table class="grn-lines-table">
-      <thead><tr>${grnMultiPO ? '<th>PO</th>' : ''}<th>SKU</th>${grnHasBatches ? '<th>Batch / Expiry</th>' : ''}${grnHasSerials ? '<th>Serials</th>' : ''}${grnAskedFields.map(f => `<th>${escapeHTMLText(f.label)}${f.grn === 'required' ? '<span class="required">*</span>' : ''}</th>`).join('')}${grnBlindCount ? '' : '<th class="num">Ordered</th>'}<th class="num">Received</th><th class="num" title="Received minus rejected and damaged - goes into stock">Accepted</th><th class="num">Rejected</th><th class="num">Damaged</th>${grnBlindCount ? '' : '<th class="num" title="Ordered minus received - still owed on the PO">Short</th><th class="num" title="Received over the PO - keep or return is decided at Verify">Excess</th>'}<th class="num" title="Quantity the vendor's invoice bills">Invoice Qty</th><th class="num" title="Agreed price per unit before GST, from the PO">PO Rate</th><th class="num" title="Price per unit before GST on the vendor's invoice">Invoice Rate</th><th class="num" title="Invoice rate x invoice qty, before GST">Value</th><th></th></tr></thead>
+      <thead><tr>${grnMultiPO ? '<th>PO</th>' : ''}<th>SKU</th>${grnHasBatches ? '<th>Batch / Expiry</th>' : ''}${grnHasSerials ? '<th>Serials</th>' : ''}${grnAskedFields.map(f => `<th>${escapeHTMLText(f.label)}${f.grn === 'required' ? '<span class="required">*</span>' : ''}</th>`).join('')}${grnBlindCount ? '' : '<th class="num">Ordered</th>'}<th class="num">Received</th><th class="num" title="Received minus rejected and damaged - goes into stock">Accepted</th><th class="num">Rejected</th><th class="num">Damaged</th>${grnBlindCount ? '' : '<th class="num" title="Ordered minus received - still owed on the PO">Short</th><th class="num" title="Received over the PO - keep or return is decided at Verify">Excess</th>'}<th class="num" title="Quantity the vendor's invoice bills">Invoice Qty</th><th class="num" title="Agreed price per unit from the PO${grnAllIncl ? ', incl. GST' : ' (before GST unless the row says incl. GST)'}">PO Rate${grnAllIncl ? ' (incl. GST)' : ''}</th><th class="num" title="Price per unit on the vendor's invoice${grnAllIncl ? ', incl. GST' : ''}">Invoice Rate${grnAllIncl ? ' (incl. GST)' : ''}</th><th class="num" title="Invoice rate x invoice qty">Value${grnAllIncl ? ' (incl. GST)' : ''}</th><th></th></tr></thead>
       <tbody>
         ${grnLineItems.map((line, idx) => {
           const ordered = line.ordered_qty;
@@ -2257,8 +2267,10 @@ function renderGRNLinesList() {
           const short = hasOrdered ? Math.max(0, ordered - line.qty) : null;
           const excess = hasOrdered ? Math.max(0, line.qty - ordered) : null;
           const hasPORate = line.po_rate !== undefined && line.po_rate !== null && line.po_rate !== '';
-          const invRate = (line.invoice_rate === '' || line.invoice_rate === undefined || line.invoice_rate === null) ? (hasPORate ? line.po_rate : '') : line.invoice_rate;
-          const diff = hasPORate && invRate !== '' ? Number(invRate) - Number(line.po_rate) : 0;
+          const poShown = grnShownPORate(line);
+          const invRate = grnShownInvRate(line);
+          const diff = hasPORate && invRate !== '' ? Number(invRate) - Number(poShown) : 0;
+          const inclNote = line.gst_inclusive && !grnAllIncl ? '<div class="text-muted">incl. GST</div>' : '';
           // Stage 94.14: the row's value is what the invoice bills, so the
           // rows add up to the bar's Invoice value.
           const billed = grnBilledQty(line);
@@ -2279,7 +2291,7 @@ function renderGRNLinesList() {
               ${grnBlindCount ? '' : `<td class="num grn-calc">${short === null ? '&mdash;' : short > 0 ? `<span class="badge badge-warning">${short}</span>` : '0'}</td>
               <td class="num grn-calc">${excess === null ? '&mdash;' : excess > 0 ? `<span class="badge badge-warning">${excess}</span>` : '0'}</td>`}
               <td class="num"><input type="number" class="form-input num grn-qty-input" min="0" step="any" data-grn-invqty="${idx}" value="${escapeHTMLText(String(line.invoice_qty ?? line.qty))}" aria-label="Invoice qty for ${escapeHTMLText(line.sku)}">${Math.abs(billGap) > 0.0001 ? `<div class="grn-rate-delta up">${billGap > 0 ? '+' : '&minus;'}${Math.round(Math.abs(billGap) * 1000) / 1000} vs accepted</div>` : ''}</td>
-              <td class="num">${hasPORate ? formatMoney(line.po_rate) : '<span class="text-muted">&mdash;</span>'}</td>
+              <td class="num">${hasPORate ? formatMoney(poShown) + inclNote : '<span class="text-muted">&mdash;</span>'}</td>
               <td class="num"><input type="number" class="form-input num grn-rate-input" min="0" step="0.01" data-grn-rate="${idx}" value="${escapeHTMLText(String(invRate))}" aria-label="Invoice rate for ${escapeHTMLText(line.sku)}">${Math.abs(diff) >= 0.005 ? `<div class="grn-rate-delta ${diff > 0 ? 'up' : 'down'}">${diff > 0 ? '+' : '&minus;'}${formatMoney(Math.abs(diff))} vs PO</div>` : ''}</td>
               <td class="num">${value === null ? '<span class="text-muted">&mdash;</span>' : formatMoney(value)}</td>
               <td><button class="action-btn action-btn-danger" type="button" ${actionAttrs('removeGRNLine', [idx])}>Remove</button></td>
@@ -2352,8 +2364,8 @@ function renderGRNLinesList() {
     input.addEventListener('change', () => {
       const i = Number(input.getAttribute('data-grn-rate'));
       const v = input.value.trim();
-      if (v !== '' && (isNaN(Number(v)) || Number(v) < 0)) { input.value = grnLineItems[i].invoice_rate ?? ''; return; }
-      grnLineItems[i].invoice_rate = v === '' ? '' : Math.round(Number(v) * 100) / 100;
+      if (v !== '' && (isNaN(Number(v)) || Number(v) < 0)) { input.value = grnShownInvRate(grnLineItems[i]) ?? ''; return; }
+      grnSetInvRate(grnLineItems[i], v === '' ? '' : grnR2(Number(v)));
       renderGRNLinesList();
     });
   });
@@ -2392,15 +2404,16 @@ function renderGRNTotals() {
   grnLineItems.forEach(l => {
     const acc = Number(l.accepted_qty) || 0;
     const hasPO = l.po_rate !== undefined && l.po_rate !== '' && l.po_rate !== null;
-    const inv = (l.invoice_rate === '' || l.invoice_rate === undefined || l.invoice_rate === null) ? (hasPO ? Number(l.po_rate) : 0) : Number(l.invoice_rate);
-    const gst = Number(l.gst_rate) || 0;
+    const inv = Number(grnShownInvRate(l)) || 0;
+    const k = l.gst_inclusive ? 1 : grnGSTFactor(l);
     // Stage 94: the invoice is what it bills - its own qty, not what arrived.
     const billed = grnBilledQty(l);
-    if (hasPO) poValue += Number(l.po_rate) * acc;
-    invValue += inv * billed;
-    invGST += inv * billed * gst / 100;
+    if (hasPO) poValue += l.gst_inclusive ? Number(l.po_rate_incl) * acc / grnGSTFactor(l) : Number(l.po_rate) * acc;
+    const m = grnLineMoney(l, billed);
+    invValue += m.taxable;
+    invGST += m.gst;
     if (hasPO) {
-      const d = (inv - Number(l.po_rate)) * acc * (1 + gst / 100);
+      const d = (inv - Number(grnShownPORate(l))) * acc * k;
       if (d > 0.004) up += d; else if (d < -0.004) down += -d;
     }
   });
@@ -2425,13 +2438,41 @@ function renderGRNTotals() {
   // and at what price, and the note is invoice total against that.
   if (notesEl) notesEl.innerHTML = `
       ${up > 0.004 || down > 0.004 ? `<span class="text-muted">Invoice prices differ from the PO on some lines. Verify (next step) settles what you pay; any difference to the invoice becomes a debit or credit note.</span>` : '<span class="text-muted">Invoice prices match the PO.</span>'}
-      ${gapBad ? `<span class="grn-gap-note">The vendor's invoice total does not equal these lines. Check the invoice qty and rates - Verify will not go ahead while they differ by more than 1.00.</span>` : ''}
+      ${gapBad ? `<span class="grn-gap-note">The bill's total and the items below do not add up (${formatMoney(Math.abs(gap))} ${gap < 0 ? 'less' : 'more'} than the items). Check the total you typed against the bill, then each line's invoice qty and rate. Verify waits until they match.</span>` : ''}
       ${billMismatch.length ? `<span class="grn-gap-note">Invoice qty is not the accepted qty on ${billMismatch.map(escapeHTMLText).join(', ')}. Check the vendor's invoice before saving.</span>` : ''}
       ${excessLines.length ? `<span class="text-muted">More than the PO arrived on ${excessLines.map(escapeHTMLText).join(', ')}. Keep or return is decided at Verify.</span>` : ''}`;
 }
 
 // grnBilledQty is the qty the vendor's invoice bills for a line - its own
 // invoice qty once typed, otherwise what arrived.
+// Stage 110.1: a line from a PO whose prices include GST shows and takes its
+// PO rate, invoice rate and value incl. GST, as the PO does. invoice_rate
+// stays the ex-GST rate the server prices stock with; invoice_rate_incl is
+// what was typed.
+const grnHas = v => v !== '' && v !== undefined && v !== null;
+const grnR2 = v => Math.round(v * 100) / 100;
+function grnGSTFactor(l) { return 1 + (Number(l.gst_rate) || 0) / 100; }
+function grnShownPORate(l) { return l.gst_inclusive ? l.po_rate_incl : l.po_rate; }
+function grnShownInvRate(l) {
+  if (l.gst_inclusive) return grnHas(l.invoice_rate_incl) ? Number(l.invoice_rate_incl) : (grnHas(l.invoice_rate) ? grnR2(Number(l.invoice_rate) * grnGSTFactor(l)) : l.po_rate_incl);
+  return grnHas(l.invoice_rate) ? l.invoice_rate : (grnHas(l.po_rate) ? l.po_rate : '');
+}
+function grnSetInvRate(l, v) {
+  if (!l.gst_inclusive) { l.invoice_rate = v; return; }
+  l.invoice_rate_incl = v;
+  l.invoice_rate = v === '' ? '' : (Math.abs(v - Number(l.po_rate_incl)) < 0.005 ? l.po_rate : grnR2(v / grnGSTFactor(l)));
+}
+// grnLineMoney is a line's taxable value and GST for qty units at its invoice rate.
+function grnLineMoney(l, qty) {
+  const shown = Number(grnShownInvRate(l)) || 0;
+  if (l.gst_inclusive) {
+    const gross = shown * qty;
+    const taxable = gross / grnGSTFactor(l);
+    return { taxable, gst: gross - taxable };
+  }
+  return { taxable: shown * qty, gst: shown * qty * ((Number(l.gst_rate) || 0) / 100) };
+}
+
 function grnBilledQty(l) {
   return l.invoice_qty === undefined || l.invoice_qty === '' || l.invoice_qty === null ? (Number(l.qty) || 0) : Number(l.invoice_qty);
 }
@@ -2637,7 +2678,8 @@ async function addGRNLine() {
   const poLine = grnPOLineContext[sku];
   if (poLine && !poLine.ambiguous) {
     line.po_id = poLine.po_id;
-    if (poLine.po_rate !== undefined) Object.assign(line, { po_rate: poLine.po_rate, gst_rate: poLine.gst_rate, invoice_rate: poLine.po_rate });
+    if (poLine.po_rate !== undefined) Object.assign(line, { po_rate: poLine.po_rate, gst_rate: poLine.gst_rate, invoice_rate: poLine.po_rate,
+      ...(poLine.gst_inclusive ? { gst_inclusive: true, po_rate_incl: poLine.po_rate_incl, invoice_rate_incl: poLine.po_rate_incl } : {}) });
   }
   grnLineItems.push(line);
 
@@ -2872,12 +2914,15 @@ async function loadGRNItemsFromPOInner() {
   if (prevRes && prevRes.ok) {
     const prev = await prevRes.json();
     const acc = {};
+    const incl = prev.gst_mode === 'Inclusive';
     (prev.lines || []).forEach(l => {
       if (!l.sku || l.error || !(l.qty > 0)) return;
-      const a = acc[l.sku] || (acc[l.sku] = { taxable: 0, qty: 0, gst: 0 });
-      a.taxable += Number(l.taxable) || 0; a.qty += Number(l.qty) || 0; a.gst = Number(l.gst_rate) || 0;
+      const a = acc[l.sku] || (acc[l.sku] = { taxable: 0, gross: 0, qty: 0, gst: 0 });
+      a.taxable += Number(l.taxable) || 0; a.gross += Number(l.line_total) || 0; a.qty += Number(l.qty) || 0; a.gst = Number(l.gst_rate) || 0;
     });
-    Object.keys(acc).forEach(sku => { rates[sku] = { rate: Math.round(acc[sku].taxable / acc[sku].qty * 100) / 100, gst: acc[sku].gst }; });
+    Object.keys(acc).forEach(sku => {
+      rates[sku] = { rate: grnR2(acc[sku].taxable / acc[sku].qty), gst: acc[sku].gst, ...(incl ? { incl: true, gross: grnR2(acc[sku].gross / acc[sku].qty) } : {}) };
+    });
   }
 
   // Stage 73.2.4 (D05): the open quantity comes from the server - ordered
@@ -2907,10 +2952,10 @@ async function loadGRNItemsFromPOInner() {
     const r = rates[sku];
     const known = grnPOLineContext[sku];
     grnPOLineContext[sku] = known && known.po_id !== poKey ? { ambiguous: true }
-      : { po_id: poKey, ...(r ? { po_rate: r.rate, gst_rate: r.gst } : {}) };
+      : { po_id: poKey, ...(r ? { po_rate: r.rate, gst_rate: r.gst, ...(r.incl ? { gst_inclusive: true, po_rate_incl: r.gross } : {}) } : {}) };
     grnLineItems.push({
       po_id: poKey, sku, ordered_qty: open, qty: open, accepted_qty: open, rejected_qty: 0, rejection_reason: '', damaged_qty: 0, damage_reason: '', barcode,
-      ...(r ? { po_rate: r.rate, gst_rate: r.gst, invoice_rate: r.rate } : {})
+      ...(r ? { po_rate: r.rate, gst_rate: r.gst, invoice_rate: r.rate, ...(r.incl ? { gst_inclusive: true, po_rate_incl: r.gross, invoice_rate_incl: r.gross } : {}) } : {})
     });
     added++;
   }

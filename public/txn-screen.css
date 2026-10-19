@@ -427,6 +427,9 @@
 .gs-ok { color: var(--success-color, #1a7f37); }
 .gs-amber { color: var(--warning-color, #b26a00); }
 .gs-red { color: var(--danger-color, #b00020); }
+/* Stage 110.3: the box the invoice check asks to look at. */
+.gs-fix, input[data-fix] { outline: 2px solid var(--warning-color, #b26a00); outline-offset: 1px; background: var(--warning-soft-bg, #fff4e0); }
+.gs-invoice-check .btn { flex: 0 0 auto; }
 .gs-item div { font-size: 11.5px; }
 .gs-num { width: 90px; }
 .gs-text { min-width: 120px; margin-top: 4px; }

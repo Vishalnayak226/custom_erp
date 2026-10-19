@@ -44,6 +44,16 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 264. Stages 110-112 — goods receipt follows the PO's GST; plain-words Verify; sticker load, print on scan, Square/Ring cards (2026-10-19, code)
+
+From the user's GRN/PO, Verify and Sticker Printing screenshots. Full detail in checklist Stages 110-112.
+
+- **110.1-110.2 GST-inclusive POs:** the tenant default is now Inclusive and a new PO is stamped with its mode on create; a blank-mode PO saved earlier still prices as before (admin's explicit setting, else Exclusive) - no data migration. Goods receipt lines of an Inclusive PO show and take rates incl. GST (new GRN, Receive-edit, Verify); the server converts to the ex-GST rate everything else already uses, an untouched rate keeping the PO's exact value.
+- **110.3 Verify:** the user first asked to always allow it; the explanation showed that would book a GST-free round-off and a negative bill GST, and the user chose to keep the block with a plain-words message, a jump back to Receive and the box to fix highlighted (`grnInvoiceCheck`, `invoice_check` on the view, GOODSR-0942 text).
+- **111 Stickers:** Load accepts part of a number, the box lists recent documents, plain not-found text; **Print on scan** prints each scanned item at once, with the loaded GRN line's lot when the item is on it.
+- **112 Designs:** the two standard designs (Square 2-up, Ring tag) as Built-in cards - seven variants from the client's PRN files were built, then cut to these two on the user's word; Duplicate saves one as a template the rules can pick.
+- Verified on a scratch server against the local DB with Playwright, plus engines/server tests for PO, GRN, stickers, GST and settings.
+
 ## 263. Stage 109 — one click to release, one click to deploy, the server cleans itself; SSH bots blocked (2026-10-19, tooling + server)
 
 User: *"I want auto mechanism to do this ... a script or bot ... It should learn parallely with you doing in future ... Three action three click. 3rd one if can be done without me also fine."* Checklist Stage 109 (D1-D6).

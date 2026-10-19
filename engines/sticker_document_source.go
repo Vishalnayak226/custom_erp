@@ -2,6 +2,7 @@ package engines
 
 import (
 	"custom_erp/db"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -59,6 +60,9 @@ func ResolveDocumentStickerLines(tenantID, sourceDoctype, sourceDocID string) ([
 // which units belong to which lot.
 func resolveGRNStickerLines(tenantID, grnID string) ([]DocStickerLine, error) {
 	data, status, err := fetchDocData(tenantID, "GRN", grnID)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("no goods receipt is numbered %q - pick one from the list under the box", grnID)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("could not load GRN %s: %v", grnID, err)
 	}
@@ -102,6 +106,9 @@ func resolveGRNStickerLines(tenantID, grnID string) ([]DocStickerLine, error) {
 // so a sticker run can never see a shape those flows would have rejected.
 func resolveTransferOrderStickerLines(tenantID, transferOrderID string) ([]DocStickerLine, error) {
 	data, status, err := fetchDocData(tenantID, "TransferOrder", transferOrderID)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("no transfer order is numbered %q - pick one from the list under the box", transferOrderID)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("could not load Transfer Order %s: %v", transferOrderID, err)
 	}
@@ -248,6 +255,7 @@ type StickerPreviewLine struct {
 	Name         string `json:"name"`
 	Category     string `json:"category"`
 	Qty          int    `json:"qty"`
+	Barcode      string `json:"barcode,omitempty"` // Stage 111.2: a scan finds its line by this or the SKU
 	BatchNo      string `json:"batch_no,omitempty"`
 	ExpiryDate   string `json:"expiry_date,omitempty"`
 	TemplateID   string `json:"template_id,omitempty"`
@@ -272,6 +280,9 @@ func PreviewDocumentStickerLines(tenantID, sourceDoctype, sourceDocID string) ([
 			item = resolved.Data
 			if v, ok := item["name"].(string); ok {
 				p.Name = v
+			}
+			if v, ok := item["barcode"].(string); ok {
+				p.Barcode = v
 			}
 			if v, ok := item["category"].(string); ok {
 				p.Category = v

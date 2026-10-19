@@ -19,13 +19,17 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **161** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **162** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
 - [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-05
 
 ## 2026-10-19
+
+**Stages 110-112 — goods receipt follows the PO's GST; plain-words Verify; sticker load, print on scan, Square/Ring cards** *(code)*
+
+From the user's GRN/PO, Verify and Sticker Printing screenshots. Full detail in checklist Stages 110-112.
 
 **Stage 109 — one click to release, one click to deploy, the server cleans itself; SSH bots blocked** *(tooling + server)*
 

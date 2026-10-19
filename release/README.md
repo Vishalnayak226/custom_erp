@@ -81,9 +81,9 @@ A release problem these did not catch is a missing gate: add it to
 | G5 Catalog spec | regenerates `report_catalog_spec_generated.go` if stale | 75.3 |
 | G6 Attack surface | `surfacescan` from the release set | manifest listed held files (0.2.0) |
 | G7 Docs | KB, graphify + brain (new files filed beside a sibling), register, no broken links | unclaimed file broke the brain (0.4.0) |
-| G8 Static | build, vet, `node --check`, release budget | `view-pos.js` counts in the cold core (0.4.0) |
+| G8 Static | build, vet, release budget and the two test programs compiled side by side; `node --check` | `view-pos.js` counts in the cold core (0.4.0) |
 | G9 Data scan | data statements in new migrations, `-migrate` backfills, new background jobs | cost centers, attributes, reason codes, stock defaults |
-| G10 Fresh DB | migrate from empty, full tests `-p 1`, failed tests rerun twice (pass = flaky) | from-zero failures; clock-skew flake (0.2.0) |
+| G10 Fresh DB | migrate from empty; then the **whole** suite every release, side by side: each job on its own copy of that database (engines in 3 groups balanced by last run's times, server, small packages); tests, examples and fuzz seeds as `go test` runs them; every test must report a result (none dropped by the split); failures rerun twice (pass = flaky), more than 3 flaky stops the release | from-zero failures; clock-skew flake (0.2.0); one package at a time took ~15 min (109.9); a split that skipped 2 examples (109.10) |
 | G11 Commit | only if HEAD, index and every snapshot file are unchanged; tree must equal the tested tree | other sessions committing mid-release |
 | G12 Sync | committed versions of regenerated files back into the shared tree where untouched | reverse diffs left behind after 0.4.0 |
 | G13 Push | `git push origin main` | Deploy refuses anything not on origin |

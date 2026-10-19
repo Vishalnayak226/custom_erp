@@ -24,6 +24,13 @@ let gs = null; // { id, view, page, edit, mrp, moves, names, root, onChanged }
 const esc = (s) => escapeHTMLText(s == null ? '' : String(s));
 const money = (v) => formatMoney(Number(v) || 0);
 const num = (v) => (v === '' || v == null || isNaN(Number(v)) ? null : Number(v));
+// Stage 110.1: a line of a GST-inclusive PO shows and takes its prices incl.
+// GST, like its PO; the server keeps them ex-GST. A price typed back to what
+// was shown keeps its exact ex-GST value, so no paisa of difference appears.
+const PRICE_FIELDS = ['invoice_price', 'grn_price'];
+const gstK = (l) => 1 + (Number(l.gst_rate) || 0) / 100;
+const shownPrice = (l, ex) => (l.gst_inclusive && num(ex) !== null ? Math.round(num(ex) * gstK(l) * 100) / 100 : ex);
+const inclTag = (l) => (l.gst_inclusive ? '<div class="text-muted">incl. GST</div>' : '');
 
 // The page a receipt opens on: the step it is waiting for.
 function pageFor(view) {
@@ -141,13 +148,14 @@ function totalsHTML(v) {
   }
   const diff = Math.round((v.vendor_invoice_amount - ours) * 100) / 100;
   const raised = v.step === 'Posted' ? 'raised' : 'will be raised';
-  const note = Math.abs(diff) < 0.005
+  // Stage 110.3: while the bill does not add up, Verify waits - no note yet.
+  const note = v.invoice_check ? '' : Math.abs(diff) < 0.005
     ? '<span class="gs-ok">Invoice and goods agree - no note</span>'
     : diff > 0
       ? `<span class="gs-amber">Debit note ${money(diff)} ${raised} (they billed more)</span>`
       : `<span class="gs-amber">Credit note ${money(-diff)} ${raised} (they billed less)</span>`;
   const unexplained = Math.abs(v.invoice_unexplained) > 1
-    ? `<span class="gs-red" title="Fix the invoice qty or price on Receive">Invoice total vs its lines: ${money(v.invoice_unexplained)}</span>`
+    ? `<span class="gs-red" title="The bill's total minus its items - fix it on Receive">Bill total vs its items: ${money(v.invoice_unexplained)}</span>`
     : (Math.abs(v.invoice_unexplained) >= 0.005 ? `<span>Round-off ${money(v.invoice_unexplained)}</span>` : '');
   return `
     <span>Invoice total <b>${money(v.vendor_invoice_amount)}</b></span>
@@ -191,23 +199,43 @@ const notAllowed = (k) => canDo(k) ? '' : `<span class="text-muted">Your role do
 // ① Receive, edited after saving (Back).
 function receiveHTML(v) {
   const posted = (v.children || []).some(c => c.status === 'Posted');
+  const c = v.invoice_check;
+  const fix = (lineNo, field) => c && c.line_no === lineNo && c.field === field ? 'data-fix="1"' : '';
   return `
+    ${invoiceCheckHTML(c, false)}
     <div class="gs-form-row">
       <div class="form-group"><label class="form-label" for="gs-inv-no">Vendor invoice no</label><input id="gs-inv-no" class="form-input" value="${esc(v.vendor_invoice_no)}"></div>
       <div class="form-group"><label class="form-label" for="gs-inv-date">Invoice date</label><input id="gs-inv-date" type="date" class="form-input" value="${esc(v.vendor_invoice_date)}"></div>
-      <div class="form-group"><label class="form-label" for="gs-inv-total">Invoice total (incl. GST)</label><input id="gs-inv-total" type="number" step="0.01" min="0" class="form-input num" value="${esc(v.vendor_invoice_amount)}"></div>
+      <div class="form-group"><label class="form-label" for="gs-inv-total">Invoice total (incl. GST)</label><input id="gs-inv-total" type="number" step="0.01" min="0" class="form-input num${c ? ' gs-fix' : ''}" value="${esc(v.vendor_invoice_amount)}"></div>
     </div>
     <div class="txn-grid"><table>
-      <thead><tr><th>#</th><th>Item</th><th class="num">Received</th><th class="num">Invoice qty</th><th class="num" title="Price per unit before GST, from the vendor's invoice">Invoice price</th><th class="num">GST %</th></tr></thead>
+      <thead><tr><th>#</th><th>Item</th><th class="num">Received</th><th class="num">Invoice qty</th><th class="num" title="Price per unit from the vendor's invoice - before GST, or incl. GST where the line says so">Invoice price</th><th class="num">GST %</th></tr></thead>
       <tbody>${v.lines.map(l => `<tr>
         <td>${l.line_no}</td><td>${itemCell(l)}</td>
         <td class="num">${numInput(l.line_no, 'received_qty', gs.edit[l.line_no].received_qty)}</td>
-        <td class="num">${numInput(l.line_no, 'invoice_qty', gs.edit[l.line_no].invoice_qty)}</td>
-        <td class="num">${numInput(l.line_no, 'invoice_price', gs.edit[l.line_no].invoice_price, '0.01')}</td>
+        <td class="num">${numInput(l.line_no, 'invoice_qty', gs.edit[l.line_no].invoice_qty, 'any', fix(l.line_no, 'invoice_qty'))}</td>
+        <td class="num">${numInput(l.line_no, 'invoice_price', priceShown(l, 'invoice_price'), '0.01', fix(l.line_no, 'invoice_price'))}${inclTag(l)}</td>
         <td class="num">${esc(l.gst_rate)}</td></tr>`).join('')}</tbody>
     </table></div>
     ${actionsHTML(`<button type="button" class="btn btn-outline" data-gs="goto" data-page="${pageFor(v)}">Cancel</button>`,
       posted ? '<span class="text-muted">Posting has started - use Correct on step 5.</span>' : `<button type="button" class="btn btn-primary" data-gs="save-receive">Save and verify again</button>`)}`;
+}
+
+// Stage 110.3: why the bill's total and its items do not add up, in plain
+// words, with the way to fix it. On Verify it offers the jump to Receive; on
+// Receive the boxes to check are highlighted.
+function invoiceCheckHTML(c, onVerify) {
+  if (!c) return '';
+  return `<div class="page-banner page-banner-warning gs-invoice-check" role="alert">
+    <div class="page-banner-body"><b>The bill does not add up.</b> <span>${esc(c.message)}</span>
+      ${onVerify ? '' : '<span>The boxes to check are highlighted. Fix them, then click <b>Save and verify again</b>.</span>'}</div>
+    ${onVerify ? '<button type="button" class="btn btn-primary btn-sm" data-gs="goto" data-page="receive">Fix it on Receive</button>' : ''}
+  </div>`;
+}
+
+function priceShown(l, field) {
+  const e = gs.edit[l.line_no];
+  return e[field + '_shown'] !== undefined ? e[field + '_shown'] : shownPrice(l, e[field]);
 }
 
 function itemCell(l) {
@@ -238,15 +266,16 @@ function verifyHTML(v) {
     const open = l.po_open_qty;
     const beyond = beyondPO(l, e);
     const dq = (num(e.grn_qty) ?? 0) - l.invoice_qty;
-    const dp = (num(e.grn_price) ?? 0) - l.invoice_price;
-    const vsPO = l.po_rate == null ? '' : ((num(e.grn_price) ?? 0) - l.po_rate);
+    const grnShown = num(priceShown(l, 'grn_price')) ?? 0;
+    const dp = grnShown - shownPrice(l, l.invoice_price);
+    const vsPO = l.po_rate == null ? '' : (grnShown - shownPrice(l, l.po_rate));
     return `<tr>
       <td>${l.line_no}</td><td>${itemCell(l)}</td>
       <td class="num">${open == null ? '<span class="gs-amber">not on PO</span>' : open}</td>
       <td class="num">${l.received_qty}</td>
-      <td class="num">${l.invoice_qty}<div class="text-muted">${money(l.invoice_price)}</div></td>
+      <td class="num">${l.invoice_qty}<div class="text-muted">${money(shownPrice(l, l.invoice_price))}${l.gst_inclusive ? ' incl. GST' : ''}</div></td>
       <td class="num">${numInput(l.line_no, 'grn_qty', e.grn_qty)}${Math.abs(dq) > 1e-9 ? `<div class="gs-amber">${dq > 0 ? '+' : ''}${dq} vs invoice</div>` : ''}</td>
-      <td class="num">${numInput(l.line_no, 'grn_price', e.grn_price, '0.01')}${Math.abs(dp) >= 0.005 ? `<div class="gs-amber">${dp > 0 ? '+' : ''}${money(dp)} vs invoice</div>` : ''}${vsPO !== '' && Math.abs(vsPO) >= 0.005 ? `<div class="text-muted">${vsPO > 0 ? '+' : ''}${money(vsPO)} vs PO</div>` : ''}</td>
+      <td class="num">${numInput(l.line_no, 'grn_price', priceShown(l, 'grn_price'), '0.01')}${inclTag(l)}${Math.abs(dp) >= 0.005 ? `<div class="gs-amber">${dp > 0 ? '+' : ''}${money(dp)} vs invoice</div>` : ''}${vsPO !== '' && Math.abs(vsPO) >= 0.005 ? `<div class="text-muted">${vsPO > 0 ? '+' : ''}${money(vsPO)} vs PO</div>` : ''}</td>
       <td>${numInput(l.line_no, 'rejected_qty', e.rejected_qty)}${(num(e.rejected_qty) ?? 0) > 0 ? reasonCell(l.line_no, 'rej', 'rejection_reason', e.rejection_reason_code, e.rejection_reason, 'why rejected') : ''}</td>
       <td>${numInput(l.line_no, 'damaged_qty', e.damaged_qty)}${(num(e.damaged_qty) ?? 0) > 0 ? reasonCell(l.line_no, 'dmg', 'damage_reason', e.damage_reason_code, e.damage_reason, 'what is damaged') : ''}</td>
       <td>${beyond > 1e-9 ? `<select class="form-select gs-text" data-line="${l.line_no}" data-field="excess_action" aria-label="Goods beyond the PO, line ${l.line_no}">
@@ -259,6 +288,7 @@ function verifyHTML(v) {
   const quick = v.quick_path && canDo('verify') && canDo('price') && canDo('post')
     ? `<button type="button" class="btn btn-outline" data-gs="post-all" title="Everything matches - run every step now">Post all</button>` : '';
   return `
+    ${invoiceCheckHTML(v.invoice_check, true)}
     <div class="txn-grid"><table>
       <thead><tr><th>#</th><th>Item</th><th class="num">PO open</th><th class="num">Received</th><th class="num">Invoice</th>
         <th class="num">GRN qty<span class="required">*</span></th><th class="num">GRN price<span class="required">*</span></th>
@@ -416,7 +446,15 @@ function onInput(e) {
     if (e.type === 'change') render();
     return;
   }
-  gs.edit[line][field] = t.value;
+  const lv = PRICE_FIELDS.includes(field) && (gs.view.lines || []).find(x => String(x.line_no) === String(line));
+  if (lv && lv.gst_inclusive) {
+    const orig = field === 'grn_price' ? lv.grn_price : lv.invoice_price;
+    const typed = num(t.value);
+    gs.edit[line][field + '_shown'] = t.value;
+    gs.edit[line][field] = typed === null ? '' : (Math.abs(typed - shownPrice(lv, orig)) < 0.005 ? orig : Math.round(typed / gstK(lv) * 100) / 100);
+  } else {
+    gs.edit[line][field] = t.value;
+  }
   if (gs.page === 'verify') {
     const totals = document.getElementById('gs-totals');
     if (totals) totals.innerHTML = totalsHTML(gs.view);
@@ -437,6 +475,15 @@ async function send(path, body, okMsg) {
   const res = await apiFetch(`/api/v1/grn-steps/${encodeURIComponent(gs.id)}/${path}`, { method: 'POST', body: JSON.stringify(body || {}) });
   if (!res) return null;
   if (!res.ok) {
+    let code = '';
+    try { code = ((await res.clone().json()) || {}).code || ''; } catch (_) { /* not JSON */ }
+    if (code === 'GOODSR-0942' && gs.view.invoice_check) {
+      gs.page = 'receive';
+      render();
+      const first = gs.root.querySelector('[data-fix], .gs-fix');
+      if (first) first.focus();
+      return null;
+    }
     showError(await getErrorMessage(res, 'That step could not be saved.'));
     return null;
   }

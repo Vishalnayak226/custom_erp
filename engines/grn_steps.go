@@ -868,12 +868,8 @@ func verifyGRNLines(tenantID string, g *stepGRN, in GRNVerifyInput) (*grnExcessR
 
 	// D5: the typed invoice total must be explained by the invoice lines
 	// (GST cannot be split on a lump sum).
-	iv, ig := grnInvoiceLineTotals(g.lines)
-	typed := numFromInterface(g.data["vendor_invoice_amount"])
-	if gap := round2(typed - (iv + ig)); math.Abs(gap) > 1 {
-		return nil, &ValidationError{Code: "GOODSR-0942", SubFor: "Invoice Total", Message: fmt.Sprintf(
-			"the invoice total %.2f differs from its lines (%.2f incl. GST) by %.2f - %s; fix the invoice qty or price on Receive first",
-			typed, round2(iv+ig), gap, grnLikelyWrongLine(g.lines, gap))}
+	if c := grnInvoiceCheck(g.lines, numFromInterface(g.data["vendor_invoice_amount"])); c != nil {
+		return nil, &ValidationError{Code: "GOODSR-0942", SubFor: "Invoice Total", Message: c.Message}
 	}
 
 	// D6: goods beyond the PO (plus the vendor's tolerance) or not on it.
@@ -923,9 +919,36 @@ func verifyGRNLines(tenantID string, g *stepGRN, in GRNVerifyInput) (*grnExcessR
 	return req, nil
 }
 
-// grnLikelyWrongLine names the line a total difference most likely comes
-// from: one whose qty is off by whole units, else the largest line.
-func grnLikelyWrongLine(lines []map[string]interface{}, gap float64) string {
+// GRNInvoiceCheck says, in words anyone on the receiving desk follows, why
+// the typed invoice total and the invoice lines do not agree (D5), and which
+// box on Receive to fix: the total, or one line's invoice qty or price. The
+// Verify refusal and the screen both read it, so they always say the same.
+type GRNInvoiceCheck struct {
+	Typed    float64 `json:"typed"`
+	LinesSum float64 `json:"lines_total"`
+	Gap      float64 `json:"gap"` // typed - lines
+	LineNo   int     `json:"line_no,omitempty"`
+	SKU      string  `json:"sku,omitempty"`
+	Field    string  `json:"field"` // invoice_qty | invoice_price | total
+	Message  string  `json:"message"`
+}
+
+// grnInvoiceCheck is nil when the total and its lines agree within Rs 1.
+// The likely line is one whose qty is off by whole units, else the largest.
+func grnInvoiceCheck(lines []map[string]interface{}, typed float64) *GRNInvoiceCheck {
+	iv, ig := grnInvoiceLineTotals(lines)
+	sum := round2(iv + ig)
+	gap := round2(typed - sum)
+	if math.Abs(gap) <= 1 {
+		return nil
+	}
+	c := &GRNInvoiceCheck{Typed: round2(typed), LinesSum: sum, Gap: gap, Field: "total"}
+	more := "more"
+	if gap < 0 {
+		more = "less"
+	}
+	head := fmt.Sprintf("The bill's total is %.2f, but the items on it add up to %.2f - the total is %.2f %s than the items.",
+		c.Typed, sum, math.Abs(gap), more)
 	for _, l := range lines {
 		unit := grnInvoicePrice(l) * (1 + numFromInterface(l["gst_rate"])/100)
 		if unit <= 0 {
@@ -933,7 +956,10 @@ func grnLikelyWrongLine(lines []map[string]interface{}, gap float64) string {
 		}
 		n := gap / unit
 		if r := math.Round(n); r != 0 && math.Abs(n-r) < 0.01 {
-			return fmt.Sprintf("line %d (%s) looks off by %v unit(s)", grnLineNo(l), strField(l, "sku"), r)
+			c.LineNo, c.SKU, c.Field = grnLineNo(l), strField(l, "sku"), "invoice_qty"
+			c.Message = fmt.Sprintf("%s That is exactly %v unit(s) of line %d (%s). Check the invoice qty on line %d against the bill, or the total you typed.",
+				head, math.Abs(r), c.LineNo, c.SKU, c.LineNo)
+			return c
 		}
 	}
 	best, bestV := -1, 0.0
@@ -942,15 +968,24 @@ func grnLikelyWrongLine(lines []map[string]interface{}, gap float64) string {
 			best, bestV = i, v
 		}
 	}
-	if best >= 0 {
-		l := lines[best]
-		per := 0.0
-		if q := grnInvoiceQty(l); q > 0 {
-			per = gap / (q * (1 + numFromInterface(l["gst_rate"])/100))
-		}
-		return fmt.Sprintf("check the price of line %d (%s) - about %.2f per unit would explain it", grnLineNo(l), strField(l, "sku"), round2(per))
+	if best < 0 {
+		c.Message = head + " Check the total you typed and every line's invoice qty and price."
+		return c
 	}
-	return "check every line"
+	l := lines[best]
+	// The per-unit hint is in the terms the line's price box shows: incl.
+	// GST for a line of a GST-inclusive PO (Stage 110.1), else before GST.
+	per, terms := 0.0, "before GST"
+	if q := grnInvoiceQty(l); q > 0 {
+		per = gap / (q * (1 + numFromInterface(l["gst_rate"])/100))
+		if truthy(l["gst_inclusive"]) {
+			per, terms = gap/q, "incl. GST"
+		}
+	}
+	c.LineNo, c.SKU, c.Field = grnLineNo(l), strField(l, "sku"), "invoice_price"
+	c.Message = fmt.Sprintf("%s First check the total you typed against the bill. If the total is right, check the invoice price on line %d (%s): about %.2f %s per unit (%s) would make them match.",
+		head, c.LineNo, c.SKU, math.Abs(round2(per)), more, terms)
+	return c
 }
 
 // grnExcessByLine is each line's qty beyond what its PO still had open plus
@@ -1269,18 +1304,21 @@ func grnPreviousPrice(q queryRower, schema, sku, excludeGRN string) (grnPrevPric
 
 // GRNStepLineView is one line with every step's figures.
 type GRNStepLineView struct {
-	LineNo          int      `json:"line_no"`
-	SKU             string   `json:"sku"`
-	ItemName        string   `json:"item_name"`
-	POID            string   `json:"po_id"`
-	POOpenQty       *float64 `json:"po_open_qty,omitempty"`
-	PORate          *float64 `json:"po_rate,omitempty"`
-	ReceivedQty     float64  `json:"received_qty"`
-	InvoiceQty      float64  `json:"invoice_qty"`
-	InvoicePrice    float64  `json:"invoice_price"`
-	GRNQty          float64  `json:"grn_qty"`
-	GRNPrice        float64  `json:"grn_price"`
-	GSTRate         float64  `json:"gst_rate"`
+	LineNo       int      `json:"line_no"`
+	SKU          string   `json:"sku"`
+	ItemName     string   `json:"item_name"`
+	POID         string   `json:"po_id"`
+	POOpenQty    *float64 `json:"po_open_qty,omitempty"`
+	PORate       *float64 `json:"po_rate,omitempty"`
+	ReceivedQty  float64  `json:"received_qty"`
+	InvoiceQty   float64  `json:"invoice_qty"`
+	InvoicePrice float64  `json:"invoice_price"`
+	GRNQty       float64  `json:"grn_qty"`
+	GRNPrice     float64  `json:"grn_price"`
+	GSTRate      float64  `json:"gst_rate"`
+	// GSTInclusive: the line's PO prices include GST, so the screen shows
+	// and takes its prices that way (Stage 110.1); the figures here stay ex-GST.
+	GSTInclusive    bool     `json:"gst_inclusive,omitempty"`
 	RejectedQty     float64  `json:"rejected_qty"` // the clerk's own rejects
 	ExcessReturned  float64  `json:"excess_returned,omitempty"`
 	RejectionReason string   `json:"rejection_reason,omitempty"`
@@ -1355,6 +1393,7 @@ type GRNStepView struct {
 	QuickPathReasons   []string          `json:"quick_path_reasons,omitempty"`
 	BlindCount         bool              `json:"blind_count"`
 	Warnings           []string          `json:"warnings,omitempty"`
+	InvoiceCheck       *GRNInvoiceCheck  `json:"invoice_check,omitempty"`
 	Changes            []GRNLineChange   `json:"changes"`
 	ReceivedBy         string            `json:"received_by,omitempty"`
 	VerifiedBy         string            `json:"verified_by,omitempty"`
@@ -1423,6 +1462,9 @@ func GetGRNStepView(tenantID, grnID string) (*GRNStepView, error) {
 		v.NoteAmount = round2(math.Abs(v.Difference))
 	}
 	v.RoundOff = v.Unexplained
+	if v.Step == "Received" {
+		v.InvoiceCheck = grnInvoiceCheck(grnLineMaps(data), v.InvoiceTotal)
+	}
 
 	// Open PO qty per PO and SKU, for the PO column.
 	openQty := map[string]map[string]float64{}
@@ -1472,6 +1514,7 @@ func GetGRNStepView(tenantID, grnID string) (*GRNStepView, error) {
 			POID:        firstNonEmpty(strField(l, "po_id"), strField(data, "po_id")),
 			ReceivedQty: grnReceivedQty(l), InvoiceQty: grnInvoiceQty(l), InvoicePrice: round2(grnInvoicePrice(l)),
 			GRNQty: grnGRNQty(l), GRNPrice: round2(grnGRNPrice(l)), GSTRate: numFromInterface(l["gst_rate"]),
+			GSTInclusive:   truthy(l["gst_inclusive"]),
 			RejectedQty:    math.Max(0, numFromInterface(l["rejected_qty"])-numFromInterface(l["excess_returned"])),
 			ExcessReturned: numFromInterface(l["excess_returned"]), RejectionReason: strField(l, "rejection_reason"),
 			RejectionCode: strField(l, "rejection_reason_code"), DamageCode: strField(l, "damage_reason_code"),

@@ -875,6 +875,8 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// the PR->PO conversion and any API caller all get it too. A
 			// maker's explicit override is respected - see ApplyPlaceOfSupply.
 			engines.ApplyPlaceOfSupply(tenantID, payload)
+			// Stage 110.2: a new PO carries its GST mode from the start.
+			engines.StampNewPOGSTMode(tenantID, payload)
 
 			breakdown, errGST := engines.ComputePurchaseOrderGST(tenantID, payload)
 			if errGST != nil {

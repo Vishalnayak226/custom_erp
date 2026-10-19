@@ -251,14 +251,13 @@ func registerStage282Settings() {
 		Min:         settingBound(0),
 		Description: "How many days after a goods receipt its accepted stock may still be returned to the vendor (PURCHA-0620). Rejected and damaged goods can always be returned. 0 = no limit.",
 	})
-	// Stage 40.1. Defaults to Exclusive: a vendor's quoted purchase price is
-	// normally the taxable value with GST added on top, which is the opposite
-	// of this codebase's sale-side rate fields (MRP-style, tax already in).
-	// Individual POs override it on the PO screen when a particular vendor
-	// quotes landed prices.
+	// Stage 40.1; default Inclusive since Stage 110.2 (user, 2026-10-19): the
+	// price typed on a PO line already has GST in it. Individual POs override
+	// it on the PO screen when a particular vendor quotes before GST. POs
+	// saved earlier on "Tenant default" keep Exclusive (ResolvePOGSTMode).
 	RegisterSetting(SettingDefinition{
 		Key: "procurement.po_gst_mode", Module: "Procurement",
-		Label: "Purchase Order price GST treatment", Type: SettingTypeSelect, Default: GSTModeExclusive,
+		Label: "Purchase Order price GST treatment", Type: SettingTypeSelect, Default: GSTModeInclusive,
 		Options: []SettingOption{
 			{Value: GSTModeExclusive, Label: "Exclusive - GST is added on top of the purchase price"},
 			{Value: GSTModeInclusive, Label: "Inclusive - the purchase price already contains GST"},

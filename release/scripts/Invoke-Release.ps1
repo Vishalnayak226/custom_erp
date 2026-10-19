@@ -225,7 +225,11 @@ foreach ($h in $cfg.hosts) { try { $live = Invoke-RestMethod -Uri "https://$h/ap
 if (-not $live -or -not $live.version -or -not $live.git_commit -or $live.git_commit -eq 'dev') { Stop-Release 'cannot read the live release number from production (/api/v1/version)' }
 & git -C $wt cat-file -e "$($live.git_commit)^{commit}" 2>$null
 if ($LASTEXITCODE -ne 0) { Stop-Release "the live commit $($live.git_commit) is not in this repo's history" }
-$codeShips = @($ship | Where-Object { $_.Path -notlike 'docs/*' -and $_.Path -notlike '*.md' }).Count -gt 0
+function Test-Code([string]$p) { $p -and $p -notlike 'docs/*' -and $p -notlike '*.md' }
+# Code in the tree, or in commits made since origin outside this script: either
+# means the full suite (G10) and a MINOR bump.
+$codeShips = @($ship | Where-Object { Test-Code $_.Path }).Count -gt 0 -or
+             @((Invoke-Git @('diff', '--name-only', 'origin/main', 'HEAD')) | Where-Object { Test-Code $_ }).Count -gt 0
 $sinceLive = Invoke-Native -Exe $go -Arguments @('run', './cmd/releasever', '-previous', $live.version, '-since', $live.git_commit) -WorkDir $wt
 $existing = ($sinceLive | Where-Object { $_ -match '^\d+\.\d+\.\d+$' } | Select-Object -Last 1)
 $lv = [int[]]($live.version -split '\.'); $ev = [int[]]($existing -split '\.')
@@ -240,6 +244,8 @@ Note "release $releaseVersion (live $($live.version) at $($live.git_commit); thi
 
 # ------------------------------------------------- G5 generated Go and reports
 Write-Gate 'G5 Report catalog spec'
+# Always regenerated, even when its inputs did not change: a stale file
+# committed outside Release.cmd must still be caught (accuracy before speed).
 if (Test-Path (Join-Path $wt 'cmd/gencatalog')) {
     $specTmp = Join-Path $env:TEMP "release_spec_$ts.go"
     Invoke-Native -Exe $go -Arguments @('run', './cmd/gencatalog', '-out', $specTmp) -WorkDir $wt | Out-Null
@@ -254,15 +260,21 @@ $surfTmp = Join-Path $env:TEMP "release_surface_$ts.json"
 Invoke-Native -Exe $go -Arguments @('run', './cmd/surfacescan', '-out', $surfTmp) -WorkDir $wt | Out-Null
 Copy-Item $surfTmp (Join-Path $wt 'docs/security/attack_surface.json') -Force
 Remove-Item $surfTmp -ErrorAction SilentlyContinue
-Invoke-Native -Exe $go -Arguments @('run', './cmd/surfacescan', '-check') -WorkDir $wt | Out-Null
-Note 'attack_surface.json regenerated from the release set'
+Note 'attack_surface.json regenerated from the release set'   # the full suite's surface test re-checks it
 
 # ---------------------------------------------------------------- G7 docs
 Write-Gate 'G7 Guides, KB, brain, register'
+# The code graph only reads code and writes graphify-out/, so it builds while
+# the KB is generated (Stage 109.9); the brain needs both.
+$graphLog = Join-Path $env:TEMP "release_graphify_$ts.log"
+$graph = Start-Process -FilePath 'graphify' -ArgumentList @('update', '.') -WorkingDirectory $wt -RedirectStandardOutput $graphLog -RedirectStandardError "$graphLog.err" -NoNewWindow -PassThru
+$null = $graph.Handle
 $kb = Invoke-Docs 'KB'
 if (-not $kb.ok) { Stop-Release "update-docs -Group KB failed:`n$(($kb.out | Select-Object -Last 15) -join "`n")" }
 Note (($kb.out | Where-Object { $_ -match 'Published' }) -join ' ')
-Invoke-Native -Exe 'graphify' -Arguments @('update', '.') -WorkDir $wt | Out-Null
+$graph.WaitForExit()
+if ($graph.ExitCode -ne 0) { Stop-Release "graphify update failed:`n$((Get-Content $graphLog, "$graphLog.err" -ErrorAction SilentlyContinue | Select-Object -Last 10) -join "`n")" }
+Remove-Item $graphLog, "$graphLog.err" -ErrorAction SilentlyContinue
 # brainmap itself names the files no region claims (update-docs only reports
 # that the generator failed), so ask it first.
 $brainTmp = Join-Path $env:TEMP "release_brain_$ts"
@@ -302,25 +314,48 @@ $brain = Invoke-Docs 'Brain'
 if (-not $brain.ok) { Stop-Release "brain redraw failed:`n$(($brain.out | Select-Object -Last 15) -join "`n")" }
 Note 'brain redrawn (100% coverage)'
 $regTmp = Join-Path $env:TEMP "release_register_$ts.json"
-Invoke-Native -Exe $go -Arguments @('run', './cmd/doclint', '-root', '.', '-write-register', $regTmp) -WorkDir $wt -AllowFail | Out-Null
+$lint = Invoke-Native -Exe $go -Arguments @('run', './cmd/doclint', '-root', '.', '-write-register', $regTmp) -WorkDir $wt -AllowFail
 if (-not (Test-Path $regTmp)) { Stop-Release 'doclint could not write the document register' }
 Copy-Item $regTmp (Join-Path $wt 'docs/governance/document-register.json') -Force
 Remove-Item $regTmp -ErrorAction SilentlyContinue
-$lint = Invoke-Native -Exe $go -Arguments @('run', './cmd/doclint', '-root', '.') -WorkDir $wt -AllowFail
-$lintBad = @($lint | Where-Object { $_ -match 'unregistered|missing registered|broken' })
+# One doclint run: the register it just wrote is the inventory, so nothing is
+# unregistered or missing any more; its broken-link findings stand as they are.
+$lintBad = @($lint | Where-Object { $_ -match 'broken' })
 if ($lintBad.Count) { Stop-Release "doclint: $($lintBad.Count) broken link / register problem(s):`n$(($lintBad | Select-Object -First 10) -join "`n")" }
 Note 'document register rewritten; no broken links'
 
 # ---------------------------------------------------------------- G8 static
 Write-Gate 'G8 Build, vet, JS, budget'
-Invoke-Native -Exe $go -Arguments @('build', './...') -WorkDir $wt | Out-Null
-Invoke-Native -Exe $go -Arguments @('vet', './...') -WorkDir $wt | Out-Null
-Note 'go build + go vet clean'
+# Build, vet, the budget and compiling the two test programs G10 runs only read
+# the tree, so they run side by side (Stage 109.10); the Go build cache is safe
+# to share between them.
+function Start-GoJob([string]$name, [string[]]$a) {
+    # The name goes into a file name: "compile internal/server tests" once made a
+    # folder path that did not exist (2026-10-19).
+    $log = Join-Path $env:TEMP ("release_g8_{0}_{1}.log" -f ($name -replace '[^A-Za-z0-9_-]', '_'), $ts)
+    $p = Start-Process -FilePath $go -ArgumentList $a -WorkingDirectory $wt -RedirectStandardOutput $log -RedirectStandardError "$log.err" -NoNewWindow -PassThru
+    $null = $p.Handle
+    [pscustomobject]@{ Name = $name; Proc = $p; Log = $log }
+}
+$testExes = [System.Collections.Generic.List[string]]::new()
+$goJobs = @((Start-GoJob 'build' @('build', './...')), (Start-GoJob 'vet' @('vet', './...')), (Start-GoJob 'budget' @('run', './cmd/releasebudget')))
+foreach ($p in @('engines', 'internal/server')) {
+    $exe = Join-Path $env:TEMP "release_$($p -replace '/', '_')_$ts.test.exe"
+    $testExes.Add($exe)
+    $goJobs += Start-GoJob "compile $p tests" @('test', '-c', '-o', $exe, "./$p")
+}
 $jsFiles = @($ship | Where-Object { $_.Code -ne ' D' -and $_.Path -like '*.js' } | ForEach-Object Path) + @('public/app.js') | Select-Object -Unique
 foreach ($js in $jsFiles) { Invoke-Native -Exe 'node' -Arguments @('--check', (Join-Path $wt $js)) | Out-Null }
 Note "node --check: $($jsFiles.Count) file(s)"
-$budget = Invoke-Native -Exe $go -Arguments @('run', './cmd/releasebudget') -WorkDir $wt -AllowFail
-$budgetText = $budget -join "`n"
+$budgetText = ''
+foreach ($j in $goJobs) {
+    $j.Proc.WaitForExit()
+    $out = @(Get-Content -LiteralPath $j.Log -ErrorAction SilentlyContinue) + @(Get-Content -LiteralPath "$($j.Log).err" -ErrorAction SilentlyContinue)
+    Remove-Item -LiteralPath $j.Log, "$($j.Log).err" -ErrorAction SilentlyContinue
+    if ($j.Name -eq 'budget') { $budgetText = $out -join "`n"; continue }   # judged by its report, below
+    if ($j.Proc.ExitCode -ne 0) { Stop-Release "go $($j.Name) failed:`n$(($out | Select-Object -Last 20) -join "`n")" }
+}
+Note 'go build + go vet clean; test programs compiled'
 if ($budgetText -match '"status":\s*"over') {
     $over = [regex]::Matches($budgetText, '"(\w+)":\s*\{[^{}]*"value":\s*(\d+)[^{}]*"limit":\s*(\d+)[^{}]*"status":\s*"over_budget"') | ForEach-Object { "$($_.Groups[1].Value) $($_.Groups[2].Value) > $($_.Groups[3].Value)" }
     Stop-Release "release budget over: $($over -join '; '). The cold core counts view-pos.js too - move new code into a lazily loaded module"
@@ -339,48 +374,157 @@ Note "$($newMigrations.Count) new migration(s); the Deploy click asks before run
 
 # ------------------------------------------------- G10 fresh database + tests
 # Every migration from empty (the shared custom_erp hides ordering and
-# from-zero bugs), then the whole suite on that database, one package at a time.
-Write-Gate 'G10 Fresh database, migrations, full tests'
+# from-zero bugs), then the suite. Packages share test data, so each test
+# process gets its own copy of the migrated database (CREATE DATABASE ...
+# TEMPLATE, a file copy) and up to four run side by side: the engines tests in
+# three groups, internal/server, then the small packages. One package at a
+# time on one database took ~15 minutes (Stage 109.9). Four at a time, not
+# more: a test process may open 50 connections and local Postgres allows 100.
+# Every release runs the whole suite (a docs change can break server tests).
+Write-Gate 'G10 Fresh database, migrations, tests'
+function Get-DbUrl([string]$name) { "postgres://$($cfg.pgUser)@$($cfg.pgHost):$($cfg.pgPort)/$($name)?sslmode=disable" }
 Invoke-Native -Exe $cfg.psql -Arguments ($pgArgs + "CREATE DATABASE $scratchDb") | Out-Null
-$dbUrl = "postgres://$($cfg.pgUser)@$($cfg.pgHost):$($cfg.pgPort)/$($scratchDb)?sslmode=disable"
 $serverExe = Join-Path $env:TEMP "release_erp_server_$ts.exe"
 Invoke-Native -Exe $go -Arguments @('build', '-o', $serverExe, './cmd/server') -WorkDir $wt | Out-Null
-$env:DATABASE_URL = $dbUrl; $env:TEST_DATABASE_URL = $dbUrl
+$copies = [System.Collections.Generic.List[string]]::new()   # $testExes was compiled in G8
+$logDir = Join-Path $env:TEMP "release_tests_$ts"
+New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+$savedPath = $env:PATH
+# `go test` puts Go's own bin first on PATH for tests that run go; the compiled
+# test binaries below are started directly, so do the same.
+$env:PATH = "$goDir;$env:PATH"
 try {
+    $env:DATABASE_URL = Get-DbUrl $scratchDb; $env:TEST_DATABASE_URL = $env:DATABASE_URL
     $mig = Invoke-Native -Exe $serverExe -Arguments @('-migrate') -WorkDir $env:TEMP -AllowFail
     if ($LASTEXITCODE -ne 0) { Stop-Release "migrate from empty failed:`n$(($mig | Select-Object -Last 15) -join "`n")" }
     if ($mig | Where-Object { $_ -match '\[sync-warn\]' }) { Stop-Release "migrate printed [sync-warn]:`n$(($mig | Where-Object { $_ -match 'sync-warn' }) -join "`n")" }
     Note (($mig | Where-Object { $_ -match '^Applied' }) -join ' ')
-    $testLog = Join-Path $reportDir "release-$ts-tests.log"
-    Write-Host '   running the full test suite (about 10-15 minutes)...'
-    $tests = Invoke-Native -Exe $go -Arguments @('test', './...', '-p', '1', '-count=1', '-timeout', $cfg.testTimeout) -WorkDir $wt -AllowFail
-    $tests | Set-Content -LiteralPath $testLog -Encoding utf8
-    if ($LASTEXITCODE -ne 0) {
-        if ($tests | Where-Object { $_ -match '\[build failed\]|^panic:|setup failed' }) { Stop-Release "tests did not build or panicked - see $testLog" }
-        # Which tests failed, in which package.
-        $failed = [System.Collections.Generic.List[object]]::new(); $pending = @()
-        foreach ($l in $tests) {
-            if ($l -match '^\s*--- FAIL: (\w+)') { $pending += $Matches[1] }
-            elseif ($l -match '^(FAIL|ok)\s+(custom_erp/\S+)') { foreach ($t in $pending | Select-Object -Unique) { $failed.Add([pscustomobject]@{ Pkg = $Matches[2]; Test = $t }) }; $pending = @() }
-        }
-        if (-not $failed.Count) { Stop-Release "tests failed without a named test - see $testLog" }
-        $still = @()
-        foreach ($f in $failed) {
-            $passed = $false
-            for ($r = 1; $r -le [int]$cfg.flakyReruns -and -not $passed; $r++) {
-                Invoke-Native -Exe $go -Arguments @('test', $f.Pkg, '-run', "^$($f.Test)$", '-count=1') -WorkDir $wt -AllowFail | Out-Null
-                $passed = ($LASTEXITCODE -eq 0)
-            }
-            if ($passed) { $state.flaky += "$($f.Pkg) $($f.Test)"; Note "flaky (failed once, passed on rerun): $($f.Test)" } else { $still += "$($f.Pkg) $($f.Test)" }
-        }
-        if ($still.Count) { Stop-Release "tests fail: $($still -join ', ') - see $testLog" }
+
+    # The jobs.
+    $pkgs = @((Invoke-Native -Exe $go -Arguments @('list', '-f', '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}', './...') -WorkDir $wt) | Where-Object { $_ })
+    $jobs = [System.Collections.Generic.List[object]]::new()
+    $timesPath = Join-Path $reportDir 'test-times.json'
+    $times = @{}
+    function New-TestJob($name, $kind, $pkg, $exe, $dir, $run, $pkgList) {
+        [pscustomobject]@{ Name = $name; Kind = $kind; Pkg = $pkg; Exe = $exe; Dir = $dir; Run = $run; Pkgs = $pkgList; Db = ''; Out = ''; Proc = $null; Code = $null; Expect = @() }
     }
-    Note "full test suite green ($(@($tests | Where-Object { $_ -match '^ok\s' }).Count) packages)"
+    # Always the whole suite, docs-only or not: server tests check the help
+    # links into KB articles, so a docs change can break them.
+    if ($true) {
+        $engDir = Join-Path $wt 'engines'
+        # Tests, examples and fuzz seeds - everything `go test` runs (benchmarks it skips).
+        $names = @((Invoke-Native -Exe $testExes[0] -Arguments @('-test.list', '.*') -WorkDir $engDir) | Where-Object { $_ -match '^(Test|Example|Fuzz)\w*$' } | Sort-Object)
+        # Three groups of equal running time, from each test's time in the last
+        # run (reports\test-times.json; an unknown test counts as the median):
+        # longest first, each into the group with the least so far. Round-robin
+        # left one group 45 s behind the others (2026-10-19).
+        $times = @{}
+        if (Test-Path $timesPath) { try { (Get-Content $timesPath -Raw | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $times[$_.Name] = [double]$_.Value } } catch { } }
+        $median = if ($times.Count) { @($times.Values | Sort-Object)[[int]($times.Count / 2)] } else { 1.0 }
+        $cost = { param($n) if ($times.ContainsKey($n)) { $times[$n] } else { $median } }
+        $groups = 3
+        $bucket = @(for ($g = 0; $g -lt $groups; $g++) { , [System.Collections.Generic.List[string]]::new() })
+        $load = [double[]]::new($groups)
+        foreach ($n in ($names | Sort-Object { - (& $cost $_) })) {
+            $k = 0; for ($g = 1; $g -lt $groups; $g++) { if ($load[$g] -lt $load[$k]) { $k = $g } }
+            $bucket[$k].Add($n); $load[$k] += (& $cost $n)
+        }
+        for ($g = 0; $g -lt $groups; $g++) {
+            $jobs.Add((New-TestJob "engines$($g + 1)" 'exe' 'custom_erp/engines' $testExes[0] $engDir "^($($bucket[$g] -join '|'))$" @()))
+            $jobs[$jobs.Count - 1].Expect = @($bucket[$g])
+        }
+        Note ("engines groups by last run's times: {0}" -f (($load | ForEach-Object { '{0:n0}s' -f $_ }) -join ' / '))
+        $srvDir = Join-Path $wt 'internal/server'
+        $srvNames = @((Invoke-Native -Exe $testExes[1] -Arguments @('-test.list', '.*') -WorkDir $srvDir) | Where-Object { $_ -match '^(Test|Example|Fuzz)\w*$' })
+        $jobs.Add((New-TestJob 'server' 'exe' 'custom_erp/internal/server' $testExes[1] $srvDir "^($($srvNames -join '|'))$" @()))
+        $jobs[$jobs.Count - 1].Expect = $srvNames
+        $jobs.Add((New-TestJob 'small' 'go' '' $go $wt '' @($pkgs | Where-Object { $_ -notin @('custom_erp/engines', 'custom_erp/internal/server') })))
+    }
+
+    # Run them all at once, each on its own database copy: four database-heavy
+    # jobs (a test process may open 50 connections; local Postgres allows 100)
+    # plus the small packages, which barely touch the database.
+    $queue = [System.Collections.Generic.Queue[object]]::new($jobs)
+    $running = [System.Collections.Generic.List[object]]::new()
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    Write-Host "   $($jobs.Count) test job(s) side by side..."
+    while ($queue.Count -or $running.Count) {
+        while ($queue.Count -and $running.Count -lt 5) {
+            $j = $queue.Dequeue()
+            $j.Db = "$($scratchDb)_$($j.Name)"
+            Invoke-Native -Exe $cfg.psql -Arguments ($pgArgs + "CREATE DATABASE $($j.Db) TEMPLATE $scratchDb") | Out-Null
+            $copies.Add($j.Db)
+            $env:DATABASE_URL = Get-DbUrl $j.Db; $env:TEST_DATABASE_URL = $env:DATABASE_URL
+            $j.Out = Join-Path $logDir "$($j.Name).log"
+            # -test.v on the engines groups records each test's time for the next split.
+            $a = if ($j.Kind -eq 'exe') { @('-test.count=1', "-test.timeout=$($cfg.testTimeout)") + $(if ($j.Run) { @('-test.v', '-test.run', $j.Run) } else { @() }) }
+                 else { @('test') + $j.Pkgs + @('-p', '1', '-count=1', '-timeout', $cfg.testTimeout) }
+            $j.Proc = Start-Process -FilePath $j.Exe -ArgumentList $a -WorkingDirectory $j.Dir -RedirectStandardOutput $j.Out -RedirectStandardError "$($j.Out).err" -NoNewWindow -PassThru
+            $null = $j.Proc.Handle   # keeps the exit code readable after the process ends
+            $running.Add($j)
+        }
+        Start-Sleep -Milliseconds 500
+        foreach ($j in @($running | Where-Object { $_.Proc.HasExited })) {
+            $j.Proc.WaitForExit(); $j.Code = $j.Proc.ExitCode; $running.Remove($j) | Out-Null
+            Write-Host ("   {0,-9} {1} at {2:mm\:ss}" -f $j.Name, $(if ($j.Code -eq 0) { 'ok' } else { "FAILED ($($j.Code))" }), $clock.Elapsed)
+        }
+    }
+    # Each engines test's time, kept for the next run's split.
+    $newTimes = @{} + $times
+    foreach ($j in $jobs | Where-Object { $_.Run }) {
+        foreach ($l in Get-Content -LiteralPath $j.Out) { if ($l -match '^--- (PASS|FAIL|SKIP): (Test\w+) \(([\d.]+)s\)') { $newTimes[$Matches[2]] = [double]$Matches[3] } }
+    }
+    if ($newTimes.Count) { $newTimes | ConvertTo-Json | Set-Content -LiteralPath $timesPath -Encoding utf8 }
+    $testLog = Join-Path $reportDir "release-$ts-tests.log"
+    $all = foreach ($j in $jobs) { "===== $($j.Name)"; Get-Content -LiteralPath $j.Out; Get-Content -LiteralPath "$($j.Out).err" -ErrorAction SilentlyContinue }
+    $all | Set-Content -LiteralPath $testLog -Encoding utf8
+
+    # Which tests failed; a failure that passes on rerun (alone, on the same copy) is flaky.
+    $failed = [System.Collections.Generic.List[object]]::new()
+    foreach ($j in $jobs | Where-Object { $_.Code -ne 0 }) {
+        $lines = @(Get-Content -LiteralPath $j.Out) + @(Get-Content -LiteralPath "$($j.Out).err" -ErrorAction SilentlyContinue)
+        if ($lines | Where-Object { $_ -match '\[build failed\]|^panic:|setup failed' }) { Stop-Release "test job $($j.Name) did not build or panicked - see $testLog" }
+        $pending = @(); $found = 0
+        foreach ($l in $lines) {
+            if ($l -match '^\s*--- FAIL: (\w+)') { $pending += $Matches[1] }
+            elseif ($j.Kind -eq 'go' -and $l -match '^(FAIL|ok)\s+(custom_erp/\S+)') { foreach ($t in $pending | Select-Object -Unique) { $failed.Add([pscustomobject]@{ Job = $j; Pkg = $Matches[2]; Test = $t }); $found++ }; $pending = @() }
+        }
+        if ($j.Kind -eq 'exe') { foreach ($t in $pending | Select-Object -Unique) { $failed.Add([pscustomobject]@{ Job = $j; Pkg = $j.Pkg; Test = $t }); $found++ } }
+        if (-not $found) { Stop-Release "test job $($j.Name) failed without a named test - see $testLog" }
+    }
+    $still = @()
+    foreach ($f in $failed) {
+        $env:DATABASE_URL = Get-DbUrl $f.Job.Db; $env:TEST_DATABASE_URL = $env:DATABASE_URL
+        $passed = $false
+        for ($r = 1; $r -le [int]$cfg.flakyReruns -and -not $passed; $r++) {
+            if ($f.Job.Kind -eq 'exe') { Invoke-Native -Exe $f.Job.Exe -Arguments @('-test.run', "^$($f.Test)$", '-test.count=1') -WorkDir $f.Job.Dir -AllowFail | Out-Null }
+            else { Invoke-Native -Exe $go -Arguments @('test', $f.Pkg, '-run', "^$($f.Test)$", '-count=1') -WorkDir $wt -AllowFail | Out-Null }
+            $passed = ($LASTEXITCODE -eq 0)
+        }
+        if ($passed) { $state.flaky += "$($f.Pkg) $($f.Test)"; Note "flaky (failed once, passed on rerun): $($f.Test)" } else { $still += "$($f.Pkg) $($f.Test)" }
+    }
+    if ($still.Count) { Stop-Release "tests fail: $($still -join ', ') - see $testLog" }
+    # More than a few flaky tests is a pattern, not luck - stop rather than ship it.
+    if ($state.flaky.Count -gt 3) { Stop-Release "$($state.flaky.Count) tests failed and then passed on rerun ($($state.flaky -join ', ')) - too many to call flaky; see $testLog" }
+    # Every test ran: each group must report a result for every test it was
+    # given (splitting the suite must never drop one silently).
+    foreach ($j in $jobs | Where-Object { $_.Expect.Count }) {
+        $seen = @{}
+        foreach ($l in Get-Content -LiteralPath $j.Out) { if ($l -match '^--- (PASS|FAIL|SKIP): (\w+) \(') { $seen[$Matches[2]] = $true } }
+        $missing = @($j.Expect | Where-Object { -not $seen.ContainsKey($_) })
+        if ($missing.Count) { Stop-Release "test job $($j.Name) never reported $($missing.Count) of its $($j.Expect.Count) tests ($(($missing | Select-Object -First 5) -join ', ')) - see $testLog" }
+    }
+    $ranCount = ($jobs | ForEach-Object { $_.Expect.Count } | Measure-Object -Sum).Sum
+    Note "all $ranCount engines + server tests, examples and fuzz seeds reported a result"
+    Note ("tests green: {0} in {1:mm\:ss} ({2})" -f (($jobs | ForEach-Object Name) -join ', '), $clock.Elapsed, 'engines in 3 groups, each job on its own database copy')
 } finally {
+    $env:PATH = $savedPath
     Remove-Item Env:\DATABASE_URL, Env:\TEST_DATABASE_URL -ErrorAction SilentlyContinue
     Remove-Item $serverExe -ErrorAction SilentlyContinue
+    foreach ($e in $testExes) { Remove-Item $e -ErrorAction SilentlyContinue }
+    Remove-Item $logDir -Recurse -Force -ErrorAction SilentlyContinue
 }
-Invoke-Native -Exe $cfg.psql -Arguments ($pgArgs + "DROP DATABASE IF EXISTS $scratchDb") -AllowFail | Out-Null
+foreach ($db in @($copies) + $scratchDb) { Invoke-Native -Exe $cfg.psql -Arguments ($pgArgs + "DROP DATABASE IF EXISTS $db") -AllowFail | Out-Null }
 
 if ($DryRun) {
     $state.status = 'dry-run passed'
@@ -434,6 +578,11 @@ if ($tree -ne $headTree) {
     # Message: the ledger sections this release adds, else the new checklist stages.
     $titles = @((Invoke-Git @('diff', '--cached', 'HEAD', '--', 'docs/project_ledger.md') $wt) | Where-Object { $_ -match '^\+## \d+\. ' } | ForEach-Object { ($_ -replace '^\+## \d+\.\s*', '') -replace '\s*\(\d{4}-.*$', '' })
     if (-not $titles.Count) { $titles = @((Invoke-Git @('diff', '--cached', 'HEAD', '--', 'docs/micro_checklist.md') $wt) | Where-Object { $_ -match '^\+## Stage ' } | ForEach-Object { ($_ -replace '^\+## ', '') -replace '\s*\(opened.*$', '' }) }
+    if (-not $titles.Count) {
+        # No new ledger section or stage: name the checklist items this release adds or moves (0.6.0 said only "39 file(s)").
+        $ids = @((Invoke-Git @('diff', '--cached', 'HEAD', '--', 'docs/micro_checklist.md') $wt) | ForEach-Object { if ($_ -match '^\+- \[[ x]\] \*\*([0-9][0-9A-Za-z.]*) ') { $Matches[1] } } | Select-Object -Unique)
+        if ($ids.Count) { $titles = @('items ' + (($ids | Select-Object -First 12) -join ', ') + $(if ($ids.Count -gt 12) { " (+$($ids.Count - 12) more)" } else { '' })) }
+    }
     # feat: / docs: so cmd/releasever counts this commit the way G4b did.
     $subject = if ($titles.Count) { "${releaseKind}: release $releaseVersion - " + (($titles | Select-Object -First 4) -join '; ') } else { "${releaseKind}: release $releaseVersion - $($ns.Count) file(s)" }
     if ($subject.Length -gt 200) { $subject = $subject.Substring(0, 197) + '...' }

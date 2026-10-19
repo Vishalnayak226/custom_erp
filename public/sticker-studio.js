@@ -243,7 +243,7 @@ function sampleFor(f) {
 // Open / close
 // ---------------------------------------------------------------------------
 
-export async function openStickerStudio({ templateId = null, copyFrom = null, copyBuiltin = false, onClose = null } = {}) {
+export async function openStickerStudio({ templateId = null, copyFrom = null, copyBuiltin = false, copyDesign = '', onClose = null } = {}) {
   S.onClose = onClose;
   S.sel = new Set();
   S.undo = []; S.redo = [];
@@ -273,6 +273,19 @@ export async function openStickerStudio({ templateId = null, copyFrom = null, co
     t.name = 'Standard label copy';
     t.elements = E.DEFAULT_STICKER_TEMPLATE.elements.map(e => E.normaliseElement(Object.assign({}, e, { id: E.newElementId() })));
   }
+  // Stage 112.1: a ready design (Square, Ring...) copied into a template of
+  // your own - one the template rules can pick.
+  const design = copyDesign && E.READY_DESIGNS.find(d => d.id === copyDesign);
+  if (design) {
+    t = E.templateFromDoc({ label_width_mm: design.w, label_height_mm: design.h });
+    t.name = design.label;
+    t.settings.per_row = design.per_row || 1;
+    if (design.gap_h !== undefined) t.settings.gap_h_mm = design.gap_h;
+    if (design.gap_v !== undefined) t.settings.gap_v_mm = design.gap_v;
+    if (design.dpi) t.settings.dpi = design.dpi;
+    t.elements = design.elements.map(e => E.normaliseElement(Object.assign({}, e, { id: E.newElementId() })));
+  }
+  const copied = !!(copyFrom || copyBuiltin || design);
   S.isNew = !templateId;
   if (!t) {
     t = E.templateFromDoc({ label_width_mm: 50, label_height_mm: 25 });
@@ -282,10 +295,10 @@ export async function openStickerStudio({ templateId = null, copyFrom = null, co
   await loadFields();
   await E.ensureTemplateAssets(S.t);
   mount();
-  if (S.isNew && !copyFrom && !copyBuiltin) S.tab = 'label';
+  if (S.isNew && !copied) S.tab = 'label';
   fitZoom();
   refresh({ inspector: true });
-  if (S.isNew && !copyFrom && !copyBuiltin) showStarter();
+  if (S.isNew && !copied) showStarter();
   else S.root.querySelector('.stk-name').focus();
 }
 
@@ -1920,6 +1933,21 @@ export async function renderStickerTemplateGallery(container, { onChange } = {})
             </div>
           </div>
         </article>
+        ${E.READY_DESIGNS.map(d => `
+          <article class="stk-card is-builtin" data-design="${esc(d.id)}" data-name="${esc(d.label.toLowerCase())} built-in">
+            <button class="stk-card-thumb" data-g="design-dup" data-design="${esc(d.id)}" title="Duplicate to use it"><canvas></canvas></button>
+            <div class="stk-card-body">
+              <div class="stk-card-title">
+                <strong>${esc(d.label)}</strong>
+                <span class="badge">Built-in</span>
+              </div>
+              <div class="stk-card-meta">${round2(d.w)} × ${round2(d.h)} mm · ${d.dpi} dpi${d.per_row > 1 ? ` · ${d.per_row}-up` : ''} · ${d.elements.length} elements</div>
+              <div class="stk-card-cats"><span class="stk-muted">Duplicate it to print with it or pick it in a template rule</span></div>
+              <div class="stk-card-actions">
+                <button class="btn btn-outline btn-sm" data-g="design-dup" data-design="${esc(d.id)}">Duplicate</button>
+              </div>
+            </div>
+          </article>`).join('')}
         ${templates.map((t, i) => `
           <article class="stk-card ${t.status !== 'Active' ? 'is-inactive' : ''}" data-i="${i}" data-name="${esc((t.name + ' ' + t.code + ' ' + t.categories).toLowerCase())}">
             <button class="stk-card-thumb" data-g="open" data-i="${i}" title="Open in the studio"><canvas></canvas></button>
@@ -1945,7 +1973,11 @@ export async function renderStickerTemplateGallery(container, { onChange } = {})
     fields: new Proxy({}, { get: (o, k) => (typeof k === 'string' ? sampleFor({ key: k, label: k.replace(/_/g, ' '), type: '' }) : undefined) })
   });
   const std = E.templateFromDoc({ label_width_mm: E.DEFAULT_STICKER_TEMPLATE.w, label_height_mm: E.DEFAULT_STICKER_TEMPLATE.h, elements: E.DEFAULT_STICKER_TEMPLATE.elements });
-  E.paintPreview(panel.querySelector('.stk-card.is-builtin canvas'), std, label, { scale: Math.min(260 / std.w, 120 / std.h) });
+  E.paintPreview(panel.querySelector('.stk-card.is-builtin:not([data-design]) canvas'), std, label, { scale: Math.min(260 / std.w, 120 / std.h) });
+  for (const d of E.READY_DESIGNS) {
+    const t = E.templateFromDoc({ label_width_mm: d.w, label_height_mm: d.h, elements: d.elements });
+    E.paintPreview(panel.querySelector(`.stk-card[data-design="${d.id}"] canvas`), t, label, { scale: Math.min(260 / t.w, 120 / t.h) });
+  }
   for (let i = 0; i < templates.length; i++) {
     const t = templates[i];
     await E.ensureTemplateAssets(t);
@@ -1962,6 +1994,7 @@ export async function renderStickerTemplateGallery(container, { onChange } = {})
     if (b.dataset.g === 'open' && t) openStickerStudio({ templateId: t.id, onClose: reopen });
     if (b.dataset.g === 'dup' && t) openStickerStudio({ copyFrom: t.id, onClose: reopen });
     if (b.dataset.g === 'std-dup') openStickerStudio({ copyBuiltin: true, onClose: reopen });
+    if (b.dataset.g === 'design-dup') openStickerStudio({ copyDesign: b.dataset.design, onClose: reopen });
   });
   const search = panel.querySelector('.stk-gallery-search');
   if (search) search.addEventListener('input', () => {

@@ -63,10 +63,12 @@ type POLinePreview struct {
 // POPreview is everything the PO screen needs to render totals live, and
 // everything the printed PO needs for its tax block.
 type POPreview struct {
-	Lines         []POLinePreview `json:"lines"`
-	GSTMode       string          `json:"gst_mode"`
-	PlaceOfSupply PlaceOfSupply   `json:"place_of_supply"`
-	Breakdown     GSTBreakdown    `json:"breakdown"`
+	Lines   []POLinePreview `json:"lines"`
+	GSTMode string          `json:"gst_mode"`
+	// DefaultGSTMode is what a new PO starts on (Stage 110.2).
+	DefaultGSTMode string        `json:"default_gst_mode"`
+	PlaceOfSupply  PlaceOfSupply `json:"place_of_supply"`
+	Breakdown      GSTBreakdown  `json:"breakdown"`
 	// GrandTotal is what the vendor bills: taxable + non-taxable + tax.
 	GrandTotal float64 `json:"grand_total"`
 	// Blocking is true when at least one line could not be tax-classified, so
@@ -111,9 +113,10 @@ func PreviewPurchaseOrder(tenantID string, payload map[string]interface{}) (POPr
 	}
 
 	out := POPreview{
-		GSTMode:       ResolvePOGSTMode(tenantID, payload),
-		PlaceOfSupply: ResolvePlaceOfSupply(tenantID, location, vendor),
-		Lines:         make([]POLinePreview, 0, len(lines)),
+		GSTMode:        ResolvePOGSTMode(tenantID, payload),
+		DefaultGSTMode: DefaultPOGSTMode(tenantID),
+		PlaceOfSupply:  ResolvePlaceOfSupply(tenantID, location, vendor),
+		Lines:          make([]POLinePreview, 0, len(lines)),
 	}
 
 	// A maker's explicit override wins over the derivation, exactly as it does

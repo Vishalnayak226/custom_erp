@@ -413,12 +413,18 @@ func ComputePurchaseOrderGST(tenantID string, payload map[string]interface{}) (G
 }
 
 // ResolvePOGSTMode decides whether a PO's line rates already include GST:
-// the PO's own gst_mode if it sets one, otherwise the tenant default
-// (procurement.po_gst_mode), which ships as Exclusive.
+// the PO's own gst_mode if it sets one, otherwise the tenant's chosen default
+// (procurement.po_gst_mode) if an admin set one.
 //
-// An unrecognised value resolves to the tenant default rather than silently
-// picking a convention, so a typo in an API payload cannot quietly change what
-// a vendor is paid.
+// Stage 110.2: the shipped default became Inclusive and every new PO is
+// stamped with its mode when created (DefaultPOGSTMode). A PO with no mode
+// was saved before that on "Tenant default" when the shipped default was
+// Exclusive, so it stays Exclusive - its prices, GRN rates and print do not
+// change under it.
+//
+// An unrecognised value resolves the same way rather than silently picking a
+// convention, so a typo in an API payload cannot quietly change what a
+// vendor is paid.
 func ResolvePOGSTMode(tenantID string, payload map[string]interface{}) string {
 	mode, _ := payload["gst_mode"].(string)
 	switch strings.TrimSpace(mode) {
@@ -427,8 +433,28 @@ func ResolvePOGSTMode(tenantID string, payload map[string]interface{}) string {
 	case GSTModeInclusive:
 		return GSTModeInclusive
 	}
-	if GetSettingString(tenantID, "procurement.po_gst_mode") == GSTModeInclusive {
+	if SettingIsOverridden(tenantID, settingPOGSTMode) && GetSettingString(tenantID, settingPOGSTMode) == GSTModeInclusive {
 		return GSTModeInclusive
 	}
 	return GSTModeExclusive
+}
+
+const settingPOGSTMode = "procurement.po_gst_mode"
+
+// DefaultPOGSTMode is the mode a new PO takes when it does not say: the
+// tenant setting, Inclusive unless an admin chose Exclusive (Stage 110.2).
+func DefaultPOGSTMode(tenantID string) string {
+	if GetSettingString(tenantID, settingPOGSTMode) == GSTModeExclusive {
+		return GSTModeExclusive
+	}
+	return GSTModeInclusive
+}
+
+// StampNewPOGSTMode writes the default mode onto a new PO that has none, so
+// no PO saved from Stage 110 on depends on what the default is later.
+func StampNewPOGSTMode(tenantID string, payload map[string]interface{}) {
+	mode, _ := payload["gst_mode"].(string)
+	if m := strings.TrimSpace(mode); m != GSTModeExclusive && m != GSTModeInclusive {
+		payload["gst_mode"] = DefaultPOGSTMode(tenantID)
+	}
 }

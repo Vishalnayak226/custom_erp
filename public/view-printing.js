@@ -249,6 +249,9 @@ async function renderStickerPrintTab(container) {
         <label class="form-label" for="sticker-sku-input">Scan or Enter SKU</label>
         <input type="text" id="sticker-sku-input" class="form-input" placeholder="Barcode / SKU, then Enter" autocomplete="off">
       </div>
+      <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px; white-space: nowrap;" title="Each scan prints its sticker straight away - with the loaded document's lot when the item is on it">
+        <input type="checkbox" id="sticker-print-on-scan"> Print on scan
+      </label>
       <button class="btn btn-outline" id="sticker-add-btn">Add</button>
     </div>
     <div id="sticker-sku-list" style="margin-bottom: 16px; font-size: 13px; color: var(--text-muted);"></div>
@@ -288,6 +291,10 @@ async function renderStickerPrintTab(container) {
   historyHtml += `</tbody></table>`;
   historyPanel.innerHTML = historyHtml;
 
+  // Stage 111.2: on by default; the choice is remembered on this computer.
+  const onScan = document.getElementById('sticker-print-on-scan');
+  try { onScan.checked = localStorage.getItem('sticker-print-on-scan') !== '0'; } catch (_) { onScan.checked = true; }
+  onScan.addEventListener('change', () => { try { localStorage.setItem('sticker-print-on-scan', onScan.checked ? '1' : '0'); } catch (_) { /* storage off */ } });
   document.getElementById('sticker-add-btn').addEventListener('click', addStickerSKU);
   document.getElementById('sticker-sku-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -334,7 +341,7 @@ function renderStickerSourcePanel(container, printers) {
   doctypeSelect.value = stickerSourceDoctype;
   const docInput = document.getElementById('sticker-source-doc');
   const attachSourcePicker = () => {
-    attachLinkTypeahead(docInput, doctypeSelect.value, { noSetupHint: true });
+    attachLinkTypeahead(docInput, doctypeSelect.value, { noSetupHint: true, showAllOnFocus: true });
   };
   attachSourcePicker();
 
@@ -372,10 +379,19 @@ async function loadStickerSourcePreview() {
   const errorEl = document.getElementById('sticker-source-error');
   errorEl.classList.add('hidden');
   const doctype = document.getElementById('sticker-source-doctype').value;
-  const docId = document.getElementById('sticker-source-doc').value.trim();
+  let docId = document.getElementById('sticker-source-doc').value.trim();
   stickerSourceDoctype = doctype;
-  stickerSourceDocId = docId;
   if (!docId) return;
+  const resolved = await resolveStickerSourceDoc(doctype, docId);
+  if (resolved.error) {
+    errorEl.textContent = resolved.error;
+    errorEl.classList.remove('hidden');
+    stickerSourceLines = [];
+    renderStickerSourceLines();
+    return;
+  }
+  docId = resolved.id;
+  stickerSourceDocId = docId;
 
   const [res, tplRes] = await Promise.all([
     apiFetch(`/api/v1/stickers/preview?source_doctype=${encodeURIComponent(doctype)}&source_doc_id=${encodeURIComponent(docId)}`),
@@ -405,6 +421,27 @@ async function loadStickerSourcePreview() {
     stickerSourceCopies[i] = l.qty;
   });
   renderStickerSourceLines();
+}
+
+// Stage 111.1: "00048" or "26-27/00048" finds GRN/HO/26-27/00048 when only one
+// document ends that way; several or none say so in words.
+async function resolveStickerSourceDoc(doctype, text) {
+  const res = await apiFetch(`/api/v1/doc/${encodeURIComponent(doctype)}?q=${encodeURIComponent(text)}&limit=20`);
+  if (!res || !res.ok) return { id: text };
+  const rows = (await res.json()) || [];
+  const lower = text.toLowerCase();
+  const idOf = d => String(d.id || d.code || '');
+  const exact = rows.find(d => idOf(d).toLowerCase() === lower || String(d.code || '').toLowerCase() === lower);
+  if (exact) return { id: idOf(exact) };
+  const ends = rows.filter(d => idOf(d).toLowerCase().endsWith(lower));
+  const pool = ends.length ? ends : rows;
+  if (pool.length === 1) {
+    document.getElementById('sticker-source-doc').value = idOf(pool[0]);
+    return { id: idOf(pool[0]) };
+  }
+  const what = doctype === 'GRN' ? 'goods receipt' : 'document';
+  if (pool.length === 0) return { error: `No ${what} has "${text}" in its number. Click the box to see the latest ones and pick one.` };
+  return { error: `${pool.length} ${what}s have "${text}" in their number (${pool.slice(0, 4).map(idOf).join(', ')}${pool.length > 4 ? ', ...' : ''}). Type more of the number or pick one from the list.` };
 }
 
 // Lines are addressed by their index in stickerSourceLines, not by SKU: a SKU
@@ -539,10 +576,53 @@ function addStickerSKU() {
   const input = document.getElementById('sticker-sku-input');
   const sku = input.value.trim();
   if (!sku) return;
+  const onScan = document.getElementById('sticker-print-on-scan');
+  if (onScan && onScan.checked) {
+    input.value = '';
+    input.focus();
+    printScannedSticker(sku);
+    return;
+  }
   if (!stickerSKUs.includes(sku)) stickerSKUs.push(sku);
   input.value = '';
   input.focus();
   renderStickerSKUList();
+}
+
+// Stage 111.2: one scan, one print. With a document loaded and the item on it,
+// the sticker carries that line's lot; otherwise it prints from the item.
+// The station stays open for the next scan.
+async function printScannedSticker(code) {
+  const errorEl = document.getElementById('sticker-form-error');
+  const listEl = document.getElementById('sticker-sku-list');
+  errorEl.classList.add('hidden');
+  const printerCode = document.getElementById('sticker-printer').value;
+  if (!printerCode) {
+    errorEl.textContent = 'Select a printer first, then scan again.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  const copies = parseInt(document.getElementById('sticker-copies').value, 10) || 1;
+  const reprintReason = document.getElementById('sticker-reprint-reason').value.trim();
+  const lower = code.toLowerCase();
+  const idx = stickerSourceLines.findIndex(l => String(l.sku).toLowerCase() === lower || String(l.barcode || '').toLowerCase() === lower);
+  const line = idx >= 0 ? stickerSourceLines[idx] : null;
+  const body = line
+    ? { lines: [{ sku: line.sku, batch_no: line.batch_no || '', copies, template_id: stickerSourceTemplates[idx] || '' }],
+        printer_code: printerCode, reprint_reason: reprintReason, source_doctype: stickerSourceDoctype, source_doc_id: stickerSourceDocId }
+    : { skus: [code], printer_code: printerCode, reprint_reason: reprintReason, copies };
+  const res = await apiFetch('/api/v1/stickers/print', { method: 'POST', body: stickerPrintBody(body) });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = `${code}: ${data.error || 'could not print.'}`;
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  stickerPendingPrint = null;
+  await printStickerRun(data, { printerCode, copies: line ? 1 : copies, jobRef: line ? stickerSourceDocId : '' });
+  if (listEl) listEl.textContent = `Printed ${copies} × ${line ? line.sku : code}${line && line.batch_no ? ` (lot ${line.batch_no})` : ''}. Scan the next one.`;
+  document.getElementById('sticker-sku-input').focus();
 }
 
 function removeStickerSKU(sku) {

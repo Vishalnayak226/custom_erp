@@ -562,7 +562,7 @@ Inside every store the stock sits in **locations**: **Main** (the selling floor)
    - **Vendor** — start typing and pick the supplier from the list.
    - **Billing address** — which of your stores or warehouses is buying. This decides who the vendor invoices, and it's half of how the system works out your GST (see §6.2). The store's address, state and GSTIN show in grey under the box.
    - **Shipping address** — where the goods should physically arrive. It fills in with the billing store as soon as you pick one (shown as *"Same as billing"*); pick a different store or warehouse if the goods go elsewhere.
-   - **GST treatment of purchase price** — leave it on "Tenant default" unless this particular vendor quotes differently. See §6.2.
+   - **GST treatment of purchase price** — a new PO starts on your business's default (**Inclusive** unless your administrator chose otherwise); change it only when this particular vendor quotes the other way. See §6.2.
 
    **An address is wrong?** Click **Edit store** under it. That store's own form opens with its address; correct it and **Save**, and you come straight back to your purchase order with the new address shown. The address belongs to the store, so the correction applies everywhere that store is used — later orders, receipts and prints. (You only see **Edit store** if your role may edit stores.)
 3. **Add your items.** The add row sits under the header boxes. For each line:
@@ -630,10 +630,12 @@ Two things decide the tax on a PO, and the screen works both out for you.
 
 **Does the price you typed already include GST?**
 
-- **Exclusive** (the usual case, and the default) — the Purchase Price is the base price and GST is added on top. Type 450 at 5% and the line comes to 472.50.
-- **Inclusive** — the price already has GST in it. Type 450 at 5% and the line stays 450, of which 21.43 is tax.
+- **Inclusive** (the default) — the price already has GST in it. Type 450 at 5% and the line stays 450, of which 21.43 is tax.
+- **Exclusive** — the Purchase Price is the base price and GST is added on top. Type 450 at 5% and the line comes to 472.50.
 
-Your administrator sets which one is normal for your business (Admin Guide → Configuration → Procurement → "Purchase Order price GST treatment"). The dropdown on the PO screen shows what that default is, and you can override it on any single PO where a particular vendor quotes the other way.
+Your administrator sets which one is normal for your business (Admin Guide → Configuration → Procurement → "Purchase Order price GST treatment"). A new PO starts on it, and you can change it on any single PO where a particular vendor quotes the other way. A PO saved before the default became Inclusive (October 2026) on "Tenant default" keeps the treatment it was priced with.
+
+The goods receipt follows the PO: lines from an **Inclusive** PO show the **PO Rate**, **Invoice Rate** and **Value** incl. GST (the column headings say so, or the row does when a receipt mixes POs), so you key the vendor's price exactly as the bill and the PO show it.
 
 **Is it inter-state or intra-state?**
 
@@ -862,7 +864,7 @@ A goods receipt (GRN) is worked in five steps, each on its own page with one mai
 2. Pick the **Vendor** first. Their approved POs with anything still open appear underneath, each with its date, items, open quantity and value. Tick the ones this delivery is for and click **Load ticked POs**. You can still type a PO number and click **Add PO & Load Items**, or **Load Items from ASN**. Only one vendor's POs go on one receipt; each PO shows as a chip (× removes it with its lines).
 3. On each line, type what really arrived in **Received** - it starts at the PO's open quantity. Scanning an item that is already on the receipt (into the **SKU** box, with no quantity typed) counts one more unit, with a short beep.
    Goods set aside at the door go in **Rejected** or **Damaged** on the line; a **Reason** box opens under the number and must be filled before saving. The grey columns are worked out for you: **Accepted** (received minus rejected and damaged), **Short** (still owed on the PO) and **Excess** (more than the PO asked for - keep or return is decided at Verify).
-4. If the bill differs from what arrived, change **Invoice Qty** and **Invoice Rate** (the price **before GST** on the bill). They start at the received quantity and the PO price, so only lines where the bill differs need touching. **Value** is invoice rate × invoice qty, so the lines add up to **Invoice value** in the bar at the top. When the invoice bills a different quantity from what you accepted, the line shows the gap (*+10 vs accepted*) and a warning appears above the lines.
+4. If the bill differs from what arrived, change **Invoice Qty** and **Invoice Rate** (the price per unit on the bill - **incl. GST** when the PO's prices include GST, as the column heading says, otherwise before GST; §6.2). They start at the received quantity and the PO price, so only lines where the bill differs need touching. **Value** is invoice rate × invoice qty, so the lines add up to **Invoice value** in the bar at the top. When the invoice bills a different quantity from what you accepted, the line shows the gap (*+10 vs accepted*) and a warning appears above the lines.
 5. Fill in the vendor's **Invoice No**, **Invoice Date** and **Invoice Total (incl. GST)** - all three are required. The same invoice number of the same vendor cannot be received twice.
 6. Click **Save receipt**. The receipt is saved as *Received* - **no stock moves** - and its step page opens.
 
@@ -874,7 +876,7 @@ If your administrator turned on **blind count**, the receiving page does not sho
 8. Enter **Rejected** and **Damaged** quantities and choose the reason from the list (an optional note goes beside it); they go back to the vendor on a Purchase Return (§6.5). Attach the vendor's invoice copy under **Vendor's invoice copy** at the bottom of the receipt while it is being worked.
 9. Goods **beyond the PO** (more than ordered, or an item not on the PO): choose **Keep** (it goes for approval - say why in the box underneath) or **Return to vendor** (added to rejected). A small excess within the vendor's tolerance is accepted without asking.
 10. The bar at the top compares **Invoice total**, the **invoice lines** and **Received and verified** (GRN qty × GRN price + GST), and tells you the note the difference will raise: a **Debit note** when the vendor billed more, a **Credit note** when they billed less.
-11. Click **Verify**. If the typed invoice total differs from the invoice lines by more than ₹1, Verify stops and names the line that is probably wrong - go **Back to Receive** and fix the invoice qty, price or total.
+11. Click **Verify**. If the bill's total and the items on it do not add up (more than ₹1 apart), a yellow box **The bill does not add up** says by how much and which box is probably wrong - the total you typed, or one line's invoice qty or price. Verify takes you back to **Receive** with those boxes highlighted (or click **Fix it on Receive**); correct them against the vendor's bill and click **Save and verify again**. Verify goes ahead once they match.
 
 **Post all.** When everything matches - received = invoiced = PO quantity, invoice price = PO price, every price the same as last time and every item already has an MRP - a **Post all** button runs steps 2-4 in one go.
 
@@ -1029,7 +1031,7 @@ This is the normal way to print. You don't type SKUs — you point at the docume
 
 1. Go to **Sticker Printing**. The **Print** tab opens by default, on the **Print history** — every run, who printed it, from which document, and when.
 2. Click **+ Print Stickers**. In the **Print from Transaction** panel, pick **Goods Receipt (GRN)** or **Transfer Order** in the **Module** dropdown.
-3. In **Document**, start typing the document number — a suggestion list appears; pick the one you want. (If you pasted or typed the full number, click **Load**.)
+3. Click **Document** to see the latest ones, or start typing the number — the list narrows as you type; pick the one you want. You can also type just the end of the number (for example `00048`) and click **Load**: when only one document ends that way it loads; when several do, or none, a message says so.
 4. The line list appears, one row per SKU (or per SKU-and-lot, if a SKU arrived on more than one lot):
    - **Category** — what that item's Item Master says.
    - **Template** — the label layout that line will print with, and in brackets the rule that picked it: *item*, *item type*, *category* or *default* (§7A.5), or **Standard label (no rule)** when no rule applies. To print a line on a different layout **this time only**, pick it in that line's dropdown — **Standard label** or any Active template. **Template for every line**, above the table, sets every line at once; choose **As per template rules** to go back. Nothing is saved to the item — the next print follows the rules again.
@@ -1060,7 +1062,7 @@ Out of the box, every SKU prints the **Standard label** — 50 × 25 mm with the
 #### Start a template
 
 1. **Sticker Printing → Templates → New template**. The studio opens full-screen.
-2. **Start a new label** asks for the size of the roll you print on. Pick one of the standard sizes — **Jewellery tags** (tail tags 92 × 12, 95 × 12, 100 × 15, 100 × 14.3, small tag 70 × 10), **Retail** (38 × 25, 50 × 25, 50 × 38, 75 × 50), **Multi-up rolls** (2-up 38 × 25, 3-up 32 × 25), **Shipping** (100 × 50, 4 × 6 in), **Ready designs** (a jewellery **Square 2-up** on a 54.5 mm roll and a **Ring tag 97.6 × 11.9**, each already laid out with the barcode, name, colour, design, polish, weight, Combination ID, size and MRP; retype the sideways "Brand name" with your shop's name) — or **Use the standard label (50 × 25)** to start from the Standard label (name, variant, the SKU's barcode, SKU and HSN, and the batch barcode) and drag it into your own arrangement, or **Blank 50 × 25**. Any size can be changed later.
+2. **Start a new label** asks for the size of the roll you print on. Pick one of the standard sizes — **Jewellery tags** (tail tags 92 × 12, 95 × 12, 100 × 15, 100 × 14.3, small tag 70 × 10), **Retail** (38 × 25, 50 × 25, 50 × 38, 75 × 50), **Multi-up rolls** (2-up 38 × 25, 3-up 32 × 25), **Shipping** (100 × 50, 4 × 6 in), **Ready designs** (a jewellery **Square 2-up** on a 54.5 mm roll and a **Ring tag 97.6 × 11.9**, each already laid out with the barcode, name, colour, design, polish, weight, Combination ID, size and MRP; retype the sideways "Brand name" with your shop's name. The same designs are **Built-in** cards on the **Sticker templates** tab: **Duplicate** one to save it as your own template, which the template rules (§7A.5) can then pick) — or **Use the standard label (50 × 25)** to start from the Standard label (name, variant, the SKU's barcode, SKU and HSN, and the batch barcode) and drag it into your own arrangement, or **Blank 50 × 25**. Any size can be changed later.
 3. Type a name in **Name this template** at the top left (for example `Bridal silver tag`). It is the only thing you must fill in to save.
 
 #### Put things on the label
@@ -1124,8 +1126,8 @@ What you see in the studio is what prints — the canvas, Printer view, the prin
 For one-offs — a tag that fell off, a single item being re-tagged — click **+ Print Stickers** and use the panel below **Print from Transaction**:
 
 1. Choose the **Printer**, set **Copies per SKU**, and enter a **Reprint Reason** if it's a re-print.
-2. Type or scan into **Scan or Enter SKU** and press Enter (or click **Add**) for each item. Added SKUs are listed underneath with an **x** to remove one.
-3. Click **Print Stickers**. When it's done you're back on the Print history with the run on top.
+2. Scan or type into **Scan or Enter SKU** and press Enter. With **Print on scan** ticked (the default, remembered on this computer), each scan prints that item's sticker at once - **Copies per SKU** copies - and the box is ready for the next scan. With a goods receipt or transfer loaded above and the item on it, the sticker carries that line's lot.
+3. To collect several items first, untick **Print on scan**: each scan (or **Add**) lists the SKU underneath with an **x** to remove it; then click **Print Stickers**. When it's done you're back on the Print history with the run on top.
 
 The template rules (§7A.5) apply here exactly as they do to a document print. Picking a different template for one print is on the document print only (§7A.1).
 

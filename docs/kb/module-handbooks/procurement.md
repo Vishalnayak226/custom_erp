@@ -218,15 +218,20 @@ doctype-permission check of its own beyond the `procurement` module gate.
 
 **Whether the Purchase Price already includes GST** is a tenant setting,
 `procurement.po_gst_mode` (**Settings → Configuration**, "Purchase Order
-price GST treatment"), defaulting to **Exclusive**. Each PO can override it
-(the **GST treatment of purchase price** dropdown; "Tenant default" resolves
-to whatever the tenant actually has set, shown once the first preview
-returns).
+price GST treatment"), defaulting to **Inclusive** (Stage 110.2). A new PO
+starts on it and is saved with it; each PO can override it (the **GST
+treatment of purchase price** dropdown). A PO saved before Stage 110 on
+"Tenant default" keeps Exclusive unless an admin set the setting explicitly,
+so its prices never change under it.
 
-- **Exclusive** — the Purchase Price is the taxable value and GST is added
-  on top. ₹450 at 5% comes to ₹472.50.
 - **Inclusive** — the price already contains GST. ₹450 at 5% stays ₹450, of
   which ₹21.43 is tax.
+- **Exclusive** — the Purchase Price is the taxable value and GST is added
+  on top. ₹450 at 5% comes to ₹472.50.
+
+The goods receipt follows the PO: lines from an Inclusive PO show and take
+their PO rate, invoice rate and value incl. GST, and are priced ex-GST
+underneath (Stage 110.1).
 
 This is deliberately a **separate function** from the sale-side GST
 calculation: `ComputeGSTForLinesMode(tenantID, lines, interstate, mode)` adds

@@ -23,10 +23,14 @@ import (
 // difference to 5150, so net payable and net purchase cost both land on the
 // agreed PO value.
 
-// grnPOLineRate is one SKU's agreed ex-GST unit price on a PO.
+// grnPOLineRate is one SKU's agreed ex-GST unit price on a PO. Stage 110.1:
+// on a PO whose prices include GST, Gross is the unit price with GST as the
+// PO shows it, so the goods receipt can show and take rates the same way.
 type grnPOLineRate struct {
-	Rate    float64
-	GSTRate float64
+	Rate      float64
+	GSTRate   float64
+	Inclusive bool
+	Gross     float64
 }
 
 // poRatesBySKU prices a PO through PreviewPurchaseOrder - the same function the
@@ -41,7 +45,10 @@ func poRatesBySKU(tenantID, poID string) (map[string]grnPOLineRate, map[string]i
 	if err != nil {
 		return nil, data, err
 	}
-	type acc struct{ taxable, gst float64; qty int }
+	type acc struct {
+		taxable, gross, gst float64
+		qty                 int
+	}
 	sums := map[string]*acc{}
 	for _, l := range preview.Lines {
 		if l.Error != "" || l.SKU == "" || l.Qty <= 0 {
@@ -53,12 +60,14 @@ func poRatesBySKU(tenantID, poID string) (map[string]grnPOLineRate, map[string]i
 			sums[l.SKU] = a
 		}
 		a.taxable += l.Taxable
+		a.gross += l.LineTotal
 		a.gst = l.GSTRate
 		a.qty += l.Qty
 	}
 	out := map[string]grnPOLineRate{}
 	for sku, a := range sums {
-		out[sku] = grnPOLineRate{Rate: round2(a.taxable / float64(a.qty)), GSTRate: a.gst}
+		out[sku] = grnPOLineRate{Rate: round2(a.taxable / float64(a.qty)), GSTRate: a.gst,
+			Inclusive: preview.GSTMode == GSTModeInclusive, Gross: round2(a.gross / float64(a.qty))}
 	}
 	return out, data, nil
 }
@@ -197,6 +206,31 @@ func PrepareGRNPricing(tenantID string, isCreate bool, payload map[string]interf
 		if ok {
 			l["po_rate"] = r.Rate
 			l["gst_rate"] = r.GSTRate
+		}
+		// Stage 110.1: a line of a GST-inclusive PO is keyed incl. GST like
+		// its PO; the ex-GST invoice rate (what stock, notes and reports
+		// use) is worked out here, and an unchanged rate stays the PO rate
+		// exactly so no paisa of difference raises a note.
+		if ok && r.Inclusive {
+			l["gst_inclusive"] = true
+			l["po_rate_incl"] = r.Gross
+			if lineNumberSet(l, "invoice_rate_incl") {
+				inc := numFromInterface(l["invoice_rate_incl"])
+				if inc < 0 || math.IsNaN(inc) || math.IsInf(inc, 0) {
+					return &ValidationError{Code: "GOODSR-0319", SubFor: "Invoice Rate", Message: fmt.Sprintf(
+						"invoice rate for SKU %q must be zero or more", sku)}
+				}
+				l["invoice_rate_incl"] = round2(inc)
+				if math.Abs(inc-r.Gross) < 0.005 {
+					l["invoice_rate"] = r.Rate
+				} else {
+					l["invoice_rate"] = round2(inc / (1 + r.GSTRate/100))
+				}
+			}
+		} else {
+			delete(l, "gst_inclusive")
+			delete(l, "po_rate_incl")
+			delete(l, "invoice_rate_incl")
 		}
 		if lineNumberSet(l, "invoice_rate") {
 			ir := numFromInterface(l["invoice_rate"])

@@ -12,9 +12,12 @@ function Get-ReleaseConfig {
     return $cfg
 }
 
+# Each gate heading carries the time since the click, so a slow gate shows in
+# the report and can be tuned (Stage 109.9).
+$script:GateClock = [Diagnostics.Stopwatch]::StartNew()
 function Write-Gate([string]$name) {
     Write-Host ''
-    Write-Host "== $name" -ForegroundColor Cyan
+    Write-Host ("== [{0:mm\:ss}] {1}" -f $script:GateClock.Elapsed, $name) -ForegroundColor Cyan
 }
 
 # Invoke-Native runs a program, returns its output lines, and throws with the
