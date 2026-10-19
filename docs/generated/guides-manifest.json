@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": "cmd/gendocs",
   "generator_version": "stage48-v1",
-  "release": "0.8.0",
+  "release": "0.9.0",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "schema": "source registries",
   "tenant": "none",
@@ -49,7 +49,7 @@
     },
     {
       "path": "docs/guides/ERROR_CODES.md",
-      "sha256": "539a4bfcf8c089685336737c53c72e1301f48a958de48b41f5d19603db74d770",
+      "sha256": "15938f669c63ba3404c5737a508cf995804bd9a27364cd040c19e0f56730db15",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -88,7 +88,7 @@
     },
     {
       "path": "docs/kb/reference/release-notes-2.md",
-      "sha256": "bd0076a7c7ad613754c9fcadea11f771c796c6e36fd61f7a1be02b9df72fd213",
+      "sha256": "3ed7f434972b9240fcbd71f80af0a9dc0d46056a45cc1e26517c2b1c7735e54e",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -101,7 +101,7 @@
     },
     {
       "path": "docs/kb/reference/release-notes.md",
-      "sha256": "6b7501f6315e13a381935b153b60f48edb6329e532b616f5bc22ca76bfdf3cbf",
+      "sha256": "0a07d4c49f20a127e3484686cbd10dc20952e6cb147f9e27a8ae50b106601922",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -166,7 +166,7 @@
     },
     {
       "path": "docs/kb/troubleshooting/error-code-reference.md",
-      "sha256": "4aa4394b05cb819c5561677184096f359a36bed3e92b4251581d6d429908f506",
+      "sha256": "519cdfbd8c3a87b736ef25d11175b0d4bd14cf4ba4d41eb52f6b0b9d1aaf8de9",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",

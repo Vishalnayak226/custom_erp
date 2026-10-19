@@ -514,10 +514,10 @@ You can also get here from the record itself: a **New** form for a numbered reco
 
 | Setting | What it does |
 |---|---|
-| **Prefix** | The leading text. `PO`, `GRN`, `TRF` — whatever your business calls it. Capital letters, digits and `-` (what you type in lower case is saved in capitals); it may not start with `0` or `-`. |
+| **Prefix** | The leading text. `PO`, `GRN`, `TRF` — whatever your business calls it. Capital letters, digits, `/` and `-` (what you type in lower case is saved in capitals); it may not start with `0`, `/` or `-`. |
 | **Separator** | What goes between the parts: **/**, **-** or **None**. With None, `PO` `BDR` `2627` `00001` prints as `POBDR262700001`. |
 | **Number length (digits)** | How many digits the running number is padded to. `5` gives `00042`. Shipped lengths: purchase series (PR, RFQ, Vendor Quote, PO, ASN, GRN, Purchase Return, Debit Note) and HR series (Leave, Attendance, Expense, Loan, Grievance, Payslip) **5**; Transfers, Sales Invoice, Production Order and Fixed Asset **6**. |
-| **Suffix (optional)** | Text after the number: `PO/BDR/26-27/00001/A`. |
+| **Suffix (optional)** | Text after the number: `PO/BDR/26-27/00001/A`. The same characters as the prefix, `/` included: with **Separator** None, the year at the end and suffix `/`, the number reads `POHO00001/2627`. |
 | **Restart numbering** | **Every financial year** → `PO/BDR/26-27/00001`. **Every month** → `PO/BDR/26-27-07/00001`. **Never - no year in the number** → `PO/BDR/00001`, one continuous series. |
 | **Year in the number** | How the financial year prints: **26-27**, **2627**, **2026-27**, **26** (the year it starts) or **2026**. Monthly: `26-27-07`, `262707`, `2026-27-07`, and for **26** / **2026** the calendar month, `2607` / `202607` (January 2027 is `2701`, not `2601`). Shows **No year** when Restart is **Never**. Changing it mid-year carries the count on — the next PO after `PO/BDR/26-27/00041` is `PO/BDR/2627/00042`, never `00001` again. |
 | **Where the year goes** | **Before the number** (as every series printed before) → `PO/BDR/26-27/00001`, or **At the end** → `PO/BDR/00001/26-27` (after the suffix, if there is one; with no separator `SMHO00012627`). Only the layout moves; the counter is still kept per year, so changing it mid-year carries the count on. |

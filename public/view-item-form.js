@@ -22,7 +22,7 @@ if (!document.getElementById('view-item-form-css')) {
 .item-attr-add { display: flex; gap: 6px; }
 .item-attr-add .form-input { flex: 1; min-width: 0; }
 .item-locked-note { font-size: 12.5px; color: var(--warning-color, #b7791f); margin-top: 6px; }
-.item-fields-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.item-fields-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13.5px; }
 .item-fields-table th, .item-fields-table td { padding: 8px 10px; border-bottom: 1px solid var(--border-color); text-align: left; vertical-align: middle; }
 .item-fields-table th { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
 .item-fields-table td.c, .item-fields-table th.c { text-align: center; }
@@ -691,7 +691,7 @@ async function renderConfigItemFields(outer) {
     </tr>`;
   host.innerHTML = `
     <h2 style="font-size:18px; margin:0 0 14px;">Item fields</h2>
-    <div style="overflow-x:auto;">
+    <div>
     <table class="item-fields-table">
       <thead><tr><th>Field</th><th class="c">On the item</th><th class="c">In the PO</th><th>At the GRN</th><th>Values from</th><th class="c">Hidden</th></tr></thead>
       <tbody>

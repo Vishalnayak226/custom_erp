@@ -1429,7 +1429,7 @@ func registerRoutes() {
 	fs := http.FileServer(noDirectoryListing(http.Dir("./public")))
 	http.Handle("/", onlyReadMethods(fs))
 	// 73.D.23: browsers ask for /favicon.ico on every page that names no icon
-	// (it 404'd); the icon is public/favicon.svg.
+	// (it 404'd); the icon is public/favicon.png.
 	http.HandleFunc("GET /favicon.ico", handleFaviconRedirect)
 
 }

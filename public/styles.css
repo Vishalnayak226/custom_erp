@@ -16,6 +16,8 @@
    resource of any kind. */
 
 :root {
+  --logo-light-display: block; /* Stage 120: logo copy per theme */
+  --logo-dark-display: none;
   --primary-color: #44546a;
   --primary-hover: #34435a;
   --primary-light: #eef1f4;
@@ -88,6 +90,8 @@
    print-only .receipt / .sticker-label rules (always ink-on-paper) and
    translucent rgba() scrims/glows, which read correctly on either theme. */
 :root[data-theme="dark"] {
+  --logo-light-display: none;
+  --logo-dark-display: block;
   --primary-color: #6b82a8;
   --primary-hover: #7f96bd;
   --primary-light: #26324a;
@@ -124,6 +128,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    --logo-light-display: none;
+    --logo-dark-display: block;
     --primary-color: #6b82a8;
     --primary-hover: #7f96bd;
     --primary-light: #26324a;
@@ -203,36 +209,31 @@ body {
 }
 
 .sidebar-header {
-  padding: 20px;
+  height: 70px; /* = .app-header */
+  padding: 0 20px;
   display: flex;
   align-items: center;
   gap: 12px;
   border-bottom: 1px solid var(--border-color);
 }
 
-.sidebar-logo {
-  font-weight: 700;
-  font-size: 20px;
-  color: var(--text-main);
-  letter-spacing: -0.5px;
+/* Stage 120: the logo */
+.brand-logo {
+  display: var(--logo-light-display);
+  height: 32px;
+  width: auto;
+  max-width: 160px;
+  object-fit: contain;
 }
 
-/* Brand badge (sidebar header + login screen) */
-.brand-badge {
-  display: flex;
+.brand-logo-dark { display: var(--logo-dark-display); }
+
+.brand-link {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  background-color: var(--primary-color);
-  color: var(--on-primary);
+  min-height: 44px;
+  border-radius: 6px;
   flex-shrink: 0;
-}
-
-.brand-badge svg {
-  width: 19px;
-  height: 19px;
 }
 
 .sidebar-menu {
@@ -1907,8 +1908,8 @@ pre {
   height: 100vh;
   background-color: var(--bg-color);
   display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow-y: auto; /* the card's auto margin centres it, so a short screen scrolls */
+  padding: 16px;
   z-index: 500;
 }
 
@@ -1919,26 +1920,31 @@ pre {
   box-shadow: var(--shadow-lg);
   width: 100%;
   max-width: 360px;
-  padding: 32px 28px;
+  margin: auto;
+  padding: 32px;
   display: flex;
   flex-direction: column;
   gap: 18px;
 }
 
+@media (max-width: 480px) {
+  .login-card { padding: 24px; }
+}
+
 .login-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-weight: 700;
-  font-size: 18px;
-  color: var(--primary-color);
-  letter-spacing: -0.5px;
+  margin-bottom: 6px; /* + 18px gap = 24px */
+}
+
+.login-brand .brand-logo {
+  height: 48px;
+  max-width: 200px;
 }
 
 .login-subtitle {
   font-size: 13.5px;
   color: var(--text-muted);
-  margin-top: -12px;
 }
 
 .login-card form {
@@ -3920,8 +3926,13 @@ body.rf-shell #view-root {
 
 .nav-toggle:hover { background: var(--surface-subtle); }
 
+/* Stage 120: shown only while the menu is hidden or a drawer */
+.header-brand { display: none; margin-right: 16px; }
+.header-brand .brand-symbol { display: none; }
+
 @media (min-width: 821px) {
   .app-container.nav-hidden .sidebar { display: none; }
+  .app-container.nav-hidden .header-brand { display: inline-flex; }
 }
 
 .nav-scrim {
@@ -3942,6 +3953,10 @@ body.rf-shell #view-root {
     height: 44px;
     margin-right: 8px;
   }
+
+  .header-brand { display: inline-flex; margin-right: 0; }
+  .header-brand .brand-logo { display: none; }
+  .header-brand .brand-symbol { display: block; }
 
   /* Off-canvas: the sidebar leaves the layout flow entirely, so the content
      column gets the whole viewport instead of 120px of it. */

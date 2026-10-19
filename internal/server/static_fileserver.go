@@ -92,7 +92,8 @@ func onlyReadMethods(next http.Handler) http.Handler {
 
 // handleFaviconRedirect (73.D.23) sends a browser's /favicon.ico request -
 // made on every page that names no icon, and a 404 until now - to the icon,
-// public/favicon.svg. Public, like every static file.
+// public/favicon.png (the Wholeops symbol since Stage 120). Public, like
+// every static file.
 func handleFaviconRedirect(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, "/favicon.svg", http.StatusMovedPermanently)
+	http.Redirect(w, r, "/favicon.png", http.StatusMovedPermanently)
 }

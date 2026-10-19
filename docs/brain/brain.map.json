@@ -108,6 +108,8 @@
         "public/app.js",
         "public/index.html",
         "public/favicon.svg",
+        "public/favicon*.png",
+        "public/brand-*.png",
         "public/styles.css",
         "public/store.css",
         "public/components/*",

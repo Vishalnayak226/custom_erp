@@ -19,13 +19,23 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **166** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **169** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
 - [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-06
 
 ## 2026-10-19
+
+**Stage 122 — Configuration → Item fields keeps its column header in view** *(code, NOT COMMITTED)*
+
+**Stage 120 — the Wholeops logo in the app, to the user's logo placement spec** *(code)*
+
+From the user's two logo images (blue vs slate-grey wordmark) and then `ERP_Logo_Placement_Developer_Specification.md`. Full detail in checklist Stage 120.
+
+**Stage 119 — sticker print direction and count, a clean print, and a template kept per product type from the Print screen** *(code)*
+
+From the user's prod Print-dialog screenshot and a photo of the label it printed (the 1-up Seznik tag landed small and turned on the printer's 100 × 150 shipping label, barcode smeared), then *"Make diff template ... horizontal and vertical. 1 count, 3 count"*. Full detail in checklist Stage 119.
 
 **Stages 114 and 115 — a leaner PO entry with prices that flow and are required, PO MRP to the GRN, MRP rules per product type; number series year at the end and a deleted store no longer blocks a save** *(code)*
 
@@ -436,10 +446,4 @@ The documentation portal now leads to owned product, process, architecture, data
 **Stage 49.1.7 — Outside-in verification, and a real static-server method gap it found** *(code + tool + tests + docs)*
 
 The last open sub-item of 49.1 needed something none of the rest of Stage 49 S0 could provide from inside this tree: a genuinely external vantage point. `cmd/edgecheck` is a new, reusable CLI — not a one-off script — that probes a deployed instance the way an anonymous internet client would: declared public routes answer as declared, `/internal/*` never reaches the edge, alternate HTTP methods and encoded/traversal paths fail safely, the app's own bind port and a handful of common service ports are unreachable directly, and (when `TENANT_BASE_DOMAIN` is live) an unknown tenant subdomain is refused rather than silently falling through. Run from the developer's own machine over the ordinary internet — not the SSH tunnel, not `127.0.0.1`, the exact distinction the 2026-08-14 TLS bring-up already learned the hard way when a firewall problem was invisible from inside the box.
-
-## 2026-09-06
-
-**Stage 49.1.5 — Secure tenant provisioning, offboarding and proof of removal** *(code + schema + tests + docs)*
-
-The tenant lifecycle had exactly two states: it existed, or somebody ran `DROP SCHEMA CASCADE` by hand. Everything in between — a credential that stops working, a tenant that stops being served without being destroyed, a deletion that has to wait for a backup and a retention period, a way to show afterwards that nothing of it remains — did not exist. Provisioning itself was better than its reputation (it already minted a cryptographically random one-time password and refused to clone `tenant_default`'s users), but nothing governed what happened to that password after it was handed over.
 

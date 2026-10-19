@@ -44,6 +44,32 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 271. Stage 122 — Configuration → Item fields keeps its column header in view (2026-10-19, code, NOT COMMITTED)
+
+- **Asked**: scrolling the Item fields table lost the header, so nobody could tell which checkbox was which; freeze it, below the top bar.
+- **Built**: the global sticky `th` (Stage 41/116) was stuck to three scroll boxes that never scroll (the Configuration panel, `#config-fields`, the table's own wrapper) and a collapsed border model. Those are gone, so the header freezes against the page like every other table, and so do the other tables on Configuration. Narrow screens (<820px) keep the app-wide sideways-scroll rule. Files: `public/view-admin.js`, `public/view-item-form.js`. Detail: checklist 122.1.
+- **Verified**: scratch server + Playwright, header pinned at the top-bar edge and over the rows at 1440 and 1100 wide.
+
+## 270. Stage 120 — the Wholeops logo in the app, to the user's logo placement spec (2026-10-19, code)
+
+From the user's two logo images (blue vs slate-grey wordmark) and then `ERP_Logo_Placement_Developer_Specification.md`. Full detail in checklist Stage 120.
+
+- **Choice:** the blue wordmark - it is the globe's own ocean blue; the grey one carries a stray blue stroke on its first "w".
+- **Assets** (cut from the PNG by a scratch Go program: speckle under the hands removed, the ~1% see-through art made opaque, 256-colour PNGs, 24 KB in all): horizontal lockup + a dark-theme copy with a light-blue wordmark, the symbol, 32/16 px favicons.
+- **Placement:** sign-in card top-left (48 px, 24 px to the form, scrolls on a short screen); the sidebar head (32 px, a link to Home), moving beside ☰ while the menu is hidden and as the symbol alone on a phone; tab titles `Sign in | Wholeops` / `<screen> | Wholeops`; `/favicon.ico` → `/favicon.png`.
+- **Not built, needs the user (120.5/120.6):** a full-width global header, company name in header/title, environment badge, an unsaved-changes prompt, an SVG master, and client branding for the SaaS (company name, logo, accent colour, white-label mode).
+- Verified: Playwright on a scratch server in light and dark, phone and desktop, menu shown/hidden; build, vet, `node --check`, surface and shell tests; cold core 184,247 / 184,320 bytes.
+
+## 269. Stage 119 — sticker print direction and count, a clean print, and a template kept per product type from the Print screen (2026-10-19, code)
+
+From the user's prod Print-dialog screenshot and a photo of the label it printed (the 1-up Seznik tag landed small and turned on the printer's 100 × 150 shipping label, barcode smeared), then *"Make diff template ... horizontal and vertical. 1 count, 3 count"*. Full detail in checklist Stage 119.
+
+- **119.1-119.3:** two new template settings - **Direction** (Horizontal / Vertical: the design prints turned a quarter, still edited as it reads) and **Down** (labels stacked in one print) - honoured by one cell model (`cellSize` / `cellOrigin` / `drawCell`) that the printer bitmap, TSPL/ZPL size, browser print, cards and the studio's new **One print** view all use. Four Seznik built-ins on it: horizontal × 1 (keeps the shipped code), horizontal × 3 (stacked), vertical × 1, vertical × 3 (side by side).
+- **119.4:** the browser roll page is now 1-bit at the printer's own DPI, unsmoothed, and its size is also the document's default page, so Chromium hands the driver the label size instead of its own paper.
+- **119.5:** **Keep for *(type)*** on the Print screen saves a pick as the Product type rule (preview lines carry `product_type`).
+- **Silent print diagnosed, not a code bug:** this PC's PrintBridge was built for `http://localhost:8080`, so `https://app.wholeops.in` never reached it; an installer for the live address was built to the Desktop.
+- Verified: Go build/vet, sticker DB tests (with a product_type check), Chromium on the real modules: all four designs' bitmaps, TSPL SIZE lines and PDF page sizes, the gallery, the studio Label tab, and the Keep-for flow against a scripted API. Not printed on a real roll yet.
+
 ## 268. Stages 114 and 115 — a leaner PO entry with prices that flow and are required, PO MRP to the GRN, MRP rules per product type; number series year at the end and a deleted store no longer blocks a save (2026-10-19, code)
 
 From the user's New purchase order, sample PO, and Number Series screenshots; decisions asked and answered the same day. Full detail in checklist Stages 114 and 115.
@@ -78,6 +104,7 @@ From the user's Template rules, Print and Prefix Configurations screenshots. Ful
 - **113.1 Product type rule:** `ProductType.sticker_template` (additive migration); the rule order is Item → Item type → Product type → Category → Default → standard label, so nothing that prints today changes. Item holds the type's name, so the type is found by name, code or id.
 - **113.2 Built-in designs everywhere a template is picked:** Print and Template rules list the unsaved Square / Ring / Seznik designs as "(built-in)"; picking one saves it once as the client's own template (`ensureDesignTemplate`) - the server's rules and prints only know saved templates.
 - **113.3 Seznik 100 × 14.3:** Stage 106 had added the size only. Amazon refused the fetch, so the design is the client's Ring tag layout (barcode panel, text panel, tail) stretched to the taller tag; not yet printed on the roll.
+- **113.4 Seznik is 3-up:** superseded the same day by Stage 119's four Seznik designs (§269).
 - **116.1 Frozen headers:** the page scroller's 24px top padding left a band above every frozen table header that scrolled rows showed through; the gap is now a spacer inside the scroll, so the page looks the same at rest and headers freeze flush.
 - Verified: go build/vet, rule-order and DB sticker tests, Playwright on a scratch server (rules, Print, gallery, header measured before/after, transaction-screen spacing at two widths).
 

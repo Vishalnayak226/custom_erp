@@ -4158,7 +4158,7 @@
         "components",
         "profiles"
       ],
-      "file_count": 89,
+      "file_count": 94,
       "source": "internal/server/routes.go (http.FileServer wrapped by noDirectoryListing)"
     }
   ],

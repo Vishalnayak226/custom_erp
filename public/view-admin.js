@@ -1550,14 +1550,18 @@ async function renderConfigurationView(container) {
 
   const panel = document.createElement('div');
   panel.className = 'table-panel';
-  panel.style.cssText = 'display:grid; grid-template-columns:220px 1fr; min-height:440px; overflow:hidden;';
+  // Stage 122.1: no overflow on the panel or #config-fields - either one is a
+  // scroll box that never scrolls, so a table's frozen header (styles.css th)
+  // stuck to it and left with the rows. The page scrolls; the rail rounds its
+  // own corners instead of the panel clipping them.
+  panel.style.cssText = 'display:grid; grid-template-columns:220px 1fr; min-height:440px;';
   panel.innerHTML = `
-    <div style="border-right:1px solid var(--border-color); background:var(--bg-color);">
+    <div style="border-right:1px solid var(--border-color); background:var(--bg-color); border-radius:7px 0 0 7px;">
       <div style="padding:12px 12px 0;"><input type="search" id="config-search" class="form-input" placeholder="Find a setting" aria-label="Find a setting"></div>
       <div id="config-modules" style="padding:12px 0;"></div>
     </div>
     <div style="display:flex; flex-direction:column; min-width:0;">
-      <div id="config-fields" style="padding:20px 24px; flex:1; overflow:auto;"></div>
+      <div id="config-fields" style="padding:20px 24px; flex:1;"></div>
       <div style="padding:14px 24px; border-top:1px solid var(--border-color); display:flex; align-items:center; gap:14px;">
         <button class="btn btn-primary" id="config-save-btn" disabled>Save Changes</button>
         <span id="config-dirty-note" class="page-subtitle" style="margin:0; font-size:13px;"></span>

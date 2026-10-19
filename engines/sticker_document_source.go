@@ -254,6 +254,7 @@ type StickerPreviewLine struct {
 	SKU          string `json:"sku"`
 	Name         string `json:"name"`
 	Category     string `json:"category"`
+	ProductType  string `json:"product_type,omitempty"` // Stage 119.5: the Print screen can keep a pick as this type's rule
 	Qty          int    `json:"qty"`
 	Barcode      string `json:"barcode,omitempty"` // Stage 111.2: a scan finds its line by this or the SKU
 	BatchNo      string `json:"batch_no,omitempty"`
@@ -287,6 +288,7 @@ func PreviewDocumentStickerLines(tenantID, sourceDoctype, sourceDocID string) ([
 			if v, ok := item["category"].(string); ok {
 				p.Category = v
 			}
+			p.ProductType = pimString(item["product_type"])
 		}
 		tmpl, rule, err := ResolveStickerTemplateForItem(tenantID, item, p.Category)
 		if err == nil && tmpl != nil {

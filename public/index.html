@@ -4,11 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wholeops</title>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.png" type="image/png" sizes="32x32">
+  <link rel="icon" href="/favicon-16.png" type="image/png" sizes="16x16">
   <!-- Absolute, not relative (Stage 39.4): the SPA is served for multi-segment
        URLs like /help/<article>, where a relative "styles.css" would resolve to
        /help/styles.css and be answered with the SPA shell itself. -->
-  <link rel="stylesheet" href="/styles.css?v=32">
+  <link rel="stylesheet" href="/styles.css?v=33">
   <!-- Stage 28.2/47.8: external same-origin theme bootstrap avoids an inline
        script exception in the strict CSP candidate. -->
   <script src="/theme-boot.js?v=1"></script>
@@ -18,15 +19,8 @@
   <div class="login-screen hidden" id="login-screen">
     <div class="login-card">
       <div class="login-brand">
-        <span class="brand-badge">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
-            <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
-            <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
-            <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
-          </svg>
-        </span>
-        <span>Wholeops</span>
+        <img class="brand-logo" src="/brand-logo.png" alt="Wholeops" width="191" height="48">
+        <img class="brand-logo brand-logo-dark" src="/brand-logo-dark.png" alt="Wholeops" width="191" height="48">
       </div>
       <p class="login-subtitle">Sign in to continue</p>
       <form id="login-form">
@@ -133,16 +127,12 @@
     <div class="nav-scrim" id="nav-scrim" hidden></div>
     <!-- Sidebar Navigation -->
     <aside class="sidebar" id="app-sidebar">
+      <!-- Stage 120: the logo links Home; .header-brand stands in while the menu is hidden. -->
       <div class="sidebar-header">
-        <span class="brand-badge">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
-            <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
-            <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
-            <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
-          </svg>
-        </span>
-        <span class="sidebar-logo">Wholeops</span>
+        <a class="brand-link" href="/" aria-label="Wholeops home">
+          <img class="brand-logo" src="/brand-logo.png" alt="Wholeops" width="127" height="32">
+          <img class="brand-logo brand-logo-dark" src="/brand-logo-dark.png" alt="Wholeops" width="127" height="32">
+        </a>
       </div>
       
       <ul class="sidebar-menu">
@@ -516,6 +506,11 @@
             <line x1="3" y1="18" x2="21" y2="18"></line>
           </svg>
         </button>
+        <a class="brand-link header-brand" href="/" aria-label="Wholeops home">
+          <img class="brand-logo" src="/brand-logo.png" alt="Wholeops" width="127" height="32">
+          <img class="brand-logo brand-logo-dark" src="/brand-logo-dark.png" alt="Wholeops" width="127" height="32">
+          <img class="brand-symbol" src="/brand-mark.png" alt="Wholeops" width="32" height="32">
+        </a>
         <div class="header-search">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2">
             <circle cx="11" cy="11" r="8"></circle>
@@ -785,7 +780,7 @@
   <!-- 21.14: this app's first Web Component - plain <script>, no build
        step, registers <erp-typeahead> globally before app.js runs. -->
   <script src="/components/erp-typeahead.js?v=1"></script>
-  <script src="/app.js?v=55"></script>
+  <script src="/app.js?v=56"></script>
   <!-- 31.1: QZ Tray bridge for silent printing. Loaded after app.js because
        it calls apiFetch() for the certificate and per-request signature. -->
   <script src="/qz-print.js?v=1"></script>

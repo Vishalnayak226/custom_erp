@@ -515,11 +515,32 @@ function refresh(opts = {}) {
   if (opts.inspector !== false) renderInspector();
 }
 
+// Stage 119: how one print lays its labels out - " · 3-up · 3 down · vertical".
+function layoutText(s) {
+  return `${s.per_row > 1 ? ` · ${s.per_row}-up` : ''}${s.per_col > 1 ? ` · ${s.per_col} down` : ''}${s.direction === 'vertical' ? ' · vertical' : ''}`;
+}
+
+// The editing board plus the rest of one print as ghosts, in mm. A vertical
+// template is edited as it reads, on its own; One print shows it turned.
+function boardLayout(t) {
+  const s = t.settings, vertical = s.direction === 'vertical';
+  const across = vertical ? 1 : s.per_row, down = vertical ? 1 : s.per_col;
+  const w = Math.max(vertical ? 0 : Number(s.media_w_mm) || 0, across * t.w + (across - 1) * s.gap_h_mm);
+  return { across, down, w, h: down * t.h + (down - 1) * s.gap_v_mm };
+}
+
+// The Label tab's One print view, kept in step with every change.
+function paintOnePrint() {
+  const c = S.root && S.root.querySelector('.stk-one-print');
+  if (!c) return;
+  const t = S.t;
+  E.paintPrint(c, t, S.label, { scale: Math.min(250 / E.mediaWidthMM(t), 200 / E.printHeightMM(t)) });
+}
+
 function renderTopBar() {
   const t = S.t;
   const chip = S.root.querySelector('[data-sa="size"]');
-  const per = t.settings.per_row > 1 ? ` · ${t.settings.per_row}-up` : '';
-  chip.textContent = `${round2(t.w)} × ${round2(t.h)} mm · ${t.settings.dpi} dpi${per}`;
+  chip.textContent = `${round2(t.w)} × ${round2(t.h)} mm · ${t.settings.dpi} dpi${layoutText(t.settings)}`;
   const name = S.root.querySelector('.stk-name');
   if (document.activeElement !== name) name.value = t.name || '';
 }
@@ -544,19 +565,20 @@ function paint() {
   // read at a glance.
   const roll = S.root.querySelector('.stk-roll');
   roll.querySelectorAll('.stk-ghost').forEach(g => g.remove());
-  const s = t.settings;
+  const s = t.settings, L = boardLayout(t);
   roll.style.paddingRight = '0px';
-  for (let i = 1; i < s.per_row; i++) {
+  for (let i = 1; i < L.across * L.down; i++) {
     const g = document.createElement('canvas');
     g.className = 'stk-ghost';
-    g.style.left = (i * (t.w + s.gap_h_mm)) * S.zoom + 'px';
+    g.style.left = ((i % L.across) * (t.w + s.gap_h_mm)) * S.zoom + 'px';
+    g.style.top = (Math.floor(i / L.across) * (t.h + s.gap_v_mm)) * S.zoom + 'px';
     roll.appendChild(g);
     E.paintPreview(g, t, S.label, { scale: S.zoom, mono: S.mono });
   }
-  const mediaW = Math.max(Number(s.media_w_mm) || 0, s.per_row * t.w + (s.per_row - 1) * s.gap_h_mm);
-  roll.style.width = mediaW * S.zoom + 'px';
-  roll.style.height = t.h * S.zoom + 'px';
-  roll.classList.toggle('stk-roll-multi', s.per_row > 1);
+  roll.style.width = L.w * S.zoom + 'px';
+  roll.style.height = L.h * S.zoom + 'px';
+  roll.classList.toggle('stk-roll-multi', L.across * L.down > 1);
+  paintOnePrint();
 }
 
 function renderOverlay() {
@@ -612,8 +634,7 @@ function renderDock() {
 function drawRulers() {
   if (!S.root) return;
   const t = S.t, z = S.zoom;
-  const s = t.settings;
-  const mediaW = Math.max(Number(s.media_w_mm) || 0, s.per_row * t.w + (s.per_row - 1) * s.gap_h_mm);
+  const L = boardLayout(t);
   const ratio = window.devicePixelRatio || 1;
   const styles = getComputedStyle(S.root);
   const ink = styles.getPropertyValue('--stk-ruler-ink').trim() || '#64748b';
@@ -659,8 +680,8 @@ function drawRulers() {
       c.stroke();
     }
   };
-  draw(S.root.querySelector('.stk-ruler-x'), mediaW, true);
-  draw(S.root.querySelector('.stk-ruler-y'), t.h, false);
+  draw(S.root.querySelector('.stk-ruler-x'), L.w, true);
+  draw(S.root.querySelector('.stk-ruler-y'), L.h, false);
 }
 
 function renderStatus() {
@@ -711,6 +732,7 @@ function renderInspector() {
   else if (S.tab === 'layers') body.innerHTML = layersTabHTML();
   else body.innerHTML = elementTabHTML();
   bindInspector(body);
+  paintOnePrint();
 }
 
 function fieldOptions(current, { allowCustom = true } = {}) {
@@ -908,14 +930,15 @@ function typographyHTML(el) {
 function labelTabHTML() {
   const t = S.t, s = t.settings;
   const groups = [...new Set(E.LABEL_PRESETS.map(p => p.group))];
-  const presetMatch = E.LABEL_PRESETS.find(p => p.w === t.w && p.h === t.h && (p.per_row || 1) === s.per_row);
-  const autoMedia = round2(s.per_row * t.w + (s.per_row - 1) * s.gap_h_mm);
+  const presetMatch = E.LABEL_PRESETS.find(p => p.w === t.w && p.h === t.h && (p.per_row || 1) === s.per_row &&
+    (p.per_col || 1) === s.per_col && (p.direction || 'horizontal') === s.direction);
+  const autoMedia = round2(s.per_row * E.cellSize(t).w + (s.per_row - 1) * s.gap_h_mm);
   return `
     <section class="stk-sec">
       <h4>Size</h4>
       <label class="stk-field"><span>Standard size</span><select data-sa-change="preset">
         <option value="">${presetMatch ? '' : 'Custom size'}</option>
-        ${groups.map(g => `<optgroup label="${esc(g)}">${E.LABEL_PRESETS.filter(p => p.group === g).map(p => `<option value="${p.id}" ${presetMatch && presetMatch.id === p.id ? 'selected' : ''}>${esc(p.label)} mm</option>`).join('')}</optgroup>`).join('')}
+        ${groups.map(g => `<optgroup label="${esc(g)}">${E.LABEL_PRESETS.filter(p => p.group === g).map(p => `<option value="${p.id}" ${presetMatch && presetMatch.id === p.id ? 'selected' : ''}>${esc(p.label)}${p.group === 'Ready designs' ? '' : ' mm'}</option>`).join('')}</optgroup>`).join('')}
       </select></label>
       <div class="stk-grid2">
         ${numInput('w', t.w, { label: 'Width', min: 5, scope: 'tpl' })}
@@ -926,13 +949,16 @@ function labelTabHTML() {
     </section>
     <section class="stk-sec">
       <h4>Roll</h4>
+      <div class="stk-row"><span class="stk-row-label">Direction</span>${seg('s.direction', s.direction, [{ v: 'horizontal', label: 'Horizontal', title: 'Prints as designed' }, { v: 'vertical', label: 'Vertical', title: 'Prints the design turned a quarter - the tag stands along the roll' }])}</div>
       <div class="stk-grid2">
         ${numInput('per_row', s.per_row, { label: 'Across', step: 1, min: 1, max: 10, unit: 'labels', scope: 's' })}
+        ${numInput('per_col', s.per_col, { label: 'Down', step: 1, min: 1, max: 10, unit: 'labels', scope: 's' })}
         ${numInput('gap_h_mm', s.gap_h_mm, { label: 'Gap ↔', min: 0, scope: 's' })}
         ${numInput('gap_v_mm', s.gap_v_mm, { label: 'Gap ↕', min: 0, scope: 's' })}
         ${numInput('media_w_mm', s.media_w_mm, { label: 'Roll width', min: 0, scope: 's' })}
       </div>
-      <p class="stk-muted">Roll width blank = ${autoMedia} mm (labels + gaps). Set it when the liner is wider than the labels.</p>
+      <p class="stk-muted">Roll width blank = ${autoMedia} mm (labels + gaps). Set it when the liner is wider than the labels. ${s.direction === 'vertical' ? 'You design it as it reads; it prints turned, as below.' : ''}</p>
+      <div class="stk-one-print-wrap"><span class="stk-row-label">One print</span><canvas class="stk-one-print"></canvas></div>
     </section>
     <section class="stk-sec">
       <h4>Printer tuning</h4>
@@ -972,9 +998,9 @@ function labelTabHTML() {
 }
 
 function a4Summary() {
-  const t = S.t, sh = t.settings.sheet;
-  const cols = Math.max(1, Math.floor((210 - 2 * sh.margin_left_mm + sh.gap_h_mm) / (t.w + sh.gap_h_mm)));
-  const rows = Math.max(1, Math.floor((297 - 2 * sh.margin_top_mm + sh.gap_v_mm) / (t.h + sh.gap_v_mm)));
+  const t = S.t, sh = t.settings.sheet, cell = E.cellSize(t);
+  const cols = Math.max(1, Math.floor((210 - 2 * sh.margin_left_mm + sh.gap_h_mm) / (cell.w + sh.gap_h_mm)));
+  const rows = Math.max(1, Math.floor((297 - 2 * sh.margin_top_mm + sh.gap_v_mm) / (cell.h + sh.gap_v_mm)));
   return `Fits ${cols} × ${rows} = <b>${cols * rows}</b> labels per A4 page.`;
 }
 
@@ -1039,11 +1065,11 @@ function bindInspector(body) {
     const apply = live => {
       let v = readInput(inp);
       if (!isS && (key === 'w' || key === 'h')) { if (v === '' || v <= 0) return; v = Math.max(key === 'w' ? 5 : 3, v); }
-      if (isS && key === 'per_row') v = clamp(Math.round(Number(v) || 1), 1, 10);
+      if (isS && (key === 'per_row' || key === 'per_col')) v = clamp(Math.round(Number(v) || 1), 1, 10);
       if (isS && (key === 'gap_h_mm' || key === 'gap_v_mm' || key === 'offset_x_mm' || key === 'offset_y_mm') && v === '') v = 0;
       if (isS) setPath(S.t.settings, key, v); else S.t[key] = v;
       paint(); renderOverlay(); drawRulers(); renderTopBar(); renderStatus();
-      if (!live) { commitChange(); if (key === 'per_row' || key === 'gap_h_mm' || key.startsWith('sheet')) renderInspector(); }
+      if (!live) { commitChange(); if (key === 'per_row' || key === 'per_col' || key === 'gap_h_mm' || key.startsWith('sheet')) renderInspector(); }
     };
     inp.addEventListener('focus', beginChange);
     inp.addEventListener('pointerdown', beginChange);
@@ -1132,6 +1158,8 @@ function applyPreset(id) {
     }
     S.t.w = p.w; S.t.h = p.h;
     S.t.settings.per_row = p.per_row || 1;
+    S.t.settings.per_col = p.per_col || 1;
+    S.t.settings.direction = p.direction || 'horizontal';
     if (p.gap_h !== undefined) S.t.settings.gap_h_mm = p.gap_h;
     if (p.gap_v !== undefined) S.t.settings.gap_v_mm = p.gap_v;
     if (p.dpi) S.t.settings.dpi = p.dpi;
@@ -1257,9 +1285,11 @@ function showStarter() {
       <h3>Start a new label</h3>
       <p class="stk-muted">Pick the size of the roll you print on - you can change it any time.</p>
       ${groups.map(g => `<h5>${esc(g)}</h5><div class="stk-starter-grid">${E.LABEL_PRESETS.filter(p => p.group === g).map(p => {
-        const k = 56 / Math.max(p.w * (p.per_row || 1), p.h * 1.6);
+        const vertical = p.direction === 'vertical', cw = vertical ? p.h : p.w, ch = vertical ? p.w : p.h;
+        const across = p.per_row || 1, down = p.per_col || 1;
+        const k = 56 / Math.max(cw * across, ch * down * 1.6);
         return `<button class="stk-starter-opt" data-preset="${p.id}">
-          <span class="stk-starter-shape">${Array.from({ length: p.per_row || 1 }, () => `<i style="width:${Math.max(6, p.w * k)}px; height:${Math.max(4, p.h * k)}px"></i>`).join('')}</span>
+          <span class="stk-starter-shape"${down > 1 ? ' style="flex-direction: column;"' : ''}>${Array.from({ length: across * down }, () => `<i style="width:${Math.max(4, cw * k)}px; height:${Math.max(4, ch * k)}px"></i>`).join('')}</span>
           <span>${esc(p.label)}</span></button>`;
       }).join('')}</div>`).join('')}
       <div class="stk-starter-foot">
@@ -1639,11 +1669,10 @@ function setZoom(z) {
 function fitZoom() {
   if (!S.root) return;
   const scroll = S.root.querySelector('.stk-scroll');
-  const s = S.t.settings;
-  const mediaW = Math.max(Number(s.media_w_mm) || 0, s.per_row * S.t.w + (s.per_row - 1) * s.gap_h_mm);
+  const L = boardLayout(S.t);
   const availW = Math.max(200, scroll.clientWidth - 120);
   const availH = Math.max(120, scroll.clientHeight - 160);
-  S.zoom = clamp(Math.min(availW / mediaW, availH / S.t.h), ZOOM_MIN, ZOOM_MAX);
+  S.zoom = clamp(Math.min(availW / L.w, availH / L.h), ZOOM_MIN, ZOOM_MAX);
 }
 
 function onRootClick(e) {
@@ -1861,7 +1890,7 @@ async function testPrint(anchor) {
   pop.className = 'stk-pop';
   pop.innerHTML = `
     <h4>Test print</h4>
-    <p class="stk-muted">One ${S.t.settings.per_row > 1 ? 'row' : 'label'} of this design${S.previewName ? ` with <b>${esc(S.previewName)}</b>` : ' with sample data'} - nothing is logged.</p>
+    <p class="stk-muted">One ${S.t.settings.per_row * S.t.settings.per_col > 1 ? 'print' : 'label'} of this design${S.previewName ? ` with <b>${esc(S.previewName)}</b>` : ' with sample data'} - nothing is logged.</p>
     <label class="stk-field"><span>Printer</span><select class="stk-pop-printer">
       <option value="">Browser print dialog</option>
       ${printers.map(p => `<option value="${esc(p.code || p.id)}">${esc(p.name || p.code)}${p.printer_language ? ` · ${esc(p.printer_language)}` : ''}</option>`).join('')}
@@ -1933,7 +1962,7 @@ export async function renderStickerTemplateGallery(container, { onChange } = {})
                 <strong>${esc(d.label)}</strong>
                 <span class="badge">Built-in</span>
               </div>
-              <div class="stk-card-meta">${round2(d.w)} × ${round2(d.h)} mm · ${d.dpi} dpi${d.per_row > 1 ? ` · ${d.per_row}-up` : ''} · ${d.elements.length} elements</div>
+              <div class="stk-card-meta">${round2(d.w)} × ${round2(d.h)} mm · ${d.dpi} dpi${layoutText({ per_row: d.per_row || 1, per_col: d.per_col || 1, direction: d.direction })} · ${d.elements.length} elements</div>
               <div class="stk-card-cats"><span class="stk-muted">Pick it on Print or in a template rule; Duplicate it to change it</span></div>
               <div class="stk-card-actions">
                 <button class="btn btn-outline btn-sm" data-g="design-dup" data-design="${esc(d.id)}">Duplicate</button>
@@ -1949,7 +1978,7 @@ export async function renderStickerTemplateGallery(container, { onChange } = {})
                 ${t.is_default ? '<span class="badge badge-secondary">Default</span>' : ''}
                 ${t.status !== 'Active' ? '<span class="badge">Inactive</span>' : ''}
               </div>
-              <div class="stk-card-meta">${round2(t.w)} × ${round2(t.h)} mm · ${t.settings.dpi} dpi${t.settings.per_row > 1 ? ` · ${t.settings.per_row}-up` : ''} · ${t.elements.length} element${t.elements.length === 1 ? '' : 's'}</div>
+              <div class="stk-card-meta">${round2(t.w)} × ${round2(t.h)} mm · ${t.settings.dpi} dpi${layoutText(t.settings)} · ${t.elements.length} element${t.elements.length === 1 ? '' : 's'}</div>
               <div class="stk-card-cats">${(t.categories || '').split(',').map(c => c.trim()).filter(Boolean).map(c => `<span class="stk-cat">${esc(c)}</span>`).join('') || '<span class="stk-muted">No categories</span>'}</div>
               <div class="stk-card-actions">
                 <button class="btn btn-outline btn-sm" data-g="open" data-i="${i}">Edit</button>
@@ -1966,16 +1995,13 @@ export async function renderStickerTemplateGallery(container, { onChange } = {})
   });
   const std = E.templateFromDoc({ label_width_mm: E.DEFAULT_STICKER_TEMPLATE.w, label_height_mm: E.DEFAULT_STICKER_TEMPLATE.h, elements: E.DEFAULT_STICKER_TEMPLATE.elements });
   E.paintPreview(panel.querySelector('.stk-card.is-builtin:not([data-design]) canvas'), std, label, { scale: Math.min(260 / std.w, 120 / std.h) });
-  for (const d of E.READY_DESIGNS) {
-    const t = E.templateFromDoc({ label_width_mm: d.w, label_height_mm: d.h, elements: d.elements });
-    E.paintPreview(panel.querySelector(`.stk-card[data-design="${d.id}"] canvas`), t, label, { scale: Math.min(260 / t.w, 120 / t.h) });
-  }
+  // Stage 119: a card shows one whole print as it comes off the roll.
+  const thumb = (canvas, t) => E.paintPrint(canvas, t, label, { scale: Math.min(260 / E.mediaWidthMM(t), 120 / E.printHeightMM(t)) });
+  for (const d of E.READY_DESIGNS) thumb(panel.querySelector(`.stk-card[data-design="${d.id}"] canvas`), E.designTemplate(d));
   for (let i = 0; i < templates.length; i++) {
     const t = templates[i];
     await E.ensureTemplateAssets(t);
-    const canvas = panel.querySelector(`.stk-card[data-i="${i}"] canvas`);
-    const scale = Math.min(260 / t.w, 120 / t.h);
-    E.paintPreview(canvas, t, label, { scale });
+    thumb(panel.querySelector(`.stk-card[data-i="${i}"] canvas`), t);
   }
   const reopen = () => (onChange ? onChange() : window.renderView('stickers'));
   panel.addEventListener('click', e => {
@@ -2173,4 +2199,18 @@ async function patchDoc(doctype, id, changes) {
   if (!out) return false;
   if (!out.ok) { await window.showApiError?.(out, `Could not save ${id}.`, 'Save failed'); return false; }
   return true;
+}
+
+// Stage 119.5: the Print screen keeps a template pick as the Product type
+// rule - the field Template rules edits. productType is what the Item holds
+// (the type's name, code or id). Returns the type's display name, or '' when
+// nothing was saved (the reason is already shown).
+export async function rememberProductTypeTemplate(productType, templateId) {
+  const res = await window.apiFetch('/api/v1/doc/ProductType');
+  if (!res) return '';
+  if (!res.ok) { await window.showApiError?.(res, 'Could not read the product types.'); return ''; }
+  const want = String(productType || '').trim().toLowerCase();
+  const p = ((await res.json()) || []).find(x => [x.id, x.code, x.name].some(v => String(v || '').trim().toLowerCase() === want));
+  if (!p) { await window.showCustomAlert?.(`There is no product type "${productType}", so the template was not kept.`, 'Not saved'); return ''; }
+  return (await patchDoc('ProductType', p.id, { sticker_template: templateId })) ? (p.name || p.code || p.id) : '';
 }

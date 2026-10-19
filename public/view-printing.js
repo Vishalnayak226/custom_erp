@@ -431,6 +431,27 @@ async function loadStickerTemplateChoices() {
   ];
 }
 
+// Stage 119.5: a pick kept as the Product type rule. The lines it now applies
+// to show that rule instead of a one-off choice; an Item or Item type rule
+// still comes first, as on Template rules.
+async function keepStickerTemplateFor(types, templateId) {
+  const { rememberProductTypeTemplate } = await loadStickerStudio();
+  const name = (stickerTemplateChoices.find(t => t.id === templateId) || {}).name || templateId;
+  const kept = [];
+  for (const pt of types) {
+    if (!await rememberProductTypeTemplate(pt, templateId)) break;
+    kept.push(pt);
+  }
+  if (!kept.length) return;
+  stickerSourceLines.forEach((l, i) => {
+    if (!kept.includes(l.product_type) || l.template_rule === 'Item' || l.template_rule === 'Item type') return;
+    Object.assign(l, { template_id: templateId, template_name: name, template_rule: 'Product type' });
+    if (stickerSourceTemplates[i] === templateId) stickerSourceTemplates[i] = '';
+  });
+  window.showToast?.(`${kept.join(', ')} items now print with ${name}. Change it here or in Template rules.`, { variant: 'success' });
+  renderStickerSourceLines();
+}
+
 // A built-in design picked for a print is saved once as a template of the
 // client's own, then used like any other; '' (rules decide) if it could not be.
 async function pickStickerChoice(value) {
@@ -479,6 +500,10 @@ function renderStickerSourceLines() {
     .map(t => `<option value="${escapeHTMLText(t.id)}" ${t.id === selected ? 'selected' : ''}>${escapeHTMLText(t.name)}</option>`).join('');
   const values = stickerSourceLines.map((l, i) => stickerSourceTemplates[i] || '');
   const runValue = values.every(v => v === values[0]) ? values[0] : '__mixed';
+  // Stage 119.5: a saved template picked here can be kept as the Product type rule.
+  const keepable = v => v && v !== 'standard' && v !== '__mixed';
+  const allTypes = [...new Set(stickerSourceLines.map(l => l.product_type).filter(Boolean))];
+  const keepTitle = types => `Print every ${types} item with this template from now on (the Product type rule in Template rules)`;
   el.innerHTML = `
     <label class="form-label" style="display: flex; align-items: center; gap: 8px; margin: 4px 0 8px;">
       Template for every line
@@ -487,6 +512,7 @@ function renderStickerSourceLines() {
         <option value="" ${runValue === '' ? 'selected' : ''}>As per template rules</option>
         ${choiceOptions(runValue)}
       </select>
+      ${keepable(runValue) && allTypes.length ? `<button type="button" class="action-btn" id="sticker-source-keep-all" title="${escapeHTMLText(keepTitle(allTypes.join(', ')))}">Keep for ${escapeHTMLText(allTypes.join(', '))}</button>` : ''}
     </label>
     <table style="margin-top: 4px;">
       <thead><tr><th></th><th>SKU</th><th>Name</th>${anyBatch ? '<th>Batch/Lot</th>' : ''}<th>Category</th><th>Template</th><th>Copies</th><th></th></tr></thead>
@@ -501,7 +527,7 @@ function renderStickerSourceLines() {
             <td><select data-source-template="${i}" class="form-input" style="min-width: 160px;" aria-label="Template for ${escapeHTMLText(l.sku)}" title="Rule that picked it: ${escapeHTMLText(l.template_rule || 'Standard')}">
               <option value="">${escapeHTMLText(l.template_name)} (${escapeHTMLText(STICKER_RULE_TEXT[l.template_rule] || 'no rule')})</option>
               ${choiceOptions(values[i])}
-            </select></td>
+            </select>${keepable(values[i]) && l.product_type ? ` <button type="button" class="action-btn" data-source-keep="${i}" title="${escapeHTMLText(keepTitle(l.product_type))}">Keep for ${escapeHTMLText(l.product_type)}</button>` : ''}</td>
             <td><input type="number" min="1" data-source-copies="${i}" class="form-input" style="width: 70px;" aria-label="Copies of ${escapeHTMLText(l.sku)}" value="${escapeHTMLText(stickerSourceCopies[i] ?? l.qty)}"></td>
             <td><button class="action-btn" data-source-print-one="${i}">Print</button></td>
           </tr>
@@ -535,6 +561,11 @@ function renderStickerSourceLines() {
     stickerSourceLines.forEach((l, i) => { stickerSourceTemplates[i] = value; });
     renderStickerSourceLines();
   });
+  el.querySelectorAll('[data-source-keep]').forEach(btn => btn.addEventListener('click', () => {
+    const i = Number(btn.getAttribute('data-source-keep'));
+    keepStickerTemplateFor([stickerSourceLines[i].product_type], stickerSourceTemplates[i]);
+  }));
+  document.getElementById('sticker-source-keep-all')?.addEventListener('click', () => keepStickerTemplateFor(allTypes, runValue));
   el.querySelectorAll('[data-source-print-one]').forEach(btn => {
     btn.addEventListener('click', () => printStickerSourceLines([Number(btn.getAttribute('data-source-print-one'))]));
   });

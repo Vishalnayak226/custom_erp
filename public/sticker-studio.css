@@ -258,6 +258,9 @@ body.stk-studio-open .typeahead-menu { z-index: 2100; }
   pointer-events: none;
   box-shadow: var(--stk-paper-shadow);
 }
+/* Stage 119: the Label tab's One print view - the print as it comes off the roll. */
+.stk-one-print-wrap { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.stk-one-print { align-self: flex-start; border-radius: 2px; box-shadow: var(--stk-paper-shadow); }
 .stk-grid {
   position: absolute;
   inset: 0;

@@ -103,10 +103,18 @@ const scaleElements = (els, sx, sy) => els.map(e => {
 });
 const SEZNIK_ELEMENTS = scaleElements(RING_ELEMENTS, 100 / 97.6, 14.3 / 11.9);
 
+// Stage 119.1: the Seznik tag four ways, named by how the tag lies on the
+// roll. Vertical prints the same design turned a quarter (direction), so
+// three standing tags sit side by side; three lying tags stack down the roll
+// (per_col). Horizontal × 1 keeps the code the first Seznik design shipped
+// with, so a copy a client already saved still counts as this one.
 export const READY_DESIGNS = [
   { id: 'jd-square-2up', code: 'SQUARE-2UP', label: 'Square 2-up (54.5 mm roll)', w: 26.25, h: 20.1, per_row: 2, gap_h: 2, gap_v: 3, elements: SQUARE_ELEMENTS },
   { id: 'jd-ring-tag', code: 'RING-TAG', label: 'Ring tag 97.6 × 11.9', w: 97.6, h: 11.9, per_row: 1, gap_v: 3, elements: RING_ELEMENTS },
-  { id: 'jd-seznik-100x14.3', code: 'SEZNIK-TAG-100X14-3', label: 'Seznik tag 100 × 14.3', w: 100, h: 14.3, per_row: 1, gap_v: 3, elements: SEZNIK_ELEMENTS }
+  { id: 'jd-seznik-h1', code: 'SEZNIK-TAG-100X14-3', label: 'Seznik horizontal × 1', w: 100, h: 14.3, per_row: 1, gap_v: 3, elements: SEZNIK_ELEMENTS },
+  { id: 'jd-seznik-h3', code: 'SEZNIK-H3', label: 'Seznik horizontal × 3', w: 100, h: 14.3, per_row: 1, per_col: 3, gap_v: 3, elements: SEZNIK_ELEMENTS },
+  { id: 'jd-seznik-v1', code: 'SEZNIK-V1', label: 'Seznik vertical × 1', w: 100, h: 14.3, direction: 'vertical', per_row: 1, gap_v: 3, elements: SEZNIK_ELEMENTS },
+  { id: 'jd-seznik-v3', code: 'SEZNIK-V3', label: 'Seznik vertical × 3', w: 100, h: 14.3, direction: 'vertical', per_row: 3, gap_h: 2, gap_v: 3, elements: SEZNIK_ELEMENTS }
 ].map(d => Object.assign({ group: 'Ready designs', dpi: 300 }, d));
 
 // Common Indian retail / jewellery roll sizes. per_row > 1 is a multi-up roll
@@ -131,6 +139,8 @@ export const LABEL_PRESETS = [
 export const DEFAULT_SETTINGS = {
   dpi: 203,
   per_row: 1,
+  per_col: 1,          // labels stacked down one print (Stage 119.3)
+  direction: 'horizontal', // 'vertical' prints the design turned a quarter clockwise (Stage 119.2)
   gap_h_mm: 2,
   gap_v_mm: 3,
   media_w_mm: '',      // blank = per_row * width + gaps
@@ -282,6 +292,8 @@ export function normaliseSettings(raw) {
   s.sheet = Object.assign({}, DEFAULT_SETTINGS.sheet, (raw && raw.sheet) || {});
   s.dpi = num(s.dpi, 203) || 203;
   s.per_row = Math.max(1, Math.min(10, Math.round(num(s.per_row, 1)) || 1));
+  s.per_col = Math.max(1, Math.min(10, Math.round(num(s.per_col, 1)) || 1));
+  s.direction = s.direction === 'vertical' ? 'vertical' : 'horizontal';
   s.gap_h_mm = num(s.gap_h_mm, 2);
   s.gap_v_mm = num(s.gap_v_mm, 3);
   s.offset_x_mm = num(s.offset_x_mm, 0);
@@ -325,6 +337,8 @@ export function designTemplate(d) {
   const t = templateFromDoc({ label_width_mm: d.w, label_height_mm: d.h });
   t.name = d.label;
   t.settings.per_row = d.per_row || 1;
+  t.settings.per_col = d.per_col || 1;
+  t.settings.direction = d.direction || 'horizontal';
   if (d.gap_h !== undefined) t.settings.gap_h_mm = d.gap_h;
   if (d.gap_v !== undefined) t.settings.gap_v_mm = d.gap_v;
   if (d.dpi) t.settings.dpi = d.dpi;
@@ -1079,29 +1093,60 @@ function newCanvas(w, h) {
   return c;
 }
 
-function mediaWidthMM(t) {
+// Stage 119.2/119.3: a label's cell on the roll - the design's own size, or
+// turned (its height wide) when the template prints vertical - and one print:
+// per_row cells across by per_col down, the gaps between them.
+export function cellSize(t) {
+  return t.settings.direction === 'vertical' ? { w: t.h, h: t.w } : { w: t.w, h: t.h };
+}
+
+export function printHeightMM(t) {
   const s = t.settings;
-  const auto = s.per_row * t.w + (s.per_row - 1) * s.gap_h_mm;
+  return s.per_col * cellSize(t).h + (s.per_col - 1) * s.gap_v_mm;
+}
+
+// Cell k of a print, from its top-left corner (offsets not included).
+export function cellOrigin(t, k) {
+  const s = t.settings, c = cellSize(t);
+  return { x: (k % s.per_row) * (c.w + s.gap_h_mm), y: Math.floor(k / s.per_row) * (c.h + s.gap_v_mm) };
+}
+
+// drawLabel into a cell at the current origin, turned a quarter clockwise
+// for a vertical template: what reads left to right reads top to bottom.
+export function drawCell(ctx, t, label, opts) {
+  if (t.settings.direction !== 'vertical') { drawLabel(ctx, t, label, opts); return; }
+  ctx.save();
+  const x = t.h * opts.scale;
+  ctx.translate(opts.snap ? Math.round(x) : x, 0);
+  ctx.rotate(Math.PI / 2);
+  drawLabel(ctx, t, label, opts);
+  ctx.restore();
+}
+
+export function mediaWidthMM(t) {
+  const s = t.settings;
+  const auto = s.per_row * cellSize(t).w + (s.per_row - 1) * s.gap_h_mm;
   const set = Number(s.media_w_mm);
   return set > 0 ? Math.max(set, auto) : auto;
 }
 
-// One printed row (per_row labels side by side) as a 1-bit bitmap: rows of
+// One print (per_row × per_col labels) as a 1-bit bitmap: rows of
 // bytesPerRow bytes, MSB = leftmost dot, 1 = black.
 export function renderRowBitmap(t, labels, dpi) {
   const dpm = dpi / MM_PER_INCH;
   const s = t.settings;
   const wDots = Math.round(mediaWidthMM(t) * dpm);
-  const hDots = Math.round(t.h * dpm);
+  const hDots = Math.round(printHeightMM(t) * dpm);
   const c = newCanvas(wDots, hDots);
   const ctx = c.getContext('2d', { willReadFrequently: true });
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, wDots, hDots);
   labels.forEach((label, i) => {
     if (!label) return;
+    const o = cellOrigin(t, i);
     ctx.save();
-    ctx.translate(Math.round((s.offset_x_mm + i * (t.w + s.gap_h_mm)) * dpm), Math.round(s.offset_y_mm * dpm));
-    drawLabel(ctx, t, label, { scale: dpm, dpi, snap: true, mono: true });
+    ctx.translate(Math.round((s.offset_x_mm + o.x) * dpm), Math.round((s.offset_y_mm + o.y) * dpm));
+    drawCell(ctx, t, label, { scale: dpm, dpi, snap: true, mono: true });
     ctx.restore();
   });
   return canvasToBits(ctx, wDots, hDots);
@@ -1199,7 +1244,7 @@ export function buildTSPL(rows, t) {
   const enc = new TextEncoder();
   const parts = [];
   const text = str => parts.push(enc.encode(str));
-  text(`SIZE ${mmStr(mediaWidthMM(t))} mm,${mmStr(t.h)} mm\r\n`);
+  text(`SIZE ${mmStr(mediaWidthMM(t))} mm,${mmStr(printHeightMM(t))} mm\r\n`);
   text(`GAP ${mmStr(s.gap_v_mm)} mm,0 mm\r\n`);
   text(`DIRECTION ${s.flip ? 0 : 1}\r\nREFERENCE 0,0\r\n`);
   if (s.density !== '' && s.density !== undefined) text(`DENSITY ${Math.max(0, Math.min(15, Math.round(Number(s.density))))}\r\n`);
@@ -1243,10 +1288,10 @@ function expandRuns(labels, templates, copies) {
   return segs;
 }
 
-// Rows of per_row labels; consecutive identical rows collapse into one row
-// with a copy count, so 50 copies of one tag are sent as one bitmap.
+// Prints of per_row × per_col labels; consecutive identical prints collapse
+// into one with a copy count, so 50 copies of one tag are sent as one bitmap.
 function segmentRows(seg) {
-  const per = seg.t.settings.per_row;
+  const per = seg.t.settings.per_row * seg.t.settings.per_col;
   const rows = [];
   for (let i = 0; i < seg.items.length; i += per) {
     const cells = seg.items.slice(i, i + per);
@@ -1330,12 +1375,15 @@ async function printThermal(segments, printer, jobRef) {
   return true;
 }
 
-// Browser print: every label is rendered by the same drawLabel to a PNG at
-// 300 dpi and laid out either as roll pages (one row of labels per page, page
-// sized to the roll - for a thermal printer driven by its Windows driver) or
-// as an A4 sheet grid (laser/inkjet sticker sheets). CSS named pages let one
-// print job mix label sizes.
-async function printSheet(segments) {
+// Browser print: every label is rendered by the same drawLabel to a PNG and
+// laid out either as roll pages (one print per page, page sized to the roll -
+// for a thermal printer driven by its Windows driver) or as an A4 sheet grid
+// (laser/inkjet sticker sheets). CSS named pages let one print job mix label
+// sizes. Stage 119.4: a roll label is 1-bit at the printer's own dots, shown
+// unsmoothed, so the driver gets the bars the printer will burn instead of
+// greys to dither; and the first page's size is also the document's default
+// page, which is what Chromium hands the driver as the paper size.
+async function printSheet(segments, dpi) {
   const area = document.getElementById('sticker-print-area');
   if (!area) return;
   const pngCache = new Map();
@@ -1344,12 +1392,26 @@ async function printSheet(segments) {
     let perT = pngCache.get(key);
     if (!perT) { perT = new Map(); pngCache.set(key, perT); }
     if (perT.has(label)) return perT.get(label);
-    const dpi = Math.max(300, t.settings.dpi);
-    const dpm = dpi / MM_PER_INCH;
-    const c = newCanvas(Math.round(t.w * dpm), Math.round(t.h * dpm));
-    const ctx = c.getContext('2d');
+    const roll = t.settings.sheet.mode !== 'a4';
+    const pdpi = roll ? (dpi || t.settings.dpi || 203) : Math.max(300, t.settings.dpi);
+    const dpm = pdpi / MM_PER_INCH;
+    const cell = cellSize(t);
+    const c = newCanvas(Math.round(cell.w * dpm), Math.round(cell.h * dpm));
+    const ctx = c.getContext('2d', { willReadFrequently: true });
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
-    drawLabel(ctx, t, label, { scale: dpm, dpi, snap: true, mono: false });
+    drawCell(ctx, t, label, { scale: dpm, dpi: pdpi, snap: true, mono: roll });
+    if (roll) {
+      const bmp = canvasToBits(ctx, c.width, c.height);
+      const img = ctx.createImageData(c.width, c.height);
+      for (let y = 0; y < c.height; y++) {
+        for (let x = 0; x < c.width; x++) {
+          const v = bmp.bits[y * bmp.bytesPerRow + (x >> 3)] & (0x80 >> (x & 7)) ? 0 : 255;
+          const i = (y * c.width + x) * 4;
+          img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255;
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+    }
     const url = c.toDataURL('image/png');
     perT.set(label, url);
     return url;
@@ -1358,32 +1420,32 @@ async function printSheet(segments) {
   let css = '@media print { html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; } }\n';
   let html = '';
   segments.forEach((seg, si) => {
-    const t = seg.t, s = t.settings;
+    const t = seg.t, s = t.settings, cell = cellSize(t);
     const pageName = `stk${si}`;
     if (s.sheet.mode === 'a4') {
-      css += `@page ${pageName} { size: 210mm 297mm; margin: 0; }\n`;
+      css += `${si === 0 ? '@page { size: 210mm 297mm; margin: 0; }\n' : ''}@page ${pageName} { size: 210mm 297mm; margin: 0; }\n`;
       const sh = s.sheet;
-      const cols = Math.max(1, Math.floor((210 - 2 * sh.margin_left_mm + sh.gap_h_mm) / (t.w + sh.gap_h_mm)));
-      const rowsPer = Math.max(1, Math.floor((297 - 2 * sh.margin_top_mm + sh.gap_v_mm) / (t.h + sh.gap_v_mm)));
+      const cols = Math.max(1, Math.floor((210 - 2 * sh.margin_left_mm + sh.gap_h_mm) / (cell.w + sh.gap_h_mm)));
+      const rowsPer = Math.max(1, Math.floor((297 - 2 * sh.margin_top_mm + sh.gap_v_mm) / (cell.h + sh.gap_v_mm)));
       const perPage = cols * rowsPer;
       for (let p = 0; p < seg.items.length; p += perPage) {
         html += `<div class="stk-page" style="page:${pageName}; width:210mm; height:297mm;">`;
         seg.items.slice(p, p + perPage).forEach((label, k) => {
-          const x = sh.margin_left_mm + (k % cols) * (t.w + sh.gap_h_mm) + s.offset_x_mm;
-          const y = sh.margin_top_mm + Math.floor(k / cols) * (t.h + sh.gap_v_mm) + s.offset_y_mm;
-          html += `<img src="${png(t, label)}" style="left:${x}mm; top:${y}mm; width:${t.w}mm; height:${t.h}mm;" alt="">`;
+          const x = sh.margin_left_mm + (k % cols) * (cell.w + sh.gap_h_mm) + s.offset_x_mm;
+          const y = sh.margin_top_mm + Math.floor(k / cols) * (cell.h + sh.gap_v_mm) + s.offset_y_mm;
+          html += `<img src="${png(t, label)}" style="left:${x}mm; top:${y}mm; width:${cell.w}mm; height:${cell.h}mm;" alt="">`;
         });
         html += '</div>';
       }
     } else {
-      const mw = mediaWidthMM(t);
-      css += `@page ${pageName} { size: ${mw}mm ${t.h}mm; margin: 0; }\n`;
+      const mw = mediaWidthMM(t), ph = printHeightMM(t);
+      css += `${si === 0 ? `@page { size: ${mw}mm ${ph}mm; margin: 0; }\n` : ''}@page ${pageName} { size: ${mw}mm ${ph}mm; margin: 0; }\n`;
       for (const row of segmentRows(seg)) {
         for (let c = 0; c < row.copies; c++) {
-          html += `<div class="stk-page" style="page:${pageName}; width:${mw}mm; height:${t.h}mm;${s.flip ? ' transform: rotate(180deg);' : ''}">`;
+          html += `<div class="stk-page" style="page:${pageName}; width:${mw}mm; height:${ph}mm;${s.flip ? ' transform: rotate(180deg);' : ''}">`;
           row.cells.forEach((label, k) => {
-            const x = s.offset_x_mm + k * (t.w + s.gap_h_mm);
-            html += `<img src="${png(t, label)}" style="left:${x}mm; top:${s.offset_y_mm}mm; width:${t.w}mm; height:${t.h}mm;" alt="">`;
+            const o = cellOrigin(t, k);
+            html += `<img src="${png(t, label)}" style="left:${s.offset_x_mm + o.x}mm; top:${s.offset_y_mm + o.y}mm; width:${cell.w}mm; height:${cell.h}mm; image-rendering: pixelated;" alt="">`;
           });
           html += '</div>';
         }
@@ -1417,24 +1479,28 @@ export async function printStickerLabels(labels, { printer, copies = 1, apiFetch
   const templates = await loadTemplates(labels, apiFetch || window.apiFetch);
   const segments = expandRuns(labels, templates, copies);
   if (await printThermal(segments, printer, jobRef)) return;
-  await printSheet(segments);
+  await printSheet(segments, Number(printer && printer.dpi) || 0);
 }
 
-// One design, one label - the studio's Test Print (no print-log row: nothing
+// One design, one print - the studio's Test Print (no print-log row: nothing
 // real is being labelled).
 export async function printTestLabel(t, label, printer) {
   await ensureTemplateAssets(t);
-  const segments = [{ t, items: Array(t.settings.per_row).fill(label) }];
+  const segments = [{ t, items: Array(t.settings.per_row * t.settings.per_col).fill(label) }];
   if (await printThermal(segments, printer, 'Test print')) return;
-  await printSheet(segments);
+  await printSheet(segments, Number(printer && printer.dpi) || 0);
 }
 
 // Draws a template thumbnail/preview into an existing canvas at `scale` px/mm
 // (device-pixel-ratio aware). With mono, renders at printer DPI as the
 // printer would and scales up without smoothing - the "thermal view".
-export function paintPreview(canvas, t, label, { scale, mono = false, dpi } = {}) {
+// asPrinted draws the label's cell as it comes off the roll (turned for a
+// vertical template) instead of the design as it reads.
+export function paintPreview(canvas, t, label, { scale, mono = false, dpi, asPrinted = false } = {}) {
   const ratio = window.devicePixelRatio || 1;
-  const cssW = t.w * scale, cssH = t.h * scale;
+  const box = asPrinted ? cellSize(t) : { w: t.w, h: t.h };
+  const draw = asPrinted ? drawCell : drawLabel;
+  const cssW = box.w * scale, cssH = box.h * scale;
   canvas.style.width = cssW + 'px';
   canvas.style.height = cssH + 'px';
   canvas.width = Math.max(1, Math.round(cssW * ratio));
@@ -1446,11 +1512,11 @@ export function paintPreview(canvas, t, label, { scale, mono = false, dpi } = {}
   const pdpi = dpi || t.settings.dpi || 203;
   if (mono) {
     const dpm = pdpi / MM_PER_INCH;
-    const w = Math.round(t.w * dpm), h = Math.round(t.h * dpm);
+    const w = Math.round(box.w * dpm), h = Math.round(box.h * dpm);
     const off = newCanvas(w, h);
     const octx = off.getContext('2d', { willReadFrequently: true });
     octx.fillStyle = '#fff'; octx.fillRect(0, 0, w, h);
-    drawLabel(octx, t, label, { scale: dpm, dpi: pdpi, snap: true, mono: true });
+    draw(octx, t, label, { scale: dpm, dpi: pdpi, snap: true, mono: true });
     const bmp = canvasToBits(octx, w, h);
     const img = octx.createImageData(w, h);
     for (let y = 0; y < h; y++) {
@@ -1467,5 +1533,31 @@ export function paintPreview(canvas, t, label, { scale, mono = false, dpi } = {}
     return;
   }
   ctx.scale(ratio, ratio);
-  drawLabel(ctx, t, label, { scale, dpi: pdpi, snap: false, mono: false });
+  draw(ctx, t, label, { scale, dpi: pdpi, snap: false, mono: false });
+}
+
+// Stage 119: one whole print as it comes off the roll - every cell with
+// `label`, on a faint liner - for the template cards and the studio's
+// One print view, so horizontal / vertical and × 1 / × 3 read at a glance.
+export function paintPrint(canvas, t, label, { scale } = {}) {
+  const ratio = window.devicePixelRatio || 1;
+  const s = t.settings, c = cellSize(t);
+  const w = mediaWidthMM(t), h = printHeightMM(t);
+  canvas.style.width = w * scale + 'px';
+  canvas.style.height = h * scale + 'px';
+  canvas.width = Math.max(1, Math.round(w * scale * ratio));
+  canvas.height = Math.max(1, Math.round(h * scale * ratio));
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.fillStyle = '#dbe2ea';
+  ctx.fillRect(0, 0, w * scale, h * scale);
+  for (let k = 0; k < s.per_row * s.per_col; k++) {
+    const o = cellOrigin(t, k);
+    ctx.save();
+    ctx.translate(o.x * scale, o.y * scale);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, c.w * scale, c.h * scale);
+    drawCell(ctx, t, label, { scale, dpi: s.dpi || 203, snap: false, mono: false });
+    ctx.restore();
+  }
 }

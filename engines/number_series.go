@@ -83,11 +83,13 @@ var gstNumberPattern = regexp.MustCompile(`^[A-Z1-9][A-Z0-9/\-]*$`)
 // validSeparators are the joiners GST allows; blank is none.
 var validSeparators = map[string]bool{"": true, "/": true, "-": true}
 
-// gstTextPattern is what a document series' prefix or suffix may contain.
-var gstTextPattern = regexp.MustCompile(`^[A-Z0-9\-]{0,20}$`)
+// gstTextPattern is what a document series' prefix or suffix may contain:
+// gstNumberPattern's characters ("/" too since Stage 121.2 - it decides
+// where they may stand).
+var gstTextPattern = regexp.MustCompile(`^[A-Z0-9/\-]{0,20}$`)
 
 // seriesStoreCodePattern is what a store's own code in a series may be.
-var seriesStoreCodePattern = regexp.MustCompile(`^[A-Z0-9\-]{1,10}$`)
+var seriesStoreCodePattern = regexp.MustCompile(`^[A-Z0-9/\-]{1,10}$`)
 
 // seriesStore is a store as a number prints it by default.
 type seriesStore struct {
@@ -108,6 +110,11 @@ var counterSeries = map[string]bool{"PIMBarcodeSeq": true, "PIMDatedBarcodeSeq":
 // digits and the few joiners people use in document numbers. No spaces - a
 // number is read aloud, typed into searches and printed on barcodes.
 var seriesTextPattern = regexp.MustCompile(`^[A-Za-z0-9_.\-]{0,20}$`)
+
+// documentTextPattern adds "/" for a document series (Stage 121.2, the user:
+// "This should allow everything in all txn" - a PO suffix "/" was refused
+// though the form passed it). A counter's barcode digits stay as they were.
+var documentTextPattern = regexp.MustCompile(`^[A-Za-z0-9_./\-]{0,20}$`)
 
 // ListNumberSeries returns every series of the tenant, ordered by record type.
 func ListNumberSeries(tenantID string) ([]NumberSeries, error) {
@@ -347,14 +354,18 @@ func validateNumberSeries(s NumberSeries, current *NumberSeries, overrides map[s
 	if len(s.Separator) > 3 || strings.ContainsAny(s.Separator, " \t") {
 		return bad("separator must be at most 3 characters with no spaces")
 	}
-	if !seriesTextPattern.MatchString(s.Prefix) || !seriesTextPattern.MatchString(s.Suffix) {
-		return bad("prefix and suffix may use only letters, digits, '-', '_' and '.', up to 20 characters")
+	textPattern, textChars := seriesTextPattern, "letters, digits, '-', '_' and '.'"
+	if document {
+		textPattern, textChars = documentTextPattern, "letters, digits, '/', '-', '_' and '.'"
+	}
+	if !textPattern.MatchString(s.Prefix) || !textPattern.MatchString(s.Suffix) {
+		return bad("prefix and suffix may use only " + textChars + ", up to 20 characters")
 	}
 	if document && gstRules && !validSeparators[s.Separator] {
 		return bad("the separator may be /, - or none - GST allows no other character between the parts")
 	}
 	if document && gstRules && (!gstTextPattern.MatchString(s.Prefix) || !gstTextPattern.MatchString(s.Suffix)) {
-		return bad("prefix and suffix may use only capital letters, digits and '-' - the characters GST allows in a document number")
+		return bad("prefix and suffix may use only capital letters, digits, '/' and '-' - the characters GST allows in a document number")
 	}
 	// An empty prefix is kept only where it already is (the barcode counters,
 	// which mint digits rather than document numbers). A document series with
@@ -363,14 +374,14 @@ func validateNumberSeries(s NumberSeries, current *NumberSeries, overrides map[s
 		return bad("a prefix is required")
 	}
 	for store, o := range overrides {
-		if !seriesTextPattern.MatchString(o.Prefix) || !seriesTextPattern.MatchString(o.Suffix) {
-			return bad(fmt.Sprintf("store %s: prefix and suffix may use only letters, digits, '-', '_' and '.', up to 20 characters", store))
+		if !textPattern.MatchString(o.Prefix) || !textPattern.MatchString(o.Suffix) {
+			return bad(fmt.Sprintf("store %s: prefix and suffix may use only %s, up to 20 characters", store, textChars))
 		}
 		if document && gstRules && (!gstTextPattern.MatchString(o.Prefix) || !gstTextPattern.MatchString(o.Suffix)) {
-			return bad(fmt.Sprintf("store %s: prefix and suffix may use only capital letters, digits and '-'", store))
+			return bad(fmt.Sprintf("store %s: prefix and suffix may use only capital letters, digits, '/' and '-'", store))
 		}
 		if o.Code != "" && !seriesStoreCodePattern.MatchString(o.Code) {
-			return bad(fmt.Sprintf("store %s: its code in the number may use only capital letters, digits and '-', up to 10 characters", store))
+			return bad(fmt.Sprintf("store %s: its code in the number may use only capital letters, digits, '/' and '-', up to 10 characters", store))
 		}
 	}
 	if !validYearFormats[s.YearFormat] {

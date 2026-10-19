@@ -468,6 +468,11 @@ func TestStickerTemplateRulesAndChosenTemplate(t *testing.T) {
 		if w := want[p.SKU]; p.TemplateID != w[0] || p.TemplateRule != w[1] {
 			t.Errorf("%s: template %q by %q, want %q by %q", p.SKU, p.TemplateID, p.TemplateRule, w[0], w[1])
 		}
+		// Stage 119.5: the line carries the type as the Item holds it, so the
+		// Print screen can keep a pick as that type's rule.
+		if p.SKU == skuPType && p.ProductType != "test113 ring" {
+			t.Errorf("%s: product_type %q, want %q", p.SKU, p.ProductType, "test113 ring")
+		}
 	}
 
 	// Chosen at print: Standard on the line whose Item names a template, and

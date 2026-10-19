@@ -316,7 +316,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '55';
+const VIEW_MODULE_VERSION = '56';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -3041,6 +3041,7 @@ let pendingMFAToken = null;
 function showLoginScreen() {
   document.getElementById('login-screen').classList.remove('hidden');
   document.getElementById('app-root').classList.add('hidden');
+  document.title = 'Sign in | Wholeops';
   // Always land back on the username/password step, not a stale MFA screen
   // left over from a previous, unfinished login attempt.
   pendingMFAToken = null;
@@ -3070,6 +3071,7 @@ function showPasswordChangeScreen() {
   passwordChangeShowing = true;
   document.getElementById('app-root').classList.add('hidden');
   document.getElementById('login-screen').classList.remove('hidden');
+  document.title = 'Sign in | Wholeops';
   ['login-form', 'mfa-enroll-screen', 'mfa-challenge-screen'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
   document.querySelectorAll('.login-card > .login-subtitle').forEach(el => el.classList.add('hidden'));
   const form = document.getElementById('password-change-form');
@@ -4649,6 +4651,11 @@ function setupEventListeners() {
     closeSubmenus();
     renderView('home');
   });
+  // Stage 120: the logo = the Home menu item (which also closes the drawer).
+  document.querySelectorAll('.brand-link').forEach(link => link.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('menu-home').click();
+  }));
 
   document.getElementById('menu-doctype-builder').addEventListener('click', (e) => {
     e.preventDefault();
@@ -6007,6 +6014,14 @@ async function restoreLastView() {
 // but never touches #view-root otherwise.
 let viewRenderToken = 0;
 
+// Stage 120: tab title = the highlighted screen (not its module) | Wholeops.
+function syncDocumentTitle() {
+  const active = document.querySelector('#app-sidebar .submenu-item.active, #app-sidebar .menu-item.active:not(.menu-item-group)') ||
+    document.querySelector('#app-sidebar .menu-item-group.active');
+  const label = active ? (active.querySelector('span') || active).textContent.replace(/\s+/g, ' ').trim() : '';
+  document.title = label ? `${label} | Wholeops` : 'Wholeops';
+}
+
 async function renderView(view) {
   const myToken = ++viewRenderToken;
   const root = document.getElementById('view-root');
@@ -6047,6 +6062,7 @@ async function renderView(view) {
     if (myToken !== viewRenderToken) { scratch.remove(); return; }
     while (scratch.firstChild) root.appendChild(scratch.firstChild);
     scratch.remove();
+    syncDocumentTitle();
     // Chromium can cache a stale containing-block rect for `position: sticky`
     // content (e.g. a table's frozen header row) when it's inserted into a
     // scroll container in the very same reflow that establishes that
