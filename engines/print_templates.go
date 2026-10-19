@@ -190,7 +190,8 @@ func GetPrintCatalog(tenantID, txn string) (PrintCatalog, error) {
 		add(&out.Header, "Document", "fields.gst_mode", "GST treatment of prices")
 	case PrintTxnPOSTaxInvoice:
 		for _, f := range [][2]string{{"buyer_gstin", "Buyer GSTIN"}, {"place_of_supply", "Place of supply"}, {"supply_type", "Supply type (B2B / B2C)"},
-			{"reverse_charge", "Reverse charge"}, {"payment_mode", "Payment mode"}, {"cart_number", "Till cart number"}} {
+			{"reverse_charge", "Reverse charge"}, {"payment_mode", "Payment mode"}, {"cart_number", "Till cart number"},
+			{"bill_datetime", "Bill date and time"}, {"cashier", "Cashier"}} {
 			add(&out.Header, "Document", "fields."+f[0], f[1])
 		}
 	case PrintTxnSalesReturn:
@@ -232,7 +233,7 @@ func GetPrintCatalog(tenantID, txn string) (PrintCatalog, error) {
 		{"damaged_qty", "Total damaged"}, {"shipped_qty", "Total shipped"}, {"received_qty", "Total received"}, {"short_qty", "Total short"},
 		{"return_qty", "Total returned"}, {"taxable", "Taxable value"}, {"cgst", "CGST"},
 		{"sgst", "SGST"}, {"igst", "IGST"}, {"tax", "Total tax"}, {"amount", "Total before rounding"},
-		{"round_off", "Round off"}, {"grand_total", "Grand total"}, {"line_count", "Number of lines"},
+		{"round_off", "Round off"}, {"grand_total", "Grand total"}, {"line_count", "Number of lines"}, {"discount", "Item discount"},
 	} {
 		add(&out.Header, "Totals", "totals."+t[0], t[1])
 	}

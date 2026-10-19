@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -871,7 +872,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// to lines that said something else; now the lines are the source
 			// of truth and the header total follows from them.
 			if breakdown.TaxableAmount > 0 || breakdown.NonTaxableAmount() > 0 {
-				payload["total_amount"] = breakdown.TaxableAmount + breakdown.NonTaxableAmount()
+				payload["total_amount"] = math.Round((breakdown.TaxableAmount+breakdown.NonTaxableAmount())*100) / 100
 				payload["grand_total"] = breakdown.TotalAmount
 			}
 		}
@@ -999,6 +1000,13 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// before the single write below. Creates and edits alike: a
 		// location's cost center is never blank.
 		if doctype == "Location" {
+			// Stage 108: a new location's blank Short / Facility Code is filled in.
+			if id == "" {
+				if err := engines.PrepareNewLocationCodes(tenantID, payload); err != nil {
+					writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+					return
+				}
+			}
 			if err := engines.PrepareLocationCostCenter(tenantID, docID, userID, payload); err != nil {
 				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 				return

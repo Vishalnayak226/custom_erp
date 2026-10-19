@@ -1141,7 +1141,79 @@ function wireLocationCostCenter(body) {
   paint();
 }
 
+// Stage 108 (user, 2026-10-19, New Location form): the form fills itself in
+// and every box stays editable. Short Code is suggested from the name by the
+// one standard rule (engines.SuggestLocationShortCode - the server applies it
+// too if the box is left blank), Facility Code is the next number, Level and
+// Sellable follow Type (a store sells, a warehouse does not), Parent is the
+// HO, Legal Entity the first one, the till asks for a salesman. A box the user
+// changes stops following.
+function suggestLocationShortCode(name) {
+  const words = String(name || '').split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  if (!words.length) return '';
+  let code = [];
+  let used = 0;
+  for (const w of words) {
+    const r = [...w];
+    if (r.length <= 3 && w === w.toUpperCase()) { code = code.concat(r); used = r.length; } else { code.push(r[0]); used = 1; }
+  }
+  const last = [...words[words.length - 1]];
+  for (let i = used; code.length < 3 && i < last.length; i++) code.push(last[i]);
+  return code.slice(0, 4).join('').toUpperCase();
+}
+
+async function wireNewLocationDefaults(body) {
+  const field = name => body.querySelector(`[name="${name}"]`);
+  const touched = new Set();
+  body.addEventListener('change', e => { if (e.target.name) touched.add(e.target.name); });
+  body.addEventListener('input', e => { if (e.target.name && e.target.name !== 'name') touched.add(e.target.name); });
+  const set = (name, value) => {
+    const el = field(name);
+    if (!el || touched.has(name) || value == null) return;
+    if (el.tagName === 'SELECT' && value !== '' && ![...el.options].some(o => o.value === value)) return;
+    el.value = value;
+  };
+  const firstChoice = select => [...select.options].find(o => o.value && !o.disabled && o.value !== '__quick_create__')?.value;
+
+  let locations = [];
+  try {
+    const res = await apiFetch('/api/v1/doc/Location?limit=500');
+    if (res && res.ok) locations = (await res.json()) || [];
+  } catch (e) { /* the server still fills a blank Short / Facility Code */ }
+  const taken = new Set(locations.flatMap(l => [l.short_code, l.code, l.id].map(v => String(v || '').trim().toUpperCase())));
+  const hoID = locations.find(l => l.type === 'HO' && (l.status || 'Active') === 'Active')?.id || '';
+  const nextFacility = 1 + Math.max(0, ...locations.map(l => String(l.facility_code || '').trim()).filter(v => /^\d{1,15}$/.test(v)).map(Number));
+
+  const fillShort = () => {
+    const base = suggestLocationShortCode(field('name')?.value);
+    let code = base;
+    for (let n = 2; code && taken.has(code); n++) code = base + n;
+    set('short_code', code);
+  };
+  const followType = () => {
+    const type = field('type')?.value || '';
+    if (type) set('level', type);
+    set('sellable', type === '' || type === 'Store' ? 'Yes' : 'No');
+    set('parent', type === 'HO' ? '' : String(hoID));
+  };
+  field('name')?.addEventListener('input', fillShort);
+  field('type')?.addEventListener('change', followType);
+  if (!field('facility_code')?.value) set('facility_code', String(nextFacility));
+  set('salesman_mode', 'Mandatory');
+  fillShort();
+  followType();
+  // Link options arrive after the form is built: apply once they are there.
+  const parent = field('parent');
+  if (parent) new MutationObserver(followType).observe(parent, { childList: true });
+  const entity = field('legal_entity');
+  if (entity) {
+    const pick = () => { if (!entity.value) set('legal_entity', firstChoice(entity)); };
+    new MutationObserver(pick).observe(entity, { childList: true });
+    pick();
+  }
+}
+
 export { openDatePicker, closeDatePicker, openQuickCreateDialog, attachSmartHSNPicker, wireAttributeDefForm,
   isStateFieldName, isStateCodeFieldName, buildStateSelect, fieldChecksumOK, fillStateFromTaxId, taxIdLabel,
   loadMasterCodeSeries, masterCodeSetupRow, readMasterCodeFormat, groupFormSections, attachVariantOptionsEditor, openLineUpload,
-  wireLocationCostCenter };
+  wireLocationCostCenter, wireNewLocationDefaults };

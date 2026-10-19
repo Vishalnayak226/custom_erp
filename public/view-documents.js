@@ -1486,6 +1486,8 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
   if (currentDoctype === 'Offer') wireOfferScopeValue(body);
   // Stage 93.6: a location's cost center is suggested ("New: <name>"), never blank.
   if (currentDoctype === 'Location') wireLocationCostCenter(body);
+  // Stage 108: a new location's boxes filled in (Short Code, Facility Code, Type-led Level / Sellable, HO parent).
+  if (currentDoctype === 'Location' && !isEdit) wireNewLocationDefaults(body);
 
   // Stage 80: variant options as option + value rows, then the fields in
   // named sections (both no-ops on a form without them).

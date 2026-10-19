@@ -69,7 +69,7 @@ function sampleDocument(S) {
   };
 }
 
-export async function openPrintTemplateStudio({ txn = 'PurchaseOrder', templateId = '', sample = null, copyFrom = null } = {}) {
+export async function openPrintTemplateStudio({ txn = 'PurchaseOrder', templateId = '', sample = null, copyFrom = null, startLayout = null } = {}) {
   let doc = null;
   const sourceId = templateId || copyFrom;
   if (sourceId) {
@@ -81,12 +81,12 @@ export async function openPrintTemplateStudio({ txn = 'PurchaseOrder', templateI
   }
   S = {
     id: templateId && doc ? doc.id : '', isNew: !(templateId && doc), txn,
-    name: doc ? (copyFrom ? `${doc.name} (copy)` : doc.name) : `${T.txnLabel(txn)} - custom`,
+    name: doc ? (copyFrom ? `${doc.name} (copy)` : doc.name) : startLayout ? `${T.txnLabel(txn)} - 3-inch roll` : `${T.txnLabel(txn)} - custom`,
     code: doc && !copyFrom ? doc.code : '',
     isDefault: doc && !copyFrom ? (doc.is_default || 'No') : 'No',
     vendor: doc ? (doc.vendor || '') : '', families: doc ? (doc.item_families || '') : '', categories: doc ? (doc.item_categories || '') : '',
     status: doc ? (doc.status || 'Active') : 'Active',
-    layout: T.parseLayout(doc ? doc.layout : '', txn), sel: null, zoom: 0, catalog: null, sample: null, sampleRef: sample, undo: [], redo: [], dirty: false,
+    layout: startLayout ? clone(startLayout) : T.parseLayout(doc ? doc.layout : '', txn), sel: null, zoom: 0, catalog: null, sample: null, sampleRef: sample, undo: [], redo: [], dirty: false,
     root: null
   };
   S.catalog = await loadCatalog(txn);
@@ -581,6 +581,8 @@ function elementInspector(el) {
             <button type="button" data-colmove="${i}" data-dir="-1" title="Move left">&uarr;</button>
             <button type="button" data-coldel="${i}" title="Remove column">&times;</button>
             <div class="pts-col-key">${esc(c.key)} · ${esc(c.format || 'auto')}</div>
+            <div class="pts-col-under">${(c.under || []).map((u, j) => `<span class="pts-chip">${esc(u)} <button type="button" data-underdel="${i}" data-j="${j}" title="Remove this line">&times;</button></span>`).join('')}
+              <select class="form-input" data-underadd="${i}" aria-label="Add a line under this column"><option value="">+ line under...</option>${(S.catalog.line || []).map(f => opt(f.key, `${f.group}: ${f.label}`, '')).join('')}</select></div>
           </div>`).join('')}</div>
         <div class="form-group" style="margin-top:8px;"><label class="form-label">Add column</label><select class="form-input" data-addcol><option value="">Choose...</option>${(S.catalog.line || []).map(f => opt(f.key, `${f.group}: ${f.label}`, '')).join('')}</select></div>
         <p class="pts-hint">Rows that do not fit continue on the next page with the column headings repeated. Everything above the table prints on the first page only, everything below it (tax summary, totals, signatures) on the last page only.</p>`;
@@ -612,10 +614,17 @@ function elementInspector(el) {
 function bindInspector(box, el) {
   const commit = (fn, full = true) => { snapshot(); fn(); full ? render() : (renderCanvas(), renderTop()); };
   if (!el) {
-    box.querySelectorAll('[data-tp]').forEach(inp => inp.addEventListener('change', () => commit(() => {
+    box.querySelectorAll('[data-tp]').forEach(inp => inp.addEventListener('change', async () => {
       const k = inp.getAttribute('data-tp');
-      S.layout.page = { ...(S.layout.page || {}), [k]: k === 'margin' ? Number(inp.value) || 0 : inp.value };
-    })));
+      // Stage 106.3: moving a till / sales invoice onto roll paper offers
+      // the 3-inch bill layout rather than squeezing the A4 one.
+      const toRoll = k === 'size' && T.isRollPage({ size: inp.value }) && !T.isRollPage(S.layout.page) && T.offersRollBill(S.txn);
+      const relay = toRoll && await window.showCustomConfirm('Lay the page out as the 3-inch bill? Your current elements are replaced; Undo brings them back.', 'Roll paper');
+      commit(() => {
+        if (relay) S.layout = { ...T.rollBillLayout(S.txn), page: { ...T.rollBillLayout(S.txn).page, size: inp.value } };
+        else S.layout.page = { ...(S.layout.page || {}), [k]: k === 'margin' ? Number(inp.value) || 0 : inp.value };
+      });
+    }));
     box.querySelectorAll('[data-tm]').forEach(inp => inp.addEventListener('change', () => { S[inp.getAttribute('data-tm')] = inp.value.trim(); S.dirty = true; renderTop(); }));
     const v = box.querySelector('[data-tm="vendor"]');
     if (v && window.attachLinkTypeahead) window.attachLinkTypeahead(v, 'Vendor');
@@ -664,6 +673,15 @@ function bindInspector(box, el) {
     if (i > 0) [el.columns[i - 1], el.columns[i]] = [el.columns[i], el.columns[i - 1]];
   })));
   box.querySelectorAll('[data-coldel]').forEach(b => b.addEventListener('click', () => commit(() => { el.columns.splice(Number(b.getAttribute('data-coldel')), 1); })));
+  // Stage 106.3: fields printed under a column's own, one per line.
+  box.querySelectorAll('[data-underadd]').forEach(s => s.addEventListener('change', () => { if (s.value) commit(() => {
+    const c = el.columns[Number(s.getAttribute('data-underadd'))];
+    c.under = [...(c.under || []), s.value];
+  }); }));
+  box.querySelectorAll('[data-underdel]').forEach(b => b.addEventListener('click', () => commit(() => {
+    const c = el.columns[Number(b.getAttribute('data-underdel'))];
+    c.under = (c.under || []).filter((_, j) => j !== Number(b.getAttribute('data-j')));
+  })));
   const addcol = box.querySelector('[data-addcol]');
   if (addcol) addcol.addEventListener('change', () => {
     const f = (S.catalog.line || []).find(x => x.key === addcol.value);

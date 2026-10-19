@@ -125,10 +125,31 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-19 Stage 108 (New Location fills itself in; POS adds only an exact barcode) - DONE, NOT COMMITTED.** Ledger §261,
+  micro_checklist 108.1-108.2. New files (mine): `engines/location_identity.go`, `engines/location_identity_test.go`,
+  `db/migrations_stage108_location_level_types.sql` (applied by hand to the 5490 scratch DB only). Hunks of mine in shared
+  files: handlers_core_doc_engine.go (the `PrepareNewLocationCodes` call before the cost center), view-pickers.js
+  (`wireNewLocationDefaults`), view-documents.js (its call), view-pos.js (scan box, lines ~57-60 and ~420-560; the other
+  session's hunk is at ~1500), ADMIN_GUIDE B.3.0.3a, USER_GUIDE 4.1. Stage partial hunks only.
+
+- **2026-10-19 Stage 94.14-94.20 (GRN line table, PO design fixes, rounding) - UNCOMMITTED.** micro_checklist 94.14-94.20.
+  Done: 94.14 GRN line table (view-procurement.js, trade-docs.css, USER_GUIDE), 94.16 single-item design gets an Item
+  number (engines/master_codes.go, pim.go, new stage94_single_item_design_test.go). 94.15 started: GST totals rounded to
+  2 decimals (engines/gst.go, handlers_core_doc_engine.go); PO/POS rupee round-off and whole-rupee MRP still to build.
+  94.17 and 94.20 wait on the user. Prod still shows the Code-required error until the next release.
+  Stage 107 done (stock location "Physically in store?"): new migration `migrations_stage107_stock_location_physical.sql`
+  (applied by hand to the 5490 scratch DB only - the 5435 dev DB and prod get it from `-migrate` at release; the new code
+  fails to list stock locations until it runs), engines/stock_locations.go, wms.go, view-stock-locations.js, ADMIN_GUIDE.
+
 - **2026-10-19 Release 0.3.0 - COMMITTED, PUSHED, DEPLOYED to app and minn.** Ledger §260. `06547bb` on origin/main; prod
   reports 0.3.0 (06547bb), both hosts 200, `/store/` live. Backup `custom_erp_20261019T023744Z`, rollback dir
   `rollback_20261019_023745`. Everything that was in the tree at the snapshot shipped; only the Stage 101 CRM plan (§259)
   is still uncommitted. Still to do by hand: the 0.1.0 backfill row for 840909b (see the 0.2.0 entry).
+
+- **2026-10-19 Stage 101 CRM planned from the user's CRM blueprint PDF - PLAN ONLY, NOT COMMITTED, NOTHING BUILT.** Ledger §259.
+  The 70-page blueprint (38 modules M01-M38) is mapped onto the ERP in `docs/product/crm-platform-plan-2026-10-19.md` (new, mine);
+  checklist Stage 101 rewritten with phases 101.0-101.12 (101.1 / 101.3 IDs kept - Stage 102 points at them). Waiting on the
+  user's decisions D1, D2, D4, D6, D8-D13 and the SMS / DLT accounts (101.0.2). Build order starts 101.1 → 101.8 → 101.2 → 101.9.
 
 - **2026-10-19 Report catalog built - 252 of the user's 290 reports (75.3.2, 75.3.5-75.3.7) - BUILT AND VERIFIED, NOT
   COMMITTED, NOT DEPLOYED.** Ledger §258. No migration, no new route.

@@ -42,15 +42,17 @@ var stockBuckets = map[string]struct {
 	sellableEditable bool   // the client decides whether it sells
 	movable          bool   // Move Stock may take stock in / out
 	wmsCondition     string // the WMS bin condition it stands for
+	notPhysical      bool   // its stock is not in the store (Stage 107)
+	physicalEditable bool   // the client decides whether it is in the store
 }{
 	"available":  {pool: false, movable: true, wmsCondition: "Good"},
 	"inward":     {pool: true, movable: true},
-	"in_transit": {pool: true},
+	"in_transit": {pool: true, notPhysical: true},
 	"qc_hold":    {pool: true, sellableEditable: true, movable: true, wmsCondition: "QC-Hold"},
 	"damaged":    {pool: true, sellableEditable: true, movable: true, wmsCondition: "Damaged"},
 	"hold_qty":   {pool: false},
 	"rtv":        {pool: true, movable: true, wmsCondition: "RTV"},
-	"custom":     {pool: false, movable: true},
+	"custom":     {pool: false, movable: true, physicalEditable: true},
 }
 
 // StockLocation is one row of the master.
@@ -67,11 +69,19 @@ type StockLocation struct {
 	SellableEditable bool   `json:"sellable_editable"`
 	Movable          bool   `json:"movable"`
 	WMSCondition     string `json:"wms_condition"`
+	// Stage 107: stock here is not physically in the store (In-Transit; a
+	// client location such as "At repair" may be marked so too).
+	NotPhysical      bool `json:"not_physical"`
+	PhysicalEditable bool `json:"physical_editable"`
 }
 
 func (l *StockLocation) fill() {
 	b := stockBuckets[l.Bucket]
 	l.SellableEditable, l.Movable, l.WMSCondition = b.sellableEditable, b.movable, b.wmsCondition
+	l.PhysicalEditable = b.physicalEditable
+	if !b.physicalEditable {
+		l.NotPhysical = b.notPhysical
+	}
 }
 
 // ATSPolicy says which pools outside `available` count as sellable.
@@ -145,7 +155,7 @@ type queryer interface {
 
 func listStockLocations(q queryer, schema string) ([]StockLocation, error) {
 	rows, err := q.Query(fmt.Sprintf(`
-		SELECT code, name, bucket, sellable, applies_to, default_for_new, active, display_order, description
+		SELECT code, name, bucket, sellable, applies_to, default_for_new, active, display_order, description, not_physical
 		  FROM %s.stock_locations ORDER BY display_order, name`, schema))
 	if err != nil {
 		return nil, err
@@ -154,7 +164,7 @@ func listStockLocations(q queryer, schema string) ([]StockLocation, error) {
 	out := []StockLocation{}
 	for rows.Next() {
 		var l StockLocation
-		if err := rows.Scan(&l.Code, &l.Name, &l.Bucket, &l.Sellable, &l.AppliesTo, &l.DefaultForNew, &l.Active, &l.DisplayOrder, &l.Description); err != nil {
+		if err := rows.Scan(&l.Code, &l.Name, &l.Bucket, &l.Sellable, &l.AppliesTo, &l.DefaultForNew, &l.Active, &l.DisplayOrder, &l.Description, &l.NotPhysical); err != nil {
 			return nil, err
 		}
 		l.fill()
@@ -189,6 +199,20 @@ func bucketHasStock(schema string, l StockLocation, store string) (bool, error) 
 		err = db.DB.QueryRow(q, args...).Scan(&n)
 	}
 	return n > 0, err
+}
+
+// notPhysicalCustomQty is one item's stock at a store held in the client's
+// own locations marked not physically in the store (Stage 107). It is inside
+// on_hand (a carve-out of available) but not on the shelf. In-Transit needs no
+// such step - it is already outside on_hand.
+func notPhysicalCustomQty(schema, sku, store string) int {
+	var n int
+	_ = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT COALESCE(SUM(b.qty), 0) FROM %[1]s.stock_location_balance b
+		  JOIN %[1]s.stock_locations l ON l.code = b.stock_location
+		 WHERE b.sku = $1 AND b.location_code = $2 AND l.bucket = 'custom' AND l.not_physical`, schema),
+		sku, store).Scan(&n)
+	return n
 }
 
 // SaveStockLocation creates a client location or changes one. A built-in
@@ -235,6 +259,9 @@ func SaveStockLocation(tenantID string, in StockLocation, actor string) error {
 	} else {
 		in.Bucket = existing.Bucket
 		b := stockBuckets[in.Bucket]
+		if !b.physicalEditable {
+			in.NotPhysical = b.notPhysical
+		}
 		if !b.sellableEditable {
 			in.Sellable = existing.Sellable
 		}
@@ -250,17 +277,18 @@ func SaveStockLocation(tenantID string, in StockLocation, actor string) error {
 		}
 	}
 	if _, err := db.DB.Exec(fmt.Sprintf(`
-		INSERT INTO %s.stock_locations (code, name, bucket, sellable, applies_to, default_for_new, active, display_order, description, updated_by, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO %s.stock_locations (code, name, bucket, sellable, applies_to, default_for_new, active, display_order, description, updated_by, updated_at, not_physical)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, sellable = EXCLUDED.sellable, applies_to = EXCLUDED.applies_to,
 		  default_for_new = EXCLUDED.default_for_new, active = EXCLUDED.active, display_order = EXCLUDED.display_order,
-		  description = EXCLUDED.description, updated_by = EXCLUDED.updated_by, updated_at = EXCLUDED.updated_at`, schema),
+		  description = EXCLUDED.description, updated_by = EXCLUDED.updated_by, updated_at = EXCLUDED.updated_at,
+		  not_physical = EXCLUDED.not_physical`, schema),
 		in.Code, in.Name, in.Bucket, in.Sellable, in.AppliesTo, in.DefaultForNew, in.Active, in.DisplayOrder,
-		strings.TrimSpace(in.Description), actor, time.Now()); err != nil {
+		strings.TrimSpace(in.Description), actor, time.Now(), in.NotPhysical); err != nil {
 		return err
 	}
 	invalidateATSPolicy(schema)
-	LogAuditEvent(tenantID, actor, "INVENTORY", "STOCK_LOCATION_SAVED", fmt.Sprintf("Stock location %s (%s): sellable=%v active=%v", in.Code, in.Name, in.Sellable, in.Active))
+	LogAuditEvent(tenantID, actor, "INVENTORY", "STOCK_LOCATION_SAVED", fmt.Sprintf("Stock location %s (%s): sellable=%v not_physical=%v active=%v", in.Code, in.Name, in.Sellable, in.NotPhysical, in.Active))
 	return nil
 }
 
@@ -429,12 +457,15 @@ type StockLocationDefault struct {
 }
 
 var stockDefaultRules = map[string]StockLocationDefault{
-	"POS Sale":        {Note: "A sale takes Main stock first, then any location marked sellable."},
+	// Stage 106.4: POS Sale / Transfer Out / Purchase Return From and Sales
+	// Return To editable (stock_location_txn_defaults.go); Transfer Out To
+	// stays In-Transit, which is how the other store receives it.
+	"POS Sale":        {FromEditable: true, Note: "Where a sale takes stock first (a location that sells), then Main and any other location marked sellable."},
 	"Goods Receipt":   {ToEditable: true, Note: "Where received goods land. Choose Inward if goods are checked before they go on sale. Lines the receipt rejects still go to QC Hold / Damage."},
-	"Transfer Out":    {Note: "Dispatch takes Main stock and holds it In-Transit until received."},
+	"Transfer Out":    {FromEditable: true, Note: "Where dispatch takes stock first, then Main. To is always In-Transit: the goods are on the road until the other store receives them."},
 	"Transfer In":     {ToEditable: true, Note: "Where goods from another store land when received."},
-	"Sales Return":    {Note: "Each returned item goes where its QC result sends it (Good, Damaged, QC Hold)."},
-	"Purchase Return": {Note: "Goods going back to a vendor leave Main stock."},
+	"Sales Return":    {ToEditable: true, Note: "Where a return checked Good lands. Damaged and QC Hold results still go to Damage and QC Hold."},
+	"Purchase Return": {FromEditable: true, Note: "Where accepted goods going back to a vendor are taken from first, then Main. Rejected / damaged lines leave their own location."},
 	"Damage":          {FromEditable: true, ToEditable: true, Note: "The usual move when stock is found damaged."},
 	"Stock Move":      {FromEditable: true, ToEditable: true, Note: "What Move Stock starts with."},
 }
@@ -505,6 +536,9 @@ func SetStockLocationDefault(tenantID, txn, from, to, actor string) error {
 	}
 	if to, err = check(to, rule.ToEditable, cur.To); err != nil {
 		return err
+	}
+	if txn == "POS Sale" && from != "MAIN" && !byCode[from].Sellable {
+		return stockLocationError("STKLOC-0862", fmt.Sprintf("%s does not sell - a sale can only take stock from a location marked Sells.", byCode[from].Name))
 	}
 	if rule.FromEditable && rule.ToEditable && from == to {
 		return stockLocationError("STKLOC-0862", "From and To must be different locations.")
@@ -637,6 +671,20 @@ func applyBucketDeltaTx(tx *sql.Tx, schema, sku, store string, l StockLocation, 
 	switch {
 	case l.Bucket == "available":
 		_, err := tx.Exec(fmt.Sprintf(`UPDATE %s.inventory_availability SET available = available + $1, updated_at = CURRENT_TIMESTAMP WHERE sku = $2 AND location_code = $3`, schema), qty, sku, store)
+		return err
+	case l.Bucket == "custom" && qty < 0:
+		// Stage 106.4: taking stock out is an UPDATE - an INSERT ... ON
+		// CONFLICT checks qty >= 0 on the proposed (negative) row before it
+		// merges, so stock could never leave a client's own location.
+		res, err := tx.Exec(fmt.Sprintf(`UPDATE %s.stock_location_balance SET qty = qty + $1, updated_at = CURRENT_TIMESTAMP WHERE sku = $2 AND location_code = $3 AND stock_location = $4`, schema),
+			qty, sku, store, l.Code)
+		if err != nil {
+			return err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return fmt.Errorf("%s holds none of %s at %s", l.Name, sku, store)
+		}
+		_, err = tx.Exec(fmt.Sprintf(`UPDATE %s.inventory_availability SET available = available + $1, blocked = blocked + $1, updated_at = CURRENT_TIMESTAMP WHERE sku = $2 AND location_code = $3`, schema), qty, sku, store)
 		return err
 	case l.Bucket == "custom":
 		if _, err := tx.Exec(fmt.Sprintf(`

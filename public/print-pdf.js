@@ -47,10 +47,57 @@ async function inlineImages(root) {
 }
 
 async function pageToJPEG(page, widthMM, heightMM, css) {
+  const { canvas, w, h } = await pageToCanvas(page, widthMM, heightMM, css, DPI);
+  // toDataURL throws on a browser that treats the drawing as cross-origin
+  // (older Safari); the caller says so and offers the print dialog instead.
+  const b64 = canvas.toDataURL('image/jpeg', 0.88).split(',')[1];
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return { bytes, w, h };
+}
+
+// pageToESCPOS (Stage 106.3) is a page as ESC-POS raster commands for a
+// receipt printer: drawn at the printer's own dots, cut to its printable width
+// (paper less 4 mm a side, a whole number of bytes), turned black-and-white,
+// sent as GS v 0 bands, then fed and cut. Returned as base64.
+export async function pageToESCPOS(page, widthMM, heightMM, { paperMM = 80, dpi = 203 } = {}) {
+  const css = await tradeCSS();
+  if (document.fonts?.ready) await document.fonts.ready;
+  const { canvas, w, h } = await pageToCanvas(page, widthMM, heightMM, css, dpi);
+  const dotsPerMM = dpi / 25.4;
+  const printable = Math.min(w, Math.floor(Math.max(paperMM - 8, 20) * dotsPerMM / 8) * 8);
+  const left = Math.max(0, Math.floor((w - printable) / 2));
+  const px = canvas.getContext('2d').getImageData(left, 0, printable, h).data;
+  const rowBytes = printable / 8;
+  const out = [0x1b, 0x40];
+  const BAND = 128;
+  for (let y0 = 0; y0 < h; y0 += BAND) {
+    const rows = Math.min(BAND, h - y0);
+    out.push(0x1d, 0x76, 0x30, 0, rowBytes & 0xff, rowBytes >> 8, rows & 0xff, rows >> 8);
+    for (let y = y0; y < y0 + rows; y++) {
+      for (let bx = 0; bx < rowBytes; bx++) {
+        let byte = 0;
+        for (let bit = 0; bit < 8; bit++) {
+          const i = (y * printable + bx * 8 + bit) * 4;
+          if (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114 < 160) byte |= 0x80 >> bit;
+        }
+        out.push(byte);
+      }
+    }
+  }
+  out.push(0x1b, 0x64, 4, 0x1d, 0x56, 0x42, 0);
+  let bin = '';
+  for (let i = 0; i < out.length; i += 0x8000) bin += String.fromCharCode.apply(null, out.slice(i, i + 0x8000));
+  return btoa(bin);
+}
+
+// pageToCanvas draws a rendered page onto a white canvas at `dpi`.
+async function pageToCanvas(page, widthMM, heightMM, css, dpi) {
   const clone = page.cloneNode(true);
   clone.style.transform = '';
   await inlineImages(clone);
-  const scale = DPI / 96;
+  const scale = dpi / 96;
   const w = Math.round(widthMM * CSS_PX_PER_MM * scale);
   const h = Math.round(heightMM * CSS_PX_PER_MM * scale);
   const xhtml = new XMLSerializer().serializeToString(clone);
@@ -67,13 +114,7 @@ async function pageToJPEG(page, widthMM, heightMM, css) {
   g.fillStyle = '#fff';
   g.fillRect(0, 0, w, h);
   g.drawImage(img, 0, 0, w, h);
-  // toDataURL throws on a browser that treats the drawing as cross-origin
-  // (older Safari); the caller says so and offers the print dialog instead.
-  const b64 = canvas.toDataURL('image/jpeg', 0.88).split(',')[1];
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return { bytes, w, h };
+  return { canvas, w, h };
 }
 
 // buildPDF writes one JPEG per page at the page's size in points.

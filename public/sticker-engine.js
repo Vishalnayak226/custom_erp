@@ -66,6 +66,7 @@ export const LABEL_PRESETS = [
   { id: 'jw-92x12', group: 'Jewellery tags', label: 'Tail tag 92 × 12', w: 92, h: 12, per_row: 1, gap_v: 3 },
   { id: 'jw-95x12', group: 'Jewellery tags', label: 'Tail tag 95 × 12', w: 95, h: 12, per_row: 1, gap_v: 3 },
   { id: 'jw-100x15', group: 'Jewellery tags', label: 'Tail tag 100 × 15', w: 100, h: 15, per_row: 1, gap_v: 3 },
+  { id: 'jw-100x14.3', group: 'Jewellery tags', label: 'Tail tag 100 × 14.3', w: 100, h: 14.3, per_row: 1, gap_v: 3 },
   { id: 'jw-70x10', group: 'Jewellery tags', label: 'Small tag 70 × 10', w: 70, h: 10, per_row: 1, gap_v: 3 },
   { id: 'rt-38x25', group: 'Retail', label: '38 × 25', w: 38, h: 25, per_row: 1, gap_v: 3 },
   { id: 'rt-50x25', group: 'Retail', label: '50 × 25', w: 50, h: 25, per_row: 1, gap_v: 3 },
@@ -74,7 +75,34 @@ export const LABEL_PRESETS = [
   { id: 'up-2x38x25', group: 'Multi-up rolls', label: '2-up 38 × 25', w: 38, h: 25, per_row: 2, gap_h: 2, gap_v: 3 },
   { id: 'up-3x32x25', group: 'Multi-up rolls', label: '3-up 32 × 25', w: 32, h: 25, per_row: 3, gap_h: 2, gap_v: 3 },
   { id: 'sh-100x50', group: 'Shipping', label: '100 × 50', w: 100, h: 50, per_row: 1, gap_v: 3 },
-  { id: 'sh-100x150', group: 'Shipping', label: '4 × 6 in (100 × 150)', w: 100, h: 150, per_row: 1, gap_v: 3 }
+  { id: 'sh-100x150', group: 'Shipping', label: '4 × 6 in (100 × 150)', w: 100, h: 150, per_row: 1, gap_v: 3 },
+  // Stage 106.2: two jewellery designs read off a client's TSPL files from its
+  // old billing software (300 dpi, every element turned 180°; positions here
+  // are as the tag reads). A preset with `elements` lays the design out too.
+  { id: 'jd-square-2up', group: 'Ready designs', label: 'Square 2-up (54.5 mm roll)', w: 26.25, h: 20.1, per_row: 2, gap_h: 2, gap_v: 3, dpi: 300, elements: [
+    { kind: 'barcode', field: 'barcode', x_mm: 2.8, y_mm: 1.7, w_mm: 18.8, h_mm: 5.9, symbology: 'code128', show_text: true, quiet_zone: false, font_size_mm: 1.9 },
+    { kind: 'text', field: 'name', x_mm: 2.8, y_mm: 7.8, w_mm: 18.8, h_mm: 2.3, font_size_mm: 2.1, bold: true },
+    { kind: 'text', field: 'color', x_mm: 2.8, y_mm: 10.1, w_mm: 11.6, h_mm: 2.3, font_size_mm: 2.1 },
+    { kind: 'text', field: 'parent_product_code', x_mm: 2.8, y_mm: 12.4, w_mm: 11.6, h_mm: 2.3, font_size_mm: 2.1 },
+    { kind: 'text', field: 'polish', x_mm: 2.8, y_mm: 14.7, w_mm: 11.6, h_mm: 2.3, font_size_mm: 2.1 },
+    { kind: 'text', field: 'gross_weight', prefix: 'W: ', x_mm: 14.7, y_mm: 9.9, w_mm: 6.9, h_mm: 2.3, font_size_mm: 2.1 },
+    { kind: 'text', field: 'sku', x_mm: 14.7, y_mm: 12.4, w_mm: 6.9, h_mm: 2.3, font_size_mm: 2.1 },
+    { kind: 'text', field: 'size', prefix: 'S: ', x_mm: 14.7, y_mm: 14.7, w_mm: 6.9, h_mm: 2.3, font_size_mm: 2.1 },
+    { kind: 'text', field: 'mrp', prefix: 'MRP: ', x_mm: 2.8, y_mm: 17.0, w_mm: 18.8, h_mm: 2.6, font_size_mm: 2.5, bold: true },
+    { kind: 'text', field: 'custom', text: 'Brand name', x_mm: 22.1, y_mm: 1.5, w_mm: 2.9, h_mm: 17.6, font_size_mm: 2.6, bold: true, rotation: 270, align: 'center' }
+  ] },
+  { id: 'jd-ring-tag', group: 'Ready designs', label: 'Ring tag 97.6 × 11.9', w: 97.6, h: 11.9, per_row: 1, gap_v: 3, dpi: 300, elements: [
+    { kind: 'text', field: 'custom', text: 'Brand name', x_mm: 4.6, y_mm: 0.4, w_mm: 2.9, h_mm: 11.1, font_size_mm: 2.6, bold: true, rotation: 270, align: 'center' },
+    { kind: 'barcode', field: 'barcode', x_mm: 9.6, y_mm: 0.8, w_mm: 25.6, h_mm: 6.1, symbology: 'code128', show_text: true, quiet_zone: false, font_size_mm: 1.9 },
+    { kind: 'text', field: 'name', x_mm: 9.6, y_mm: 8.9, w_mm: 25.6, h_mm: 2.4, font_size_mm: 2.1, bold: true },
+    { kind: 'text', field: 'color', x_mm: 36.5, y_mm: 1.0, w_mm: 12.4, h_mm: 2.3, font_size_mm: 2.1 },
+    { kind: 'text', field: 'parent_product_code', x_mm: 36.5, y_mm: 3.7, w_mm: 12.4, h_mm: 2.3, font_size_mm: 2.1 },
+    { kind: 'text', field: 'size', prefix: 'S: ', x_mm: 36.5, y_mm: 6.3, w_mm: 12.4, h_mm: 2.3, font_size_mm: 2.1 },
+    { kind: 'text', field: 'mrp', prefix: 'MRP: ', x_mm: 36.5, y_mm: 8.8, w_mm: 24.8, h_mm: 2.6, font_size_mm: 2.5, bold: true },
+    { kind: 'text', field: 'gross_weight', prefix: 'W: ', x_mm: 49.3, y_mm: 1.0, w_mm: 12.0, h_mm: 2.3, font_size_mm: 2.1 },
+    { kind: 'text', field: 'sku', x_mm: 49.3, y_mm: 3.9, w_mm: 12.0, h_mm: 2.3, font_size_mm: 2.1 },
+    { kind: 'text', field: 'polish', x_mm: 49.3, y_mm: 6.5, w_mm: 12.0, h_mm: 2.3, font_size_mm: 2.1 }
+  ] }
 ];
 
 export const DEFAULT_SETTINGS = {

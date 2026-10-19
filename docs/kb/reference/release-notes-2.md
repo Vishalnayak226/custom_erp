@@ -2,7 +2,7 @@
 title: Release notes (part 2)
 section: Reference
 order: 26
-summary: Earlier releases, 2026-07-27 to 2026-09-03, continued from the release notes.
+summary: Earlier releases, 2026-07-27 to 2026-09-05, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,7 +19,13 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **71** earlier entries, 2026-07-27 to 2026-09-03.
+This page continues the [release notes](release-notes.md) with **72** earlier entries, 2026-07-27 to 2026-09-05.
+
+## 2026-09-05
+
+**Stage 47.1 — Deny-by-default authorization, privacy and segregation of duties** *(code + schema + tests)*
+
+All eight of Stage 47.1's sub-items built: **47.1.1/47.1.2** (route-capability registry over all 461 `apiMiddleware` routes, and the five sensitive capabilities the A-01 finding named) earlier the same day, then **47.1.3-47.1.8** — a sensitive-field policy that replaces "no field rows means every field" (`engines/sensitive_fields.go`, merged into `fieldPermissions()` so read, form-meta, write, CSV import and PIM bulk edit all inherit it with no call-site change); scope semantics separated from role capability (`engines/scope_policy.go` — location strict where the doctype declares it mandatory, permissive where optional, plus the self and 3PL-owner dimensions the old inline clause had no notion of, all fail-closed); twelve task-derived role templates (`engines/role_templates.go`, which the route-capability allowlist is now *derived from* rather than duplicating); a six-conflict SoD catalog with evidence-based detection and a one-page "why allowed / why denied" administrator preview (`engines/sod_catalog.go`); a reviewed, reversible per-tenant grant migration that changes nothing until an owner approves a before/after diff and never touches a custom role (`engines/role_template_migration.go`, `db/migrations_stage47_1_role_templates.sql`); and a generated authorization contract matrix of 7,837 route×role assertions plus HTTP-level unauthenticated/deactivated/demoted/cross-location/sensitive-field checks.
 
 ## 2026-09-03
 

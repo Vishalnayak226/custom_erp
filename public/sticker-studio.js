@@ -1129,6 +1129,7 @@ function applyPreset(id) {
     S.t.settings.per_row = p.per_row || 1;
     if (p.gap_h !== undefined) S.t.settings.gap_h_mm = p.gap_h;
     if (p.gap_v !== undefined) S.t.settings.gap_v_mm = p.gap_v;
+    if (p.dpi) S.t.settings.dpi = p.dpi;
   });
   fitZoom();
   refresh();
@@ -1264,6 +1265,12 @@ function showStarter() {
   box.hidden = false;
   box.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => {
     applyPreset(b.dataset.preset);
+    // A ready design (Stage 106.2) brings its layout; a plain size starts blank.
+    const p = E.LABEL_PRESETS.find(x => x.id === b.dataset.preset);
+    if (p && p.elements) {
+      S.t.elements = p.elements.map(e => E.normaliseElement(Object.assign({}, e, { id: E.newElementId() })));
+      refresh();
+    }
     S.undo = []; updateHistoryButtons();
     hideStarter();
     S.root.querySelector('.stk-name').focus();

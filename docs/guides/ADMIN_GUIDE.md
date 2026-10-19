@@ -276,6 +276,20 @@ Each **Location** (Setup → Core → Location) carries four ways to name it, ea
 
 Changing a Short Code changes how the **next** numbers read; numbers already issued keep their text and each store's counter carries on.
 
+**A new location's form fills itself in (Stage 108).** Every box stays editable; once you change a box it stops following the others.
+
+| Box | Filled with |
+|---|---|
+| **Short Code** | Suggested from the Store Name as you type, by one standard rule: a word written as an abbreviation (*JP*, *MG*) is kept whole, every other word gives its first letter, topped up to 3 letters from the last word, at most 4 — *JP Nagar* → **JPN**, *Koramangala* → **KOR**. A digit is added if another store already has it (**JPN2**). Left blank, it is filled in the same way on save. |
+| **Facility Code** | The next number: 1, 2, 3… (one more than the highest numeric Facility Code). Left blank, it is filled on save. |
+| **Facility Level** | Follows **Type**: Store → Store, Warehouse → Warehouse, HO → HO. Company / Division / DC are still offered. |
+| **Sellable** | Follows **Type**: a Store sells (**Yes**), a Warehouse or HO does not (**No**). |
+| **Parent Facility** | Your **HO** location. Blank when the new location is itself an HO. |
+| **Legal Entity** | The first legal entity. If you have two, pick the right one. |
+| **Ask the salesman at the till** | **Mandatory**. |
+
+Existing locations are not changed. Editing a location fills nothing in.
+
 #### B.3.0.3b Legal entity, location, cost center, department — and a cost center for every location (Stage 93)
 
 Four masters under **Setup** describe the business. Each answers a different question about a sale, a purchase or a cost:
@@ -382,16 +396,16 @@ These are the two buttons at the top right of the shell, and support calls go wr
 
 **Inventory → Stock Locations** (Super Admin). Stock inside a store sits in named locations; this is the master that names them, says which sell and says which each store uses. It is part of the ERP, not the WMS: a client without the warehouse module has all of it.
 
-| Location | What it is | Sells? |
-|---|---|---|
-| **Main** | the selling stock | always |
-| **Inward** | received (goods receipt or transfer in), not yet on sale | never |
-| **In-Transit** | sent on a transfer, not received yet | never |
-| **QC Hold** | waiting for a quality check | **your choice** |
-| **Damage** | damaged stock | **your choice** |
-| **On Hold** | held by a hold code (recall, dispute) | never |
-| **Purchase Return** | set aside for the vendor (warehouses) | never |
-| your own (*Alteration*, *Display only*…) | stock kept away from sale | never |
+| Location | What it is | Sells? | Physically in store? |
+|---|---|---|---|
+| **Main** | the selling stock | always | yes |
+| **Inward** | received (goods receipt or transfer in), not yet on sale | never | yes |
+| **In-Transit** | sent on a transfer, not received yet | never | **no** |
+| **QC Hold** | waiting for a quality check | **your choice** | yes |
+| **Damage** | damaged stock | **your choice** | yes |
+| **On Hold** | held by a hold code (recall, dispute) | never | yes |
+| **Purchase Return** | set aside for the vendor (warehouses) | never | yes |
+| your own (*Alteration*, *Display only*, *At repair*…) | stock kept away from sale | never | **your choice** |
 
 - **Names, store kinds, "for new stores" and "in use"** are editable on every location; **+ New Location** adds your own. A location still holding stock cannot be switched off or taken from a store (`STKLOC-0861`) — move the stock out first (**Inventory → Move Stock**).
 - **Stores tab:** which locations each store uses. A store never saved here uses every location marked for new stores; Main is always on.
@@ -399,6 +413,7 @@ These are the two buttons at the top right of the shell, and support calls go wr
 - **What "sellable" changes:** the available-to-sell figure everywhere (till, online channels, sourcing, reports, the public API) counts Main plus QC Hold / Damage when you mark them sellable, and a sale that is short in Main takes the rest from them. A sale can never take stock held in your own locations or under a hold code.
 - **Corrected at the Stage 85 release — available-to-sell rises where you have damaged or QC stock.** QC Hold and Damage were subtracted from the good stock's figure although they were never part of it (a store with 10 good and 2 damaged showed 8 sellable). They are now counted only if sellable. Expect higher, correct figures on the till and the channels for those items.
 - **The WMS follows it:** a bin's condition Good / Damaged / QC-Hold / RTV moves the units into Main / Damage / QC Hold / Purchase Return, and the Bin Conditions screen shows the ERP names.
+- **Physically in store? (Stage 107):** says whether a location's stock is on the premises. In-Transit never is - it is already left out of the store's on-hand. For your own locations choose **Not in the store** for stock that has left the building but is still yours (at a repair shop, out for alteration): a **stock count** then does not expect it on the shelf, so it is not reported short. It does not change what sells.
 - **Reports:** *Stock by Location*.
 
 #### B.3.0.8 The till's customers, tenders, salesmen, bills and advances (Stage 85.C–85.E)

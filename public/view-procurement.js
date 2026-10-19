@@ -646,9 +646,25 @@ async function poEntrySearch(q) {
 
 // pickPOEntry: an item opens nothing - Enter / Add puts it on the PO; an item
 // name (or one just created from the list) opens its attributes.
-function pickPOEntry(doc) {
+// Stage 94.22: a plain SKU (not a design's combination) whose item name has
+// attributes asked in the PO opens that item name's matrix instead - the
+// colour / size are chosen, not skipped. A SKU with no item name has no
+// matrix; it goes on as it is, with a hint how to order it in variants.
+async function pickPOEntry(doc) {
   const skuEl = document.getElementById('po-entry-sku');
   if (!skuEl || !doc) return;
+  const errEl = document.getElementById('po-entry-error');
+  if (errEl) errEl.classList.add('hidden');
+  if (doc._group === PO_ENTRY_ITEMS && !doc.family && !doc.parent_product_code) {
+    if (doc.item_name) {
+      const res = await apiFetch(`/api/v1/procurement/design-matrix?item_name=${encodeURIComponent(doc.item_name)}`).catch(() => null);
+      const m = res && res.ok ? await res.json() : null;
+      if (m && Array.isArray(m.attributes) && m.attributes.length) { enterPODesignMode(doc.item_name); return; }
+    } else if (errEl) {
+      errEl.textContent = `${doc.name || doc.code || doc.id} has no item name, so it has no colour / size to choose. To order it in variants, create its item name (Setup → Item Name) and pick that from the list.`;
+      errEl.classList.remove('hidden');
+    }
+  }
   if (doc._group === PO_ENTRY_ITEMS) {
     if (poDesign) leavePODesignMode();
     poDraft.entry.sku = doc.code || doc.id;
@@ -2176,34 +2192,51 @@ function renderGRNLinesList() {
       const opts = v && !f.options.includes(v) ? [...f.options, v] : f.options;
       return `<select class="form-select" ${attrs}><option value="">—</option>${opts.map(o => `<option value="${escapeHTMLText(o)}"${o === v ? ' selected' : ''}>${escapeHTMLText(o)}</option>`).join('')}</select>`;
     }
-    return `<input class="form-input${f.type === 'Number' ? ' num' : ''}" type="${f.type === 'Number' ? 'number' : 'text'}" step="any" style="min-width:80px;" ${attrs} value="${escapeHTMLText(v)}">`;
+    return `<input class="form-input${f.type === 'Number' ? ' num' : ''}" type="${f.type === 'Number' ? 'number' : 'text'}" step="any" ${attrs} value="${escapeHTMLText(v)}">`;
+  };
+  // Stage 94.14: rejected / damaged are set on the row; a reason box opens
+  // under the qty once it is above 0. A serial-tracked line keeps them
+  // fixed - its serial list is tied to the accepted count (remove and re-add).
+  const setAsideCell = (line, idx, kind) => {
+    const q = Number(line[`${kind}_qty`]) || 0;
+    if (line.serial_numbers && line.serial_numbers.length) return q > 0 ? `<span class="badge badge-danger">${q}</span>` : '0';
+    const reasonKey = kind === 'rejected' ? 'rejection_reason' : 'damage_reason';
+    const reason = String(line[reasonKey] || '');
+    return `<input type="number" class="form-input num grn-qty-input" min="0" step="any" data-grn-setaside="${idx}" data-kind="${kind}" value="${q}" aria-label="${kind === 'rejected' ? 'Rejected' : 'Damaged'} qty for ${escapeHTMLText(line.sku)}">`
+      + (q > 0 ? `<input type="text" class="form-input grn-reason-input${reason.trim() ? '' : ' grn-reason-missing'}" data-grn-reason="${idx}" data-kind="${kind}" placeholder="Reason" value="${escapeHTMLText(reason)}" aria-label="${kind === 'rejected' ? 'Rejection' : 'Damage'} reason for ${escapeHTMLText(line.sku)}">` : '');
   };
   el.innerHTML = `
-    <table>
-      <thead><tr>${grnMultiPO ? '<th>PO</th>' : ''}<th>SKU</th><th>Barcode</th>${grnHasBatches ? '<th>Batch / Expiry</th>' : ''}${grnHasSerials ? '<th>Serials</th>' : ''}${grnAskedFields.map(f => `<th>${escapeHTMLText(f.label)}${f.grn === 'required' ? '<span class="required">*</span>' : ''}</th>`).join('')}${grnBlindCount ? '' : '<th>Ordered</th>'}<th>Received</th><th>Accepted</th><th>Rejected</th><th>Damaged</th>${grnBlindCount ? '' : '<th>Short</th>'}<th class="num" title="Quantity the vendor's invoice bills">Invoice Qty</th><th class="num" title="Agreed price per unit before GST, from the PO">PO Rate</th><th class="num" title="Price per unit before GST on the vendor's invoice">Invoice Rate</th><th class="num">Value</th><th></th></tr></thead>
+    <table class="grn-lines-table">
+      <thead><tr>${grnMultiPO ? '<th>PO</th>' : ''}<th>SKU</th>${grnHasBatches ? '<th>Batch / Expiry</th>' : ''}${grnHasSerials ? '<th>Serials</th>' : ''}${grnAskedFields.map(f => `<th>${escapeHTMLText(f.label)}${f.grn === 'required' ? '<span class="required">*</span>' : ''}</th>`).join('')}${grnBlindCount ? '' : '<th class="num">Ordered</th>'}<th class="num">Received</th><th class="num" title="Received minus rejected and damaged - goes into stock">Accepted</th><th class="num">Rejected</th><th class="num">Damaged</th>${grnBlindCount ? '' : '<th class="num" title="Ordered minus received - still owed on the PO">Short</th><th class="num" title="Received over the PO - keep or return is decided at Verify">Excess</th>'}<th class="num" title="Quantity the vendor's invoice bills">Invoice Qty</th><th class="num" title="Agreed price per unit before GST, from the PO">PO Rate</th><th class="num" title="Price per unit before GST on the vendor's invoice">Invoice Rate</th><th class="num" title="Invoice rate x invoice qty, before GST">Value</th><th></th></tr></thead>
       <tbody>
         ${grnLineItems.map((line, idx) => {
           const ordered = line.ordered_qty;
-          const short = (ordered !== null && ordered !== undefined && ordered !== '') ? Math.max(0, ordered - line.qty) : null;
+          const hasOrdered = ordered !== null && ordered !== undefined && ordered !== '';
+          const short = hasOrdered ? Math.max(0, ordered - line.qty) : null;
+          const excess = hasOrdered ? Math.max(0, line.qty - ordered) : null;
           const hasPORate = line.po_rate !== undefined && line.po_rate !== null && line.po_rate !== '';
           const invRate = (line.invoice_rate === '' || line.invoice_rate === undefined || line.invoice_rate === null) ? (hasPORate ? line.po_rate : '') : line.invoice_rate;
           const diff = hasPORate && invRate !== '' ? Number(invRate) - Number(line.po_rate) : 0;
-          const value = invRate === '' ? null : Number(invRate) * (Number(line.accepted_qty) || 0);
+          // Stage 94.14: the row's value is what the invoice bills, so the
+          // rows add up to the bar's Invoice value.
+          const billed = grnBilledQty(line);
+          const value = invRate === '' ? null : Number(invRate) * billed;
+          const billGap = billed - (Number(line.accepted_qty) || 0);
           return `
             <tr${Math.abs(diff) >= 0.005 ? ' class="grn-rate-diff"' : ''}>
               ${grnMultiPO ? `<td style="font-family: monospace; font-size: 12px;">${escapeHTMLText(line.po_id || '')}</td>` : ''}
-              <td style="font-family: monospace;">${line.sku}</td>
-              <td><span class="badge badge-secondary" style="font-family: Consolas, Monaco, monospace; letter-spacing: 1px;">${line.barcode || line.sku}</span></td>
+              <td style="font-family: monospace;">${line.sku}${line.barcode && line.barcode !== line.sku ? `<div><span class="badge badge-secondary" style="font-family: Consolas, Monaco, monospace; letter-spacing: 1px;">${line.barcode}</span></div>` : ''}</td>
               ${grnHasBatches ? `<td>${batchCellHTML({ batch_no: line.batch_no, expiry_date: line.expiry_date })}</td>` : ''}
               ${grnHasSerials ? `<td>${line.serial_numbers && line.serial_numbers.length ? `<span class="badge badge-secondary" title="${line.serial_numbers.map(escapeHTMLText).join(', ')}">${line.serial_numbers.length} unit(s)</span>` : ''}</td>` : ''}
               ${grnAskedFields.map(f => `<td>${askedCell(line, idx, f)}</td>`).join('')}
-              ${grnBlindCount ? '' : `<td>${(ordered === null || ordered === undefined || ordered === '') ? '&mdash;' : ordered}</td>`}
-              <td><input type="number" class="form-input num grn-rate-input" min="0" step="any" data-grn-recv="${idx}" value="${escapeHTMLText(String(line.qty))}" aria-label="Received qty for ${escapeHTMLText(line.sku)}"></td>
-              <td>${line.accepted_qty}</td>
-              <td>${line.rejected_qty > 0 ? `<span class="badge badge-danger">${line.rejected_qty}</span>` : '0'}</td>
-              <td>${line.damaged_qty > 0 ? `<span class="badge badge-danger">${line.damaged_qty}</span>` : '0'}</td>
-              ${grnBlindCount ? '' : `<td>${short === null ? '&mdash;' : short > 0 ? `<span class="badge badge-warning">${short}</span>` : '0'}</td>`}
-              <td class="num"><input type="number" class="form-input num grn-rate-input" min="0" step="any" data-grn-invqty="${idx}" value="${escapeHTMLText(String(line.invoice_qty ?? line.qty))}" aria-label="Invoice qty for ${escapeHTMLText(line.sku)}"></td>
+              ${grnBlindCount ? '' : `<td class="num">${hasOrdered ? ordered : '&mdash;'}</td>`}
+              <td class="num"><input type="number" class="form-input num grn-qty-input" min="0" step="any" data-grn-recv="${idx}" value="${escapeHTMLText(String(line.qty))}" aria-label="Received qty for ${escapeHTMLText(line.sku)}"></td>
+              <td class="num grn-calc">${line.accepted_qty}</td>
+              <td class="num">${setAsideCell(line, idx, 'rejected')}</td>
+              <td class="num">${setAsideCell(line, idx, 'damaged')}</td>
+              ${grnBlindCount ? '' : `<td class="num grn-calc">${short === null ? '&mdash;' : short > 0 ? `<span class="badge badge-warning">${short}</span>` : '0'}</td>
+              <td class="num grn-calc">${excess === null ? '&mdash;' : excess > 0 ? `<span class="badge badge-warning">${excess}</span>` : '0'}</td>`}
+              <td class="num"><input type="number" class="form-input num grn-qty-input" min="0" step="any" data-grn-invqty="${idx}" value="${escapeHTMLText(String(line.invoice_qty ?? line.qty))}" aria-label="Invoice qty for ${escapeHTMLText(line.sku)}">${Math.abs(billGap) > 0.0001 ? `<div class="grn-rate-delta up">${billGap > 0 ? '+' : '&minus;'}${Math.round(Math.abs(billGap) * 1000) / 1000} vs accepted</div>` : ''}</td>
               <td class="num">${hasPORate ? formatMoney(line.po_rate) : '<span class="text-muted">&mdash;</span>'}</td>
               <td class="num"><input type="number" class="form-input num grn-rate-input" min="0" step="0.01" data-grn-rate="${idx}" value="${escapeHTMLText(String(invRate))}" aria-label="Invoice rate for ${escapeHTMLText(line.sku)}">${Math.abs(diff) >= 0.005 ? `<div class="grn-rate-delta ${diff > 0 ? 'up' : 'down'}">${diff > 0 ? '+' : '&minus;'}${formatMoney(Math.abs(diff))} vs PO</div>` : ''}</td>
               <td class="num">${value === null ? '<span class="text-muted">&mdash;</span>' : formatMoney(value)}</td>
@@ -2246,6 +2279,31 @@ function renderGRNLinesList() {
       if (v === '' || isNaN(Number(v)) || Number(v) < 0) { input.value = grnLineItems[i].invoice_qty ?? grnLineItems[i].qty; return; }
       grnLineItems[i].invoice_qty = Number(v);
       renderGRNLinesList();
+    });
+  });
+  // Stage 94.14: rejected / damaged on the row. Together they can't exceed
+  // what arrived; accepted is what is left. Back to 0 clears the reason.
+  el.querySelectorAll('[data-grn-setaside]').forEach(input => {
+    input.addEventListener('change', () => {
+      const i = Number(input.dataset.grnSetaside);
+      const kind = input.dataset.kind;
+      const line = grnLineItems[i];
+      const other = kind === 'rejected' ? (Number(line.damaged_qty) || 0) : (Number(line.rejected_qty) || 0);
+      const v = input.value.trim();
+      const n = v === '' ? 0 : Number(v);
+      if (isNaN(n) || n < 0 || n + other > Number(line.qty)) { input.value = Number(line[`${kind}_qty`]) || 0; return; }
+      line[`${kind}_qty`] = n;
+      if (n === 0) line[kind === 'rejected' ? 'rejection_reason' : 'damage_reason'] = '';
+      line.accepted_qty = Number(line.qty) - n - other;
+      renderGRNLinesList();
+      if (n > 0) document.querySelector(`[data-grn-reason="${i}"][data-kind="${kind}"]`)?.focus();
+    });
+  });
+  el.querySelectorAll('[data-grn-reason]').forEach(input => {
+    input.addEventListener('input', () => {
+      const line = grnLineItems[Number(input.dataset.grnReason)];
+      line[input.dataset.kind === 'rejected' ? 'rejection_reason' : 'damage_reason'] = input.value.trim();
+      input.classList.toggle('grn-reason-missing', !input.value.trim());
     });
   });
   el.querySelectorAll('[data-grn-rate]').forEach(input => {
@@ -2295,7 +2353,7 @@ function renderGRNTotals() {
     const inv = (l.invoice_rate === '' || l.invoice_rate === undefined || l.invoice_rate === null) ? (hasPO ? Number(l.po_rate) : 0) : Number(l.invoice_rate);
     const gst = Number(l.gst_rate) || 0;
     // Stage 94: the invoice is what it bills - its own qty, not what arrived.
-    const billed = l.invoice_qty === undefined || l.invoice_qty === '' || l.invoice_qty === null ? (Number(l.qty) || 0) : Number(l.invoice_qty);
+    const billed = grnBilledQty(l);
     if (hasPO) poValue += Number(l.po_rate) * acc;
     invValue += inv * billed;
     invGST += inv * billed * gst / 100;
@@ -2315,11 +2373,25 @@ function renderGRNTotals() {
     <span>GST ≈ <b>${formatMoney(invGST)}</b></span>
     ${typed === null ? '' : `<span class="${gapBad ? 'grn-gap' : ''}" title="Vendor invoice amount minus these lines">Invoice − lines <b>${formatMoney(gap)}</b></span>`}
     <span class="txn-total" title="Invoice value incl. GST">${formatMoney(invTotal)}</span>`;
+  // Stage 94.14: lines whose invoice bills other than the accepted qty, and
+  // lines that brought more than the PO asked for.
+  const billMismatch = grnLineItems.filter(l => Math.abs(grnBilledQty(l) - (Number(l.accepted_qty) || 0)) > 0.0001)
+    .map(l => `${l.sku} (billed ${grnBilledQty(l)}, accepted ${Number(l.accepted_qty) || 0})`);
+  const excessLines = grnBlindCount ? [] : grnLineItems.filter(l => l.ordered_qty !== null && l.ordered_qty !== undefined && l.ordered_qty !== '' && Number(l.qty) > Number(l.ordered_qty))
+    .map(l => `${l.sku} (+${Number(l.qty) - Number(l.ordered_qty)})`);
   // Stage 94: nothing is settled here - Verify sets what was really received
   // and at what price, and the note is invoice total against that.
   if (notesEl) notesEl.innerHTML = `
       ${up > 0.004 || down > 0.004 ? `<span class="text-muted">Invoice prices differ from the PO on some lines. Verify (next step) settles what you pay; any difference to the invoice becomes a debit or credit note.</span>` : '<span class="text-muted">Invoice prices match the PO.</span>'}
-      ${gapBad ? `<span class="grn-gap-note">The vendor's invoice total does not equal these lines. Check the invoice qty and rates - Verify will not go ahead while they differ by more than 1.00.</span>` : ''}`;
+      ${gapBad ? `<span class="grn-gap-note">The vendor's invoice total does not equal these lines. Check the invoice qty and rates - Verify will not go ahead while they differ by more than 1.00.</span>` : ''}
+      ${billMismatch.length ? `<span class="grn-gap-note">Invoice qty is not the accepted qty on ${billMismatch.map(escapeHTMLText).join(', ')}. Check the vendor's invoice before saving.</span>` : ''}
+      ${excessLines.length ? `<span class="text-muted">More than the PO arrived on ${excessLines.map(escapeHTMLText).join(', ')}. Keep or return is decided at Verify.</span>` : ''}`;
+}
+
+// grnBilledQty is the qty the vendor's invoice bills for a line - its own
+// invoice qty once typed, otherwise what arrived.
+function grnBilledQty(l) {
+  return l.invoice_qty === undefined || l.invoice_qty === '' || l.invoice_qty === null ? (Number(l.qty) || 0) : Number(l.invoice_qty);
 }
 
 // renderGRNPOChips shows the POs on this receipt, each removable (with its lines).
@@ -2890,6 +2962,13 @@ async function createGRNInner() {
   const invAmountRaw = document.getElementById('grn-inv-amount').value.trim();
   if (!invNo || !invDate || invAmountRaw === '' || isNaN(Number(invAmountRaw)) || Number(invAmountRaw) <= 0) {
     errorEl.textContent = "Enter the vendor invoice number, date and total (incl. GST) from the vendor's invoice.";
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  // Stage 94.14: rejected / damaged set on the row need their reason too.
+  const noReason = grnLineItems.find(l => (Number(l.rejected_qty) > 0 && !String(l.rejection_reason || '').trim()) || (Number(l.damaged_qty) > 0 && !String(l.damage_reason || '').trim()));
+  if (noReason) {
+    errorEl.textContent = `${noReason.sku}: enter the reason for the rejected or damaged qty.`;
     errorEl.classList.remove('hidden');
     return;
   }

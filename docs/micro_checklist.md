@@ -3106,6 +3106,16 @@ The PO ask is already built and live as **62.6**: Configuration → Procurement 
   - Setting choices renamed to *Always new design number* / *Inherit from existing*.
 
   D10 approved (reuse only within the PO's vendor). *Built 2026-10-19:* `FindMatchingDesignForVendor` (the PO sends its vendor; a vendor-less design still matches); a matrix row equal to an existing combination reuses its SKU (`poDesignExistingFor`, unchanged); the two choices renamed. `TestStage94DesignReusePerVendor`. *Status: Done*
+- [x] **94.14 New goods receipt line table: tidy the quantity columns** (user, 2026-10-19, from a screenshot: *"Received Accepted Rejected Damaged Short Invoice Qty - Does it make sense or duplicated?"* then *"Yes, Fix and Excee is also required. Adjust the width so scroll won't required. Qty column can be reduced"*). The columns are not duplicates; fix: an **Excess** column (received over ordered; keep or return is still decided at Verify); Accepted / Short / Excess shown as calculated, not typed; Rejected and Damaged editable on the row, with the reason asked when above 0; the row Value at invoice qty so it adds up to the bar's Invoice value; a warning when Invoice Qty differs from Accepted; narrower quantity columns so the table fits without a sideways scroll. *Built 2026-10-19:* `renderGRNLinesList` / `renderGRNTotals` (view-procurement.js), `grnBilledQty` shared by row and bar, `.grn-lines-table` in trade-docs.css; Barcode folded under SKU (shown only when it differs); a save check for missing reasons (the server's own GOODSR check stays). Verified in Chromium on a scratch server (PO 000023: received 12 of 10, reject 1): Accepted 11, Excess 2, reason box focused, Value 120.00 = Invoice value, both warnings shown, save stopped without the reason, no sideways scroll at 1600 or 1280 px. USER_GUIDE §6 GRN step 1 updated. *Status: Done*
+- [ ] **94.15 Money rounding everywhere** (user, 2026-10-19, from a PO form showing Total Cost 970.8737864077669: *"All dervied cost and everywhere It should always 2 decimal. & MRP and sum of pos and everywhere rounded off."*). Cause found: `ComputeGSTForLinesMode` (engines/gst.go) adds up unrounded line amounts and never rounds the totals, so an inclusive-GST PO stores the raw back-calculated taxable value as `total_amount`. Two parts: (a) every derived cost / amount stored and shown at 2 decimals, fixed at the shared GST total (one choke point); (b) MRP and totals rounded to the whole rupee. POS bills do not round off today; invoices (GRN steps, e-invoice, prints) already do. Decided (user, 2026-10-19): **PO and POS totals** both round to the whole rupee with a round-off line; **MRP is always a whole rupee** (typed or suggested, shown without paise); line costs stay at 2 decimals. *Status: Building*
+- [x] **94.16 New PO: adding a design's combination fails with "Field Code is required"** (user, 2026-10-19, screenshot: *"Design D00001: 0 combination(s) added; 1 could not be created - Mangalsutra CZ: Required value is missing. Please enter Code to continue."*; also *"Design number shuld be auto if not exist."*). The combination Item is created without the `code` the Item master now requires; fix so the combination gets its code automatically, and confirm a new design's number is assigned automatically when none exists. *Built 2026-10-19:* cause - a design whose attributes each have one value is a single item with no variant values, so `PrepareItemVariantCode` had nothing to build a Combination ID from, and `PrepareMasterNumber` skipped every Item under a design (since Stage 76); the Item reached the required-field check with no code. Fix: the skip applies only when the Item has variant values (`itemHasVariantValues`, engines/pim.go), so a single-item design takes the ordinary Item number. Design numbers were already automatic (D00001...). `TestStage94SingleItemDesignNumbered`; `TestStage94DesignReusePerVendor` still passes; live on a scratch server: single-item design → `I00002`, a colour combination → `D00004-Blue`. Live on prod only after the next release. *Status: Done*
+- [x] **94.18 Combination ID / SKU created on the PO itself** (user, 2026-10-19: *"& Combination ID/SKU should create in PO it self"*). Already how it works: **Add** on the PO creates the design and one Item per combination (`addPODesign`, view-procurement.js); it failed only because of 94.16, now fixed. *Status: Done*
+- [x] **94.19 Barcode issued at the GRN** (user, 2026-10-19: *"& Barcode in GRN"*). Already built as a client setting: **Generate barcodes at → Goods receipt** (`inventory.barcode_generate_at`, ADMIN_GUIDE barcode settings), overridable per Item Type and per Item; the receipt posting issues it (`EnsureReceiptBarcodes`). Default stays *SKU creation*; the client's own setting is changed by the user, not by a release. *Status: Done*
+- [ ] **94.20 GRN and Transfer Order load in Print stickers** (user, 2026-10-19, Sticker Printing → Print stickers screenshot: *"GRN & TO should load in Print sticker"*). Checked on a scratch server with the current code: Module offers both; typing a number lists matches (GRN 00050, TO 000003/000004), and Load shows the lines for a posted GRN, unposted step GRNs (Verify, Price check) and a Transfer Order. Not reproduced. [needs decision: which number fails on the live app and what it shows, or whether the ask is for the list to appear on click without typing] *Status: Needs decision*
+- [x] **94.21 Where the PO matrix and the GRN weight / carat columns are set** (user, 2026-10-19: *"Po will ask all matrix right once it is set for a client the same and I need to hide carat and net gros where to hide?"*). Answered, no build: both are per-client settings in **Configuration → Item fields** (*In the PO* for the matrix, *At the GRN* = No or *Hidden* for Gross / Net / Stone Weight and Purity), plus **Setup → Product Type → Attributes for this type** when attributes follow the type (ADMIN_GUIDE Item fields). *Status: Done*
+- [ ] **94.22 New PO: an existing plain SKU went on without its colour / size matrix** (user, 2026-10-19, screenshot: *"Added without variant"* - Necklaces Antique added as one line). Picking from the list's *Items (SKU)* group adds the SKU as it is; the matrix opens only from *Item names*. Decided (user, 2026-10-19): when the picked SKU is not a design combination and its item name has attributes asked *In the PO*, open that item name's matrix instead; a design combination still goes on directly. *Built 2026-10-19:* `pickPOEntry` (view-procurement.js) asks `/procurement/design-matrix` for the SKU's item name and opens the matrix when it has attributes; a SKU with no item name gets a note pointing to Setup → Item Name. The live app has only two item names (Mangalsutra CZ, Handle CZ), so Necklaces Antique is a plain item with no item name - it gets the note. Chromium with stubbed search rows: linked plain SKU → matrix opens; plain SKU, no item name → note; design combination → added directly. USER_GUIDE §6 Item name or SKU. *Status: Done*
+- [x] **94.23 Where image management is** (user, 2026-10-19: *"Where is image management"*, Item Name screenshot). Answered, no build: **Purchase Orders → Images** on a PO's row (USER_GUIDE §6.11), the **Images** section on Setup → Product Family and the Item form, and the storage in **Settings → Configuration → Integrations → Image drive** (ADMIN_GUIDE). *Status: Done*
+- [ ] **94.17 New PO: a design's variant attributes as columns in the entry row, set per client** (user, 2026-10-19: *"Varinat will be asked in the 1st row it self as a coloumn. We define for client what required. I have excel master data for all type of industry where it is"*). Stone / Polish / Color etc. become columns in the item entry row instead of the panel below; which attributes a client is asked for is set per client, seeded from the user's per-industry Excel master data. [needs design decision: the Excel's location, and whether the columns replace the attribute panel or sit beside it] *Status: Needs decision*
 
 ## Stage 95 — Images for each Design and Combination ID after the PO, stored on each client's own drive (opened 2026-10-18 from the user's message)
 
@@ -3366,7 +3376,7 @@ User, 2026-10-19: *"Data Custom Dasboard"* (one of four asks; see Stage 99's ope
 - [ ] **100.4.1 Guides** - USER_GUIDE dashboards section, ADMIN_GUIDE permission and sharing, a KB article. *Status: Not started*
 - [ ] **100.4.2 Walk-through** on a scratch server as a store manager and as an owner: the same dashboard shows each only their own stores; timings on the largest scratch dataset recorded. *Status: Not started*
 
-## Stage 101 — CRM made best-in-class: one customer page, segments, campaigns that really send, automatic journeys, feedback, and a sales pipeline for business buyers (opened 2026-10-19 from the user's message)
+## Stage 101 — CRM made best-in-class: one customer page, segments, campaigns that really send, automatic journeys, feedback, and a sales pipeline for business buyers (opened 2026-10-19 from the user's message; planned the same day from the user's CRM blueprint PDF)
 
 User, 2026-10-19: *"CRM Moule better/best one"* (one of four asks; see Stage 99's opening).
 
@@ -3380,60 +3390,107 @@ User, 2026-10-19: *"CRM Moule better/best one"* (one of four asks; see Stage 99'
 - **Messages do not reach customers by themselves**: each channel posts to a webhook the client must connect to their own SMS / WhatsApp / email sender (`engines/notifications.go`) - a 2026-07-25 choice made to avoid provider libraries.
 - Missing: leads, opportunities, follow-up tasks, one timeline per customer, a segment builder, automatic journeys (birthday, lapsed ...), feedback / NPS.
 
-**Decisions (asked 2026-10-19; not yet answered):**
-- **D1 Which CRM first.** Recommended: the retail CRM (shoppers in stores and online) first - it is where the business is; the business-buyer pipeline (wholesale, franchise, corporate orders) second. Alternatives: both together, or retail only.
-- **D2 Real sending.** Recommended: the ERP sends itself - WhatsApp through Meta's WhatsApp Business Cloud API, SMS through one Indian DLT-registered provider (the user picks, e.g. MSG91 or Gupshup), email through the server's mail account already used for notices - each over plain HTTPS / SMTP, no provider library; the webhook stays for anyone already using one. Needs the user's accounts and approved templates.
-- **D3 The bar for "best".** Recommended: the retail CRMs Indian fashion brands use (Capillary, Reelo, CleverTap) for the shopper side, Zoho CRM's basics for the business side; a benchmark note in `docs/product/research/` before 101.2 starts.
-- **D4 Store staff.** Recommended: store staff see and work their own customers from the store app (102.4.1).
+**The blueprint (2026-10-19).** The user gave *CRM Platform Business and Product Requirements* v1.0 (`Downloads\MyBusiness\IT Solution\ERP\Docs\PDF\CRM_Platform_BRD_PRD_Master_Blueprint.pdf`, 70 pages, 38 modules M01-M38 in phases P0-P2) with *"Indepth CRM Module ... Understand it and plan it and put it in checklist and relevant places."* It is the detailed spec for this stage. Plan, decisions and what is not adopted: `docs/product/crm-platform-plan-2026-10-19.md`. Items below keep that file's IDs; blueprint module IDs in brackets. Plan not yet approved.
 
-**Order:** 101.1 customer page → 101.2 segments → 101.3 sending and campaigns → 101.4 journeys → 101.5 feedback and service → 101.6 business-buyer pipeline → 101.7 reports, guides, walk-through.
+**Decisions** (full table and recommendations in the plan, section 1):
+- **D1 Which CRM first** - rec. retail first, business pipeline last (the blueprint agrees). *Needs decision*
+- **D2 Real sending** - rec. email via the store mail account (98.3) + one DLT SMS provider for the pilot, WhatsApp Cloud API next; webhook kept. Needs the user's accounts, DLT IDs, templates. *Needs decision*
+- **D3 Benchmark** - settled by the blueprint's research (CleverTap, Braze, Segment, HubSpot, Customer.io, six open-source CRMs).
+- **D4 Store staff** - rec. store app (102.4.1) + clienteling worklist (101.12). *Needs decision*
+- **D5 One phone, one customer** - kept (85 D1); the blueprint's shared-phone profiles not adopted.
+- **D6 Consent scope** - rec. per client × channel × purpose (marketing / service); per brand only for multi-brand clients. *Needs decision*
+- **D7 No recorded consent = not reachable** - settled (55.17a).
+- **D8 Contact limits** - rec. 2 per 24 h, 5 per 7 days, 4 h apart, none 21:00-09:00; per-client settings. *Needs decision*
+- **D9 Journey editor** - rec. step list with yes / no branches; canvas later. *Needs decision*
+- **D10 Campaign credit** - rec. last marketing message within 7 days before the bill, once per bill, returns reduce it; hold-outs for lift. *Needs decision*
+- **D11 Points on returnable bills** - rec. keep earn-now-reverse-on-return; "pending until the return window ends" as a per-programme option. *Needs decision*
+- **D12 Retention** - rec. messages 24 months, consent evidence for the customer's life, hashed suppression after erasure. *Needs decision*
+- **D13 Campaign approval** - rec. the approval engine with the client's Stage 92 self-approval setting, plus a campaign-only "second approver" override. *Needs decision*
+
+**Order:** 101.0 → 101.1 customer page → 101.8 consent → 101.2 segments → 101.9 send gate → 101.3 templates, senders, campaigns (**pilot gate**: one real email + SMS campaign reconciled) → 101.4 journeys → 101.5 feedback and service → 101.11 loyalty and offers → 101.12 clienteling → 101.3.5 hold-outs → 101.6 business pipeline → 101.7 throughout, closes the stage.
 
 **Build status** (statuses: Not started · Building · Built, not verified · Done · Needs decision · Blocked):
 
 | Phase | Items | Done | Status |
 |---|---|---|---|
-| 101.0 Record, decide, benchmark | 3 | 1 | Needs decision |
-| 101.1 One customer page | 2 | 0 | Not started |
-| 101.2 Segments | 2 | 0 | Not started |
-| 101.3 Sending and campaigns | 3 | 0 | Not started |
-| 101.4 Automatic journeys | 1 | 0 | Not started |
-| 101.5 Feedback and service | 2 | 0 | Not started |
-| 101.6 Business-buyer pipeline | 3 | 0 | Not started |
-| 101.7 Reports, guides, walk-through | 2 | 0 | Not started |
+| 101.0 Record, decide, benchmark | 4 | 3 | Needs decision |
+| 101.1 One customer page and identity | 4 | 0 | Not started |
+| 101.8 Consent ledger, preferences, erasure | 3 | 0 | Not started |
+| 101.2 Segments and lifecycle | 3 | 0 | Not started |
+| 101.9 The send gate | 5 | 0 | Not started |
+| 101.3 Templates, senders, campaigns, results | 5 | 0 | Not started |
+| 101.4 Automatic journeys | 2 | 0 | Not started |
+| 101.5 Feedback, service, WhatsApp inbox | 3 | 0 | Not started |
+| 101.11 Loyalty and offers depth | 3 | 0 | Not started |
+| 101.12 Store clienteling and appointments | 3 | 0 | Not started |
+| 101.6 Business-buyer pipeline | 4 | 0 | Not started |
+| 101.7 Reports, guides, acceptance pack | 3 | 0 | Not started |
 
 **101.0 Record, decide, benchmark**
 - [x] **101.0.1 The ask recorded** with what exists and decisions D1-D4, before building. *Status: Done*
-- [ ] **101.0.2 Decisions D1-D4 answered** and the sender accounts (WhatsApp, SMS, DLT templates) given. *Status: Needs decision*
-- [ ] **101.0.3 Benchmark note** (D3) - the chosen benchmarks' features against what exists; any gap not already below is added here as an item before building. *Status: Not started*
+- [ ] **101.0.2 Decisions answered** (D1, D2, D4, D6, D8-D13) and the sender accounts (SMS + DLT entity / header / templates, email, later WhatsApp) given. *Status: Needs decision*
+- [x] **101.0.3 Benchmark** (D3) - covered by the blueprint's Part 6 research; its gaps are the items below. *Status: Done*
+- [x] **101.0.4 Blueprint recorded and planned** - 38 modules mapped to what exists, phases and not-adopted list in `docs/product/crm-platform-plan-2026-10-19.md`. *Status: Done*
 
-**101.1 One customer page**
-- [ ] **101.1.1 Profile** - birthday, anniversary, gender, sizes, preferred store and salesman, tags, notes, consent per channel. *Status: Not started*
-- [ ] **101.1.2 One timeline** - bills, returns, online orders (Shopify too, Stage 99), points, vouchers, messages, tickets and notes, newest first, each opening its document. *Status: Not started*
+**101.1 One customer page and identity** [M05, M06]
+- [ ] **101.1.1 Profile** - birthday, anniversary, gender, sizes, preferred store and salesman, tags, notes, consent per channel and purpose; imported fields show source and last update. *Status: Not started*
+- [ ] **101.1.2 One timeline** - bills, returns, online orders (Shopify too, Stage 99), points, vouchers, messages with their send decision, tickets and notes, by when they happened, each opening its document; paged. *Status: Not started*
+- [ ] **101.1.3 Duplicates and merge** - possible-duplicates list; merge preview (bills, points, consent, active journeys) through the approval engine; at most one copy of a pending message after merge. Extends 26.7.9. *Status: Not started*
+- [ ] **101.1.4 Masking by role** - phone / email masked alike in search, page, exports and API for roles without contact access (M06-R03). *Status: Not started*
 
-**101.2 Segments**
-- [ ] **101.2.1 Segment builder** - rules on spend, visits, last purchase, RFM score, tier, store, category / brand bought, birthday month and consent; live count; saved and refreshed nightly. *Status: Not started*
-- [ ] **101.2.2 RFM scores and ready segments** - champions, loyal, new, one-time, at risk, lapsed. *Status: Not started*
+**101.8 Consent ledger, preferences, erasure** [M07, M35]
+- [ ] **101.8.1 Consent ledger** - append-only rows (channel, purpose, granted / denied / withdrawn, source, recorder, evidence, notice version, time); Customer ticks become the summary; today's ticks carried in as legacy rows; block order legal → global → channel → topic → consent. *Status: Not started*
+- [ ] **101.8.2 Preference page and unsubscribe** - token link in every marketing message, one-click email unsubscribe, STOP on SMS / WhatsApp from callbacks, idempotent; re-opt-in only by the customer, never an import. *Status: Not started*
+- [ ] **101.8.3 Erasure that sticks** - approved erasure (49.6.8) cancels queued messages and journeys first; hashed suppression stops re-creation by import or Shopify. *Status: Not started*
 
-**101.3 Sending and campaigns**
-- [ ] **101.3.1 Senders** (D2) - WhatsApp templates, SMS with the DLT template ID, email; credentials stored encrypted per client; delivery state through the 73.2.13 outbox (queued, sent, delivered, read, failed). *Status: Not started*
-- [ ] **101.3.2 Campaign run** - segment × template × channel × time; consent and quiet hours enforced; STOP / unsubscribe honoured; a unique voucher per customer when the campaign has one; count and cost shown before sending. *Status: Not started*
-- [ ] **101.3.3 Campaign results** - sent, delivered, read, vouchers redeemed, sales within N days of the message, an optional hold-out group. *Status: Not started*
+**101.2 Segments and lifecycle** [M09, M10]
+- [ ] **101.2.1 Segment builder** - AND / OR / NOT groups; profile, spend, visits, last purchase, category / brand, store, tier, birthday month, consent, bought / did-not-buy in N days; client time zone; live count waterfall; why-matched; saved versions and the snapshot a campaign used. *Status: Not started*
+- [ ] **101.2.2 RFM and lifecycle** - today's RFM scoring reused; non-overlapping states (new, active repeat, at risk, lapsed, reactivated, never bought), versioned thresholds, recomputed after returns and merges. *Status: Not started*
+- [ ] **101.2.3 Static lists** - phone lists via `BulkImportCSV` with source and expiry; consent still checked at send. *Status: Not started*
 
-**101.4 Automatic journeys**
-- [ ] **101.4.1 Journeys** - birthday, anniversary, thank-you after the first bill, points about to expire, not seen for N days, feedback after a bill and (after Stage 99) abandoned Shopify carts; each a template, a timing and an optional voucher, on / off per client. *Status: Not started*
+**101.9 The send gate** [M14, M37 budgets, M36] - the one choke point every marketing, journey and store-staff message passes, on `engines/notifications.go` + 73.2.13 jobs.
+- [ ] **101.9.1 Send decision** - one send record per run × customer × channel (unique key); the blueprint's 11 ordered checks right before the provider; every suppression keeps its reason code. *Status: Not started*
+- [ ] **101.9.2 Limits, quiet hours, budget** - D8 limits taken atomically; quiet-hours delay past expiry expires; campaign budget reserved from an estimate (SMS parts) and reconciled with actual cost. *Status: Not started*
+- [ ] **101.9.3 Unknown outcomes and stop** - timeout after send = unknown, resolved from status / callback, no blind resend; pause / stop per run. *Status: Not started*
+- [ ] **101.9.4 Test safety** - mock provider (accept, reject, timeout, late callback); test sends and non-production reach only allowlisted numbers / emails. *Status: Not started*
+- [ ] **101.9.5 Alerts** - stuck journeys, unknown outcomes, provider failures, budget overruns raise the existing ops alerts. *Status: Not started*
 
-**101.5 Feedback and service**
-- [ ] **101.5.1 Feedback after a bill** - a short rating / NPS link by WhatsApp or SMS; a low score opens a Service Ticket for the store manager. *Status: Not started*
-- [ ] **101.5.2 Tickets tied to the customer** - customer, bill and store on each ticket, an SLA, shown on the timeline. *Status: Not started*
+**101.3 Templates, senders, campaigns, results** [M11, M12, M15, M16, M22]
+- [ ] **101.3.4 Templates** (first) - versioned per channel and language; typed variables; missing required value suppresses (`TEMPLATE_DATA_MISSING`); sample preview; SMS part counter; DLT template ID; WhatsApp template approval sync. *Status: Not started*
+- [ ] **101.3.1 Senders** (D2) - email (verified sender, unsubscribe header, bounce / complaint suppression), SMS (DLT IDs checked, STOP), WhatsApp Cloud API (signed callbacks); credentials encrypted per client; queued → accepted → delivered / failed / unknown. *Status: Not started*
+- [ ] **101.3.2 Campaign run** - segment version × template version × channel × schedule × budget × goal; approval (D13), re-approval after any edit; pre-send waterfall with cost; unique voucher per customer; pause / stop. *Status: Not started*
+- [ ] **101.3.3 Campaign results** - matched, sent, accepted, delivered, read where reported, vouchers redeemed, bills credited (D10), cost; unreported numbers blank, not zero. *Status: Not started*
+- [ ] **101.3.5 Hold-outs and lift** (after volume) - fixed random hold-out kept on rerun; compared over everyone assigned; small samples read "not enough data yet". *Status: Not started*
 
-**101.6 Business-buyer pipeline** (D1)
-- [ ] **101.6.1 Leads** - source, owner, status; converted to a Customer and an Opportunity. *Status: Not started*
-- [ ] **101.6.2 Opportunities on a board** - stages, value, chance, expected close; a won opportunity raises its Sales Order. *Status: Not started*
-- [ ] **101.6.3 Follow-ups** - calls, meetings and tasks with due dates, shown in the task inbox (73.3.3). *Status: Not started*
+**101.4 Automatic journeys** [M13, J01-J08]
+- [ ] **101.4.2 Journey engine** (first) - D9 steps; one live run per customer (per cart); re-entry cool-down; exits on goal; restart-safe waits with no duplicate send; frozen versions. *Status: Not started*
+- [ ] **101.4.1 Ready-made journeys** - welcome, thank-you after first bill, birthday, anniversary, points expiring, win-back after N days, feedback after a bill, product arrived, Shopify abandoned cart (after Stage 99); template, timing, optional voucher; on / off per client. *Status: Not started*
 
-**101.7 Reports, guides, walk-through**
-- [ ] **101.7.1 CRM dashboard and reports** - repeat rate, retention, lifetime value, campaign return, pipeline; delivered as a Stage 100 ready-made dashboard. *Status: Not started*
-- [ ] **101.7.2 Guides and walk-through** - USER_GUIDE CRM chapter rewritten, ADMIN_GUIDE senders and DLT, KB; a campaign sent to test numbers end to end. *Status: Not started*
+**101.5 Feedback, service, WhatsApp inbox** [M17, M32, M33]
+- [ ] **101.5.1 Feedback after a bill** - NPS / rating link, one per bill with a cool-down; NPS with response count; new version when a question changes; low score opens one Service Ticket. *Status: Not started*
+- [ ] **101.5.2 Tickets tied to the customer** - customer, bill, store; states new → open → waiting → resolved → closed; business-hours SLA; private notes; on the timeline. *Status: Not started*
+- [ ] **101.5.3 WhatsApp inbox** - replies linked to customer and ticket; human takeover and hand-back; service-window aware; a reply is never consent. *Status: Not started*
+
+**101.11 Loyalty and offers depth** [M27, M28]
+- [ ] **101.11.1 Pending points** (D11) - optional pending-until-return-window per programme. *Status: Not started*
+- [ ] **101.11.2 One-use codes everywhere** - till and Shopify cannot both take one code (reserve then capture); unguessable codes; stated reinstate rule on cancel. *Status: Not started*
+- [ ] **101.11.3 Referrals** - refer-a-friend codes, reward after the friend's first bill passes the return window, self-referral flagged. *Status: Not started*
+
+**101.12 Store clienteling and appointments** [M31] (D4, with Stage 102)
+- [ ] **101.12.1 Store worklist** - custom-order, arrival, alteration and follow-up tasks with due time, owner, outcome; in the task inbox and store app; staff WhatsApp goes through the send gate. *Status: Not started*
+- [ ] **101.12.2 Customer appointments** - visit / trial / fitting with slot capacity, reminders, cancel stops reminders; separate from the dock Appointment (42.3.2). *Status: Not started*
+- [ ] **101.12.3 Wish list and hold requests** - a hold asks Inventory; no "ready" message until confirmed. *Status: Not started*
+
+**101.6 Business-buyer pipeline** [M29, M30] (D1)
+- [ ] **101.6.1 Leads** - source, owner, status; assignment with an unassigned queue; converted once to Customer + Opportunity even if retried. *Status: Not started*
+- [ ] **101.6.2 Opportunities on a board** - stages with entry rules, value, chance, expected close; won needs an approved quotation, lost a reason; history kept; one Sales Order per won deal. *Status: Not started*
+- [ ] **101.6.3 Follow-ups** - calls, meetings and tasks with due dates in the task inbox (73.3.3). *Status: Not started*
+- [ ] **101.6.4 Forecast** - weighted pipeline, committed and booked kept apart; past snapshots unchanged. *Status: Not started*
+
+**101.7 Reports, guides, acceptance pack** [M24]
+- [ ] **101.7.1 CRM dashboard and reports** - `ReportDefinition` reports + a Stage 100 dashboard from the blueprint's catalog (customer summary, consent audit, segment members, campaign summary, message detail, journey performance, credited sales, RFM / lifecycle, coupon use, service SLA, clienteling, feedback, message cost, pipeline); each states time zone, date basis, refresh time. *Status: Not started*
+- [ ] **101.7.2 Guides and walk-through** - USER_GUIDE CRM chapter rewritten, ADMIN_GUIDE senders / DLT / limits / consent, KB; a campaign sent to test numbers end to end. *Status: Not started*
+- [ ] **101.7.3 Acceptance pack** - the blueprint's applicable cases as Go tests: other-client access, duplicates, withdrawal while queued, cap race, provider timeout, restart during a wait, redemption race, erasure then re-import. *Status: Not started*
 
 ## Stage 102 — Store app: an app on the phone or tablet for store staff - today's sales, approvals, scan an item, receive, count, print a label, serve a customer (opened 2026-10-19 from the user's message)
 
@@ -3561,3 +3618,46 @@ Not committed, not deployed: prod shows the change after the next release (old r
 - [x] **105.2 CLAUDE.md, one pass.** Sizes re-measured (this tracker was listed at ~43k tokens; it is ~220k); `project_ledger.md` added to the never-read-whole list; size checked in bytes; status set when recorded and updated once at the end; entries kept short; claude.ai connectors count as MCP servers; subagents only for wide sweeps; archived-stage list updated. *Status: Done*
 - [x] **105.3 Memory index trimmed** 10 KB → ~4.6 KB; each dropped detail checked present in its memory file first, one duplicate pointer removed. *Status: Done*
 - [x] **105.4 Global effort setting** top-level `xhigh` → `high` (Opus 5 / 5.5 were already `high` per model). The Claude Docs connector stays on until the user turns it off in `/mcp`. *Status: Done*
+
+## Stage 106 — Sticker size for the Seznik jewellery tag roll, 100 × 14.3 mm (opened 2026-10-19 from the user's Amazon link B0FK2ZF5F8: "I need this template in the barcode template as well along with current one")
+
+| Phase | What | Status |
+|---|---|---|
+| 106.1-106.2 | 100 × 14.3 tail-tag preset; Square and Ring ready designs | Built, not verified |
+| 106.3 | POS bill in the sample 3-inch format, both print paths | Built, not verified |
+| 106.4 | Stock Locations > Transactions: every row editable | Built, not verified |
+| 106.5 | From / To location at the top of every transaction | Not started |
+| 106.6 | Transaction lists follow the selected store | Not started |
+
+- [ ] **106.1 Tail tag 100 × 14.3 preset.** Seznik Jewellery Thermal Labels (direct thermal, 150 per roll). Added under Jewellery tags in `LABEL_PRESETS`, existing sizes kept; USER_GUIDE size list updated. Gap left at 3 mm like the other tags (listing gives no gap; adjust in the label settings if the first print drifts). Verified: `node --check` passes; the size input steps 0.1 mm and the server keeps the size as a float, so 14.3 is stored as is. Not yet seen in a live browser or on a printed roll. *Status: Built, not verified*
+- [ ] **106.2 Square and Ring label designs from the client's old PRN files** (user, 2026-10-19: "Read this and prepare the 2 file also, Square and Ring label", folder `Downloads/Telegram Desktop/2PRN FILE/PRN FILE`). Square = 2-up 54.5 × 20.1 mm roll (two 26 × 20 labels); Ring = tail tag ~97.6 × 11.9 mm. Fields: item name, colour, design no., polish, size, combination ID, weight, MRP, barcode + custom barcode text, the shop name printed sideways. Built as a "Ready designs" group in `LABEL_PRESETS` (a preset may now carry `elements` and `dpi`; the start dialog lays the design out, the size drop-down still changes size only). Mapped: name, color, parent_product_code (design), polish, size, sku (Combination ID), gross_weight (W:, hidden when blank), mrp, barcode with its number under it; old "Custom BarCode" text dropped (the barcode prints its own number); the brand is static "Brand name" to retype. Both rendered with the engine's own paintPreview in headless Chrome, screen and 300 dpi thermal; layout matches the PRN. Not yet printed on the roll. *Status: Built, not verified*
+- [ ] **106.3 POS bill print format from the client's video** (user, 2026-10-19: "For POS Bill Print. Format", `Downloads/Telegram Desktop/video_2026-10-19_08-52-10.mp4`). Decision (user, same day): "Kushals is Sample. Don't use word Kushals. Both" - an 80 mm roll layout in the Print Template Studio as the till's Tax Invoice, and the silent ESC-POS receipt in the same order with the logo as an image; no client name anywhere in the product. Built: `80 mm roll (3 inch)` / `58 mm roll (2 inch)` page sizes in trade-docs.js (one page, items table grows, everything under it moves, page ends under the last element); `rollBillLayout` offered as "3-inch roll bill (built-in)" for POSTaxInvoice / SalesInvoice, editable via Design templates; table columns may print fields `under` their own (studio: + line under / ×); `printRollBill` sends a roll to the Receipt printer through QZ - ESC-POS as a GS v 0 raster of the same page (print-pdf.js `pageToESCPOS`), a driver printer as PDF - else the print dialog; the till's Print Receipt uses it (client's roll template first, else built-in), the old ESC-POS text / browser receipts stay as fallbacks. Server: fields `bill_datetime`, `cashier`, `totals.discount`, in the studio catalog. Found and fixed: measureTable measured at the box width, not the 2 mm narrower printed width, so wrapped rows were under-counted (A4 pagination too); `discount` now formats as money. Verified: go build/vet, engines print/receipt/sticker tests pass (TEST_DATABASE_URL on 5490), sample bill and its decoded ESC-POS raster rendered headless in Chrome and match. Not yet: live studio / print dialog click-through, a real printer. *Status: Built, not verified*
+- [ ] **106.4 Stock Locations > Transactions: every row editable** (user, 2026-10-19, screenshot: "Everything should be editable"). POS Sale (from), Purchase Return (from), Sales Return (to), Transfer Out (from / to) print fixed text where the others have drop-downs; also the "How it works" column's row lines stop short of the Save column. Decision (user, same day, recommended option): POS Sale From = the sellable location a sale takes first (then the other sellable ones); Purchase Return From = any movable location; Sales Return To = where a return QC-checked Good lands (Damaged / QC Hold results unchanged); Transfer Out From editable, To stays In-Transit, shown locked with the reason. Same files as Stage 107 (another session) - stage hunks only. Built: `stockDefaultRules` flags + notes; new `engines/stock_location_txn_defaults.go` (`drawFromDefaultFromTx` - the chosen From is emptied into Main first, as much as it holds, inside the posting tx - wired into POS checkout, purchase return accepted lines, transfer dispatch; Good returns run `applyReceiptDefaultTx("Sales Return")`); POS Sale From must sell (STKLOC-0862); migration `migrations_stage106_4_stock_default_rows.sql` sets the never-edited Sales Return seed QCHOLD -> MAIN (what Good returns always did; applied to the dev DB); screen: POS From lists only sellable locations, hint cell no longer `display:flex` on a td (the broken row lines). Found and fixed: `applyBucketDeltaTx` could never take stock out of a custom location (INSERT ... ON CONFLICT checks qty >= 0 on the negative proposed row) - Move Stock from one failed too. Verified: build/vet; new `TestStage1064StockDefaultRowsMoveStock` + stock location / return / transfer / POS tests pass (5490). Not yet: live screen click-through. *Status: Built, not verified*
+- [ ] **106.5 From / To stock location at the top of every transaction** (user, 2026-10-19: "I want a location selection in TOP in all txn like store. It will be frozen where not changable. Else Drop down. Need From & TO in all txn ... Freze there but Changable should be dropdwon. Ex- In TO/POS, If I alliow multiple location drop down will allow to change."). Every transaction screen shows From and To beside the store selector, read from Stock Locations > Transactions (106.4): fixed text where the row is locked, a drop-down where it is editable, and the document then moves stock from / to what was picked. Depends on 106.4. Decision (user, same day, recommended): the drop-down changes that one document only (starts at the setting); it is a drop-down only when the row is editable and the store uses more than one fitting location, else fixed text; POS, Goods Receipt, Transfer Out / In, Purchase Return, Sales Return, Stock Move, Damage. *Status: Not started*
+- [ ] **106.6 Switching store narrows every transaction list to that store** (user, 2026-10-19, screenshot: store Jayanagr selected, Purchase Orders still lists PO/HO/26-27/00005 billed to HO: "Once I switch Store. It will only show txn of that store. But if I want to access other store bill with Phone number for return that is finee. It will show my store;s pending TO, TI etc"). Lists (PO, GRN, TO, TI, returns, POS bills...) follow the working store; the exception is finding another store's bill by phone for a return. Decision (user, same day, recommended): the store switcher gets "All stores" for users allowed on every store (shows everything, as today); a picked store shows only its documents; the return bill lookup by phone keeps searching every store. *Status: Not started*
+
+## Stage 107 — Stock locations: "Physically in the store?" beside "Sells?" (opened 2026-10-19 from the user's Stock location - In-Transit screenshot)
+
+User, 2026-10-19: *"Non saleable and Physically Not Available also required. Ex- Intransit will not be avalible"*
+
+What exists: each stock location has **Sells?** (Stage 85.B). In-Transit stock already sits outside `on_hand` (dispatch moves it from on_hand/available to in_transit), so the numbers are right for it; what is missing is the flag itself. The client's own locations ("Alteration", "At repair") are carve-outs inside `on_hand`, so a stock count expects them in the store today.
+
+| Phase | What | Status |
+|---|---|---|
+| 107.1 | `physical` flag on every stock location: built-ins fixed by nature (In-Transit No; Main, Inward, QC Hold, Damage, On Hold, Purchase Return Yes), the client's own locations choose | Done |
+| 107.2 | A stock count's expected (system) qty leaves out stock in the client's locations marked not physically here | Done |
+| 107.3 | Shown on the Stock Locations list and form; ADMIN_GUIDE | Done |
+
+- [x] **107.1-107.3 Physically in the store?** Additive column `stock_locations.physical` (default true, In-Transit false); engine `StockLocation.Physical` / `PhysicalEditable`; count reconcile subtracts not-physical custom-location qty. *Built 2026-10-19:* `db/migrations_stage107_stock_location_physical.sql`, engines/stock_locations.go (`notPhysicalCustomQty`; a built-in keeps its fixed value whatever is sent), engines/wms.go count reconcile, view-stock-locations.js (list column + form field; a choice only on your own locations), ADMIN_GUIDE B.3.0.7. `TestStage107StockLocationPhysical` plus the stock-location / Stage 85 / cycle-count tests pass (migration applied by hand to the scratch DB on 5490 only). Chromium: list shows In-Transit "Not here", the rest "In store"; In-Transit form shows it fixed; New location offers the choice. *Status: Done*
+
+## Stage 108 — The New Location form fills itself in (opened 2026-10-19 from the user's New Location screenshot)
+
+User, 2026-10-19: *"Short Code Suggested and Filled User Can Change. Std One. Facility Level will be linked to store/warehouse/ho. Parent will be linked as well to HO. Facility Code will be Sequence 1,2,3. Salesman mandatory default."* Then: *"Legal Entity Preselected as it is defined. If two there user will change"*, *"Sellable pos yes preselected"*, *"If a store preselected warehouse not"*.
+
+| Phase | What | Status |
+|---|---|---|
+| 108.1 | New Location: Short Code suggested from the name, Facility Code next in sequence, Level and Sellable follow Type, Parent = the HO, Legal Entity the first one, salesman Mandatory; the server fills a blank Short / Facility Code on create | Done |
+| 108.2 | POS scan box: only an exact barcode adds straight away; anything else shows the products containing it to pick from | Done |
+
+- [x] **108.1 New Location fills itself in.** One standard Short Code rule: an abbreviation word (JP, MG) is kept whole, other words give their first letter, topped up to 3 from the last word, at most 4 letters, a digit added on a clash ("JP Nagar" → JPN). Facility Code = highest numeric one + 1 (1, 2, 3...). Facility Level gains HO and Store and follows Type (Store → Store, Warehouse → Warehouse, HO → HO). Sellable follows Type (Store → Yes, else No). Parent = the HO location (blank for an HO). Legal Entity = the first one (changeable when there are two). Ask the salesman at the till = Mandatory. All editable; a field the user changes stops following. Existing locations are not touched. *Built 2026-10-19:* `wireNewLocationDefaults` (view-pickers.js, create only), `engines/location_identity.go` (`SuggestLocationShortCode`, `PrepareNewLocationCodes`, called on create in handlers_core_doc_engine.go before the cost center), `db/migrations_stage108_location_level_types.sql` (level options gain HO and Store, only where still the shipped list), ADMIN_GUIDE B.3.0.3a. `TestSuggestLocationShortCode`, `TestPrepareNewLocationCodes` and the Stage 93 cost-center test pass (5490 scratch DB, migration applied there by hand). Chromium on the New Location form: JP Nagar → JPN, Facility Code next number, Store → Level Store / Sellable Yes, Warehouse → Warehouse / No, HO → parent blank, Parent = the HO (checked with a temporary HO row, removed), Legal Entity and Mandatory preselected, a typed Short Code kept. Saving was not exercised in the browser (unit test covers the fill). *Status: Done*
+- [x] **108.2 POS scan box: only an exact barcode adds straight away; anything else asks** (user, 2026-10-19, POS / Billing screenshot: *"It should allow only not barcode direct match, & Typed anything barcode/Design/SKU/Item name if not matching, It should suggest to select if type with contains. Pop I will select that and load"*). An exact barcode match goes into the cart as now; any other text (part of a barcode, design no., SKU, item name) opens a pick list of the items that contain it, and the chosen one is added. *Built 2026-10-19:* view-pos.js - exact match is barcode or GTIN only (an exact item code now lists too), a single match lists instead of adding, the list also appears on a 350 ms pause in typing (a scanner's burst is faster, so a scan still goes straight in), Enter picks from the list only when it was found for exactly what is in the box; the list shows the design no.; USER_GUIDE 4.1. Chromium on WH01: "QA Test" typed → 2-row list, nothing added; Enter → highlighted row added; exact code QA-JEANS-01 → list; exact barcode QAJ0001 → added directly; no match → the plain message. Gap noted, not changed: receipt-date barcodes (ItemBarcode rows) are not found by the Item search. *Status: Done*

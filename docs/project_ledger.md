@@ -44,12 +44,20 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 261. Stage 108 — The New Location form fills itself in; POS adds only an exact barcode (2026-10-19, code + docs, NOT COMMITTED)
+
+From the user's New Location and POS / Billing screenshots. New Location: Short Code suggested by one standard rule (JP Nagar → JPN), Facility Code the next number, Level and Sellable follow Type, Parent = the HO, Legal Entity and salesman Mandatory preselected; the server fills a blank Short / Facility Code on create; Level gains HO and Store (migration, shipped list only). POS: only an exact barcode / GTIN rings up directly, anything else lists the containing products to pick, on Enter or a pause in typing. Unit tests + Chromium checks; detail in micro_checklist 108.1-108.2. Open gap: receipt-date barcodes are not found by the POS search (pre-existing).
+
 ## 260. Release 0.3.0 to app and minn (2026-10-19, release)
 
 - **Commit:** `06547bb` (origin `8c40d4b` → `06547bb`): the report catalog (75.3, ledger §258), Stage 94 and the paused "Build all" run's steps 1-4 (§256), Stage 98 (§253), Stage 102's first slice, Stage 104 (§255), and the tracker text for Stages 99-101, 103 and 105. Built from a snapshot in a `%TEMP%` worktree, regenerated there (attack surface: 687 routes; guides / KB / manuals already current; brain; document register), migrated from empty (253 migrations) and fully tested on a fresh DB - every package green.
 - **User's OK, 2026-10-19:** ship everything, including the paused run's screens not yet walked in a browser (reason pickers, invoice-copy panel, till MRP chooser, Post all, Movements link), and seed the standard reason codes on app and minn.
 - **Deploy:** backup `custom_erp_20261019T023744Z.dump.enc` (sha256 OK), `rollback_20261019_023745`, DEPLOY-OK, 7 migrations, `[sync] tenant_minn`; release 0.3.0 recorded, 2 clients stamped. Both hosts: `/`, health, version, `app.js?v=50`, `/store/` 200; `/api/v1/version` = 0.3.0 (06547bb); the Store app icon served byte-identical.
 - **Left uncommitted:** the Stage 101 CRM plan (`docs/product/crm-platform-plan-2026-10-19.md`, ledger §259), being written during the release.
+
+## 259. Stage 101 — the CRM blueprint planned onto the ERP (2026-10-19, docs, plan only, NOT COMMITTED)
+
+User: *"Indepth CRM Module ... Understand it and plan it and put it in checklist and relevant places"*, with their 70-page *CRM Platform Business and Product Requirements* (38 modules, P0-P2, decision register D01-D12). It became the spec for Stage 101, opened that morning. Each module was checked against what the ERP already has: customers and merge, RFM / lifetime value, the loyalty ledger, offers / vouchers, campaigns with per-channel consent, notification delivery states, service tickets, privacy requests. What was missing became phases 101.1-101.12: customer page, consent ledger, segments, one send gate for every message, templates / senders / campaigns up to a pilot gate, journeys, feedback and a WhatsApp inbox, loyalty depth, clienteling, the business pipeline, reports. Not adopted: its stack, a separate commerce layer, shopper-app SDKs, ads / RCS / AI, and shared-phone profiles (85 D1 stands). Plan: `docs/product/crm-platform-plan-2026-10-19.md`. Nothing built; 101.0.2 waits on the user's decisions.
 
 ## 258. "Fix all": the report catalog built - 252 of the user's 290 reports (Stage 75.3.2, 75.3.5-75.3.7) (2026-10-19, code + docs, NOT COMMITTED)
 

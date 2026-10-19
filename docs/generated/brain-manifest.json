@@ -10,7 +10,7 @@
   "outputs": [
     {
       "path": "docs/brain/BRAIN.md",
-      "sha256": "de532546f663ffa776ee1ae15e2f5cd74fbab1ea23f86367de99dc502daac52a",
+      "sha256": "919725de21847a820cd05908d9653d4156ded8b487af4349839abcb82b68fca5",
       "sources": [
         "docs/brain/brain.map.json",
         "graphify-out/graph.json",
@@ -21,7 +21,7 @@
     },
     {
       "path": "docs/brain/brain.html",
-      "sha256": "750918220c973668987aa6d154a92843bc6d44e3db152f3580d6073d9c58dac2",
+      "sha256": "59076a8725a13da0c7a8e072fefa4449447dee3102d8cb551682b4934aa09bb2",
       "sources": [
         "docs/brain/brain.map.json",
         "graphify-out/graph.json",

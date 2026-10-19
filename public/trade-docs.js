@@ -49,13 +49,19 @@ function qrHTML(text) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n + 2 * q} ${n + 2 * q}" width="100%" height="100%" preserveAspectRatio="xMinYMin meet" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/><path d="${cells.join('')}" fill="#000"/></svg>`;
 }
 
-export const PAGE_SIZES = { A4: [210, 297], A5: [148, 210], Letter: [215.9, 279.4] };
+// Stage 106.3: a roll (till receipt paper) is one page whose length follows
+// the bill - the height here is only the designer's canvas.
+export const PAGE_SIZES = { A4: [210, 297], A5: [148, 210], Letter: [215.9, 279.4], '80 mm roll (3 inch)': [80, 200], '58 mm roll (2 inch)': [58, 200] };
 export const PX_PER_MM = 96 / 25.4;
+export const isRollPage = (page) => /roll/i.test(page?.size || '');
 
 export function pageDims(page) {
   const [w, h] = PAGE_SIZES[page?.size] || PAGE_SIZES.A4;
-  return page?.orientation === 'landscape' ? [h, w] : [w, h];
+  return page?.orientation === 'landscape' && !isRollPage(page) ? [h, w] : [w, h];
 }
+
+// A rendered page's own height in mm - a roll's is the bill's length.
+export const renderedHeightMM = (page, layout) => parseFloat(page?.style.height) || pageDims(layout.page)[1];
 
 export const TRANSACTIONS = [
   { key: 'PurchaseOrder', label: 'Purchase Order', doctype: 'PurchaseOrder' },
@@ -113,7 +119,7 @@ export function formatValue(v, fmt) {
 // guessFormat picks a sensible format for a key when the template set none.
 export function guessFormat(key) {
   const k = String(key || '').split('.').pop();
-  if (/^(rate|mrp|taxable|cgst|sgst|igst|tax|amount|grand_total|round_off|po_rate|invoice_rate|rate_difference|po_value|invoice_value|invoice_gst|invoice_total|vendor_invoice_amount|invoice_amount_difference|total_amount|standard_cost|sale_price|gst_amount|total_with_gst|original_taxable|original_disc)$/.test(k)) return 'money';
+  if (/^(rate|mrp|taxable|cgst|sgst|igst|tax|amount|grand_total|round_off|po_rate|invoice_rate|rate_difference|po_value|invoice_value|invoice_gst|invoice_total|vendor_invoice_amount|invoice_amount_difference|total_amount|standard_cost|sale_price|gst_amount|total_with_gst|original_taxable|original_disc|discount)$/.test(k)) return 'money';
   if (/(^|_)qty$|^qty|line_count/.test(k)) return 'qty';
   if (/gst_rate$/.test(k)) return 'percent';
   if (/date$|^date$/.test(k)) return 'date';
@@ -282,6 +288,50 @@ export function defaultLayout(txn, doc) {
   };
 }
 
+// Stage 106.3: the till's bill on 80 mm receipt paper - shop header, one
+// row per item with its barcode and HSN / design under the name, totals, the
+// HSN-wise GST table and a thank-you line. Every piece is an ordinary element,
+// so a copy saved in the Print Template Studio can be changed freely (logo,
+// website, CIN, terms...). ROLL_TEMPLATE_ID is how the print dialog offers it.
+export const ROLL_TEMPLATE_ID = 'builtin-roll-80';
+export const offersRollBill = (txn) => txn === 'POSTaxInvoice' || txn === 'SalesInvoice';
+export function rollBillLayout(txn) {
+  const E = (o) => ({ id: newElementId(), fontSize: 7.5, align: 'left', pages: 'first', ...o });
+  const W = 72, X = 4;
+  const c = (key, label, width, extra) => col(key, label, width, extra);
+  return {
+    version: 1,
+    page: { size: '80 mm roll (3 inch)', orientation: 'portrait', margin: 3, font: 'Arial, sans-serif' },
+    elements: [
+      E({ type: 'field', key: 'brand.name', x: X, y: 3, w: W, h: 7, fontSize: 13, bold: true, align: 'center' }),
+      E({ type: 'block', block: 'store', show: ['legal_name', 'address', 'city_pin', 'phone', 'email'], title: '', x: X, y: 10, w: W, h: 15, align: 'center' }),
+      E({ type: 'field', key: 'title', x: X, y: 25.5, w: W, h: 4.5, fontSize: 9, bold: true, align: 'center' }),
+      E({ type: 'text', text: 'Bill: {number}', x: X, y: 30.5, w: 38, h: 4 }),
+      E({ type: 'text', text: '{fields.bill_datetime}', x: 42, y: 30.5, w: 34, h: 4, align: 'right' }),
+      E({ type: 'text', text: 'Customer: {party.name} {party.phone}', x: X, y: 34.5, w: W, h: 4 }),
+      E({ type: 'text', text: 'Buyer GSTIN: {fields.buyer_gstin}', x: X, y: 38.5, w: W, h: 4 }),
+      E({ type: 'line', x: X, y: 43, w: W, h: 0.3, thickness: 0.3 }),
+      E({ type: 'table', x: X, y: 43.5, w: W, h: 30, fontSize: 7, headerBg: '', pages: 'all', columns: [
+        c('sr', '#', 4, { align: 'center' }),
+        c('item_name', 'Item', 29, { format: 'text', under: ['barcode', 'HSN {hsn_code}  {design}'] }),
+        c('qty', 'Qty', 8),
+        c('rate', 'Rate', 12, { under: ['discount'] }),
+        c('amount', 'Amount', 13)
+      ] }),
+      E({ type: 'line', x: X, y: 74, w: W, h: 0.3, thickness: 0.3, pages: 'last' }),
+      E({ type: 'totals', x: 24, y: 75, w: 52, h: 35, fontSize: 8, pages: 'last', rows: [
+        tot('qty', 'Total qty', { format: 'qty' }), tot('discount', 'Item discount', { hideZero: true }), tot('taxable', 'Taxable value'),
+        ...TAX_ROWS, tot('round_off', 'Round off', { hideZero: true }), tot('grand_total', 'NET AMOUNT', { strong: true })] }),
+      E({ type: 'text', text: 'Paid by: {fields.payment_mode}', x: X, y: 110.5, w: W, h: 4, pages: 'last' }),
+      E({ type: 'text', text: 'Cashier: {fields.cashier}', x: X, y: 114.5, w: W, h: 4, pages: 'last' }),
+      E({ type: 'taxSummary', x: X, y: 119, w: W, h: 16, fontSize: 6.5, pages: 'last' }),
+      E({ type: 'text', text: 'GSTIN: {store.gstin}', x: X, y: 136, w: W, h: 4.5, fontSize: 8, bold: true, pages: 'last' }),
+      E({ type: 'text', text: '{amount_in_words}', x: X, y: 141, w: W, h: 7, fontSize: 7, italic: true, pages: 'last' }),
+      E({ type: 'text', text: 'Thank you for shopping with us', x: X, y: 149, w: W, h: 5, fontSize: 8, bold: true, align: 'center', pages: 'last' })
+    ]
+  };
+}
+
 export function parseLayout(raw, txn, doc) {
   if (raw && typeof raw === 'object') return raw;
   try {
@@ -341,7 +391,15 @@ function cellHTML(colDef, line, el) {
     const size = el.imageSize || 14;
     return src ? `<img src="${esc(src)}" alt="" style="width:${size}mm;height:${size}mm;object-fit:contain;">` : '';
   }
-  return esc(formatValue(resolvePath(line, colDef.key), colDef.format || guessFormat(colDef.key)));
+  const main = esc(formatValue(resolvePath(line, colDef.key), colDef.format || guessFormat(colDef.key)));
+  // Stage 106.3: more fields printed under the column's own, one per line -
+  // a field key, or text with {tokens} ("HSN {hsn_code}  {design}"). A blank
+  // one drops out.
+  const under = (colDef.under || []).map(k => /\{/.test(k)
+    ? (tokensAllBlank(k, line) ? '' : fillTokens(k, line))
+    : (Number(resolvePath(line, k)) === 0 && guessFormat(k) !== 'text' ? '' : formatValue(resolvePath(line, k), guessFormat(k))))
+    .filter(v => String(v).trim() !== '');
+  return main + under.map(v => `<div class="tdp-sub">${esc(v)}</div>`).join('');
 }
 
 function tableHead(el) {
@@ -473,8 +531,11 @@ function tableBox(layout, table, first, last) {
 function measureTable(el, lines, fontFamily) {
   const probe = document.createElement('div');
   probe.className = 'tdp-page tdp-measure';
-  probe.style.cssText = `position:absolute;left:-10000px;top:0;width:${el.w}mm;font-family:${fontFamily};`;
-  probe.innerHTML = `<table class="tdp-table" style="width:${el.w}mm;font-size:${el.fontSize || 8}pt">${tableHead(el)}<tbody>${tableRowsHTML(el, lines)}</tbody></table>`;
+  // Measured at the width it prints at: inside the element's 1 mm side padding
+  // (.tdp-el), so a wrapped cell is counted at its real height.
+  const inner = Math.max(1, el.w - 2);
+  probe.style.cssText = `position:absolute;left:-10000px;top:0;width:${inner}mm;font-family:${fontFamily};`;
+  probe.innerHTML = `<table class="tdp-table" style="width:${inner}mm;font-size:${el.fontSize || 8}pt">${tableHead(el)}<tbody>${tableRowsHTML(el, lines)}</tbody></table>`;
   document.body.appendChild(probe);
   const head = probe.querySelector('thead');
   const headMM = head ? head.getBoundingClientRect().height / PX_PER_MM : 6;
@@ -486,7 +547,7 @@ function measureTable(el, lines, fontFamily) {
 export function paginate(layout, doc, opts = {}) {
   const table = itemsTable(layout);
   const lines = doc.lines || [];
-  if (!table) return [lines];
+  if (!table || (isRollPage(layout.page) && !opts.design)) return [lines];
   const { headMM, rowsMM } = measureTable(table, lines, layout.page?.font || 'Arial');
   const cap = (first, last) => {
     if (opts.design) return table.h - headMM;
@@ -546,6 +607,17 @@ export function renderPages(layout, doc, opts = {}) {
   const total = chunks.length;
   const hasBrand = (layout.elements || []).some(el =>
     (el.type === 'field' && el.key === 'brand.name') || (el.type === 'text' && /\{brand\.name\}/.test(el.text || '')));
+  // Stage 106.3: on a roll the items table takes the height its lines need,
+  // everything under it moves by the difference, and the page ends under the
+  // last thing printed.
+  const roll = isRollPage(layout.page) && !opts.design;
+  let shift = 0;
+  if (roll && table) {
+    const { headMM, rowsMM } = measureTable(table, doc.lines || [], layout.page?.font || 'Arial');
+    // + the element's own top / bottom padding and a hair to spare.
+    shift = headMM + rowsMM.reduce((s, h) => s + h, 0) + 2 - table.h;
+  }
+  const placed = (el) => (roll && table && el !== table && zoneOf(el, table) === 'below' ? { ...el, y: el.y + shift } : el);
   return (opts.design ? chunks.slice(0, 1) : chunks).map((rows, i) => {
     const pageNo = i + 1;
     const first = opts.design || pageNo === 1, last = opts.design || pageNo === total;
@@ -553,23 +625,29 @@ export function renderPages(layout, doc, opts = {}) {
     page.className = 'tdp-page';
     page.style.width = `${pw}mm`;
     page.style.height = `${ph}mm`;
+    let bottom = 0;
     page.style.fontFamily = layout.page?.font || 'Inter, Arial, sans-serif';
     let html = '';
     if (first && !hasBrand && ctx.brand.name) {
       html += `<div class="tdp-el tdp-brand-auto" style="left:${layout.page?.margin ?? 10}mm;top:3mm;width:${pw - 2 * (layout.page?.margin ?? 10)}mm;height:6mm;">${esc(ctx.brand.name)}</div>`;
     }
-    (layout.elements || []).forEach(el => {
-      if (el.hidden) return;
-      if (!printsOnPage(el, table, first, last)) return;
+    (layout.elements || []).forEach(src => {
+      if (src.hidden) return;
+      if (!printsOnPage(src, table, first, last)) return;
+      const el = placed(src);
       if (el.type === 'table') {
-        const { top, bottom } = el === table && !opts.design ? tableBox(layout, el, first, last) : { top: el.y, bottom: el.y + el.h };
-        html += `<div class="${elementClass(el)}" style="${boxStyle({ ...el, y: top, h: bottom - top, border: false, bg: '' })}"><table class="tdp-table${el.rowLines === false ? ' tdp-norules' : ''}" style="font-size:${el.fontSize || 8}pt">${tableHead(el)}<tbody>${tableRowsHTML(el, rows)}</tbody></table></div>`;
+        const { top, bottom: end } = roll && el === table ? { top: el.y, bottom: el.y + el.h + shift }
+          : el === table && !opts.design ? tableBox(layout, el, first, last) : { top: el.y, bottom: el.y + el.h };
+        bottom = Math.max(bottom, end);
+        html += `<div class="${elementClass(el)}" style="${boxStyle({ ...el, y: top, h: end - top, border: false, bg: '' })}"><table class="tdp-table${el.rowLines === false ? ' tdp-norules' : ''}" style="font-size:${el.fontSize || 8}pt">${tableHead(el)}<tbody>${tableRowsHTML(el, rows)}</tbody></table></div>`;
         return;
       }
       const inner = elementHTML(el, ctx, { page: pageNo, pages: total, design: !!opts.design });
       if (inner === '' && !['box', 'line'].includes(el.type)) return;
+      bottom = Math.max(bottom, el.y + el.h);
       html += `<div class="${elementClass(el)}" style="${boxStyle(el)}">${inner}</div>`;
     });
+    if (roll) page.style.height = `${Math.ceil(bottom + (layout.page?.margin ?? 3))}mm`;
     page.innerHTML = html;
     return page;
   });
@@ -581,7 +659,8 @@ export function renderPages(layout, doc, opts = {}) {
 
 export async function printPages(pages, layout) {
   await tradeStylesReady;
-  const [pw, ph] = pageDims(layout.page);
+  const [pw] = pageDims(layout.page);
+  const ph = renderedHeightMM(pages[0], layout);
   let area = document.getElementById('trade-print-area');
   if (!area) {
     area = document.createElement('div');
@@ -674,6 +753,7 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
   if (window.attachLinkTypeahead) window.attachLinkTypeahead(q('store'), 'Location');
 
   const currentLayout = () => {
+    if (S.templateId === ROLL_TEMPLATE_ID) return rollBillLayout(S.txn);
     const t = (S.data?.templates || []).find(x => x.id === S.templateId);
     return parseLayout(t ? t.layout : '', S.txn, S.data?.document);
   };
@@ -689,7 +769,7 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
       const wrap = document.createElement('div');
       wrap.className = 'td-preview-page';
       wrap.style.width = `${pw * PX_PER_MM * scale}px`;
-      wrap.style.height = `${pageDims(layout.page)[1] * PX_PER_MM * scale}px`;
+      wrap.style.height = `${renderedHeightMM(p, layout) * PX_PER_MM * scale}px`;
       p.style.transform = `scale(${scale})`;
       p.style.transformOrigin = 'top left';
       wrap.appendChild(p);
@@ -703,9 +783,11 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
     if (!data) { close(); return; }
     const sel = q('template');
     const templates = data.templates || [];
-    if (!templates.some(t => t.id === S.templateId)) S.templateId = (templates.find(t => t.recommended) || {}).id || '';
+    const roll = offersRollBill(S.txn);
+    if (!templates.some(t => t.id === S.templateId) && !(roll && S.templateId === ROLL_TEMPLATE_ID)) S.templateId = (templates.find(t => t.recommended) || {}).id || '';
     sel.innerHTML = templates.map(t => `<option value="${esc(t.id)}"${t.id === S.templateId ? ' selected' : ''}>${esc(t.name)}${t.recommended ? ' (best match)' : ''}</option>`).join('')
-      + `<option value=""${S.templateId ? '' : ' selected'}>Standard layout (built-in)</option>`;
+      + `<option value=""${S.templateId ? '' : ' selected'}>Standard layout (built-in)</option>`
+      + (roll ? `<option value="${ROLL_TEMPLATE_ID}"${S.templateId === ROLL_TEMPLATE_ID ? ' selected' : ''}>3-inch roll bill (built-in)</option>` : '');
     S.data = data;
     const needImages = layoutUsesImages(currentLayout());
     if (needImages && !S.images) {
@@ -730,6 +812,7 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
     if (!S.data) return;
     const layout = currentLayout();
     await qrEncoderReady(layout);
+    if (isRollPage(layout.page)) { await printRollBill(layout, S.data.document); close(); return; }
     if (await printSilently(S.txn, S.data.document, pdfNow)) { close(); return; }
     await printPages(renderPages(layout, S.data.document), layout);
   }));
@@ -771,7 +854,8 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
   q('design').addEventListener('click', async () => {
     const studio = await import('./print-template-studio.js' + VERSION_QUERY);
     close();
-    studio.openPrintTemplateStudio({ txn: S.txn, templateId: S.templateId, sample: { txn: S.txn, id } });
+    const builtinRoll = S.templateId === ROLL_TEMPLATE_ID;
+    studio.openPrintTemplateStudio({ txn: S.txn, templateId: builtinRoll ? '' : S.templateId, startLayout: builtinRoll ? rollBillLayout(S.txn) : null, sample: { txn: S.txn, id } });
   });
   await load();
   showPrinter();
@@ -798,8 +882,9 @@ const pdfModule = () => import('./print-pdf.js' + VERSION_QUERY);
 // layoutPDF is the PDF of a layout over print data (Stage 98.2).
 export async function layoutPDF(layout, doc) {
   await qrEncoderReady(layout);
-  const [w, h] = pageDims(layout.page);
-  return (await pdfModule()).pagesToPDF(renderPages(layout, doc), w, h);
+  const [w] = pageDims(layout.page);
+  const pages = renderPages(layout, doc);
+  return (await pdfModule()).pagesToPDF(pages, w, renderedHeightMM(pages[0], layout));
 }
 
 // printFileName is "<title>-<number>.<ext>", as the server names its exports.
@@ -832,6 +917,58 @@ async function printSilently(txn, doc, make) {
     documentRef: doc.number || out.name, dataBase64: await (await pdfModule()).blobToBase64(out.blob), docFormat: 'pdf',
     printKind: r.printKindFor(txn), location: doc.store?.code || '', quiet: true
   });
+}
+
+// printRollBill prints a roll layout (Stage 106.3). With QZ Tray running it
+// goes to this computer's Receipt printer: an ESC-POS printer gets the page
+// drawn as a raster image - the same picture the preview shows, logo and all -
+// and a printer driven by its Windows driver gets it as a PDF. Otherwise, or
+// if that fails, the browser's print dialog.
+export async function printRollBill(layout, doc) {
+  await qrEncoderReady(layout);
+  const pages = renderPages(layout, doc);
+  const [w] = pageDims(layout.page);
+  const h = renderedHeightMM(pages[0], layout);
+  try {
+    if (window.QZPrint && window.qzTryPrint && window.qzTryConnect && await window.qzTryConnect()) {
+      const r = await window.loadViewModule('./print-routing.js');
+      const store = doc.store?.code || '';
+      const printer = await r.chosenPrinter('Receipt', store);
+      if (printer) {
+        const pdf = await pdfModule();
+        const escpos = /ESC-?POS/i.test(printer.printer_language || '');
+        const dataBase64 = escpos
+          ? await pdf.pageToESCPOS(pages[0], w, h, { paperMM: parseFloat(printer.label_width_mm) || w, dpi: parseFloat(printer.dpi) || 203 })
+          : await pdf.blobToBase64(await pdf.pagesToPDF(pages, w, h));
+        if (await window.qzTryPrint('Document', { documentRef: doc.number, dataBase64, docFormat: escpos ? 'ESC-POS' : 'pdf',
+          printKind: 'Receipt', printerCode: printer.code, location: store, quiet: true })) return true;
+      }
+    }
+  } catch (e) {
+    console.debug('[print] roll bill to the receipt printer failed, using the print dialog', e);
+  }
+  await printPages(pages, layout);
+  return true;
+}
+
+// printPOSBill is the till's Print Receipt (Stage 106.3): the sale's tax
+// invoice on the roll - the client's own roll template when its best match is
+// one, else the built-in 3-inch bill. Quiet on failure: false sends the till
+// back to its older receipt.
+export async function printPOSBill(cartNumber) {
+  await tradeStylesReady;
+  const get = async (images) => {
+    const res = await window.apiFetch(`/api/v1/print/document/POSTaxInvoice/${encodeURIComponent(cartNumber)}${images ? '?images=1' : ''}`);
+    return res && res.ok ? res.json() : null;
+  };
+  let data = await get(false);
+  if (!data) return false;
+  // The best match if it is a roll, else any roll template, else built-in.
+  const templates = [...(data.templates || [])].sort((a, b) => (b.recommended ? 1 : 0) - (a.recommended ? 1 : 0));
+  const layout = templates.map(x => parseLayout(x.layout, 'POSTaxInvoice', data.document)).find(l => isRollPage(l.page))
+    || rollBillLayout('POSTaxInvoice');
+  if (layoutUsesImages(layout)) data = (await get(true)) || data;
+  return printRollBill(layout, data.document);
 }
 
 // documentPDF builds a transaction's PDF with its best-match template, without

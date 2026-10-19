@@ -257,7 +257,11 @@ func PrepareMasterNumber(tenantID, location, doctype string, isCreate bool, payl
 		strings.TrimSpace(strField(payload, "code")) != "" || strings.TrimSpace(strField(payload, "id")) != "" {
 		return nil
 	}
-	if doctype == "Item" && strings.TrimSpace(strField(payload, "family")) != "" {
+	// A combination under a design takes its Combination ID from
+	// PrepareItemVariantCode. A design that is a single item (no variant
+	// values) has none to build one from, so it takes the ordinary Item
+	// number instead (Stage 94.16 - it used to be left with no code at all).
+	if doctype == "Item" && strings.TrimSpace(strField(payload, "family")) != "" && itemHasVariantValues(payload) {
 		return nil
 	}
 	if !serverNumberedMasters[doctype] {

@@ -223,6 +223,10 @@ func DispatchTransferOrderWith(tenantID, transferOrderID, userID string, picks [
 		if err := lockSKUAtLocationTx(tx, schema, fromWarehouse, line.Sku); err != nil {
 			return err
 		}
+		// Stage 106.4: dispatch takes the chosen "From" location first.
+		if err := drawFromDefaultFromTx(tx, schema, "Transfer Out", fromWarehouse, []interface{}{map[string]interface{}{"sku": line.Sku, "qty": -line.Qty}}); err != nil {
+			return err
+		}
 		var available int
 		if err := tx.QueryRow(fmt.Sprintf(
 			`SELECT available FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2 FOR UPDATE`, schema),

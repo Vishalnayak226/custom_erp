@@ -625,6 +625,9 @@ func ReconcileCycleCountDetailed(tenantID, countSession, actorUserID, actorRole 
 		_ = db.DB.QueryRow(fmt.Sprintf(
 			`SELECT on_hand FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2`, schema),
 			sku, location).Scan(&systemQty)
+		// Stage 107: stock in a location marked not physically in the store
+		// is in on_hand but not on the shelf, so the count does not expect it.
+		systemQty -= notPhysicalCustomQty(schema, sku, location)
 
 		variance := int(countedQty) - systemQty
 		line.data["system_qty"] = systemQty

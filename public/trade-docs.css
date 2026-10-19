@@ -15,6 +15,18 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
 .grn-rate-delta { font-size: 11px; margin-top: 2px; }
 .grn-rate-delta.up { color: var(--danger-strong); }
 .grn-rate-delta.down { color: var(--success-strong); }
+/* Stage 94.14: the receipt's line table fits the panel without a sideways
+   scroll - tight cells, wrapping headers, narrow qty boxes. */
+.txn-grid .grn-lines-table th { padding: 6px 5px; font-size: 11px; line-height: 1.25; white-space: normal; vertical-align: bottom; }
+.txn-grid .grn-lines-table td { padding: 5px; vertical-align: top; }
+.txn-grid .grn-lines-table .form-input,
+.txn-grid .grn-lines-table .form-select { padding: 4px 6px; }
+.grn-lines-table .grn-qty-input { width: 60px; }
+.grn-lines-table .grn-rate-input { width: 80px; }
+.grn-lines-table [data-grn-ask] { width: 72px; min-width: 0; }
+.grn-lines-table td.grn-calc { color: var(--text-muted); padding-top: 10px; }
+.grn-reason-input { display: block; width: 100px; margin: 4px 0 0 auto; font-size: 12px; }
+.grn-reason-missing { border-color: var(--danger-color); }
 .grn-gap b { color: var(--danger-strong); }
 .grn-notes-preview { flex-wrap: wrap; gap: 8px; align-items: center; }
 .grn-gap-note { flex-basis: 100%; color: var(--danger-strong); }
@@ -239,3 +251,9 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
 .pod-add-attr .form-input {
   width: 200px;
 }
+
+/* Stage 106.3: fields printed under a column's own (the roll bill's barcode / HSN lines), and their chips in the studio. */
+.tdp-sub { font-size: 0.92em; color: inherit; line-height: 1.25; }
+.pts-col .pts-col-under { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.pts-col-under .pts-chip button { border: 0; background: none; padding: 0 2px; cursor: pointer; }
+.pts-col-under select { flex: 1 1 120px; padding: 2px 4px; font-size: 11.5px; }

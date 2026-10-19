@@ -28,6 +28,13 @@ function bucketNote(l) {
   return 'Never sells';
 }
 
+// physicalNote (Stage 107) says why a location's stock is or is not in the store.
+function physicalNote(l) {
+  if (l.physical_editable) return 'You decide';
+  if (l.not_physical) return 'Sent, not yet received';
+  return 'On the premises';
+}
+
 // --- Stock Locations (setup) ----------------------------------------------
 
 export async function renderStockLocationsView(container) {
@@ -57,11 +64,12 @@ function drawLocations() {
   const host = document.getElementById('stockloc-locations');
   if (!host) return;
   host.innerHTML = `<table>
-    <thead><tr><th>Location</th><th>Code</th><th>Sells?</th><th>Applies to</th><th>New stores</th><th>WMS bin condition</th><th>Status</th><th></th></tr></thead>
+    <thead><tr><th>Location</th><th>Code</th><th>Sells?</th><th>Physically in store?</th><th>Applies to</th><th>New stores</th><th>WMS bin condition</th><th>Status</th><th></th></tr></thead>
     <tbody>${setup.locations.map(l => `<tr>
       <td><b>${esc(l.name)}</b>${l.description ? `<div class="txn-hint">${esc(l.description)}</div>` : ''}</td>
       <td>${esc(l.code)}</td>
       <td><span class="badge ${l.sellable ? 'badge-success' : 'badge-secondary'}">${l.sellable ? 'Sellable' : 'Not sellable'}</span><div class="txn-hint">${esc(bucketNote(l))}</div></td>
+      <td><span class="badge ${l.not_physical ? 'badge-warning' : 'badge-secondary'}">${l.not_physical ? 'Not here' : 'In store'}</span><div class="txn-hint">${esc(physicalNote(l))}</div></td>
       <td>${esc(l.applies_to)}</td>
       <td>${l.default_for_new ? 'Yes' : 'No'}</td>
       <td>${esc(l.wms_condition || '-')}</td>
@@ -97,17 +105,24 @@ function locationDialog(title, body, onSave) {
 
 function editLocation(l) {
   const isNew = !l;
-  l = l || { code: '', name: '', bucket: 'custom', sellable: false, applies_to: 'Both', default_for_new: true, active: true, display_order: 100, description: '' };
+  l = l || { code: '', name: '', bucket: 'custom', sellable: false, not_physical: false, physical_editable: true, applies_to: 'Both', default_for_new: true, active: true, display_order: 100, description: '' };
   const sellableField = l.sellable_editable
     ? `<label class="form-label" for="sl-sellable">Sells?</label>
        <select id="sl-sellable" class="form-input"><option value="1" ${l.sellable ? 'selected' : ''}>Sellable - the till and online channels may sell it</option><option value="0" ${l.sellable ? '' : 'selected'}>Not sellable</option></select>`
     : `<div class="form-label">Sells?</div><div>${l.sellable ? 'Sellable' : 'Not sellable'} <span class="txn-hint">(${esc(bucketNote(l))})</span></div>`;
+  // Stage 107: whether the stock is physically in the store. Only the
+  // client's own locations choose; In-Transit is never here.
+  const physicalField = l.physical_editable
+    ? `<label class="form-label" for="sl-physical">Physically in the store?</label>
+       <select id="sl-physical" class="form-input"><option value="0" ${l.not_physical ? '' : 'selected'}>In the store - a stock count expects it</option><option value="1" ${l.not_physical ? 'selected' : ''}>Not in the store (e.g. at a repair shop) - a stock count leaves it out</option></select>`
+    : `<div class="form-label">Physically in the store?</div><div>${l.not_physical ? 'Not in the store' : 'In the store'} <span class="txn-hint">(${esc(physicalNote(l))})</span></div>`;
   locationDialog(isNew ? 'New stock location' : `Stock location - ${l.name}`, `
     <div class="form-group"><label class="form-label" for="sl-code">Code</label>
       <input id="sl-code" class="form-input" value="${esc(l.code)}" ${isNew ? 'placeholder="e.g. ALTERATION" maxlength="30"' : 'readonly'} autocomplete="off"></div>
     <div class="form-group"><label class="form-label" for="sl-name">Name</label>
       <input id="sl-name" class="form-input" value="${esc(l.name)}" maxlength="80" autocomplete="off"></div>
     <div class="form-group">${sellableField}</div>
+    <div class="form-group">${physicalField}</div>
     <div class="form-group"><label class="form-label" for="sl-applies">Applies to</label>
       <select id="sl-applies" class="form-input">${['Both', 'Store', 'Warehouse'].map(v => `<option ${v === l.applies_to ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
     <label style="display:flex; gap:8px; align-items:center;"><input type="checkbox" id="sl-default" ${l.default_for_new ? 'checked' : ''}> Give this location to every new store</label>
@@ -119,6 +134,7 @@ function editLocation(l) {
     const body = {
       code: o.querySelector('#sl-code').value.trim(), name: o.querySelector('#sl-name').value.trim(),
       sellable: o.querySelector('#sl-sellable') ? o.querySelector('#sl-sellable').value === '1' : l.sellable,
+      not_physical: o.querySelector('#sl-physical') ? o.querySelector('#sl-physical').value === '1' : !!l.not_physical,
       applies_to: o.querySelector('#sl-applies').value, default_for_new: o.querySelector('#sl-default').checked,
       active: o.querySelector('#sl-active') ? o.querySelector('#sl-active').checked : true,
       display_order: l.display_order, description: o.querySelector('#sl-desc').value.trim(),
@@ -172,9 +188,9 @@ function drawTxns() {
     <thead><tr><th>Transaction</th><th>From</th><th>To</th><th>How it works</th><th></th></tr></thead>
     <tbody>${setup.defaults.map(d => `<tr data-txn="${esc(d.txn_type)}">
       <td><b>${esc(d.txn_type)}</b></td>
-      <td>${d.from_editable ? `<select class="form-input" data-from>${locationOptions(d.from_location, l => l.movable)}</select>` : esc(name(d.from_location))}</td>
+      <td>${d.from_editable ? `<select class="form-input" data-from>${locationOptions(d.from_location, l => l.movable && (d.txn_type !== 'POS Sale' || l.sellable))}</select>` : esc(name(d.from_location))}</td>
       <td>${d.to_editable ? `<select class="form-input" data-to>${locationOptions(d.to_location, l => l.movable)}</select>` : esc(name(d.to_location))}</td>
-      <td class="txn-hint">${esc(d.note)}</td>
+      <td><div class="txn-hint">${esc(d.note)}</div></td>
       <td>${d.from_editable || d.to_editable ? '<button type="button" class="action-btn" data-save-txn>Save</button>' : ''}</td>
     </tr>`).join('')}</tbody></table>`;
   host.querySelectorAll('[data-save-txn]').forEach(btn => btn.addEventListener('click', () => guardAgainstDoubleSubmit(btn, 'Saving...', async () => {

@@ -384,7 +384,8 @@ func (d *PrintDocument) finish() {
 		r.IGST += numFromInterface(l["igst"])
 		r.Tax += numFromInterface(l["tax"])
 		tot["qty"] += numFromInterface(l["qty"])
-		for _, k := range []string{"taxable", "cgst", "sgst", "igst", "tax", "amount"} {
+		// "discount" (Stage 106.3): the bill's item discount total.
+		for _, k := range []string{"taxable", "cgst", "sgst", "igst", "tax", "amount", "discount"} {
 			tot[k] += numFromInterface(l[k])
 		}
 		for _, k := range printQtyTotals {
@@ -711,6 +712,12 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 		d.Fields["reverse_charge"] = "No"
 		d.Fields["payment_mode"] = strField(data, "payment_mode")
 		d.Fields["cart_number"] = id
+		// Stage 106.3: the roll bill's date and time and who rang it up -
+		// the same clock and name the ESC-POS receipt prints.
+		d.Fields["cashier"] = strField(data, "cashier")
+		if _, _, at, errT := fetchPrintableDocument(tenantID, "POSCart", id); errT == nil && !at.IsZero() {
+			d.Fields["bill_datetime"] = at.Format("02-01-2006 15:04")
+		}
 		var lines []map[string]interface{}
 		if raw, ok := data["items"].([]interface{}); ok {
 			for _, r := range raw {

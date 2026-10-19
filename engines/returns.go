@@ -638,6 +638,13 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 			if err := applyReturnedStockToBucket(tx, schema, items[i].SKU, returnLocation, items[i].Qty, rule.Bucket); err != nil {
 				return 0, "", err
 			}
+			// Stage 106.4: a Good (Sellable) return lands where Sales Return's
+			// "To" says; Main means it stays where it just went.
+			if rule.Bucket == "available" {
+				if err := applyReceiptDefaultTx(tx, schema, "Sales Return", returnLocation, []PostedStockLine{{SKU: items[i].SKU, Qty: items[i].Qty}}); err != nil {
+					return 0, "", err
+				}
+			}
 			costReceivedTotal += items[i].OriginalCostPrice * float64(items[i].Qty)
 		}
 

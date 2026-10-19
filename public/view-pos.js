@@ -56,6 +56,8 @@ function posManualDiscount() {
 // keyboard handler and the click handler resolve the same row.
 let posSearchResults = [];
 let posSearchActiveIndex = -1;
+let posSearchTerm = '';      // the text the shown list was found for (Stage 108.2)
+let posSearchTimer = null;   // the pause-in-typing suggestion lookup
 
 function renderPOSView(container) {
   // Stage 85.A5: the store is the session's working store. A cart built at
@@ -246,6 +248,7 @@ function renderPOSView(container) {
   document.getElementById('pos-giftcard-btn').addEventListener('click', openPOSGiftCard);
   document.getElementById('pos-more-btn').addEventListener('click', openPOSMore);
   document.getElementById('pos-sku-input').addEventListener('keydown', onPOSScanKeyDown);
+  document.getElementById('pos-sku-input').addEventListener('input', onPOSScanInput);
   document.getElementById('pos-checkout-btn').addEventListener('click', submitPOSCheckout);
   document.getElementById('pos-loyalty-check-btn').addEventListener('click', checkPOSLoyaltyBalance);
   document.getElementById('pos-loyalty-redeem-btn').addEventListener('click', redeemPOSLoyaltyPoints);
@@ -445,10 +448,39 @@ async function openPOSSessionFlow() {
 // One request serves all three: ?q= already scans every field server-side, so
 // the exact-match test is done on the rows that come back rather than costing
 // a second round trip.
+//
+// Stage 108.2: only an exact barcode / GTIN rings up by itself; anything else
+// lists the matching products, also on a pause in typing (a scan's Enter wins).
+
+function posExactBarcode(rows, term) {
+  const lower = term.toLowerCase();
+  return rows.find(r => String(r.barcode || '').toLowerCase() === lower || String(r.gtin || '').toLowerCase() === lower);
+}
+
+async function fetchPOSProductMatches(term) {
+  const res = await apiFetch(`/api/v1/doc/Item?q=${encodeURIComponent(term)}&limit=25`);
+  if (!res) return null;
+  if (!res.ok) return { error: true };
+  return { rows: (await res.json()) || [] };
+}
+
+function onPOSScanInput(e) {
+  clearTimeout(posSearchTimer);
+  const term = e.target.value.trim();
+  if (term.length < 2 || posCompletedSale || !posLocation) { clearPOSProductSearch(); return; }
+  posSearchTimer = setTimeout(async () => {
+    const found = await fetchPOSProductMatches(term);
+    const input = document.getElementById('pos-sku-input');
+    if (!found || found.error || !input || input.value.trim() !== term) return; // typed on since
+    if (found.rows.length) renderPOSSearchResults(found.rows, term);
+    else clearPOSProductSearch();
+  }, 350);
+}
 
 function clearPOSProductSearch() {
   posSearchResults = [];
   posSearchActiveIndex = -1;
+  posSearchTerm = '';
   const el = document.getElementById('pos-search-results');
   if (el) { el.classList.add('hidden'); el.innerHTML = ''; }
 }
@@ -459,7 +491,10 @@ function clearPOSProductSearch() {
 function onPOSScanKeyDown(e) {
   if (e.key === 'Enter') {
     e.preventDefault();
-    if (posSearchResults.length && posSearchActiveIndex >= 0) {
+    clearTimeout(posSearchTimer);
+    // Pick from the list only if it was found for this exact, non-barcode text.
+    const term = e.target.value.trim();
+    if (posSearchResults.length && posSearchActiveIndex >= 0 && posSearchTerm === term && !posExactBarcode(posSearchResults, term)) {
       pickPOSSearchResult(posSearchActiveIndex);
       return;
     }
@@ -492,6 +527,7 @@ function renderPOSSearchResults(rows, term) {
   const el = document.getElementById('pos-search-results');
   if (!el) return;
   posSearchResults = rows;
+  posSearchTerm = term;
   posSearchActiveIndex = rows.length ? 0 : -1;
   el.innerHTML = `
     <div style="padding: 8px 12px; font-size: 12px; color: var(--text-muted); border-bottom: 1px solid var(--border-color);">
@@ -501,6 +537,7 @@ function renderPOSSearchResults(rows, term) {
       <div class="pos-result-row" data-idx="${i}" style="padding: 10px 12px; cursor: pointer; display: flex; gap: 14px; align-items: baseline; border-bottom: 1px solid var(--border-color);">
         <span style="font-weight: 600; flex: 1;">${cfgEsc(r.name || r.code || r.id || '')}</span>
         <span style="font-size: 12px; color: var(--text-muted);">${cfgEsc(r.code || r.id || '')}</span>
+        ${r.parent_product_code ? `<span style="font-size: 12px; color: var(--text-muted);">Design ${cfgEsc(r.parent_product_code)}</span>` : ''}
         ${r.barcode ? `<span style="font-size: 12px; color: var(--text-muted);">${cfgEsc(r.barcode)}</span>` : ''}
       </div>
     `).join('')}
@@ -541,33 +578,27 @@ async function addSKUToPOSCart() {
   }
   if (!term) return;
 
-  const res = await apiFetch(`/api/v1/doc/Item?q=${encodeURIComponent(term)}&limit=25`);
-  if (!res) return;
-  if (!res.ok) {
+  clearTimeout(posSearchTimer);
+  const found = await fetchPOSProductMatches(term);
+  if (!found) return;
+  if (found.error) {
     errorEl.textContent = 'Failed to look up products.';
     errorEl.classList.remove('hidden');
     return;
   }
-  const rows = (await res.json()) || [];
-  const lower = term.toLowerCase();
+  const rows = found.rows;
 
-  // The scanner path. An exact code or barcode is unambiguous by construction,
-  // so it never shows a list even when the same string also appears inside
-  // some other product's description.
-  const exact = rows.find(r =>
-    String(r.code || r.id || '').toLowerCase() === lower ||
-    String(r.barcode || '').toLowerCase() === lower);
+  // The scanner path. An exact barcode is unambiguous by construction, so it
+  // never shows a list even when the same string also appears inside some
+  // other product's details. Everything else is picked from the list (108.2).
+  const exact = posExactBarcode(rows, term);
   if (exact) {
     await addResolvedItemToPOSCart(exact.code || exact.id, exact.name || '', term);
     return;
   }
   if (rows.length === 0) {
-    errorEl.textContent = `No product matches "${term}". Check the barcode, or search by part of the product name.`;
+    errorEl.textContent = `No product matches "${term}". Check the barcode, or search by part of the design no., SKU or product name.`;
     errorEl.classList.remove('hidden');
-    return;
-  }
-  if (rows.length === 1) {
-    await addResolvedItemToPOSCart(rows[0].code || rows[0].id, rows[0].name || '', term);
     return;
   }
   renderPOSSearchResults(rows, term);
@@ -1491,6 +1522,13 @@ function startNewPOSSale() {
 async function printCompletedPOSSale() {
   const sale = posCompletedSale;
   if (!sale) return;
+  // Stage 106.3: the roll tax invoice (trade-docs.js); below is the fallback.
+  try {
+    const docs = await import('./trade-docs.js' + new URL(import.meta.url).search);
+    if (await docs.printPOSBill(sale.cartNumber)) return;
+  } catch (e) {
+    console.debug('[POS] roll bill unavailable, using the plain receipt', e);
+  }
   // 31.1.9: silent path first - the server rebuilds the receipt from the
   // Paid POSCart, so a thermal till printer gets ESC-POS with no browser
   // dialog in the cashier's way. quiet: true because a shop with no

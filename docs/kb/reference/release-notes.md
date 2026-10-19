@@ -19,15 +19,23 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **157** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **159** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
-- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-03
+- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-05
 
 ## 2026-10-19
 
+**Stage 108 — The New Location form fills itself in; POS adds only an exact barcode** *(code + docs, NOT COMMITTED)*
+
+From the user's New Location and POS / Billing screenshots. New Location: Short Code suggested by one standard rule (JP Nagar → JPN), Facility Code the next number, Level and Sellable follow Type, Parent = the HO, Legal Entity and salesman Mandatory preselected; the server fills a blank Short / Facility Code on create; Level gains HO and Store (migration, shipped list only). POS: only an exact barcode / GTIN rings up directly, anything else lists the containing products to pick, on Enter or a pause in typing. Unit tests + Chromium checks; detail in micro_checklist 108.1-108.2. Open gap: receipt-date barcodes are not found by the POS search (pre-existing).
+
 **Release 0.3.0 to app and minn** *(release)*
+
+**Stage 101 — the CRM blueprint planned onto the ERP** *(docs, plan only, NOT COMMITTED)*
+
+User: *"Indepth CRM Module ... Understand it and plan it and put it in checklist and relevant places"*, with their 70-page *CRM Platform Business and Product Requirements* (38 modules, P0-P2, decision register D01-D12). It became the spec for Stage 101, opened that morning. Each module was checked against what the ERP already has: customers and merge, RFM / lifetime value, the loyalty ledger, offers / vouchers, campaigns with per-channel consent, notification delivery states, service tickets, privacy requests. What was missing became phases 101.1-101.12: customer page, consent ledger, segments, one send gate for every message, templates / senders / campaigns up to a pilot gate, journeys, feedback and a WhatsApp inbox, loyalty depth, clienteling, the business pipeline, reports. Not adopted: its stack, a separate commerce layer, shopper-app SDKs, ads / RCS / AI, and shared-phone profiles (85 D1 stands). Plan: `docs/product/crm-platform-plan-2026-10-19.md`. Nothing built; 101.0.2 waits on the user's decisions.
 
 **"Fix all": the report catalog built - 252 of the user's 290 reports (Stage 75.3.2, 75.3.5-75.3.7)** *(code + docs, NOT COMMITTED)*
 
@@ -416,10 +424,4 @@ The tenant lifecycle had exactly two states: it existed, or somebody ran `DROP S
 **Stage 49 Phase S0 — Security charter, attack-surface inventory and fail-closed production baseline** *(code + docs + tests)*
 
 The first phase of Stage 49's security program: establish what is being protected and from whom (49.0), then make the surface knowable and the production baseline fail closed (49.1). Built in parallel with the Stage 47 session and deliberately scoped to files that session was not holding — two narrow edits to `internal/server/routes.go`, everything else new.
-
-## 2026-09-05
-
-**Stage 47.1 — Deny-by-default authorization, privacy and segregation of duties** *(code + schema + tests)*
-
-All eight of Stage 47.1's sub-items built: **47.1.1/47.1.2** (route-capability registry over all 461 `apiMiddleware` routes, and the five sensitive capabilities the A-01 finding named) earlier the same day, then **47.1.3-47.1.8** — a sensitive-field policy that replaces "no field rows means every field" (`engines/sensitive_fields.go`, merged into `fieldPermissions()` so read, form-meta, write, CSV import and PIM bulk edit all inherit it with no call-site change); scope semantics separated from role capability (`engines/scope_policy.go` — location strict where the doctype declares it mandatory, permissive where optional, plus the self and 3PL-owner dimensions the old inline clause had no notion of, all fail-closed); twelve task-derived role templates (`engines/role_templates.go`, which the route-capability allowlist is now *derived from* rather than duplicating); a six-conflict SoD catalog with evidence-based detection and a one-page "why allowed / why denied" administrator preview (`engines/sod_catalog.go`); a reviewed, reversible per-tenant grant migration that changes nothing until an owner approves a before/after diff and never touches a custom role (`engines/role_template_migration.go`, `db/migrations_stage47_1_role_templates.sql`); and a generated authorization contract matrix of 7,837 route×role assertions plus HTTP-level unauthenticated/deactivated/demoted/cross-location/sensitive-field checks.
 

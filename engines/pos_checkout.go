@@ -240,6 +240,10 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 		totalCostPaise += resolvedCostPaise * int64(item.Qty)
 	}
 
+	// Stage 106.4: the sale takes the store's chosen "From" location first.
+	if err := drawFromDefaultFromTx(tx, schema, "POS Sale", cart.Location, itemsInterface); err != nil {
+		return nil, fmt.Errorf("inventory decrement failed: %w", err)
+	}
 	negativeEvents, ledgerLines, err := PostInventoryLedgerWithVoucherTx(tx, schema, cart.Location, itemsInterface, cart.OfflineSynced)
 	if err != nil {
 		return nil, fmt.Errorf("inventory decrement failed: %w", err)

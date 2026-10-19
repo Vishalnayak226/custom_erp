@@ -370,7 +370,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes-2.html",
-      "sha256": "92477be4d0715803dd1579132e6a127ba173e9f3302023197439584d7f90869c",
+      "sha256": "c2a5e34b3ecc4f29892223a6ed8fb2ad7c3fa1e8938eba0df2eb6b74f07f27e5",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -379,7 +379,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes.html",
-      "sha256": "115e11bf26d69ff38ee3e044f85fece05f59423f45c0bd9b753a6e467d8c7ec6",
+      "sha256": "247e27889afe7239a2aca45a7c83d45cc855f7889db27e1b4c6e53519e2fa80b",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -514,7 +514,7 @@
     },
     {
       "path": "internal/kb/content/index.json",
-      "sha256": "75e2d95c7581e13bc9fcc7a555aa21aa15f7d3b8abdd0d5d0e47abdb41679f6b",
+      "sha256": "02550e82355cbd5563ee174d617fe15c48596ba85dcf578c53aa8e642e14f5e4",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -523,7 +523,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "644dda9676baab4677207278eb9909a87dda1b484f1d0e767d7680d197dff8af",
+      "sha256": "5b2507b23b9c181b391737cbf7a19014da52bbf4a189a0631f6d7cefce12ddbd",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

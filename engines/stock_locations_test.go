@@ -45,6 +45,7 @@ func TestStockLocationsMoveSellAndReceive(t *testing.T) {
 		db.DB.Exec("DELETE FROM "+schema+".stock_locations WHERE code = $1", alter)
 		db.DB.Exec("UPDATE " + schema + ".stock_locations SET sellable = FALSE, active = TRUE, description = 'Damaged stock' WHERE code = 'DAMAGE'")
 		db.DB.Exec("UPDATE " + schema + ".stock_location_defaults SET to_location = 'MAIN' WHERE txn_type = 'Goods Receipt'")
+		db.DB.Exec("UPDATE " + schema + ".stock_location_defaults SET from_location = 'MAIN', to_location = 'INTRANSIT' WHERE txn_type = 'Transfer Out'")
 		db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1 OR (doctype = 'StockMove' AND data->>'location' = $1)", store)
 		invalidateATSPolicy(schema)
 	}
@@ -161,7 +162,14 @@ func TestStockLocationsMoveSellAndReceive(t *testing.T) {
 	if available != 2 {
 		t.Errorf("GRN to Inward must not raise available: %d", available)
 	}
-	if err := SetStockLocationDefault(tenantID, "POS Sale", "DAMAGE", "", "tester"); err != nil {
+	// Stage 106.4: Transfer Out's To is fixed - a change to it is left as it
+	// is, not refused.
+	if err := SetStockLocationDefault(tenantID, "Transfer Out", "MAIN", "DAMAGE", "tester"); err != nil {
 		t.Errorf("a fixed default is left as it is, not refused: %v", err)
+	}
+	var to string
+	db.DB.QueryRow("SELECT to_location FROM " + schema + ".stock_location_defaults WHERE txn_type = 'Transfer Out'").Scan(&to)
+	if to != "INTRANSIT" {
+		t.Errorf("Transfer Out To must stay In-Transit, got %q", to)
 	}
 }

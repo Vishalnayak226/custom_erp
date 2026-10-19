@@ -671,6 +671,23 @@ func ValidateItemVariantUniqueness(tenantID, docID string, payload map[string]in
 // tenant's by color+polish/plating, and this list simply recognizes both.
 var itemVariantAttributeFields = []string{"metal_type", "purity_karat", "stone_type", "color", "polish", "size"}
 
+// itemHasVariantValues reports whether an Item payload carries anything
+// PrepareItemVariantCode builds a Combination ID from - typed
+// variant_option_values or one of the recognized attribute fields.
+func itemHasVariantValues(payload map[string]interface{}) bool {
+	for _, p := range strings.Split(strField(payload, "variant_option_values"), ";") {
+		if strings.TrimSpace(strings.SplitN(p, ":", 2)[0]) != "" {
+			return true
+		}
+	}
+	for _, field := range itemVariantAttributeFields {
+		if v, ok := payload[field].(string); ok && strings.TrimSpace(v) != "" {
+			return true
+		}
+	}
+	return false
+}
+
 // PrepareItemVariantCode (Stage 51.5) auto-generates an Item's Combination
 // ID/SKU from its parent design and variant attributes, wiring up
 // GenerateVariantCode (engines/numbering.go) and normalizeVariantOptions

@@ -349,6 +349,14 @@ func ComputeGSTForLinesMode(tenantID string, lines []GSTLineInput, interstate bo
 		total.TotalTax += lineBreakdown.TotalTax
 		total.TotalAmount += lineBreakdown.TotalAmount
 	}
+	// Stage 94.15: money is kept at 2 decimals. An inclusive rate backed out
+	// line by line used to reach the PO's Total Cost as 970.8737864077669.
+	total.TaxableAmount = round2(total.TaxableAmount)
+	total.CGST = round2(total.CGST)
+	total.SGST = round2(total.SGST)
+	total.IGST = round2(total.IGST)
+	total.TotalTax = round2(total.TotalTax)
+	total.TotalAmount = round2(total.TotalAmount)
 	// Stage 30.5.10: the aggregate used to report gst_rate: 0 while charging
 	// the correct tax, because GSTRate is a per-line input that nothing ever
 	// set on the rolled-up total - so a checkout response said "0%" on a sale
