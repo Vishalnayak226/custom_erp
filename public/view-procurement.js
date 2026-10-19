@@ -678,29 +678,37 @@ async function pickPOEntry(doc) {
 }
 
 async function addPOEntry() {
-  if (!poDesign) { addPOEntryLine(); return; }
+  if (!poDesign) { await addPOEntryLine(); return; }
   await guardAgainstDoubleSubmit(document.getElementById('po-entry-add'), 'Adding...', createPODesign);
   syncPOEntryButton(); // the guard puts back the label it found
 }
 
 // addPOEntryLine moves the entry row into the PO's lines and clears it for the
 // next item, keeping the cursor in the item box.
-function addPOEntryLine() {
+// Text that was typed, not picked, goes on only when it is an item's exact SKU
+// or barcode (a scan + Enter) - a name nobody picked or created is refused.
+async function addPOEntryLine() {
   const d = poDraft;
   const errEl = document.getElementById('po-entry-error');
   const el = id => document.getElementById(id);
+  const typed = el('po-entry-sku').value.trim();
+  const refuse = (msg) => {
+    errEl.textContent = msg;
+    errEl.classList.remove('hidden');
+    el('po-entry-sku').focus();
+  };
+  if (!d.entry.sku && !typed) { refuse('Choose an item first.'); return; }
+  const sku = d.entry.sku || await resolvePOEntrySKU(typed);
+  if (!sku) {
+    refuse(`"${typed}" is not an item. Choose one from the list, or pick + Create to add it.`);
+    return;
+  }
   const line = {
-    sku: d.entry.sku || el('po-entry-sku').value.trim(),
+    sku,
     qty: el('po-entry-qty').value.trim() || '1',
     rate: el('po-entry-rate').value.trim(),
     mrp: el('po-entry-mrp').value.trim()
   };
-  if (!line.sku) {
-    errEl.textContent = 'Choose an item first.';
-    errEl.classList.remove('hidden');
-    el('po-entry-sku').focus();
-    return;
-  }
   if (!(Number(line.qty) > 0)) {
     errEl.textContent = 'Quantity must be at least 1.';
     errEl.classList.remove('hidden');
@@ -720,6 +728,18 @@ function addPOEntryLine() {
   }
   schedulePOPreview();
   el('po-entry-sku').focus();
+}
+
+// resolvePOEntrySKU returns the code of the item whose SKU or barcode is
+// exactly the typed text, or '' when none is.
+async function resolvePOEntrySKU(text) {
+  const res = await apiFetch(`/api/v1/doc/Item?q=${encodeURIComponent(text)}&q_fields=code,barcode&limit=20`).catch(() => null);
+  const rows = res && res.ok ? await res.json() : [];
+  if (!Array.isArray(rows)) return '';
+  const same = (v) => String(v || '').toLowerCase() === text.toLowerCase();
+  const hit = rows.find(r => (r.code || r.id) === text || r.barcode === text)
+    || rows.find(r => same(r.code || r.id) || same(r.barcode));
+  return hit ? (hit.code || hit.id) : '';
 }
 
 // renderPOLines redraws the line rows and reattaches their handlers.
@@ -869,7 +889,9 @@ function newPODesignState(matrix) {
   return {
     matrix, itemName: null, designs: [], designNumber: '', loaded: null,
     rate: '', mrp: '', qty: '1',
-    picked: {}, typed: {}, removed: new Set(), rows: {}
+    // vrows: one per variant - its attribute values, and qty / rate / mrp
+    // only where they differ from the Add row's.
+    typed: {}, vrows: [{ values: {} }]
   };
 }
 
@@ -905,16 +927,22 @@ function leavePODesignMode() {
   renderPOEntryAttrs();
 }
 
-// poDesignAxes / poDesignAttributes split the picked values into combination
-// axes (2+ values) and design-level attributes (one value, or typed).
+// poDesignValues: the distinct values the variant rows give an attribute.
+function poDesignValues(d, code) {
+  return [...new Set(d.vrows.map(r => r.values[code]).filter(Boolean))];
+}
+
+// poDesignAxes / poDesignAttributes split the rows' values into combination
+// axes (2+ values across the rows) and design-level attributes (one value,
+// the same on every row, or typed).
 function poDesignAxes(d) {
-  return d.matrix.attributes.filter(a => a.value_type === 'Select' && (d.picked[a.code] || []).length > 1);
+  return d.matrix.attributes.filter(a => a.value_type === 'Select' && poDesignValues(d, a.code).length > 1);
 }
 function poDesignAttributes(d) {
   const out = {};
   d.matrix.attributes.forEach(a => {
     if (a.value_type === 'Select') {
-      const vals = d.picked[a.code] || [];
+      const vals = poDesignValues(d, a.code);
       if (vals.length === 1) out[a.code] = vals[0];
     } else if ((d.typed[a.code] || '').trim()) {
       out[a.code] = d.typed[a.code].trim();
@@ -923,18 +951,28 @@ function poDesignAttributes(d) {
   return out;
 }
 
-// poDesignCombinations is the cross product of the axes, each with a stable
-// key ("color:Red;size:M") used for removal, per-row edits and matching an
-// existing Item of a loaded design.
+// poDesignCombinations is one combination per variant row, in row order, with
+// its axis values and a stable key ("color:Red;size:M") used to spot a repeated
+// row and to match an existing Item of a loaded design.
 function poDesignCombinations(d) {
   const axes = poDesignAxes(d);
-  let combos = [{}];
-  axes.forEach(a => {
-    const next = [];
-    combos.forEach(c => (d.picked[a.code] || []).forEach(v => next.push({ ...c, [a.code]: v })));
-    combos = next;
+  return d.vrows.map(r => {
+    const c = {};
+    axes.forEach(a => { if (r.values[a.code]) c[a.code] = r.values[a.code]; });
+    return { values: c, row: r, key: Object.keys(c).sort().map(k => `${k}:${c[k]}`).join(';') };
   });
-  return combos.map(c => ({ values: c, key: Object.keys(c).sort().map(k => `${k}:${c[k]}`).join(';') }));
+}
+
+// poDesignRowProblem: why the variant rows cannot be added yet, or ''.
+function poDesignRowProblem(d) {
+  for (const a of d.matrix.attributes.filter(x => x.value_type === 'Select')) {
+    const filled = d.vrows.filter(r => r.values[a.code]).length;
+    if (filled && filled < d.vrows.length) return `Choose ${a.label} on every row, or leave it empty on all of them.`;
+  }
+  const keys = poDesignCombinations(d).map(c => c.key);
+  const dup = keys.find((k, i) => keys.indexOf(k) !== i);
+  if (dup !== undefined) return `Two rows are the same variant${dup ? ` (${dup.replace(/;/g, ', ')})` : ''} - change one or remove it.`;
+  return '';
 }
 
 function poDesignExistingFor(d, values) {
@@ -992,7 +1030,7 @@ function syncPOEntryButton() {
   const btn = document.getElementById('po-entry-add');
   if (!btn) return;
   const d = poDesign;
-  const kept = d && d.itemName ? poDesignCombinations(d).filter(c => !d.removed.has(c.key)).length : -1;
+  const kept = d && d.itemName ? d.vrows.length : -1;
   btn.textContent = kept > 1 ? `Add ${kept}` : 'Add';
   btn.disabled = kept === 0;
   btn.title = kept >= 0 ? 'Create the design and add its combinations to the PO (Enter)' : 'Add to the PO (Enter)';
@@ -1013,11 +1051,12 @@ function renderPOEntryAttrs() {
   if (qtyLabel) qtyLabel.textContent = inm ? 'Qty each' : 'Qty';
   syncPOEntryButton();
   if (!inm) { box.innerHTML = ''; return; }
+  // Stage 94.28 (the user: "1 Parent row than varinat columns Variant row. I
+  // will choose those matrix and fill"): the Add row is the parent; under it
+  // one row per variant, a column per attribute, each value chosen in its cell.
   const selectAttrs = d.matrix.attributes.filter(a => a.value_type === 'Select');
   const otherAttrs = d.matrix.attributes.filter(a => a.value_type !== 'Select');
   const combos = poDesignCombinations(d);
-  const kept = combos.filter(c => !d.removed.has(c.key));
-  const axes = poDesignAxes(d);
   // Stage 81: a client whose attributes were set up from the library adds
   // values here, never a new attribute.
   const canAddAttr = canCreateDoctype('ItemAttribute') && !(d.matrix && d.matrix.attributes_closed);
@@ -1029,61 +1068,55 @@ function renderPOEntryAttrs() {
     dnoEl.readOnly = !!d.loaded;
     if (d.loaded) dnoEl.value = poDesignLabel(d.loaded);
   }
+  const cell = (a, i) => {
+    const v = d.vrows[i].values[a.code] || '';
+    const opts = (a.options || []).slice();
+    if (v && !opts.includes(v)) opts.push(v);
+    return `<select class="form-input" data-pod-cell="${i}" data-pod-attr="${escapeHTMLText(a.code)}" aria-label="${escapeHTMLText(a.label)}">
+      <option value="">&mdash;</option>
+      ${opts.map(o => `<option value="${escapeHTMLText(o)}"${o === v ? ' selected' : ''}>${escapeHTMLText(o)}</option>`).join('')}
+      ${canAddValue ? '<option value="__new">+ New value...</option>' : ''}
+    </select>`;
+  };
+  const num = (i, field, step) => `<td><input type="number" class="form-input num" min="0" step="${step}" data-pod-vrow="${i}" data-pod-field="${field}" value="${escapeHTMLText(d.vrows[i][field] ?? d[field])}"></td>`;
   box.innerHTML = `
     <div class="po-entry-attrs-head">
-      <span><strong>${escapeHTMLText(inm.name)}</strong>${inm.category ? ` &middot; ${escapeHTMLText(inm.category)}` : ''} &middot; HSN <strong>${escapeHTMLText(inm.hsn_code || '—')}</strong> &middot; GST <strong>${escapeHTMLText(String(inm.gst_rate ?? '—'))}%</strong> <span class="text-muted">(from the item name)</span></span>
+      <span><strong>${escapeHTMLText(inm.name)}</strong>${inm.category ? ` &middot; ${escapeHTMLText(inm.category)}` : ''} &middot; HSN <strong>${escapeHTMLText(inm.hsn_code || '—')}</strong> &middot; GST <strong>${escapeHTMLText(String(inm.gst_rate ?? '—'))}%</strong></span>
       <span class="po-design-mode">${d.loaded
-        ? `Adding to design <strong>${escapeHTMLText(poDesignLabel(d.loaded))}</strong> (${escapeHTMLText(d.loaded.code)}) &mdash; new combinations go next to its ${(d.loaded.combinations || []).length} existing one(s). <button type="button" class="link-btn" id="pod-unload">Another design number</button>`
+        ? `Adding to design <strong>${escapeHTMLText(poDesignLabel(d.loaded))}</strong> (${escapeHTMLText(d.loaded.code)}) &mdash; its ${(d.loaded.combinations || []).length} existing combination(s) are listed. <button type="button" class="link-btn" id="pod-unload">Another design number</button>`
         : exact ? `Design <strong>${escapeHTMLText(poDesignLabel(exact))}</strong> exists &mdash; <button type="button" class="link-btn" id="pod-use-exact">load it</button>`
-        : d.designNumber.trim() ? '<span class="badge badge-secondary">New design</span> it gets its design id when you add it.'
-        : `${d.designs.length} design(s) under this item name. Leave the design number blank to number it automatically.`}</span>
+        : d.designNumber.trim() ? '<span class="badge badge-secondary">New design</span>'
+        : `${d.designs.length} design(s) under this item name.`}</span>
       <button type="button" class="link-btn" id="pod-close">Clear item name</button>
     </div>
-    <div class="po-design-matrix">
-      ${selectAttrs.length === 0 && otherAttrs.length === 0 ? `<p class="text-muted">No product attributes yet.${canAddAttr ? ' Add one below (e.g. <i>Colour</i> with <i>Gold</i>).' : ' Ask an administrator to add them under Setup &rarr; Item Attribute.'}</p>` : ''}
-      ${selectAttrs.map(a => `
-        <div class="pod-attr">
-          <div class="pod-attr-label">${escapeHTMLText(a.label)} <span class="text-muted">${(d.picked[a.code] || []).length > 1 ? '&middot; combination' : (d.picked[a.code] || []).length === 1 ? '&middot; design' : ''}</span></div>
-          <div class="pod-chips">
-            ${(a.options || []).map(o => `<button type="button" class="pod-chip${(d.picked[a.code] || []).includes(o) ? ' on' : ''}" data-pod-attr="${escapeHTMLText(a.code)}" data-pod-val="${escapeHTMLText(o)}">${escapeHTMLText(o)}</button>`).join('')}
-            ${(a.options || []).length ? `<button type="button" class="pod-chip pod-chip-all" data-pod-all="${escapeHTMLText(a.code)}">${(d.picked[a.code] || []).length === (a.options || []).length ? 'None' : 'All'}</button>` : ''}
-            ${canAddValue ? `<input type="text" class="form-input pod-add-value" data-pod-add-value="${escapeHTMLText(a.code)}" placeholder="+ value" title="Type a new ${escapeHTMLText(a.label)} and press Enter - it is saved to PIM">` : ''}
-          </div>
-        </div>`).join('')}
-      ${otherAttrs.length ? `<div class="po-design-row">${otherAttrs.map(a => `
-        <div class="form-group"><label class="form-label">${escapeHTMLText(a.label)}</label><input type="${a.value_type === 'Number' ? 'number' : a.value_type === 'Date' ? 'date' : 'text'}" class="form-input" style="width:150px;" data-pod-typed="${escapeHTMLText(a.code)}" value="${escapeHTMLText(d.typed[a.code] || '')}"></div>`).join('')}</div>` : ''}
-      ${canAddAttr ? `
-      <div class="pod-add-attr">
-        <input type="text" class="form-input" id="pod-new-attr" placeholder="New attribute, e.g. Stone">
-        <input type="text" class="form-input" id="pod-new-attr-value" placeholder="first value, e.g. Ruby">
-        <button type="button" class="btn btn-outline btn-sm" id="pod-new-attr-add">+ Add attribute</button>
-      </div>` : ''}
-    </div>
-    <div class="pod-combos-head">
-      <strong>${kept.length} combination(s)</strong>
-      ${axes.length === 0 ? '<span class="text-muted">Pick two or more values of an attribute (e.g. several colours) to make combinations; with none, the design is one item.</span>' : '<span class="text-muted">Qty, price and MRP come from the row above; change any one below.</span>'}
-      ${d.removed.size ? `<button type="button" class="link-btn" id="pod-restore">Restore ${d.removed.size} removed</button>` : ''}
-    </div>
-    ${kept.length > 1 || d.loaded ? `
+    ${otherAttrs.length ? `<div class="po-design-row">${otherAttrs.map(a => `
+      <div class="form-group"><label class="form-label">${escapeHTMLText(a.label)}</label><input type="${a.value_type === 'Number' ? 'number' : a.value_type === 'Date' ? 'date' : 'text'}" class="form-input" style="width:150px;" data-pod-typed="${escapeHTMLText(a.code)}" value="${escapeHTMLText(d.typed[a.code] || '')}"></div>`).join('')}</div>` : ''}
+    ${selectAttrs.length === 0 && otherAttrs.length === 0 ? `<p class="text-muted">No product attributes yet.${canAddAttr ? ' Add one with <b>+ Attribute</b> below (e.g. <i>Colour</i> with <i>Gold</i>).' : ' Ask an administrator to add them under Setup &rarr; Item Attribute.'}</p>` : ''}
     <div class="table-wrapper">
-      <table class="po-lines">
-        <thead><tr>${axes.map(a => `<th>${escapeHTMLText(a.label)}</th>`).join('')}${axes.length ? '' : '<th>Item</th>'}<th class="num" style="width:90px;">Qty</th><th class="num" style="width:120px;">Purchase price</th><th class="num" style="width:110px;">MRP</th><th>Combination ID</th><th style="width:36px;"></th></tr></thead>
+      <table class="po-lines pod-variants">
+        <thead><tr>${selectAttrs.map(a => `<th>${escapeHTMLText(a.label)}</th>`).join('')}${selectAttrs.length ? '' : '<th>Item</th>'}<th class="num" style="width:90px;">Qty</th><th class="num" style="width:120px;">Purchase price</th><th class="num" style="width:110px;">MRP</th>${d.loaded ? '<th>Combination ID</th>' : ''}<th style="width:36px;"></th></tr></thead>
         <tbody>
-          ${kept.map(c => {
-            const row = d.rows[c.key] || {};
-            const existing = poDesignExistingFor(d, c.values);
+          ${d.vrows.map((r, i) => {
+            const existing = d.loaded ? poDesignExistingFor(d, combos[i].values) : null;
             return `<tr>
-              ${axes.map(a => `<td>${escapeHTMLText(c.values[a.code] || '')}</td>`).join('')}${axes.length ? '' : `<td>${escapeHTMLText(inm.name)}</td>`}
-              <td><input type="number" class="form-input num" min="0" step="1" data-pod-row="${escapeHTMLText(c.key)}" data-pod-field="qty" value="${escapeHTMLText(row.qty ?? d.qty)}"></td>
-              <td><input type="number" class="form-input num" min="0" step="0.01" data-pod-row="${escapeHTMLText(c.key)}" data-pod-field="rate" value="${escapeHTMLText(row.rate ?? d.rate)}"></td>
-              <td><input type="number" class="form-input num" min="0" step="0.01" data-pod-row="${escapeHTMLText(c.key)}" data-pod-field="mrp" value="${escapeHTMLText(row.mrp ?? d.mrp)}"></td>
-              <td>${existing ? `<span class="badge badge-secondary" title="Already exists - reused">${escapeHTMLText(existing.sku)}</span>` : '<span class="text-muted">new</span>'}</td>
-              <td><button type="button" class="po-line-remove" data-pod-remove="${escapeHTMLText(c.key)}" title="Remove this combination" aria-label="Remove combination">&times;</button></td>
+              ${selectAttrs.map(a => `<td>${cell(a, i)}</td>`).join('')}${selectAttrs.length ? '' : `<td>${escapeHTMLText(inm.name)}</td>`}
+              ${num(i, 'qty', 1)}${num(i, 'rate', 0.01)}${num(i, 'mrp', 0.01)}
+              ${d.loaded ? `<td>${existing ? `<span class="badge badge-secondary" title="Already exists - reused">${escapeHTMLText(existing.sku)}</span>` : '<span class="text-muted">new</span>'}</td>` : ''}
+              <td><button type="button" class="po-line-remove" data-pod-delrow="${i}" title="Remove this row" aria-label="Remove row">&times;</button></td>
             </tr>`;
           }).join('')}
         </tbody>
       </table>
-    </div>` : ''}
+    </div>
+    <div class="pod-combos-head">
+      <button type="button" class="btn btn-outline btn-sm" id="pod-add-row" title="Another variant - starts as a copy of the last row">+ Row</button>
+      ${canAddAttr ? `<span class="pod-add-attr">
+        <input type="text" class="form-input" id="pod-new-attr" placeholder="New attribute, e.g. Stone">
+        <input type="text" class="form-input" id="pod-new-attr-value" placeholder="first value, e.g. Ruby">
+        <button type="button" class="btn btn-outline btn-sm" id="pod-new-attr-add">+ Attribute</button>
+      </span>` : ''}
+      <span class="text-muted">Qty, price and MRP come from the row above; change any one here.</span>
+    </div>
   `;
 
   document.getElementById('pod-close').addEventListener('click', () => {
@@ -1095,47 +1128,53 @@ function renderPOEntryAttrs() {
   });
   const unload = document.getElementById('pod-unload');
   if (unload) unload.addEventListener('click', () => {
-    d.loaded = null; d.designNumber = ''; d.removed.clear(); d.rows = {};
+    d.loaded = null; d.designNumber = ''; d.vrows = [{ values: {} }];
     if (dnoEl) { dnoEl.readOnly = false; dnoEl.value = ''; }
     renderPOEntryAttrs();
     dnoEl?.focus();
   });
   const useExact = document.getElementById('pod-use-exact');
   if (useExact && exact) useExact.addEventListener('click', () => loadPODesign(exact.code || exact.id));
-  const restore = document.getElementById('pod-restore');
-  if (restore) restore.addEventListener('click', () => { d.removed.clear(); renderPOEntryAttrs(); });
-  box.querySelectorAll('[data-pod-attr]').forEach(btn => btn.addEventListener('click', () => {
-    const code = btn.getAttribute('data-pod-attr');
-    const val = btn.getAttribute('data-pod-val');
-    const list = d.picked[code] || (d.picked[code] = []);
-    const i = list.indexOf(val);
-    if (i >= 0) list.splice(i, 1); else list.push(val);
+  // A changed row makes a refusal shown at Add stale.
+  const clearErr = () => document.getElementById('po-entry-error')?.classList.add('hidden');
+  const focusCell = (i, code) => box.querySelector(`[data-pod-cell="${i}"]${code ? `[data-pod-attr="${CSS.escape(code)}"]` : ''}`)?.focus();
+  box.querySelectorAll('[data-pod-cell]').forEach(sel => sel.addEventListener('change', async () => {
+    const i = Number(sel.getAttribute('data-pod-cell'));
+    const code = sel.getAttribute('data-pod-attr');
+    clearErr();
+    if (sel.value === '__new') {
+      const a = d.matrix.attributes.find(x => x.code === code) || { label: code };
+      const v = await showCustomPrompt(`New ${a.label} value:`, '', `Add a ${a.label}`);
+      if (v && String(v).trim()) await addPODesignAttributeValue(code, '', v, i);
+      else renderPOEntryAttrs();
+      focusCell(i, code);
+      return;
+    }
+    if (sel.value) d.vrows[i].values[code] = sel.value; else delete d.vrows[i].values[code];
     renderPOEntryAttrs();
-  }));
-  box.querySelectorAll('[data-pod-all]').forEach(btn => btn.addEventListener('click', () => {
-    const code = btn.getAttribute('data-pod-all');
-    const a = d.matrix.attributes.find(x => x.code === code);
-    d.picked[code] = (d.picked[code] || []).length === a.options.length ? [] : a.options.slice();
-    renderPOEntryAttrs();
-  }));
-  box.querySelectorAll('[data-pod-add-value]').forEach(input => input.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
-    addPODesignAttributeValue(input.getAttribute('data-pod-add-value'), '', input.value);
+    focusCell(i, code);
   }));
   const newAttrBtn = document.getElementById('pod-new-attr-add');
   if (newAttrBtn) newAttrBtn.addEventListener('click', () => addPODesignAttributeValue('', document.getElementById('pod-new-attr').value, document.getElementById('pod-new-attr-value').value));
   box.querySelectorAll('[data-pod-typed]').forEach(input => input.addEventListener('input', () => {
     d.typed[input.getAttribute('data-pod-typed')] = input.value;
   }));
-  box.querySelectorAll('[data-pod-row]').forEach(input => input.addEventListener('input', () => {
-    const key = input.getAttribute('data-pod-row');
-    (d.rows[key] || (d.rows[key] = {}))[input.getAttribute('data-pod-field')] = input.value;
+  box.querySelectorAll('[data-pod-vrow]').forEach(input => input.addEventListener('input', () => {
+    d.vrows[Number(input.getAttribute('data-pod-vrow'))][input.getAttribute('data-pod-field')] = input.value;
   }));
-  box.querySelectorAll('[data-pod-remove]').forEach(btn => btn.addEventListener('click', () => {
-    d.removed.add(btn.getAttribute('data-pod-remove'));
+  box.querySelectorAll('[data-pod-delrow]').forEach(btn => btn.addEventListener('click', () => {
+    clearErr();
+    d.vrows.splice(Number(btn.getAttribute('data-pod-delrow')), 1);
+    if (!d.vrows.length) d.vrows.push({ values: {} }); // there is always a row to fill
     renderPOEntryAttrs();
   }));
+  document.getElementById('pod-add-row').addEventListener('click', () => {
+    clearErr();
+    const last = d.vrows[d.vrows.length - 1];
+    d.vrows.push({ values: { ...(last ? last.values : {}) } });
+    renderPOEntryAttrs();
+    focusCell(d.vrows.length - 1, selectAttrs[0] && selectAttrs[0].code);
+  });
 }
 
 // bindPODesignNumber wires the Add row's design-number box once per render of
@@ -1164,8 +1203,9 @@ function bindPODesignNumber() {
 }
 
 // addPODesignAttributeValue saves a new value (or a new attribute with its
-// first value) to PIM and picks it on this design.
-async function addPODesignAttributeValue(code, label, value) {
+// first value) to PIM and sets it on variant row `row` - or, for a new
+// attribute, on every row.
+async function addPODesignAttributeValue(code, label, value, row) {
   const d = poDesign;
   if (!d) return;
   value = String(value || '').trim();
@@ -1179,8 +1219,8 @@ async function addPODesignAttributeValue(code, label, value) {
   if (i >= 0) d.matrix.attributes[i] = { ...d.matrix.attributes[i], options: attr.options };
   else d.matrix.attributes.unshift(attr);
   const picked = attr.options.find(o => o.toLowerCase() === value.toLowerCase()) || value;
-  const list = d.picked[attr.code] || (d.picked[attr.code] = []);
-  if (!list.includes(picked)) list.push(picked);
+  if (row != null && d.vrows[row]) d.vrows[row].values[attr.code] = picked;
+  else d.vrows.forEach(r => { if (!r.values[attr.code]) r.values[attr.code] = picked; });
   renderPOEntryAttrs();
 }
 
@@ -1213,25 +1253,25 @@ function applyLoadedDesign(d, design) {
   const attrs = design.attributes || {};
   const byLower = {};
   d.matrix.attributes.forEach(a => { byLower[a.code.toLowerCase()] = a; });
+  const opt = (a, v) => (a.options || []).find(o => o.toLowerCase() === String(v).toLowerCase()) || v;
+  const base = {};
   Object.keys(attrs).forEach(k => {
     const a = byLower[k.toLowerCase()];
     if (!a || !attrs[k]) return;
-    if (a.value_type === 'Select') {
-      const opt = (a.options || []).find(o => o.toLowerCase() === String(attrs[k]).toLowerCase()) || attrs[k];
-      d.picked[a.code] = [opt];
-    } else {
-      d.typed[a.code] = attrs[k];
-    }
+    if (a.value_type === 'Select') base[a.code] = opt(a, attrs[k]);
+    else d.typed[a.code] = attrs[k];
   });
-  // Existing combinations' values are pre-picked, so the grid shows them
-  // (marked with their combination ID) next to whatever new values are added.
-  (design.combinations || []).forEach(c => Object.keys(c.options || {}).forEach(k => {
-    const a = byLower[k.toLowerCase()];
-    if (!a || a.value_type !== 'Select' || !c.options[k]) return;
-    const opt = (a.options || []).find(o => o.toLowerCase() === String(c.options[k]).toLowerCase()) || c.options[k];
-    const list = d.picked[a.code] || (d.picked[a.code] = []);
-    if (!list.includes(opt)) list.push(opt);
-  }));
+  // One row per existing combination (marked with its combination ID); new
+  // variants are added as rows next to them.
+  const rows = (design.combinations || []).map(c => {
+    const values = { ...base };
+    Object.keys(c.options || {}).forEach(k => {
+      const a = byLower[k.toLowerCase()];
+      if (a && a.value_type === 'Select' && c.options[k]) values[a.code] = opt(a, c.options[k]);
+    });
+    return { values };
+  });
+  d.vrows = rows.length ? rows : [{ values: base }];
 }
 
 async function createPODesign() {
@@ -1251,8 +1291,9 @@ async function createPODesign() {
   if (!hsn || inm.gst_rate === '' || inm.gst_rate == null || isNaN(gst)) {
     return fail(`${inm.name} has no HSN / GST yet - open it under Setup and fill them in once; every design under it then uses them.`);
   }
-  const kept = poDesignCombinations(d).filter(c => !d.removed.has(c.key));
-  if (!kept.length) return fail('Every combination was removed - restore or pick at least one.');
+  const problem = poDesignRowProblem(d);
+  if (problem) return fail(problem);
+  const kept = poDesignCombinations(d);
   const attrs = poDesignAttributes(d);
   const attrString = Object.keys(attrs).sort().map(k => `${k}:${attrs[k]}`).join(';');
   const typedNo = d.designNumber.trim();
@@ -1300,7 +1341,7 @@ async function createPODesign() {
   const added = [];
   const failures = [];
   for (const c of kept) {
-    const row = d.rows[c.key] || {};
+    const row = c.row;
     const qty = Number(row.qty ?? d.qty) || 0;
     const rate = Number(row.rate ?? d.rate) || 0;
     const mrpRaw = row.mrp ?? d.mrp;
@@ -1337,16 +1378,15 @@ async function createPODesign() {
     return;
   }
   showToast(`Design ${label}: ${added.length} combination(s) added to the PO.`, { variant: 'success' });
-  // Ready for the next design number under the same item name; the picked
-  // attributes stay, since the next design is often in the same sizes.
-  d.loaded = null;
-  d.designNumber = '';
-  d.removed.clear();
-  d.rows = {};
-  const dnoEl = document.getElementById('pod-dno');
-  if (dnoEl) { dnoEl.readOnly = false; dnoEl.value = ''; }
-  renderPOEntryAttrs();
-  dnoEl?.focus();
+  // A clean slate for the next item (user, 94.27): the item name, its
+  // attributes and the row's qty / price / MRP are all cleared.
+  leavePODesignMode();
+  poDraft.entry = newPOEntry();
+  const el = id => document.getElementById(id);
+  ['po-entry-sku', 'po-entry-rate', 'po-entry-mrp'].forEach(id => { if (el(id)) el(id).value = ''; });
+  if (el('po-entry-qty')) el('po-entry-qty').value = poDraft.entry.qty;
+  if (el('po-entry-sku')) { el('po-entry-sku').title = ''; el('po-entry-sku').focus(); }
+  syncPOEntryButton();
 }
 
 // schedulePOPreview debounces the pricing call. 250ms is long enough that

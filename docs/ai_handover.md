@@ -125,7 +125,8 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
-- **2026-10-19 Stage 109 - releases are three clicks now.** `Release.cmd` (gates, commit, push), `Deploy.cmd` (YES for data changes, backup, deploy, host checks), `Cleanup.cmd` (also daily 03:30 on the box). Ledger §263, `deploy/README.md` Part F0. Unfinished work that must not ship goes in `deploy/release-hold.txt`. A release problem the script missed is a missing gate: add it to `deploy/release.ps1` + the README table.
+- **2026-10-19 Release 0.5.0 (7ca4d4e) - the first release made by Release.cmd + Deploy.cmd; live on app and minn.** Prod, `internal/server/VERSION` and the manuals all say 0.5.0. In the tree for the next release: the `-ReleaseNote` fix and these tracker lines.
+- **2026-10-19 Stage 109 - releases are three clicks now.** All in `release/`: `Release.cmd` (gates, commit, push), `Deploy.cmd` (YES for data changes, backup, deploy, host checks), `Cleanup.cmd` (also daily 03:30 on the box); `release/README.md` has the gate table. Ledger §263. Unfinished work that must not ship goes in `release/hold.txt`. A release problem the script missed is a missing gate: add it to `release/scripts/Invoke-Release.ps1` + the README table.
 
 - **2026-10-19 Release 0.4.0 - COMMITTED, PUSHED, DEPLOYED to app and minn.** Ledger §262. `e9b183a` on origin/main; prod
   reports 0.4.0, both hosts 200. Backup `custom_erp_20261019T050200Z`, rollback dir `rollback_20261019_050203`. The tree

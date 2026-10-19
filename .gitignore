@@ -74,5 +74,5 @@ docs/sop-video/output/
 docs/micro_checklist.pdf
 
 # Stage 109: release coordination and reports stay on this machine
-deploy/release-hold.txt
-deploy/release-reports/
+release/hold.txt
+release/reports/

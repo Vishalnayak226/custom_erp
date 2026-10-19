@@ -2,12 +2,12 @@
 Cleanup click (Stage 109.3): runs the server cleanup now instead of waiting
 for the 03:30 cron. Same script, same rules (deploy/server_cleanup.sh).
 
-  Cleanup.cmd                          # clean now
-  pwsh deploy\cleanup_now.ps1 -DryRun  # say what it would remove
+  release\Cleanup.cmd                                # clean now
+  pwsh release\scripts\Invoke-Cleanup.ps1 -DryRun   # say what it would remove
 #>
 param([switch]$DryRun)
 $ErrorActionPreference = 'Stop'
-. "$PSScriptRoot\release_common.ps1"
+. "$PSScriptRoot\ReleaseCommon.ps1"
 $cfg = Get-ReleaseConfig
 $flag = if ($DryRun) { ' --dry-run' } else { '' }
 Write-Gate "Server cleanup on $($cfg.target)$flag"

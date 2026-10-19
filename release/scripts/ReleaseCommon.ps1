@@ -1,8 +1,10 @@
-# Shared by deploy/release.ps1 and deploy/deploy_release.ps1 (Stage 109).
-# Dot-source it: . "$PSScriptRoot\release_common.ps1"
+# release/scripts/ReleaseCommon.ps1 - shared by Invoke-Release.ps1, Invoke-Deploy.ps1 and
+# Invoke-Cleanup.ps1 (Stage 109). Dot-source it: . "$PSScriptRoot\ReleaseCommon.ps1"
+$script:ReleaseDir = Split-Path $PSScriptRoot -Parent      # release\ - the clicks, config.json, hold.txt, reports\
+$script:RepoRoot = Split-Path $script:ReleaseDir -Parent   # the repository
 
 function Get-ReleaseConfig {
-    $path = Join-Path $PSScriptRoot 'release.config.json'
+    $path = Join-Path $script:ReleaseDir 'config.json'
     $cfg = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
     foreach ($name in @('goBin', 'psql')) {
         $cfg.$name = [Environment]::ExpandEnvironmentVariables($cfg.$name)

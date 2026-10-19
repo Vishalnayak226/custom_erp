@@ -23,7 +23,7 @@ param(
     [string]$Version = "",
     # Stage 109: Deploy.cmd passes the number Release.cmd wrote into
     # internal/server/VERSION, and says so in the ledger note.
-    [string]$Notes = ""
+    [string]$ReleaseNote = ""   # not $Notes: PowerShell names are case-insensitive and $notes below would wipe it
 )
 $ErrorActionPreference = "Stop"
 
@@ -41,7 +41,7 @@ $live = $null
 try { $live = (& ssh $Target "curl -s -m 5 http://127.0.0.1:8080/api/v1/version") | ConvertFrom-Json } catch { $live = $null }
 $notes = ""
 if ($Version) {
-    $notes = if ($Notes) { $Notes } else { "version set by hand" }
+    $notes = if ($ReleaseNote) { $ReleaseNote } else { "version set by hand" }
 } elseif ($live -and $live.version -and $live.git_commit -and $live.git_commit -ne "dev") {
     Push-Location $RepoRoot
     try {

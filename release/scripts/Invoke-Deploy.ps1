@@ -2,9 +2,9 @@
 Deploy click (Stage 109.2): puts the commit Release.cmd pushed onto
 production, the way the 2026-10-18/19 deploys were done by hand.
 
-  Deploy.cmd                          # deploy origin/main
-  pwsh deploy\deploy_release.ps1 -Check   # read-only: what would change, nothing done
-  pwsh deploy\deploy_release.ps1 -Yes     # no prompt (only for a scheduled run)
+  release\Deploy.cmd                              # deploy origin/main
+  pwsh release\scripts\Invoke-Deploy.ps1 -Check   # read-only: what would change, nothing done
+  pwsh release\scripts\Invoke-Deploy.ps1 -Yes     # no prompt (only for a scheduled run)
 
 It refuses a commit that is not on origin/main or that Release.cmd did not
 pass, shows every pending migration / backfill / background job that changes
@@ -15,12 +15,12 @@ server cleanup pass (Stage 109.3).
 #>
 param([switch]$Check, [switch]$Yes)
 $ErrorActionPreference = 'Stop'
-. "$PSScriptRoot\release_common.ps1"
+. "$PSScriptRoot\ReleaseCommon.ps1"
 
 $cfg = Get-ReleaseConfig
-$repo = Split-Path $PSScriptRoot -Parent
+$repo = $RepoRoot
 $ts = Get-Date -Format 'yyyyMMdd_HHmmss'
-$reportDir = Join-Path $PSScriptRoot 'release-reports'
+$reportDir = Join-Path $ReleaseDir 'reports'
 New-Item -ItemType Directory -Force -Path $reportDir | Out-Null
 $reportPath = Join-Path $reportDir "deploy-$ts.md"
 $report = [System.Collections.Generic.List[string]]::new()
@@ -129,7 +129,7 @@ Invoke-Native -Exe 'git' -Arguments @('-C', $repo, '-c', 'core.autocrlf=false', 
 $relVer = ((& git -C $repo show "$($target):internal/server/VERSION") -join '').Trim()
 if ($relVer -notmatch '^\d+\.\d+\.\d+$') { Stop-Deploy "internal/server/VERSION at $short is '$relVer', not a release number" }
 Note "release $relVer"
-$out = @(& (Join-Path $wt 'deploy\deploy.ps1') -Target $cfg.target -Version $relVer -Notes "Release.cmd $short from $($live.version) ($liveCommit)" *>&1 | ForEach-Object { $s = "$_"; Write-Host "   $s"; $s })
+$out = @(& (Join-Path $wt 'deploy\deploy.ps1') -Target $cfg.target -Version $relVer -ReleaseNote "Release.cmd $short from $($live.version) ($liveCommit)" *>&1 | ForEach-Object { $s = "$_"; Write-Host "   $s"; $s })
 $out | Where-Object { $_ -match 'Release |\[apply\]|Applied|\[sync|\[cost-center\]|WARN|DEPLOY-|recorded|actions=' } | ForEach-Object { $report.Add("- $_") }
 if (-not ($out | Where-Object { $_.Trim() -eq 'DEPLOY-OK' })) { Stop-Deploy "deploy.ps1 did not report DEPLOY-OK (production stays on the previous build, or rolled back):`n$(($out | Select-Object -Last 15) -join "`n")" }
 

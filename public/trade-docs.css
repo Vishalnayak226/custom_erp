@@ -40,21 +40,14 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
 .po-design-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
 .po-design-row .form-group { margin-bottom: 0; }
 .po-design-mode { flex: 1; min-width: 240px; color: var(--text-muted); }
-.po-design-matrix { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; border-bottom: 1px dashed var(--border-color); margin-bottom: 8px; }
-/* One line per attribute - its name, then its values - so the frozen top
-   stays short. */
-.po-entry-attrs .pod-attr { display: flex; align-items: center; gap: 10px; }
-.po-entry-attrs .pod-attr-label { flex: 0 0 150px; margin-bottom: 0; }
-.po-entry-attrs .pod-add-attr { margin-top: 2px; }
+/* Stage 94.28: the variants are a table under the Add row - a column per
+   attribute, a row per variant - so the frozen top stays short. */
 .po-entry-attrs .po-lines th, .po-entry-attrs .po-lines td { padding: 4px 10px; }
 .po-entry-attrs .po-lines .form-input { padding: 4px 8px; }
-.pod-attr-label { font-size: 12.5px; font-weight: 600; margin-bottom: 5px; }
-.pod-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.pod-chip { border: 1px solid var(--border-color); background: var(--panel-bg); color: var(--text-main); border-radius: 999px; padding: 4px 12px; font-size: 12.5px; cursor: pointer; transition: background var(--transition-fast, .15s); }
-.pod-chip:hover { border-color: var(--border-hover); }
-.pod-chip.on { background: var(--primary-color); border-color: var(--primary-color); color: var(--on-primary, #fff); }
-.pod-chip-all { border-style: dashed; color: var(--text-muted); }
-.pod-combos-head { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; margin-bottom: 6px; font-size: 13px; }
+.po-entry-attrs .pod-variants select.form-input { min-width: 90px; }
+.po-entry-attrs .pod-add-attr { margin-top: 0; }
+.po-entry-attrs .pod-add-attr .form-input { width: 170px; padding: 4px 8px; }
+.pod-combos-head { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 6px; font-size: 13px; }
 
 /* ---- Print dialog ---- */
 .td-overlay { position: fixed; inset: 0; z-index: 3000; background: rgba(15, 23, 42, .55); display: flex; align-items: center; justify-content: center; padding: 16px; }

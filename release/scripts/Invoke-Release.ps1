@@ -3,17 +3,17 @@ Release click (Stage 109.1): every gate a release needs before origin/main
 moves - the routine the 2026-10-18/19 releases (840909b, 0.2.0-0.4.0) ran by
 hand, in the same order. It commits and pushes only when every gate passes.
 
-  Release.cmd                                  # gates, commit, push
-  pwsh deploy\release.ps1 -DryRun              # gates only; nothing committed
-  pwsh deploy\release.ps1 -NoPush              # gates + local commit
-  pwsh deploy\release.ps1 -QuietMinutes 0      # skip the "tree is quiet" wait
+  release\Release.cmd                                    # gates, commit, push
+  pwsh release\scripts\Invoke-Release.ps1 -DryRun         # gates only; nothing committed
+  pwsh release\scripts\Invoke-Release.ps1 -NoPush         # gates + local commit
+  pwsh release\scripts\Invoke-Release.ps1 -QuietMinutes 0 # skip the "tree is quiet" wait
 
 What ships: everything modified or new in the working tree, minus the paths
-in deploy\release-hold.txt (git-ignored; one path or glob per line, `#` starts
+in release\hold.txt (git-ignored; one path or glob per line, `#` starts
 a comment). A session whose work must not ship yet lists its paths there.
 
 A release problem this script did not catch is a missing gate: add it here and
-to the gate table in deploy\README.md in the same session (CLAUDE.md rule).
+to the gate table in release\README.md in the same session (CLAUDE.md rule).
 #>
 param(
     [switch]$DryRun,
@@ -22,16 +22,16 @@ param(
     [switch]$KeepWorktree
 )
 $ErrorActionPreference = 'Stop'
-. "$PSScriptRoot\release_common.ps1"
+. "$PSScriptRoot\ReleaseCommon.ps1"
 
 $cfg = Get-ReleaseConfig
-$repo = Split-Path $PSScriptRoot -Parent
+$repo = $RepoRoot
 $go = $cfg.goBin
 $goDir = Split-Path $go -Parent
 $gofmt = Join-Path $goDir 'gofmt.exe'
 if ($QuietMinutes -lt 0) { $QuietMinutes = [int]$cfg.quietMinutes }
 $ts = Get-Date -Format 'yyyyMMdd_HHmmss'
-$reportDir = Join-Path $PSScriptRoot 'release-reports'
+$reportDir = Join-Path $ReleaseDir 'reports'
 New-Item -ItemType Directory -Force -Path $reportDir | Out-Null
 $reportPath = Join-Path $reportDir "release-$ts.md"
 $report = [System.Collections.Generic.List[string]]::new()
@@ -75,7 +75,7 @@ Write-Gate 'G0 Preflight'
 foreach ($tool in @('git', 'node', 'pwsh', 'graphify')) {
     if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { Stop-Release "$tool is not on PATH" }
 }
-foreach ($p in @($go, $gofmt, $cfg.psql)) { if (-not (Test-Path $p)) { Stop-Release "not found: $p (deploy\release.config.json)" } }
+foreach ($p in @($go, $gofmt, $cfg.psql)) { if (-not (Test-Path $p)) { Stop-Release "not found: $p (release\config.json)" } }
 $branch = (Invoke-Git @('rev-parse', '--abbrev-ref', 'HEAD'))[0]
 if ($branch -ne 'main') { Stop-Release "the repo is on '$branch', not main" }
 if (@((Invoke-Git @('diff', '--cached', '--name-only')) | Where-Object { $_ }).Count) { Stop-Release 'something is already staged in the index - a session is mid-commit; let it finish' }
@@ -94,7 +94,7 @@ $entries = $raw -split "`0" | Where-Object { $_ }
 $changed = [System.Collections.Generic.List[object]]::new()
 foreach ($e in $entries) { $changed.Add([pscustomobject]@{ Code = $e.Substring(0, 2); Path = $e.Substring(3) }) }
 
-$holdFile = Join-Path $PSScriptRoot 'release-hold.txt'
+$holdFile = Join-Path $ReleaseDir 'hold.txt'
 $holds = @()
 if (Test-Path $holdFile) {
     $holds = Get-Content $holdFile | ForEach-Object { ($_ -replace '#.*$', '').Trim() } | Where-Object { $_ }
@@ -440,7 +440,7 @@ if ($tree -ne $headTree) {
     $body = @($subject, '')
     $body += $titles | ForEach-Object { "- $_" }
     $body += ''
-    $body += "Gates passed (deploy/release.ps1): snapshot, LF, gofmt, cache versions, catalog spec, attack surface, KB, brain, register, build, vet, JS, budget, migrate from empty, full tests."
+    $body += "Gates passed (release/scripts/Invoke-Release.ps1): snapshot, LF, gofmt, cache versions, catalog spec, attack surface, KB, brain, register, build, vet, JS, budget, migrate from empty, full tests."
     if ($state.flaky.Count) { $body += "Flaky (passed on rerun): $($state.flaky -join ', ')" }
     if ($held.Count) { $body += "Held back: $($held -join ', ')" }
     $msgFile = Join-Path $env:TEMP "release_msg_$ts.txt"

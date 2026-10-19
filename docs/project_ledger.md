@@ -54,6 +54,7 @@ User: *"I want auto mechanism to do this ... a script or bot ... It should learn
 - **Server slimmed once:** 66% → 27% (journald 100 MB, no snapd, 512 MB swap, caches, old binaries, 23 rollback copies). **SSH:** already key-only; sshguard added (1 h block after ~3 failures, permanent for repeat offenders).
 - **Learning:** gate table with the incident behind each gate in `deploy/README.md` Part F0; CLAUDE.md rule - a release problem the script missed becomes a gate in the same session.
 - PowerShell trap met while building: a function named `Git` shadows `git.exe` (case-insensitive) and recursed forever; the helper is `Invoke-Git`.
+- **First live run (2026-10-19):** Release.cmd → 0.5.0, `7ca4d4e`, pushed; Deploy.cmd → app and minn on 0.5.0, backup + rollback copy, hosts 200, cleanup pass. Gate G4b added on the user's *"in prod is release. update everywhere"*: one release number in production, VERSION, manuals and ledger. Two more PowerShell traps: piping text into a native command re-encodes it, and `$Notes` / `$notes` are one variable.
 
 ## 262. Release 0.4.0 to app and minn (2026-10-19, release)
 
