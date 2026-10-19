@@ -1,0 +1,14 @@
+{
+  "_about": "Settings for Release.cmd / Deploy.cmd / Cleanup.cmd (Stage 109). %VAR% is expanded from the environment.",
+  "target": "root@139.59.17.16",
+  "remoteDir": "/opt/erp",
+  "hosts": ["app.wholeops.in", "minn.wholeops.in"],
+  "goBin": "%USERPROFILE%\\go-portable\\go\\bin\\go.exe",
+  "psql": "%USERPROFILE%\\pg-portable\\pgsql\\bin\\psql.exe",
+  "pgHost": "localhost",
+  "pgPort": 5490,
+  "pgUser": "postgres",
+  "quietMinutes": 10,
+  "testTimeout": "70m",
+  "flakyReruns": 2
+}

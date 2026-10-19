@@ -348,7 +348,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 
 			// Dynamic search parameter filters check (WMS/OMS query filters)
 			for key, vals := range r.URL.Query() {
-				if key == "q" || key == "tenant_id" || key == "limit" || key == "offset" || key == "sort" || key == "count" || len(vals) == 0 {
+				if key == "q" || key == "tenant_id" || key == "limit" || key == "offset" || key == "sort" || key == "count" || key == "q_fields" || len(vals) == 0 {
 					continue
 				}
 				if !safeFilterKeyRe.MatchString(key) {
@@ -391,6 +391,23 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 						argIndex++
 					}
 					keyExclusion = fmt.Sprintf("kv.key NOT IN (%s) AND ", strings.Join(placeholders, ","))
+				}
+				// Stage 94.24: q_fields=name,code limits the match to those
+				// fields, so a picker typing "a" finds names with an "a" rather
+				// than every row whose status reads "Active". Opt-in, like
+				// sort=recent - every other caller keeps the any-field search.
+				if v := r.URL.Query().Get("q_fields"); v != "" {
+					var placeholders []string
+					for _, f := range strings.Split(v, ",") {
+						if f = strings.TrimSpace(f); f != "" {
+							placeholders = append(placeholders, fmt.Sprintf("$%d", argIndex))
+							args = append(args, f)
+							argIndex++
+						}
+					}
+					if len(placeholders) > 0 {
+						keyExclusion += fmt.Sprintf("kv.key IN (%s) AND ", strings.Join(placeholders, ","))
+					}
 				}
 				searchClause := fmt.Sprintf("EXISTS (SELECT 1 FROM jsonb_each_text(data) kv WHERE %skv.value ILIKE $%d)", keyExclusion, argIndex)
 				args = append(args, "%"+searchQuery+"%")

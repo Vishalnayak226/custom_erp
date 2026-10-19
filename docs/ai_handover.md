@@ -125,6 +125,8 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-19 Stage 109 - releases are three clicks now.** `Release.cmd` (gates, commit, push), `Deploy.cmd` (YES for data changes, backup, deploy, host checks), `Cleanup.cmd` (also daily 03:30 on the box). Ledger §263, `deploy/README.md` Part F0. Unfinished work that must not ship goes in `deploy/release-hold.txt`. A release problem the script missed is a missing gate: add it to `deploy/release.ps1` + the README table.
+
 - **2026-10-19 Release 0.4.0 - COMMITTED, PUSHED, DEPLOYED to app and minn.** Ledger §262. `e9b183a` on origin/main; prod
   reports 0.4.0, both hosts 200. Backup `custom_erp_20261019T050200Z`, rollback dir `rollback_20261019_050203`. The tree
   was fully committed at release (nothing left over). **Cold core has 26 B of headroom** - put new POS code in a lazy module.

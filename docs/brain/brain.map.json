@@ -36,6 +36,9 @@
       "Thumbs.db",
       "CLAUDE.md",
       "Open-ERP.cmd",
+      "Release.cmd",
+      "Deploy.cmd",
+      "Cleanup.cmd",
       "deploy/build/*",
       "cmd/_scratch*/*"
     ]

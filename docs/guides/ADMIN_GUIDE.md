@@ -1333,10 +1333,10 @@ See §D for the full deployment procedure. In short: a change is tested in `dev`
 
 #### C.2.1 The version number users see, and how to bump it
 
-Every signed-in user sees a small grey number in the bottom-right corner of their profile chip at the bottom of the sidebar (beside their role, under the arrow) — **`0.1.0`** and nothing else. Hovering, focusing or tapping it opens a small popup carrying the version and the release date in `D/M/YY` form (**`0.1.0`** / **`4/10/26`**), so the date is one hover or one tap away without competing with the username above it. The same values are available unauthenticated at **`GET /api/v1/version`**:
+Every signed-in user sees a small grey number in the bottom-right corner of their profile chip at the bottom of the sidebar (beside their role, under the arrow) — the release number (for example **`0.4.0`**) and nothing else. Hovering, focusing or tapping it opens a small popup carrying the version and the release date in `D/M/YY` form (for example **`0.4.0`** / **`19/10/26`**), so the date is one hover or one tap away without competing with the username above it. The same values are available unauthenticated at **`GET /api/v1/version`**:
 
 ```json
-{"version":"0.1.0","release_date":"2026-10-04","build_time":"2026-10-04T03:23:45Z","git_commit":"afaf419"}
+{"version":"0.4.0","release_date":"2026-10-19","build_time":"2026-10-19T05:02:09Z","git_commit":"e9b183a"}
 ```
 
 The UI deliberately surfaces only `version` and `release_date`. `git_commit` and `build_time` stay on the endpoint for you and for health checks — they are what tells you *which* build is actually on a box, which is the question that matters after a deploy that may or may not have restarted cleanly.
@@ -1361,7 +1361,7 @@ Once the new build passes its health check, `remote_deploy.sh` runs `erp-server 
 
 `deploy.ps1` stops if it cannot read the live version (the server is down, or it reports `dev`) or if the live commit is not in your history. Pass `-Version` to set the number yourself. To record an earlier build in the ledger without touching the clients, run `erp-server -record-release -version 0.1.0 -commit 840909b -at 2026-10-18T04:45:51Z -notes "..."` on the server, with `/etc/erp/erp.env` loaded.
 
-`internal/server/VERSION` (`go:embed`) is now only the number an **unstamped** build reports: a developer's `go build`, `manage.ps1`, `promote.ps1`, Docker. Keep it at the last released number.
+`internal/server/VERSION` (`go:embed`) is now only the number an **unstamped** build reports: a developer's `go build`, `manage.ps1`, `promote.ps1`, Docker. `Release.cmd` writes it (release gate G4b) with the number it is releasing, and `Deploy.cmd` deploys exactly that number, so production, an unstamped build and the manuals' `release:` line always agree.
 
 **Things worth knowing:**
 

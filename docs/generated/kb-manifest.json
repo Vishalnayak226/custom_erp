@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": "cmd/genkb",
   "generator_version": "stage48-v1",
-  "release": "0.1.0",
+  "release": "0.5.0",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "schema": "source registries",
   "tenant": "none",
@@ -379,7 +379,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes.html",
-      "sha256": "f085b04be034a6eaa987b991961cf9ca94dd1b586bcef69d3ac680f511b06a59",
+      "sha256": "9a60e548172ee9458e1b217cd1eadfc1a91d082cfd1e88a2d25babd646ff177f",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -523,7 +523,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "a034311498c83f21ca003d678508df2163b7f17b70c76630edf0568e3677d1c5",
+      "sha256": "d2903187092b147daf45ec192c7974a36c37d6962b12934208cb65e3b3a31500",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

@@ -7,3 +7,5 @@ deploy/backup.sh  text eol=lf
 deploy/erp.service   text eol=lf
 deploy/Caddyfile     text eol=lf
 deploy/erp.env.example text eol=lf
+# Windows launchers (Release.cmd, Deploy.cmd, Cleanup.cmd): cmd.exe wants CRLF.
+*.cmd text eol=crlf

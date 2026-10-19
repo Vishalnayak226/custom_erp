@@ -178,6 +178,14 @@ if wait_healthy "$DEPLOY_COMMIT"; then
   if ! "$REMOTE_DIR/erp-server" -record-release -by "${DEPLOY_BY:-deploy}" -notes "${DEPLOY_NOTES:-}"; then
     echo "[WARN] $DEPLOY_COMMIT is live but was not recorded in the release ledger" >&2
   fi
+  # Stage 109.3: keep the daily cleanup schedule current and run one pass now
+  # (it prunes the rollback copies beyond the newest three). Not fatal - the
+  # deploy itself already succeeded.
+  if [ -f "$REMOTE_DIR/deploy/install_cleanup_cron.sh" ]; then
+    sudo -n bash "$REMOTE_DIR/deploy/install_cleanup_cron.sh" >/dev/null 2>&1 \
+      || echo "[WARN] the daily cleanup schedule was not installed (needs root)" >&2
+    sudo -n bash "$REMOTE_DIR/deploy/server_cleanup.sh" 2>&1 | tail -n 1 || true
+  fi
   echo DEPLOY-OK
   exit 0
 fi

@@ -310,6 +310,52 @@ the drill needs `DRILL_ADMIN_URL`).
 
 ---
 
+## Part F0 — one click: Release, Deploy, Cleanup (Stage 109)
+
+Three double-click files at the repo root do the whole release loop. Settings
+(server, hosts, local Postgres, Go) are in `deploy/release.config.json`;
+reports land in `deploy/release-reports/` (not committed).
+
+| Click | Script | What it does |
+|---|---|---|
+| `Release.cmd` | `deploy/release.ps1` | Every gate below on a snapshot of the tree; commits and pushes only if all pass. `-DryRun` runs the gates and commits nothing. |
+| `Deploy.cmd` | `deploy/deploy_release.ps1` | Deploys origin/main if Release passed it: lists data changes and waits for YES, backup + sha256, rollback copy, deploy, checks every host. `-Check` is read-only. |
+| `Cleanup.cmd` | `deploy/cleanup_now.ps1` | Runs `deploy/server_cleanup.sh` now. It also runs daily at 03:30 from root cron, installed by every deploy - no click needed. |
+
+**Work that must not ship yet:** add its paths (or globs; a trailing `/` holds
+a folder) to `deploy/release-hold.txt`, one per line, `#` for a reason. The
+file is git-ignored; Release leaves those paths out and lists them.
+
+**The release gates, and what taught each one.** A release problem these did
+not catch is a missing gate: add it to `deploy/release.ps1` and a row here in
+the same session.
+
+| Gate | Checks or does | Learned from |
+|---|---|---|
+| G0 Preflight | on main, nothing staged, not behind origin, tree quiet 10 min, Postgres up | 2026-10-18/19: sessions still writing files during a release |
+| G1 Snapshot | `%TEMP%` worktree at HEAD + shipped files; held paths left out | half-built report catalog nearly shipped (0.2.0) |
+| G2 Line endings | LF for text, never binaries or `i/mixed` manifests | `git apply` writes CRLF; four PNGs nearly corrupted (0.3.0) |
+| G3 gofmt | formats files whose HEAD copy was clean | 0.2.0 / 0.4.0 |
+| G4 Cache versions | bumps `VIEW_MODULE_VERSION` + `app.js?v=`, `styles.css?v=` | browsers kept old screens after a deploy (Stage 53.17) |
+| G4b Release number | reads the live number, applies the feat→MINOR / docs→PATCH rule, writes `internal/server/VERSION`; Deploy ships that number | prod said 0.4.0 while VERSION and the manuals said 0.1.0 (2026-10-19) |
+| G5 Catalog spec | regenerates `report_catalog_spec_generated.go` if stale | 75.3 |
+| G6 Attack surface | `surfacescan` from the release set | manifest listed held files (0.2.0) |
+| G7 Docs | KB, graphify + brain (new files filed beside a sibling), register, no broken links | unclaimed file broke the brain (0.4.0) |
+| G8 Static | build, vet, `node --check`, release budget | `view-pos.js` counts in the cold core (0.4.0) |
+| G9 Data scan | data statements in new migrations, `-migrate` backfills, new background jobs | cost centers, attributes, reason codes, stock defaults |
+| G10 Fresh DB | migrate from empty, full tests `-p 1`, failed tests rerun twice (pass = flaky) | from-zero failures; clock-skew flake (0.2.0) |
+| G11 Commit | only if HEAD, index and every snapshot file are unchanged; tree must equal the tested tree | other sessions committing mid-release |
+| G12 Sync | committed versions of regenerated files back into the shared tree where untouched | reverse diffs left behind after 0.4.0 |
+| G13 Push | `git push origin main` | Deploy refuses anything not on origin |
+
+**Server cleanup (`deploy/server_cleanup.sh`)** keeps the newest 3 rollback
+copies, deletes failed builds older than 7 days, control-character file names
+and stale `*.new`, runs `apt-get clean`, holds the journal at 100 MB, trims the
+failed-login log and keeps snapd out; it alerts through `OPS_ALERT_WEBHOOK_URL`
+above 80% disk and logs one line a run to `/var/log/erp-cleanup.log`. It never
+touches backups, the live or previous build, `db/` or PostgreSQL. SSH bots are
+blocked by sshguard (installed 2026-10-19; SSH is key-only).
+
 ## Part F — redeploys
 
 Every subsequent deploy is just:

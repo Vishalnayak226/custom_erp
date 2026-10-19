@@ -635,12 +635,14 @@ const PO_ENTRY_NAMES = 'Item names - choose colour, size...';
 const PO_ENTRY_ITEMS = 'Items (SKU)';
 async function poEntrySearch(q) {
   if (!q) return null;
-  const list = async (doctype, limit) => {
-    const res = await apiFetch(`/api/v1/doc/${doctype}?q=${encodeURIComponent(q)}&limit=${limit}`).catch(() => null);
+  // Only the name / code (and an item's barcode) are matched - "a" finds the
+  // names with an "a", not every row whose status reads "Active".
+  const list = async (doctype, fields, limit) => {
+    const res = await apiFetch(`/api/v1/doc/${doctype}?q=${encodeURIComponent(q)}&q_fields=${fields}&limit=${limit}`).catch(() => null);
     const rows = res && res.ok ? await res.json() : [];
     return Array.isArray(rows) ? rows : [];
   };
-  const [names, items] = await Promise.all([list('ItemName', 5), list('Item', 8)]);
+  const [names, items] = await Promise.all([list('ItemName', 'name,code', 5), list('Item', 'name,code,barcode', 8)]);
   return [...names.map(doc => ({ ...doc, _group: PO_ENTRY_NAMES })), ...items.map(doc => ({ ...doc, _group: PO_ENTRY_ITEMS }))];
 }
 
@@ -796,7 +798,7 @@ function renderPOLines() {
   body.querySelectorAll('[data-po-line]').forEach(tr => {
     const i = Number(tr.getAttribute('data-po-line'));
     const skuInput = tr.querySelector('[data-po-field="sku"]');
-    attachLinkTypeahead(skuInput, 'Item');
+    attachLinkTypeahead(skuInput, 'Item', { filters: { q_fields: 'name,code,barcode' } });
     tr.querySelectorAll('[data-po-field]').forEach(input => {
       const field = input.getAttribute('data-po-field');
       const commit = () => {

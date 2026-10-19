@@ -20,7 +20,10 @@ param(
     [string]$RemoteDir = "/opt/erp",
     # Stage 90: the release number is worked out from what is live (see below).
     # Pass it only to override the rule - e.g. -Version 1.0.0 at go-live.
-    [string]$Version = ""
+    [string]$Version = "",
+    # Stage 109: Deploy.cmd passes the number Release.cmd wrote into
+    # internal/server/VERSION, and says so in the ledger note.
+    [string]$Notes = ""
 )
 $ErrorActionPreference = "Stop"
 
@@ -38,7 +41,7 @@ $live = $null
 try { $live = (& ssh $Target "curl -s -m 5 http://127.0.0.1:8080/api/v1/version") | ConvertFrom-Json } catch { $live = $null }
 $notes = ""
 if ($Version) {
-    $notes = "version set by hand"
+    $notes = if ($Notes) { $Notes } else { "version set by hand" }
 } elseif ($live -and $live.version -and $live.git_commit -and $live.git_commit -ne "dev") {
     Push-Location $RepoRoot
     try {
@@ -109,6 +112,12 @@ if ($LASTEXITCODE -ne 0) { throw "scp of deploy/remote_deploy.sh failed" }
 if ($LASTEXITCODE -ne 0) { throw "scp of deploy/backup.sh failed" }
 & ssh $Target "chmod 755 $RemoteDir/deploy/backup.sh"
 if ($LASTEXITCODE -ne 0) { throw "could not mark deploy/backup.sh executable on remote" }
+# Stage 109.3: the daily server cleanup and its cron installer ride every
+# deploy too; remote_deploy.sh installs the schedule once the build is healthy.
+foreach ($script in @("server_cleanup.sh", "install_cleanup_cron.sh")) {
+    & scp "$RepoRoot\deploy\$script" "${Target}:$RemoteDir/deploy/$script"
+    if ($LASTEXITCODE -ne 0) { throw "scp of deploy/$script failed" }
+}
 
 Write-Host "Migrating + swapping binary + health-checking + restarting on the box..." -ForegroundColor Cyan
 # The actual migrate/swap/restart/health-check/rollback logic lives in

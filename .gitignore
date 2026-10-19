@@ -72,3 +72,7 @@ docs/sop-video/output/
 # Local exports of the trackers (e.g. a printable micro_checklist.pdf) -
 # working copies, never source; the Markdown is the record.
 docs/micro_checklist.pdf
+
+# Stage 109: release coordination and reports stay on this machine
+deploy/release-hold.txt
+deploy/release-reports/

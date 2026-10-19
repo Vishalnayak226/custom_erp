@@ -44,6 +44,17 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 263. Stage 109 — one click to release, one click to deploy, the server cleans itself; SSH bots blocked (2026-10-19, tooling + server)
+
+User: *"I want auto mechanism to do this ... a script or bot ... It should learn parallely with you doing in future ... Three action three click. 3rd one if can be done without me also fine."* Checklist Stage 109 (D1-D6).
+
+- **`Release.cmd` → `deploy/release.ps1`:** the routine of the 2026-10-18/19 releases as gates G0-G13 (preflight, snapshot worktree minus `deploy/release-hold.txt`, LF for text only, gofmt, `?v=` bumps, catalog spec, attack surface, KB, graphify + brain with new files filed beside a sibling, register, build, vet, `node --check`, budget, data-change scan, migrate from empty + full tests with flaky reruns, commit through the shared index only if nothing moved, sync back, push). `-DryRun` passed on the live tree; a sandbox clone with a throwaway origin caught one real bug before any real use (piping into `git update-index` re-encodes - now `--cacheinfo` arguments).
+- **`Deploy.cmd` → `deploy/deploy_release.ps1`:** refuses what is not on origin or not passed by Release; lists the migrations / backfills / background jobs since the live commit that change client data and waits for YES; backup + sha256, rollback copy, `deploy.ps1` from a clean worktree, every host checked. `-Check` is read-only.
+- **Cleanup:** `deploy/server_cleanup.sh` + `install_cleanup_cron.sh`, root cron 03:30, installed by every deploy (`deploy.ps1` ships both, `remote_deploy.sh` installs and runs one pass). Tested on a seeded scratch folder on the box (kept newest 3 rollbacks, removed old failed build, CR-named file, stale `public.new`; live build, `.prev`, backups untouched). `Cleanup.cmd` runs it on demand.
+- **Server slimmed once:** 66% → 27% (journald 100 MB, no snapd, 512 MB swap, caches, old binaries, 23 rollback copies). **SSH:** already key-only; sshguard added (1 h block after ~3 failures, permanent for repeat offenders).
+- **Learning:** gate table with the incident behind each gate in `deploy/README.md` Part F0; CLAUDE.md rule - a release problem the script missed becomes a gate in the same session.
+- PowerShell trap met while building: a function named `Git` shadows `git.exe` (case-insensitive) and recursed forever; the helper is `Invoke-Git`.
+
 ## 262. Release 0.4.0 to app and minn (2026-10-19, release)
 
 - **Commit:** `e9b183a` (origin `2394131` → `e9b183a`): Stage 106.1-106.4 (sticker presets, the 3-inch POS roll bill, editable Stock Locations > Transactions rows), Stage 107 ("Physically in store?"), Stage 108 (§261), 94.14 / 94.15 (GST rounding only) / 94.16, and the Stage 101 CRM plan (§259). Snapshot in a `%TEMP%` worktree once every session was idle; regenerated there; migrated from empty (256 migrations) and fully tested on a fresh DB - every package green.

@@ -9,12 +9,12 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 
 | | |
 |---|---|
-| Graph built from commit | `23941319` |
-| Brain redrawn | source graph 23941319 |
+| Graph built from commit | `5466ef0a` |
+| Brain redrawn | source graph 5466ef0a |
 | Regions / lobes | 38 / 8 |
-| Files in the working tree | 1567 (1143 of them parsed into the graph) |
+| Files in the working tree | 1574 (1149 of them parsed into the graph) |
 | Files claimed by a region | **100.0%** |
-| Symbols in the graph | 14423 |
+| Symbols in the graph | 14459 |
 | Cross-region relationships | 5533 extracted (94% inferred) + 8 declared by hand |
 
 **Interactive version: [brain.html](brain.html)** — open it in a browser and click any region.
@@ -39,8 +39,8 @@ flowchart LR
   n_business["Functional Lobes — Business Operations<br/><small>328 files · 3897 symbols</small>"]
   n_peripheral["Peripheral Nerves — Integrations<br/><small>51 files · 886 symbols</small>"]
   n_autonomic["Autonomic — Background & Reflexes<br/><small>16 files · 211 symbols</small>"]
-  n_memory["Hippocampus — Written Memory<br/><small>351 files · 4227 symbols</small>"]
-  n_motor["Motor Cortex — Build & Delivery<br/><small>43 files · 171 symbols</small>"]
+  n_memory["Hippocampus — Written Memory<br/><small>351 files · 4230 symbols</small>"]
+  n_motor["Motor Cortex — Build & Delivery<br/><small>50 files · 204 symbols</small>"]
   n_verification["Cerebellum — Verification<br/><small>336 files · 1446 symbols</small>"]
   n_business -->|1973| n_brainstem
   n_business -->|331| n_autonomic
@@ -100,8 +100,8 @@ flowchart LR
 | **Functional Lobes — Business Operations** | The specialised areas. Each one owns a domain and can be licensed on its own. | 16 | 328 | 3897 | 1202 |
 | **Peripheral Nerves — Integrations** | Contact with the outside world: storefronts, payment terminals, marketing clouds, third-party extensions. | 3 | 51 | 886 | 7 |
 | **Autonomic — Background & Reflexes** | Runs without anyone asking it to: outbox drain, pollers, alerting, scheduled sweeps. | 2 | 16 | 211 | 26 |
-| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 351 | 4227 | 206 |
-| **Motor Cortex — Build & Delivery** | How the system actually moves: build, migrate, promote, back up, restore. | 1 | 43 | 171 | 0 |
+| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 351 | 4230 | 206 |
+| **Motor Cortex — Build & Delivery** | How the system actually moves: build, migrate, promote, back up, restore. | 1 | 50 | 204 | 0 |
 | **Cerebellum — Verification** | Balance and correction. Kept out of the wiring diagrams on purpose — tests touch everything, so drawing them would grey out every real edge. | 1 | 336 | 1446 | 0 |
 
 ## 2. Region map
@@ -161,12 +161,12 @@ flowchart LR
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>344 files · 4106 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>344 files · 4109 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 121 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
     direction TB
-    n_ops_tooling["Build, Deploy & Operate<br/><small>43 files · 171 symbols</small>"]
+    n_ops_tooling["Build, Deploy & Operate<br/><small>50 files · 204 symbols</small>"]
   end
   n_brain -->|205| n_docs_memory
   n_wms -.->|169| n_persistence
@@ -366,12 +366,12 @@ flowchart LR
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>344 files · 4106 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>344 files · 4109 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 121 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
     direction TB
-    n_ops_tooling["Build, Deploy & Operate<br/><small>43 files · 171 symbols</small>"]
+    n_ops_tooling["Build, Deploy & Operate<br/><small>50 files · 204 symbols</small>"]
   end
   n_brain -->|205| n_docs_memory
   n_ui_shell -.->|130| n_ui_offline
@@ -757,9 +757,9 @@ flowchart LR
 | [Extension Platform](#extension-platform) | Peripheral Nerves — Integrations | 14 | 187 | → Persistence & Migrations (28) |
 | [Event Outbox & Async Job Runner](#event-outbox--async-job-runner) | Autonomic — Background & Reflexes | 6 | 55 | ← Logging, Alerting & Notifications (19) |
 | [Logging, Alerting & Notifications](#logging-alerting--notifications) | Autonomic — Background & Reflexes | 10 | 156 | ← Warehouse Management (WMS) (73) |
-| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 344 | 4106 | ← The Brain Map (this) (205) |
+| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 344 | 4109 | ← The Brain Map (this) (205) |
 | [The Brain Map (this)](#the-brain-map-this) | Hippocampus — Written Memory | 7 | 121 | → Project Documentation (205) |
-| [Build, Deploy & Operate](#build-deploy--operate) | Motor Cortex — Build & Delivery | 43 | 171 | → Persistence & Migrations (5) |
+| [Build, Deploy & Operate](#build-deploy--operate) | Motor Cortex — Build & Delivery | 50 | 204 | → Persistence & Migrations (5) |
 | [Security Baseline & Attack Surface](#security-baseline--attack-surface) | Brainstem — Kernel | 16 | 165 | → Persistence & Migrations (9) |
 | [Test Suite](#test-suite) | Cerebellum — Verification | 336 | 1446 | — |
 
@@ -780,7 +780,7 @@ The whole frontend: one hand-written vanilla-JS single-page app, no framework an
 - `ErpTypeahead` — [public/components/erp-typeahead.js](../../public/components/erp-typeahead.js#L65) · degree 20
 - `renderView()` — [public/app.js](../../public/app.js#L6031) · degree 20
 - `renderOnboardingTab()` — [public/view-hr.js](../../public/view-hr.js#L1164) · degree 18
-- `renderPOSCartTable()` — [public/view-pos.js](../../public/view-pos.js#L688) · degree 18
+- `renderPOSCartTable()` — [public/view-pos.js](../../public/view-pos.js#L681) · degree 18
 
 **Wired to**
 
@@ -1038,7 +1038,7 @@ The metadata-driven Record Type engine — one generic documents table per tenan
 - `NewDocID()` — [engines/docid.go](../../engines/docid.go#L93) · degree 87
 - `handleGenericDoc()` — [internal/server/handlers_core_doc_engine.go](../../internal/server/handlers_core_doc_engine.go#L80) · degree 80
 - `ValidateMasterDataRules()` — [engines/master_data_validation.go](../../engines/master_data_validation.go#L32) · degree 41
-- `checkPermission()` — [internal/server/handlers_core_doc_engine.go](../../internal/server/handlers_core_doc_engine.go#L1352) · degree 38
+- `checkPermission()` — [internal/server/handlers_core_doc_engine.go](../../internal/server/handlers_core_doc_engine.go#L1369) · degree 38
 - `GenerateSequence()` — [engines/numbering.go](../../engines/numbering.go#L97) · degree 35
 
 **Wired to**
@@ -3241,7 +3241,7 @@ manage.ps1 (start/stop/backup/restore/drill), promote.ps1 (worktree → build �
 - ← **Project Documentation** — 4 relationships, all extracted
 - ← **The Brain Map (this)** — 3 relationships, all extracted
 
-<details><summary>43 files</summary>
+<details><summary>50 files</summary>
 
 - [.dockerignore](../../.dockerignore)
 - [.gitattributes](../../.gitattributes)
@@ -3263,15 +3263,22 @@ manage.ps1 (start/stop/backup/restore/drill), promote.ps1 (worktree → build �
 - [deploy/Caddyfile.holding](../../deploy/Caddyfile.holding)
 - [deploy/README.md](../../deploy/README.md)
 - [deploy/backup.sh](../../deploy/backup.sh)
+- [deploy/cleanup_now.ps1](../../deploy/cleanup_now.ps1)
 - [deploy/deploy.ps1](../../deploy/deploy.ps1)
+- [deploy/deploy_release.ps1](../../deploy/deploy_release.ps1)
 - [deploy/enable_tls.sh](../../deploy/enable_tls.sh)
 - [deploy/erp.env.example](../../deploy/erp.env.example)
 - [deploy/erp.service](../../deploy/erp.service)
 - [deploy/install_backup_cron.sh](../../deploy/install_backup_cron.sh)
+- [deploy/install_cleanup_cron.sh](../../deploy/install_cleanup_cron.sh)
 - [deploy/migrate.sh](../../deploy/migrate.sh)
 - [deploy/postgres_harden.sql](../../deploy/postgres_harden.sql)
+- [deploy/release.config.json](../../deploy/release.config.json)
+- [deploy/release.ps1](../../deploy/release.ps1)
+- [deploy/release_common.ps1](../../deploy/release_common.ps1)
 - [deploy/remote_deploy.sh](../../deploy/remote_deploy.sh)
 - [deploy/restore_drill.sh](../../deploy/restore_drill.sh)
+- [deploy/server_cleanup.sh](../../deploy/server_cleanup.sh)
 - [docker-compose.yml](../../docker-compose.yml)
 - [environments.json](../../environments.json)
 - [go.mod](../../go.mod)
@@ -3649,10 +3656,10 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 
 ## 6. What the brain does not know yet
 
-Nothing — every one of the 1567 files in the working tree is claimed by a region (100.0% coverage). When that stops being true, the unclaimed files get listed here and `update-brain.ps1 -Check` fails, which is the signal to add a `match` pattern (or a whole new region) to `brain.map.json`.
+Nothing — every one of the 1574 files in the working tree is claimed by a region (100.0% coverage). When that stops being true, the unclaimed files get listed here and `update-brain.ps1 -Check` fails, which is the signal to add a `match` pattern (or a whole new region) to `brain.map.json`.
 
 Two other things the brain is honest about not seeing:
 
-- **1143 of 1567 files are parsed into the call graph.** The rest — `.sql` migrations, JSON industry profiles, PowerShell, CI config, Markdown — are filed into regions by path, but contribute no symbols or edges, because graphify has no extractor for them. A region can therefore be substantial and still show few symbols.
+- **1149 of 1574 files are parsed into the call graph.** The rest — `.sql` migrations, JSON industry profiles, PowerShell, CI config, Markdown — are filed into regions by path, but contribute no symbols or edges, because graphify has no extractor for them. A region can therefore be substantial and still show few symbols.
 - **899 graph nodes are external type references** (`sql.Tx`, `context.Context` and friends) with no source file of their own. They belong to no region by design.
 
