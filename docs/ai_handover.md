@@ -125,6 +125,11 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-19 Release 0.4.0 - COMMITTED, PUSHED, DEPLOYED to app and minn.** Ledger §262. `e9b183a` on origin/main; prod
+  reports 0.4.0, both hosts 200. Backup `custom_erp_20261019T050200Z`, rollback dir `rollback_20261019_050203`. The tree
+  was fully committed at release (nothing left over). **Cold core has 26 B of headroom** - put new POS code in a lazy module.
+  Still to do by hand: the 0.1.0 backfill row for 840909b (see the 0.2.0 entry).
+
 - **2026-10-19 Stage 108 (New Location fills itself in; POS adds only an exact barcode) - DONE, NOT COMMITTED.** Ledger §261,
   micro_checklist 108.1-108.2. New files (mine): `engines/location_identity.go`, `engines/location_identity_test.go`,
   `db/migrations_stage108_location_level_types.sql` (applied by hand to the 5490 scratch DB only). Hunks of mine in shared

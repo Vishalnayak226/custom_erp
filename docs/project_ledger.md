@@ -44,6 +44,13 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 262. Release 0.4.0 to app and minn (2026-10-19, release)
+
+- **Commit:** `e9b183a` (origin `2394131` → `e9b183a`): Stage 106.1-106.4 (sticker presets, the 3-inch POS roll bill, editable Stock Locations > Transactions rows), Stage 107 ("Physically in store?"), Stage 108 (§261), 94.14 / 94.15 (GST rounding only) / 94.16, and the Stage 101 CRM plan (§259). Snapshot in a `%TEMP%` worktree once every session was idle; regenerated there; migrated from empty (256 migrations) and fully tested on a fresh DB - every package green.
+- **Release fixes:** view modules `?v=51` (lazy modules changed, `app.js` did not); `engines/stock_location_txn_defaults.go` claimed in `brain.map.json`; the cold core was 285 B over NFR-COST-001 (`view-pos.js` +911 B gzip from 108.2 and 106.3), so three new comment blocks in `view-pos.js` were shortened (no code change) - now 184,294 of 184,320 B. **Only 26 B of cold-core headroom is left:** the next POS change has to move code into a lazily loaded module.
+- **User's OK, 2026-10-19:** the 106.4 Sales Return default (QC HOLD → MAIN on never-edited rows) and 107's In-Transit "not physically in store" on app and minn.
+- **Deploy:** backup `custom_erp_20261019T050200Z.dump.enc` (sha256 OK), `rollback_20261019_050203`, DEPLOY-OK, 3 migrations, release 0.4.0 recorded on 2 clients. Both hosts: `/`, health, `app.js?v=51`, `/store/` 200; version 0.4.0 (e9b183a); the served `view-pos.js` matches the commit.
+
 ## 261. Stage 108 — The New Location form fills itself in; POS adds only an exact barcode (2026-10-19, code + docs, NOT COMMITTED)
 
 From the user's New Location and POS / Billing screenshots. New Location: Short Code suggested by one standard rule (JP Nagar → JPN), Facility Code the next number, Level and Sellable follow Type, Parent = the HO, Legal Entity and salesman Mandatory preselected; the server fills a blank Short / Facility Code on create; Level gains HO and Store (migration, shipped list only). POS: only an exact barcode / GTIN rings up directly, anything else lists the containing products to pick, on Enter or a pause in typing. Unit tests + Chromium checks; detail in micro_checklist 108.1-108.2. Open gap: receipt-date barcodes are not found by the POS search (pre-existing).
