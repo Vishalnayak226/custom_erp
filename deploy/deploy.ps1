@@ -114,7 +114,9 @@ if ($LASTEXITCODE -ne 0) { throw "scp of deploy/backup.sh failed" }
 if ($LASTEXITCODE -ne 0) { throw "could not mark deploy/backup.sh executable on remote" }
 # Stage 109.3: the daily server cleanup and its cron installer ride every
 # deploy too; remote_deploy.sh installs the schedule once the build is healthy.
-foreach ($script in @("server_cleanup.sh", "install_cleanup_cron.sh")) {
+# Stage 109.11: so do the systemd unit and its installer - remote_deploy.sh
+# installs the unit whenever it differs from the live one, with rollback.
+foreach ($script in @("server_cleanup.sh", "install_cleanup_cron.sh", "erp.service", "install_service_unit.sh")) {
     & scp "$RepoRoot\deploy\$script" "${Target}:$RemoteDir/deploy/$script"
     if ($LASTEXITCODE -ne 0) { throw "scp of deploy/$script failed" }
 }

@@ -69,7 +69,7 @@ $liveCommit = "$($live.git_commit)"
 Note "live: $($live.version) ($liveCommit)"
 if ($target.StartsWith($liveCommit) -and $liveCommit.Length -ge 7) {
     Write-Host "Already live: $short is what production runs." -ForegroundColor Green
-    exit 0
+    if (-not $Check) { exit 0 }   # -Check still reports below whether the server config matches the repo
 }
 & git -C $repo cat-file -e "$liveCommit^{commit}" 2>$null
 if ($LASTEXITCODE -ne 0) { Stop-Deploy "the live commit $liveCommit is not in this repo - fetch it, or check what production runs" }
@@ -92,6 +92,12 @@ Format-Findings $findings | ForEach-Object { Note $_ }
 $serious = @($findings | Where-Object { $_.Kind -ne 'metadata' })
 $disk = (Remote "df -P / | awk 'NR==2{print `$5}'")[0]
 Note "server disk: $disk used"
+# Server configuration the deploy keeps in step (Stage 109.11): the droplet ran
+# the first baseline systemd unit for weeks while the repo's sandbox sat unused.
+$unitRepo = ((& git -C $repo show "$($target):deploy/erp.service") -join "`n").Trim()
+$unitLive = ((Remote "cat /etc/systemd/system/erp.service") -join "`n").Trim()
+if ($unitRepo -eq $unitLive) { Note 'service file: the live one matches the repo' }
+else { Note 'service file: differs from the repo - this deploy installs it (and puts the old one back by itself if the ERP is not healthy on it)' }
 if ($Check) {
     $report | Set-Content -LiteralPath $reportPath -Encoding utf8
     Write-Host ''

@@ -1344,10 +1344,13 @@ type GRNStepLineView struct {
 	CurrentMRP      float64  `json:"current_mrp"`
 	MRP             float64  `json:"mrp,omitempty"`
 	SuggestedMRP    float64  `json:"suggested_mrp"`
-	NeedsMRP        bool     `json:"needs_mrp"`
-	BatchNo         string   `json:"batch_no,omitempty"`
-	Posted          bool     `json:"posted"`
-	GSTWarning      string   `json:"gst_warning,omitempty"`
+	// SuggestedMRPRule names the MRP rule that made the suggestion; "" = the
+	// markup (Stage 114.6).
+	SuggestedMRPRule string `json:"suggested_mrp_rule,omitempty"`
+	NeedsMRP         bool   `json:"needs_mrp"`
+	BatchNo          string `json:"batch_no,omitempty"`
+	Posted           bool   `json:"posted"`
+	GSTWarning       string `json:"gst_warning,omitempty"`
 }
 
 // GRNStepView is a step GRN as its screens show it.
@@ -1558,7 +1561,7 @@ func GetGRNStepView(tenantID, grnID string) (*GRNStepView, error) {
 		}
 		lv.Posted = lv.Child != "" && posted[lv.Child]
 		lv.NeedsMRP = grnLineNeedsMRP(tenantID, sku)
-		lv.SuggestedMRP = suggestedMRP(tenantID, item, lv.GRNPrice, lv.GSTRate, markup, ending)
+		lv.SuggestedMRP, lv.SuggestedMRPRule = suggestedMRPFor(tenantID, item, lv.GRNPrice, lv.GSTRate, grnLineWeight(l, item), markup, ending)
 		if lv.ExcessStatus == "Pending" {
 			v.ExcessPending = true
 		}

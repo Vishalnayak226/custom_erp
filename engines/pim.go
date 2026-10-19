@@ -614,49 +614,53 @@ func normalizeVariantOptions(raw string) string {
 // docID is the id of the Item being saved (blank on a create where the
 // server will generate a fresh UUID) so it can exclude itself on update.
 func ValidateItemVariantUniqueness(tenantID, docID string, payload map[string]interface{}) error {
-	parentCode, _ := payload["parent_product_code"].(string)
-	variantOptions, _ := payload["variant_option_values"].(string)
-	parentCode = strings.TrimSpace(parentCode)
-	variantOptions = strings.TrimSpace(variantOptions)
-	if parentCode == "" || variantOptions == "" {
-		return nil
+	parentCode := strings.TrimSpace(strField(payload, "parent_product_code"))
+	sibling, err := variantSibling(tenantID, docID, parentCode, strField(payload, "variant_option_values"))
+	if err != nil || sibling == "" {
+		return err
 	}
+	return fmt.Errorf("a variant with this exact option combination already exists under parent %q: %s", parentCode, sibling)
+}
 
-	normalized := normalizeVariantOptions(variantOptions)
-	if normalized == "" {
-		return nil
+// variantSibling is the Item other than docID under parentCode with the same
+// variant values, or "" when there is none.
+func variantSibling(tenantID, docID, parentCode, variantOptions string) (string, error) {
+	parentCode = strings.TrimSpace(parentCode)
+	normalized := normalizeVariantOptions(strings.TrimSpace(variantOptions))
+	if parentCode == "" || normalized == "" {
+		return "", nil
 	}
 
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, COALESCE(data->>'variant_option_values', '') FROM %s.documents
 		WHERE doctype = 'Item' AND data->>'parent_product_code' = $1 AND id != $2`, schema), parentCode, docID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer rows.Close()
 
 	for rows.Next() {
 		var siblingID, siblingOptions string
 		if err := rows.Scan(&siblingID, &siblingOptions); err != nil {
-			return err
+			return "", err
 		}
 		if siblingOptions == "" {
 			continue
 		}
 		if normalizeVariantOptions(siblingOptions) == normalized {
-			return fmt.Errorf("a variant with this exact option combination already exists under parent %q: %s", parentCode, siblingID)
+			return siblingID, nil
 		}
 	}
-	return rows.Err()
+	return "", rows.Err()
 }
 
 // itemVariantAttributeFields lists the Item fields recognized as
-// variant-differentiating attributes for automatic Combination ID/SKU
-// generation (Stage 51.5). Deliberately a small, generic set rather than
+// variant-differentiating attributes - a combination's variant values
+// (Stage 51.5). Deliberately a small, generic set rather than
 // every field an industry profile might add to Item: a continuous/measured
 // value (weight, making charge) is a property of the physical unit, not a
 // choice that defines a distinct sellable combination, so including it here
@@ -671,30 +675,15 @@ func ValidateItemVariantUniqueness(tenantID, docID string, payload map[string]in
 // tenant's by color+polish/plating, and this list simply recognizes both.
 var itemVariantAttributeFields = []string{"metal_type", "purity_karat", "stone_type", "color", "polish", "size"}
 
-// itemHasVariantValues reports whether an Item payload carries anything
-// PrepareItemVariantCode builds a Combination ID from - typed
-// variant_option_values or one of the recognized attribute fields.
-func itemHasVariantValues(payload map[string]interface{}) bool {
-	for _, p := range strings.Split(strField(payload, "variant_option_values"), ";") {
-		if strings.TrimSpace(strings.SplitN(p, ":", 2)[0]) != "" {
-			return true
-		}
-	}
-	for _, field := range itemVariantAttributeFields {
-		if v, ok := payload[field].(string); ok && strings.TrimSpace(v) != "" {
-			return true
-		}
-	}
-	return false
-}
-
-// PrepareItemVariantCode (Stage 51.5) auto-generates an Item's Combination
-// ID/SKU from its parent design and variant attributes, wiring up
-// GenerateVariantCode (engines/numbering.go) and normalizeVariantOptions
-// (this file) - both of which already existed, GenerateVariantCode with no
-// caller at all. A no-op unless this is a create with no explicit code and a
-// parent design set - a standalone Item (no family, no parent_product_code)
-// keeps using its ordinary sequence-numbered code, untouched.
+// PrepareItemVariantCode (Stage 51.5) records a new combination's variant
+// values from its parent design and attribute fields, and refuses one that
+// already exists under that design. A no-op unless this is a create with no
+// explicit code and a parent design set.
+//
+// Stage 117: the Combination ID itself is the next number from the Item
+// series (PrepareMasterNumber, which runs after this), like every other Item
+// - it used to be the design plus its values (D00001-Red-S), and the user
+// wanted a running number like the Design ID's.
 func PrepareItemVariantCode(tenantID string, isCreate bool, payload map[string]interface{}) error {
 	if !isCreate {
 		return nil
@@ -764,21 +753,11 @@ func PrepareItemVariantCode(tenantID string, isCreate bool, payload map[string]i
 	}
 	payload["variant_option_values"] = strings.Join(parts, ";")
 
-	code := GenerateVariantCode(tenantID, parentCode, "", kv)
-	// Stage 62: a create whose generated Combination ID already belongs to a
-	// live Item is a duplicate combination, not an edit. Without this the
-	// create became an upsert on that id and silently overwrote the existing
-	// Item (its name, prices, everything) - ValidateItemVariantUniqueness
-	// could not see it, because it excludes the record being saved and the
-	// two now share one id.
-	if schema, err := db.GetTenantSchema(tenantID); err == nil {
-		var existing string
-		if db.DB.QueryRow(fmt.Sprintf(
-			`SELECT id FROM %s.documents WHERE doctype = 'Item' AND id = $1 AND deleted_at IS NULL`, schema), code).Scan(&existing) == nil {
-			return &ValidationError{Code: "GLOBAL-0002", SubFor: "Combination", Message: fmt.Sprintf(
-				"combination %s already exists under design %s - use it instead of creating it again", code, parentCode)}
-		}
+	// Stage 62: the same values again under the same design is a duplicate
+	// combination, not a new one - refused here, before a number is drawn.
+	if sibling, err := variantSibling(tenantID, "", parentCode, strField(payload, "variant_option_values")); err == nil && sibling != "" {
+		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Combination", Message: fmt.Sprintf(
+			"combination %s already exists under design %s - use it instead of creating it again", sibling, parentCode)}
 	}
-	payload["code"] = code
 	return nil
 }

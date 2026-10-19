@@ -354,6 +354,8 @@ All four of these used to be dead links falling through to a "Module Setup Pendi
 ## 20. Prefix Configs
 
 - [ ] Loads a table of document-numbering prefix rules (doctype, prefix, separator, digit count, reset frequency).
+- [ ] Rows are grouped under headings (Procurement, Sales, … Products & barcodes) with plain names (Design, not ProductFamily); the group drop-down beside New Series shows one group, and is kept after a reload.
+- [ ] A new combination added on a PO gets the next **Combination ID / item** number (e.g. `I00042`), not the design plus its values.
 - [ ] Editing a prefix rule saves and is reflected in the table.
 - [ ] (Optional deeper check) Creating a new document of that doctype elsewhere in the app produces an auto-generated number matching the configured prefix pattern.
 

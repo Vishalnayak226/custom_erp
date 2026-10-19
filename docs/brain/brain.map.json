@@ -379,6 +379,7 @@
         "engines/grn_steps.go",
         "engines/grn_steps_post.go",
         "engines/grn_steps_reports.go",
+        "engines/mrp_rules.go",
         "internal/server/handlers_grn_steps.go",
         "public/grn-steps.js",
         "engines/po_design.go",

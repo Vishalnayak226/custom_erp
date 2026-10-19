@@ -59,6 +59,15 @@ func handlePreviewPurchaseOrder(w http.ResponseWriter, r *http.Request) {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
+	// Stage 114.7 (the user: "PP is mandatory"): the PO screen shows a line
+	// with no purchase price in red and will not save it. Here, not in
+	// PreviewPurchaseOrder, so a print or a costing of an older PO is unchanged.
+	for i := range preview.Lines {
+		if l := &preview.Lines[i]; l.Error == "" && l.SKU != "" && l.Rate <= 0 {
+			l.Error = "enter the purchase price"
+			preview.Blocking = true
+		}
+	}
 	// Stage 65.8: the composer shows the chosen stores' Billing and Shipping
 	// address under their pickers - the same blocks the printed PO uses
 	// (LoadPrintStore), so the screen and the print cannot disagree.

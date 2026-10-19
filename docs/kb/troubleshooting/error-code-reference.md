@@ -19,7 +19,7 @@ applies_to: source registries; not release acceptance
 
 # Error code reference
 
-Every refusal in this application carries a code. There are **510** of them,
+Every refusal in this application carries a code. There are **511** of them,
 across **53** areas. This page is produced from the running catalog, so it
 cannot describe a code the application does not have, or miss one it does.
 
@@ -61,7 +61,7 @@ open the right page.
 - [Inventory](#inventory) - 6 codes
 - [Inventory / Warehouse](#inventory-warehouse) - 29 codes
 - [Manufacturing / Production](#manufacturing-production) - 13 codes
-- [Master Data](#master-data) - 39 codes
+- [Master Data](#master-data) - 40 codes
 - [Mobile App / Device](#mobile-app-device) - 7 codes
 - [Notifications](#notifications) - 6 codes
 - [Observability / Incident](#observability-incident) - 3 codes
@@ -503,6 +503,7 @@ open the right page.
 | `MASTER-0893` | Item treatment correction not confirmed - reason missing, code not typed, or nothing to correct | The correction was not confirmed. | Give the reason and type the item code exactly as shown, then confirm. A change that does not touch stock tracking, valuation or accounting is saved on the form instead. | Low | 422 |
 | `MASTER-0894` | Item treatment correction cannot be made as it stands | This correction cannot be made yet. | Do what the message lists first - release reserved or held stock, enter a value per unit, add the account, or create a new item where the change is not possible. | Medium | 422 |
 | `MASTER-0895` | Stock or cost changed between the impact preview and the confirmation | The stock or cost changed since you reviewed the impact. | Review the impact again and confirm the new figures. | Low | 409 |
+| `MASTER-0896` | MRP rule that cannot suggest an MRP | That MRP rule cannot be saved. | Choose its method and fill what it needs: a multiplier above 0; price bands written as 500=3, 2000=2.5, above=2; or a rate per gram above 0. | Low | 422 |
 | `MASTER-0931` | Department missing, not on the Department list, or Inactive | Pick the person's department from the list. | Choose an Active department. If it is not there yet, add it under Setup > Department first. | Low | 422 |
 | `MASTER-0932` | Department changed on a user who is linked to an employee | This user's department comes from their employee record. | Change the department on the employee (HR > Employees); the user follows it. | Low | 422 |
 | `MASTER-0975` | A reason code missing, inactive, of another action or outside its dates | Choose a reason from the list. | Pick one of the reasons offered. If none fits, ask an administrator to add one under Setup > Reason Codes for this action. | Low | 422 |

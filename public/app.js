@@ -316,7 +316,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '54';
+const VIEW_MODULE_VERSION = '55';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -1052,15 +1052,9 @@ function attachEmployeePicker(id) {
 // stays free text; nothing validates or blocks a value (Stage 17.9's call).
 function attachTypeahead(inputEl, doctype, opts = {}) {
   const valueFields = opts.valueFields || ['code', 'name', 'id'];
-  // 2026-10-09: name first, code second (Stage 57.1, names not codes). With
-  // the code leading, a long series code such as Employee/HQ/2026/000001
-  // filled the row and the name was cut off - the person picking could not
-  // see who they were picking. Location already did this (Stage 41).
-  const labelFn = opts.labelFn || (doc => {
-    const code = doc.code || doc.id || '';
-    const name = doc.name || '';
-    return name && name !== code ? `${name} — ${code}` : (code || name);
-  });
+  // Stage 118.3 (the user: "No code need to show any where"): the name alone;
+  // openMenu adds the code only where two rows share a name.
+  const labelFn = opts.labelFn || (doc => doc.name || doc.code || doc.id || '');
   const limit = opts.limit || 8;
   // Opt-in, off by default (Stage 30.5.8): groupBy - a heading per distinct
   // value of that field, first-appearance order (Location: shop / warehouse /
@@ -1171,6 +1165,7 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
   function openMenu() {
     removeMenuElement();
     activeIndex = -1;
+    if (inputEl.readOnly || inputEl.disabled) return; // a frozen box offers no list (118.2)
     // Stage 30.5.1: zero matches used to close the menu silently, which is
     // indistinguishable from "the search hasn't run yet". Show a dead-end
     // row that names the record type and links to where one is created -
@@ -1221,6 +1216,8 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
     // orders have to stay identical or the arrow keys select the wrong record.
     if (groupBy) items = groupItemsBy(items, groupBy);
     let lastGroup = null;
+    const seen = {};
+    items.forEach(d => { const l = labelFn(d); seen[l] = (seen[l] || 0) + 1; });
     items.forEach((doc) => {
       if (groupBy) {
         const g = groupValue(doc, groupBy);
@@ -1236,7 +1233,8 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
       }
       const row = document.createElement('div');
       row.className = 'typeahead-item';
-      row.textContent = labelFn(doc);
+      const l = labelFn(doc);
+      row.textContent = seen[l] > 1 && (doc.code || doc.id) !== l ? `${l} — ${doc.code || doc.id}` : l;
       if (opts.titleFn) row.title = opts.titleFn(doc) || ''; // Stage 66
       row.addEventListener('mousedown', (e) => { e.preventDefault(); pick(doc); });
       menu.appendChild(row);
@@ -1394,27 +1392,8 @@ const TYPEAHEAD_DOCTYPE_OPTS = {
   // 103 records across Store / Warehouse / HO. A flat list of eight codes
   // gave no way to tell a shop from a warehouse.
   //
-  // Stage 41 flips the label to lead with the NAME. `code` is the system
-  // identifier - "HO", "BKC01" - and leading with it meant the picker read as
-  // a list of codes with a name appended, which is backwards for a human
-  // choosing a place. The code stays visible (staff do use it, and it is what
-  // gets stored), just second. short_code, the new optional shorthand, is
-  // shown alongside it when a location has one.
-  Location: {
-    groupBy: 'type',
-    showAllOnFocus: true,
-    labelFn: doc => {
-      const name = doc.name || '';
-      const code = doc.code || doc.id || '';
-      // A location whose name was never filled in stores its code in both
-      // fields, and "HO — HO" is not a label. Show the identifiers alone in
-      // that case - the same de-duplication the default labelFn does, just
-      // with the two sides swapped.
-      const ids = [code, doc.short_code].filter(Boolean).filter(v => v !== name).join(' / ');
-      if (!name) return ids;
-      return ids ? `${name} — ${ids}` : name;
-    }
-  },
+  // The name only (Stage 118.3); a location with no name shows its code.
+  Location: { groupBy: 'type', showAllOnFocus: true },
   // Browsable because this control replaced a <select> that listed everyone
   // (30.5.8) - without it, the conversion would have been a net loss for a
   // user who does not know the employee codes.

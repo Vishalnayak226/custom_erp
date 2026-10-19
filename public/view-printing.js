@@ -152,7 +152,7 @@ let stickerSourceCopies = {};   // line index -> int, defaults to the line's own
 // rules for that print only. '' = as per rules, 'standard' = the built-in label.
 let stickerSourceTemplates = {}; // line index -> template id
 let stickerTemplateChoices = []; // Active StickerTemplates: [{ id, name }]
-const STICKER_RULE_TEXT = { 'Item': 'item', 'Item type': 'item type', 'Category': 'category', 'Default': 'default' };
+const STICKER_RULE_TEXT = { 'Item': 'item', 'Item type': 'item type', 'Product type': 'product type', 'Category': 'category', 'Default': 'default' };
 let stickerPrinters = [];       // Printer records, for the engine's language/DPI/agent name
 
 async function renderStickersView(container) {
@@ -393,14 +393,12 @@ async function loadStickerSourcePreview() {
   docId = resolved.id;
   stickerSourceDocId = docId;
 
-  const [res, tplRes] = await Promise.all([
+  const [res, choices] = await Promise.all([
     apiFetch(`/api/v1/stickers/preview?source_doctype=${encodeURIComponent(doctype)}&source_doc_id=${encodeURIComponent(docId)}`),
-    apiFetch('/api/v1/doc/StickerTemplate')
+    loadStickerTemplateChoices()
   ]);
   if (!res) return;
-  stickerTemplateChoices = tplRes && tplRes.ok
-    ? (await tplRes.json()).filter(t => (t.status || 'Active') === 'Active').map(t => ({ id: t.id, name: t.name || t.code || t.id }))
-    : [];
+  stickerTemplateChoices = choices;
   if (!res.ok) {
     errorEl.textContent = await getErrorMessage(res, 'Could not load that document.');
     errorEl.classList.remove('hidden');
@@ -421,6 +419,26 @@ async function loadStickerSourcePreview() {
     stickerSourceCopies[i] = l.qty;
   });
   renderStickerSourceLines();
+}
+
+// Active templates, then the built-in designs not saved yet (Stage 113.2).
+async function loadStickerTemplateChoices() {
+  const [tplRes, E] = await Promise.all([apiFetch('/api/v1/doc/StickerTemplate'), loadStickerEngine()]);
+  const docs = tplRes && tplRes.ok ? await tplRes.json() : [];
+  return [
+    ...docs.filter(t => (t.status || 'Active') === 'Active').map(t => ({ id: t.id, name: t.name || t.code || t.id })),
+    ...E.unsavedDesigns(docs).map(d => ({ id: `design:${d.id}`, name: `${d.label} (built-in)` }))
+  ];
+}
+
+// A built-in design picked for a print is saved once as a template of the
+// client's own, then used like any other; '' (rules decide) if it could not be.
+async function pickStickerChoice(value) {
+  if (!value.startsWith('design:')) return value;
+  const E = await loadStickerEngine();
+  const id = await E.ensureDesignTemplate(value.slice('design:'.length));
+  if (id) stickerTemplateChoices = await loadStickerTemplateChoices();
+  return id;
 }
 
 // Stage 111.1: "00048" or "26-27/00048" finds GRN/HO/26-27/00048 when only one
@@ -504,14 +522,17 @@ function renderStickerSourceLines() {
     });
   });
   el.querySelectorAll('[data-source-template]').forEach(sel => {
-    sel.addEventListener('change', () => {
-      stickerSourceTemplates[Number(sel.getAttribute('data-source-template'))] = sel.value;
+    sel.addEventListener('change', async () => {
+      sel.disabled = true;
+      stickerSourceTemplates[Number(sel.getAttribute('data-source-template'))] = await pickStickerChoice(sel.value);
       renderStickerSourceLines();
     });
   });
-  document.getElementById('sticker-source-template-all').addEventListener('change', e => {
+  document.getElementById('sticker-source-template-all').addEventListener('change', async e => {
     if (e.target.value === '__mixed') return;
-    stickerSourceLines.forEach((l, i) => { stickerSourceTemplates[i] = e.target.value; });
+    e.target.disabled = true;
+    const value = await pickStickerChoice(e.target.value);
+    stickerSourceLines.forEach((l, i) => { stickerSourceTemplates[i] = value; });
     renderStickerSourceLines();
   });
   el.querySelectorAll('[data-source-print-one]').forEach(btn => {

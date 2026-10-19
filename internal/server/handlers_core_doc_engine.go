@@ -622,6 +622,16 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// longer fetches a number from the admin-only /api/v1/sequence.
 		// A save refused after this point gives its number back, so codes
 		// run V00001, V00002 ... without holes.
+		// Stage 51.5: an Item under a parent design records its variant values
+		// and is refused if that combination already exists - before the
+		// number is drawn, so a duplicate takes none. Its Combination ID is
+		// the next Item number, just below (Stage 117).
+		if doctype == "Item" {
+			if err := engines.PrepareItemVariantCode(tenantID, id == "", payload); err != nil {
+				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+				return
+			}
+		}
 		codeBefore, _ := payload["code"].(string)
 		if err := engines.PrepareMasterNumber(tenantID, location, doctype, id == "", payload); err != nil {
 			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
@@ -642,23 +652,12 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Stage 51.5: an Item under a parent design gets its Combination
-		// ID/SKU generated from that design's code plus its own variant
-		// attributes, instead of the plain sequence number every other Item
-		// gets. Same position/reason as the numbering call just above -
-		// code is a mandatory field, so it must be populated before the
-		// mandatory-field check runs. A no-op for a standalone Item (no
-		// family/parent_product_code) or on update.
 		if doctype == "Item" {
 			// Stage 89: the item name fills category / type / HSN / GST, and a
 			// new item takes the org's defaults (tax treatment, traceability,
 			// shelf life) where it left them blank.
 			if err := engines.PrepareItemDefaults(tenantID, id == "", payload); err != nil {
 				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
-				return
-			}
-			if err := engines.PrepareItemVariantCode(tenantID, id == "", payload); err != nil {
-				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 				return
 			}
 			// Stage 57.7: a new SKU gets its barcode now when the tenant issues
@@ -1545,6 +1544,7 @@ func handlePrefix(w http.ResponseWriter, r *http.Request) {
 			IncludeStore   *bool                                  `json:"include_store"`
 			StoreOverrides map[string]engines.StoreSeriesOverride `json:"store_overrides"`
 			YearFormat     *string                                `json:"year_format"`
+			YearPosition   *string                                `json:"year_position"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid payload")
@@ -1560,11 +1560,23 @@ func handlePrefix(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.YearFormat != nil {
 			series.YearFormat = *req.YearFormat
-		} else if all, err := engines.ListNumberSeries(tenantID); err == nil {
-			// Omitted (a caller older than Stage 86.2): keep the stored format.
-			for _, s := range all {
-				if s.DocType == strings.TrimSpace(req.DocType) {
-					series.YearFormat = s.YearFormat
+		}
+		if req.YearPosition != nil {
+			series.YearPosition = *req.YearPosition
+		}
+		if req.YearFormat == nil || req.YearPosition == nil {
+			// Omitted (a caller older than Stage 86.2 / 115.1): keep what is stored.
+			if all, err := engines.ListNumberSeries(tenantID); err == nil {
+				for _, s := range all {
+					if s.DocType != strings.TrimSpace(req.DocType) {
+						continue
+					}
+					if req.YearFormat == nil {
+						series.YearFormat = s.YearFormat
+					}
+					if req.YearPosition == nil {
+						series.YearPosition = s.YearPosition
+					}
 				}
 			}
 		}

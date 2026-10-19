@@ -276,15 +276,7 @@ export async function openStickerStudio({ templateId = null, copyFrom = null, co
   // Stage 112.1: a ready design (Square, Ring...) copied into a template of
   // your own - one the template rules can pick.
   const design = copyDesign && E.READY_DESIGNS.find(d => d.id === copyDesign);
-  if (design) {
-    t = E.templateFromDoc({ label_width_mm: design.w, label_height_mm: design.h });
-    t.name = design.label;
-    t.settings.per_row = design.per_row || 1;
-    if (design.gap_h !== undefined) t.settings.gap_h_mm = design.gap_h;
-    if (design.gap_v !== undefined) t.settings.gap_v_mm = design.gap_v;
-    if (design.dpi) t.settings.dpi = design.dpi;
-    t.elements = design.elements.map(e => E.normaliseElement(Object.assign({}, e, { id: E.newElementId() })));
-  }
+  if (design) t = E.designTemplate(design);
   const copied = !!(copyFrom || copyBuiltin || design);
   S.isNew = !templateId;
   if (!t) {
@@ -1942,7 +1934,7 @@ export async function renderStickerTemplateGallery(container, { onChange } = {})
                 <span class="badge">Built-in</span>
               </div>
               <div class="stk-card-meta">${round2(d.w)} × ${round2(d.h)} mm · ${d.dpi} dpi${d.per_row > 1 ? ` · ${d.per_row}-up` : ''} · ${d.elements.length} elements</div>
-              <div class="stk-card-cats"><span class="stk-muted">Duplicate it to print with it or pick it in a template rule</span></div>
+              <div class="stk-card-cats"><span class="stk-muted">Pick it on Print or in a template rule; Duplicate it to change it</span></div>
               <div class="stk-card-actions">
                 <button class="btn btn-outline btn-sm" data-g="design-dup" data-design="${esc(d.id)}">Duplicate</button>
               </div>
@@ -2007,22 +1999,26 @@ export async function renderStickerTemplateGallery(container, { onChange } = {})
 // Template rules (Sticker Printing > Template rules, Stage 70)
 // ---------------------------------------------------------------------------
 // Which template an item's label uses: the first rule that applies, in the
-// order engines.pickStickerTemplate checks them - Item, Item type, category,
-// default, then the built-in standard label. Each rule is stored where it
-// belongs (Item / ItemType sticker_template, a template's categories and its
-// default tick), so this screen only reads and edits those records.
+// order engines.pickStickerTemplate checks them - Item, Item type, Product
+// type, category, default, then the built-in standard label. Each rule is
+// stored where it belongs (Item / ItemType / ProductType sticker_template, a
+// template's categories and its default tick), so this screen only reads and
+// edits those records.
 
 export async function renderStickerTemplateRules(container) {
-  const [tRes, typeRes, catRes] = await Promise.all([
+  const [tRes, typeRes, ptRes, catRes] = await Promise.all([
     window.apiFetch('/api/v1/doc/StickerTemplate'),
     window.apiFetch('/api/v1/doc/ItemType'),
+    window.apiFetch('/api/v1/doc/ProductType'),
     window.apiFetch('/api/v1/doc/Category')
   ]);
   if (!tRes) return;
   if (!tRes.ok) { window.renderErrorPanel?.(container, 'Failed to load sticker templates.', () => window.renderView('stickers')); return; }
-  const all = await tRes.json();
-  const active = all.filter(t => (t.status || 'Active') === 'Active');
+  let all = await tRes.json();
+  let active = all.filter(t => (t.status || 'Active') === 'Active');
+  const designs = E.unsavedDesigns(all);
   const types = typeRes && typeRes.ok ? await typeRes.json() : [];
+  const productTypes = ptRes && ptRes.ok ? (await ptRes.json()).filter(p => (p.status || 'Active') === 'Active') : [];
   const masterCats = catRes && catRes.ok ? (await catRes.json()).filter(c => (c.status || 'Active') === 'Active').map(c => c.name || c.code) : [];
   const splitCats = t => String(t.categories || '').split(',').map(c => c.trim()).filter(Boolean);
   const catKey = c => c.toLowerCase();
@@ -2044,15 +2040,16 @@ export async function renderStickerTemplateRules(container) {
   }));
   const withItems = itemCounts.filter(x => x.n > 0);
   const tplName = t => esc(t.name || t.code || t.id);
-  const off = active.length ? '' : 'disabled';
+  const off = active.length || designs.length ? '' : 'disabled';
   const options = (selected, first) => `<option value="">${esc(first)}</option>` +
-    active.map(t => `<option value="${esc(t.id)}" ${t.id === selected ? 'selected' : ''}>${tplName(t)}</option>`).join('');
+    active.map(t => `<option value="${esc(t.id)}" ${t.id === selected ? 'selected' : ''}>${tplName(t)}</option>`).join('') +
+    designs.map(d => `<option value="design:${esc(d.id)}">${esc(d.label)} (built-in)</option>`).join('');
 
   const panel = document.createElement('div');
   panel.className = 'table-panel stk-gallery stk-rules';
   panel.innerHTML = `
     <div class="stk-gallery-head"><h2>Template rules</h2></div>
-    ${active.length ? '' : '<p class="stk-muted stk-gallery-hint">No Active templates yet, so every label prints the standard label. Make one on the Sticker templates tab, then set the rules here.</p>'}
+    ${off ? '<p class="stk-muted stk-gallery-hint">No Active templates yet, so every label prints the standard label. Make one on the Sticker templates tab, then set the rules here.</p>' : ''}
     <ol class="stk-rules-list">
       <li class="stk-rule">
         <div class="stk-rule-head"><span class="stk-rule-n">1</span><strong>Item</strong><span class="stk-muted">Item form → Sticker template</span></div>
@@ -2065,7 +2062,13 @@ export async function renderStickerTemplateRules(container) {
         </tbody></table>` : '<p class="stk-rule-note">No item types to show.</p>'}
       </li>
       <li class="stk-rule">
-        <div class="stk-rule-head"><span class="stk-rule-n">3</span><strong>Category</strong></div>
+        <div class="stk-rule-head"><span class="stk-rule-n">3</span><strong>Product type</strong></div>
+        ${productTypes.length ? `<table class="stk-rule-table"><thead><tr><th>Product type</th><th>Template</th></tr></thead><tbody>
+          ${productTypes.map(p => `<tr><td>${esc(p.name || p.code || p.id)}</td><td><select class="form-input" data-rule-ptype="${esc(p.id)}" ${off}>${options(p.sticker_template || '', 'Next rule')}</select></td></tr>`).join('')}
+        </tbody></table>` : '<p class="stk-rule-note">No product types to show.</p>'}
+      </li>
+      <li class="stk-rule">
+        <div class="stk-rule-head"><span class="stk-rule-n">4</span><strong>Category</strong></div>
         <table class="stk-rule-table"><thead><tr><th>Category</th><th>Template</th></tr></thead><tbody>
           ${cats.map(c => `<tr><td>${esc(c)}</td><td><select class="form-input" data-rule-cat="${esc(c)}" ${off}>${options(catTemplate.get(catKey(c)) || '', 'Next rule')}</select></td></tr>`).join('')}
           <tr><td><input class="form-input" data-rule-newcat placeholder="Another category" aria-label="Another category" ${off}></td>
@@ -2073,11 +2076,11 @@ export async function renderStickerTemplateRules(container) {
         </tbody></table>
       </li>
       <li class="stk-rule">
-        <div class="stk-rule-head"><span class="stk-rule-n">4</span><strong>Default</strong></div>
+        <div class="stk-rule-head"><span class="stk-rule-n">5</span><strong>Default</strong></div>
         <select class="form-input stk-rule-default" data-rule-default aria-label="Default template" ${off}>${options(defaultTpl ? defaultTpl.id : '', 'Standard label (built-in)')}</select>
       </li>
       <li class="stk-rule">
-        <div class="stk-rule-head"><span class="stk-rule-n">5</span><strong>Standard label</strong><span class="stk-muted">built-in, 50 × 25 mm</span></div>
+        <div class="stk-rule-head"><span class="stk-rule-n">6</span><strong>Standard label</strong><span class="stk-muted">built-in, 50 × 25 mm</span></div>
         <div><button class="btn btn-outline btn-sm" data-rule-std>Duplicate the standard label</button></div>
       </li>
     </ol>`;
@@ -2087,8 +2090,27 @@ export async function renderStickerTemplateRules(container) {
   const saved = msg => { window.showToast?.(msg, { variant: 'success' }); reload(); };
   const busy = async (el, fn) => { el.disabled = true; try { return await fn(); } finally { el.disabled = false; } };
 
+  // A built-in design picked here is saved as a template first (Stage 113.2);
+  // null = it could not be, so the rule is left as it was.
+  const pick = async sel => {
+    if (!sel.value.startsWith('design:')) return sel.value;
+    const id = await E.ensureDesignTemplate(sel.value.slice('design:'.length));
+    if (!id) return null;
+    const r = await window.apiFetch('/api/v1/doc/StickerTemplate');
+    if (r && r.ok) { all = await r.json(); active = all.filter(t => (t.status || 'Active') === 'Active'); }
+    return id;
+  };
+
   panel.querySelectorAll('[data-rule-type]').forEach(sel => sel.addEventListener('change', () => busy(sel, async () => {
-    if (await patchDoc('ItemType', sel.dataset.ruleType, { sticker_template: sel.value })) saved(`Item type ${sel.dataset.ruleType} saved.`);
+    const v = await pick(sel);
+    if (v === null) return reload();
+    if (await patchDoc('ItemType', sel.dataset.ruleType, { sticker_template: v })) saved(`Item type ${sel.dataset.ruleType} saved.`);
+  })));
+  panel.querySelectorAll('[data-rule-ptype]').forEach(sel => sel.addEventListener('change', () => busy(sel, async () => {
+    const v = await pick(sel);
+    if (v === null) return reload();
+    const name = sel.closest('tr').firstElementChild.textContent;
+    if (await patchDoc('ProductType', sel.dataset.rulePtype, { sticker_template: v })) saved(`Product type ${name} saved.`);
   })));
 
   // A category belongs to one template: taken off every other Active
@@ -2105,7 +2127,9 @@ export async function renderStickerTemplateRules(container) {
     return true;
   };
   panel.querySelectorAll('[data-rule-cat]').forEach(sel => sel.addEventListener('change', () => busy(sel, async () => {
-    if (await setCategory(sel.dataset.ruleCat, sel.value)) saved(`Category ${sel.dataset.ruleCat} saved.`);
+    const v = await pick(sel);
+    if (v === null) return reload();
+    if (await setCategory(sel.dataset.ruleCat, v)) saved(`Category ${sel.dataset.ruleCat} saved.`);
   })));
   const newCat = panel.querySelector('[data-rule-newcat]');
   const newCatTpl = panel.querySelector('[data-rule-newcat-tpl]');
@@ -2113,14 +2137,18 @@ export async function renderStickerTemplateRules(container) {
     const cat = newCat.value.replace(/,/g, ' ').trim();
     if (!newCatTpl.value) return;
     if (!cat) { newCatTpl.value = ''; newCat.focus(); window.showToast?.('Type the category first.', { variant: 'error' }); return; }
-    if (await setCategory(cat, newCatTpl.value)) saved(`Category ${cat} saved.`);
+    const v = await pick(newCatTpl);
+    if (v === null) return reload();
+    if (await setCategory(cat, v)) saved(`Category ${cat} saved.`);
   }));
 
   // One default: ticked on the chosen template, cleared on every other.
   const def = panel.querySelector('[data-rule-default]');
   def.addEventListener('change', () => busy(def, async () => {
+    const v = await pick(def);
+    if (v === null) return reload();
     for (const t of all) {
-      if ((t.id === def.value) !== isDefault(t) && !await patchDoc('StickerTemplate', t.id, { is_default: t.id === def.value })) return;
+      if ((t.id === v) !== isDefault(t) && !await patchDoc('StickerTemplate', t.id, { is_default: t.id === v })) return;
     }
     saved('Default template saved.');
   }));

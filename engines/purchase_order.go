@@ -46,7 +46,9 @@ type POLineInput struct {
 // is ComputePurchaseOrderGST at the generic doc choke point, unchanged.
 type POLinePreview struct {
 	POLineInput
-	ItemName  string  `json:"item_name,omitempty"`
+	ItemName string `json:"item_name,omitempty"`
+	// Design is the design (ProductFamily) the item is a combination of (118.3).
+	Design    string  `json:"design,omitempty"`
 	UOM       string  `json:"uom,omitempty"`
 	HSNCode   string  `json:"hsn_code,omitempty"`
 	GSTRate   float64 `json:"gst_rate"`
@@ -149,6 +151,7 @@ func PreviewPurchaseOrder(tenantID string, payload map[string]interface{}) (POPr
 
 		if item, errItem := ResolveItemBySKU(tenantID, l.SKU); errItem == nil {
 			p.ItemName, _ = item.Data["name"].(string)
+			p.Design = firstNonEmpty(strField(item.Data, "parent_product_code"), strField(item.Data, "family"))
 			p.UOM, _ = item.Data["uom"].(string)
 			p.Attributes = ItemAttributeValues(tenantID, item.Data, designs)
 		}

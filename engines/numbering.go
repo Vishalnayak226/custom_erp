@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 )
@@ -111,13 +110,14 @@ func GenerateSequence(tenantID, docType, storeCode, financialYear string) (strin
 	}
 
 	// 1. Fetch prefix configuration for this document type
-	var prefix, suffix, separator, resetFreq, overridesRaw, yearFormat string
+	var prefix, suffix, separator, resetFreq, overridesRaw, yearFormat, yearPosition string
 	var paddingWidth int
 	var activeStatus, includeStore bool
 	queryConfig := `SELECT prefix, COALESCE(suffix, ''), separator, padding_width, reset_frequency, active_status,
-	                       COALESCE(include_store, TRUE), COALESCE(store_overrides, '{}'::jsonb)::text, COALESCE(year_format, '')
+	                       COALESCE(include_store, TRUE), COALESCE(store_overrides, '{}'::jsonb)::text, COALESCE(year_format, ''),
+	                       COALESCE(year_position, '')
 	                FROM prefix_configs WHERE doc_type = $1`
-	err = tx.QueryRow(queryConfig, docType).Scan(&prefix, &suffix, &separator, &paddingWidth, &resetFreq, &activeStatus, &includeStore, &overridesRaw, &yearFormat)
+	err = tx.QueryRow(queryConfig, docType).Scan(&prefix, &suffix, &separator, &paddingWidth, &resetFreq, &activeStatus, &includeStore, &overridesRaw, &yearFormat, &yearPosition)
 	if err == sql.ErrNoRows {
 		// Use default fallbacks
 		prefix = docType
@@ -200,51 +200,38 @@ func GenerateSequence(tenantID, docType, storeCode, financialYear string) (strin
 	formatStr := fmt.Sprintf("%%0%dd", paddingWidth)
 	paddedNum := fmt.Sprintf(formatStr, nextVal)
 
-	// Format: <Prefix>/[<Store>/][<Period>/]<PaddedNum>[/<Suffix>]
+	if !includeStore || storeCode == "" {
+		storeSegment = ""
+	}
+	return joinNumberParts(prefix, storeSegment, periodSegment, paddedNum, suffix, separator, yearPosition), nil
+}
+
+// YearPositionEnd puts a series' year after the running number and suffix
+// (Stage 115.1, user: "year in the end"); blank keeps it before the number.
+const YearPositionEnd = "END"
+
+// joinNumberParts is the one layout of a document number, shared by issuing
+// (GenerateSequence) and the save-time checks (seriesSampleNumbers):
+// <Prefix>/[<Store>/][<Period>/]<Number>[/<Suffix>], or with the year at the
+// end <Prefix>/[<Store>/]<Number>[/<Suffix>][/<Period>]. Empty parts are
+// left out.
+func joinNumberParts(prefix, store, period, number, suffix, sep, yearPosition string) string {
 	parts := []string{}
-	if prefix != "" {
-		parts = append(parts, prefix)
+	for _, p := range []string{prefix, store} {
+		if p != "" {
+			parts = append(parts, p)
+		}
 	}
-	if includeStore && storeCode != "" {
-		parts = append(parts, storeSegment)
+	atEnd := strings.EqualFold(yearPosition, YearPositionEnd)
+	if period != "" && !atEnd {
+		parts = append(parts, period)
 	}
-	if periodSegment != "" {
-		parts = append(parts, periodSegment)
-	}
-	parts = append(parts, paddedNum)
+	parts = append(parts, number)
 	if suffix != "" {
 		parts = append(parts, suffix)
 	}
-
-	return strings.Join(parts, separator), nil
-}
-
-// GenerateVariantCode constructs a variant/child identifier from the parent code and attribute values using a template format pattern
-func GenerateVariantCode(tenantID string, parentCode string, pattern string, attributes map[string]string) string {
-	if pattern == "" {
-		// Fallback default concatenation: ParentCode-AttrVal1-AttrVal2.
-		// Keys are sorted before appending their values - Go map iteration
-		// order is randomized per-run, which would otherwise make the exact
-		// same attribute set produce a different-looking code on a later
-		// call (e.g. after a service restart) instead of a stable one.
-		keys := make([]string, 0, len(attributes))
-		for k := range attributes {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		parts := []string{parentCode}
-		for _, k := range keys {
-			if v := attributes[k]; v != "" {
-				parts = append(parts, v)
-			}
-		}
-		return strings.Join(parts, "-")
+	if period != "" && atEnd {
+		parts = append(parts, period)
 	}
-
-	result := pattern
-	result = strings.ReplaceAll(result, "{Parent}", parentCode)
-	for k, v := range attributes {
-		result = strings.ReplaceAll(result, "{"+k+"}", v)
-	}
-	return result
+	return strings.Join(parts, sep)
 }

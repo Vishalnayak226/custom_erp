@@ -520,18 +520,12 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 			rowIsCreate = false
 		}
 
-		// Stage 51.8: an imported Item under a parent design gets its
-		// Combination ID/SKU generated from that design's code plus its own
-		// variant attributes, exactly as the single-record save path does.
-		// Stage 51.9 found this unreachable from bulk import -
-		// PrepareItemVariantCode had one caller, handleGenericDoc - so every
-		// bulk-imported variant got a plain sequence number instead of a real
-		// SKU, and the only migration that needed one had to pre-compute all
-		// 34 codes by hand in a transform script. Positioned before
-		// ValidateDocument for the same reason as on the save path: code is a
-		// mandatory field, so it must be populated before the mandatory check
-		// runs. A no-op for a standalone Item, for any other doctype, and for
-		// a row that already carries an explicit code.
+		// Stage 51.8: an imported Item under a parent design gets its variant
+		// values and the duplicate-combination check exactly as the
+		// single-record save path does; its Combination ID is then the next
+		// Item number, below (Stage 117). A no-op for a standalone Item, for
+		// any other doctype, and for a row that already carries an explicit
+		// code.
 		if doctype == "Item" {
 			// Stage 89: the item name's category / type / HSN / GST and the org's
 			// defaults, as on the save path.
@@ -555,8 +549,7 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 		// stands in for the mandatory code.
 		needsNumber := false
 		if rowIsCreate && strings.TrimSpace(strField(docData, "code")) == "" && strings.TrimSpace(strField(docData, "id")) == "" {
-			if isMaster, _ := lk.masterDoctype(); (isMaster || IsServerNumberedMaster(doctype)) && !IsTypedCodeMaster(doctype) &&
-				!(doctype == "Item" && strings.TrimSpace(strField(docData, "family")) != "") {
+			if isMaster, _ := lk.masterDoctype(); (isMaster || IsServerNumberedMaster(doctype)) && !IsTypedCodeMaster(doctype) {
 				needsNumber = true
 				docData["code"] = "PENDING-NUMBER"
 			}

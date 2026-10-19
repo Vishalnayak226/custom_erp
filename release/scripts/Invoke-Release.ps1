@@ -78,7 +78,11 @@ foreach ($tool in @('git', 'node', 'pwsh', 'graphify')) {
 foreach ($p in @($go, $gofmt, $cfg.psql)) { if (-not (Test-Path $p)) { Stop-Release "not found: $p (release\config.json)" } }
 $branch = (Invoke-Git @('rev-parse', '--abbrev-ref', 'HEAD'))[0]
 if ($branch -ne 'main') { Stop-Release "the repo is on '$branch', not main" }
-if (@((Invoke-Git @('diff', '--cached', '--name-only')) | Where-Object { $_ }).Count) { Stop-Release 'something is already staged in the index - a session is mid-commit; let it finish' }
+$staged = @((Invoke-Git @('diff', '--cached', '--name-only')) | Where-Object { $_ })
+if ($staged.Count) {
+    # 2026-10-19: a finished session had left a `git rm` staged; unstaging kept the deletion and Release shipped it.
+    Stop-Release "already staged in the index: $(($staged | Select-Object -First 6) -join ', ') - a session may be mid-commit; let it finish. If it is finished work, ``git reset -q -- <path>`` unstages it and keeps the change; then run Release again"
+}
 Invoke-Git @('fetch', '-q', 'origin') | Out-Null
 $behind = [int](Invoke-Git @('rev-list', '--count', 'main..origin/main'))[0]
 if ($behind -gt 0) { Stop-Release "main is $behind commit(s) behind origin/main - pull first" }

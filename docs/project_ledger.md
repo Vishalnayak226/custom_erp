@@ -44,6 +44,43 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 268. Stages 114 and 115 — a leaner PO entry with prices that flow and are required, PO MRP to the GRN, MRP rules per product type; number series year at the end and a deleted store no longer blocks a save (2026-10-19, code)
+
+From the user's New purchase order, sample PO, and Number Series screenshots; decisions asked and answered the same day. Full detail in checklist Stages 114 and 115.
+
+- **114.1-114.4, 114.7 (PO entry):** Design # reads "auto - or type one"; the design-level price / MRP fill every variant row as typed, an emptied row inherits (it used to hide the price and go on at 0); Qty only on the variants; + Attribute says which box is empty; purchase price required at Add, at Create Draft and in the screen's preview (red line) - not in the shared preview function, so prints and costing of older POs are unchanged.
+- **114.2 (the sample, not a copy):** lines grouped by design under a heading, totals in a strip under the lines, Ctrl+D add / Alt+R Reset with key hints.
+- **114.5 / 114.6 (MRP):** a PO line's MRP is carried onto the receipt line and fills the MRP step's box; new master MRPRule (multiplier, price bands, weight + price) picked per Product type or by a default, suggesting on the GRN price incl. GST through the existing price ending, named on the MRP step; the old markup stays as the fallback.
+- **115.1 / 115.2 (number series):** "Where the year goes" - before the number or at the end - through one layout function shared by issuing and the save check; a deleted store's code stays reserved but its number is no longer held against the GST rules (it was blocking every save with a store the form does not show).
+- Verified: full engines, server and db suites pass (db's own tests only connect when pointed at this session's 5490 instance); new numbering, MRP and DB tests; Playwright on a scratch server for every screen change; scratch records deleted. Two new migrations, applied by hand to the 5490 DB only.
+
+## 267. Stage 117 — Combination IDs numbered in sequence; number series with plain names, grouped (2026-10-19, code)
+
+From the user's Prefix Configurations screenshot. Full detail in checklist Stage 117.
+
+- **117.1:** a new combination takes the next Item-series number (`I00042`) instead of the design plus its values (`D00001-Red-S`); the prefix is set on Prefix Configurations as **Combination ID / item**. The duplicate check is by design + values and runs before the number is drawn. Existing combinations keep their IDs. `GenerateVariantCode` and the 94.16 skip are gone.
+- **117.2 / 117.3:** series read by plain name (Design, not ProductFamily) and sit in groups (Procurement ... Products & barcodes) with a group drop-down beside New Series.
+- Verified: scratch server + Playwright; engines and server suites pass. Guides updated (ADMIN_GUIDE, USER_GUIDE, ADMIN_SOP, UAT_CHECKLIST).
+
+## 266. Stage 118 (+114.8) — vendor fixed once picked; names, not codes, in pickers and PO / GRN lines (2026-10-19, code)
+
+From the user's Purchase Orders and New purchase order screenshots. Full detail in checklist Stage 118 and 114.8.
+
+- **118.1:** "Receive goods asks for the vendor" was the shared picker opening its list on a locked box; `attachTypeahead` now opens nothing on a read-only or disabled box, on every screen.
+- **118.2:** the PO's vendor locks once it is a real vendor; the GRN's locks once a PO is added and stays locked if the PO is removed (a different vendor's PO is refused by name). The top Reset - which already discards unsaved screen work - is the way to start over.
+- **118.3 / 114.8:** picker rows are names only (a code only to tell two same-named records apart); PO and GRN lines show #, Product, Design, Combination ID and the attribute values. The PO preview gained `design`; the GRN reads names through that preview rather than a new endpoint. 118.4 (the remaining screens) is open.
+- Verified: go vet, engines + server preview tests, Playwright on a scratch server; cold core went down (183,737 / 184,320 B).
+
+## 265. Stages 113 and 116 — sticker template per Product type, every design on the drop-downs, the Seznik tag; frozen headers stop leaking rows (2026-10-19, code)
+
+From the user's Template rules, Print and Prefix Configurations screenshots. Full detail in checklist Stages 113 and 116; Stages 114 (PO entry) and 115 (number series) were opened the same day and are not built yet.
+
+- **113.1 Product type rule:** `ProductType.sticker_template` (additive migration); the rule order is Item → Item type → Product type → Category → Default → standard label, so nothing that prints today changes. Item holds the type's name, so the type is found by name, code or id.
+- **113.2 Built-in designs everywhere a template is picked:** Print and Template rules list the unsaved Square / Ring / Seznik designs as "(built-in)"; picking one saves it once as the client's own template (`ensureDesignTemplate`) - the server's rules and prints only know saved templates.
+- **113.3 Seznik 100 × 14.3:** Stage 106 had added the size only. Amazon refused the fetch, so the design is the client's Ring tag layout (barcode panel, text panel, tail) stretched to the taller tag; not yet printed on the roll.
+- **116.1 Frozen headers:** the page scroller's 24px top padding left a band above every frozen table header that scrolled rows showed through; the gap is now a spacer inside the scroll, so the page looks the same at rest and headers freeze flush.
+- Verified: go build/vet, rule-order and DB sticker tests, Playwright on a scratch server (rules, Print, gallery, header measured before/after, transaction-screen spacing at two widths).
+
 ## 264. Stages 110-112 — goods receipt follows the PO's GST; plain-words Verify; sticker load, print on scan, Square/Ring cards (2026-10-19, code)
 
 From the user's GRN/PO, Verify and Sticker Printing screenshots. Full detail in checklist Stages 110-112.

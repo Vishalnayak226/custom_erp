@@ -4411,7 +4411,7 @@
   ],
   "migrations": {
     "base_schema_file": "db/migration.sql",
-    "incremental_files": 255,
+    "incremental_files": 258,
     "newest": [
       "migrations_stage98_1_print_transactions.sql",
       "migrations_stage98_3_store_email.sql",
@@ -4769,7 +4769,7 @@
     "direct_dependencies": 2,
     "environment_flags": 35,
     "environment_flags_security_critical": 13,
-    "incremental_migrations": 255,
+    "incremental_migrations": 258,
     "outbound_call_sites": 11,
     "routes": 687,
     "routes_integration_credential": 5,

@@ -414,19 +414,20 @@ func TestStickerTemplateRulesAndChosenTemplate(t *testing.T) {
 
 	const (
 		tmplItem, tmplType, tmplCat, tmplOff = "TEST68-TMPL-ITEM", "TEST68-TMPL-TYPE", "TEST68-TMPL-CAT", "TEST68-TMPL-OFF"
+		tmplPType, productType, skuPType     = "TEST113-TMPL-PTYPE", "TEST113-PTYPE", "TEST113-SKU-PTYPE"
 		itemType                             = "TEST68-TYPE"
 		skuOwn, skuType, skuCat, skuOff      = "TEST68-SKU-OWN", "TEST68-SKU-TYPE", "TEST68-SKU-CAT", "TEST68-SKU-OFF"
 		grnID, printerCode                   = "TEST68-GRN", "TEST68-PRINTER"
 		category                             = "Test68 Rings"
 	)
-	ids := []string{tmplItem, tmplType, tmplCat, tmplOff, itemType, skuOwn, skuType, skuCat, skuOff, grnID, printerCode}
+	ids := []string{tmplItem, tmplType, tmplCat, tmplOff, itemType, skuOwn, skuType, skuCat, skuOff, grnID, printerCode, tmplPType, productType, skuPType}
 	stickerTestCleanup(schema, ids)
 	defer stickerTestCleanup(schema, ids)
 	defer InvalidateItemTypeCache(tenantID)
 
 	elements, _ := json.Marshal([]map[string]interface{}{{"id": "e1", "field": "name", "x_mm": 2, "y_mm": 2, "w_mm": 30, "h_mm": 6}})
 	for id, extra := range map[string]map[string]interface{}{
-		tmplItem: {}, tmplType: {}, tmplCat: {"categories": category}, tmplOff: {"status": "Inactive"},
+		tmplItem: {}, tmplType: {}, tmplCat: {"categories": category}, tmplOff: {"status": "Inactive"}, tmplPType: {},
 	} {
 		data := map[string]interface{}{"code": id, "name": id, "label_width_mm": 40, "label_height_mm": 20, "elements": string(elements), "status": "Active"}
 		for k, v := range extra {
@@ -437,13 +438,18 @@ func TestStickerTemplateRulesAndChosenTemplate(t *testing.T) {
 	stickerTestInsert(t, schema, itemType, "ItemType", map[string]interface{}{"code": itemType, "sticker_template": tmplType, "status": "Active"})
 	InvalidateItemTypeCache(tenantID)
 	stickerTestInsert(t, schema, skuOwn, "Item", map[string]interface{}{"code": skuOwn, "name": "Own", "category": category, "item_type": itemType, "sticker_template": tmplItem})
-	stickerTestInsert(t, schema, skuType, "Item", map[string]interface{}{"code": skuType, "name": "Type", "category": category, "item_type": itemType})
+	// Stage 113: a Product Type's template, found from the type's name the Item holds
+	// (any case); the Item Type's still comes first, the category after.
+	stickerTestInsert(t, schema, productType, "ProductType", map[string]interface{}{"code": productType, "name": "Test113 Ring", "sticker_template": tmplPType, "status": "Active"})
+	stickerTestInsert(t, schema, skuType, "Item", map[string]interface{}{"code": skuType, "name": "Type", "category": category, "item_type": itemType, "product_type": "Test113 Ring"})
+	stickerTestInsert(t, schema, skuPType, "Item", map[string]interface{}{"code": skuPType, "name": "PType", "category": category, "product_type": "test113 ring"})
 	stickerTestInsert(t, schema, skuCat, "Item", map[string]interface{}{"code": skuCat, "name": "Cat", "category": category})
 	stickerTestInsert(t, schema, skuOff, "Item", map[string]interface{}{"code": skuOff, "name": "Off", "category": category, "sticker_template": tmplOff})
 	stickerTestInsert(t, schema, printerCode, "Printer", map[string]interface{}{"code": printerCode, "name": "Rule Printer", "status": "Active", "printer_language": "ZPL"})
 	receivedJSON, _ := json.Marshal([]map[string]interface{}{
 		{"sku": skuOwn, "qty": 1, "accepted_qty": 1}, {"sku": skuType, "qty": 2, "accepted_qty": 2},
 		{"sku": skuCat, "qty": 3, "accepted_qty": 3}, {"sku": skuOff, "qty": 4, "accepted_qty": 4},
+		{"sku": skuPType, "qty": 1, "accepted_qty": 1},
 	})
 	stickerTestInsert(t, schema, grnID, "GRN", map[string]interface{}{"code": grnID, "location": "TEST68-LOC", "received_items": string(receivedJSON)})
 
@@ -452,10 +458,11 @@ func TestStickerTemplateRulesAndChosenTemplate(t *testing.T) {
 		t.Fatalf("PreviewDocumentStickerLines: %v", err)
 	}
 	want := map[string][2]string{
-		skuOwn:  {tmplItem, StickerRuleItem},
-		skuType: {tmplType, StickerRuleItemType},
-		skuCat:  {tmplCat, StickerRuleCategory},
-		skuOff:  {tmplCat, StickerRuleCategory}, // its own template is Inactive
+		skuOwn:   {tmplItem, StickerRuleItem},
+		skuType:  {tmplType, StickerRuleItemType},
+		skuCat:   {tmplCat, StickerRuleCategory},
+		skuOff:   {tmplCat, StickerRuleCategory}, // its own template is Inactive
+		skuPType: {tmplPType, StickerRuleProductType},
 	}
 	for _, p := range preview {
 		if w := want[p.SKU]; p.TemplateID != w[0] || p.TemplateRule != w[1] {

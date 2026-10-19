@@ -48,7 +48,11 @@ release\
 
 The server side stays in `deploy\`, next to `backup.sh`, because that folder is
 what lands in `/opt/erp/deploy` on the box: `server_cleanup.sh` (the cleanup) and
-`install_cleanup_cron.sh` (its 03:30 root cron, refreshed by every deploy).
+`install_cleanup_cron.sh` (its 03:30 root cron, refreshed by every deploy), and
+`erp.service` (the systemd unit) with `install_service_unit.sh`, which every
+deploy runs: it installs the unit whenever it differs from the live one and puts
+the old one back by itself if the ERP is not healthy on it. The Deploy click
+(and `-Check`) says whether the live unit matches the repo.
 
 From a terminal the same scripts take options:
 

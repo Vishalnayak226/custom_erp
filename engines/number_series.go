@@ -45,6 +45,7 @@ type NumberSeries struct {
 	IncludeStore   bool                           `json:"include_store"`
 	StoreOverrides map[string]StoreSeriesOverride `json:"store_overrides"`
 	YearFormat     string                         `json:"year_format"`
+	YearPosition   string                         `json:"year_position"` // "" before the number, END at the end (115.1)
 }
 
 var validResetFrequency = map[string]bool{"ANNUAL": true, "MONTHLY": true, "NEVER": true}
@@ -92,6 +93,11 @@ var seriesStoreCodePattern = regexp.MustCompile(`^[A-Z0-9\-]{1,10}$`)
 type seriesStore struct {
 	Code    string // the store code (the counter key, and the overrides' key)
 	Segment string // its Short Code, else its store code (storeNumberSegment)
+	Name    string // what a message calls it
+	// Deleted stores keep their code taken but issue no new number, so their
+	// sample number is not held against the GST rules (Stage 115.2: a deleted
+	// store's code, invisible on the form, blocked every save).
+	Deleted bool
 }
 
 // counterSeries mint values that are never a document id: barcode digits and
@@ -112,7 +118,7 @@ func ListNumberSeries(tenantID string) ([]NumberSeries, error) {
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, doc_type, prefix, COALESCE(suffix, ''), COALESCE(separator, '/'), COALESCE(padding_width, 6),
 		       COALESCE(reset_frequency, 'ANNUAL'), COALESCE(active_status, TRUE), COALESCE(include_store, TRUE),
-		       COALESCE(store_overrides, '{}'::jsonb)::text, COALESCE(year_format, '')
+		       COALESCE(store_overrides, '{}'::jsonb)::text, COALESCE(year_format, ''), COALESCE(year_position, '')
 		  FROM %s.prefix_configs ORDER BY doc_type`, schema))
 	if err != nil {
 		return nil, err
@@ -123,7 +129,7 @@ func ListNumberSeries(tenantID string) ([]NumberSeries, error) {
 		var s NumberSeries
 		var overrides string
 		if err := rows.Scan(&s.ID, &s.DocType, &s.Prefix, &s.Suffix, &s.Separator, &s.PaddingWidth,
-			&s.ResetFrequency, &s.ActiveStatus, &s.IncludeStore, &overrides, &s.YearFormat); err != nil {
+			&s.ResetFrequency, &s.ActiveStatus, &s.IncludeStore, &overrides, &s.YearFormat, &s.YearPosition); err != nil {
 			return nil, err
 		}
 		s.StoreOverrides = parseStoreOverrides(overrides)
@@ -178,6 +184,7 @@ func SaveNumberSeries(tenantID string, s NumberSeries, includeStore *bool, overr
 		norm = func(v string) string { return strings.ToUpper(strings.TrimSpace(v)) }
 		s.Prefix, s.Suffix = norm(s.Prefix), norm(s.Suffix)
 	}
+	s.YearPosition = strings.ToUpper(strings.TrimSpace(s.YearPosition))
 	cleaned := map[string]StoreSeriesOverride{}
 	for store, o := range overrides {
 		store = strings.TrimSpace(store)
@@ -214,14 +221,15 @@ func SaveNumberSeries(tenantID string, s NumberSeries, includeStore *bool, overr
 		return err
 	}
 	_, err = db.DB.Exec(fmt.Sprintf(`
-		INSERT INTO %s.prefix_configs (doc_type, prefix, suffix, separator, padding_width, reset_frequency, active_status, include_store, store_overrides, year_format)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)
+		INSERT INTO %s.prefix_configs (doc_type, prefix, suffix, separator, padding_width, reset_frequency, active_status, include_store, store_overrides, year_format, year_position)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11)
 		ON CONFLICT (doc_type) DO UPDATE SET
 			prefix = EXCLUDED.prefix, suffix = EXCLUDED.suffix, separator = EXCLUDED.separator,
 			padding_width = EXCLUDED.padding_width, reset_frequency = EXCLUDED.reset_frequency,
 			active_status = EXCLUDED.active_status, include_store = EXCLUDED.include_store,
-			store_overrides = EXCLUDED.store_overrides, year_format = EXCLUDED.year_format`, schema),
-		s.DocType, s.Prefix, s.Suffix, s.Separator, s.PaddingWidth, s.ResetFrequency, s.ActiveStatus, include, string(overridesJSON), s.YearFormat)
+			store_overrides = EXCLUDED.store_overrides, year_format = EXCLUDED.year_format,
+			year_position = EXCLUDED.year_position`, schema),
+		s.DocType, s.Prefix, s.Suffix, s.Separator, s.PaddingWidth, s.ResetFrequency, s.ActiveStatus, include, string(overridesJSON), s.YearFormat, s.YearPosition)
 	return err
 }
 
@@ -230,17 +238,21 @@ func SaveNumberSeries(tenantID string, s NumberSeries, includeStore *bool, overr
 // prints or is coded that, else its store code. Deleted stores are included:
 // their numbers exist, so a code they printed is still taken.
 func loadSeriesStores(schema string) ([]seriesStore, error) {
-	rows, err := db.DB.Query(fmt.Sprintf(`SELECT COALESCE(NULLIF(data->>'code', ''), id), COALESCE(TRIM(data->>'short_code'), '')
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT COALESCE(NULLIF(data->>'code', ''), id), COALESCE(TRIM(data->>'short_code'), ''),
+			COALESCE(NULLIF(TRIM(data->>'name'), ''), NULLIF(data->>'code', ''), id), deleted_at IS NOT NULL
 		FROM %s.documents WHERE doctype = 'Location' ORDER BY 1`, schema))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	type loc struct{ code, short string }
+	type loc struct {
+		code, short, name string
+		deleted           bool
+	}
 	var locs []loc
 	for rows.Next() {
 		var l loc
-		if err := rows.Scan(&l.code, &l.short); err != nil {
+		if err := rows.Scan(&l.code, &l.short, &l.name, &l.deleted); err != nil {
 			return nil, err
 		}
 		locs = append(locs, l)
@@ -260,7 +272,7 @@ func loadSeriesStores(schema string) ([]seriesStore, error) {
 				}
 			}
 		}
-		out = append(out, seriesStore{Code: l.code, Segment: segment})
+		out = append(out, seriesStore{Code: l.code, Segment: segment, Name: l.name, Deleted: l.deleted})
 	}
 	return out, nil
 }
@@ -281,7 +293,6 @@ func seriesSampleNumbers(s NumberSeries, overrides map[string]StoreSeriesOverrid
 		period = formatPeriodSegment(s.YearFormat, s.ResetFrequency, fy, now)
 	}
 	build := func(o StoreSeriesOverride, segment string) string {
-		parts := []string{}
 		prefix, suffix := s.Prefix, s.Suffix
 		if o.Prefix != "" {
 			prefix = o.Prefix
@@ -289,35 +300,29 @@ func seriesSampleNumbers(s NumberSeries, overrides map[string]StoreSeriesOverrid
 		if o.Suffix != "" {
 			suffix = o.Suffix
 		}
-		if prefix != "" {
-			parts = append(parts, prefix)
-		}
-		if segment != "" {
-			parts = append(parts, segment)
-		}
-		if period != "" {
-			parts = append(parts, period)
-		}
-		parts = append(parts, fmt.Sprintf("%0*d", s.PaddingWidth, 1))
-		if suffix != "" {
-			parts = append(parts, suffix)
-		}
-		return strings.Join(parts, s.Separator)
+		return joinNumberParts(prefix, segment, period, fmt.Sprintf("%0*d", s.PaddingWidth, 1), suffix, s.Separator, s.YearPosition)
 	}
 	if !s.IncludeStore {
 		return []seriesSample{{Number: build(StoreSeriesOverride{}, "")}}
 	}
-	if len(stores) == 0 {
-		return []seriesSample{{Number: build(StoreSeriesOverride{}, "HQ")}}
-	}
 	out := make([]seriesSample, 0, len(stores))
 	for _, st := range stores {
+		if st.Deleted {
+			continue
+		}
 		o := overrides[st.Code]
 		segment := st.Segment
 		if o.Code != "" {
 			segment = o.Code
 		}
-		out = append(out, seriesSample{Number: build(o, segment), Store: st.Code})
+		name := st.Name
+		if name == "" {
+			name = st.Code
+		}
+		out = append(out, seriesSample{Number: build(o, segment), Store: name})
+	}
+	if len(out) == 0 {
+		return []seriesSample{{Number: build(StoreSeriesOverride{}, "HQ")}}
 	}
 	return out
 }
@@ -370,6 +375,9 @@ func validateNumberSeries(s NumberSeries, current *NumberSeries, overrides map[s
 	}
 	if !validYearFormats[s.YearFormat] {
 		return bad("choose how the year is shown: 26-27, 2627, 2026-27, 26 or 2026")
+	}
+	if s.YearPosition != "" && s.YearPosition != YearPositionEnd {
+		return bad("choose where the year goes: before the number, or at the end")
 	}
 
 	// Two stores printing one code would both issue .../00001 - their counters

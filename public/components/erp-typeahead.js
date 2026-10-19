@@ -177,9 +177,7 @@ class ErpTypeahead extends HTMLElement {
   }
 
   _label(doc) {
-    const code = doc.code || doc.id || '';
-    const name = doc.name || '';
-    return name && name !== code ? `${code} — ${name}` : (code || name);
+    return doc.name || doc.code || doc.id || ''; // names, not codes (118.3)
   }
 
   _pick(doc) {

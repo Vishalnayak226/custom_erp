@@ -439,8 +439,7 @@ function renderPOComposer(panel) {
     <div class="txn-bar">
       ${poPageHead()}
       ${txnContext()}
-      <div id="po-totals" class="txn-sum"></div>
-      <div class="txn-actions">
+      <div class="txn-actions po-actions">
         <div id="po-form-error" class="login-error hidden"></div>
         ${editing ? `<button class="btn btn-ghost btn-sm" id="po-cancel-edit">Cancel</button>` : ''}
         <button class="btn btn-primary" id="po-create-btn">${editing ? 'Save changes' : 'Create Draft'}</button>
@@ -485,7 +484,7 @@ function renderPOComposer(panel) {
       </div>
       <div class="form-group txn-entry-wide pod-dno-group hidden" id="po-entry-dno-group">
         <label class="form-label" for="pod-dno">Design number</label>
-        <input type="text" id="pod-dno" class="form-input" autocomplete="off" placeholder="e.g. the vendor's no">
+        <input type="text" id="pod-dno" class="form-input" autocomplete="off" placeholder="auto - or type one" title="Leave blank for the next design number, or type the vendor's number (114.1)">
         <div id="pod-dno-suggest" class="pod-suggest hidden"></div>
       </div>
       <div class="form-group">
@@ -511,7 +510,20 @@ function renderPOComposer(panel) {
         <tbody id="po-lines-body"></tbody>
       </table>
     </div>
+    <!-- Stage 114.2: the totals under the lines, then the keys. -->
+    <div id="po-totals" class="po-totals-strip"></div>
+    <div class="po-keys"><kbd>Tab</kbd> next box <kbd>Enter</kbd> confirm / add <kbd>Esc</kbd> close a list <kbd>Ctrl+D</kbd> add the item or design <kbd>Alt+R</kbd> reset (top bar)</div>
   `;
+  // Stage 114.2 keys, while this page is open. Replaced on every render, so a
+  // module reloaded by Reset never leaves an old handler behind.
+  document.removeEventListener('keydown', window.poShortcutKeys);
+  window.poShortcutKeys = (e) => {
+    if (!document.getElementById('po-entry')?.offsetParent) return;
+    const key = e.key.toLowerCase();
+    if (e.ctrlKey && !e.altKey && !e.shiftKey && key === 'd') { e.preventDefault(); addPOEntry(); }
+    else if (e.altKey && !e.ctrlKey && key === 'r') { e.preventDefault(); document.getElementById('reset-btn')?.click(); }
+  };
+  document.addEventListener('keydown', window.poShortcutKeys);
 
   const vendorEl = document.getElementById('po-vendor');
   // Stage 64.7 (the user: "vendor should show me a drop down to select and ask
@@ -520,11 +532,21 @@ function renderPOComposer(panel) {
   // offers "Create <text>" inline and picks the new vendor.
   attachLinkTypeahead(vendorEl, 'Vendor');
   vendorEl.value = d.vendor || '';
-  vendorEl.addEventListener('change', () => { d.vendor = vendorEl.value.trim(); schedulePOPreview(); });
+  // Stage 118.2 (the user: "Once vendor selected. It should not change ...
+  // until I click the reset button"): once the box holds a real vendor it is
+  // fixed for this PO; Reset or Cancel starts a new one with the box open.
+  const freezeVendor = async () => {
+    if (d.vendor && !vendorEl.readOnly && await lookupLinkDoc('Vendor', d.vendor) && d.vendor === vendorEl.value.trim()) {
+      vendorEl.readOnly = true;
+      vendorEl.title = 'Fixed for this PO - Reset (top bar) starts a new one';
+    }
+  };
+  freezeVendor();
+  vendorEl.addEventListener('change', () => { d.vendor = vendorEl.value.trim(); schedulePOPreview(); freezeVendor(); });
   // A pick fires `change`, but a typed-and-blurred value has to be caught
   // too, or a vendor typed by hand never reaches the preview and the supply
   // type silently stays underived.
-  vendorEl.addEventListener('blur', () => { if (vendorEl.value.trim() !== d.vendor) { d.vendor = vendorEl.value.trim(); schedulePOPreview(); } });
+  vendorEl.addEventListener('blur', () => { if (vendorEl.value.trim() !== d.vendor) { d.vendor = vendorEl.value.trim(); schedulePOPreview(); } freezeVendor(); });
 
   const locEl = document.getElementById('po-location');
   const whEl = document.getElementById('po-warehouse');
@@ -581,12 +603,20 @@ function renderPOComposer(panel) {
     const el = document.getElementById(`po-entry-${field}`);
     el.value = d.entry[field] || '';
     // With an item name open, these are every combination's defaults.
+    // Stage 114.4 (the user: "If I type pp it should come from design"): a
+    // price or MRP typed here goes to every variant row, as it is typed; a
+    // row changed after that keeps its own.
     const commit = () => {
       d.entry[field] = el.value.trim();
-      if (poDesign && poDesign[field] !== d.entry[field]) { poDesign[field] = d.entry[field]; renderPOEntryAttrs(); }
+      if (poDesign && poDesign[field] !== d.entry[field]) {
+        poDesign[field] = d.entry[field];
+        poDesign.vrows.forEach(r => { delete r[field]; });
+        renderPOEntryAttrs();
+      }
     };
     el.addEventListener('change', commit);
     el.addEventListener('blur', commit);
+    if (field !== 'qty') el.addEventListener('input', () => { if (poDesign) commit(); });
     el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); addPOEntry(); } });
   });
   document.getElementById('po-entry-add').addEventListener('click', addPOEntry);
@@ -716,6 +746,13 @@ async function addPOEntryLine() {
     el('po-entry-qty').focus();
     return;
   }
+  // Stage 114.7 (the user: "PP is mandatory").
+  if (!(Number(line.rate) > 0)) {
+    errEl.textContent = 'Enter the purchase price.';
+    errEl.classList.remove('hidden');
+    el('po-entry-rate').focus();
+    return;
+  }
   errEl.classList.add('hidden');
   d.lines.push(line);
   d.entry = newPOEntry();
@@ -776,7 +813,10 @@ function renderPOLines() {
   const attrCols = (poPreview && poPreview.attribute_columns) || [];
   const head = document.getElementById('po-lines-head');
   if (head) {
-    head.innerHTML = `<th style="min-width:190px;">Item</th>
+    head.innerHTML = `<th class="num" style="width:36px;">#</th>
+      <th style="min-width:190px;">Item</th>
+      <th style="width:120px;">Design</th>
+      <th style="width:150px;">Combination ID</th>
       ${attrCols.map(a => `<th style="width:90px;">${escapeHTMLText(a.label)}</th>`).join('')}
       <th class="num" style="width:80px;">Qty</th>
       <th class="num" style="width:120px;">Purchase Price</th>
@@ -790,18 +830,34 @@ function renderPOLines() {
   }
 
   poLinesRebuilding = true;
-  body.innerHTML = d.lines.length === 0
-    ? `<tr><td colspan="${10 + attrCols.length}" class="po-lines-empty">No items yet &mdash; type an item name or a SKU above.</td></tr>`
-    : d.lines.map((line, i) => {
+  // Stage 114.2 (the user's sample: an "Added designs" list): lines grouped
+  // by design - a heading per design, its combinations under it; an item of
+  // no design stands alone. Display order only: each row keeps its own index
+  // (data-po-line), so editing and removing are unchanged.
+  const cols = 13 + attrCols.length;
+  const groups = [];
+  const byDesign = new Map();
+  d.lines.forEach((l, i) => {
+    const k = (previewLines[i] || {}).design || '';
+    if (!k) { groups.push({ rows: [i] }); return; }
+    if (!byDesign.has(k)) { const g = { design: k, rows: [] }; byDesign.set(k, g); groups.push(g); }
+    byDesign.get(k).rows.push(i);
+  });
+  let sr = 0;
+  const lineRow = (line, i) => {
+    sr++;
     const p = previewLines[i] || {};
     const err = p.error ? `<div class="po-line-error">${escapeHTMLText(p.error)}</div>` : '';
     const derived = (v, suffix = '') => (v === undefined || v === null || v === '' ? '<span class="text-muted">&mdash;</span>' : escapeHTMLText(String(v)) + suffix);
     return `
       <tr data-po-line="${i}"${p.error ? ' class="po-line-flagged"' : ''}>
+        <td class="po-derived num">${sr}</td>
         <td>
           <input type="text" class="form-input" data-po-field="sku" value="${escapeHTMLText(line.sku)}" placeholder="Search item..." title="${escapeHTMLText(p.item_name || '')}">
           ${err}
         </td>
+        <td class="po-derived">${derived(p.design)}</td>
+        <td class="po-derived">${derived(line.sku)}</td>
         ${attrCols.map(a => `<td class="po-derived">${derived((p.attributes || {})[a.code])}</td>`).join('')}
         <td><input type="number" class="form-input num" data-po-field="qty" min="1" step="1" value="${escapeHTMLText(line.qty)}"></td>
         <td><input type="number" class="form-input num" data-po-field="rate" min="0" step="0.01" value="${escapeHTMLText(line.rate)}"></td>
@@ -811,10 +867,19 @@ function renderPOLines() {
         <td class="po-derived num">${p.taxable ? formatMoney(p.taxable) : '<span class="text-muted">&mdash;</span>'}</td>
         <td class="po-derived num">${p.tax_amount ? formatMoney(p.tax_amount) : '<span class="text-muted">&mdash;</span>'}</td>
         <td class="po-derived num po-line-total">${p.line_total ? formatMoney(p.line_total) : '<span class="text-muted">&mdash;</span>'}</td>
-        <td><button type="button" class="po-line-remove" data-po-remove="${i}" title="Remove this line" aria-label="Remove line ${i + 1}">&times;</button></td>
+        <td><button type="button" class="po-line-remove" data-po-remove="${i}" title="Remove this line" aria-label="Remove line ${sr}">&times;</button></td>
       </tr>
     `;
-  }).join('');
+  };
+  const designHead = g => {
+    const ps = g.rows.map(i => previewLines[i] || {});
+    const qty = g.rows.reduce((s, i) => s + (Number(d.lines[i].qty) || 0), 0);
+    const total = ps.reduce((s, p) => s + (Number(p.line_total) || 0), 0);
+    return `<tr class="po-design-head"><td colspan="${cols}"><b>Design ${escapeHTMLText(g.design)}</b> &middot; ${g.rows.length} combination${g.rows.length === 1 ? '' : 's'} &middot; Qty ${qty}${total ? ` &middot; ${formatMoney(total)}` : ''}</td></tr>`;
+  };
+  body.innerHTML = d.lines.length === 0
+    ? `<tr><td colspan="${cols}" class="po-lines-empty">No items yet &mdash; type an item name or a SKU above.</td></tr>`
+    : groups.map(g => (g.design ? designHead(g) : '') + g.rows.map(i => lineRow(d.lines[i], i)).join('')).join('');
 
   body.querySelectorAll('[data-po-line]').forEach(tr => {
     const i = Number(tr.getAttribute('data-po-line'));
@@ -906,7 +971,8 @@ async function enterPODesignMode(code) {
   if (!res.ok) { await showApiError(res, 'Failed to load the product attributes.'); return; }
   const d = newPODesignState(await res.json());
   const e = poDraft.entry;
-  d.qty = e.qty || '1'; d.rate = e.rate || ''; d.mrp = e.mrp || '';
+  // Qty is asked per variant only (114.4); each row starts at 1.
+  d.qty = '1'; d.rate = e.rate || ''; d.mrp = e.mrp || '';
   d.before = { qty: e.qty, rate: e.rate, mrp: e.mrp };
   poDesign = d;
   await pickPOItemName(code);
@@ -927,6 +993,11 @@ function leavePODesignMode() {
   }
   renderPOEntryAttrs();
 }
+
+// vrowValue: a variant row's qty / price / MRP, else the design's (the Add
+// row's). An emptied row value inherits too - it used to hide the design's
+// price, so that row went on with none (114.4, 114.7).
+const vrowValue = (d, r, f) => (r[f] !== undefined && r[f] !== null && r[f] !== '' ? r[f] : d[f]);
 
 // poDesignValues: the distinct values the variant rows give an attribute.
 function poDesignValues(d, code) {
@@ -1048,8 +1119,8 @@ function renderPOEntryAttrs() {
   const inm = d && d.itemName;
   box.classList.toggle('hidden', !inm);
   document.getElementById('po-entry-dno-group')?.classList.toggle('hidden', !inm);
-  const qtyLabel = document.getElementById('po-entry-qty-label');
-  if (qtyLabel) qtyLabel.textContent = inm ? 'Qty each' : 'Qty';
+  // Stage 114.4 (the user: "No qty in design only variant level").
+  document.getElementById('po-entry-qty')?.closest('.form-group')?.classList.toggle('hidden', !!inm);
   syncPOEntryButton();
   if (!inm) { box.innerHTML = ''; return; }
   // Stage 94.28 (the user: "1 Parent row than varinat columns Variant row. I
@@ -1079,7 +1150,7 @@ function renderPOEntryAttrs() {
       ${canAddValue ? '<option value="__new">+ New value...</option>' : ''}
     </select>`;
   };
-  const num = (i, field, step) => `<td><input type="number" class="form-input num" min="0" step="${step}" data-pod-vrow="${i}" data-pod-field="${field}" value="${escapeHTMLText(d.vrows[i][field] ?? d[field])}"></td>`;
+  const num = (i, field, step) => `<td><input type="number" class="form-input num" min="0" step="${step}" data-pod-vrow="${i}" data-pod-field="${field}" value="${escapeHTMLText(vrowValue(d, d.vrows[i], field))}"></td>`;
   box.innerHTML = `
     <div class="po-entry-attrs-head">
       <span><strong>${escapeHTMLText(inm.name)}</strong>${inm.category ? ` &middot; ${escapeHTMLText(inm.category)}` : ''} &middot; HSN <strong>${escapeHTMLText(inm.hsn_code || '—')}</strong> &middot; GST <strong>${escapeHTMLText(String(inm.gst_rate ?? '—'))}%</strong></span>
@@ -1116,7 +1187,7 @@ function renderPOEntryAttrs() {
         <input type="text" class="form-input" id="pod-new-attr-value" placeholder="first value, e.g. Ruby">
         <button type="button" class="btn btn-outline btn-sm" id="pod-new-attr-add">+ Attribute</button>
       </span>` : ''}
-      <span class="text-muted">Qty, price and MRP come from the row above; change any one here.</span>
+      <span class="text-muted">Price and MRP come from the row above; change any one here. Qty is per variant.</span>
     </div>
   `;
 
@@ -1155,8 +1226,20 @@ function renderPOEntryAttrs() {
     renderPOEntryAttrs();
     focusCell(i, code);
   }));
+  // Stage 114.3 (the user: "Attribute is not working"): with a box empty the
+  // button did nothing at all; it now says which box to fill.
   const newAttrBtn = document.getElementById('pod-new-attr-add');
-  if (newAttrBtn) newAttrBtn.addEventListener('click', () => addPODesignAttributeValue('', document.getElementById('pod-new-attr').value, document.getElementById('pod-new-attr-value').value));
+  if (newAttrBtn) newAttrBtn.addEventListener('click', () => {
+    const nameEl = document.getElementById('pod-new-attr');
+    const valueEl = document.getElementById('pod-new-attr-value');
+    const errEl = document.getElementById('po-entry-error');
+    const name = nameEl.value.trim();
+    const missing = !name ? [nameEl, 'Type the new attribute first, e.g. Stone, then its first value.']
+      : !valueEl.value.trim() ? [valueEl, `Type a first value for ${name}, e.g. Ruby.`] : null;
+    if (missing) { errEl.textContent = missing[1]; errEl.classList.remove('hidden'); missing[0].focus(); return; }
+    errEl.classList.add('hidden');
+    addPODesignAttributeValue('', name, valueEl.value);
+  });
   box.querySelectorAll('[data-pod-typed]').forEach(input => input.addEventListener('input', () => {
     d.typed[input.getAttribute('data-pod-typed')] = input.value;
   }));
@@ -1295,6 +1378,12 @@ async function createPODesign() {
   const problem = poDesignRowProblem(d);
   if (problem) return fail(problem);
   const kept = poDesignCombinations(d);
+  // Stage 114.7: every combination needs a purchase price before anything is created.
+  const noPrice = kept.findIndex(c => !(Number(vrowValue(d, c.row, 'rate')) > 0));
+  if (noPrice !== -1) {
+    document.getElementById('po-entry-rate')?.focus();
+    return fail(kept.length > 1 ? `Row ${noPrice + 1} has no purchase price - type it in Purchase price above for every row, or in that row.` : 'Enter the purchase price.');
+  }
   const attrs = poDesignAttributes(d);
   const attrString = Object.keys(attrs).sort().map(k => `${k}:${attrs[k]}`).join(';');
   const typedNo = d.designNumber.trim();
@@ -1343,9 +1432,9 @@ async function createPODesign() {
   const failures = [];
   for (const c of kept) {
     const row = c.row;
-    const qty = Number(row.qty ?? d.qty) || 0;
-    const rate = Number(row.rate ?? d.rate) || 0;
-    const mrpRaw = row.mrp ?? d.mrp;
+    const qty = Number(vrowValue(d, row, 'qty')) || 0;
+    const rate = Number(vrowValue(d, row, 'rate')) || 0;
+    const mrpRaw = vrowValue(d, row, 'mrp');
     const existing = poDesignExistingFor(d, c.values);
     let sku = existing ? existing.sku : '';
     if (!sku) {
@@ -1508,23 +1597,19 @@ function renderPOSupplyBanner() {
 function renderPOTotals() {
   const el = document.getElementById('po-totals');
   if (!el) return;
-  // Stage 68: the bar's summary - lines, quantity, taxable, the tax split and
-  // the grand total in one place (the GST treatment field says inclusive or
-  // exclusive, so it is not repeated here).
+  // Stage 114.2 (the user's sample): a strip under the lines - designs, items,
+  // total qty, purchase cost (before GST), the GST split and the grand total.
   const lines = poDraft.lines.length;
   const qty = poDraft.lines.reduce((s, l) => s + (Number(l.qty) || 0), 0);
-  const count = lines ? `<span><b>${lines}</b> item${lines === 1 ? '' : 's'} · Qty <b>${qty}</b></span>` : '';
   const p = poPreview;
-  if (!p || !p.breakdown || (!p.breakdown.taxable_amount && !p.grand_total)) {
-    el.innerHTML = count || '<span>Add an item to see the totals and tax.</span>';
-    return;
-  }
-  const b = p.breakdown;
-  const part = (label, value) => `<span>${label} <b>${txnMoney(value)}</b></span>`;
+  const designs = new Set(((p && p.lines) || []).map(l => l.design).filter(Boolean)).size;
+  const b = (p && p.breakdown) || {};
+  const cell = (label, value, cls = '') => `<div class="po-strip-cell${cls}"><span>${label}</span><b>${value}</b></div>`;
   const nonTaxable = (b.exempt_amount || 0) + (b.nil_rated_amount || 0) + (b.zero_rated_amount || 0);
-  el.innerHTML = `${count}${part('Taxable', b.taxable_amount)}${nonTaxable ? part('Exempt / nil', nonTaxable) : ''}
-    ${b.interstate ? part('IGST', b.igst) : part('CGST', b.cgst) + part('SGST', b.sgst)}
-    <span class="txn-total" title="Grand total">${txnMoney(p.grand_total)}</span>`;
+  el.innerHTML = cell('Designs', designs) + cell('Items', lines) + cell('Total qty', qty)
+    + cell('Purchase cost', txnMoney((b.taxable_amount || 0) + nonTaxable))
+    + (b.interstate ? cell('IGST', txnMoney(b.igst || 0)) : cell('CGST', txnMoney(b.cgst || 0)) + cell('SGST', txnMoney(b.sgst || 0)))
+    + cell('Grand total', txnMoney((p && p.grand_total) || 0), ' po-strip-total');
 }
 
 async function savePurchaseOrder() {
@@ -1553,6 +1638,11 @@ async function savePurchaseOrderInner() {
   const bad = lines.findIndex(l => !l.sku || l.qty <= 0);
   if (bad !== -1) {
     fail(`Line ${bad + 1} needs an item and a quantity of at least 1.`);
+    return;
+  }
+  const noPrice = lines.findIndex(l => !(l.rate > 0));
+  if (noPrice !== -1) {
+    fail(`Line ${noPrice + 1} has no purchase price - every line needs one.`);
     return;
   }
   if (poPreview && poPreview.blocking) {
@@ -2201,7 +2291,7 @@ async function loadGRNOpenPOs() {
     el.innerHTML = `<span class="text-muted">${pos.length ? 'Every open PO of this vendor is on the receipt.' : 'This vendor has no approved PO with anything left to receive.'}</span>`;
     return;
   }
-  el.innerHTML = `<b>Open POs of ${escapeHTMLText(vendor)}</b>
+  el.innerHTML = `<b>Open POs of ${escapeHTMLText(typedTextOf(document.getElementById('grn-vendor')) || vendor)}</b>
     ${open.map(p => `<label><input type="checkbox" data-open-po="${escapeHTMLText(p.id)}" data-open-po-label="${escapeHTMLText(p.code)}">
       ${escapeHTMLText(p.code)} &middot; ${escapeHTMLText(p.date)} &middot; ${p.lines} item${p.lines === 1 ? '' : 's'} &middot; ${p.open_qty} open &middot; ${formatMoney(p.open_value)}</label>`).join('')}
     <div><button type="button" class="btn btn-outline btn-sm" id="grn-load-ticked">Load ticked POs</button></div>`;
@@ -2221,9 +2311,29 @@ window.startVendorInvoiceFromGRN = function(grnId, poId) {
   renderView('vendor-invoices');
 };
 
+// Stage 118.3 (the user: "Only The vendor name, Design ID, COmb id. Product
+// name ... COlor value"): what each line is, in words, read through the PO
+// price preview, which already resolves them for any list of SKUs.
+const grnItemInfo = {}; // sku -> { name, design, attrs }; {} while being read
+const grnAttrCols = [];
+async function readGRNItemInfo() {
+  const skus = [...new Set(grnLineItems.map(l => l.sku))].filter(s => s && !(s in grnItemInfo));
+  if (!skus.length) return;
+  skus.forEach(s => { grnItemInfo[s] = {}; });
+  const res = await apiFetch('/api/v1/procurement/purchase-order/preview', { method: 'POST', body: JSON.stringify({ items: JSON.stringify(skus.map(sku => ({ sku, qty: 1, rate: 0 }))) }) });
+  if (!res || !res.ok) return;
+  const prev = await res.json();
+  (prev.lines || []).forEach((l, i) => { grnItemInfo[skus[i]] = { name: l.item_name || '', design: l.design || '', attrs: l.attributes || {} }; });
+  (prev.attribute_columns || []).forEach(c => { if (!grnAttrCols.some(x => x.code === c.code)) grnAttrCols.push(c); });
+  renderGRNLinesList();
+}
+
 function renderGRNLinesList() {
   const el = document.getElementById('grn-lines-list');
   if (!el) return;
+  readGRNItemInfo();
+  const info = sku => grnItemInfo[sku] || {};
+  const attrCols = grnAttrCols.filter(c => grnLineItems.some(l => (info(l.sku).attrs || {})[c.code]));
   if (grnLineItems.length === 0) {
     el.innerHTML = `<p class="txn-empty">No lines added yet &mdash; add a PO above, or a line by SKU.</p>`;
     renderGRNTotals();
@@ -2259,7 +2369,7 @@ function renderGRNLinesList() {
   const grnAllIncl = grnPriced.length > 0 && grnPriced.every(l => l.gst_inclusive);
   el.innerHTML = `
     <table class="grn-lines-table">
-      <thead><tr>${grnMultiPO ? '<th>PO</th>' : ''}<th>SKU</th>${grnHasBatches ? '<th>Batch / Expiry</th>' : ''}${grnHasSerials ? '<th>Serials</th>' : ''}${grnAskedFields.map(f => `<th>${escapeHTMLText(f.label)}${f.grn === 'required' ? '<span class="required">*</span>' : ''}</th>`).join('')}${grnBlindCount ? '' : '<th class="num">Ordered</th>'}<th class="num">Received</th><th class="num" title="Received minus rejected and damaged - goes into stock">Accepted</th><th class="num">Rejected</th><th class="num">Damaged</th>${grnBlindCount ? '' : '<th class="num" title="Ordered minus received - still owed on the PO">Short</th><th class="num" title="Received over the PO - keep or return is decided at Verify">Excess</th>'}<th class="num" title="Quantity the vendor's invoice bills">Invoice Qty</th><th class="num" title="Agreed price per unit from the PO${grnAllIncl ? ', incl. GST' : ' (before GST unless the row says incl. GST)'}">PO Rate${grnAllIncl ? ' (incl. GST)' : ''}</th><th class="num" title="Price per unit on the vendor's invoice${grnAllIncl ? ', incl. GST' : ''}">Invoice Rate${grnAllIncl ? ' (incl. GST)' : ''}</th><th class="num" title="Invoice rate x invoice qty">Value${grnAllIncl ? ' (incl. GST)' : ''}</th><th></th></tr></thead>
+      <thead><tr><th class="num">#</th>${grnMultiPO ? '<th>PO</th>' : ''}<th>Product</th><th>Design</th><th>Combination ID</th>${attrCols.map(c => `<th>${escapeHTMLText(c.label)}</th>`).join('')}${grnHasBatches ? '<th>Batch / Expiry</th>' : ''}${grnHasSerials ? '<th>Serials</th>' : ''}${grnAskedFields.map(f => `<th>${escapeHTMLText(f.label)}${f.grn === 'required' ? '<span class="required">*</span>' : ''}</th>`).join('')}${grnBlindCount ? '' : '<th class="num">Ordered</th>'}<th class="num">Received</th><th class="num" title="Received minus rejected and damaged - goes into stock">Accepted</th><th class="num">Rejected</th><th class="num">Damaged</th>${grnBlindCount ? '' : '<th class="num" title="Ordered minus received - still owed on the PO">Short</th><th class="num" title="Received over the PO - keep or return is decided at Verify">Excess</th>'}<th class="num" title="Quantity the vendor's invoice bills">Invoice Qty</th><th class="num" title="Agreed price per unit from the PO${grnAllIncl ? ', incl. GST' : ' (before GST unless the row says incl. GST)'}">PO Rate${grnAllIncl ? ' (incl. GST)' : ''}</th><th class="num" title="Price per unit on the vendor's invoice${grnAllIncl ? ', incl. GST' : ''}">Invoice Rate${grnAllIncl ? ' (incl. GST)' : ''}</th><th class="num" title="Invoice rate x invoice qty">Value${grnAllIncl ? ' (incl. GST)' : ''}</th><th></th></tr></thead>
       <tbody>
         ${grnLineItems.map((line, idx) => {
           const ordered = line.ordered_qty;
@@ -2278,8 +2388,12 @@ function renderGRNLinesList() {
           const billGap = billed - (Number(line.accepted_qty) || 0);
           return `
             <tr${Math.abs(diff) >= 0.005 ? ' class="grn-rate-diff"' : ''}>
+              <td class="num text-muted">${idx + 1}</td>
               ${grnMultiPO ? `<td style="font-family: monospace; font-size: 12px;">${escapeHTMLText(line.po_id || '')}</td>` : ''}
-              <td style="font-family: monospace;">${line.sku}${line.barcode && line.barcode !== line.sku ? `<div><span class="badge badge-secondary" style="font-family: Consolas, Monaco, monospace; letter-spacing: 1px;">${line.barcode}</span></div>` : ''}</td>
+              <td>${escapeHTMLText(info(line.sku).name || '')}</td>
+              <td>${escapeHTMLText(info(line.sku).design || '') || '<span class="text-muted">&mdash;</span>'}</td>
+              <td style="font-family: monospace;">${escapeHTMLText(line.sku)}${line.barcode && line.barcode !== line.sku ? `<div><span class="badge badge-secondary" style="font-family: Consolas, Monaco, monospace; letter-spacing: 1px;">${line.barcode}</span></div>` : ''}</td>
+              ${attrCols.map(c => `<td>${escapeHTMLText((info(line.sku).attrs || {})[c.code] || '')}</td>`).join('')}
               ${grnHasBatches ? `<td>${batchCellHTML({ batch_no: line.batch_no, expiry_date: line.expiry_date })}</td>` : ''}
               ${grnHasSerials ? `<td>${line.serial_numbers && line.serial_numbers.length ? `<span class="badge badge-secondary" title="${line.serial_numbers.map(escapeHTMLText).join(', ')}">${line.serial_numbers.length} unit(s)</span>` : ''}</td>` : ''}
               ${grnAskedFields.map(f => `<td>${askedCell(line, idx, f)}</td>`).join('')}
@@ -2487,9 +2601,10 @@ function renderGRNPOChips() {
     </span>`).join('');
   const vendorEl = document.getElementById('grn-vendor');
   if (vendorEl) {
-    // Stage 94.2: once a PO is on the receipt, its vendor is the receipt's.
+    // Stage 94.2: once a PO is on the receipt, its vendor is the receipt's -
+    // and stays so until Reset (118.2), even if that PO is taken off again.
     if (grnPOs.length && grnPOs[0].vendor) vendorEl.value = grnPOs[0].vendor;
-    vendorEl.readOnly = grnPOs.length > 0;
+    if (grnPOs.length) vendorEl.readOnly = true;
   }
 }
 
@@ -2887,8 +3002,11 @@ async function loadGRNItemsFromPOInner() {
     document.getElementById('grn-po').value = '';
     return;
   }
-  if (grnPOs.length && poVendor && grnPOs[0].vendor && poVendor !== grnPOs[0].vendor) {
-    noteEl.textContent = `PO ${poLabel} is for vendor ${poVendor}, but this receipt is for ${grnPOs[0].vendor}. Receive it on its own goods receipt.`;
+  const vendorBox = document.getElementById('grn-vendor');
+  const receiptVendor = (grnPOs[0] && grnPOs[0].vendor) || (vendorBox.readOnly ? vendorBox.value : '');
+  if (poVendor && receiptVendor && poVendor !== receiptVendor) {
+    const nameOf = async v => linkDisplayName(await lookupLinkDoc('Vendor', v)) || v;
+    noteEl.textContent = `PO ${poLabel} is for ${await nameOf(poVendor)}, but this receipt is for ${await nameOf(receiptVendor)}. Receive it on its own goods receipt, or Reset to start over.`;
     return;
   }
 
@@ -2953,8 +3071,12 @@ async function loadGRNItemsFromPOInner() {
     const known = grnPOLineContext[sku];
     grnPOLineContext[sku] = known && known.po_id !== poKey ? { ambiguous: true }
       : { po_id: poKey, ...(r ? { po_rate: r.rate, gst_rate: r.gst, ...(r.incl ? { gst_inclusive: true, po_rate_incl: r.gross } : {}) } : {}) };
+    // Stage 114.5 (the user: "If i type mrp, It should go to grn and but
+    // overwritten"): the PO line's MRP fills the MRP step's box, still editable.
+    const poMRP = Number((items.find(x => (x.sku || x.item_id) === sku && Number(x.mrp) > 0) || {}).mrp) || 0;
     grnLineItems.push({
       po_id: poKey, sku, ordered_qty: open, qty: open, accepted_qty: open, rejected_qty: 0, rejection_reason: '', damaged_qty: 0, damage_reason: '', barcode,
+      ...(poMRP ? { mrp: poMRP } : {}),
       ...(r ? { po_rate: r.rate, gst_rate: r.gst, invoice_rate: r.rate, ...(r.incl ? { gst_inclusive: true, po_rate_incl: r.gross, invoice_rate_incl: r.gross } : {}) } : {})
     });
     added++;

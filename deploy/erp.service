@@ -2,13 +2,13 @@
 # supervision (auto-restart, start-on-boot, graceful stop).
 #
 # Install:
-#   sudo mkdir -p /opt/erp/backups /opt/erp/media_store /opt/erp/.config
-#   sudo chown -R erp:erp /opt/erp/backups /opt/erp/media_store /opt/erp/.config
+#   sudo mkdir -p /opt/erp/backups /opt/erp/media_store /opt/erp/.config /opt/erp/audit-archives
+#   sudo chown -R erp:erp /opt/erp/backups /opt/erp/media_store /opt/erp/.config /opt/erp/audit-archives
 #   sudo cp /opt/erp/deploy/erp.service /etc/systemd/system/erp.service
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now erp
 #
-# The three directories are created ahead of time deliberately: ProtectSystem=
+# The four directories are created ahead of time deliberately: ProtectSystem=
 # strict below makes the whole filesystem read-only except the paths named in
 # ReadWritePaths=, and some systemd versions fail (rather than lazily create) a
 # ReadWritePaths= entry that does not exist yet at unit start.
@@ -59,7 +59,12 @@ TimeoutStartSec=30
 # previous ProtectSystem=full, which left all of /opt (including the binary
 # and public/ themselves) writable. /opt/erp/erp-server, public/ and this
 # unit's own EnvironmentFile stay read-only to a compromised process; only the
-# three directories actually written at runtime do not:
+# four directories actually written at runtime do not:
+#   - /opt/erp/audit-archives - engines/audit_archive.go's default archive
+#                             directory (AUDIT_ARCHIVE_DIR unset), written by
+#                             the nightly audit archive; missing here until
+#                             2026-10-19, which is why this unit was not yet
+#                             installed on the droplet
 #   - /opt/erp/backups     - deploy/backup.sh's own output (also read by the
 #                             restore drill; not written by the server itself,
 #                             listed here so the same path works if that ever
@@ -86,7 +91,7 @@ TimeoutStartSec=30
 # denied, logged, no data written) rather than silently succeeding somewhere
 # unexpected.
 ProtectSystem=strict
-ReadWritePaths=/opt/erp/backups /opt/erp/media_store /opt/erp/.config
+ReadWritePaths=/opt/erp/backups /opt/erp/media_store /opt/erp/.config /opt/erp/audit-archives
 ProtectHome=true
 PrivateTmp=true
 

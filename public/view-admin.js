@@ -23,10 +23,13 @@ async function renderPrefixConfigsView(container) {
     <div class="page-title-section">
       <h1 class="page-title">Prefix Configurations</h1>
     </div>
-    <button class="btn btn-primary" ${actionAttrs('addPrefixConfig')}>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 6px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-      <span>New Series</span>
-    </button>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <select id="prefix-group-filter" class="form-input" aria-label="Group" style="width: auto;"></select>
+      <button class="btn btn-primary" ${actionAttrs('addPrefixConfig')}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 6px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        <span>New Series</span>
+      </button>
+    </div>
   `;
   container.appendChild(header);
 
@@ -49,29 +52,38 @@ async function renderPrefixConfigsView(container) {
           <th>Action</th>
         </tr>
       </thead>
-      <tbody>
   `;
-  state.prefixConfigs.forEach(c => {
-    const overrides = Object.keys(c.store_overrides || {}).length;
-    const tooLong = seriesProblem(c);
-    html += `
-      <tr>
-        <td style="font-weight:600;">${escapeHTMLText(seriesDisplayName(c.doc_type))}</td>
-        <td style="font-family: monospace;">${escapeHTMLText(c.prefix)}</td>
-        <td>${c.padding_width}</td>
-        <td style="font-family: monospace;">${escapeHTMLText(c.suffix || '')}</td>
-        <td>${(isGRNBatchSeries(c) ? GRN_BATCH_RESTARTS : restarts)[c.reset_frequency] || escapeHTMLText(c.reset_frequency)}</td>
-        <td>${c.include_store === false ? 'No' : 'Yes'}</td>
-        <td>${overrides ? overrides + (overrides === 1 ? ' store' : ' stores') : '-'}</td>
-        <td style="font-family: monospace;">${escapeHTMLText(prefixConfigSample(c, stores[0]))}${tooLong ? `<div class="series-too-long" style="font-size: 12px; font-family: inherit;">${tooLong.store ? escapeHTMLText(tooLong.store.name) + ': ' : ''}${tooLong.short}</div>` : ''}</td>
-        <td>${c.active_status ? 'Active' : 'Inactive'}</td>
-        <td><button class="btn btn-outline btn-sm" ${actionAttrs('editPrefixConfig', [c.doc_type])}>Edit</button></td>
-      </tr>
-    `;
+  // Stage 117.3: one section per group, in the order the drop-down lists them.
+  const groups = new Map();
+  state.prefixConfigs
+    .map(c => ({ c, group: seriesGroup(c.doc_type), name: seriesDisplayName(c.doc_type) }))
+    .sort((a, b) => seriesGroupRank(a.group) - seriesGroupRank(b.group) || a.group.localeCompare(b.group) || a.name.localeCompare(b.name))
+    .forEach(r => { if (!groups.has(r.group)) groups.set(r.group, []); groups.get(r.group).push(r.c); });
+  groups.forEach((rows, group) => {
+    html += `<tbody data-series-group="${escapeHTMLText(group)}">
+      <tr><td colspan="10" style="font-weight: 600; background: var(--surface-subtle);">${escapeHTMLText(group)} <span class="text-muted" style="font-weight: 400;">${rows.length}</span></td></tr>`;
+    rows.forEach(c => { html += prefixConfigRow(c, stores, restarts); });
+    html += `</tbody>`;
   });
-  html += `</tbody></table>`;
+  html += `</table>`;
   panel.innerHTML = html;
   container.appendChild(panel);
+
+  // The group drop-down shows one section or all; the choice is kept for the
+  // tab, so it survives the re-render after a series is saved.
+  const filter = document.getElementById('prefix-group-filter');
+  let kept = '';
+  try { kept = sessionStorage.getItem('erp_prefix_group') || ''; } catch (_) { /* storage off */ }
+  if (!groups.has(kept)) kept = '';
+  filter.innerHTML = `<option value="">All groups</option>` +
+    [...groups.keys()].map(g => `<option value="${escapeHTMLText(g)}">${escapeHTMLText(g)}</option>`).join('');
+  filter.value = kept;
+  const applyGroup = () => {
+    panel.querySelectorAll('tbody[data-series-group]').forEach(tb => { tb.hidden = !!filter.value && tb.dataset.seriesGroup !== filter.value; });
+    try { sessionStorage.setItem('erp_prefix_group', filter.value); } catch (_) { /* storage off */ }
+  };
+  filter.addEventListener('change', applyGroup);
+  applyGroup();
   // Stage 55.3: arriving from a record form's "Numbering" link opens that
   // record type's series (or a new one for it) straight away.
   let wanted = '';
@@ -84,6 +96,25 @@ async function renderPrefixConfigsView(container) {
       if (typeInput) { typeInput.value = wanted; previewEditPrefix(); }
     }
   }
+}
+
+function prefixConfigRow(c, stores, restarts) {
+  const overrides = Object.keys(c.store_overrides || {}).length;
+  const tooLong = seriesProblem(c);
+  return `
+      <tr>
+        <td style="font-weight:600;">${escapeHTMLText(seriesDisplayName(c.doc_type))}</td>
+        <td style="font-family: monospace;">${escapeHTMLText(c.prefix)}</td>
+        <td>${c.padding_width}</td>
+        <td style="font-family: monospace;">${escapeHTMLText(c.suffix || '')}</td>
+        <td>${(isGRNBatchSeries(c) ? GRN_BATCH_RESTARTS : restarts)[c.reset_frequency] || escapeHTMLText(c.reset_frequency)}</td>
+        <td>${c.include_store === false ? 'No' : 'Yes'}</td>
+        <td>${overrides ? overrides + (overrides === 1 ? ' store' : ' stores') : '-'}</td>
+        <td style="font-family: monospace;">${escapeHTMLText(prefixConfigSample(c, stores[0]))}${tooLong ? `<div class="series-too-long" style="font-size: 12px; font-family: inherit;">${tooLong.store ? escapeHTMLText(tooLong.store.name) + ': ' : ''}${tooLong.short}</div>` : ''}</td>
+        <td>${c.active_status ? 'Active' : 'Inactive'}</td>
+        <td><button class="btn btn-outline btn-sm" ${actionAttrs('editPrefixConfig', [c.doc_type])}>Edit</button></td>
+      </tr>
+  `;
 }
 
 // loadSeriesStores lists every Location for the store-wise override rows. A
@@ -141,12 +172,45 @@ const SERIES_TRANSACTION_NAMES = {
   PI: 'Physical inventory', GP: 'Gate pass', CE: 'Consumption entry', KIT: 'Kit / de-kit', LCV: 'Landed cost voucher',
   CA: 'Customer advance', AVR: 'Advance refund voucher', POSBILL: 'POS bill', EXP: 'Expense claim', PRO: 'Production order',
   ATT: 'Attendance', LV: 'Leave', LOAN: 'Employee loan', GRV: 'Grievance', MI: 'Material issue', MR: 'Material receipt',
-  DC: 'Delivery challan', JO: 'Job work out', JR: 'Job work return', CV: 'Store credit voucher', DMG: 'Damage', ADJ: 'Stock adjustment'
+  DC: 'Delivery challan', JO: 'Job work out', JR: 'Job work return', CV: 'Store credit voucher', DMG: 'Damage', ADJ: 'Stock adjustment',
+  AST: 'Asset', SM: 'Stock location move'
+};
+// Stage 117.2: a series named after a record type reads as that record's
+// plain name - "Design", not "ProductFamily". Others fall back to the record
+// type's own label.
+const SERIES_RECORD_NAMES = {
+  ProductFamily: 'Design', Item: 'Combination ID / item', ItemName: 'Item name', ProductType: 'Product type',
+  ItemAttribute: 'Item attribute', LegalEntity: 'Legal entity', CostCenter: 'Cost centre', BackflushRule: 'Backflush rule', MRPRule: 'MRP rule'
 };
 const GRN_BATCH_RESTARTS = { ANNUAL: 'Daily', MONTHLY: 'Monthly', NEVER: 'Never' };
 function seriesDisplayName(docType) {
-  const name = SERIES_DISPLAY_NAMES[docType] || SERIES_TRANSACTION_NAMES[docType];
-  return name ? `${name} (${docType})` : docType;
+  if (SERIES_TRANSACTION_NAMES[docType]) return `${SERIES_TRANSACTION_NAMES[docType]} (${docType})`;
+  return SERIES_DISPLAY_NAMES[docType] || SERIES_RECORD_NAMES[docType] || getDoctypeLabel(docType);
+}
+
+// Stage 117.3: the group a series is listed under on Prefix Configurations -
+// the same module names as the setup lists; a record type not named here
+// takes its own module.
+const SERIES_GROUPS = {
+  Procurement: ['PR', 'PO', 'GRN', 'ASN', 'RFQ', 'QTN', 'PRT', 'VCN', 'DN', 'LCV', 'GRNBatchSeq', 'Vendor'],
+  Sales: ['SI', 'SO', 'SR', 'CN', 'RF', 'CA', 'AVR', 'CV', 'DC', 'Customer'],
+  POS: ['POSBILL'],
+  Inventory: ['TO', 'TI', 'PI', 'GP', 'ADJ', 'DMG', 'KIT', 'MI', 'MR', 'CE', 'SM'],
+  Manufacturing: ['PRO', 'JO', 'JR', 'BackflushRule'],
+  Finance: ['JV', 'AST', 'CostCenter'],
+  HR: ['ATT', 'LV', 'LOAN', 'GRV', 'EXP', 'Payslip', 'Employee'],
+  'Products & barcodes': ['ProductFamily', 'Item', 'ItemName', 'Category', 'ProductType', 'MRPRule', 'Brand', 'ItemAttribute', 'PIMBarcodeSeq', 'PIMDatedBarcodeSeq']
+};
+const SERIES_GROUP_OF = Object.fromEntries(Object.entries(SERIES_GROUPS).flatMap(([g, keys]) => keys.map(k => [k, g])));
+const SERIES_GROUP_ORDER = Object.keys(SERIES_GROUPS);
+function seriesGroup(docType) {
+  if (SERIES_GROUP_OF[docType]) return SERIES_GROUP_OF[docType];
+  const d = (state.activeDoctypes || []).find(x => x.name === docType);
+  return (d && d.module) || 'Other';
+}
+function seriesGroupRank(group) {
+  const i = SERIES_GROUP_ORDER.indexOf(group);
+  return i >= 0 ? i : group === 'Other' ? SERIES_GROUP_ORDER.length + 1 : SERIES_GROUP_ORDER.length;
 }
 function isGRNBatchSeries(c) {
   return c && c.doc_type === 'GRNBatchSeq';
@@ -183,16 +247,22 @@ function prefixConfigSample(c, store) {
   const reset = (c.reset_frequency || 'ANNUAL').toUpperCase();
   // NEVER is the only setting with no period segment - it never resets, so
   // there is no period to name.
+  let period = '';
   if (isGRNBatchSeries(c)) {
     const d = new Date();
     const yy = String(d.getFullYear()).slice(-2);
     const mm = String(d.getMonth() + 1).padStart(2, '0');
-    if (reset === 'MONTHLY') parts.push(yy + '-' + mm);
-    else if (reset !== 'NEVER') parts.push(yy + mm + String(d.getDate()).padStart(2, '0'));
-  } else if (reset !== 'NEVER') parts.push(seriesYearText(c.year_format, reset));
+    if (reset === 'MONTHLY') period = yy + '-' + mm;
+    else if (reset !== 'NEVER') period = yy + mm + String(d.getDate()).padStart(2, '0');
+  } else if (reset !== 'NEVER') period = seriesYearText(c.year_format, reset);
+  // Stage 115.1: the year before the number, or at the very end
+  // (engines.joinNumberParts lays a number out the same way).
+  const atEnd = c.year_position === 'END';
+  if (!atEnd) parts.push(period);
   parts.push(String(1).padStart(c.padding_width || 1, '0'));
   const suffix = o.suffix || c.suffix;
   if (suffix) parts.push(suffix);
+  if (atEnd) parts.push(period);
   return parts.filter(Boolean).join(c.separator || '');
 }
 
@@ -284,6 +354,13 @@ function ensureEditPrefixModal() {
             <label class="form-label" for="edit-prefix-year">Year in the number</label>
             <select class="form-select" id="edit-prefix-year" data-act="previewEditPrefix" data-act-on="change"></select>
           </div>
+          <div class="form-group" id="edit-prefix-yearpos-group">
+            <label class="form-label" for="edit-prefix-yearpos">Where the year goes</label>
+            <select class="form-select" id="edit-prefix-yearpos" data-act="previewEditPrefix" data-act-on="change">
+              <option value="">Before the number</option>
+              <option value="END">At the end</option>
+            </select>
+          </div>
           <div class="form-group">
             <label class="form-label" for="edit-prefix-store">Store in the number</label>
             <select class="form-select" id="edit-prefix-store" data-act="previewEditPrefix" data-act-on="change">
@@ -347,6 +424,8 @@ function openEditPrefixModal(c) {
   document.getElementById('edit-prefix-reset').value = s.reset_frequency || 'ANNUAL';
   // A GRN batch number's period is its receipt date, not a year.
   document.getElementById('edit-prefix-year-group').hidden = isGRNBatchSeries(s);
+  document.getElementById('edit-prefix-yearpos-group').hidden = isGRNBatchSeries(s);
+  document.getElementById('edit-prefix-yearpos').value = s.year_position === 'END' ? 'END' : '';
   const yearSel = document.getElementById('edit-prefix-year');
   yearSel.innerHTML = [...SERIES_YEAR_FORMATS, ''].map(f => `<option value="${f}"></option>`).join('');
   yearSel.dataset.format = s.year_format || 'FY_SHORT';
@@ -414,6 +493,7 @@ function readEditPrefixForm() {
     active_status: document.getElementById('edit-prefix-active').value === 'yes',
     store_overrides: overrides,
     year_format: (yearSel && yearSel.dataset.format) || 'FY_SHORT',
+    year_position: (document.getElementById('edit-prefix-yearpos') || {}).value || '',
   };
 }
 
@@ -427,6 +507,7 @@ function previewEditPrefix() {
   if (yearSel.value) yearSel.dataset.format = yearSel.value;
   yearSel.querySelectorAll('option').forEach(o => { o.textContent = o.value ? seriesYearText(o.value, reset) : 'No year'; });
   yearSel.disabled = reset === 'NEVER';
+  document.getElementById('edit-prefix-yearpos').disabled = reset === 'NEVER';
   yearSel.value = reset === 'NEVER' ? '' : yearSel.dataset.format;
 
   const s = readEditPrefixForm();

@@ -55,7 +55,7 @@ func IsServerNumberedMaster(doctype string) bool { return serverNumberedMasters[
 var suggestedMasterPrefixes = map[string]string{
 	"Vendor": "V", "Customer": "C", "Item": "I", "Employee": "E",
 	"ProductFamily": "D", "Location": "S", "LegalEntity": "LE",
-	"Category": "CAT", "ProductType": "PT", "ItemName": "IN", "Brand": "B", "ItemAttribute": "IA",
+	"Category": "CAT", "ProductType": "PT", "ItemName": "IN", "Brand": "B", "ItemAttribute": "IA", "MRPRule": "MRP",
 }
 
 const (
@@ -249,19 +249,13 @@ func ensureMasterSeries(tenantID, doctype string, req *masterCodeFormat) error {
 
 // PrepareMasterNumber numbers a new master that arrives with no code. A code
 // the caller typed, or an explicit id (the API's upsert form), is kept; a
-// typed-code master is never numbered; an Item under a design is left for
-// PrepareItemVariantCode, which builds its SKU from the design.
+// typed-code master is never numbered. An Item under a design - a combination
+// - takes the next Item number too (Stage 117; it used to be the design plus
+// its values).
 func PrepareMasterNumber(tenantID, location, doctype string, isCreate bool, payload map[string]interface{}) error {
 	format := takeMasterCodeFormat(payload)
 	if !isCreate || typedCodeMasters[doctype] ||
 		strings.TrimSpace(strField(payload, "code")) != "" || strings.TrimSpace(strField(payload, "id")) != "" {
-		return nil
-	}
-	// A combination under a design takes its Combination ID from
-	// PrepareItemVariantCode. A design that is a single item (no variant
-	// values) has none to build one from, so it takes the ordinary Item
-	// number instead (Stage 94.16 - it used to be left with no code at all).
-	if doctype == "Item" && strings.TrimSpace(strField(payload, "family")) != "" && itemHasVariantValues(payload) {
 		return nil
 	}
 	if !serverNumberedMasters[doctype] {

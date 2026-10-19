@@ -186,6 +186,14 @@ if wait_healthy "$DEPLOY_COMMIT"; then
       || echo "[WARN] the daily cleanup schedule was not installed (needs root)" >&2
     sudo -n bash "$REMOTE_DIR/deploy/server_cleanup.sh" 2>&1 | tail -n 1 || true
   fi
+  # Stage 109.11: the live systemd unit follows the repo's deploy/erp.service.
+  # The installer does nothing when they match, and puts the old unit back by
+  # itself if the ERP is not healthy on the new one - the deploy stands either way.
+  if [ -f "$REMOTE_DIR/deploy/install_service_unit.sh" ]; then
+    unit_out="$(sudo -n bash "$REMOTE_DIR/deploy/install_service_unit.sh" 2>&1)" || true   # a rollback must not end this script before DEPLOY-OK
+    echo "$unit_out" | grep -E 'SERVICE-|exposure|WARN' || true
+    echo "$unit_out" | grep -q 'SERVICE-ROLLED-BACK\|SERVICE-ROLLBACK-FAILED' && alert_ops "the new erp.service unit did not come up healthy after deploying $DEPLOY_COMMIT; the old unit is back - check deploy/erp.service"
+  fi
   echo DEPLOY-OK
   exit 0
 fi

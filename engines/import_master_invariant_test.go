@@ -170,6 +170,7 @@ func TestBulkImportCSVGeneratesDesignBasedSKUForItemVariants(t *testing.T) {
 	defer rows.Close()
 
 	found := map[string]string{}
+	values := map[string]string{}
 	for rows.Next() {
 		var id, raw string
 		if err := rows.Scan(&id, &raw); err != nil {
@@ -188,16 +189,17 @@ func TestBulkImportCSVGeneratesDesignBasedSKUForItemVariants(t *testing.T) {
 		if id != code {
 			t.Errorf("%s: id %q <> code %q", name, id, code)
 		}
-		// The generated SKU must be built from the parent design, not be a
-		// plain Item sequence number.
-		if !strings.HasPrefix(code, designCode+"-") {
-			t.Errorf("%s: code %q is not a design-based SKU (want prefix %q)", name, code, designCode+"-")
+		// Stage 117: the Combination ID is the next Item number (I00001), not
+		// the design plus its values.
+		if !shortMasterCode.MatchString(code) {
+			t.Errorf("%s: code %q is not an Item series number", name, code)
 		}
 		// parent_product_code is the field sibling-variant uniqueness groups
 		// by; bridging family -> parent_product_code is part of the same fix.
 		if parent, _ := data["parent_product_code"].(string); parent != designCode {
 			t.Errorf("%s: parent_product_code = %q, want %q", name, parent, designCode)
 		}
+		values[name], _ = data["variant_option_values"].(string)
 	}
 	if len(found) != 2 {
 		t.Fatalf("expected 2 imported variants, found %d (%v)", len(found), found)
@@ -206,9 +208,9 @@ func TestBulkImportCSVGeneratesDesignBasedSKUForItemVariants(t *testing.T) {
 		t.Errorf("both variants got the same SKU %q - size is supposed to differentiate them", found["Rose Small"])
 	}
 	// Size is one of the six recognized variant-differentiating attributes,
-	// so it must actually appear in the code.
-	if !strings.HasSuffix(found["Rose Small"], "-S") || !strings.HasSuffix(found["Rose Large"], "-L") {
-		t.Errorf("sizes not reflected in the SKUs: small=%q large=%q", found["Rose Small"], found["Rose Large"])
+	// so it must be recorded in each combination's values.
+	if !strings.Contains(values["Rose Small"], "size:S") || !strings.Contains(values["Rose Large"], "size:L") {
+		t.Errorf("sizes not recorded in the variant values: small=%q large=%q", values["Rose Small"], values["Rose Large"])
 	}
 }
 
@@ -252,7 +254,7 @@ func TestBulkImportCSVStillRequiresCodeWithoutAFamilyColumn(t *testing.T) {
 // TestItemImportTemplates is Stage 51.10: the plain Item template is
 // unchanged (id first, every meta field but status, code included), and the
 // family template drops id/code, leads with family, and - filled in and
-// uploaded exactly as downloaded - produces Design-based SKUs.
+// uploaded exactly as downloaded - produces numbered combinations (Stage 117).
 func TestItemImportTemplates(t *testing.T) {
 	db.InitDB(testConnStr())
 	schema, err := db.GetTenantSchema("default")
@@ -332,14 +334,16 @@ func TestItemImportTemplates(t *testing.T) {
 	if res.SuccessRows != 2 || res.FailedRows != 0 {
 		t.Fatalf("expected 2 success / 0 failures, got %d/%d (%v)", res.SuccessRows, res.FailedRows, res.Errors)
 	}
+	// Stage 117: each combination is numbered from the Item series (I00001),
+	// with its size kept in its variant values.
 	for _, size := range []string{"S", "L"} {
 		var n int
-		if err := db.DB.QueryRow("SELECT COUNT(*) FROM "+schema+".documents WHERE doctype = 'Item' AND id = data->>'code' AND id LIKE $1 AND id LIKE $2",
-			designCode+"-%", "%-"+size).Scan(&n); err != nil {
+		if err := db.DB.QueryRow("SELECT COUNT(*) FROM "+schema+".documents WHERE doctype = 'Item' AND id = data->>'code' AND data->>'family' = $1 AND data->>'variant_option_values' = $2 AND id ~ '^[A-Z][A-Z0-9]{0,5}[0-9]{3,8}$'",
+			designCode, "size:"+size).Scan(&n); err != nil {
 			t.Fatalf("count generated SKU: %v", err)
 		}
 		if n != 1 {
-			t.Errorf("size %s: want 1 Design-based SKU %s-...-%s, found %d", size, designCode, size, n)
+			t.Errorf("size %s: want 1 Item-numbered combination under %s, found %d", size, designCode, n)
 		}
 	}
 }

@@ -9,13 +9,13 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 
 | | |
 |---|---|
-| Graph built from commit | `5d1329fa` |
-| Brain redrawn | source graph 5d1329fa |
+| Graph built from commit | `f7acbdd6` |
+| Brain redrawn | source graph f7acbdd6 |
 | Regions / lobes | 38 / 8 |
-| Files in the working tree | 1579 (1151 of them parsed into the graph) |
+| Files in the working tree | 1585 (1154 of them parsed into the graph) |
 | Files claimed by a region | **100.0%** |
-| Symbols in the graph | 14500 |
-| Cross-region relationships | 5545 extracted (94% inferred) + 8 declared by hand |
+| Symbols in the graph | 14548 |
+| Cross-region relationships | 5555 extracted (94% inferred) + 8 declared by hand |
 
 **Interactive version: [brain.html](brain.html)** — open it in a browser and click any region.
 
@@ -34,15 +34,15 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 
 ```mermaid
 flowchart LR
-  n_cortex["Cortex — Interface<br/><small>76 files · 1539 symbols</small>"]
-  n_brainstem["Brainstem — Kernel<br/><small>366 files · 1159 symbols</small>"]
-  n_business["Functional Lobes — Business Operations<br/><small>328 files · 3906 symbols</small>"]
-  n_peripheral["Peripheral Nerves — Integrations<br/><small>51 files · 889 symbols</small>"]
+  n_cortex["Cortex — Interface<br/><small>76 files · 1552 symbols</small>"]
+  n_brainstem["Brainstem — Kernel<br/><small>369 files · 1159 symbols</small>"]
+  n_business["Functional Lobes — Business Operations<br/><small>329 files · 3917 symbols</small>"]
+  n_peripheral["Peripheral Nerves — Integrations<br/><small>51 files · 896 symbols</small>"]
   n_autonomic["Autonomic — Background & Reflexes<br/><small>16 files · 211 symbols</small>"]
-  n_memory["Hippocampus — Written Memory<br/><small>351 files · 4234 symbols</small>"]
-  n_motor["Motor Cortex — Build & Delivery<br/><small>54 files · 214 symbols</small>"]
-  n_verification["Cerebellum — Verification<br/><small>337 files · 1448 symbols</small>"]
-  n_business -->|1975| n_brainstem
+  n_memory["Hippocampus — Written Memory<br/><small>351 files · 4244 symbols</small>"]
+  n_motor["Motor Cortex — Build & Delivery<br/><small>55 files · 217 symbols</small>"]
+  n_verification["Cerebellum — Verification<br/><small>338 files · 1451 symbols</small>"]
+  n_business -->|1979| n_brainstem
   n_business -->|331| n_autonomic
   n_brainstem -->|288| n_business
   n_peripheral -.->|224| n_brainstem
@@ -52,7 +52,7 @@ flowchart LR
   n_business -->|73| n_peripheral
   n_autonomic -.->|45| n_business
   n_peripheral -.->|27| n_autonomic
-  n_peripheral -.->|25| n_cortex
+  n_peripheral -.->|26| n_cortex
   n_brainstem -.->|15| n_peripheral
   n_autonomic -.->|11| n_peripheral
   n_memory -->|11| n_brainstem
@@ -95,14 +95,14 @@ flowchart LR
 
 | Lobe | What it is | Regions | Files | Symbols | Wiring inside the lobe |
 |---|---|---:|---:|---:|---:|
-| **Cortex — Interface** | What the user sees and touches. Every business intent enters here. | 4 | 76 | 1539 | 141 |
-| **Brainstem — Kernel** | Involuntary and non-negotiable. Every single request passes through here, whatever it is asking for. | 9 | 366 | 1159 | 566 |
-| **Functional Lobes — Business Operations** | The specialised areas. Each one owns a domain and can be licensed on its own. | 16 | 328 | 3906 | 1206 |
-| **Peripheral Nerves — Integrations** | Contact with the outside world: storefronts, payment terminals, marketing clouds, third-party extensions. | 3 | 51 | 889 | 7 |
+| **Cortex — Interface** | What the user sees and touches. Every business intent enters here. | 4 | 76 | 1552 | 144 |
+| **Brainstem — Kernel** | Involuntary and non-negotiable. Every single request passes through here, whatever it is asking for. | 9 | 369 | 1159 | 566 |
+| **Functional Lobes — Business Operations** | The specialised areas. Each one owns a domain and can be licensed on its own. | 16 | 329 | 3917 | 1208 |
+| **Peripheral Nerves — Integrations** | Contact with the outside world: storefronts, payment terminals, marketing clouds, third-party extensions. | 3 | 51 | 896 | 7 |
 | **Autonomic — Background & Reflexes** | Runs without anyone asking it to: outbox drain, pollers, alerting, scheduled sweeps. | 2 | 16 | 211 | 26 |
-| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 351 | 4234 | 206 |
-| **Motor Cortex — Build & Delivery** | How the system actually moves: build, migrate, promote, back up, restore. | 1 | 54 | 214 | 0 |
-| **Cerebellum — Verification** | Balance and correction. Kept out of the wiring diagrams on purpose — tests touch everything, so drawing them would grey out every real edge. | 1 | 337 | 1448 | 0 |
+| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 351 | 4244 | 206 |
+| **Motor Cortex — Build & Delivery** | How the system actually moves: build, migrate, promote, back up, restore. | 1 | 55 | 217 | 0 |
+| **Cerebellum — Verification** | Balance and correction. Kept out of the wiring diagrams on purpose — tests touch everything, so drawing them would grey out every real edge. | 1 | 338 | 1451 | 0 |
 
 ## 2. Region map
 
@@ -112,7 +112,7 @@ Every region, grouped by lobe, with the connections of weight **12 or more**. Th
 flowchart LR
   subgraph n_g_cortex ["Cortex — Interface"]
     direction TB
-    n_ui_shell["SPA Shell<br/><small>52 files · 1457 symbols</small>"]
+    n_ui_shell["SPA Shell<br/><small>52 files · 1470 symbols</small>"]
     n_ui_offline["Offline Store & Device I/O<br/><small>2 files · 15 symbols</small>"]
     n_store_app["Store App (PWA)<br/><small>12 files · 67 symbols</small>"]
     n_industry_profiles["Industry Profiles<br/><small>10 files · 0 symbols</small>"]
@@ -125,7 +125,7 @@ flowchart LR
     n_identity["Identity, RBAC & MFA<br/><small>25 files · 246 symbols</small>"]
     n_tenancy["Tenancy, Packaging & Settings<br/><small>23 files · 230 symbols</small>"]
     n_approval["Approval Engine (maker-checker)<br/><small>4 files · 34 symbols</small>"]
-    n_persistence["Persistence & Migrations<br/><small>259 files · 36 symbols</small>"]
+    n_persistence["Persistence & Migrations<br/><small>262 files · 36 symbols</small>"]
     n_mixed_handlers["Cross-module API Handlers<br/><small>2 files · 64 symbols</small>"]
     n_security_program["Security Baseline & Attack Surface<br/><small>16 files · 165 symbols</small>"]
   end
@@ -133,12 +133,12 @@ flowchart LR
     direction TB
     n_finance["Finance & General Ledger<br/><small>36 files · 383 symbols</small>"]
     n_tax["Tax & Statutory<br/><small>11 files · 182 symbols</small>"]
-    n_procurement["Procurement & Vendors<br/><small>22 files · 346 symbols</small>"]
+    n_procurement["Procurement & Vendors<br/><small>23 files · 356 symbols</small>"]
     n_inventory["Inventory & Planning<br/><small>29 files · 381 symbols</small>"]
     n_wms["Warehouse Management (WMS)<br/><small>49 files · 531 symbols</small>"]
     n_oms["Orders & Fulfillment (OMS)<br/><small>23 files · 263 symbols</small>"]
     n_pos["Point of Sale<br/><small>28 files · 310 symbols</small>"]
-    n_pim["Product Information (PIM)<br/><small>44 files · 502 symbols</small>"]
+    n_pim["Product Information (PIM)<br/><small>44 files · 503 symbols</small>"]
     n_crm["CRM & Loyalty<br/><small>13 files · 117 symbols</small>"]
     n_hr["HR & Payroll<br/><small>9 files · 54 symbols</small>"]
     n_manufacturing["Manufacturing & MRP<br/><small>5 files · 63 symbols</small>"]
@@ -151,7 +151,7 @@ flowchart LR
   subgraph n_g_peripheral ["Peripheral Nerves — Integrations"]
     direction TB
     n_connectors["Channel Connectors<br/><small>18 files · 245 symbols</small>"]
-    n_printing["Device Printing (QZ Tray)<br/><small>19 files · 457 symbols</small>"]
+    n_printing["Device Printing (QZ Tray)<br/><small>19 files · 464 symbols</small>"]
     n_extensions["Extension Platform<br/><small>14 files · 187 symbols</small>"]
   end
   subgraph n_g_autonomic ["Autonomic — Background & Reflexes"]
@@ -161,18 +161,18 @@ flowchart LR
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>344 files · 4113 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>344 files · 4123 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 121 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
     direction TB
-    n_ops_tooling["Build, Deploy & Operate<br/><small>54 files · 214 symbols</small>"]
+    n_ops_tooling["Build, Deploy & Operate<br/><small>55 files · 217 symbols</small>"]
   end
   n_brain -->|205| n_docs_memory
   n_wms -.->|169| n_persistence
-  n_ui_shell -.->|135| n_ui_offline
+  n_ui_shell -.->|138| n_ui_offline
   n_wms -.->|114| n_api_errors
-  n_procurement -.->|108| n_doc_kernel
+  n_procurement -.->|111| n_doc_kernel
   n_finance -.->|107| n_persistence
   n_pim -.->|103| n_persistence
   n_mixed_handlers -.->|92| n_api_errors
@@ -185,10 +185,10 @@ flowchart LR
   n_pos -.->|65| n_persistence
   n_inventory -.->|63| n_api_errors
   n_identity -.->|62| n_api_errors
+  n_procurement -.->|59| n_persistence
   n_oms -.->|58| n_api_errors
-  n_procurement -.->|58| n_persistence
   n_procurement -->|57| n_tax
-  n_procurement -.->|55| n_wms
+  n_procurement -.->|57| n_wms
   n_reports -.->|54| n_persistence
   n_identity -.->|48| n_persistence
   n_procurement -.->|48| n_api_errors
@@ -228,14 +228,14 @@ flowchart LR
   n_pos -->|26| n_inventory
   n_pim -.->|25| n_observability
   n_pos -->|25| n_tax
+  n_printing -.->|25| n_ui_offline
   n_inventory -.->|24| n_doc_kernel
   n_oms -->|24| n_inventory
-  n_printing -.->|24| n_ui_offline
   n_assets -.->|23| n_finance
+  n_doc_kernel -.->|22| n_procurement
   n_finance -.->|22| n_doc_kernel
   n_manufacturing -.->|22| n_api_errors
   n_pos -.->|22| n_observability
-  n_doc_kernel -.->|21| n_procurement
   n_doc_kernel -.->|21| n_wms
   n_finance -.->|21| n_wms
   n_reports -.->|21| n_finance
@@ -262,13 +262,13 @@ flowchart LR
   n_hr -.->|16| n_api_errors
   n_inventory -.->|16| n_identity
   n_manufacturing -.->|16| n_persistence
-  n_doc_kernel -.->|15| n_pim
   n_doc_kernel -.->|15| n_tax
   n_hr -->|15| n_identity
   n_inventory -.->|15| n_tenancy
   n_pos -->|15| n_oms
   n_reports -.->|15| n_api_errors
   n_assets -.->|14| n_doc_kernel
+  n_doc_kernel -.->|14| n_pim
   n_oms -->|14| n_pos
   n_printing -.->|14| n_tax
   n_approval -.->|13| n_persistence
@@ -321,7 +321,7 @@ flowchart LR
 flowchart LR
   subgraph n_g_cortex ["Cortex — Interface"]
     direction TB
-    n_ui_shell["SPA Shell<br/><small>52 files · 1457 symbols</small>"]
+    n_ui_shell["SPA Shell<br/><small>52 files · 1470 symbols</small>"]
     n_ui_offline["Offline Store & Device I/O<br/><small>2 files · 15 symbols</small>"]
     n_store_app["Store App (PWA)<br/><small>12 files · 67 symbols</small>"]
     n_industry_profiles["Industry Profiles<br/><small>10 files · 0 symbols</small>"]
@@ -340,12 +340,12 @@ flowchart LR
     direction TB
     n_finance["Finance & General Ledger<br/><small>36 files · 383 symbols</small>"]
     n_tax["Tax & Statutory<br/><small>11 files · 182 symbols</small>"]
-    n_procurement["Procurement & Vendors<br/><small>22 files · 346 symbols</small>"]
+    n_procurement["Procurement & Vendors<br/><small>23 files · 356 symbols</small>"]
     n_inventory["Inventory & Planning<br/><small>29 files · 381 symbols</small>"]
     n_wms["Warehouse Management (WMS)<br/><small>49 files · 531 symbols</small>"]
     n_oms["Orders & Fulfillment (OMS)<br/><small>23 files · 263 symbols</small>"]
     n_pos["Point of Sale<br/><small>28 files · 310 symbols</small>"]
-    n_pim["Product Information (PIM)<br/><small>44 files · 502 symbols</small>"]
+    n_pim["Product Information (PIM)<br/><small>44 files · 503 symbols</small>"]
     n_crm["CRM & Loyalty<br/><small>13 files · 117 symbols</small>"]
     n_hr["HR & Payroll<br/><small>9 files · 54 symbols</small>"]
     n_manufacturing["Manufacturing & MRP<br/><small>5 files · 63 symbols</small>"]
@@ -358,7 +358,7 @@ flowchart LR
   subgraph n_g_peripheral ["Peripheral Nerves — Integrations"]
     direction TB
     n_connectors["Channel Connectors<br/><small>18 files · 245 symbols</small>"]
-    n_printing["Device Printing (QZ Tray)<br/><small>19 files · 457 symbols</small>"]
+    n_printing["Device Printing (QZ Tray)<br/><small>19 files · 464 symbols</small>"]
     n_extensions["Extension Platform<br/><small>14 files · 187 symbols</small>"]
   end
   subgraph n_g_autonomic ["Autonomic — Background & Reflexes"]
@@ -367,19 +367,19 @@ flowchart LR
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>344 files · 4113 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>344 files · 4123 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 121 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
     direction TB
-    n_ops_tooling["Build, Deploy & Operate<br/><small>54 files · 214 symbols</small>"]
+    n_ops_tooling["Build, Deploy & Operate<br/><small>55 files · 217 symbols</small>"]
   end
   n_brain -->|205| n_docs_memory
-  n_ui_shell -.->|135| n_ui_offline
-  n_procurement -.->|108| n_doc_kernel
+  n_ui_shell -.->|138| n_ui_offline
+  n_procurement -.->|111| n_doc_kernel
   n_pos -.->|84| n_finance
   n_procurement -->|57| n_tax
-  n_procurement -.->|55| n_wms
+  n_procurement -.->|57| n_wms
   n_inventory -->|44| n_procurement
   n_procurement -->|42| n_finance
   n_wms -.->|40| n_doc_kernel
@@ -398,12 +398,12 @@ flowchart LR
   n_assets -.->|26| n_procurement
   n_pos -->|26| n_inventory
   n_pos -->|25| n_tax
+  n_printing -.->|25| n_ui_offline
   n_inventory -.->|24| n_doc_kernel
   n_oms -->|24| n_inventory
-  n_printing -.->|24| n_ui_offline
   n_assets -.->|23| n_finance
+  n_doc_kernel -.->|22| n_procurement
   n_finance -.->|22| n_doc_kernel
-  n_doc_kernel -.->|21| n_procurement
   n_doc_kernel -.->|21| n_wms
   n_finance -.->|21| n_wms
   n_reports -.->|21| n_finance
@@ -422,12 +422,12 @@ flowchart LR
   n_connectors -.->|16| n_identity
   n_data_io -->|16| n_doc_kernel
   n_inventory -.->|16| n_identity
-  n_doc_kernel -.->|15| n_pim
   n_doc_kernel -.->|15| n_tax
   n_hr -->|15| n_identity
   n_inventory -.->|15| n_tenancy
   n_pos -->|15| n_oms
   n_assets -.->|14| n_doc_kernel
+  n_doc_kernel -.->|14| n_pim
   n_oms -->|14| n_pos
   n_printing -.->|14| n_tax
   n_inventory -->|13| n_pos
@@ -726,26 +726,26 @@ flowchart LR
 
 | Region | Lobe | Files | Symbols | Busiest connection |
 |---|---|---:|---:|---|
-| [SPA Shell](#spa-shell) | Cortex — Interface | 52 | 1457 | → Offline Store & Device I/O (135) |
-| [Offline Store & Device I/O](#offline-store--device-io) | Cortex — Interface | 2 | 15 | ← SPA Shell (135) |
+| [SPA Shell](#spa-shell) | Cortex — Interface | 52 | 1470 | → Offline Store & Device I/O (138) |
+| [Offline Store & Device I/O](#offline-store--device-io) | Cortex — Interface | 2 | 15 | ← SPA Shell (138) |
 | [Store App (PWA)](#store-app-pwa) | Cortex — Interface | 12 | 67 | → Finance & General Ledger (4) |
 | [Industry Profiles](#industry-profiles) | Cortex — Interface | 10 | 0 | — |
 | [HTTP Edge & Middleware](#http-edge--middleware) | Brainstem — Kernel | 9 | 82 | → Error & Message Catalog (12) |
 | [Error & Message Catalog](#error--message-catalog) | Brainstem — Kernel | 3 | 18 | ← Warehouse Management (WMS) (114) |
-| [Document Kernel](#document-kernel) | Brainstem — Kernel | 25 | 284 | ← Procurement & Vendors (108) |
+| [Document Kernel](#document-kernel) | Brainstem — Kernel | 25 | 284 | ← Procurement & Vendors (111) |
 | [Identity, RBAC & MFA](#identity-rbac--mfa) | Brainstem — Kernel | 25 | 246 | → Error & Message Catalog (62) |
 | [Tenancy, Packaging & Settings](#tenancy-packaging--settings) | Brainstem — Kernel | 23 | 230 | → Persistence & Migrations (33) |
 | [Approval Engine (maker-checker)](#approval-engine-maker-checker) | Brainstem — Kernel | 4 | 34 | → Persistence & Migrations (13) |
-| [Persistence & Migrations](#persistence--migrations) | Brainstem — Kernel | 259 | 36 | ← Warehouse Management (WMS) (169) |
+| [Persistence & Migrations](#persistence--migrations) | Brainstem — Kernel | 262 | 36 | ← Warehouse Management (WMS) (169) |
 | [Cross-module API Handlers](#cross-module-api-handlers) | Brainstem — Kernel | 2 | 64 | → Error & Message Catalog (92) |
 | [Finance & General Ledger](#finance--general-ledger) | Functional Lobes — Business Operations | 36 | 383 | → Persistence & Migrations (107) |
 | [Tax & Statutory](#tax--statutory) | Functional Lobes — Business Operations | 11 | 182 | ← Procurement & Vendors (57) |
-| [Procurement & Vendors](#procurement--vendors) | Functional Lobes — Business Operations | 22 | 346 | → Document Kernel (108) |
+| [Procurement & Vendors](#procurement--vendors) | Functional Lobes — Business Operations | 23 | 356 | → Document Kernel (111) |
 | [Inventory & Planning](#inventory--planning) | Functional Lobes — Business Operations | 29 | 381 | → Persistence & Migrations (77) |
 | [Warehouse Management (WMS)](#warehouse-management-wms) | Functional Lobes — Business Operations | 49 | 531 | → Persistence & Migrations (169) |
 | [Orders & Fulfillment (OMS)](#orders--fulfillment-oms) | Functional Lobes — Business Operations | 23 | 263 | → Persistence & Migrations (67) |
 | [Point of Sale](#point-of-sale) | Functional Lobes — Business Operations | 28 | 310 | → Finance & General Ledger (84) |
-| [Product Information (PIM)](#product-information-pim) | Functional Lobes — Business Operations | 44 | 502 | → Persistence & Migrations (103) |
+| [Product Information (PIM)](#product-information-pim) | Functional Lobes — Business Operations | 44 | 503 | → Persistence & Migrations (103) |
 | [CRM & Loyalty](#crm--loyalty) | Functional Lobes — Business Operations | 13 | 117 | → Persistence & Migrations (34) |
 | [HR & Payroll](#hr--payroll) | Functional Lobes — Business Operations | 9 | 54 | → Persistence & Migrations (17) |
 | [Manufacturing & MRP](#manufacturing--mrp) | Functional Lobes — Business Operations | 5 | 63 | → Error & Message Catalog (22) |
@@ -755,15 +755,15 @@ flowchart LR
 | [Shipping & Logistics](#shipping--logistics) | Functional Lobes — Business Operations | 5 | 73 | → Persistence & Migrations (11) |
 | [Bulk Data I/O](#bulk-data-io) | Functional Lobes — Business Operations | 3 | 39 | → Document Kernel (16) |
 | [Channel Connectors](#channel-connectors) | Peripheral Nerves — Integrations | 18 | 245 | → Error & Message Catalog (45) |
-| [Device Printing (QZ Tray)](#device-printing-qz-tray) | Peripheral Nerves — Integrations | 19 | 457 | → Procurement & Vendors (32) |
+| [Device Printing (QZ Tray)](#device-printing-qz-tray) | Peripheral Nerves — Integrations | 19 | 464 | → Procurement & Vendors (32) |
 | [Extension Platform](#extension-platform) | Peripheral Nerves — Integrations | 14 | 187 | → Persistence & Migrations (28) |
 | [Event Outbox & Async Job Runner](#event-outbox--async-job-runner) | Autonomic — Background & Reflexes | 6 | 55 | ← Logging, Alerting & Notifications (19) |
 | [Logging, Alerting & Notifications](#logging-alerting--notifications) | Autonomic — Background & Reflexes | 10 | 156 | ← Warehouse Management (WMS) (73) |
-| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 344 | 4113 | ← The Brain Map (this) (205) |
+| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 344 | 4123 | ← The Brain Map (this) (205) |
 | [The Brain Map (this)](#the-brain-map-this) | Hippocampus — Written Memory | 7 | 121 | → Project Documentation (205) |
-| [Build, Deploy & Operate](#build-deploy--operate) | Motor Cortex — Build & Delivery | 54 | 214 | → Persistence & Migrations (5) |
+| [Build, Deploy & Operate](#build-deploy--operate) | Motor Cortex — Build & Delivery | 55 | 217 | → Persistence & Migrations (5) |
 | [Security Baseline & Attack Surface](#security-baseline--attack-surface) | Brainstem — Kernel | 16 | 165 | → Persistence & Migrations (9) |
-| [Test Suite](#test-suite) | Cerebellum — Verification | 337 | 1448 | — |
+| [Test Suite](#test-suite) | Cerebellum — Verification | 338 | 1451 | — |
 
 ## 5. Region detail
 
@@ -778,15 +778,15 @@ The whole frontend: one hand-written vanilla-JS single-page app, no framework an
 **Most connected symbols**
 
 - `apiFetch()` — [public/app.js](../../public/app.js#L894) · degree 29
-- `init()` — [public/app.js](../../public/app.js#L3506) · degree 22
+- `init()` — [public/app.js](../../public/app.js#L3485) · degree 22
 - `ErpTypeahead` — [public/components/erp-typeahead.js](../../public/components/erp-typeahead.js#L65) · degree 20
-- `renderView()` — [public/app.js](../../public/app.js#L6031) · degree 20
+- `renderView()` — [public/app.js](../../public/app.js#L6010) · degree 20
 - `renderOnboardingTab()` — [public/view-hr.js](../../public/view-hr.js#L1164) · degree 18
 - `renderPOSCartTable()` — [public/view-pos.js](../../public/view-pos.js#L681) · degree 18
 
 **Wired to**
 
-- → **Offline Store & Device I/O** — 135 relationships, 135 inferred
+- → **Offline Store & Device I/O** — 138 relationships, 138 inferred
 - → **Device Printing (QZ Tray)** — 9 relationships, 9 inferred
 - → **Store App (PWA)** — 3 relationships, 3 inferred
 - → **HTTP Edge & Middleware** — declared: HTTP/JSON
@@ -858,17 +858,17 @@ Browser-side IndexedDB queue that lets POS keep selling when the network drops, 
 **Most connected symbols**
 
 - `r()` — [public/qrcode.min.js](../../public/qrcode.min.js#L1) · degree 33
-- `k()` — [public/qrcode.min.js](../../public/qrcode.min.js#L1) · degree 24
+- `k()` — [public/qrcode.min.js](../../public/qrcode.min.js#L1) · degree 25
 - `a()` — [public/qrcode.min.js](../../public/qrcode.min.js#L1) · degree 23
 - `b()` — [public/qrcode.min.js](../../public/qrcode.min.js#L1) · degree 23
-- `d()` — [public/qrcode.min.js](../../public/qrcode.min.js#L1) · degree 15
+- `d()` — [public/qrcode.min.js](../../public/qrcode.min.js#L1) · degree 16
 - `i()` — [public/qrcode.min.js](../../public/qrcode.min.js#L1) · degree 13
 
 **Wired to**
 
 - → **HTTP Edge & Middleware** — declared: queued replay
-- ← **SPA Shell** — 135 relationships, 135 inferred
-- ← **Device Printing (QZ Tray)** — 24 relationships, 24 inferred
+- ← **SPA Shell** — 138 relationships, 138 inferred
+- ← **Device Printing (QZ Tray)** — 25 relationships, 25 inferred
 - ← **Store App (PWA)** — 3 relationships, 3 inferred
 - ← **Procurement & Vendors** — 2 relationships, 2 inferred
 
@@ -1036,24 +1036,24 @@ The metadata-driven Record Type engine — one generic documents table per tenan
 
 **Most connected symbols**
 
-- `strField()` — [engines/master_data_validation.go](../../engines/master_data_validation.go#L327) · degree 203
+- `strField()` — [engines/master_data_validation.go](../../engines/master_data_validation.go#L327) · degree 207
 - `NewDocID()` — [engines/docid.go](../../engines/docid.go#L93) · degree 87
 - `handleGenericDoc()` — [internal/server/handlers_core_doc_engine.go](../../internal/server/handlers_core_doc_engine.go#L80) · degree 81
 - `ValidateMasterDataRules()` — [engines/master_data_validation.go](../../engines/master_data_validation.go#L32) · degree 41
-- `checkPermission()` — [internal/server/handlers_core_doc_engine.go](../../internal/server/handlers_core_doc_engine.go#L1371) · degree 38
-- `GenerateSequence()` — [engines/numbering.go](../../engines/numbering.go#L97) · degree 35
+- `checkPermission()` — [internal/server/handlers_core_doc_engine.go](../../internal/server/handlers_core_doc_engine.go#L1370) · degree 38
+- `GenerateSequence()` — [engines/numbering.go](../../engines/numbering.go#L96) · degree 37
 
 **Wired to**
 
 - → **Persistence & Migrations** — 76 relationships, 76 inferred
 - → **Error & Message Catalog** — 32 relationships, 32 inferred
-- → **Procurement & Vendors** — 21 relationships, 21 inferred
+- → **Procurement & Vendors** — 22 relationships, 22 inferred
 - → **Warehouse Management (WMS)** — 21 relationships, 21 inferred
 - → **Identity, RBAC & MFA** — 18 relationships, 18 inferred
 - → **Inventory & Planning** — 17 relationships, 16 inferred
-- → **Product Information (PIM)** — 15 relationships, 15 inferred
 - → **Tax & Statutory** — 15 relationships, 15 inferred
-- ← **Procurement & Vendors** — 108 relationships, 108 inferred
+- → **Product Information (PIM)** — 14 relationships, 14 inferred
+- ← **Procurement & Vendors** — 111 relationships, 111 inferred
 - ← **Warehouse Management (WMS)** — 40 relationships, 40 inferred
 - ← **Orders & Fulfillment (OMS)** — 39 relationships, 39 inferred
 - ← **Product Information (PIM)** — 38 relationships, 38 inferred
@@ -1160,7 +1160,7 @@ Schema-per-tenant provisioning, the sellable product packages (PIM/WMS/OMS/HR/�
 
 **Most connected symbols**
 
-- `ProvisionTenantSchema()` — [engines/saas.go](../../engines/saas.go#L64) · degree 98
+- `ProvisionTenantSchema()` — [engines/saas.go](../../engines/saas.go#L64) · degree 100
 - `GetSettingInt()` — [engines/settings_registry.go](../../engines/settings_registry.go#L154) · degree 53
 - `SetSetting()` — [engines/settings_registry.go](../../engines/settings_registry.go#L263) · degree 36
 - `requirePlatformOperator()` — [internal/server/handlers_platform_console.go](../../internal/server/handlers_platform_console.go#L16) · degree 25
@@ -1261,8 +1261,8 @@ The Postgres connection, GetTenantSchema/SetSearchPath (the tenant boundary, enf
 
 **Most connected symbols**
 
-- `GetTenantSchema()` — [db/db.go](../../db/db.go#L134) · degree 1304
-- `InitDB()` — [db/db.go](../../db/db.go#L49) · degree 430
+- `GetTenantSchema()` — [db/db.go](../../db/db.go#L134) · degree 1305
+- `InitDB()` — [db/db.go](../../db/db.go#L49) · degree 432
 - `SetSearchPath()` — [db/db.go](../../db/db.go#L152) · degree 81
 - `SyncTenantSchemaTx()` — [db/tenant_schema_sync.go](../../db/tenant_schema_sync.go#L172) · degree 14
 - `ConnStringFromEnv()` — [db/db.go](../../db/db.go#L32) · degree 7
@@ -1277,9 +1277,9 @@ The Postgres connection, GetTenantSchema/SetSearchPath (the tenant boundary, enf
 - ← **Document Kernel** — 76 relationships, 76 inferred
 - ← **Orders & Fulfillment (OMS)** — 67 relationships, 67 inferred
 - ← **Point of Sale** — 65 relationships, 65 inferred
-- ← **Procurement & Vendors** — 58 relationships, 58 inferred
+- ← **Procurement & Vendors** — 59 relationships, 59 inferred
 
-<details><summary>259 files</summary>
+<details><summary>262 files</summary>
 
 - [db/db.go](../../db/db.go)
 - [db/migrate.go](../../db/migrate.go)
@@ -1288,6 +1288,9 @@ The Postgres connection, GetTenantSchema/SetSearchPath (the tenant boundary, enf
 - [db/migrations_stage106_4_stock_default_rows.sql](../../db/migrations_stage106_4_stock_default_rows.sql)
 - [db/migrations_stage107_stock_location_physical.sql](../../db/migrations_stage107_stock_location_physical.sql)
 - [db/migrations_stage108_location_level_types.sql](../../db/migrations_stage108_location_level_types.sql)
+- [db/migrations_stage113_1_product_type_sticker_template.sql](../../db/migrations_stage113_1_product_type_sticker_template.sql)
+- [db/migrations_stage114_6_mrp_rules.sql](../../db/migrations_stage114_6_mrp_rules.sql)
+- [db/migrations_stage115_1_series_year_position.sql](../../db/migrations_stage115_1_series_year_position.sql)
 - [db/migrations_stage14a_modules.sql](../../db/migrations_stage14a_modules.sql)
 - [db/migrations_stage14b_versioning.sql](../../db/migrations_stage14b_versioning.sql)
 - [db/migrations_stage14c_pipeline.sql](../../db/migrations_stage14c_pipeline.sql)
@@ -1759,19 +1762,19 @@ Purchase Requisition → RFQ and vendor-quote comparison → Purchase Order → 
 
 **Most connected symbols**
 
-- `firstNonEmpty()` — [engines/purchase_order.go](../../engines/purchase_order.go#L378) · degree 94
-- `fetchDocData()` — [engines/purchase_order.go](../../engines/purchase_order.go#L265) · degree 91
-- `GetGRNStepView()` — [engines/grn_steps.go](../../engines/grn_steps.go#L1418) · degree 43
+- `firstNonEmpty()` — [engines/purchase_order.go](../../engines/purchase_order.go#L381) · degree 95
+- `fetchDocData()` — [engines/purchase_order.go](../../engines/purchase_order.go#L268) · degree 91
+- `GetGRNStepView()` — [engines/grn_steps.go](../../engines/grn_steps.go#L1421) · degree 44
 - `rfqAllowed()` — [internal/server/handlers_rfq.go](../../internal/server/handlers_rfq.go#L13) · degree 32
 - `PostGRNChildStep()` — [engines/grn_steps_post.go](../../engines/grn_steps_post.go#L39) · degree 29
 - `PostPurchaseReturn()` — [engines/purchase_return.go](../../engines/purchase_return.go#L429) · degree 28
 
 **Wired to**
 
-- → **Document Kernel** — 108 relationships, 108 inferred
-- → **Persistence & Migrations** — 58 relationships, 58 inferred
+- → **Document Kernel** — 111 relationships, 111 inferred
+- → **Persistence & Migrations** — 59 relationships, 59 inferred
 - → **Tax & Statutory** — 57 relationships, 53 inferred
-- → **Warehouse Management (WMS)** — 55 relationships, 55 inferred
+- → **Warehouse Management (WMS)** — 57 relationships, 57 inferred
 - → **Error & Message Catalog** — 48 relationships, 48 inferred
 - → **Finance & General Ledger** — 42 relationships, 40 inferred
 - → **Logging, Alerting & Notifications** — 29 relationships, 29 inferred
@@ -1780,18 +1783,19 @@ Purchase Requisition → RFQ and vendor-quote comparison → Purchase Order → 
 - ← **Reporting Engine** — 37 relationships, 36 inferred
 - ← **Device Printing (QZ Tray)** — 32 relationships, 30 inferred
 - ← **Fixed Assets, Service & Quality Management** — 26 relationships, 26 inferred
-- ← **Document Kernel** — 21 relationships, 21 inferred
+- ← **Document Kernel** — 22 relationships, 22 inferred
 - ← **Warehouse Management (WMS)** — 19 relationships, 18 inferred
 - ← **Product Information (PIM)** — 18 relationships, 18 inferred
 - ← **Finance & General Ledger** — 12 relationships, 11 inferred
 
-<details><summary>22 files</summary>
+<details><summary>23 files</summary>
 
 - [engines/grn_pricing.go](../../engines/grn_pricing.go)
 - [engines/grn_steps.go](../../engines/grn_steps.go)
 - [engines/grn_steps_post.go](../../engines/grn_steps_post.go)
 - [engines/grn_steps_reports.go](../../engines/grn_steps_reports.go)
 - [engines/item_names.go](../../engines/item_names.go)
+- [engines/mrp_rules.go](../../engines/mrp_rules.go)
 - [engines/po_auto_cancel.go](../../engines/po_auto_cancel.go)
 - [engines/po_design.go](../../engines/po_design.go)
 - [engines/po_receipt_policy.go](../../engines/po_receipt_policy.go)
@@ -1884,7 +1888,7 @@ Receiving, put-away, slotting, picking, pack counts, 3PL billing, productivity t
 
 **Most connected symbols**
 
-- `numFromInterface()` — [engines/wms.go](../../engines/wms.go#L809) · degree 194
+- `numFromInterface()` — [engines/wms.go](../../engines/wms.go#L809) · degree 196
 - `PostGRNReceiptPart()` — [engines/wms_receiving.go](../../engines/wms_receiving.go#L50) · degree 21
 - `PutawayToBin()` — [engines/wms.go](../../engines/wms.go#L27) · degree 19
 - `MoveBinStock()` — [engines/wms_bin_move.go](../../engines/wms_bin_move.go#L47) · degree 18
@@ -1901,7 +1905,7 @@ Receiving, put-away, slotting, picking, pack counts, 3PL billing, productivity t
 - → **Reporting Engine** — 32 relationships, 32 inferred
 - → **Procurement & Vendors** — 19 relationships, 18 inferred
 - → **Orders & Fulfillment (OMS)** — 12 relationships, 10 inferred
-- ← **Procurement & Vendors** — 55 relationships, 55 inferred
+- ← **Procurement & Vendors** — 57 relationships, 57 inferred
 - ← **Orders & Fulfillment (OMS)** — 33 relationships, 32 inferred
 - ← **Inventory & Planning** — 32 relationships, 31 inferred
 - ← **Document Kernel** — 21 relationships, 21 inferred
@@ -2116,7 +2120,7 @@ Family/attribute framework, taxonomy, approval-gated content with versions and r
 - ← **Cross-module API Handlers** — 31 relationships, 30 inferred
 - ← **Finance & General Ledger** — 19 relationships, 19 inferred
 - ← **Device Printing (QZ Tray)** — 17 relationships, 13 inferred
-- ← **Document Kernel** — 15 relationships, 15 inferred
+- ← **Document Kernel** — 14 relationships, 14 inferred
 - ← **Procurement & Vendors** — 12 relationships, 12 inferred
 - ← **HTTP Edge & Middleware** — 7 relationships, 7 inferred
 - ← **Channel Connectors** — 5 relationships, 5 inferred
@@ -2510,7 +2514,7 @@ BulkImportCSV — the shared CSV import path (validation, error rows, formula-in
 - `ImportResult` — [engines/import.go](../../engines/import.go#L17) · degree 15
 - `BulkImportCSVContext()` — [engines/import.go](../../engines/import.go#L112) · degree 13
 - `BulkImportCSV()` — [engines/import.go](../../engines/import.go#L103) · degree 12
-- `RecordImportJob()` — [engines/import.go](../../engines/import.go#L721) · degree 11
+- `RecordImportJob()` — [engines/import.go](../../engines/import.go#L714) · degree 11
 - `ResumeImportJob()` — [engines/import_resume.go](../../engines/import_resume.go#L155) · degree 11
 
 **Wired to**
@@ -2600,16 +2604,16 @@ Silent one-click printing to named OS printers via a QZ Tray bridge on each pack
 **Most connected symbols**
 
 - `BuildPrintDocument()` — [engines/print_documents.go](../../engines/print_documents.go#L438) · degree 41
-- `refresh()` — [public/sticker-studio.js](../../public/sticker-studio.js#L515) · degree 26
-- `mount()` — [public/sticker-studio.js](../../public/sticker-studio.js#L323) · degree 25
+- `refresh()` — [public/sticker-studio.js](../../public/sticker-studio.js#L507) · degree 26
+- `mount()` — [public/sticker-studio.js](../../public/sticker-studio.js#L315) · degree 25
 - `printTransactionDocument()` — [public/trade-docs.js](../../public/trade-docs.js#L715) · degree 23
-- `bindInspector()` — [public/sticker-studio.js](../../public/sticker-studio.js#L1023) · degree 19
+- `bindInspector()` — [public/sticker-studio.js](../../public/sticker-studio.js#L1015) · degree 19
 - `BuildReceiptPayload()` — [engines/qz_payload.go](../../engines/qz_payload.go#L527) · degree 18
 
 **Wired to**
 
 - → **Procurement & Vendors** — 32 relationships, 30 inferred
-- → **Offline Store & Device I/O** — 24 relationships, 24 inferred
+- → **Offline Store & Device I/O** — 25 relationships, 25 inferred
 - → **Product Information (PIM)** — 17 relationships, 13 inferred
 - → **Tax & Statutory** — 14 relationships, 14 inferred
 - → **Document Kernel** — 12 relationships, 12 inferred
@@ -3243,7 +3247,7 @@ manage.ps1 (start/stop/backup/restore/drill), promote.ps1 (worktree → build �
 - ← **The Brain Map (this)** — 4 relationships, all extracted
 - ← **Project Documentation** — 4 relationships, all extracted
 
-<details><summary>54 files</summary>
+<details><summary>55 files</summary>
 
 - [.dockerignore](../../.dockerignore)
 - [.gitattributes](../../.gitattributes)
@@ -3271,6 +3275,7 @@ manage.ps1 (start/stop/backup/restore/drill), promote.ps1 (worktree → build �
 - [deploy/erp.service](../../deploy/erp.service)
 - [deploy/install_backup_cron.sh](../../deploy/install_backup_cron.sh)
 - [deploy/install_cleanup_cron.sh](../../deploy/install_cleanup_cron.sh)
+- [deploy/install_service_unit.sh](../../deploy/install_service_unit.sh)
 - [deploy/migrate.sh](../../deploy/migrate.sh)
 - [deploy/postgres_harden.sql](../../deploy/postgres_harden.sql)
 - [deploy/remote_deploy.sh](../../deploy/remote_deploy.sh)
@@ -3312,14 +3317,14 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 
 **Most connected symbols**
 
-- `testConnStr()` — [engines/testdb_test.go](../../engines/testdb_test.go#L16) · degree 365
-- `dropLifecycleTenant()` — [engines/tenant_lifecycle_test.go](../../engines/tenant_lifecycle_test.go#L24) · degree 83
-- `uniqueLifecycleTenant()` — [engines/tenant_lifecycle_test.go](../../engines/tenant_lifecycle_test.go#L18) · degree 83
+- `testConnStr()` — [engines/testdb_test.go](../../engines/testdb_test.go#L16) · degree 367
+- `dropLifecycleTenant()` — [engines/tenant_lifecycle_test.go](../../engines/tenant_lifecycle_test.go#L24) · degree 85
+- `uniqueLifecycleTenant()` — [engines/tenant_lifecycle_test.go](../../engines/tenant_lifecycle_test.go#L18) · degree 85
 - `TestEngines()` — [engines/engines_test.go](../../engines/engines_test.go#L12) · degree 62
 - `testConnStr()` — [internal/server/testdb_test.go](../../internal/server/testdb_test.go#L8) · degree 56
 - `TestStage89ItemMasterAskedOnce()` — [engines/item_master_stage89_test.go](../../engines/item_master_stage89_test.go#L15) · degree 33
 
-<details><summary>337 files</summary>
+<details><summary>338 files</summary>
 
 - [cmd/doclint/capabilities_test.go](../../cmd/doclint/capabilities_test.go)
 - [cmd/doclint/external_test.go](../../cmd/doclint/external_test.go)
@@ -3428,9 +3433,11 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/media_store_stage75_4_test.go](../../engines/media_store_stage75_4_test.go)
 - [engines/module_manifest_test.go](../../engines/module_manifest_test.go)
 - [engines/modules_test.go](../../engines/modules_test.go)
+- [engines/mrp_rules_test.go](../../engines/mrp_rules_test.go)
 - [engines/notification_delivery_test.go](../../engines/notification_delivery_test.go)
 - [engines/number_field_validation_test.go](../../engines/number_field_validation_test.go)
 - [engines/number_series_country_stage76_test.go](../../engines/number_series_country_stage76_test.go)
+- [engines/number_series_deleted_store_stage115_test.go](../../engines/number_series_deleted_store_stage115_test.go)
 - [engines/number_series_test.go](../../engines/number_series_test.go)
 - [engines/numbering_race_stage74_test.go](../../engines/numbering_race_stage74_test.go)
 - [engines/oauth_client_credentials_test.go](../../engines/oauth_client_credentials_test.go)
@@ -3548,7 +3555,6 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/stage73_till_cash_test.go](../../engines/stage73_till_cash_test.go)
 - [engines/stage73_usability_test.go](../../engines/stage73_usability_test.go)
 - [engines/stage76_regions_codes_test.go](../../engines/stage76_regions_codes_test.go)
-- [engines/stage94_single_item_design_test.go](../../engines/stage94_single_item_design_test.go)
 - [engines/sticker_document_source_test.go](../../engines/sticker_document_source_test.go)
 - [engines/sticker_print_retry_test.go](../../engines/sticker_print_retry_test.go)
 - [engines/stickers_test.go](../../engines/stickers_test.go)
@@ -3663,10 +3669,10 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 
 ## 6. What the brain does not know yet
 
-Nothing — every one of the 1579 files in the working tree is claimed by a region (100.0% coverage). When that stops being true, the unclaimed files get listed here and `update-brain.ps1 -Check` fails, which is the signal to add a `match` pattern (or a whole new region) to `brain.map.json`.
+Nothing — every one of the 1585 files in the working tree is claimed by a region (100.0% coverage). When that stops being true, the unclaimed files get listed here and `update-brain.ps1 -Check` fails, which is the signal to add a `match` pattern (or a whole new region) to `brain.map.json`.
 
 Two other things the brain is honest about not seeing:
 
-- **1151 of 1579 files are parsed into the call graph.** The rest — `.sql` migrations, JSON industry profiles, PowerShell, CI config, Markdown — are filed into regions by path, but contribute no symbols or edges, because graphify has no extractor for them. A region can therefore be substantial and still show few symbols.
-- **900 graph nodes are external type references** (`sql.Tx`, `context.Context` and friends) with no source file of their own. They belong to no region by design.
+- **1154 of 1585 files are parsed into the call graph.** The rest — `.sql` migrations, JSON industry profiles, PowerShell, CI config, Markdown — are filed into regions by path, but contribute no symbols or edges, because graphify has no extractor for them. A region can therefore be substantial and still show few symbols.
+- **901 graph nodes are external type references** (`sql.Tx`, `context.Context` and friends) with no source file of their own. They belong to no region by design.
 

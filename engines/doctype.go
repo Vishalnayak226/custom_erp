@@ -424,6 +424,11 @@ func validateDocumentWith(tenantID string, doctype string, docData map[string]in
 	if doctype == "ItemType" {
 		InvalidateItemTypeCache(tenantID)
 	}
+	if doctype == "MRPRule" { // Stage 114.6: a rule that could not suggest an MRP is refused
+		if err := ValidateMRPRule(docData); err != nil {
+			return err
+		}
+	}
 	fields := lk.fields
 	if len(fields) == 0 {
 		// META-0196 (Stage 25.5): "DocType not registered" - a doctype with

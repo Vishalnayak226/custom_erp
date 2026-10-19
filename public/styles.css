@@ -744,16 +744,25 @@ body {
 }
 
 /* Page Containers */
+/* Top gap = spacer, not padding: sticky headers stick at the padding edge (116.1) */
 .page-container {
+  --view-pad-top: 24px;
+  --view-gap: 20px;
   flex: 1;
   min-height: 0;
-  padding: 24px;
+  padding: 0 24px 24px;
   overflow-y: auto;
   overflow-x: hidden;
   overflow-anchor: none;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--view-gap);
+}
+.page-container::before {
+  content: '';
+  flex: none;
+  height: var(--view-pad-top);
+  margin-bottom: calc(-1 * var(--view-gap));
 }
 
 .page-header {
@@ -1126,24 +1135,11 @@ table {
   text-align: left;
 }
 
-/* Sticky header: the table's own scroll ancestor is .page-container (Stage 26
-   P2 UI pass, 2026-07-26) - the whole page scrolls as one unit instead of
-   each table owning a cramped inner scrollbar, and this header row freezes at
-   the top of that scroll.
-   Stage 41 fixes the "scrolled-past rows paint over the frozen header" bug
-   that was previously written off here as unfixable. The diagnosis was right
-   - CSS2.1 17.5.1 has the browser paint table backgrounds in table-layer
-   order (table -> column groups -> row groups -> rows -> cells), and a row
-   group is painted in that layer whatever its `position` is, so a sticky
-   <thead> is positioned correctly but never occludes the <td>s sliding under
-   it - but the conclusion was wrong. The fix is to move `position: sticky`
-   down one level onto the <th> cells: a positioned cell with a z-index leaves
-   the table layer entirely and joins the positioned-descendants layer, which
-   paints above every in-flow <td>. That is why the previous attempts (opaque
-   td backgrounds, forced compositor layer, isolation:isolate) had no effect -
-   they all fought the paint order rather than leaving it.
-   The <thead> keeps its own sticky/z-index so any header decoration that
-   isn't a <th> still travels with it. */
+/* Sticky header: the page (.page-container) scrolls, this row freezes at its
+   top. `position: sticky` must sit on the <th> cells (Stage 41): a sticky
+   <thead> stays in the table paint layer (CSS2.1 17.5.1), so scrolled <td>s
+   paint over it; a positioned <th> with a z-index paints above them. The
+   <thead> stays sticky so non-<th> header decoration travels with it. */
 thead {
   position: sticky;
   top: 0;
@@ -3641,6 +3637,7 @@ body.rf-shell #view-root {
   margin: 0 !important;
   padding: 0 !important;
   max-width: 100% !important;
+  --view-pad-top: 0px;
 }
 
 .rf-wrap {

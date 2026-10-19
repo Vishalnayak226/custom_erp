@@ -345,7 +345,7 @@ function postHTML(v) {
         <td>${itemCell(l)}</td><td class="num">${l.accepted_qty}</td><td class="num">${money(l.grn_price)}</td>
         <td class="num">${l.current_mrp ? money(l.current_mrp) : '<span class="text-muted">none</span>'}</td>
         <td class="num">${posted ? money(l.mrp) : numInput(l.line_no, 'mrp', gs.mrp[l.line_no], '0.01')}</td>
-        <td class="num">${l.suggested_mrp ? money(l.suggested_mrp) : ''}</td>
+        <td class="num">${l.suggested_mrp ? money(l.suggested_mrp) : ''}${l.suggested_mrp && l.suggested_mrp_rule ? `<div class="text-muted" style="font-size: 11px;" title="MRP rule (Setup &gt; MRP Rule)">${esc(l.suggested_mrp_rule)}</div>` : ''}</td>
         <td class="num">${margin == null ? '' : margin + '%'}</td><td>${posted ? '' : warn}</td></tr>`;
     }).join('');
     return `<section class="gs-child">

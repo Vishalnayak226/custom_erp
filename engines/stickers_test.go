@@ -160,32 +160,36 @@ func TestZPLStickerElementStage58Kinds(t *testing.T) {
 	}
 }
 
-// Stage 70: the rule order - Item, Item Type, category, default, standard -
-// with a rule that names a missing (Inactive or deleted) template skipped.
+// Stage 70: the rule order - Item, Item Type, Product Type (Stage 113),
+// category, default, standard - with a rule that names a missing (Inactive
+// or deleted) template skipped.
 func TestPickStickerTemplateRuleOrder(t *testing.T) {
 	templates := []StickerTemplate{
 		{ID: "T-ITEM", Code: "ITEM-CODE"},
 		{ID: "T-TYPE"},
+		{ID: "T-PTYPE"},
 		{ID: "T-CAT", Categories: []string{"Rings", "Bands"}},
 		{ID: "T-DEF", IsDefault: true},
 	}
 	cases := []struct {
-		name, itemTpl, typeTpl, category, wantID, wantRule string
+		name, itemTpl, typeTpl, productTypeTpl, category, wantID, wantRule string
 	}{
-		{"item first", "T-ITEM", "T-TYPE", "Rings", "T-ITEM", StickerRuleItem},
-		{"item by code, any case", "item-code", "", "", "T-ITEM", StickerRuleItem},
-		{"item type next", "", "T-TYPE", "Rings", "T-TYPE", StickerRuleItemType},
-		{"missing item template skipped", "T-GONE", "", " bands ", "T-CAT", StickerRuleCategory},
-		{"category", "", "", "rings", "T-CAT", StickerRuleCategory},
-		{"default", "", "", "Necklaces", "T-DEF", StickerRuleDefault},
+		{"item first", "T-ITEM", "T-TYPE", "T-PTYPE", "Rings", "T-ITEM", StickerRuleItem},
+		{"item by code, any case", "item-code", "", "", "", "T-ITEM", StickerRuleItem},
+		{"item type next", "", "T-TYPE", "T-PTYPE", "Rings", "T-TYPE", StickerRuleItemType},
+		{"product type before category", "", "", "T-PTYPE", "Rings", "T-PTYPE", StickerRuleProductType},
+		{"missing product type template skipped", "", "", "T-GONE", "Rings", "T-CAT", StickerRuleCategory},
+		{"missing item template skipped", "T-GONE", "", "", " bands ", "T-CAT", StickerRuleCategory},
+		{"category", "", "", "", "rings", "T-CAT", StickerRuleCategory},
+		{"default", "", "", "", "Necklaces", "T-DEF", StickerRuleDefault},
 	}
 	for _, c := range cases {
-		got, rule := pickStickerTemplate(templates, c.itemTpl, c.typeTpl, c.category)
+		got, rule := pickStickerTemplate(templates, c.itemTpl, c.typeTpl, c.productTypeTpl, c.category)
 		if got == nil || got.ID != c.wantID || rule != c.wantRule {
 			t.Errorf("%s: got %+v by %q, want %s by %q", c.name, got, rule, c.wantID, c.wantRule)
 		}
 	}
-	if got, rule := pickStickerTemplate(templates[:3], "", "", "Necklaces"); got != nil || rule != StickerRuleStandard {
+	if got, rule := pickStickerTemplate(templates[:4], "", "", "", "Necklaces"); got != nil || rule != StickerRuleStandard {
 		t.Errorf("no default: got %+v by %q, want the standard label", got, rule)
 	}
 }

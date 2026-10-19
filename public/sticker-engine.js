@@ -90,9 +90,23 @@ const RING_ELEMENTS = [
   { kind: 'text', field: 'sku', x_mm: 49.3, y_mm: 3.9, w_mm: 12.0, h_mm: 2.3, font_size_mm: 2.1 },
   { kind: 'text', field: 'polish', x_mm: 49.3, y_mm: 6.5, w_mm: 12.0, h_mm: 2.3, font_size_mm: 2.1 }
 ];
+// Stage 113.3: the Seznik 100 × 14.3 jewellery tag roll (Amazon B0FK2ZF5F8)
+// is the Ring tag's three parts across - barcode panel, text panel, tail -
+// on a taller tag, so its design is the Ring's stretched to fit. A sideways
+// text's font follows the width it stands in, the rest follow the height.
+const scaleElements = (els, sx, sy) => els.map(e => {
+  const r = v => Math.round(v * 10) / 10;
+  return Object.assign({}, e, {
+    x_mm: r(e.x_mm * sx), y_mm: r(e.y_mm * sy), w_mm: r(e.w_mm * sx), h_mm: r(e.h_mm * sy),
+    font_size_mm: r(e.font_size_mm * (e.rotation === 90 || e.rotation === 270 ? sx : sy))
+  });
+});
+const SEZNIK_ELEMENTS = scaleElements(RING_ELEMENTS, 100 / 97.6, 14.3 / 11.9);
+
 export const READY_DESIGNS = [
-  { id: 'jd-square-2up', label: 'Square 2-up (54.5 mm roll)', w: 26.25, h: 20.1, per_row: 2, gap_h: 2, gap_v: 3, elements: SQUARE_ELEMENTS },
-  { id: 'jd-ring-tag', label: 'Ring tag 97.6 × 11.9', w: 97.6, h: 11.9, per_row: 1, gap_v: 3, elements: RING_ELEMENTS }
+  { id: 'jd-square-2up', code: 'SQUARE-2UP', label: 'Square 2-up (54.5 mm roll)', w: 26.25, h: 20.1, per_row: 2, gap_h: 2, gap_v: 3, elements: SQUARE_ELEMENTS },
+  { id: 'jd-ring-tag', code: 'RING-TAG', label: 'Ring tag 97.6 × 11.9', w: 97.6, h: 11.9, per_row: 1, gap_v: 3, elements: RING_ELEMENTS },
+  { id: 'jd-seznik-100x14.3', code: 'SEZNIK-TAG-100X14-3', label: 'Seznik tag 100 × 14.3', w: 100, h: 14.3, per_row: 1, gap_v: 3, elements: SEZNIK_ELEMENTS }
 ].map(d => Object.assign({ group: 'Ready designs', dpi: 300 }, d));
 
 // Common Indian retail / jewellery roll sizes. per_row > 1 is a multi-up roll
@@ -304,6 +318,55 @@ export function templateToDoc(t) {
     elements: JSON.stringify(t.elements.map(compactElement)),
     design: JSON.stringify({ v: 2, settings: t.settings, assets })
   };
+}
+
+// A ready design as an unsaved template of the client's own.
+export function designTemplate(d) {
+  const t = templateFromDoc({ label_width_mm: d.w, label_height_mm: d.h });
+  t.name = d.label;
+  t.settings.per_row = d.per_row || 1;
+  if (d.gap_h !== undefined) t.settings.gap_h_mm = d.gap_h;
+  if (d.gap_v !== undefined) t.settings.gap_v_mm = d.gap_v;
+  if (d.dpi) t.settings.dpi = d.dpi;
+  t.elements = d.elements.map(e => normaliseElement(Object.assign({}, e, { id: newElementId() })));
+  return t;
+}
+
+// Stage 113.2: the ready designs are offered wherever a template is picked
+// (Print, Template rules). Picking one saves it once as a template of the
+// client's own - the server's rules and prints only know saved templates -
+// and every later pick reuses that one. A design counts as saved when an
+// Active template carries its code or its name (Duplicate names it so).
+const isSavedDesign = (doc, d) => new RegExp(`^${d.code}(-\\d+)?$`).test(String(doc.code || doc.id || '').toUpperCase()) ||
+  String(doc.name || '').trim().toLowerCase() === d.label.toLowerCase();
+const isActiveDoc = doc => (doc.status || 'Active') === 'Active';
+
+export function unsavedDesigns(docs) {
+  return READY_DESIGNS.filter(d => !docs.some(x => isActiveDoc(x) && isSavedDesign(x, d)));
+}
+
+// The record id of the design's saved template, saving it first if needed;
+// '' when it could not be saved (the error is already shown).
+export async function ensureDesignTemplate(designId) {
+  const d = READY_DESIGNS.find(x => x.id === designId);
+  if (!d) return '';
+  const res = await window.apiFetch('/api/v1/doc/StickerTemplate');
+  if (!res) return '';
+  if (!res.ok) { await window.showApiError?.(res, 'Could not read the sticker templates.'); return ''; }
+  const docs = await res.json();
+  const saved = docs.find(x => isActiveDoc(x) && isSavedDesign(x, d));
+  if (saved) return saved.id;
+  const codes = new Set(docs.map(x => String(x.code || x.id).toUpperCase()));
+  let code = d.code, n = 2;
+  while (codes.has(code)) code = `${d.code}-${n++}`;
+  const t = designTemplate(d);
+  t.code = code;
+  const out = await window.apiFetch('/api/v1/doc/StickerTemplate', { method: 'POST', body: JSON.stringify(templateToDoc(t)) });
+  if (!out) return '';
+  if (!out.ok) { await window.showApiError?.(out, `Could not save "${d.label}".`, 'Save failed'); return ''; }
+  const body = await out.json().catch(() => ({}));
+  window.showToast?.(`"${d.label}" saved as a template of your own.`, { variant: 'success' });
+  return body.id || code;
 }
 
 export function fontCSS(id) {

@@ -22,8 +22,9 @@
    whole height. */
 #view-root:has(> .txn-screen) {
   overflow: hidden;
-  padding: 10px 16px 12px;
-  gap: 8px;
+  padding: 0 16px 12px;
+  --view-pad-top: 10px;
+  --view-gap: 8px;
 }
 
 .txn-screen {

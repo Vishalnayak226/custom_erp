@@ -60,10 +60,9 @@ Sidebar: **Settings** → **Roles**. This controls what each non-admin role can 
 
 Sidebar: **Settings** → **Prefix Configs**. Controls the auto-generated number format (invoice numbers, PO numbers, etc.) for every record type that uses a Code sequence.
 
-1. The list shows every configured record type with its current **Prefix**, **Separator**, **Padding**, **Reset Interval**, and **Status**.
-2. Click **Edit** on a row. You'll be prompted, one field at a time, for the new **Prefix**, **Separator**, **Padding Width** (a number), and **Reset Frequency** (type exactly `ANNUAL`, `MONTHLY`, or `NEVER`).
-3. Confirming each prompt saves the whole updated configuration in one call — there's no separate Save step after the prompts.
-4. **Reset Frequency** controls when the running sequence number restarts at 1: `ANNUAL` at the start of a financial year, `MONTHLY` at the start of a month, `NEVER` for a sequence that just keeps counting up forever.
+1. The list is grouped (Procurement, Sales, POS, Inventory, Manufacturing, Finance, HR, Products & barcodes, …), each series by its plain name — e.g. **Design**, **Combination ID / item**. Pick a group in the drop-down beside **New Series** to see only that group.
+2. Click **Edit** on a row. One form holds every setting — **Prefix**, **Separator**, **Number length**, **Suffix**, **Restart numbering**, **Year in the number**, store-wise prefixes — with a live preview of the next number. Click **Save**.
+3. **Restart numbering** controls when the running number restarts at 1: every financial year, every month, or never (one continuous series). Full detail: Admin Guide §B.3.2.
 
 ### A.4 Dynamic Labels — renaming vocabulary
 

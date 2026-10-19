@@ -81,17 +81,19 @@ type StickerTemplate struct {
 }
 
 // Stage 70: which template a label uses is a rule, checked in this order -
-// the Item's own template, its Item Type's, the template naming its category,
-// the client's default template, and otherwise the built-in standard label.
+// the Item's own template, its Item Type's, its Product Type's (Stage 113),
+// the template naming its category, the client's default template, and
+// otherwise the built-in standard label.
 // A print from a transaction may also choose a template for a line, which
 // beats every rule for that print only.
 const (
-	StickerRuleItem     = "Item"
-	StickerRuleItemType = "Item type"
-	StickerRuleCategory = "Category"
-	StickerRuleDefault  = "Default"
-	StickerRuleStandard = "Standard"
-	StickerRuleChosen   = "Chosen for this print"
+	StickerRuleItem        = "Item"
+	StickerRuleItemType    = "Item type"
+	StickerRuleProductType = "Product type"
+	StickerRuleCategory    = "Category"
+	StickerRuleDefault     = "Default"
+	StickerRuleStandard    = "Standard"
+	StickerRuleChosen      = "Chosen for this print"
 )
 
 // StickerTemplateStandard, chosen for a line, prints the built-in standard
@@ -106,7 +108,7 @@ func ResolveStickerTemplate(tenantID, category string) (*StickerTemplate, error)
 	if err != nil {
 		return nil, err
 	}
-	t, _ := pickStickerTemplate(templates, "", "", category)
+	t, _ := pickStickerTemplate(templates, "", "", "", category)
 	return t, nil
 }
 
@@ -118,13 +120,33 @@ func ResolveStickerTemplateForItem(tenantID string, item map[string]interface{},
 	if err != nil {
 		return nil, StickerRuleStandard, err
 	}
-	var itemTpl, typeTpl string
+	var itemTpl, typeTpl, productTypeTpl string
 	if item != nil {
 		itemTpl = pimString(item["sticker_template"])
 		typeTpl = ItemTypeRulesFor(tenantID, ItemTypeName(item)).StickerTemplate
+		productTypeTpl = productTypeStickerTemplate(tenantID, pimString(item["product_type"]))
 	}
-	t, rule := pickStickerTemplate(templates, itemTpl, typeTpl, category)
+	t, rule := pickStickerTemplate(templates, itemTpl, typeTpl, productTypeTpl, category)
 	return t, rule, nil
+}
+
+// productTypeStickerTemplate is the template set on a Product Type. Item
+// holds the type's name (as it holds the category's), so the type is found
+// by name, code or record id. Blank when the type has none or is not found.
+func productTypeStickerTemplate(tenantID, ref string) string {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return ""
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return ""
+	}
+	var tpl string
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'sticker_template', '') FROM %s.documents
+		WHERE doctype = 'ProductType' AND deleted_at IS NULL AND (id = $1 OR data->>'code' = $1 OR lower(data->>'name') = lower($1))
+		ORDER BY (id = $1) DESC LIMIT 1`, schema), ref).Scan(&tpl)
+	return tpl
 }
 
 // ChosenStickerTemplate is the template a print picked for a line by hand:
@@ -147,12 +169,15 @@ func ChosenStickerTemplate(tenantID, id string) (*StickerTemplate, error) {
 // pickStickerTemplate is the rule order itself, kept free of the database so
 // the order is tested directly. A rule naming a template that is Inactive or
 // gone is skipped, so setting a template Inactive retires it everywhere.
-func pickStickerTemplate(templates []StickerTemplate, itemTpl, typeTpl, category string) (*StickerTemplate, string) {
+func pickStickerTemplate(templates []StickerTemplate, itemTpl, typeTpl, productTypeTpl, category string) (*StickerTemplate, string) {
 	if t := findStickerTemplate(templates, itemTpl); t != nil {
 		return t, StickerRuleItem
 	}
 	if t := findStickerTemplate(templates, typeTpl); t != nil {
 		return t, StickerRuleItemType
+	}
+	if t := findStickerTemplate(templates, productTypeTpl); t != nil {
+		return t, StickerRuleProductType
 	}
 	if needle := strings.ToLower(strings.TrimSpace(category)); needle != "" {
 		for i := range templates {

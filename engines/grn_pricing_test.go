@@ -355,10 +355,16 @@ func TestStage62Designs(t *testing.T) {
 	if err := PrepareItemVariantCode(tenantID, true, dup); err == nil {
 		t.Fatalf("re-creating an existing combination must be refused, got code %v", dup["code"])
 	}
+	// Stage 117: a new combination is not given a design-based code here - it
+	// takes the next Item number.
 	fresh := map[string]interface{}{"family": design, "parent_product_code": design, "variant_option_values": attr + ":Blue"}
-	if err := PrepareItemVariantCode(tenantID, true, fresh); err != nil || fresh["code"] != design+"-Blue" {
+	if err := PrepareItemVariantCode(tenantID, true, fresh); err != nil || strField(fresh, "code") != "" {
 		t.Fatalf("new combination: %v %v", err, fresh["code"])
 	}
+	if err := PrepareMasterNumber(tenantID, "HQ", "Item", true, fresh); err != nil || !shortMasterCode.MatchString(strField(fresh, "code")) || fresh["id"] != fresh["code"] {
+		t.Fatalf("a combination must take the next Item number (e.g. I00001): %v %v", err, fresh)
+	}
+	ReleaseMasterNumber(tenantID, "Item", strField(fresh, "code"))
 	typed := map[string]interface{}{"code": "MY-DESIGN"}
 	if err := PrepareDesignNumber(tenantID, "HQ", true, typed); err != nil || typed["code"] != "MY-DESIGN" {
 		t.Fatalf("a typed design code must be kept: %v %v", err, typed["code"])
