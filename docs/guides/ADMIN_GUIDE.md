@@ -123,6 +123,18 @@ On Windows the server answers on this computer only (`http://localhost:<port>`),
 > **Supplier logins (PIM).** A supplier who submits product content is created here like any other user, with the role **Supplier** — there is no separate portal to set up. Their account must also be linked to the **Vendor** record they speak for; until it is, they can sign in but every screen refuses them, by design. A Supplier session can only ever see and edit submissions filed under their own vendor. See §PIM for the review side.
 - If a user's login is locked out after too many failed attempts, wait for the automatic lockout window to expire, or have an admin clear it directly.
 
+#### B.2.1 The Store app for store staff (Stage 102)
+
+The **Store app** is an installable web app (PWA) at your ERP address followed by **/store/**. Store staff install it on a phone from the browser - there is no app store and nothing to publish; how they do it is in USER_GUIDE §10A.
+
+- **Nothing to set up.** It uses the same users, roles, store access (§B.2 *Which stores a person works at*) and approval rules as the ERP: a person sees only the stores they may work at and only the approvals routed to them, and decides them through the same approval engine, so every decision is in the approval log as usual.
+- **Sign-in** is the ERP's own, two-factor included, and each person's own **Auto Logout** time applies. First-time two-factor setup, and replacing an administrator-set password, are done once in the full ERP. A sign-in or sign-out in the app is a sign-in or sign-out of the ERP in that browser too. A PIN for a shared store phone is a pending decision (micro_checklist 102 D4), so for now give each person their own sign-in.
+- **What it reads:** item price and MRP, stock per store and batch age through one read-only call, `GET /api/v1/store-app/item?code=`, open to every signed-in role (the same as the stock-availability call the till uses). It never returns cost.
+- **Camera:** scanning with the phone camera needs the browser to allow it, so the server allows the camera on `/store/` pages only (Permissions-Policy `camera=(self)`); every other ERP page keeps it switched off. The camera reads barcodes in Chrome on Android; Safari on iPhone cannot yet, so iPhone users type the code or use a Bluetooth scanner.
+- **HTTPS is required** for installing and for the camera - your live address already has it. On a dev machine, `http://localhost` and `http://127.0.0.1` also work.
+- **Offline:** the app's own files are kept on the phone so it opens without a connection; data is never stored on the phone, and lookups and approvals need a connection.
+- **Changing the app's files** (`public/store/`): raise `?v=` on `store.css` / `store.js` in `index.html` and in `sw.js`'s list, and `CACHE` in `sw.js`, in the same release, so phones load the new files at once.
+
 ### B.3 Configuring the System (no code required)
 
 Several things are configurable through the app's admin screens, not by editing code:
@@ -133,7 +145,9 @@ Several things are configurable through the app's admin screens, not by editing 
 - **The industry profile** (which industry's extra fields are overlaid onto the standard record types) — **Settings → Configuration → Industry**, for the org's admin only. **Once set, changing it needs a written reason**; see §B.3.2.1.
 - **Adding new record types or custom fields** — **Database Schema Design** screen (this is the same "metadata-driven" engine described in `../architecture/framework_architecture.md` — new master/transaction types don't need a code change). This is different from adding an actual *record* of an existing type (a new Vendor, a new Brand, etc.) — that's a business-user task, see [User Guide](USER_GUIDE.md) §8.
 - **Turning modules on/off per tenant** — module entitlements, admin-only.
-- **Silent printing** (labels, barcode stickers, POS receipts, sales invoices going straight to the right printer with no browser dialog) — a **Printer** record per physical printer, plus QZ Tray on each PC that prints. Full steps in **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)**. The field that makes it one-click is **Default For** (`Shipping Label` / `Invoice` / `Sticker` / `Receipt` / `General`) — the server resolves the job to the printer holding that role, so operators never pick a printer. **Nothing depends on QZ Tray being set up**: with no Printer records, or with QZ Tray not running, every one of those screens falls back to the browser print dialog exactly as before. The one exception is **Sticker Printing**, which needs at least one Printer record even for the browser fallback, because the print is logged against a printer — see §B.3.4.
+- **Silent printing** (POs, GRNs, transfers, sales invoices, notes, labels, barcode stickers and POS receipts going straight to the right printer with no browser dialog) — QZ Tray on each PC that prints; full steps in **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)**. **Each PC chooses its own printer per kind of print** the first time it prints that kind — by itself when the PC has one obvious printer, otherwise by asking once — and never asks again (Stage 98.4; USER_GUIDE §7B.3). The choices are kept on the server under each PC's name: **Setup → Printing → Printer Assignment** lists them, and setting a row Inactive makes that PC choose again. Before choosing, a PC uses its store's default — a **Printer** record with that **Location** and **Default For** the kind (`Purchase Order` / `Goods Receipt` / `Transfer` / `Sales Invoice` / `Returns and Notes` / `Receipt` / `Sticker` / `Shipping Label` / `General`) — and a printer at another store is used only when the job's own store has none. **Nothing depends on QZ Tray being set up**: with no Printer records, or with QZ Tray not running, every one of those screens falls back to the browser print dialog exactly as before. The one exception is **Sticker Printing**, which needs at least one Printer record even for the browser fallback, because the print is logged against a printer — see §B.3.4.
+- **The mail account documents are sent from** (Stage 98.3: **Send to Vendor**, and **Send** in every print window — the PDF of the print, emailed to the vendor, receiving store or customer) — the server's `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`, `SMTP_USER`, `SMTP_PASSWORD` (`deploy/erp.env.example`), the same account password-reset mail uses. The email comes **from** `SMTP_FROM` with your brand's name, and **Reply-To** is the sending store's email (Setup → Core → Location), so the vendor's answer reaches the store. Until it is set, **Send email** downloads the PDF for the user to send themselves and says so; nothing else changes. Every send is in the audit log as `DOCUMENT_SENT`.
+- **Reasons, from one list** (Stage 74.1.1) — **Setup → Reason Codes** (a Master Data screen every client has). Each code has a **category** — the action it is for — and since Stage 74 can carry **Use from / Use until** dates (outside them it is refused and not offered), **Needs a file attached**, a **Kind of loss or gain** (used by stock adjustments) and **When to use it** (shown on hover in the pickers). Starter codes ship for the new categories: *Goods Receipt Rejection*, *Goods Receipt Damage*, *Purchase Return*, *Sales Return*, *Price Override*, *Reprint*, *Inventory Adjustment*, *Material Issue*, *Delivery Challan* — edit or add to them; a clean-slate reset keeps the shipped ones. The screens offer them as a list beside the typed reason: rejected and damaged lines at a goods receipt's **Verify**, **Purchase Return**, the till's **Override**, and a sticker **reprint** (a reprint reason that is a code is stored as *code: label*). **Settings → Configuration → Platform → Reasons must be picked from the reason codes** (`reasons.codes_required`, off by default) makes the code mandatory — a typed reason alone is then refused (**MASTER-0975**). Leave it off while clients still enter reasons by hand or through integrations. Report: **Rejections and Returns by Reason** (Reports → Procurement); a reason typed without a code shows as *(unmapped)*.
 - **Which status changes a document is allowed to make** — **Status Transition Rules** screen (a normal master, Super Admin to edit). Each row says: for this record type (**Entity / Doctype**), moving from **From Status** to **To Status** is **Allowed** yes/no, and optionally **Requires Reason Code**. See §B.3.1 below — this one has a rule about how it fails that's worth understanding before you edit it.
 
 #### B.3.0 Configuration — every operational setting, in one place
@@ -935,8 +949,8 @@ With **A second admin approves item treatment corrections** on, step 3 sends it 
 
 **Design number mode.** **Configuration → Procurement → Design number when a PO adds an item name's design** (`procurement.po_design_number_mode`). It decides what happens when the buyer leaves the design number blank; a typed number that already exists always loads that design.
 
-- **New every time** (default) — every design added on a PO is a new design.
-- **Reuse when it matches** — a design (ProductFamily) with the same name (case and surrounding spaces ignored) and exactly the same **design attributes** is reused; only combinations it lacks are created.
+- **Always new design number** (default) — every design added on a PO is a new design.
+- **Inherit from existing** — a design (ProductFamily) with the same name (case and surrounding spaces ignored) and exactly the same **design attributes** **from the PO's vendor** is reused, with its combinations; only combinations it lacks are created. The same design name from another vendor is a different article and is not reused (Stage 94.13, D10). A design saved with no vendor (made before POs stamped it) still matches any vendor.
 
 A pasted design number always loads that design, whichever mode is set.
 
@@ -979,6 +993,50 @@ A pasted design number always loads that design, whichever mode is set.
 - Older GRNs keep the PO-rate basis.
 
 **Permissions.** `VendorCreditNote` mirrors `DebitNote` (HR/Admin all; Store Manager read/create), and the Payables role template operates both.
+
+#### B.3.6.1 Goods receipt in steps (Stage 94)
+
+The **New goods receipt** page saves a receipt in steps (`flow = steps`): ① Receive → ② Verify → ③ Price check → ④ MRP and post (per child) → ⑤ Pay. The user walk is User Guide §6.10. A receipt created through the API without `"flow": "steps"` (and the RF / mobile receiving screens) still posts as it is saved, exactly as before. Receipts posted before Stage 94 keep their Stage 62 basis.
+
+**Settings** (Configuration → Procurement):
+
+| Setting | Default | What it does |
+|---|---|---|
+| Goods receipt: same price within (`grn.steps.same_price_tolerance`) | 0 | At Price check a line within this many rupees of the item's previous purchase price is *Same price*. 0 = equal to the paisa. |
+| Goods receipt: blind count (`grn.steps.blind_count`) | Off | Receive hides the PO quantity; the clerk counts. Verify still shows it. |
+| Goods receipt: suggested MRP markup (`grn.steps.mrp_markup_pct`) | 100 % | Suggested MRP = cost × (1 + markup) × (1 + GST), rounded up to the ending below. A category's own **MRP markup %** (Setup → Category, field `mrp_markup_pct`) wins. |
+| Goods receipt: suggested MRP ending (`grn.steps.mrp_price_ending`) | ₹x99 | ₹x99, ₹x49/x99, ₹x9, round up to ₹10, or none. |
+| Goods receipt: who may verify / price check / set MRP and post / pay the vendor / correct after posting (`grn.steps.verify_roles` … `correct_roles`) | blank | Role names, comma-separated. Blank = every role that can **update** Goods Receipts (Roles screen). Super Admin always may. A role not listed gets **GOODSR-0947**. |
+
+**Rights.** Receive needs the GRN **create** right; the steps after it need GRN **update** plus the step's role setting; **Pay** also needs **update** on Vendor Invoice. The vendor invoice number, date and total are mandatory (**GOODSR-0940**), and the same vendor + invoice number on another receipt that is not cancelled is refused (**GOODSR-0941**).
+
+**Goods beyond the PO (D6).** The tolerance is the vendor's existing **Receipt Validation Rule** (`over_receipt_tolerance_pct`, and `allow_unexpected_items` for items not on the PO; a rule with no vendor is the default). At Receive nothing is refused; at Verify every line beyond the tolerance needs **Keep** or **Return** (**GOODSR-0943**). *Return* adds the excess to rejected. *Keep* raises a **GRNExcessApproval** record (`excess_lines`, `excess_value`, the reason) through the approval engine — seeded rule: any amount → **Store Manager**; change it under Approval Rules. Until it is decided, that child cannot post (**GOODSR-0946**); *Approved* releases it, *Rejected* turns the excess into Return.
+
+**The invoice total check (D5).** Verify refuses when the typed invoice total differs from the invoice lines (invoice qty × invoice price + GST) by more than ₹1 (**GOODSR-0942**), naming the line most likely wrong.
+
+**Previous purchase price (D4).** The last **posted** GRN price of the SKU from any vendor (`grn_line`); for SKUs last received before Stage 94, the latest posted GRN's invoice (or PO) rate.
+
+**Child GRNs (D3).** `/A` New item, `/B` Same price, `/C` Price changed — fixed letters, renamable. A SKU's lines always sit in one child. Each child posts on its own through the same receipt posting as a one-step GRN (`PostGRNReceiptPart`): stock, batches, serials and barcodes on the GRN's own voucher; the GL entry is keyed per child (`GRN:<id>:RECEIPT_COST:<child>`).
+
+**MRP on the batch (D2).** The MRP set at step 4 is stored on the line's batch (`Batch.mrp`) and becomes the item's current MRP (`Item.mrp`, the latest). Old stock is never repriced. With per-SKU-per-day batch numbering, a second receipt of a SKU the same day at a **different** MRP gets a lot of its own. Stickers print the lot's MRP. At the till, a SKU on the shelf at two or more MRPs asks the cashier which; the shelf is worked out first-in-first-out from the store's receipts of the SKU against its stock on hand. A chosen MRP is checked against the shelf (never taken on trust); with no choice the line sells at the lowest. A receipt-date barcode resolves to its own MRP. A line with a sale price or price list above the shelf MRP is charged the MRP.
+
+**The accounting (D1, D9).** Our total = accepted qty × GRN price + GST. The note is the typed invoice total − our total.
+
+| Event | Entry |
+|---|---|
+| A child posts | Dr 1200 Inventory / Cr 2100 GRN Suspense **at the GRN price** |
+| Last child posts | the vendor bill (VendorInvoice, `invoice_amount` = typed invoice total) is made and matched |
+| Vendor billed **more** → **Debit Note** (`DN`, `basis = invoice_total_vs_grn`, Posted) | no GL of its own: it is applied to the vendor bill as a *Debit note* settlement line, so the bill's open balance is our total (goods part = our value, GST part = our GST) |
+| Vendor billed **less** → **Vendor Credit Note** (`VCN`, Posted) | Dr 1500 / Cr 2100 for (our GST − the bill's GST); the taxable part is already in 2100. The extra is paid from the GRN (Pay now) |
+| Pay now | the bill through the part-payment engine (Dr 2100 / Dr 1500 / Cr 1100), then any credit-note extra Dr 2100 / Cr 1100 keyed `GRN:<id>:PAY:<reference>`. With TDS: the whole open bill, Cr 2300 for the TDS |
+
+Paying the bill clears 2100 and 1500 to exactly the received-and-verified figures. Rejected and damaged units are left off our total (the note claims them); a Purchase Return that sends them back moves the stock but raises **no second debit note** for them.
+
+**Correct after posting (D8).** Changes GRN qty, GRN price or MRP of a posted step receipt. Only the difference posts: stock ±Δ (`voucher_type GRNCorrection`, voucher `<GRN>-C<n>`), value Dr/Cr 1200 vs 2100 (`GRN:<id>:CORR:<n>`), and an adjusting note (`basis = grn_correction`) — a debit note applied to the bill, or a credit note with its GST leg. Refused: taking off stock that is sold, changing the price of stock partly sold, or a new total below what is already paid.
+
+**Data.** `grn_line` (one row per line, every step's figures, rewritten from the GRN on every save, one-step GRNs included) and `grn_line_change` (every changed field: step, was, now, who, when, why) — migration `migrations_stage94_grn_steps.sql`; `Category.mrp_markup_pct` — `migrations_stage94_2_category_mrp_markup.sql`. Reports: GRN Register - every line, every step; Invoice vs GRN Differences; Purchase Price Changes; Goods Receipts Waiting; GRN Corrections Log; PO vs GRN Price Variance; GRN Payments; Goods In Receiving.
+
+**API** (all `procurement` module): `GET /api/v1/grn-steps` (inbox), `GET /api/v1/grn-steps/open-pos?vendor=`, `GET /api/v1/grn-steps/{id}`, `POST /api/v1/grn-steps/{id}/receive | verify | price | post/{child} | post-all | pay | correct`. A receipt is created with `POST /api/v1/doc/GRN` and `"flow": "steps"`.
 
 #### B.3.7 Transaction print templates (Stages 63, 71)
 
@@ -1390,6 +1448,21 @@ go run ./cmd/tenantctl purge -tenant acme -backup-ref "tenant_acme_20260930.dump
 
 The purge **refuses** — and records the refusal — if the tenant was never deprovisioned, if a legal hold is in force, if the retention window has not elapsed, or if no backup reference is supplied. When it does run, it drops the schema and the registry row in one transaction and then **proves the removal**: no registry row, no schema, no hostname mapping, no row in any shared table, no cached session. That proof is printed and recorded.
 
+**Starting a client again from a clean slate** (Stage 91) — when a client wants everything they entered removed but keeps using the ERP with the same logins:
+
+```
+go run ./cmd/tenantctl reset-data -tenant acme                       # the plan: every table, rows, kept or removed
+go run ./cmd/tenantctl suspend    -tenant acme -reason "clean slate" -yes
+go run ./cmd/tenantctl reset-data -tenant acme -reason "clean slate, ticket ERP-1502" -yes
+go run ./cmd/tenantctl resume     -tenant acme -reason "clean slate ready" -yes
+```
+
+- **Removed:** every record — transactions, stock, the ledger, masters (items, vendors, customers), company setup (stores, legal entities, cost centers), print and sticker templates, integrations (channel, Pine Labs, CleverTap, Unicommerce, API keys, extension hooks), settings (every one back to its default), renamed labels and the chosen industry. Numbering starts again from 1, and number formats go back to the shipped ones (the template client `default` keeps its own formats).
+- **Kept, unchanged:** the logins — users with their **password hashes untouched**, their two-factor setup, roles and permissions; record definitions, the chart of accounts, approval rules, loyalty tiers and stock location types; the shipped reference records (status rules, item types, TDS sections, currencies, tenders, the HSN list, the core item attributes); and every piece of evidence — the audit trail, privacy requests and e-invoice (IRN) history. Attached files stay in storage; their links go.
+- **It refuses** unless the client is **suspended** (nobody writes during it), a backup of it from the **last 24 hours** is recorded (`public.backup_runs`, the same rule as renumbering old codes), no legal hold is in force, and every table the client has is classified as kept or removed — a table added by a later release stops it until `tenantctl` is updated for it.
+- It runs in **one transaction** and writes a `data_reset` row to the evidence trail with the counts and your reason. The way back is the backup.
+- Users' home stores and departments pointed at records that are now gone: pick them again on the **Users** screen once the new stores exist.
+
 **Legal hold** blocks any purge regardless of retention:
 
 ```
@@ -1469,7 +1542,7 @@ Set it in the server's environment (`/etc/erp/erp.env` on the droplet) and resta
 - **Hosted at** — the domain each client's own address sits under (`TENANT_BASE_DOMAIN`, e.g. `wholeops.in`).
 - **Last backup** — the most recent whole-database backup (time, outcome, size) from the nightly job's ledger; if it failed, the time of the last good one. "None recorded" means the backup job has never written its record on this server.
 
-**The Clients table, one row per client.** Name, client id and schema; **Status** (active / suspended…, a *sandbox* or *legal hold* tag, and "admin not signed in yet" while the client's one-time admin login is unused); **Address** (opens it in a new tab — "main address" when the client has none of its own); **Created**; **Version** (the release the client is on, set at every release; "follows release" for a client no release has stamped yet, "pinned …" for a pinned one); **Modules** — how many are on and off; click it to list them; **Users** (active), **Records**, **Last activity** (its newest Activity Log entry) and **Errors (24h)** with the time of the last one (open them in the Data Console's `system_error_logs`, §C.7).
+**The Clients table, one row per client.** Name, client id and schema; **Status** (active / suspended…, a *sandbox* or *legal hold* tag, and "admin not signed in yet" while the client's one-time admin login is unused); **Address** (opens it in a new tab — "main address" when the client has none of its own); **Created**; **Version** (the release the client is on, set at every release; "follows release" for a client no release has stamped yet, "pinned …" for a pinned one); **Modules** — how many are on and off; click it to list them; **Users** (active), **Records**, **Last activity** (its newest Activity Log entry) and **Errors (24h)** with the time of the last one (open them in the Data Console's `system_error_logs`, §C.7). **Errors (24h)** counts faults only: a background job failing, a crash, or the server unable to answer. A message a user was shown and can fix (a required field left empty, an expired session, a refused approval) is not an error; it is still listed in that client's **Activity Log → System Errors**, with the address of the request it came from. A report with no rows for its filters is not logged at all.
 
 **Actions on each row.** **Modules** opens **Tenant Entitlements** with that client chosen — turn a module on or off there, or apply a plan. **Data** opens the **Data Console** on that client. **Attributes** gives the client its product attributes from the industry library (§C.9). Browser **Back** returns here. **Pause / Resume**, **Trial** and **Mark paid** are below. The row of the client you are signed in to says *your client* instead of those buttons: pausing it, or letting a trial run out on it, would lock you out of this page.
 

@@ -236,8 +236,14 @@ func TestReportsStage26_10(t *testing.T) {
 
 	t.Run("ScheduledReportWorker", func(t *testing.T) {
 		scheduleID := "SCHEDRPT-TEST-1"
-		_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", scheduleID)
-		_, _ = db.DB.Exec("DELETE FROM "+schema+".integration_event_outbox WHERE event_name = 'report.scheduled_delivery'")
+		// 73.D.21: only this schedule's own row and deliveries are touched or
+		// counted - other due schedules in a shared database deliver too.
+		cleanupSchedule := func() {
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", scheduleID)
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".integration_event_outbox WHERE event_name = 'report.scheduled_delivery' AND payload->>'schedule_id' = $1", scheduleID)
+		}
+		cleanupSchedule()
+		defer cleanupSchedule()
 
 		yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
 		scheduleData, _ := json.Marshal(map[string]interface{}{
@@ -268,7 +274,7 @@ func TestReportsStage26_10(t *testing.T) {
 		}
 
 		var eventCount int
-		if err := db.DB.QueryRow("SELECT COUNT(*) FROM "+schema+".integration_event_outbox WHERE event_name = 'report.scheduled_delivery'").Scan(&eventCount); err != nil {
+		if err := db.DB.QueryRow("SELECT COUNT(*) FROM "+schema+".integration_event_outbox WHERE event_name = 'report.scheduled_delivery' AND payload->>'schedule_id' = $1", scheduleID).Scan(&eventCount); err != nil {
 			t.Fatalf("failed to count outbox events: %v", err)
 		}
 		if eventCount != 1 {
@@ -277,7 +283,7 @@ func TestReportsStage26_10(t *testing.T) {
 
 		// A second tick before the (now-advanced) next_run_date must be a no-op.
 		processScheduledReports(context.Background(), schema)
-		if err := db.DB.QueryRow("SELECT COUNT(*) FROM "+schema+".integration_event_outbox WHERE event_name = 'report.scheduled_delivery'").Scan(&eventCount); err != nil {
+		if err := db.DB.QueryRow("SELECT COUNT(*) FROM "+schema+".integration_event_outbox WHERE event_name = 'report.scheduled_delivery' AND payload->>'schedule_id' = $1", scheduleID).Scan(&eventCount); err != nil {
 			t.Fatalf("failed to re-count outbox events: %v", err)
 		}
 		if eventCount != 1 {

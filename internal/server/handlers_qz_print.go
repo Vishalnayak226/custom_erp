@@ -108,6 +108,11 @@ func handleQZPrintPayload(w http.ResponseWriter, r *http.Request) {
 		CopiesOverride map[string]int                 `json:"copies_override"`
 		Lines          []engines.StickerLineSelection `json:"lines"`
 		RequestKey     string                         `json:"request_key"` // Stage 55.19
+		// Stage 98.4: which computer is printing, for which store and kind of
+		// print, so its own chosen printer is used.
+		Computer  string `json:"computer"`
+		Location  string `json:"location"`
+		PrintKind string `json:"print_kind"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
@@ -117,7 +122,7 @@ func handleQZPrintPayload(w http.ResponseWriter, r *http.Request) {
 		req.Copies = 1
 	}
 
-	printer, err := resolveQZPrinter(tenantID, req.PrinterCode, req.JobType)
+	printer, err := resolveQZPrinter(tenantID, req.PrinterCode, req.JobType, req.PrintKind, req.Computer, req.Location)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
@@ -249,12 +254,14 @@ func handleQZPrintPayload(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// resolveQZPrinter picks the printer for a job: an explicit printer_code when
-// the caller passed one, otherwise the Active printer whose print_role
-// matches the job type. Falling back to the role is what makes one-click
-// printing possible - the operator configures each bench once and then never
-// chooses a printer again.
-func resolveQZPrinter(tenantID, printerCode, jobType string) (engines.QZPrinter, error) {
+// resolveQZPrinter picks the printer for a job, first match wins: an explicit
+// printer_code; this computer's own printer for this kind of print (98.4,
+// chosen once); an Active printer whose "Default For" is the kind at the
+// job's own store (98.4.1 - with 100 stores, store A must never print on
+// store B's printer); then one anywhere in the company, as before 98.4.
+// Falling back to the role is what makes one-click printing possible - each
+// bench is configured once and never asks again.
+func resolveQZPrinter(tenantID, printerCode, jobType, kind, computer, location string) (engines.QZPrinter, error) {
 	printers, err := engines.ListQZPrinters(tenantID)
 	if err != nil {
 		return engines.QZPrinter{}, err
@@ -272,20 +279,81 @@ func resolveQZPrinter(tenantID, printerCode, jobType string) (engines.QZPrinter,
 		}
 	}
 
-	role := strings.TrimSpace(jobType)
-	if role == "Document" {
-		role = "Shipping Label" // marketplace documents are labels by default
+	kind = engines.PrintKindForJob(jobType, kind)
+	if p, ok := engines.ChosenPrinter(tenantID, computer, kind); ok {
+		return p, nil
+	}
+	roles := engines.PrintRolesForKind(kind)
+	location = strings.TrimSpace(location)
+	if location != "" {
+		for _, p := range printers {
+			if p.Location == location && containsStr(roles, p.PrintRole) {
+				return p, nil
+			}
+		}
 	}
 	for _, p := range printers {
-		if p.PrintRole == role {
+		if containsStr(roles, p.PrintRole) {
 			return p, nil
 		}
 	}
 	return engines.QZPrinter{}, &engines.ValidationError{
 		Code: "DEVICE-0298",
-		Message: fmt.Sprintf("no active printer is set as the default for %q - set 'Default For' on a Printer record, "+
-			"or pick a printer for this job", role),
+		Message: fmt.Sprintf("no printer is chosen for %q on this computer and no active printer is set as the default for it - "+
+			"print once to choose one, or set 'Default For' on a Printer record", kind),
 	}
+}
+
+func containsStr(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
+// handleQZPrinterChoices (Stage 98.4): GET lists a computer's printer per
+// kind of print; POST remembers one ("ask one time ... then never ask"). Any
+// signed-in user may save their own computer's choice - it is the print they
+// are making - which makes the Printer record for that OS printer if needed.
+func handleQZPrinterChoices(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method == http.MethodGet {
+		q := r.URL.Query()
+		choices, err := engines.PrinterChoices(tenantID, q.Get("computer"))
+		if err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+			return
+		}
+		out := map[string]interface{}{"choices": choices, "kinds": engines.PrintKinds}
+		// ?kind= also answers where a print of that kind would go now - this
+		// computer's choice, else the store's default, else nowhere yet.
+		if kind := q.Get("kind"); kind != "" {
+			if p, err := resolveQZPrinter(tenantID, "", "", kind, q.Get("computer"), q.Get("location")); err == nil {
+				out["printer"] = p
+			}
+		}
+		_ = json.NewEncoder(w).Encode(out)
+		return
+	}
+	var body struct {
+		Computer string `json:"computer"`
+		Location string `json:"location"`
+		Kind     string `json:"print_kind"`
+		Printer  string `json:"qz_printer_name"`
+		Language string `json:"printer_language"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	p, err := engines.ChoosePrinter(tenantID, r.Header.Get("Resolved-User-ID"), body.Computer, body.Location, body.Kind, body.Printer, body.Language)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"printer": p})
 }
 
 func handleQZPrintLog(w http.ResponseWriter, r *http.Request) {

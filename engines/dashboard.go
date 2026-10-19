@@ -236,7 +236,10 @@ func processDashboardDigests(ctx context.Context, schema string) {
 	rows.Close()
 
 	for _, d := range due {
-		runDashboardDigest(ctx, schema, tenantID, d.id, "", d.data)
+		// 73.D.18: claimed first, as a scheduled report is.
+		if data, ok := claimDueSchedule(schema, "DashboardDigest", d.id, today); ok {
+			runDashboardDigest(ctx, schema, tenantID, d.id, "", data)
+		}
 	}
 }
 

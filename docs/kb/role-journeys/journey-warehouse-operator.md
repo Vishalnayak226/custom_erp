@@ -36,9 +36,10 @@ than in the order the paperwork arrives.
 what a supplier says they have dispatched. An ASN is not stock; it is a promise
 you can plan a dock around.
 
-**Receive it.** **Procurement » Goods Receipt**. Use **Load Items from PO** so
-the lines come from the order rather than being typed, then correct the
-quantities to what physically arrived. **Post Receipt**.
+**Receive it.** **Procurement » Goods Receipt**. Pick the vendor and tick the PO
+so the lines come from the order rather than being typed, then correct the
+quantities to what physically arrived. **Save receipt**, then Verify and post
+(or hand it to whoever does those steps - the **To verify** tab lists it).
 
 > [!IMPORTANT]
 > Posting the receipt is what creates stock. A delivery sitting on the dock with

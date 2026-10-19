@@ -113,6 +113,21 @@ If that option isn't shown:
 
 ## Part 2 — In the ERP (once for the whole company)
 
+**Most stores can skip this part.** Each PC picks its own printer for each kind
+of print — Purchase Order, Goods Receipt, Transfer, Sales Invoice, Returns and
+Notes, Receipt, Sticker, Shipping Label — the first time it prints that kind:
+by itself when the PC has one obvious printer (its default printer for A4 / A5
+documents, its one receipt printer for bills, its one label printer for
+stickers and labels), otherwise by asking once. The choice is kept on the
+server under the PC's name, so it is never asked again and survives a browser
+reset; **Setup → Printing → Printer Assignment** lists every PC's choices, and
+the print window's **Change** changes one (USER_GUIDE §7B.3). Rolling out to
+many stores is therefore just Part 1 on each PC.
+
+Do Part 2 when you want a **store-wide default** — a Printer record with a
+**Location** and a **Default For**, used by any PC at that store that has not
+chosen its own yet — or to set label sizes and DPI for a sticker printer.
+
 ### 1. Find out what your printers are really called
 
 Go to **Sticker Printing**. At the top is a **Print Setup (QZ Tray)** panel.
@@ -133,14 +148,15 @@ step people most often get wrong — "Zebra ZD220" will not match
 
 ### 2. Create a Printer record per physical printer
 
-Go to **Masters → Printer** and create one record per printer:
+Go to **Setup → Printing → Printer** and create one record per printer:
 
 | Field | What to put |
 |---|---|
 | **Printer Code** | Short code, e.g. `LABEL-01` |
 | **Printer Name** | Friendly name operators see, e.g. `Packing Bench Label Printer` |
 | **OS Printer Name** | The exact name you copied from Detect Printers |
-| **Default For** | `Shipping Label`, `Invoice`, `Sticker`, `Receipt`, `Purchase Order` or `General` |
+| **Location** | The store the printer is at — a print uses a printer at its own store before one anywhere else |
+| **Default For** | `Purchase Order`, `Goods Receipt`, `Transfer`, `Sales Invoice` (or the older `Invoice`), `Returns and Notes`, `Receipt`, `Sticker`, `Shipping Label` or `General` |
 | **Printer Language** | See the table below |
 | **Label Width / Height (mm)** | For 4x6 labels: `101.6` x `152.4` |
 | **Printer DPI** | Usually `203` for thermal, `300` for higher-end |
@@ -159,8 +175,9 @@ Go to **Masters → Printer** and create one record per printer:
 Not sure? Start with `PDF` — it works through the normal Windows driver on
 anything. Switch to `ZPL` later if labels look soft or print slowly.
 
-**"Default For" is what makes printing one-click.** Once a printer is the
-default for Shipping Label, every label goes there without anyone choosing.
+**"Default For" is the store-wide default.** Once a printer at a store is the
+default for Shipping Label, every label printed at that store goes there - on
+any PC there that has not chosen its own label printer.
 
 ### 3. Test it
 

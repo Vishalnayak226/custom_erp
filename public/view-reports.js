@@ -20,7 +20,11 @@ const REPORT_TABS = [
 // the fixed report pages filed under their area, then the catalog's. app.js calls this the first time the
 // menu opens (data-fill). Every report is its own route: "reports:<tab>" or "reports:<catalog id>".
 const REPORT_TAB_AREAS = { 'current-stock': 'Inventory', 'sales-register': 'Sales', 'vendor-ledger': 'Procurement', 'payables-ageing': 'Finance', 'receivables-ageing': 'Finance', 'gst-return-summary': 'Finance' };
-const REPORT_AREA_ORDER = ['Sales', 'Procurement', 'Inventory', 'WMS', 'OMS', 'CRM', 'Finance', 'Manufacturing', 'PIM', 'HR', 'Assets', 'Service'];
+// Stage 75.3: the user's report catalog groups by its own modules (Sales &
+// POS, Procurement & GRN...); each sits beside the older group it extends.
+const REPORT_AREA_ORDER = ['Sales & POS', 'Sales', 'Procurement & GRN', 'Procurement', 'Inventory', 'Stock Transfer', 'GST & Compliance',
+  'E-commerce & Integration', 'OMS', 'WMS', 'CRM', 'Accounting', 'Finance', 'Expense Management', 'Manufacturing', 'PIM / PIMS', 'PIM',
+  'HRMS', 'HR', 'MIS & Management', 'Master Data & Audit', 'Assets', 'Service'];
 
 async function fillReportsMenu(flyout) {
   const res = await apiFetch('/api/v1/reports/catalog');
@@ -329,7 +333,7 @@ function stockTableHTML(rows, showTasks = false, searched = false) {
             <td>${quantity(r.on_hand)}</td><td>${quantity(r.available_to_sell)}</td>
             <td>${quantity(r.reserved)}</td><td>${quantity(r.hold_qty)}</td>
             <td><details><summary>Breakdown</summary><span>Base available: ${quantity(r.available)}; committed: ${quantity(r.committed)}; safety: ${quantity(r.safety_stock)}; blocked: ${quantity(r.blocked)}; QC hold: ${quantity(r.qc_hold)}; damaged: ${quantity(r.damaged)}; channel buffer: ${quantity(r.channel_buffer)}.</span></details></td>
-            ${showTasks ? `<td><a href="#/view/transfers" data-stock-task="transfer" data-stock-sku="${escapeHTMLText(sku)}" data-stock-location="${escapeHTMLText(location)}">Transfer</a> · <a href="#/view/cycle-count" data-stock-task="count" data-stock-sku="${escapeHTMLText(sku)}" data-stock-location="${escapeHTMLText(location)}">Count</a> · <a href="${holdRoute}" data-stock-task="hold" data-stock-sku="${escapeHTMLText(sku)}" data-stock-location="${escapeHTMLText(location)}">Hold</a></td>` : ''}
+            ${showTasks ? `<td><a href="#/view/transfers" data-stock-task="transfer" data-stock-sku="${escapeHTMLText(sku)}" data-stock-location="${escapeHTMLText(location)}">Transfer</a> · <a href="#/view/cycle-count" data-stock-task="count" data-stock-sku="${escapeHTMLText(sku)}" data-stock-location="${escapeHTMLText(location)}">Count</a> · <a href="${holdRoute}" data-stock-task="hold" data-stock-sku="${escapeHTMLText(sku)}" data-stock-location="${escapeHTMLText(location)}">Hold</a> · <a href="#/view/reports%3Astock-ledger" data-stock-task="movements" data-stock-sku="${escapeHTMLText(sku)}" data-stock-location="${escapeHTMLText(location)}" title="Every movement of this item here, with its source document">Movements</a></td>` : ''}
           </tr>`;
         }).join('')}</tbody></table>`;
 }
@@ -384,6 +388,12 @@ async function renderInventoryView(container) {
     const task = link.dataset.stockTask;
     if (task === 'hold' || task === 'transfer' || task === 'count') {
       sessionStorage.setItem(`erp_stock_${task}_context`, context);
+    }
+    // 73.B.7: Movements opens the Stock Ledger report on this item and
+    // location, already run.
+    if (task === 'movements') {
+      reportParamMemory['stock-ledger'] = { sku: link.dataset.stockSku, location_code: link.dataset.stockLocation };
+      reportAutoRunId = 'stock-ledger';
     }
   });
 
@@ -697,6 +707,10 @@ async function renderReportCatalogPanel(panel) {
   initReportCatalogColumns();
   await loadReportCatalogSavedFilters();
   await loadReportColumnProfiles();
+  if (reportAutoRunId && reportAutoRunId === reportCatalogSelectedId) {
+    reportAutoRunId = '';
+    runReportCatalogReport();
+  }
 }
 
 function currentReportCatalogDef() {
@@ -912,6 +926,9 @@ function renderReportCatalogParams() {
 // Stage 55.20: filters per report for this session, so drill-through and Back
 // return to the same scoped result.
 const reportParamMemory = {};
+// reportAutoRunId (73.B.7) is a report another screen opened with its
+// filters filled in (reportParamMemory), to run as soon as it shows.
+let reportAutoRunId = '';
 
 // One line saying exactly what was run: report, filters, row count, when, in
 // what currency and time zone.
@@ -1157,9 +1174,12 @@ function renderReportCatalogResultTable(container, result, params) {
     html += `<tr>`;
     columns.forEach(c => {
       // Stage 75.3.4: an image column carries a media id, drawn as a thumbnail below.
+      // Stage 75.3: a column titled "... Code" / "... ID" asked for the code, so
+      // the screen-wide code -> name swap (sweepLinkNames) leaves it alone.
+      const keepCode = /\b(code|id)$/i.test(c.label || '') ? ' data-link-swept="1"' : '';
       html += c.type === 'image'
         ? `<td>${row[c.key] ? `<img class="rc-thumb" data-rc-media="${escapeHTMLText(row[c.key])}" alt="" width="40" height="40" style="object-fit:cover;border-radius:4px;">` : ''}</td>`
-        : `<td>${escapeHTMLText(reportCellText(row[c.key]))}</td>`;
+        : `<td${keepCode}>${escapeHTMLText(reportCellText(row[c.key]))}</td>`;
     });
     if (result.has_drill_down) {
       const rowKeyVal = drillKey ? String(row[drillKey]) : '';

@@ -408,11 +408,20 @@ Each of the following now has its own section in this checklist. Work through th
 ### 24.1 Goods Receipt
 
 - [ ] **Procurement → Goods Receipt** loads and lists existing receipts (or an empty state that names the next step).
-- [ ] **Load Items from PO** against an Approved PO populates the line table with that PO's items.
+- [ ] Picking the **Vendor** lists their approved POs with open quantity; ticking two and **Load ticked POs** loads both POs' open lines (Stage 94).
+- [ ] **Add PO & Load Items** against an Approved PO populates the line table with that PO's items.
 - [ ] **Load Items from ASN** does the same from an ASN.
 - [ ] **Add Line** adds a manual line; each line takes an SKU and a received quantity.
 - [ ] The **GRN number is greyed out** and reads "Auto (GRN series)" — you cannot type one.
-- [ ] **Post Receipt** succeeds, and **Inventory (§9) shows the stock actually went up** at the receiving location. This is the single most important row in this section: a GRN that closes a PO without moving stock is the defect Stage 30.2.1 fixed, and it returned HTTP 200 while doing nothing.
+- [ ] **Save receipt** without the vendor invoice number, date or total is refused; with them it saves as *Received* and **no stock moves** (Stage 94).
+- [ ] The same vendor invoice number cannot be received twice.
+- [ ] **Verify** with a GRN price below the invoice price shows *Debit note ... will be raised*; an invoice total that disagrees with its lines by more than ₹1 is refused, naming the line.
+- [ ] Receiving more than the PO asks **Keep** (goes to Approvals) or **Return**; a kept excess blocks only its child until approved.
+- [ ] **Check prices** splits the lines into New item / Same price / Price changed children; a line can be moved and a child renamed.
+- [ ] **Save and post** each child, and **Inventory (§9) shows the stock actually went up** at the receiving location at the GRN price. This is the single most important row in this section: a GRN that closes a PO without moving stock is the defect Stage 30.2.1 fixed, and it returned HTTP 200 while doing nothing.
+- [ ] After the last child: the debit / credit note and the vendor bill exist; **Pay** part, then the rest; the receipt reads *Paid*.
+- [ ] **Correct** on a posted receipt shows the effect first, then posts only the difference.
+- [ ] **Post all** appears only when everything matches, and posts in one go.
 - [ ] Posting with no **Location** still works — it defaults from the PO's target warehouse — and the stock lands at that warehouse.
 - [ ] If the ledger post fails, the receipt shows as **Cancelled** and the PO stays open; you are told, not given a false success.
 - [ ] **Rejected stays open (Stage 73.2.4, D05)**: receive 10 of a 10-unit line with 2 rejected. The PO's **Balance** shows accepted 8, rejected 2, **open 2**; **Receive goods** loads 2. A replacement of 3 is refused as over-receipt; 3 delivered with 1 rejected is accepted.

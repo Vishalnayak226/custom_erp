@@ -181,7 +181,8 @@ func fillControlPanelClient(c *ControlPanelClient) {
 	if db.DB.QueryRow(fmt.Sprintf(`SELECT MAX(created_at) FROM %s.audit_logs`, c.Schema)).Scan(&last) == nil {
 		c.LastActivityAt = nullTimePtr(last)
 	}
-	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours'), MAX(created_at) FROM %s.system_error_logs`, c.Schema)).Scan(&c.Errors24h, &lastErr)
+	// Stage 104.2: faults only - a user's rejected request is not an error.
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours'), MAX(created_at) FROM %s.system_error_logs WHERE %s`, c.Schema, systemFaultSQL("$1")), clientErrorCodesArg()).Scan(&c.Errors24h, &lastErr)
 	c.LastErrorAt = nullTimePtr(lastErr)
 }
 

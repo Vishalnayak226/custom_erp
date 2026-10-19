@@ -475,6 +475,11 @@ func resolveAndLogSticker(tenantID, schema, sku string, copies int, printerCode,
 		for k, v := range batchItemValues(schema, firstNonEmpty(code, sku), batchNo) {
 			label.Fields[k] = v
 		}
+		// Stage 94 (D2): a lot's sticker prints the MRP its receipt set, not
+		// the item's latest.
+		if b, _ := GetBatch(tenantID, firstNonEmpty(code, sku), batchNo); b != nil && b.MRP > 0 {
+			label.Fields["mrp"] = strconv.FormatFloat(b.MRP, 'f', -1, 64)
+		}
 	}
 	// A SKU not found as a real Item still gets printed (matches MB
 	// 15.3's "Print by ... barcode range" case, where the barcode range
@@ -540,6 +545,9 @@ func nullableString(s string) interface{} {
 func PrintStickers(tenantID string, skus []string, printerCode, printedBy, reprintReason string, copies int, opts ...StickerPrintOptions) ([]StickerLabel, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
+		return nil, err
+	}
+	if reprintReason, err = normalizeReprintReason(tenantID, reprintReason); err != nil { // Stage 74.1.1
 		return nil, err
 	}
 	if len(skus) == 0 {

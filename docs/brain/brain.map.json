@@ -127,6 +127,17 @@
       ]
     },
     {
+      "id": "store-app",
+      "lobe": "cortex",
+      "name": "Store App (PWA)",
+      "role": "Installable phone app for store staff at /store/ (Stage 102): ERP sign-in, working store, approvals from the task inbox, and scan-an-item (price, stock per store, batch age) through one read-only lookup.",
+      "match": [
+        "public/store/*",
+        "engines/store_app.go",
+        "internal/server/handlers_store_app.go"
+      ]
+    },
+    {
       "id": "industry-profiles",
       "lobe": "cortex",
       "name": "Industry Profiles",
@@ -180,6 +191,10 @@
         "engines/master_recode.go",
         "engines/document_regions.go",
         "engines/master_data_validation.go",
+        "engines/reason_codes.go",
+        "engines/reason_reports.go",
+        "internal/server/handlers_reason_codes.go",
+        "public/reason-picker.js",
         "engines/hsn_catalog.go",
         "engines/hsn_suggest.go",
         "engines/hsn_master.json",
@@ -234,6 +249,7 @@
         "engines/saas.go",
         "engines/sandbox.go",
         "engines/tenant_lifecycle.go",
+        "engines/tenant_reset.go",
         "engines/tenant_trial.go",
         "engines/platform_console.go",
         "internal/server/handlers_platform_console.go",
@@ -351,7 +367,7 @@
       "id": "procurement",
       "lobe": "business",
       "name": "Procurement & Vendors",
-      "role": "Purchase Requisition → RFQ and vendor-quote comparison → Purchase Order → GRN → three-way-matched Vendor Invoice → payment, with the requisition catalog and sourcing rules. Also Purchase Return (Stage 57.15): return to vendor against the original GRN, stock out and an automatic Debit Note.",
+      "role": "Purchase Requisition → RFQ and vendor-quote comparison → Purchase Order → GRN → three-way-matched Vendor Invoice → payment, with the requisition catalog and sourcing rules. Also Purchase Return (Stage 57.15): return to vendor against the original GRN, stock out and an automatic Debit Note. Goods receipt in steps (Stage 94): receive, verify, price check into child GRNs, MRP per batch and posting per child, the invoice-vs-GRN note, the auto vendor bill, optional payment, correct after posting, and the grn_line / grn_line_change reports.",
       "match": [
         "engines/procurement.go",
         "engines/rfq.go",
@@ -360,6 +376,11 @@
         "engines/purchase_order.go",
         "internal/server/handlers_purchase_order.go",
         "engines/grn_pricing.go",
+        "engines/grn_steps.go",
+        "engines/grn_steps_post.go",
+        "engines/grn_steps_reports.go",
+        "internal/server/handlers_grn_steps.go",
+        "public/grn-steps.js",
         "engines/po_design.go",
         "internal/server/handlers_po_design.go",
         "engines/item_names.go",
@@ -468,6 +489,7 @@
         "engines/pos_session.go",
         "engines/pos_offers.go",
         "engines/pos_quote.go",
+        "engines/pos_batch_mrp.go",
         "engines/pos_item_policy.go",
         "engines/stored_value.go",
         "engines/pos_payment.go",
@@ -592,6 +614,8 @@
       "match": [
         "engines/expense.go",
         "engines/attachments.go",
+        "engines/media_store.go",
+        "public/attachments-panel.js",
         "internal/server/handlers_attachments.go"
       ]
     },
@@ -610,7 +634,8 @@
         "engines/market_intelligence*.go",
         "engines/dashboard*.go",
         "internal/server/handlers_report_engine.go",
-        "internal/server/handlers_dashboard.go"
+        "internal/server/handlers_dashboard.go",
+        "cmd/gencatalog/*"
       ]
     },
     {
@@ -656,7 +681,7 @@
       "id": "printing",
       "lobe": "peripheral",
       "name": "Device Printing (QZ Tray)",
-      "role": "Silent one-click printing to named OS printers via a QZ Tray bridge on each packing PC. RSA request signing (the tray verifies SHA512withRSA over a SHA-256 hex string), the Printer Master's OS-name/role/language mapping, ZPL/TSPL/ESC-POS command generation, and byte-for-byte pass-through of marketplace-issued label PDFs. Also the Sticker Studio (Stage 58): the browser-side sticker engine that renders every label at printer DPI into TSPL/ZPL bitmaps or the print dialog, and the full-screen label designer. Stage 63: designed transaction prints (PO, Vendor PO, GRN, transfers, debit/credit notes) - the trade-docs page renderer and print window, and the Print Template Studio.",
+      "role": "Silent one-click printing to named OS printers via a QZ Tray bridge on each packing PC. RSA request signing (the tray verifies SHA512withRSA over a SHA-256 hex string), the Printer Master's OS-name/role/language mapping, ZPL/TSPL/ESC-POS command generation, and byte-for-byte pass-through of marketplace-issued label PDFs. Also the Sticker Studio (Stage 58): the browser-side sticker engine that renders every label at printer DPI into TSPL/ZPL bitmaps or the print dialog, and the full-screen label designer. Stage 63: designed transaction prints (PO, Vendor PO, GRN, transfers, debit/credit notes) - the trade-docs page renderer and print window, and the Print Template Studio. Stage 98: every print's lines as CSV / Excel, the print as a PDF made in the browser, the PDF emailed to the other party, and each computer's own printer per kind of print (chosen once, kept on the server).",
       "match": [
         "engines/qz_*.go",
         "internal/server/handlers_qz_*.go",
@@ -667,8 +692,13 @@
         "public/trade-docs.js",
         "public/trade-docs.css",
         "public/print-template-studio.js",
+        "public/print-pdf.js",
+        "public/print-routing.js",
         "engines/print_documents.go",
         "engines/print_templates.go",
+        "engines/print_export.go",
+        "engines/printer_choice.go",
+        "engines/document_mail.go",
         "engines/xlsx_writer.go",
         "cmd/qzcert/**"
       ]

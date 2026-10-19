@@ -589,10 +589,22 @@ func securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		// Deny the ambient-capability APIs outright. The app uses none of them;
 		// stating so stops a future dependency or an injected script from
-		// silently reaching for one.
-		w.Header().Set("Permissions-Policy", "geolocation=(), microphone=(), camera=(), payment=(), usb=(), interest-cohort=()")
+		// silently reaching for one. The one exception is the store app's
+		// camera, see permissionsPolicyFor.
+		w.Header().Set("Permissions-Policy", permissionsPolicyFor(r.URL.Path))
 		next.ServeHTTP(w, r)
 	})
+}
+
+// permissionsPolicyFor allows the camera, same-origin only, on the store app
+// (public/store/, Stage 102.1.2 - scanning a barcode with the phone) and
+// keeps every capability denied everywhere else, the ERP screens included.
+func permissionsPolicyFor(path string) string {
+	camera := "camera=()"
+	if path == "/store" || strings.HasPrefix(path, "/store/") {
+		camera = "camera=(self)"
+	}
+	return "geolocation=(), microphone=(), " + camera + ", payment=(), usb=(), interest-cohort=()"
 }
 
 // featureGate 403s a request if the resolved tenant has the named feature

@@ -669,6 +669,17 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 				return
 			}
+			// Stage 94: a receipt in steps saves as Received - invoice
+			// details required, the same vendor invoice refused twice.
+			if err := engines.PrepareGRNSteps(tenantID, r.Header.Get("Resolved-User-ID"), id == "", payload); err != nil {
+				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+				return
+			}
+			// Stage 74.1.1: rejected / damaged lines carry a reason code.
+			if err := engines.PrepareGRNReasons(tenantID, id == "", payload); err != nil {
+				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+				return
+			}
 			if err := engines.PrepareGRNReceipt(tenantID, payload); err != nil {
 				writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to resolve the receiving location from the purchase order")
 				return
@@ -1150,7 +1161,12 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// (unreachable) until now - closing it here rather than shipping a
 		// screen that could newly trigger it.
 		var grnNotes engines.GRNNotesResult
-		if doctype == "GRN" && id == "" {
+		// Stage 94: a receipt in steps posts nothing when it is saved - each
+		// child posts at its MRP step (engines/grn_steps_post.go).
+		if doctype == "GRN" && id == "" && engines.IsGRNStepFlow(payload) {
+			engines.SyncGRNLineRows(tenantID, docID)
+		}
+		if doctype == "GRN" && id == "" && !engines.IsGRNStepFlow(payload) {
 			locationCode, _ := payload["location"].(string)
 			// GRN's own registered schema (db/migrations_phase3.sql) declares the mandatory
 			// field as "received_items", a JSON-encoded string (same convention as BOM's
@@ -1221,6 +1237,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				// hold. A note that cannot post is reported, the receipt stands.
 				grnNotes = engines.PostGRNRateDifferenceNotes(tenantID, docID, userID, r.Header.Get("Resolved-Location"))
 			}
+			engines.SyncGRNLineRows(tenantID, docID) // Stage 94.1: the GRN register reads every receipt
 
 			// Publish inventory transaction changed outbox event
 			tx, errTx := db.DB.Begin()

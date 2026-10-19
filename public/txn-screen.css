@@ -327,6 +327,17 @@
   color: var(--text-muted);
 }
 
+/* Stage 94.6: the one-tap MRP choice on a till line. */
+.pos-mrp-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--warning-color, #b26a00);
+}
+
 .pos-completed {
   flex: 1 1 auto;
   min-height: 0;
@@ -402,3 +413,43 @@
   .txn-screen { flex: none; overflow: visible; }
   .txn-grid { overflow: visible; min-height: 0; }
 }
+
+/* Stage 94: goods receipt in steps (grn-steps.js). */
+.gs-page { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: auto; padding: 4px 16px 12px; }
+.gs-stepper { display: flex; flex-wrap: wrap; gap: 6px 18px; list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.gs-step { color: var(--text-muted); }
+.gs-step.gs-done { color: var(--success-color, #1a7f37); }
+.gs-step.gs-now { color: var(--text-color); font-weight: 700; }
+.gs-step.gs-viewing { text-decoration: underline; text-underline-offset: 4px; }
+.gs-facts, .gs-totals, .gs-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; font-size: 13px; }
+.gs-totals { padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--surface-color, var(--bg-color)); }
+.gs-status { margin-left: auto; color: var(--text-muted); }
+.gs-ok { color: var(--success-color, #1a7f37); }
+.gs-amber { color: var(--warning-color, #b26a00); }
+.gs-red { color: var(--danger-color, #b00020); }
+.gs-item div { font-size: 11.5px; }
+.gs-num { width: 90px; }
+.gs-text { min-width: 120px; margin-top: 4px; }
+.gs-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.gs-spacer { flex: 1 1 auto; }
+.gs-form-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.gs-form-row .form-group { margin-bottom: 0; }
+.gs-wide { flex: 1 1 320px; }
+.gs-check { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.gs-child { border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.gs-child-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.gs-child-head h3 { margin: 0; font-size: 14px; }
+.gs-effect { font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+.gs-log summary { cursor: pointer; font-size: 13px; color: var(--text-muted); }
+.gs-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.gs-tab { border: 1px solid var(--border-color); background: transparent; color: var(--text-color); border-radius: 999px; padding: 4px 12px; font-size: 13px; cursor: pointer; }
+.gs-tab.active { border-color: var(--primary-color); color: var(--primary-color); font-weight: 600; }
+.grn-open-pos { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.grn-open-pos label { display: flex; gap: 8px; align-items: center; }
+.grn-all-title { font-size: 14px; margin: 14px 12px 6px; }
+/* Stage 74.1.6: a document's attached files (attachments-panel.js). */
+.att-panel { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.att-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.att-add input[type=file] { width: 260px; }
+.att-preview-img { max-width: 100%; max-height: 520px; margin-top: 6px; border: 1px solid var(--border-color); }
+#grn-inbox .gs-tabs { padding: 0 12px; }

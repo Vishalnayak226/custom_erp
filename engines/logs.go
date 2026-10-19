@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -162,6 +163,33 @@ func VerifyAuditLogChain(tenantID string) (intact bool, brokenAt *AuditChainBrea
 		prevChecksum = storedChecksum
 	}
 	return true, nil, nil
+}
+
+// ClientErrorCodes (Stage 104.2) lists the error-catalog codes that answer a
+// request the user can correct - HTTP 2xx/4xx: a missing field, an expired
+// session, a refused self-approval. The API error writers log every catalog
+// code marked "log required" as "[CODE] message", so most rows in
+// system_error_logs are those rejections, not failures of this server.
+// internal/server sets this from its catalog (engines cannot import it).
+var ClientErrorCodes func() []string
+
+// systemFaultSQL is a WHERE condition on system_error_logs keeping only
+// faults - background-worker errors, panics, 5xx answers - for the two counts
+// that mean "something is wrong": the Control Panel's Errors (24h) and the
+// sustained-error-rate alert. The rejections stay in the log for the Activity
+// Log and a correlation-id lookup. arg is the placeholder bound to
+// clientErrorCodesArg().
+func systemFaultSQL(arg string) string {
+	return `COALESCE(substring(error_message from '^\[([A-Z]+-[0-9]+)\]'), '') <> ALL(` + arg + `::text[])`
+}
+
+// clientErrorCodesArg is ClientErrorCodes as a Postgres array literal - "{}"
+// (count every row, as before) when it is unset, e.g. in engine-only tests.
+func clientErrorCodesArg() string {
+	if ClientErrorCodes == nil {
+		return "{}"
+	}
+	return "{" + strings.Join(ClientErrorCodes(), ",") + "}"
 }
 
 // LogSystemError writes a system exception/panic trace for the specified tenant

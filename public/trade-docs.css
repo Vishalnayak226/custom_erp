@@ -53,7 +53,15 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
 .td-dialog-controls .form-label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
 .td-dialog-controls .form-input { min-width: 200px; }
 .td-txn { font-weight: 600; padding-bottom: 8px; }
-.td-dialog-actions { margin-left: auto; display: flex; gap: 8px; }
+.td-dialog-actions { margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+/* Stage 98.4: where this kind prints on this computer. */
+.td-printer { align-self: center; font-size: 12px; color: var(--text-muted); }
+.td-printer strong { color: var(--text-main); }
+/* Stage 98.3: the Send dialog. */
+.td-dialog.td-send { width: min(560px, 100%); height: auto; max-height: 92vh; }
+.td-send-body { display: flex; flex-direction: column; gap: 12px; padding: 16px; overflow: auto; }
+.td-send-body .form-label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.td-send-body textarea.form-input { resize: vertical; font-family: inherit; }
 .td-preview { flex: 1; overflow: auto; background: var(--surface-subtle); padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
 .td-preview-page { position: relative; overflow: hidden; box-shadow: var(--shadow-md); background: #fff; flex: none; }
 .td-loading { color: var(--text-muted); padding: 40px; }

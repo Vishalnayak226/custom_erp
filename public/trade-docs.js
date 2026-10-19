@@ -71,7 +71,9 @@ export const TRANSACTIONS = [
   { key: 'CreditNote', label: 'Credit Note (to customer)', doctype: 'CreditNote' },
   { key: 'SalesReturn', label: 'Sales Return', doctype: 'ReturnRequest' },
   // Stage 85.D2: a till sale to a GSTIN buyer.
-  { key: 'POSTaxInvoice', label: 'Tax Invoice (GST bill from the till)', doctype: 'POSCart' }
+  { key: 'POSTaxInvoice', label: 'Tax Invoice (GST bill from the till)', doctype: 'POSCart' },
+  // Stage 98.1: order and package bills.
+  { key: 'SalesInvoice', label: 'Sales Invoice', doctype: 'SalesInvoice' }
 ];
 export const txnLabel = (k) => (TRANSACTIONS.find(t => t.key === k) || {}).label || k;
 
@@ -206,6 +208,11 @@ const TXN_SIGNATURES = {
 };
 TXN_SIGNATURES.VendorPO = TXN_SIGNATURES.PurchaseOrder;
 TXN_SIGNATURES.VendorCreditNote = TXN_SIGNATURES.CreditNote = TXN_SIGNATURES.DebitNote;
+// Stage 98.1: a Sales Invoice is laid out like the till's tax invoice.
+TXN_COLUMNS.SalesInvoice = TXN_COLUMNS.POSTaxInvoice;
+TXN_INFO.SalesInvoice = [['Buyer GSTIN: {fields.buyer_gstin}', 0, 0], ['Sales order: {fields.sales_order}', 1, 0], ['Customer reference: {fields.customer_reference}', 0, 1]];
+TXN_TOTALS.SalesInvoice = TXN_TOTALS.POSTaxInvoice;
+TXN_SIGNATURES.SalesInvoice = TXN_SIGNATURES.POSTaxInvoice;
 
 // Prints that carry no money (quantities only) have no tax summary and no
 // amount in words.
@@ -226,7 +233,7 @@ function withAttributeColumns(columns, txn, doc) {
 }
 
 export function defaultLayout(txn, doc) {
-  const blockTitle = { PurchaseOrder: 'Bill to', VendorPO: 'Bill to', GRN: 'Received at', GRNVendorCopy: 'Received at', PurchaseReturn: 'Dispatched from', TransferOut: 'From location', TransferIn: 'To location', DebitNote: 'Issuer', VendorCreditNote: 'Issuer', CreditNote: 'Issuer', SalesReturn: 'Store', POSTaxInvoice: 'Supplier' }[txn] || 'From';
+  const blockTitle = { PurchaseOrder: 'Bill to', VendorPO: 'Bill to', GRN: 'Received at', GRNVendorCopy: 'Received at', PurchaseReturn: 'Dispatched from', TransferOut: 'From location', TransferIn: 'To location', DebitNote: 'Issuer', VendorCreditNote: 'Issuer', CreditNote: 'Issuer', SalesReturn: 'Store', POSTaxInvoice: 'Supplier', SalesInvoice: 'Supplier' }[txn] || 'From';
   const E = (o) => ({ id: newElementId(), fontSize: 9, align: 'left', pages: 'first', ...o });
   const info = TXN_INFO[txn] || [];
   const infoRows = info.reduce((n, i) => Math.max(n, i[2] + 1), 0);
@@ -256,7 +263,7 @@ export function defaultLayout(txn, doc) {
       // Stage 75.2.8a: an e-invoiced credit note's IRN, Ack and signed QR
       // (all blank, so nothing prints, for a note that is not e-invoiced);
       // "IRN PENDING" in the same place while it is on its way.
-      ...(txn === 'CreditNote' ? [
+      ...(txn === 'CreditNote' || txn === 'SalesInvoice' ? [
         E({ type: 'qr', key: 'fields.irn_signed_qr', x: 10, y: 222, w: 30, h: 30, pages: 'last' }),
         E({ type: 'text', text: '{fields.irn_status}', x: 42, y: 222, w: 80, h: 6, fontSize: 10, bold: true, pages: 'last' }),
         E({ type: 'text', text: 'IRN: {fields.irn}', x: 42, y: 222, w: 80, h: 12, fontSize: 7.5, pages: 'last' }),
@@ -644,9 +651,14 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
         ${txns.length > 1 ? `<label class="form-label">Print as<select class="form-input" data-td="txn">${txns.map(t => `<option value="${t}"${t === S.txn ? ' selected' : ''}>${esc(txnLabel(t))}</option>`).join('')}</select></label>` : `<div class="td-txn">${esc(txnLabel(S.txn))}</div>`}
         <label class="form-label">Template<select class="form-input" data-td="template"></select></label>
         <label class="form-label">Generating store<input type="text" class="form-input" data-td="store" placeholder="Document's own store" autocomplete="off"></label>
+        <div class="td-printer hidden" data-td="printer"></div>
         <div class="td-dialog-actions">
           <button type="button" class="btn btn-outline btn-sm" data-td="design">Design templates</button>
-          <button type="button" class="btn btn-outline btn-sm hidden" data-td="excel">Excel</button>
+          <button type="button" class="btn btn-outline btn-sm" data-td="csv">CSV</button>
+          <button type="button" class="btn btn-outline btn-sm" data-td="xlsx">Excel</button>
+          <button type="button" class="btn btn-outline btn-sm hidden" data-td="excel">Excel with pictures</button>
+          <button type="button" class="btn btn-outline btn-sm" data-td="pdf">PDF</button>
+          <button type="button" class="btn btn-outline btn-sm" data-td="send">Send</button>
           <button type="button" class="btn btn-primary btn-sm" data-td="print">Print</button>
         </div>
       </div>
@@ -714,32 +726,209 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
   const storeChanged = () => { const v = q('store').value.trim(); if (v !== S.store) { S.store = v; load(); } };
   q('store').addEventListener('change', storeChanged);
   q('store').addEventListener('blur', storeChanged);
-  q('print').addEventListener('click', async () => {
+  q('print').addEventListener('click', () => busy(q('print'), async () => {
     if (!S.data) return;
     const layout = currentLayout();
     await qrEncoderReady(layout);
+    if (await printSilently(S.txn, S.data.document, pdfNow)) { close(); return; }
     await printPages(renderPages(layout, S.data.document), layout);
-  });
-  q('excel').addEventListener('click', async () => {
-    const res = await window.apiFetch(`/api/v1/procurement/purchase-order/${encodeURIComponent(id)}/excel${S.store ? `?store=${encodeURIComponent(S.store)}` : ''}`);
-    if (!res) return;
-    if (!res.ok) { await window.showApiError(res, 'Could not build the Excel file.'); return; }
-    const blob = await res.blob();
-    const cd = res.headers.get('Content-Disposition') || '';
-    const m = /filename="([^"]+)"/.exec(cd);
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = m ? m[1] : 'purchase-order.xlsx';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-  });
+  }));
+  // Stage 98.4: with QZ Tray running, where this kind prints on this
+  // computer, and Change.
+  const showPrinter = async () => {
+    if (!S.data || !window.QZPrint || !window.qzTryConnect || !await window.qzTryConnect()) return;
+    const r = await window.loadViewModule('./print-routing.js');
+    const kind = r.printKindFor(S.txn), store = S.data.document.store?.code || '';
+    const p = await r.chosenPrinter(kind, store);
+    const el = q('printer');
+    if (!el) return;
+    el.classList.remove('hidden');
+    el.innerHTML = `${esc(kind)} prints on <strong>${esc(p ? (p.qz_printer_name || p.name) : 'the printer chosen at the first print')}</strong> <button type="button" class="link-btn" data-td="change-printer">Change</button>`;
+    el.querySelector('[data-td="change-printer"]').addEventListener('click', async () => {
+      if (await r.choosePrinter(kind, store, { ask: true })) showPrinter();
+    });
+  };
+  q('excel').addEventListener('click', () => busy(q('excel'), () => downloadResponse(
+    window.apiFetch(`/api/v1/procurement/purchase-order/${encodeURIComponent(id)}/excel${S.store ? `?store=${encodeURIComponent(S.store)}` : ''}`),
+    'purchase-order.xlsx', 'Could not build the Excel file.')));
+  // Stage 98.1: the lines as CSV / Excel, from the same print data.
+  ['csv', 'xlsx'].forEach(fmt => q(fmt).addEventListener('click', () => busy(q(fmt), () => {
+    const qs = new URLSearchParams({ format: fmt });
+    if (S.store) qs.set('store', S.store);
+    return downloadResponse(window.apiFetch(`/api/v1/print/document/${encodeURIComponent(S.txn)}/${encodeURIComponent(id)}?${qs}`),
+      `lines.${fmt}`, 'Could not build the file.');
+  })));
+  // Stage 98.2 / 98.3: the PDF of what the preview shows, and sending it.
+  const pdfNow = async () => {
+    const layout = currentLayout();
+    return { blob: await layoutPDF(layout, S.data.document), name: printFileName(S.data.document, 'pdf') };
+  };
+  q('pdf').addEventListener('click', () => busy(q('pdf'), async () => {
+    const out = await pdfOrExplain(pdfNow);
+    if (out) (await pdfModule()).downloadBlob(out.blob, out.name);
+  }));
+  q('send').addEventListener('click', () => S.data && openSendDocument(S.txn, id, { doc: S.data.document, store: S.store, makePDF: pdfNow }));
   q('design').addEventListener('click', async () => {
     const studio = await import('./print-template-studio.js' + VERSION_QUERY);
     close();
     studio.openPrintTemplateStudio({ txn: S.txn, templateId: S.templateId, sample: { txn: S.txn, id } });
   });
   await load();
+  showPrinter();
+}
+
+// busy disables a button while its action runs, so a double click does not
+// download or send twice.
+async function busy(btn, fn) {
+  if (btn.disabled) return;
+  btn.disabled = true;
+  try { await fn(); } finally { btn.disabled = false; }
+}
+
+async function downloadResponse(resPromise, fallbackName, failMsg) {
+  const res = await resPromise;
+  if (!res) return;
+  if (!res.ok) { await window.showApiError(res, failMsg); return; }
+  const m = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '');
+  (await pdfModule()).downloadBlob(await res.blob(), m ? m[1] : fallbackName);
+}
+
+const pdfModule = () => import('./print-pdf.js' + VERSION_QUERY);
+
+// layoutPDF is the PDF of a layout over print data (Stage 98.2).
+export async function layoutPDF(layout, doc) {
+  await qrEncoderReady(layout);
+  const [w, h] = pageDims(layout.page);
+  return (await pdfModule()).pagesToPDF(renderPages(layout, doc), w, h);
+}
+
+// printFileName is "<title>-<number>.<ext>", as the server names its exports.
+export function printFileName(doc, ext) {
+  return `${`${doc.title || 'Document'}-${doc.number || doc.document_id || ''}`.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '')}.${ext}`;
+}
+
+// pdfOrExplain runs a PDF build; a browser that cannot draw the page (older
+// Safari) is told to use Print → Save as PDF instead of failing silently.
+async function pdfOrExplain(make) {
+  try {
+    return await make();
+  } catch (err) {
+    console.error('[print] PDF failed', err);
+    await window.showCustomAlert?.('This browser could not make the PDF. Use Print and choose "Save as PDF" as the printer.', 'PDF');
+    return null;
+  }
+}
+
+// printSilently (Stage 98.4): with QZ Tray running, the print goes straight to
+// this computer's printer for its kind - chosen once (print-routing.js) - as
+// the PDF of these pages. false: no tray, or no printer was chosen; the
+// caller opens the browser's print dialog as before.
+async function printSilently(txn, doc, make) {
+  if (!window.QZPrint || !window.qzTryPrint || !await window.qzTryConnect()) return false;
+  const out = await pdfOrExplain(make);
+  if (!out) return false;
+  const r = await window.loadViewModule('./print-routing.js');
+  return window.qzTryPrint('Document', {
+    documentRef: doc.number || out.name, dataBase64: await (await pdfModule()).blobToBase64(out.blob), docFormat: 'pdf',
+    printKind: r.printKindFor(txn), location: doc.store?.code || '', quiet: true
+  });
+}
+
+// documentPDF builds a transaction's PDF with its best-match template, without
+// opening the print dialog (Send to Vendor from the PO list).
+export async function documentPDF(txn, id, store = '') {
+  await tradeStylesReady;
+  let data = await fetchPrintData(txn, id, store, false);
+  if (!data) return null;
+  const t = (data.templates || []).find(x => x.recommended);
+  const layout = parseLayout(t ? t.layout : '', txn, data.document);
+  if (layoutUsesImages(layout)) data = (await fetchPrintData(txn, id, store, true)) || data;
+  return { blob: await layoutPDF(layout, data.document), name: printFileName(data.document, 'pdf'), doc: data.document };
+}
+
+// openSendDocument (Stage 98.3) sends a print's PDF to the other party: the
+// ERP emails it (the party's address filled in, editable), or the PDF is
+// downloaded to send yourself - both always offered (decision D2). A PO is
+// recorded as sent either way. opts: { doc, store, makePDF, onDone }.
+export async function openSendDocument(txn, id, opts = {}) {
+  await tradeStylesReady;
+  let doc = opts.doc;
+  if (!doc) {
+    const data = await fetchPrintData(txn, id, opts.store || '', false);
+    if (!data) return;
+    doc = data.document;
+  }
+  const makePDF = opts.makePDF || (async () => documentPDF(txn, id, opts.store || ''));
+  const isPO = doc.doctype === 'PurchaseOrder';
+  const who = doc.party?.name || doc.party_title || '';
+  const from = doc.brand?.name || doc.store?.name || '';
+  const overlay = document.createElement('div');
+  overlay.className = 'td-overlay';
+  overlay.innerHTML = `
+    <div class="td-dialog td-send" role="dialog" aria-modal="true" aria-label="Send">
+      <div class="td-dialog-head">
+        <h2>Send ${esc(doc.title || txnLabel(txn))} ${esc(doc.number || '')}</h2>
+        <button type="button" class="btn btn-ghost btn-sm" data-sd="close" aria-label="Close">&times;</button>
+      </div>
+      <div class="td-send-body">
+        <label class="form-label">To${who ? ` (${esc(who)})` : ''}<input type="email" multiple class="form-input" data-sd="to" value="${esc(doc.party?.email || '')}" placeholder="name@example.com" autocomplete="off"></label>
+        <label class="form-label">Subject<input type="text" class="form-input" data-sd="subject" value="${esc(`${doc.title || txnLabel(txn)} ${doc.number || ''}${from ? ` from ${from}` : ''}`)}"></label>
+        <label class="form-label">Message<textarea class="form-input" rows="5" data-sd="message">${esc(`Dear ${who || 'Sir / Madam'},\n\nPlease find attached ${doc.title || txnLabel(txn)} ${doc.number || ''}.\n\nRegards,\n${doc.store?.name || from}`)}</textarea></label>
+        <div class="td-dialog-actions">
+          <button type="button" class="btn btn-outline btn-sm" data-sd="download">Download PDF</button>
+          <button type="button" class="btn btn-primary btn-sm" data-sd="send">Send email</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const q = (k) => overlay.querySelector(`[data-sd="${k}"]`);
+  const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey, true); };
+  const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  document.addEventListener('keydown', onKey, true);
+  q('close').addEventListener('click', close);
+  (q('to').value ? q('message') : q('to')).focus();
+
+  const recordPOSent = async () => {
+    if (!isPO) return;
+    const res = await window.apiFetch(`/api/v1/procurement/purchase-order/${encodeURIComponent(id)}/send`, { method: 'POST' });
+    if (res && !res.ok) await window.showApiError(res, 'The PDF is downloaded, but the purchase order could not be marked as sent.');
+  };
+  const downloadInstead = async (out, note) => {
+    (await pdfModule()).downloadBlob(out.blob, out.name);
+    await recordPOSent();
+    window.showToast?.(note, { variant: 'success' });
+    close();
+    opts.onDone?.();
+  };
+  q('download').addEventListener('click', () => busy(q('download'), async () => {
+    const out = await pdfOrExplain(makePDF);
+    if (out) await downloadInstead(out, `${out.name} downloaded${isPO ? ' and the PO marked as sent' : ''}.`);
+  }));
+  q('send').addEventListener('click', () => busy(q('send'), async () => {
+    const to = q('to').value.trim();
+    if (!to) {
+      await window.showCustomAlert?.(`Add ${who ? `${who}'s` : 'an'} email address, or use Download PDF to send it yourself.`, 'Send');
+      q('to').focus();
+      return;
+    }
+    const out = await pdfOrExplain(makePDF);
+    if (!out) return;
+    const res = await window.apiFetch(`/api/v1/print/document/${encodeURIComponent(txn)}/${encodeURIComponent(id)}/send`, {
+      method: 'POST',
+      body: JSON.stringify({ to, subject: q('subject').value, message: q('message').value, file_name: out.name,
+        pdf_base64: await (await pdfModule()).blobToBase64(out.blob), store: opts.store || '' })
+    });
+    if (!res) return;
+    if (!res.ok) { await window.showApiError(res, 'The email could not be sent.'); return; }
+    const data = await res.json();
+    if (!data.sent) {
+      await downloadInstead(out, 'This server has no mail account set up, so the PDF is downloaded - attach it to your own email or WhatsApp.');
+      return;
+    }
+    window.showToast?.(`Sent to ${data.to || to}.`, { variant: 'success' });
+    close();
+    opts.onDone?.();
+  }));
 }
 
 window.printTransactionDocument = (doctype, id, txn) => printTransactionDocument(doctype, id, { txn });

@@ -316,7 +316,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '49';
+const VIEW_MODULE_VERSION = '50';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -4469,7 +4469,7 @@ let setupMenuFilter = '';
 // A new ERP inventory list is added here.
 const SETUP_INVENTORY_ERP = ['Item', 'ItemAttribute', 'ItemBarcode', 'ItemException', 'ItemType', 'ReorderPointConfig', 'BackflushRule'];
 // Stage 88.1.14: print setup is its own Setup group, whatever module the list is filed under.
-const SETUP_PRINTING = ['PrintTemplate', 'StickerTemplate', 'Printer'];
+const SETUP_PRINTING = ['PrintTemplate', 'StickerTemplate', 'Printer', 'PrinterAssignment'];
 
 function renderSidebarSubmenu() {
   const sub = document.getElementById('submenu-master');
@@ -7117,6 +7117,8 @@ async function qzLogJob(entry) {
  */
 async function qzTryPrint(jobType, opts = {}) {
   if (!await qzTryConnect()) return false;
+  // Stage 98.4: this computer's own printer per kind of print (print-routing.js).
+  const routing = await loadViewModule('./print-routing.js');
 
   const res = await apiFetch('/api/v1/print/qz/payload', {
     method: 'POST',
@@ -7138,11 +7140,15 @@ async function qzTryPrint(jobType, opts = {}) {
       // Stage 52.8: per-line selection (sku + batch_no + copies). A SKU
       // received on two lots is two lines, which skus/copies_override
       // cannot tell apart; the server accepts either shape.
-      lines: opts.lines || undefined
+      lines: opts.lines || undefined,
+      computer: await routing.printComputer(),
+      location: opts.location || (window.erpWorkingStore || {}).code || '',
+      print_kind: opts.printKind || ''
     })
   });
   if (!res) return false;
   if (!res.ok) {
+    if (!opts.printerCode && await routing.needsChoice(res)) return routing.chooseAndPrint(jobType, opts);
     if (opts.quiet) {
       console.debug('[QZ] falling back to the browser sheet:', await getErrorMessage(res, 'no print payload'));
       return false;

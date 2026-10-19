@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"sort"
+	"sync"
 	"syscall"
 
 	"custom_erp/engines"
@@ -89,6 +91,33 @@ func resolvedContext(r *http.Request) (tenantID, userID, correlationID string) {
 	return
 }
 
+// Stage 104.2: the Control Panel's Errors (24h) and the error-rate alert
+// (engines) leave out rows for these codes - see engines.ClientErrorCodes.
+// Read lazily, so the extension rows another init adds are included.
+func init() {
+	engines.ClientErrorCodes = clientErrorCodes
+}
+
+var (
+	clientErrorCodesOnce sync.Once
+	clientErrorCodesList []string
+)
+
+// clientErrorCodes lists the catalog codes answered with HTTP 2xx/4xx - a
+// request the user can correct, or a note on a successful answer - as
+// opposed to a 5xx failure of this server.
+func clientErrorCodes() []string {
+	clientErrorCodesOnce.Do(func() {
+		for code, entry := range errorCatalog {
+			if entry.HTTPStatus > 0 && entry.HTTPStatus < 500 {
+				clientErrorCodesList = append(clientErrorCodesList, code)
+			}
+		}
+		sort.Strings(clientErrorCodesList)
+	})
+	return clientErrorCodesList
+}
+
 // logForEntry fires the existing audit/system-error logging hooks
 // (engines/logs.go) per the catalog row's Log Required/Audit Required
 // flags, prefixing the message with the code so it stays grep-able in the
@@ -100,7 +129,13 @@ func logForEntry(r *http.Request, entry CatalogEntry, message string) {
 	tenantID, userID, correlationID := resolvedContext(r)
 	tagged := "[" + entry.Code + "] " + message
 	if entry.LogRequired {
-		engines.LogSystemError(tenantID, correlationID, entry.Severity, entry.Module, tagged, "")
+		// Stage 104.3: name the request, so a bare "record not found" can be
+		// traced to the screen that asked. Path only - never the query string.
+		logged := tagged
+		if r.URL != nil {
+			logged += " | " + r.Method + " " + r.URL.Path
+		}
+		engines.LogSystemError(tenantID, correlationID, entry.Severity, entry.Module, logged, "")
 	}
 	if entry.AuditRequired {
 		engines.LogAuditEvent(tenantID, userID, entry.Code, "Error", tagged)

@@ -244,8 +244,14 @@ func grnLineUnitCostsPaise(tenantID, grnID string) map[string]int64 {
 	}
 	type acc struct{ value, qty float64 }
 	sums := map[string]*acc{}
+	// Stage 94 (D1): a GRN received in steps values its stock at the verified
+	// GRN price, not the invoice price.
+	priceKey := "invoice_rate"
+	if IsGRNStepFlow(data) {
+		priceKey = "grn_price"
+	}
 	for _, l := range grnLineMaps(data) {
-		if !lineNumberSet(l, "invoice_rate") {
+		if !lineNumberSet(l, priceKey) {
 			continue
 		}
 		sku := strField(l, "sku")
@@ -258,7 +264,7 @@ func grnLineUnitCostsPaise(tenantID, grnID string) map[string]int64 {
 			a = &acc{}
 			sums[sku] = a
 		}
-		a.value += numFromInterface(l["invoice_rate"]) * q
+		a.value += numFromInterface(l[priceKey]) * q
 		a.qty += q
 	}
 	out := map[string]int64{}
@@ -329,6 +335,9 @@ func PostGRNRateDifferenceNotes(tenantID, grnID, userID, storeCode string) GRNNo
 	if err != nil {
 		res.Warning = fmt.Sprintf("could not read GRN %s for its price-difference notes: %v", grnID, err)
 		return res
+	}
+	if IsGRNStepFlow(data) {
+		return res // Stage 94 (D1): settled on invoice total vs GRN total instead
 	}
 	debit, credit := grnRateDifferences(data)
 	if len(debit) == 0 && len(credit) == 0 {
@@ -543,6 +552,9 @@ func readPricedGRNBilling(tx queryRower, schema, grnID string, grnData map[strin
 	lines := grnLineMaps(grnData)
 	if len(lines) == 0 {
 		return nil
+	}
+	if IsGRNStepFlow(grnData) {
+		return readStepGRNBilling(grnData, lines)
 	}
 	type acc struct{ value, qty, gstRate float64 }
 	bySKU := map[string]*acc{}

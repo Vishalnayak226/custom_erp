@@ -1352,20 +1352,12 @@ async function postSalesInvoiceAction(id) {
 // Draft invoice is a legitimate proforma to hand a customer. What it must not
 // do is look like a posted one, so both this sheet and the server-built
 // payload stamp the status on the page; a Draft comes out marked DRAFT.
+// Stage 98.1: the template print dialog (PDF, CSV / Excel, Send, and Print
+// straight to this computer's invoice printer when QZ Tray runs - 98.4). A
+// Draft is titled "Proforma Invoice (Draft ...)" by the print data; an
+// e-invoice's IRN and signed QR print as before.
 window.printSalesInvoice = async function(id) {
-  if (await qzTryPrint('Invoice', { documentRef: id, quiet: true })) return;
-
-  const res = await apiFetch(`/api/v1/doc/SalesInvoice/${encodeURIComponent(id)}`);
-  if (!res) return;
-  if (!res.ok) {
-    await showApiError(res, 'Failed to load the invoice.');
-    return;
-  }
-  const invoice = await res.json();
-  // Stage 75.2.8: IRN, Ack and the IRP's signed QR; "IRN pending" until then.
-  const m = await einvoiceModule().catch(() => null);
-  const irn = m ? await m.einvoiceFor('SalesInvoice', id) : null;
-  renderInvoicePrintSheet(invoice, irn, m);
+  (await import('./trade-docs.js' + new URL(import.meta.url).search)).printTransactionDocument('SalesInvoice', id);
 };
 
 const einvoiceModule = () => import('./view-einvoice.js' + new URL(import.meta.url).search);

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Store</title>
+  <meta name="theme-color" content="#44546a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Store">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="stylesheet" href="store.css?v=1">
+  <script src="store.js?v=1" defer></script>
+</head>
+<body>
+  <!-- Stage 102: the store app for store staff, installable from the browser.
+       Everything below is drawn by store.js; this page stays a plain shell so
+       the service worker can keep it for offline opening. -->
+  <header class="bar" id="bar" hidden>
+    <button type="button" class="bar-back" id="bar-back" aria-label="Back" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <h1 class="bar-title" id="bar-title">Store</h1>
+    <button type="button" class="store-chip" id="store-chip" hidden></button>
+  </header>
+  <div class="offline" id="offline" role="status" hidden>You are offline. Lookups and approvals need a connection.</div>
+  <main class="main" id="main">
+    <p class="loading">Loading…</p>
+  </main>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

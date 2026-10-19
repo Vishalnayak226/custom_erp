@@ -176,7 +176,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "go build failed" }
     & "$GoBin\go.exe" vet ./... 2>&1 | Write-Host
     if ($LASTEXITCODE -ne 0) { throw "go vet failed" }
-    & "$GoBin\go.exe" test ./... -p 1 2>&1 | Write-Host
+    # -timeout (73.D.21): the engines package runs past Go's 10-minute default.
+    & "$GoBin\go.exe" test ./... -p 1 -timeout 45m 2>&1 | Write-Host
     if ($LASTEXITCODE -ne 0) {
         Add-Deployment -environment $To -commit $shortCommit -appVersion "" -status "failed" -notes "go test failed - promotion refused"
         throw "go test failed - promotion refused"

@@ -405,6 +405,8 @@
     version: function () { return trayVersion; },
     listOSPrinters: listOSPrinters,
     getDefaultPrinter: getDefaultPrinter,
+    // Stage 98.4: the computer's name, which keeps its printer choices.
+    hostname: function () { return connect().then(function () { return send('networking.hostname', null); }); },
     printItems: printItems,
     // Exposed for the self-test in the Configure Printers screen, which
     // proves the signing chain end-to-end before an operator relies on it.

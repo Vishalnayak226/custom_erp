@@ -8,6 +8,9 @@ const TRADE_DOCS_QUERY = new URL(import.meta.url).search;
 const tradeDocsReady = import('./trade-docs.js' + TRADE_DOCS_QUERY);
 // Stage 68: the transaction-screen bar's shared pieces, same version.
 const { txnContext, txnMoney, txnRestorePane, txnPageTitle, txnNewButton, txnDone, txnPageOf, txnOnPage, txnPagedSection } = await import('./txn-screen.js' + TRADE_DOCS_QUERY);
+// Stage 94: goods receipt in steps - the page a receipt is worked on, loaded
+// when first opened, same version.
+const grnStepsModule = () => import('./grn-steps.js' + TRADE_DOCS_QUERY);
 
 // BLD-041: native ES module, loaded on first authorized view visit.
 // Shared app services resolve from the classic shell; these named exports
@@ -1247,7 +1250,7 @@ async function createPODesign() {
   }
   let designCode = d.loaded ? d.loaded.code : '';
   if (!designCode && !typedNo && d.matrix.design_number_mode === 'match') {
-    const mRes = await apiFetch('/api/v1/procurement/design/match', { method: 'POST', body: JSON.stringify({ name: inm.name, attributes: attrs }) });
+    const mRes = await apiFetch('/api/v1/procurement/design/match', { method: 'POST', body: JSON.stringify({ name: inm.name, vendor: poDraft.vendor || '', attributes: attrs }) });
     if (mRes && mRes.ok) {
       const m = await mRes.json();
       if (m.code) {
@@ -1598,50 +1601,25 @@ window.amendPurchaseOrder = async function(poId) {
 // ---------------------------------------------------------------------------
 // Printed PO and vendor dispatch (Stage 40.1; designed prints Stage 63)
 //
-// Stage 40.10: silent-prints via QZ first (job_type 'Purchase Order', quiet -
-// a tenant with no QZ printer configured for POs is the normal case, not an
-// error). Otherwise the print dialog (trade-docs.js): Purchase Order or Vendor
-// PO, the best-matching designed template (or the standard layout), the store
-// it is generated from, a preview, and the Excel download with item pictures.
+// The print dialog (trade-docs.js): Purchase Order or Vendor PO, the
+// best-matching designed template (or the standard layout), the store it is
+// generated from, a preview, CSV / Excel / PDF / Send, and Print - straight to
+// this computer's PO printer when QZ Tray runs (Stage 98.4; this replaced
+// 40.10's QZ print of a fixed server layout, so a PO prints in its template).
 // ---------------------------------------------------------------------------
 window.printPurchaseOrder = async function(poId) {
-  if (await qzTryPrint('Purchase Order', { documentRef: poId, quiet: true })) return;
   const m = await tradeDocsReady;
   await m.printTransactionDocument('PurchaseOrder', poId);
 };
 
-// sendPurchaseOrderToVendor records the dispatch and fires the notification
-// engine's PurchaseOrderIssued event. When no notification channel is
-// configured - the normal state of a tenant that has not set one up - it falls
-// back to the user's own mail client rather than dead-ending.
+// sendPurchaseOrderToVendor (Stage 98.3) sends the Vendor PO as a PDF in its
+// best-match template: the ERP emails it to the vendor (address filled in,
+// editable), or the PDF is downloaded to send yourself. Either way the PO is
+// recorded as sent and PurchaseOrderIssued fires, as before. Sending still
+// never needs a vendor email (92.4).
 window.sendPurchaseOrderToVendor = async function(poId) {
-  const res = await apiFetch(`/api/v1/procurement/purchase-order/${encodeURIComponent(poId)}/send`, { method: 'POST' });
-  if (!res) return;
-  if (!res.ok) {
-    await showApiError(res, 'Failed to send this purchase order.');
-    return;
-  }
-  const data = await res.json();
-  const po = data.purchase_order || {};
-  if (data.vendor_email) {
-    const subject = `Purchase Order ${po.po_number || poId}`;
-    const body = [
-      `Please find our purchase order ${po.po_number || poId}.`,
-      '',
-      ...(po.lines || []).map((l, i) => `${i + 1}. ${l.sku}  x${l.qty}  @ ${formatMoney(l.rate)}`),
-      '',
-      `Grand total: ${formatMoney(po.grand_total)}`,
-      po.amount_in_words || ''
-    ].join('\n');
-    // Opened only after the server has already recorded the dispatch, so the
-    // audit trail is written whether or not a mail client actually opens.
-    window.location.href = `mailto:${encodeURIComponent(data.vendor_email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  } else {
-    // Stage 92.6: sending never needs a vendor email - a quiet note, not a
-    // modal that reads like a refusal (the user, 2026-10-18).
-    showToast(`Purchase order ${po.po_number || poId} marked as sent to the vendor.`, { variant: 'success' });
-  }
-  renderView('purchase-orders');
+  const m = await tradeDocsReady;
+  await m.openSendDocument('VendorPO', poId, { onDone: () => renderView('purchase-orders') });
 };
 
 async function submitPOForApproval(documentId) {
@@ -1826,13 +1804,18 @@ async function renderGRNWorkbenchView(container) {
       <div id="grn-totals" class="txn-sum txn-main-only"></div>
       <div class="txn-actions txn-main-only">
         <div id="grn-form-error" class="login-error hidden"></div>
-        <button class="btn btn-primary" id="grn-create-btn">Post Receipt</button>
+        <button class="btn btn-primary" id="grn-create-btn">Save receipt</button>
       </div>
     </div>
 
     <div class="txn-pane" data-pane="new">
     <div class="txn-head">
       ${autoNumberField('GRN Number', 'GRN', '100%')}
+      <!-- Stage 94.2: the vendor first; their open POs then show to tick. -->
+      <div class="form-group">
+        <label class="form-label" for="grn-vendor">Vendor</label>
+        <input type="text" id="grn-vendor" class="form-input" autocomplete="off" placeholder="Pick the vendor...">
+      </div>
       <div class="form-group">
         <label class="form-label" for="grn-po">Purchase Order</label>
         <input type="text" id="grn-po" class="form-input" autocomplete="off" placeholder="Search PO...">
@@ -1848,19 +1831,15 @@ async function renderGRNWorkbenchView(container) {
            lines below carry the invoice price; any difference is shown, never
            a reason to hold the receipt. -->
       <div class="form-group">
-        <label class="form-label">Vendor</label>
-        <div id="grn-vendor" class="grn-vendor-name">&mdash;</div>
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="grn-inv-no">Vendor Invoice No</label>
+        <label class="form-label" for="grn-inv-no">Vendor Invoice No<span class="required">*</span></label>
         <input type="text" id="grn-inv-no" class="form-input" autocomplete="off">
       </div>
       <div class="form-group">
-        <label class="form-label" for="grn-inv-date">Invoice Date</label>
+        <label class="form-label" for="grn-inv-date">Invoice Date<span class="required">*</span></label>
         <input type="date" id="grn-inv-date" class="form-input">
       </div>
       <div class="form-group">
-        <label class="form-label" for="grn-inv-amount">Invoice Amount (incl. GST)</label>
+        <label class="form-label" for="grn-inv-amount">Invoice Total (incl. GST)<span class="required">*</span></label>
         <input type="number" id="grn-inv-amount" class="form-input num" min="0" step="0.01">
       </div>
       <!-- Stage 26.5.1: ASN capture ahead of a GRN - an optional prefill
@@ -1873,6 +1852,7 @@ async function renderGRNWorkbenchView(container) {
         <button class="btn btn-outline" id="grn-load-asn-btn" type="button">Load Items from ASN</button>
       </div>
     </div>
+    <div id="grn-open-pos" class="grn-open-pos"></div>
     <div id="grn-po-chips" class="grn-po-chips"></div>
     <div id="grn-po-note" class="txn-hint"></div>
     <div id="grn-asn-note" class="txn-hint"></div>
@@ -1977,11 +1957,23 @@ async function renderGRNWorkbenchView(container) {
     </div>
 
     <div class="txn-pane hidden" data-pane="history">
-      <div class="txn-grid" id="grn-history"></div>
+      <div class="txn-grid">
+        <div id="grn-inbox"></div>
+        <h2 class="grn-all-title">All goods receipts</h2>
+        <div id="grn-history"></div>
+      </div>
+    </div>
+
+    <!-- Stage 94: one receipt, worked on step by step (grn-steps.js). -->
+    <div class="txn-pane hidden" data-pane="steps">
+      <div id="grn-steps-root" class="txn-grid"></div>
     </div>
   `;
   container.appendChild(screen);
+  txnOnPage('grn-screen', showGRNScreenPage);
 
+  attachLinkTypeahead(document.getElementById('grn-vendor'), 'Vendor');
+  document.getElementById('grn-vendor').addEventListener('change', loadGRNOpenPOs);
   attachLinkTypeahead(document.getElementById('grn-po'), 'PurchaseOrder', { valueFields: ['po_number', 'code', 'id'] });
   attachLinkTypeahead(document.getElementById('grn-location'), 'Location');
   attachLinkTypeahead(document.getElementById('grn-asn'), 'ASN');
@@ -1992,6 +1984,11 @@ async function renderGRNWorkbenchView(container) {
   // never otherwise. `change` (not `input`) so the typeahead's resolved value
   // is what gets looked up, matching how grn-po already drives its own reload.
   document.getElementById('grn-line-sku').addEventListener('change', populateGRNBatchRow);
+  // Stage 94.2: a scan (or Enter) in the SKU box with no qty typed counts one
+  // unit of a line already on the receipt (addGRNLine).
+  document.getElementById('grn-line-sku').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && document.getElementById('grn-line-received').value === '') { e.preventDefault(); addGRNLine(); }
+  });
 
   document.getElementById('grn-po').addEventListener('change', loadGRNItemsFromPO);
   document.getElementById('grn-load-po-btn').addEventListener('click', loadGRNItemsFromPO);
@@ -2036,14 +2033,22 @@ async function renderGRNWorkbenchView(container) {
         <td>${g.location || ''}</td>
         <td>${lines.length}</td>
         <td>${receivedTotal} / ${rejectedTotal} / ${damagedTotal}</td>
-        <td>${g.vendor_invoice_no ? escapeHTMLText(g.vendor_invoice_no) : '<span class="text-muted">&mdash;</span>'}${g.invoice_total ? `<div class="text-muted" style="font-size:12px;">${formatMoney(g.invoice_total)}</div>` : ''}</td>
+        <td>${g.vendor_invoice_no ? escapeHTMLText(g.vendor_invoice_no) : '<span class="text-muted">&mdash;</span>'}${(g.flow === 'steps' ? g.vendor_invoice_amount : g.invoice_total) ? `<div class="text-muted" style="font-size:12px;">${formatMoney(g.flow === 'steps' ? g.vendor_invoice_amount : g.invoice_total)}</div>` : ''}</td>
         <td>${grnNotesCell(g)}</td>
-        <td><span class="badge ${statusBadge}">${escapeHTMLText(g.status || '')}</span><div><button class="action-btn" ${actionAttrs('startVendorInvoiceFromGRN', [g.id, g.po_id])}>Record vendor invoice</button> <button class="action-btn" ${actionAttrs('printTransactionDocument', ['GRN', g.id])}>Print</button></div></td>
+        <td><span class="badge ${statusBadge}">${escapeHTMLText(g.flow === 'steps' && g.grn_step !== 'Posted' ? (g.grn_step || g.status || '') : (g.status || ''))}</span><div>${g.flow === 'steps'
+          ? `<button class="action-btn" type="button" data-grn-steps-open="${escapeHTMLText(g.id)}">Open</button>`
+          : `<button class="action-btn" ${actionAttrs('startVendorInvoiceFromGRN', [g.id, g.po_id])}>Record vendor invoice</button>`} <button class="action-btn" ${actionAttrs('printTransactionDocument', ['GRN', g.id])}>Print</button></div></td>
       </tr>
     `;
   });
   html += `</tbody></table>`;
-  document.getElementById('grn-history').innerHTML = html;
+  const historyEl = document.getElementById('grn-history');
+  historyEl.innerHTML = html;
+  historyEl.addEventListener('click', e => {
+    const b = e.target.closest('[data-grn-steps-open]');
+    if (b) openGRNStepsPage(b.dataset.grnStepsOpen);
+  });
+  loadGRNInbox();
   txnRestorePane('grn-screen');
 
   let sourcePO = '';
@@ -2056,6 +2061,93 @@ async function renderGRNWorkbenchView(container) {
     document.getElementById('grn-po').value = sourcePO;
     await loadGRNItemsFromPO();
   }
+}
+
+// --- Stage 94: goods receipt in steps ---------------------------------------
+// The screen has three pages: the list (with the inbox tabs), New goods
+// receipt (step 1, Receive) and one receipt's steps. showGRNScreenPage is the
+// screen's page switch (txnOnPage): it reopens the receipt a refresh left
+// open, and redraws a list a step has changed.
+let grnBlindCount = false;
+let grnListStale = false;
+
+function showGRNScreenPage(pane) {
+  const screen = document.getElementById('grn-screen');
+  if (!screen) return;
+  const panes = [...screen.querySelectorAll(':scope > [data-pane]')];
+  panes.forEach(p => p.classList.toggle('hidden', p.dataset.pane !== pane));
+  screen.classList.toggle('txn-aside', !!panes[0] && panes[0].dataset.pane !== pane);
+  screen.classList.toggle('txn-on-landing', pane === screen.dataset.landing);
+  const crumb = screen.querySelector('.txn-page-only .txn-title');
+  if (crumb && pane === 'new') crumb.textContent = 'New goods receipt';
+  if (pane === 'history' && grnListStale) {
+    grnListStale = false;
+    renderView('grn');
+    return;
+  }
+  if (pane === 'steps') {
+    const root = document.getElementById('grn-steps-root');
+    let id = '';
+    try { id = sessionStorage.getItem('grn-steps-open') || ''; } catch (_) { /* storage can be disabled */ }
+    if (root && !root.dataset.grnId && id) openGRNStepsPage(id, true);
+  }
+}
+
+async function openGRNStepsPage(grnId, alreadyShown) {
+  try { sessionStorage.setItem('grn-steps-open', grnId); } catch (_) { /* storage can be disabled */ }
+  if (!alreadyShown) window.txnShowPane('grn-screen:steps');
+  const root = document.getElementById('grn-steps-root');
+  if (!root) return;
+  root.dataset.grnId = grnId;
+  const m = await grnStepsModule();
+  await m.openGRNSteps(grnId, root, { onChanged: () => { grnListStale = true; } });
+}
+
+// loadGRNInbox draws the inbox tabs over the list: To verify, To price,
+// Ready to pay, Done - each with its count and its oldest receipt's age.
+async function loadGRNInbox() {
+  const el = document.getElementById('grn-inbox');
+  if (!el) return;
+  const res = await apiFetch('/api/v1/grn-steps');
+  if (!res || !res.ok) return;
+  const data = await res.json();
+  grnBlindCount = !!data.blind_count;
+  renderGRNLinesList();
+  if (!(data.rows || []).length) return;
+  const m = await grnStepsModule();
+  m.renderGRNInbox(el, data.rows, id => openGRNStepsPage(id));
+}
+
+// loadGRNOpenPOs (94.2) lists the picked vendor's open POs to tick; Load adds
+// each ticked PO's open lines, exactly as adding it by number does.
+async function loadGRNOpenPOs() {
+  const el = document.getElementById('grn-open-pos');
+  const vendor = document.getElementById('grn-vendor').value.trim();
+  if (!el) return;
+  if (!vendor) { el.innerHTML = ''; return; }
+  const res = await apiFetch(`/api/v1/grn-steps/open-pos?vendor=${encodeURIComponent(vendor)}`);
+  if (!res) return;
+  if (!res.ok) { el.innerHTML = `<span class="login-error">${escapeHTMLText(await getErrorMessage(res, "Could not load the vendor's open POs."))}</span>`; return; }
+  const pos = (await res.json()) || [];
+  const onReceipt = new Set(grnPOs.map(p => p.id));
+  const open = pos.filter(p => !onReceipt.has(p.id));
+  if (!open.length) {
+    el.innerHTML = `<span class="text-muted">${pos.length ? 'Every open PO of this vendor is on the receipt.' : 'This vendor has no approved PO with anything left to receive.'}</span>`;
+    return;
+  }
+  el.innerHTML = `<b>Open POs of ${escapeHTMLText(vendor)}</b>
+    ${open.map(p => `<label><input type="checkbox" data-open-po="${escapeHTMLText(p.id)}" data-open-po-label="${escapeHTMLText(p.code)}">
+      ${escapeHTMLText(p.code)} &middot; ${escapeHTMLText(p.date)} &middot; ${p.lines} item${p.lines === 1 ? '' : 's'} &middot; ${p.open_qty} open &middot; ${formatMoney(p.open_value)}</label>`).join('')}
+    <div><button type="button" class="btn btn-outline btn-sm" id="grn-load-ticked">Load ticked POs</button></div>`;
+  document.getElementById('grn-load-ticked').addEventListener('click', async () => {
+    const ticked = [...el.querySelectorAll('[data-open-po]:checked')];
+    if (!ticked.length) return;
+    for (const cb of ticked) {
+      showGRNPOInBox(cb.dataset.openPo, cb.dataset.openPoLabel);
+      await loadGRNItemsFromPO();
+    }
+    loadGRNOpenPOs();
+  });
 }
 
 window.startVendorInvoiceFromGRN = function(grnId, poId) {
@@ -2088,7 +2180,7 @@ function renderGRNLinesList() {
   };
   el.innerHTML = `
     <table>
-      <thead><tr>${grnMultiPO ? '<th>PO</th>' : ''}<th>SKU</th><th>Barcode</th>${grnHasBatches ? '<th>Batch / Expiry</th>' : ''}${grnHasSerials ? '<th>Serials</th>' : ''}${grnAskedFields.map(f => `<th>${escapeHTMLText(f.label)}${f.grn === 'required' ? '<span class="required">*</span>' : ''}</th>`).join('')}<th>Ordered</th><th>Received</th><th>Accepted</th><th>Rejected</th><th>Damaged</th><th>Short</th><th class="num" title="Agreed price per unit before GST, from the PO">PO Rate</th><th class="num" title="Price per unit before GST on the vendor's invoice">Invoice Rate</th><th class="num">Value</th><th></th></tr></thead>
+      <thead><tr>${grnMultiPO ? '<th>PO</th>' : ''}<th>SKU</th><th>Barcode</th>${grnHasBatches ? '<th>Batch / Expiry</th>' : ''}${grnHasSerials ? '<th>Serials</th>' : ''}${grnAskedFields.map(f => `<th>${escapeHTMLText(f.label)}${f.grn === 'required' ? '<span class="required">*</span>' : ''}</th>`).join('')}${grnBlindCount ? '' : '<th>Ordered</th>'}<th>Received</th><th>Accepted</th><th>Rejected</th><th>Damaged</th>${grnBlindCount ? '' : '<th>Short</th>'}<th class="num" title="Quantity the vendor's invoice bills">Invoice Qty</th><th class="num" title="Agreed price per unit before GST, from the PO">PO Rate</th><th class="num" title="Price per unit before GST on the vendor's invoice">Invoice Rate</th><th class="num">Value</th><th></th></tr></thead>
       <tbody>
         ${grnLineItems.map((line, idx) => {
           const ordered = line.ordered_qty;
@@ -2105,12 +2197,13 @@ function renderGRNLinesList() {
               ${grnHasBatches ? `<td>${batchCellHTML({ batch_no: line.batch_no, expiry_date: line.expiry_date })}</td>` : ''}
               ${grnHasSerials ? `<td>${line.serial_numbers && line.serial_numbers.length ? `<span class="badge badge-secondary" title="${line.serial_numbers.map(escapeHTMLText).join(', ')}">${line.serial_numbers.length} unit(s)</span>` : ''}</td>` : ''}
               ${grnAskedFields.map(f => `<td>${askedCell(line, idx, f)}</td>`).join('')}
-              <td>${(ordered === null || ordered === undefined || ordered === '') ? '&mdash;' : ordered}</td>
-              <td>${line.qty}</td>
+              ${grnBlindCount ? '' : `<td>${(ordered === null || ordered === undefined || ordered === '') ? '&mdash;' : ordered}</td>`}
+              <td><input type="number" class="form-input num grn-rate-input" min="0" step="any" data-grn-recv="${idx}" value="${escapeHTMLText(String(line.qty))}" aria-label="Received qty for ${escapeHTMLText(line.sku)}"></td>
               <td>${line.accepted_qty}</td>
               <td>${line.rejected_qty > 0 ? `<span class="badge badge-danger">${line.rejected_qty}</span>` : '0'}</td>
               <td>${line.damaged_qty > 0 ? `<span class="badge badge-danger">${line.damaged_qty}</span>` : '0'}</td>
-              <td>${short === null ? '&mdash;' : short > 0 ? `<span class="badge badge-warning">${short}</span>` : '0'}</td>
+              ${grnBlindCount ? '' : `<td>${short === null ? '&mdash;' : short > 0 ? `<span class="badge badge-warning">${short}</span>` : '0'}</td>`}
+              <td class="num"><input type="number" class="form-input num grn-rate-input" min="0" step="any" data-grn-invqty="${idx}" value="${escapeHTMLText(String(line.invoice_qty ?? line.qty))}" aria-label="Invoice qty for ${escapeHTMLText(line.sku)}"></td>
               <td class="num">${hasPORate ? formatMoney(line.po_rate) : '<span class="text-muted">&mdash;</span>'}</td>
               <td class="num"><input type="number" class="form-input num grn-rate-input" min="0" step="0.01" data-grn-rate="${idx}" value="${escapeHTMLText(String(invRate))}" aria-label="Invoice rate for ${escapeHTMLText(line.sku)}">${Math.abs(diff) >= 0.005 ? `<div class="grn-rate-delta ${diff > 0 ? 'up' : 'down'}">${diff > 0 ? '+' : '&minus;'}${formatMoney(Math.abs(diff))} vs PO</div>` : ''}</td>
               <td class="num">${value === null ? '<span class="text-muted">&mdash;</span>' : formatMoney(value)}</td>
@@ -2127,6 +2220,32 @@ function renderGRNLinesList() {
       const v = String(input.value || '').trim();
       line.item_values = { ...(line.item_values || {}) };
       if (v) line.item_values[input.dataset.key] = v; else delete line.item_values[input.dataset.key];
+    });
+  });
+  // Stage 94.2: what actually arrived, keyed against the PO qty. The invoice
+  // qty follows it unless it was typed on its own.
+  el.querySelectorAll('[data-grn-recv]').forEach(input => {
+    input.addEventListener('change', () => {
+      const i = Number(input.getAttribute('data-grn-recv'));
+      const line = grnLineItems[i];
+      const v = input.value.trim();
+      const n = Number(v);
+      const setAside = (Number(line.rejected_qty) || 0) + (Number(line.damaged_qty) || 0);
+      if (v === '' || isNaN(n) || n < setAside) { input.value = line.qty; return; }
+      if (line.invoice_qty === undefined || Number(line.invoice_qty) === Number(line.qty)) line.invoice_qty = n;
+      line.qty = n;
+      line.accepted_qty = n - setAside;
+      renderGRNLinesList();
+    });
+  });
+  // Stage 94.2: the vendor's invoice qty, when it differs from what arrived.
+  el.querySelectorAll('[data-grn-invqty]').forEach(input => {
+    input.addEventListener('change', () => {
+      const i = Number(input.getAttribute('data-grn-invqty'));
+      const v = input.value.trim();
+      if (v === '' || isNaN(Number(v)) || Number(v) < 0) { input.value = grnLineItems[i].invoice_qty ?? grnLineItems[i].qty; return; }
+      grnLineItems[i].invoice_qty = Number(v);
+      renderGRNLinesList();
     });
   });
   el.querySelectorAll('[data-grn-rate]').forEach(input => {
@@ -2175,9 +2294,11 @@ function renderGRNTotals() {
     const hasPO = l.po_rate !== undefined && l.po_rate !== '' && l.po_rate !== null;
     const inv = (l.invoice_rate === '' || l.invoice_rate === undefined || l.invoice_rate === null) ? (hasPO ? Number(l.po_rate) : 0) : Number(l.invoice_rate);
     const gst = Number(l.gst_rate) || 0;
+    // Stage 94: the invoice is what it bills - its own qty, not what arrived.
+    const billed = l.invoice_qty === undefined || l.invoice_qty === '' || l.invoice_qty === null ? (Number(l.qty) || 0) : Number(l.invoice_qty);
     if (hasPO) poValue += Number(l.po_rate) * acc;
-    invValue += inv * acc;
-    invGST += inv * acc * gst / 100;
+    invValue += inv * billed;
+    invGST += inv * billed * gst / 100;
     if (hasPO) {
       const d = (inv - Number(l.po_rate)) * acc * (1 + gst / 100);
       if (d > 0.004) up += d; else if (d < -0.004) down += -d;
@@ -2194,11 +2315,11 @@ function renderGRNTotals() {
     <span>GST ≈ <b>${formatMoney(invGST)}</b></span>
     ${typed === null ? '' : `<span class="${gapBad ? 'grn-gap' : ''}" title="Vendor invoice amount minus these lines">Invoice − lines <b>${formatMoney(gap)}</b></span>`}
     <span class="txn-total" title="Invoice value incl. GST">${formatMoney(invTotal)}</span>`;
+  // Stage 94: nothing is settled here - Verify sets what was really received
+  // and at what price, and the note is invoice total against that.
   if (notesEl) notesEl.innerHTML = `
-      ${up > 0.004 ? `<span class="badge badge-warning">Debit note ${formatMoney(up)} will be raised to the vendor (billed above PO)</span>` : ''}
-      ${down > 0.004 ? `<span class="badge badge-secondary">Credit note ${formatMoney(down)} will be raised to the vendor (billed below PO)</span>` : ''}
-      ${up <= 0.004 && down <= 0.004 ? '<span class="text-muted">Invoice prices match the PO &mdash; no note needed.</span>' : ''}
-      ${gapBad ? `<span class="grn-gap-note">The vendor's invoice total does not equal these lines. Check the invoice rates and quantities; the receipt still posts and records the difference.</span>` : ''}`;
+      ${up > 0.004 || down > 0.004 ? `<span class="text-muted">Invoice prices differ from the PO on some lines. Verify (next step) settles what you pay; any difference to the invoice becomes a debit or credit note.</span>` : '<span class="text-muted">Invoice prices match the PO.</span>'}
+      ${gapBad ? `<span class="grn-gap-note">The vendor's invoice total does not equal these lines. Check the invoice qty and rates - Verify will not go ahead while they differ by more than 1.00.</span>` : ''}`;
 }
 
 // renderGRNPOChips shows the POs on this receipt, each removable (with its lines).
@@ -2210,7 +2331,11 @@ function renderGRNPOChips() {
       <button type="button" class="grn-po-chip-x" ${actionAttrs('removeGRNPO', [i])} aria-label="Remove ${escapeHTMLText(p.label)}">&times;</button>
     </span>`).join('');
   const vendorEl = document.getElementById('grn-vendor');
-  if (vendorEl) vendorEl.textContent = grnPOs.length ? (grnPOs[0].vendor || '—') : '—';
+  if (vendorEl) {
+    // Stage 94.2: once a PO is on the receipt, its vendor is the receipt's.
+    if (grnPOs.length && grnPOs[0].vendor) vendorEl.value = grnPOs[0].vendor;
+    vendorEl.readOnly = grnPOs.length > 0;
+  }
 }
 
 window.removeGRNPO = function(i) {
@@ -2235,6 +2360,22 @@ async function lookupGRNBarcode(sku) {
   return sku;
 }
 
+// grnScanBeep: one short tone per counted unit (Stage 94.2), quiet when the
+// browser has no audio.
+let grnAudio = null;
+function grnScanBeep() {
+  try {
+    grnAudio = grnAudio || new (window.AudioContext || window.webkitAudioContext)();
+    const osc = grnAudio.createOscillator();
+    const gain = grnAudio.createGain();
+    osc.frequency.value = 1200;
+    gain.gain.value = 0.05;
+    osc.connect(gain).connect(grnAudio.destination);
+    osc.start();
+    osc.stop(grnAudio.currentTime + 0.06);
+  } catch (_) { /* no audio - counting still works */ }
+}
+
 async function addGRNLine() {
   const skuEl = document.getElementById('grn-line-sku');
   const orderedEl = document.getElementById('grn-line-ordered');
@@ -2254,6 +2395,24 @@ async function addGRNLine() {
   const damagedQty = parseInt(damagedEl.value, 10) || 0;
   const damageReason = damageReasonEl.value.trim();
 
+  // Stage 94.2: a scan of an item already on the receipt, with no qty typed,
+  // counts one more unit of it - received, accepted and (unless the invoice
+  // qty was typed separately) invoiced - with a short beep.
+  if (sku && receivedEl.value === '') {
+    const lower = sku.toLowerCase();
+    const line = grnLineItems.find(l => String(l.sku).toLowerCase() === lower || String(l.barcode || '').toLowerCase() === lower);
+    if (line) {
+      const before = Number(line.qty) || 0;
+      if (line.invoice_qty === undefined || Number(line.invoice_qty) === before) line.invoice_qty = before + 1;
+      line.qty = before + 1;
+      line.accepted_qty = (Number(line.accepted_qty) || 0) + 1;
+      skuEl.value = '';
+      grnScanBeep();
+      renderGRNLinesList();
+      skuEl.focus();
+      return;
+    }
+  }
   if (!sku || isNaN(qty) || qty < 0) return;
   if (rejectedQty + damagedQty > qty) {
     errorEl.textContent = 'Rejected plus Damaged qty cannot exceed Received qty.';
@@ -2648,7 +2807,7 @@ async function loadGRNItemsFromPOInner() {
   grnPOs.push({ id: poKey, label: poLabel, vendor: poVendor });
   grnLoadedASNId = '';
   document.getElementById('grn-po').value = '';
-  noteEl.textContent = `Loaded ${added} open line(s) from PO ${poLabel}${closed ? ` (${closed} already fully received)` : ''}. Add another PO of the same vendor, or adjust quantities and invoice rates, then Post Receipt.`;
+  noteEl.textContent = `Loaded ${added} open line(s) from PO ${poLabel}${closed ? ` (${closed} already fully received)` : ''}. Add another PO of the same vendor, or adjust quantities and invoice rates, then Save receipt.`;
   renderGRNPOChips();
   renderGRNLinesList();
 }
@@ -2697,7 +2856,7 @@ async function loadGRNItemsFromASN() {
     grnLineItems.push({ sku, ordered_qty: expectedQty, qty: expectedQty, accepted_qty: expectedQty, rejected_qty: 0, rejection_reason: '', damaged_qty: 0, damage_reason: '', barcode });
   }
   grnLoadedASNId = asnId;
-  noteEl.textContent = `Loaded ${grnLineItems.length} line(s) from ASN ${asnId}. Adjust Received/Rejected/Damaged qty for any variance, then Post Receipt.`;
+  noteEl.textContent = `Loaded ${grnLineItems.length} line(s) from ASN ${asnId}. Adjust Received/Rejected/Damaged qty for any variance, then Save receipt.`;
   renderGRNLinesList();
 }
 
@@ -2705,7 +2864,7 @@ async function loadGRNItemsFromASN() {
 // composer - a slow post (or a repeat click on "Post Receipt" before the
 // first response returns) used to be able to post two GRNs from one intent.
 async function createGRN() {
-  await guardAgainstDoubleSubmit(document.getElementById('grn-create-btn'), 'Posting...', createGRNInner);
+  await guardAgainstDoubleSubmit(document.getElementById('grn-create-btn'), 'Saving...', createGRNInner);
 }
 
 async function createGRNInner() {
@@ -2724,51 +2883,46 @@ async function createGRNInner() {
     errorEl.classList.remove('hidden');
     return;
   }
+  // Stage 94.2: the vendor's invoice is keyed in full - number, date and
+  // total - and the receipt saves as step 1; nothing posts until step 4.
+  const invNo = document.getElementById('grn-inv-no').value.trim();
+  const invDate = document.getElementById('grn-inv-date').value;
   const invAmountRaw = document.getElementById('grn-inv-amount').value.trim();
-  if (invAmountRaw !== '' && (isNaN(Number(invAmountRaw)) || Number(invAmountRaw) < 0)) {
-    errorEl.textContent = 'The vendor invoice amount must be a number of zero or more.';
+  if (!invNo || !invDate || invAmountRaw === '' || isNaN(Number(invAmountRaw)) || Number(invAmountRaw) <= 0) {
+    errorEl.textContent = "Enter the vendor invoice number, date and total (incl. GST) from the vendor's invoice.";
     errorEl.classList.remove('hidden');
     return;
   }
 
-  // The GRN number does not exist yet at confirm time - it is issued by the
-  // server on save (Stage 30.6) - so this asks about the receipt's effect,
-  // which is what actually needs confirming, rather than naming a number the
-  // maker typed.
-  const acceptedQty = grnLineItems.reduce((s, l) => s + (Number(l.accepted_qty) || 0), 0);
-  const rejectedQty = grnLineItems.reduce((s, l) => s + (Number(l.rejected_qty) || 0), 0);
-  const damagedQty = grnLineItems.reduce((s, l) => s + (Number(l.damaged_qty) || 0), 0);
-  if (!(await showCustomConfirm(`Post this goods receipt against ${poId}? ${acceptedQty} accepted unit(s) will enter stock at ${location}; ${rejectedQty} rejected and ${damagedQty} damaged unit(s) will not enter sellable stock.`, 'Post Goods Receipt'))) return;
-
   const res = await apiFetch('/api/v1/doc/GRN', {
     method: 'POST',
     body: JSON.stringify({
+      flow: 'steps',
       po_id: poIds[0],
       po_ids: poIds.join(','),
       asn_id: grnLoadedASNId || undefined,
       location,
-      vendor_invoice_no: document.getElementById('grn-inv-no').value.trim() || undefined,
-      vendor_invoice_date: document.getElementById('grn-inv-date').value || undefined,
-      vendor_invoice_amount: invAmountRaw === '' ? undefined : Number(invAmountRaw),
-      received_items: JSON.stringify(grnLineItems.map(l => ({ ...l, po_id: l.po_id || poIds[0] }))),
-      status: 'Approved'
+      vendor_invoice_no: invNo,
+      vendor_invoice_date: invDate,
+      vendor_invoice_amount: Number(invAmountRaw),
+      received_items: JSON.stringify(grnLineItems.map(l => ({ ...l, po_id: l.po_id || poIds[0] })))
     })
   });
   if (!res) return;
   if (!res.ok) {
-    errorEl.textContent = await getErrorMessage(res, 'Failed to post goods receipt.');
+    errorEl.textContent = await getErrorMessage(res, 'Failed to save the goods receipt.');
     errorEl.classList.remove('hidden');
     return;
   }
   let saved = {};
   try { saved = await res.json(); } catch (e) { saved = {}; }
-  const notes = [];
-  if (saved.debit_note_id) notes.push(`Debit note ${saved.debit_note_id} raised to the vendor for the price billed above the PO.`);
-  if (saved.vendor_credit_note_id) notes.push(`Credit note ${saved.vendor_credit_note_id} raised to the vendor for the price billed below the PO.`);
-  if (saved.notes_warning) {
-    await showCustomAlert(`Goods receipt posted. ${notes.join(' ')} However: ${saved.notes_warning}`, 'Goods Receipt Posted');
-  } else if (notes.length) {
-    showToast(`Goods receipt posted. ${notes.join(' ')}`, { variant: 'success' });
+  showToast(`Goods receipt saved - nothing is in stock yet. Verify it next.`, { variant: 'success' });
+  grnLineItems = [];
+  grnPOs = [];
+  grnListStale = true;
+  if (saved.id) {
+    await openGRNStepsPage(saved.id, false);
+    return;
   }
   txnDone('grn-screen');
   renderView('grn');
@@ -2976,11 +3130,14 @@ async function createASNInner() {
 let prtContext = null;
 
 async function renderPurchaseReturnsView(container) {
-  const [listRes, ctxRes, grnRes] = await Promise.all([
+  const [listRes, ctxRes, grnRes, reasonPicker] = await Promise.all([
     apiFetch('/api/v1/doc/PurchaseReturn'),
     apiFetch('/api/v1/procurement/purchase-returns/context'),
-    apiFetch('/api/v1/doc/GRN')
+    apiFetch('/api/v1/doc/GRN'),
+    import('./reason-picker.js' + TRADE_DOCS_QUERY).catch(() => null)
   ]);
+  // Stage 74.1.1: the reason codes for a return to the vendor.
+  const prtReasons = reasonPicker ? await reasonPicker.loadReasons('Purchase Return') : null;
   if (!listRes || !ctxRes || !grnRes) return;
   if (!listRes.ok || !ctxRes.ok) {
     renderErrorPanel(container, 'Failed to load purchase returns.', () => renderView('purchase-returns'));
@@ -3041,8 +3198,9 @@ async function renderPurchaseReturnsView(container) {
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label" for="prt-reason">Reason for Return<span class="required">*</span></label>
-          <input type="text" id="prt-reason" class="form-input" placeholder="e.g. wrong size supplied, QC rejected" autocomplete="off">
+          <label class="form-label" for="prt-reason-code">Reason for Return<span class="required">*</span></label>
+          ${reasonPicker ? reasonPicker.reasonSelectHTML(prtReasons, { attrs: 'id="prt-reason-code"', label: 'Reason for return' }) : ''}
+          <input type="text" id="prt-reason" class="form-input" placeholder="${reasonPicker ? 'note (optional)' : 'e.g. wrong size supplied, QC rejected'}" autocomplete="off" aria-label="Reason for return, note">
         </div>
       </div>
       <div class="txn-hint"><span>Send goods back to the vendor against the GRN they arrived on. ${approvalRequired
@@ -3158,7 +3316,8 @@ async function savePurchaseReturn() {
   const showError = msg => { errorEl.textContent = msg; errorEl.classList.remove('hidden'); };
   if (!prtContext) { showError('Choose a GRN first.'); return; }
   const reason = document.getElementById('prt-reason').value.trim();
-  if (!reason) { showError('Enter the reason the goods are going back.'); return; }
+  const reasonCode = (document.getElementById('prt-reason-code') || {}).value || '';
+  if (!reason && !reasonCode) { showError('Choose or type the reason the goods are going back.'); return; }
   const items = [];
   document.querySelectorAll('.prt-qty').forEach(input => {
     const qty = Number(input.value);
@@ -3171,7 +3330,7 @@ async function savePurchaseReturn() {
 
   const res = await apiFetch('/api/v1/doc/PurchaseReturn', {
     method: 'POST',
-    body: JSON.stringify({ grn_id: prtContext.grn_id, reason, return_items: JSON.stringify(items), status: 'Draft' })
+    body: JSON.stringify({ grn_id: prtContext.grn_id, reason, reason_code: reasonCode || undefined, return_items: JSON.stringify(items), status: 'Draft' })
   });
   if (!res) return;
   if (!res.ok) { showError(await getErrorMessage(res, 'Failed to save the purchase return.')); return; }

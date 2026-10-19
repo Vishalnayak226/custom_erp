@@ -179,29 +179,15 @@ func GenerateSequence(tenantID, docType, storeCode, financialYear string) (strin
 		}
 	}
 
-	// 3. Fetch or create counter for that bucket with row lock
-	var currentVal int64
-	queryCounter := `SELECT current_val FROM sequence_counters
-	                 WHERE doc_type = $1 AND store_code = $2 AND financial_year = $3
-	                 FOR UPDATE`
-	err = tx.QueryRow(queryCounter, docType, counterStore, periodBucket).Scan(&currentVal)
-	if err == sql.ErrNoRows {
-		currentVal = 0
-		insertCounter := `INSERT INTO sequence_counters (doc_type, store_code, financial_year, current_val)
-		                  VALUES ($1, $2, $3, $4)`
-		_, err = tx.Exec(insertCounter, docType, counterStore, periodBucket, currentVal)
-		if err != nil {
-			return "", err
-		}
-	} else if err != nil {
-		return "", err
-	}
-
-	// 4. Increment counter
-	nextVal := currentVal + 1
-	updateCounter := `UPDATE sequence_counters SET current_val = $1
-	                  WHERE doc_type = $2 AND store_code = $3 AND financial_year = $4`
-	_, err = tx.Exec(updateCounter, nextVal, docType, counterStore, periodBucket)
+	// 3-4. Take the next number of that bucket in one statement (74.1.2): a
+	// new bucket starts at 1, an existing one is incremented under its row
+	// lock. Two first saves of a new store / year at the same moment used to
+	// both try to insert the bucket, and one failed on the primary key.
+	var nextVal int64
+	err = tx.QueryRow(`INSERT INTO sequence_counters (doc_type, store_code, financial_year, current_val)
+		VALUES ($1, $2, $3, 1)
+		ON CONFLICT (doc_type, store_code, financial_year) DO UPDATE SET current_val = sequence_counters.current_val + 1
+		RETURNING current_val`, docType, counterStore, periodBucket).Scan(&nextVal)
 	if err != nil {
 		return "", err
 	}

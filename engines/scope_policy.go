@@ -174,6 +174,7 @@ var doctypeScopes = map[string]DoctypeScope{
 	"PackStation":           locScope("location_code", false),
 	"PreShipValidationRule": locScope("location_code", false),
 	"Printer":               locScope("location", false),
+	"PrinterAssignment":     locScope("location", false), // Stage 98.4: a computer's printer choice, by its store
 	"PurchaseReturn":        locScope("location", false),
 	"PutawayStrategy":       locScope("location_code", false),
 	"SalesOrderLine":        locScope("location_code", false),

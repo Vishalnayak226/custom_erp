@@ -61,7 +61,7 @@ func RegisterDocumentRegister(s RegisterSpec) {
 		storeKey = "_store"
 	}
 	if len(s.Statuses) > 0 {
-		params = append(params, ReportParam{Key: "status", Label: "Status", Type: "select", Options: "," + strings.Join(s.Statuses, ",")})
+		params = append(params, ReportParam{Key: "status", Label: "Status (optional)", Type: "select", Options: "," + strings.Join(s.Statuses, ",")})
 	}
 	cols := make([]ReportColumn, 0, len(s.Columns))
 	for _, c := range s.Columns {

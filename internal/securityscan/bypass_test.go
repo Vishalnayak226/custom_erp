@@ -71,6 +71,10 @@ var reviewedBypassFindings = map[string]map[string]struct {
 		"engines/customer_advance.go": {1, `Stage 85.D3: a customer advance is a stored-value instrument
 			whose card_number is the advance's own receipt voucher number (CA..., the same value as its
 			instrument_id) - a reference the ERP issues and prints, never a payment card.`},
+		"engines/report_catalog_sales.go": {1, `Stage 75.3: the Gift Card / Voucher Register and Customer
+			Advance Utilization read stored_value_instruments.card_number with each ledger event - a gift
+			card number is shown through MaskCardNumber (last four) only; an advance's number is its own
+			receipt voucher number (CA...), printed in full like customer_advance.go does.`},
 		"engines/platform_console.go": {1, `secretColumnRe listing card_number, so the data console
 			shows the gift card column masked - the control, not a use.`},
 		"engines/stored_value.go": {15, `Register, issue, balance, redeem, block and cancel look a gift

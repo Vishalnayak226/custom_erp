@@ -63,10 +63,10 @@ func handleRunReport(w http.ResponseWriter, r *http.Request) {
 	// REPORT-0160 (Stage 25.5): "Report no data" is a Warning/non-blocking
 	// scenario in the catalog (an empty result from a legitimate filter
 	// isn't an error), so it's an annotation on the normal 200 response,
-	// not a rejection - logged for the same reason HR-0268/POSOFF-0239 are.
+	// not a rejection. Stage 104.1: and so it is not written to the system
+	// error log either - it was 24 of the default client's 36 "errors".
 	if len(rows) == 0 {
 		entry := errorCatalog["REPORT-0160"]
-		logForEntry(r, entry, entry.UserMessage)
 		resp["code"] = "REPORT-0160"
 		resp["message"] = entry.UserMessage
 	} else if masked {

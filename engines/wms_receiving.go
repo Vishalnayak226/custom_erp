@@ -38,6 +38,16 @@ import (
 // physically in the building the moment it's received, regardless of
 // disposition; only `available` reflects the accepted portion.
 func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, userID, grnID string) ([]NegativeStockEvent, error) {
+	return PostGRNReceiptPart(tenantID, locationCode, items, userID, grnID, "")
+}
+
+// PostGRNReceiptPart is PostGRNReceiptWithQC for one part of a receipt that
+// posts in parts - a child GRN of the Stage 94 step flow (part "A", "B"...).
+// Stock, batches and serials stay on the GRN's own voucher; only the receipt's
+// GL entry is keyed by part, so each child books its own value. A SKU sits in
+// one child only (grn_steps.go keeps a SKU's lines together), so the stock
+// ledger and QC keys - per GRN and SKU - never collide between parts.
+func PostGRNReceiptPart(tenantID, locationCode string, items []interface{}, userID, grnID, part string) ([]NegativeStockEvent, error) {
 	if locationCode == "" || len(items) == 0 {
 		return nil, nil
 	}
@@ -179,6 +189,8 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 					// Stage 89 (D3): what this line was asked at the GRN -
 					// weights, purity - is kept on its batch.
 					Attributes: grnLineItemValues(m),
+					// Stage 94 (D2): the MRP the step flow priced this line at.
+					MRP: numFromInterface(m["mrp"]),
 				},
 				acceptedQty: accepted,
 			})
@@ -256,7 +268,7 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 				Qty float64
 			}{SKU: sku, Qty: qty})
 		}
-		RecordGRNReceiptCosting(tenantID, schema, grnID, costingLines)
+		recordGRNReceiptCostingPart(tenantID, schema, grnID, part, costingLines)
 	}
 
 	if len(qcSplits) > 0 {

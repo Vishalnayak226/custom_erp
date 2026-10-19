@@ -347,6 +347,25 @@ function renderStickerSourcePanel(container, printers) {
   });
   docInput.addEventListener('change', loadStickerSourcePreview);
   document.getElementById('sticker-source-load-btn').addEventListener('click', loadStickerSourcePreview);
+
+  // Stage 94: "Print stickers" on a posted child GRN opens here with that
+  // receipt loaded and only that child's lines ticked.
+  let pending = null;
+  try {
+    pending = JSON.parse(sessionStorage.getItem('grn-child-stickers') || 'null');
+    sessionStorage.removeItem('grn-child-stickers');
+  } catch (_) { /* storage can be disabled */ }
+  if (pending && pending.id) {
+    doctypeSelect.value = 'GRN';
+    stickerSourceDoctype = 'GRN';
+    attachSourcePicker();
+    docInput.value = pending.id;
+    loadStickerSourcePreview().then(() => {
+      if (!Array.isArray(pending.skus) || !pending.skus.length) return;
+      stickerSourceLines.forEach((l, i) => { stickerSourceSelected[i] = pending.skus.includes(l.sku); });
+      renderStickerSourceLines();
+    });
+  }
 }
 
 async function loadStickerSourcePreview() {

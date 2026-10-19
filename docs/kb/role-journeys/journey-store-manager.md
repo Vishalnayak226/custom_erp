@@ -70,8 +70,10 @@ master, so you cannot accidentally order at a tax classification that disagrees
 with the product. A line that errors usually means the item is missing its HSN
 code.
 
-**Receive it.** **Procurement » Goods Receipt** » **Load Items from PO**,
-confirm what actually arrived, **Post Receipt**. Then check **Inventory** moved.
+**Receive it.** **Procurement » Goods Receipt** » **+ New Goods Receipt**, pick
+the vendor and tick the PO, confirm what actually arrived and the invoice, **Save
+receipt**, then Verify, Check prices and **Save and post** (or **Post all**). Then
+check **Inventory** moved.
 Receiving is the step that turns a purchase into sellable stock, and a receipt
 that was never posted is the most common cause of "we definitely have that in
 the back".

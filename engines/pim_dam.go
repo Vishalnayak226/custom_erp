@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"image"
 	"io"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -113,7 +112,7 @@ func ReadMediaTransform(tenantID, mediaID, preset string) ([]byte, string, error
 	}
 
 	var drive *s3Client
-	cacheKey, cachePath := "", mediaTransformStorePath(checksum, preset)
+	cacheKey := ""
 	if mediaOnDrive(data) {
 		if drive, err = imageDriveForRead(tenantID); err != nil {
 			return nil, "", err
@@ -122,7 +121,7 @@ func ReadMediaTransform(tenantID, mediaID, preset string) ([]byte, string, error
 		if b, err := drive.get(cacheKey); err == nil {
 			return b, "image/jpeg", nil
 		}
-	} else if b, err := os.ReadFile(cachePath); err == nil {
+	} else if b, err := serverMedia.Read(transformKey(checksum, preset)); err == nil {
 		return b, "image/jpeg", nil
 	}
 
@@ -146,10 +145,7 @@ func ReadMediaTransform(tenantID, mediaID, preset string) ([]byte, string, error
 		_ = drive.put(cacheKey, jpegBytes, "image/jpeg") // a cache: the copy is still served if it cannot be kept
 		return jpegBytes, "image/jpeg", nil
 	}
-	if err := os.MkdirAll(mediaStoreDir, 0755); err != nil {
-		return nil, "", fmt.Errorf("failed to prepare media storage: %v", err)
-	}
-	if err := os.WriteFile(cachePath, jpegBytes, 0644); err != nil {
+	if err := serverMedia.Write(transformKey(checksum, preset), jpegBytes, MediaWrite{}); err != nil {
 		return nil, "", fmt.Errorf("failed to cache transformed image: %v", err)
 	}
 	return jpegBytes, "image/jpeg", nil

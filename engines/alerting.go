@@ -491,7 +491,8 @@ func checkOffsiteBackupAge(fresh BackupFreshness) {
 func checkErrorRate(schema string, window time.Duration, threshold int) {
 	cutoff := time.Now().Add(-window)
 	var count int
-	err := db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.system_error_logs WHERE created_at > ($1::timestamptz AT TIME ZONE current_setting('TimeZone'))`, schema), cutoff).Scan(&count)
+	// Stage 104.2: faults only - users mistyping must not page anyone.
+	err := db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.system_error_logs WHERE created_at > ($1::timestamptz AT TIME ZONE current_setting('TimeZone')) AND %s`, schema, systemFaultSQL("$2")), cutoff, clientErrorCodesArg()).Scan(&count)
 	if err != nil || count < threshold {
 		return
 	}

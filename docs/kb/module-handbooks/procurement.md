@@ -344,15 +344,41 @@ message naming the PO's age and the configured window.
 
 ### 4. Goods Receipt (GRN)
 
-**Procurement → Goods Receipt** (`grn`, the GRN Workbench) is where stock
-actually moves — a Purchase Order by itself never changes the stock count,
-only a posted GRN does. **Load Items from PO** (or **Load Items from ASN**,
-if Advance Shipment Notices are in use) pre-fills the line grid from an
-approved order; adjust **Received**, **Rejected** (with a reason) and
-**Damaged** (with its own reason) quantities per line for whatever actually
-showed up, then **Post Receipt**.
+**Procurement → Goods Receipt** (`grn`) is where stock actually moves — a
+Purchase Order by itself never changes the stock count, only a posted GRN
+does. Since Stage 94 a receipt is worked in **steps**, each on its own page
+with one main button and a Back (User Guide §6.10 is the full walk; Admin
+Guide §B.3.6.1 the settings, rights and accounting):
 
-Cross-checks against the referenced PO, all real and enforced at save time:
+1. **Receive.** Pick the **Vendor**; tick their open POs and **Load ticked
+   POs** (or add a PO by number, or **Load Items from ASN**). Key what
+   arrived in **Received** (a scan of an item already on the receipt counts
+   one more), the bill's **Invoice Qty** and **Invoice Rate** where they
+   differ, and the vendor's invoice **number, date and total** (all three
+   required). **Save receipt** posts nothing.
+2. **Verify.** GRN qty (what is really in hand) and GRN price (after the
+   vendor call); rejected / damaged with reasons; goods beyond the PO →
+   **Keep** (approval) or **Return**. The bar shows the debit or credit
+   note the difference will raise. The invoice total must agree with the
+   invoice lines within ₹1.
+3. **Price check.** Each line against its last purchase price → child GRNs
+   **/A New item**, **/B Same price**, **/C Price changed** (renamable,
+   lines movable).
+4. **MRP and post.** Per child: MRP (current pre-filled, suggested from the
+   markup, margin shown) → **Save and post**. Stock goes in at the GRN
+   price, the lot carries the MRP. The last child raises the note and makes
+   the vendor bill. **Print stickers** per child.
+5. **Pay (optional).** Part or full, Bank / UPI / Cheque / Cash, UTR, date,
+   TDS. Or leave it in Payables. **Correct** fixes a posted receipt by
+   posting only the difference.
+
+When everything matches, **Post all** runs steps 2-4 at once. The list opens
+on tabs — **To verify**, **To price**, **Ready to pay**, **Done** — with
+counts and the oldest receipt's age.
+
+Cross-checks against the referenced PO, all real and enforced at save time
+(on a receipt in steps, `PURCHA-0087` and `PURCHA-0088` are asked at
+Verify as Keep / Return instead of refused at Receive):
 
 | Code | When it fires |
 |---|---|
@@ -367,6 +393,17 @@ Cross-checks against the referenced PO, all real and enforced at save time:
 | `GOODSR-0097` | Rejected + damaged quantity on a line exceeds what was actually received. |
 | `GRN-0253` | Cancelling a GRN that a `VendorInvoice` already references. |
 | `GLOBAL-0002` | A batch's expiry date on the receipt line is not after its manufacture date. |
+| `GOODSR-0940` | Receipt in steps saved without the vendor invoice number, date or total. |
+| `GOODSR-0941` | The same vendor invoice number is already on another receipt. |
+| `GOODSR-0942` | Verify: the invoice total differs from the invoice lines by more than ₹1 (the message names the likely line). |
+| `GOODSR-0943` | Verify: goods beyond the PO with neither Keep nor Return chosen. |
+| `GOODSR-0944` | A step done out of order, on a posted receipt, or on a one-step receipt. |
+| `GOODSR-0945` | A line posted without an MRP. |
+| `GOODSR-0946` | A child posted while keeping goods beyond the PO still waits for approval. |
+| `GOODSR-0947` | The user's role is not listed for that step (Configuration → Procurement). |
+| `GOODSR-0950` | Pay now with a wrong amount, mode or reference, or nothing due. |
+| `GOODSR-0951` | Post all when the receipt does not match everywhere. |
+| `GOODSR-0952` | A negative or invalid quantity or price on a step. |
 
 **Over-receipt tolerance and unexpected items are configurable per vendor**
 (or tenant-wide), via a `ReceiptValidationRule` master record
@@ -430,6 +467,14 @@ registered report.
 | Report | Report id | Answers |
 |---|---|---|
 | **GRN Register** | `grn-register` | Every GRN — id, PO reference, item line count, status, date. |
+| **GRN Register - every line, every step** | `grn-line-register` | One row per GRN line: PO, received, invoice and GRN qty and price, rejected, damaged, old and new MRP, batch, step, dates. |
+| **Invoice vs GRN Differences** | `grn-invoice-differences` | Invoiced against received-and-verified by vendor and month, with the debit / credit notes raised. |
+| **Purchase Price Changes** | `grn-price-changes` | Items received at a price different from the last purchase: previous price and vendor, new price, %, old and new MRP. |
+| **Goods Receipts Waiting** | `grn-waiting` | Receipts not yet verified, priced, posted or paid, oldest first. |
+| **GRN Corrections Log** | `grn-corrections` | Every change at every step: was, now, who, when, why. |
+| **PO vs GRN Price Variance** | `grn-po-variance` | Received price against the PO price per line, per unit and in value. |
+| **GRN Payments** | `grn-payments` | Each posted receipt: invoiced, what we owe, paid, due, last payment. |
+| **Goods In Receiving** (Inventory) | `grn-in-receiving` | Arrived but not yet posted - not sellable - by store and SKU. |
 | **RFQ Comparison Export** | `rfq-comparison` | Every quote against one RFQ (given its id), quote id/vendor/price/status, for a side-by-side you can export. |
 | **Vendor Ledger** | `vendor-ledger` | Every PO for a vendor (or all vendors), PO id/number/total/status/date. |
 | **Payables Ageing** | `payables-ageing` | Outstanding PO value by age bucket, with drill-down into the transactions behind each bucket. |

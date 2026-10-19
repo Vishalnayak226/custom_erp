@@ -148,7 +148,10 @@ jobs:
         # service container, and Go's default cross-package parallelism can
         # produce a false-failing trial-balance assertion with no relation
         # to whatever change is actually being tested.
-        run: go test ./... -p 1 -race -v
+        #
+        # -timeout 60m (73.D.21): the engines package alone runs past Go's
+        # default 10-minute limit on one connection, twice that with -race.
+        run: go test ./... -p 1 -race -timeout 60m -v
         env:
           CGO_ENABLED: '1'
 

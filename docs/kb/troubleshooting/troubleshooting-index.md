@@ -138,7 +138,7 @@ below.
 | "This item is not part of the selected PO" | Wrong PO, or an unordered item | `PURCHA-0088` | Verify the item against the order |
 | "GRN cannot be cancelled" | Downstream documents exist | `GRN-0253` | Reverse rather than cancel |
 | "Stock is under QC hold" | Received but not released | `GRN-0255` | Complete the QC decision |
-| Stock did not go up after receiving | The receipt was never posted | - | **Post Receipt** is the step that creates stock |
+| Stock did not go up after receiving | The receipt was never posted | - | On Goods Receipt, stock goes in at step 4 (**Save and post** each child); check the **To verify** / **To price** tabs. On RF Receiving, **Post Receipt** |
 
 ## Orders
 

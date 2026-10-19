@@ -201,6 +201,9 @@ func PrintStickersForDocument(tenantID, sourceDoctype, sourceDocID, printerCode,
 	if err != nil {
 		return nil, err
 	}
+	if reprintReason, err = normalizeReprintReason(tenantID, reprintReason); err != nil { // Stage 74.1.1
+		return nil, err
+	}
 	if err := checkPrinterActive(schema, printerCode); err != nil {
 		return nil, err
 	}

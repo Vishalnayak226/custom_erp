@@ -127,6 +127,16 @@ func designAttributesString(attrs map[string]string) string {
 // same design attributes, or "" when there is none. Combination values are not
 // compared: a matched design takes new combinations alongside its old ones.
 func FindMatchingDesign(tenantID, name string, attrs map[string]string) (string, error) {
+	return FindMatchingDesignForVendor(tenantID, name, "", attrs)
+}
+
+// FindMatchingDesignForVendor is FindMatchingDesign within one vendor's
+// designs (Stage 94.13, D10): the same design name from another vendor is a
+// different article. A design saved with no vendor still matches, so designs
+// made before the PO stamped its vendor keep being reused; vendor "" searches
+// every vendor's designs.
+func FindMatchingDesignForVendor(tenantID, name, vendor string, attrs map[string]string) (string, error) {
+	vendor = strings.TrimSpace(vendor)
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return "", nil
@@ -139,7 +149,8 @@ func FindMatchingDesign(tenantID, name string, attrs map[string]string) (string,
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, COALESCE(data->>'code', id), COALESCE(data->>'design_attributes', '') FROM %s.documents
 		WHERE doctype = 'ProductFamily' AND deleted_at IS NULL AND lower(trim(data->>'name')) = lower($1)
-		ORDER BY created_at, id`, schema), name)
+		  AND ($2 = '' OR COALESCE(trim(data->>'vendor'), '') IN ('', $2))
+		ORDER BY created_at, id`, schema), name, vendor)
 	if err != nil {
 		return "", err
 	}

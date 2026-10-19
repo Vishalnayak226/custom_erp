@@ -125,6 +125,24 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-19 Report catalog built - 252 of the user's 290 reports (75.3.2, 75.3.5-75.3.7) - BUILT AND VERIFIED, NOT
+  COMMITTED, NOT DEPLOYED.** Ledger §258. No migration, no new route.
+  - **New files (mine):** `engines/report_catalog.go`, `_common.go`, `_coverage.go`, `_controls.go`, `_sales.go`, `_inventory.go`,
+    `_procurement.go`, `_transfer_gst.go`, `_mis_admin.go`, `_accounting.go`, `_oms_pim_crm.go`, `_expense_hr.go`, `_mfg_wms.go`,
+    `report_catalog_spec_generated.go`; tests `report_catalog_stage75_3_test.go`, `report_catalog_wave_a_test.go`, `_wave_b_test.go`,
+    `_wave_c_test.go`; `cmd/gencatalog/main.go`; `docs/specs/reports/catalog_reports.tsv`, `catalog_columns.tsv`;
+    `docs/product/report-catalog-coverage.md` (generated).
+  - **Changed (my hunks only):** `engines/report_register_builder.go` (status filter "Status (optional)"),
+    `internal/securityscan/bypass_test.go` (reviewed `report_catalog_sales.go` card_number entry - gift cards masked),
+    `public/view-reports.js` (`REPORT_AREA_ORDER` with the catalog modules; *... Code* / *... ID* columns keep the code),
+    `cmd/gendocs/kbdocs.go` + `main.go` + `main_test.go` (the KB report catalog now continues on `report-catalog-2.md`, `-3.md`
+    at 56 KiB of Markdown a page, like the error-code reference - one page was 266 KB, over NFR-DOC-001's 120 KiB release gate),
+    `docs/guides/USER_GUIDE.md` 9.1; regenerated REPORT_CATALOG.md / KB / Knowledge Center / brain / `attack_surface.json` (now also
+    lists another session's grn-steps and other new routes - regenerate from the committed set at release).
+  - **Regenerate after a catalog change:** `go run ./cmd/gencatalog -out %TEMP%\x.go` (spec TSV → generated Go) and
+    `-coverage %TEMP%\c.md`, copy both in. `view-reports.js` changed → bump the view-module `?v=` at release.
+  - Scratch DB `custom_erp_s766` (5490) has seeded sample data for the catalog checks; drop it when done.
+
 - **2026-10-19 Release 0.2.0 - COMMITTED, PUSHED, DEPLOYED to app and minn.** Ledger §257. `57d3d04` + `455f4f9` on origin/main;
   prod reports 0.2.0 (455f4f9), both hosts 200. Backup `custom_erp_20261018T222055Z`, rollback dir `rollback_20261018_222056`.
   - **Still uncommitted in the shared tree:** the 75.3 catalog reports (`engines/report_catalog*.go`, `cmd/gencatalog/`,
@@ -138,12 +156,112 @@ for checking the current source and worktree.
   `.exe` builds, stale worktrees), builds to `bin/`, private notes to `.local/`, `db/migrations/`, `engines/data/`,
   stage-named files renamed by module, 24 unused functions removed, 2 merged/stale branches and a stash dropped.
   `docs/sop-video/` stays untouched. Whichever session finds every other stage committed should run it.
+- **2026-10-19 "Build all" steps 1-4 + start of 5 (Stage 94, 73.B.7/73.B.9/73.D.18/19/21, 91.1-91.2, 75.4.1, 74.1.1/
+  74.1.2/74.1.6) - BUILT, NOT COMMITTED, NOT DEPLOYED. PAUSED at the user's request ("hold after this complete run ...
+  we will do in next thread"); about 9% of the run's ~270 items done.** Ledger §256; checklist top note ("build all").
+  **Resume in a new thread with 74.1.3 posting profiles**, then 74.1.5 (WriteStockLedgerLinesTx + closed-period check
+  on stock postings), Wave 2 (74.2.1 is Stage 85's customer advance on 2640 - verify only; 74.2.2 store credit + the
+  sales-return reason left from 74.1.1; 74.2.3 stock adjustment; 74.2.4 MI / MR), Wave 3, then steps (6) Stage 55
+  partials and (7) Stages 47 / 49 / 50. 74.1.4 / 74.3.4 (print snapshot, print profiles) wait for the Stage 98 session.
+  - **74.1.3 design, decided here, not built:** a `PostingProfile` master (Finance): event (advance_collected / applied /
+    refunded, store_credit_issued / redeemed / expired, material_issue / return, adjustment_gain / loss / damage /
+    revaluation / expiry, jobwork_charge / loss, challan_nonreturnable_issue), optional legal_entity / loss_class /
+    reason_code / cost_center, debit / credit account (validated against `gl_accounts`), effective dates, status Draft →
+    Pending Approval → Approved (maker-checker through `approval_rules`, Accountant), resolved at posting by
+    specificity with today's fixed accounts as the shipped default (DEC-21). New accounts to seed additively: 2650
+    Store Credit Liability, 4400 Inventory Gain, 5320 Inventory Shrinkage, 5330 Inventory Damage Write-off, 5340
+    Inventory Revaluation, 5350 Expired Stock Write-off, 5420 Job-Work Conversion Cost, 5430 Job-Work Loss, 5440
+    Samples / Non-returnable Challan Expense (material issue defaults to the existing 5180 Consumables). Per-doctype
+    validation goes in `ValidateTransactionalRules`' switch (transactional_validation.go).
+  - **Stage 74 so far (mine):** migrations `migrations_stage74_1_1_reason_codes.sql`,
+    `migrations_stage74_1_1b_reason_code_module.sql` (applied locally); new engines `reason_codes.go`, `reason_reports.go`,
+    tests `reason_codes_stage74_test.go`, `numbering_race_stage74_test.go`, `attachments_stage74_1_6_test.go`;
+    `internal/server/handlers_reason_codes.go`; public `reason-picker.js`, `attachments-panel.js`. Hunks: engines
+    `numbering.go` + `pos_bill_number.go` (atomic counter), `orders.go` (requireActiveReasonCode → ResolveReasonCode),
+    `attachments.go` (GRN / PurchaseReturn allow-list), `purchase_return.go` (reason code), `pos_quote.go` (override
+    reason_code), `stickers.go` + `sticker_document_source.go` (normalizeReprintReason), `grn_steps.go` (Verify codes),
+    `tenant_reset.go` (ReasonCode kept); internal/server `handlers_core_doc_engine.go` (PrepareGRNReasons), `routes.go` +
+    `route_capabilities.go` (`GET /api/v1/reason-codes`), `error_catalog_extensions.go` (MASTER-0975); public
+    `grn-steps.js` (reason pickers, invoice-copy panel), `view-procurement.js` (purchase return picker), `view-pos.js`
+    (override reason dialog), `txn-screen.css` (att-*); docs ADMIN_GUIDE (reason codes bullet), USER_GUIDE (§4.1
+    override, §6.5 return reason, §6.10 Verify reasons + invoice copy); brain map (master-data + expenses regions).
+    Not browser-walked: the reason pickers and the invoice-copy panel. Final run after pausing: `go test -p 1 ./engines` green
+    (464 s); `./internal/server` had two SAAS-0191 "module not enabled" failures (TestPurchaseRequisitionAutoNumber...,
+    TestStage73D9ScheduleIsItsCreatorsOnly) from module entitlements changing on the shared DB mid-run - both pass on a rerun.
+  - **Migrations (2, additive, applied to local `custom_erp`):** `migrations_stage94_grn_steps.sql` (`grn_line`,
+    `grn_line_change`, doctype `GRNExcessApproval` + Store Manager approval rule), `migrations_stage94_2_category_mrp_markup.sql`.
+    My `-migrate` run also applied the Stage 98 session's then-untracked `migrations_stage98_3_store_email.sql` locally.
+  - **New files (mine):** engines `grn_steps.go`, `grn_steps_post.go`, `grn_steps_reports.go`, `pos_batch_mrp.go`,
+    `tenant_reset.go`, `media_store.go`; tests `grn_steps_stage94_test.go`, `schedule_claim_stage73d18_test.go`,
+    `tenant_reset_stage91_test.go`, `media_store_stage75_4_test.go`; `internal/server/handlers_grn_steps.go`;
+    `public/grn-steps.js`.
+  - **My hunks in shared files:** engines `po_design.go` (FindMatchingDesignForVendor), `settings_definitions.go` (design
+    mode labels), `traceability.go` (Batch.mrp), `wms_receiving.go` (PostGRNReceiptPart), `costing.go` (per-part GL key),
+    `grn_pricing.go` (step-GRN cost / billing / no Stage 62 notes), `transactional_validation.go` (stepFlow arg),
+    `purchase_return.go` (no second note for a step GRN's set-aside units), `pos_quote.go` (shelf MRP), `stickers.go`
+    (lot MRP), `scheduled_reports.go` + `dashboard.go` (claimDueSchedule), `attachments.go` + `pim_media.go` + `pim_dam.go`
+    (through serverMedia), `reports_stage26_10_test.go` (own rows only); internal/server `handlers_core_doc_engine.go`
+    (PrepareGRNSteps, no posting for flow=steps, SyncGRNLineRows), `handlers_po_design.go` (match vendor field only - the
+    rest of that file's diff is Stage 98's), `handlers_pim_pos_finance.go` (checkout item mrp / barcode),
+    `routes.go` + `route_capabilities.go` (10 grn-steps routes), `error_catalog_extensions.go` (GOODSR-0940..0952);
+    `cmd/tenantctl/main.go` (reset-data); public `view-procurement.js` (GRN screen: vendor / open POs, received + invoice
+    qty, Save receipt, inbox, steps pane, scan-to-count; plus one design-match line - its PO print hunks are Stage 98's),
+    `view-pos.js` (MRP chooser), `view-printing.js` (child sticker prefill), `view-reports.js` (Movements link),
+    `txn-screen.css` (gs-* and pos-mrp-choice), `app.js` + `index.html` (`VIEW_MODULE_VERSION` / `app.js?v=` 49 → 50);
+    `.github/workflows/ci.yml` and `promote.ps1` (test timeout); docs USER_GUIDE §4.1, §5, §6.10, Step 6; ADMIN_GUIDE
+    §B.3.6, new §B.3.6.1, §C.6 reset; USER_SOP, UAT_CHECKLIST §24.1, KB procurement / getting-started / journeys /
+    inventory-WMS / troubleshooting; `docs/brain/brain.map.json` (procurement + pos regions). KB HTML not regenerated
+    (`cmd/genkb` at release); `attack_surface.json` not regenerated (10 new routes - regenerate at release).
+  - **Verified:** `go build`, `go vet`, full `go test -p 1 -timeout 50m ./engines` (497 s) and `./internal/server` green
+    before the reset / media-store work; those added their own tests (pass) and the media / attachment / PIM suites pass.
+    Browser walks on a scratch server :8194 (stopped). Not walked: the till's MRP chooser (94.6), Post all, the
+    Movements link (73.B.7). Local test data left in `custom_erp` `tenant_default`: GRN/HO/26-27/00048 (Nike, Received,
+    via curl), GRN/HO/26-27/00050 (V62A49786, posted, part paid, corrected, DN/HO/26-27/00010 + correction note),
+    GRN/FAC-ROOT-TEST/26-27/00001 (LIVE-VEND, Keep pending approval) - ask before deleting.
+
+- **2026-10-19 Stage 104 (Control Panel "36 errors" read and fixed) - DONE, NOT COMMITTED, NOT DEPLOYED.** Ledger §255,
+  checklist Stage 104. No migration. My files only: `engines/logs.go` (`ClientErrorCodes`, `systemFaultSQL`),
+  `engines/platform_control_panel.go` + `engines/alerting.go` (one query each), `internal/server/apierror.go` (code list
+  init, request line in `logForEntry`), `internal/server/handlers_report_engine.go` (REPORT-0160 no longer logged), new
+  `engines/system_faults_stage104_test.go`, `internal/server/system_faults_stage104_test.go`, and an appended test in
+  `internal/server/generic_save_merge_stage73d8_test.go`; docs: ADMIN_GUIDE (Clients table paragraph), incident_runbook
+  (trigger 4), `docs/kb/admin-operations/incident-response.md` (its KB HTML regenerates at release), the trackers. All
+  code files were clean before; the docs carry other sessions' hunks. **Ship 57d3d04 soon:** production (840909b) refuses
+  every PO edit from the PO screen ("PO Number (Internal) is required"); 73.D.8 in 57d3d04 fixes it.
+
+- **2026-10-19 Stage 105 (spend fewer tokens) - DONE, NOT COMMITTED.** Docs only, no code: `CLAUDE.md` (gitignored, local only),
+  `docs/micro_checklist.md` (17 closed sections removed + Stage 105), `docs/archive/micro_checklist_closed_stages.md`
+  (those sections appended), `docs/project_ledger.md` §254. Outside the repo: memory index trimmed,
+  `~/.claude/settings.json` effort `high`.
+- **2026-10-19 Stages 99-102 recorded (Shopify, custom dashboards, CRM, store app); Stage 102 first slice (the Store app
+  PWA at `/store/`) - BUILT, NOT COMMITTED.** Checklist Stages 99-102 (99-101 and 102's other items wait on the user's
+  decisions; 102 D3 offline and D4 shared-phone PIN still open). Ship together: `public/store/` (whole folder, new),
+  `engines/store_app.go` + `store_app_test.go`, `internal/server/handlers_store_app.go` + `store_app_test.go`; hunks only
+  in `routes.go` (route `GET /api/v1/store-app/item`), `route_capabilities.go` (one entry), `middleware.go`
+  (`permissionsPolicyFor`, camera on `/store/` only), `brain.map.json` (`store-app` region), USER_GUIDE §10A + 3
+  how-do-I rows, ADMIN_GUIDE B.2.1, the checklist. No migration. Release needs `attack_surface.json` regenerated for the
+  new route, the brain redraw and KB regeneration. Verified in a HEAD + own-hunks worktree (the shared tree did not
+  build: another session's `grn_steps.go`); live walk on a scratch server passed - details in checklist 102.
+- **2026-10-19 Stage 98 (print, PDF, send, CSV / Excel, each computer's own printer) - DONE, NOT COMMITTED** (98.2.2 A5
+  / roll and 98.5.2 real store printers wait on checks). 88.1.14 / 88.1.15 (Setup ▸ Printing; lists with their own menu
+  entry left out of Setup) were split out and shipped in 455f4f9 (release 0.2.0, live on app and minn); what is left in
+  the tree is Stage 98 only, and its worktree below is still based on 57d3d04 - rebuild it on 8c40d4b before committing.
+  Ledger §253, checklist Stage 98. Three additive migrations
+  (`migrations_stage98_1_print_transactions.sql`, `98_3_store_email.sql`, `98_4_printer_choice.sql`; applied to local
+  `custom_erp`) - deploy migration and binary together. New routes `POST /api/v1/print/document/{txn}/{id}/send` and
+  `GET|POST /api/v1/print/qz/assignments`. Shared files also carry other sessions' unfinished hunks - stage only Stage
+  98's: `internal/server/handlers_po_design.go` (94.13 vendor design match), `routes.go` / `route_capabilities.go`
+  (102.3.1 store-app route), `public/view-procurement.js` (94.13), the trackers and guides. A clean worktree of HEAD
+  57d3d04 + only these changes is at `%TEMP%\erp98-wt` (build, vet, server + engine tests, release budget green;
+  its `docs/security/attack_surface.json` is the one to commit - the shared tree's needs a regen once 102.3.1 lands).
+  Send emails only with `SMTP_*` set on the server (otherwise it downloads the PDF); app.js +199 B cold core.
+  `update-docs.ps1 -Group Guides` and the brain redraw still to run when the other sessions' edits settle.
 - **2026-10-19 Stage 97 (docs folder reorganised) - DONE, shipped in erp-c1's 2026-10-19 release.** Ledger §252,
   checklist Stage 97. 48 files moved, 7 merged away, 4 deleted; `docs/README.md` is the front door and
   `docs/archive/readme.md` maps every old path to its new one. Comments in Go files that other sessions had open at the
   time still name some old doc paths; the archive table resolves them.
-- **2026-10-19 "Fix all" on the build run's leftovers - 75.2.8a, 76.6, BLD020 test, manifest DONE (ship); 75.3 catalog
-  reports IN PROGRESS (do NOT ship).** Checklist 75.2.8a, 76.6, 75.3.2, 75.3.5. No migration.
+- **2026-10-19 "Fix all" on the build run's leftovers - 75.2.8a, 76.6, BLD020 test, manifest SHIPPED in 0.2.0 (57d3d04);
+  the 75.3 catalog part of this entry is superseded by the "report catalog built" entry at the top of §6.** No migration.
   - **Ship:** `engines/print_documents.go` (credit note `irn_signed_qr`), `print_templates.go` (E-invoice fields),
     `einvoice_stage75_2_test.go`; `public/trade-docs.js` + `.css` (`qr` element), `print-template-studio.js`;
     `engines/master_recode.go` (all masters, backup gate, Item warning, touches, chunked JSON), new

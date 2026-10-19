@@ -3,6 +3,7 @@ package engines
 import (
 	"context"
 	"custom_erp/db"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -99,8 +100,39 @@ func processScheduledReports(ctx context.Context, schema string) {
 	rows.Close()
 
 	for _, s := range due {
-		runScheduledReport(ctx, schema, tenantID, s.id, "", s.data)
+		// 73.D.18: claimed first, so a Run now on the same tick (or a second
+		// server) cannot deliver it as well.
+		if data, ok := claimDueSchedule(schema, "ScheduledReport", s.id, today); ok {
+			runScheduledReport(ctx, schema, tenantID, s.id, "", data)
+		}
 	}
+}
+
+// claimDueSchedule (73.D.18) marks one due schedule Running in a single
+// UPDATE that only succeeds if it is still due and not already running - the
+// same claim Run now takes (ClaimReportScheduleRun) - and returns its data.
+// A Running mark older than the hard run timeout is a run that died; it may
+// be claimed again.
+func claimDueSchedule(schema, doctype, id, today string) (map[string]interface{}, bool) {
+	now := time.Now()
+	var dataStr string
+	err := db.DB.QueryRow(fmt.Sprintf(`UPDATE %s.documents
+		SET data = data || jsonb_build_object('last_run_status', 'Running', 'last_run_at', $3::text), updated_at = CURRENT_TIMESTAMP
+		WHERE doctype = $2 AND id = $4 AND `+scheduleDueSQL+`
+		  AND (COALESCE(data->>'last_run_status', '') <> 'Running'
+		       OR COALESCE(NULLIF(data->>'last_run_at', ''), '1970-01-01T00:00:00Z')::timestamptz < $5::timestamptz)
+		RETURNING data`, schema), today, doctype, now.Format(time.RFC3339), id, now.Add(-reportRunHardTimeout).Format(time.RFC3339)).Scan(&dataStr)
+	if err != nil {
+		if err != sql.ErrNoRows {
+			LogBackgroundJobError("SCHEDULED_REPORT", "claim", schema, err)
+		}
+		return nil, false
+	}
+	var data map[string]interface{}
+	if json.Unmarshal([]byte(dataStr), &data) != nil {
+		return nil, false
+	}
+	return data, true
 }
 
 // scheduleDueSQL is the one definition of "the worker runs this schedule on

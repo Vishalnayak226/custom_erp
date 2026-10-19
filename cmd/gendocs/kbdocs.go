@@ -191,7 +191,16 @@ func kbErrorCodeReference(stamp string) map[string]string {
 	return pages
 }
 
-func kbReportCatalog(stamp string) string {
+// kbReportCatalogPartBytes is how much Markdown one report-catalog page
+// holds - the same NFR-DOC-001 reasoning as kbErrorCodePartBytes. With the
+// user's report catalog (Stage 75.3, 250+ reports) the list no longer fits one
+// Knowledge Center article, so whole categories continue on
+// report-catalog-2.md and so on; report-catalog.md keeps its name and its
+// contents list opens the right page for every category.
+const kbReportCatalogPartBytes = 56 * 1024 // report entries render about 1.8x their Markdown
+
+// kbReportCatalog returns the report-catalog pages keyed by file name.
+func kbReportCatalog(stamp string) map[string]string {
 	definitions := engines.ListReportDefinitions()
 
 	byCategory := map[string][]engines.ReportDefinition{}
@@ -203,6 +212,70 @@ func kbReportCatalog(stamp string) string {
 		byCategory[category] = append(byCategory[category], definition)
 	}
 	categories := sortedKeys(byCategory)
+
+	sections := map[string]string{}
+	var parts [][]string
+	partBytes := 0
+	for _, category := range categories {
+		rows := byCategory[category]
+		sort.Slice(rows, func(i, j int) bool { return rows[i].Label < rows[j].Label })
+		var s strings.Builder
+		s.WriteString(fmt.Sprintf("## %s\n\n", category))
+		for _, definition := range rows {
+			s.WriteString(fmt.Sprintf("### %s\n\n", definition.Label))
+			s.WriteString(fmt.Sprintf("**Report id:** `%s`\n\n", definition.ID))
+			if len(definition.Params) == 0 {
+				s.WriteString("**Parameters:** none - it runs as soon as you pick it.\n\n")
+			} else {
+				s.WriteString("**Parameters:**\n\n")
+				for _, param := range definition.Params {
+					requirement := "optional"
+					if param.Required {
+						requirement = "**required**"
+					}
+					options := ""
+					if param.Options != "" {
+						options = fmt.Sprintf(", one of: %s", param.Options)
+					}
+					s.WriteString(fmt.Sprintf("- **%s** (`%s`) - %s, %s%s\n", param.Label, param.Key, param.Type, requirement, options))
+				}
+				s.WriteString("\n")
+			}
+			columns := make([]string, 0, len(definition.Columns))
+			for _, column := range definition.Columns {
+				if column.Sensitive {
+					columns = append(columns, fmt.Sprintf("%s *(sensitive)*", column.Label))
+				} else {
+					columns = append(columns, column.Label)
+				}
+			}
+			s.WriteString(fmt.Sprintf("**Columns:** %s\n\n", strings.Join(columns, " · ")))
+			if definition.HasDrillDown {
+				s.WriteString("**Drill-down:** yes - a row's **View Details** opens the transactions behind it.\n\n")
+			} else {
+				s.WriteString("**Drill-down:** no.\n\n")
+			}
+		}
+		sections[category] = s.String()
+		if len(parts) == 0 || (partBytes > 0 && partBytes+s.Len() > kbReportCatalogPartBytes) {
+			parts = append(parts, nil)
+			partBytes = 0
+		}
+		parts[len(parts)-1] = append(parts[len(parts)-1], category)
+		partBytes += s.Len()
+	}
+	fileOf := func(part int) string {
+		if part == 0 {
+			return "report-catalog.md"
+		}
+		return fmt.Sprintf("report-catalog-%d.md", part+1)
+	}
+	partOf := map[string]int{}
+	for part, names := range parts {
+		for _, category := range names {
+			partOf[category] = part
+		}
+	}
 
 	var b strings.Builder
 	b.WriteString(kbFrontmatter(
@@ -225,52 +298,54 @@ func kbReportCatalog(stamp string) string {
 		"Admin and Store Manager. They are masked rather than dropped, so the table has\n" +
 		"the same shape whoever runs it and a screenshot from one person lines up with a\n" +
 		"screenshot from another.\n\n")
-
-	b.WriteString(kbContents(categories, func(category string) string {
-		return fmt.Sprintf(" - %d reports", len(byCategory[category]))
-	}))
-
-	for _, category := range categories {
-		rows := byCategory[category]
-		sort.Slice(rows, func(i, j int) bool { return rows[i].Label < rows[j].Label })
-		b.WriteString(fmt.Sprintf("## %s\n\n", category))
-		for _, definition := range rows {
-			b.WriteString(fmt.Sprintf("### %s\n\n", definition.Label))
-			b.WriteString(fmt.Sprintf("**Report id:** `%s`\n\n", definition.ID))
-			if len(definition.Params) == 0 {
-				b.WriteString("**Parameters:** none - it runs as soon as you pick it.\n\n")
-			} else {
-				b.WriteString("**Parameters:**\n\n")
-				for _, param := range definition.Params {
-					requirement := "optional"
-					if param.Required {
-						requirement = "**required**"
-					}
-					options := ""
-					if param.Options != "" {
-						options = fmt.Sprintf(", one of: %s", param.Options)
-					}
-					b.WriteString(fmt.Sprintf("- **%s** (`%s`) - %s, %s%s\n", param.Label, param.Key, param.Type, requirement, options))
-				}
-				b.WriteString("\n")
-			}
-			columns := make([]string, 0, len(definition.Columns))
-			for _, column := range definition.Columns {
-				if column.Sensitive {
-					columns = append(columns, fmt.Sprintf("%s *(sensitive)*", column.Label))
-				} else {
-					columns = append(columns, column.Label)
-				}
-			}
-			b.WriteString(fmt.Sprintf("**Columns:** %s\n\n", strings.Join(columns, " · ")))
-			if definition.HasDrillDown {
-				b.WriteString("**Drill-down:** yes - a row's **View Details** opens the transactions behind it.\n\n")
-			} else {
-				b.WriteString("**Drill-down:** no.\n\n")
-			}
-		}
+	if len(parts) > 1 {
+		b.WriteString(fmt.Sprintf("The list runs over **%d** pages. The contents below cover every category and\n"+
+			"open the right page.\n\n", len(parts)))
 	}
-	return b.String()
+
+	b.WriteString("## Contents\n\n")
+	for _, category := range categories {
+		target := "#" + kb.HeadingSlug(category)
+		if part := partOf[category]; part > 0 {
+			target = fileOf(part) + target
+		}
+		b.WriteString(fmt.Sprintf("- [%s](%s) - %d reports\n", category, target, len(byCategory[category])))
+	}
+	b.WriteString("\n")
+	for _, category := range parts[0] {
+		b.WriteString(sections[category])
+	}
+
+	pages := map[string]string{fileOf(0): b.String()}
+	for part := 1; part < len(parts); part++ {
+		names := parts[part]
+		reports := 0
+		for _, category := range names {
+			reports += len(byCategory[category])
+		}
+		title := fmt.Sprintf("Report catalog (part %d)", part+1)
+		var p strings.Builder
+		p.WriteString(kbFrontmatter(
+			title,
+			"Reference",
+			20+part,
+			fmt.Sprintf("Reports in %s to %s, continued from the report catalog.", names[0], names[len(names)-1]),
+			"store manager, finance, category manager, admin",
+			stamp,
+			[]string{"reports"}))
+		p.WriteString("# " + title + "\n\n")
+		p.WriteString(fmt.Sprintf("This page continues the [report catalog](report-catalog.md), which lists\n"+
+			"every category and explains how to run a report. It holds **%d** reports, from\n"+
+			"%s to %s.\n\n", reports, names[0], names[len(names)-1]))
+		p.WriteString(kbContents(names, func(category string) string {
+			return fmt.Sprintf(" - %d reports", len(byCategory[category]))
+		}))
+		for _, category := range names {
+			p.WriteString(sections[category])
+		}
+		pages[fileOf(part)] = p.String()
+	}
+	return pages
 }
 
 func kbCountryPhoneRules(stamp string) string {

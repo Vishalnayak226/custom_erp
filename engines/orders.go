@@ -794,24 +794,13 @@ func requireActiveReasonCode(tenantID, reasonCode, expectedCategory string) erro
 	if reasonCode == "" {
 		return fmt.Errorf("a reason code is required")
 	}
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
+	// Stage 74.1.1: the one check - status, category and effective dates.
+	if _, err := ResolveReasonCode(tenantID, reasonCode, expectedCategory); err != nil {
+		var verr *ValidationError
+		if errors.As(err, &verr) {
+			return fmt.Errorf("%s", verr.Message)
+		}
 		return err
-	}
-	var status, category string
-	err = db.DB.QueryRow(fmt.Sprintf(
-		`SELECT status, data->>'category' FROM %s.documents WHERE doctype = 'ReasonCode' AND id = $1 AND deleted_at IS NULL`, schema),
-		reasonCode).Scan(&status, &category)
-	if err == sql.ErrNoRows {
-		return fmt.Errorf("reason code %q not found", reasonCode)
-	} else if err != nil {
-		return err
-	}
-	if status != "Active" {
-		return fmt.Errorf("reason code %q is not Active", reasonCode)
-	}
-	if category != expectedCategory {
-		return fmt.Errorf("reason code %q is category %q, expected %q", reasonCode, category, expectedCategory)
 	}
 	return nil
 }

@@ -396,6 +396,8 @@ func registerRoutes() {
 
 	// Availability & Reservation APIs
 	http.HandleFunc("GET /api/v1/availability", apiMiddleware(handleGetAvailability))
+	// Stage 102.3.1: the store app's scan-an-item lookup (public/store/).
+	http.HandleFunc("GET /api/v1/store-app/item", apiMiddleware(handleStoreAppItem))
 	http.HandleFunc("POST /api/v1/reserve", apiMiddleware(handleCreateReservation))
 
 	// Stage 26.12.1: Order Engine - create (validate/reserve chain), the
@@ -876,6 +878,8 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/print/qz/certificate", apiMiddleware(moduleGate("stickers", handleQZCertificate)))
 	http.HandleFunc("POST /api/v1/print/qz/sign", apiMiddleware(moduleGate("stickers", handleQZSign)))
 	http.HandleFunc("GET /api/v1/print/qz/printers", apiMiddleware(moduleGate("stickers", handleQZPrinters)))
+	http.HandleFunc("GET /api/v1/print/qz/assignments", apiMiddleware(moduleGate("stickers", handleQZPrinterChoices)))
+	http.HandleFunc("POST /api/v1/print/qz/assignments", apiMiddleware(moduleGate("stickers", handleQZPrinterChoices)))
 	http.HandleFunc("POST /api/v1/print/qz/payload", apiMiddleware(moduleGate("stickers", handleQZPrintPayload)))
 	http.HandleFunc("GET /api/v1/print/qz/log", apiMiddleware(moduleGate("stickers", handleQZPrintLog)))
 	http.HandleFunc("POST /api/v1/print/qz/log", apiMiddleware(moduleGate("stickers", handleQZPrintLog)))
@@ -1101,6 +1105,19 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/procurement/design-matrix", apiMiddleware(moduleGate("procurement", handleGetDesignMatrix)))
 	http.HandleFunc("GET /api/v1/procurement/design/{code}", apiMiddleware(moduleGate("procurement", handleGetDesign)))
 	http.HandleFunc("POST /api/v1/procurement/design/match", apiMiddleware(moduleGate("procurement", handleMatchDesign)))
+	// Stage 74.1.1: reason codes for a picker (handlers_reason_codes.go).
+	http.HandleFunc("GET /api/v1/reason-codes", apiMiddleware(handleListReasonCodes))
+	// Stage 94: goods receipt in steps (handlers_grn_steps.go).
+	http.HandleFunc("GET /api/v1/grn-steps", apiMiddleware(moduleGate("procurement", handleGRNStepsInbox)))
+	http.HandleFunc("GET /api/v1/grn-steps/open-pos", apiMiddleware(moduleGate("procurement", handleGRNStepsOpenPOs)))
+	http.HandleFunc("GET /api/v1/grn-steps/{id}", apiMiddleware(moduleGate("procurement", handleGRNStepsGet)))
+	http.HandleFunc("POST /api/v1/grn-steps/{id}/receive", apiMiddleware(moduleGate("procurement", handleGRNStepsReceive)))
+	http.HandleFunc("POST /api/v1/grn-steps/{id}/verify", apiMiddleware(moduleGate("procurement", handleGRNStepsVerify)))
+	http.HandleFunc("POST /api/v1/grn-steps/{id}/price", apiMiddleware(moduleGate("procurement", handleGRNStepsPrice)))
+	http.HandleFunc("POST /api/v1/grn-steps/{id}/post/{child}", apiMiddleware(moduleGate("procurement", handleGRNStepsPostChild)))
+	http.HandleFunc("POST /api/v1/grn-steps/{id}/post-all", apiMiddleware(moduleGate("procurement", handleGRNStepsPostAll)))
+	http.HandleFunc("POST /api/v1/grn-steps/{id}/pay", apiMiddleware(moduleGate("procurement", handleGRNStepsPay)))
+	http.HandleFunc("POST /api/v1/grn-steps/{id}/correct", apiMiddleware(moduleGate("procurement", handleGRNStepsCorrect)))
 	// Stage 65.4: add a value (or a new attribute) to the PIM attributes from the PO.
 	http.HandleFunc("POST /api/v1/procurement/design-attribute", apiMiddleware(moduleGate("procurement", handleAddDesignAttributeValue)))
 	// Stage 95: Design and Combination ID images - the PO's Images page, the
@@ -1122,6 +1139,7 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/finance/vendor-credit-note/{id}/post", apiMiddleware(handlePostVendorCreditNote))
 	// Stage 63: designed transaction prints and the Vendor PO in Excel.
 	http.HandleFunc("GET /api/v1/print/document/{txn}/{id}", apiMiddleware(handlePrintDocument))
+	http.HandleFunc("POST /api/v1/print/document/{txn}/{id}/send", apiMiddleware(handlePrintDocumentSend))
 	http.HandleFunc("GET /api/v1/print/catalog", apiMiddleware(handlePrintCatalog))
 	http.HandleFunc("GET /api/v1/procurement/purchase-order/{id}/excel", apiMiddleware(moduleGate("procurement", handleVendorPOExcel)))
 	// Stage 73.2.4 (D05): PO reconciliation and short-close.

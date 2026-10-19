@@ -83,9 +83,12 @@ created here, and there is no separate "capture" step before it.
    [Batch, Serial & Expiry Traceability](traceability-batch-serial.md).
 6. For an item flagged catch-weight, an **Actual Weight** field is required;
    **L / W / H** dimensions are always optional, for any line.
-7. Click **Add Line**, repeat, then **Post Receipt**.
+7. Click **Add Line**, repeat, then **Save receipt**, and work the receipt
+   through Verify, Price check and MRP and post ([Procurement](procurement.md),
+   step 4 is where stock moves).
 
-**What Post Receipt actually does** (`PostGRNReceiptWithQC`,
+**What posting actually does** - RF Receiving's **Post Receipt**, and each
+child GRN at step 4 (`PostGRNReceiptWithQC` / `PostGRNReceiptPart`,
 `engines/wms_receiving.go`), per line:
 
 - The **accepted** quantity (received minus rejected minus damaged, or an
@@ -132,8 +135,10 @@ Two things this screen is strict about:
   ignored.
 
 **Post Receipt** here calls the exact same `POST /api/v1/doc/GRN` endpoint
-the desktop Workbench uses — it's a different data-entry surface for the
-same document type, not a parallel receiving mechanism.
+the desktop Goods Receipt page uses — it's a different data-entry surface for
+the same document type, not a parallel receiving mechanism. The desktop page
+saves its receipt in steps (`"flow": "steps"`), so its stock moves at step 4;
+RF Receiving posts at once.
 
 ### Receiving error codes
 

@@ -1956,15 +1956,16 @@
           "title": "Printing - stickers and document templates",
           "section": "Module Handbooks",
           "order": 64,
-          "summary": "The difference between a sticker template and a document print template, where each is made, and which one prints.",
+          "summary": "The difference between a sticker template and a document print template, where each is made, which one prints, and how a document is printed, saved as PDF or Excel, sent, and routed to each computer's own printer.",
           "audience": "store manager, warehouse operator, category manager, admin",
           "screens": [
             "stickers",
             "doctype:printtemplate",
             "doctype:stickertemplate",
-            "doctype:printer"
+            "doctype:printer",
+            "doctype:printerassignment"
           ],
-          "last_verified": "2026-10-18",
+          "last_verified": "2026-10-19",
           "owner": "documentation-maintainer",
           "status": "draft",
           "topic_type": "how-to",
@@ -1988,6 +1989,16 @@
               "level": 2,
               "text": "Set up how a document prints",
               "slug": "set-up-how-a-document-prints"
+            },
+            {
+              "level": 2,
+              "text": "Print, save or send a document",
+              "slug": "print-save-or-send-a-document"
+            },
+            {
+              "level": 2,
+              "text": "The right printer on every computer",
+              "slug": "the-right-printer-on-every-computer"
             }
           ]
         },
@@ -2824,6 +2835,141 @@
             },
             {
               "level": 2,
+              "text": "Accounting",
+              "slug": "accounting"
+            },
+            {
+              "level": 3,
+              "text": "AP Aging",
+              "slug": "ap-aging"
+            },
+            {
+              "level": 3,
+              "text": "AR Aging",
+              "slug": "ar-aging"
+            },
+            {
+              "level": 3,
+              "text": "Accounting Audit Trail",
+              "slug": "accounting-audit-trail"
+            },
+            {
+              "level": 3,
+              "text": "Balance Sheet",
+              "slug": "balance-sheet"
+            },
+            {
+              "level": 3,
+              "text": "Bank Reconciliation Report",
+              "slug": "bank-reconciliation-report"
+            },
+            {
+              "level": 3,
+              "text": "Budget vs Actual",
+              "slug": "budget-vs-actual"
+            },
+            {
+              "level": 3,
+              "text": "Cash Flow Statement",
+              "slug": "cash-flow-statement"
+            },
+            {
+              "level": 3,
+              "text": "Cost Center P\u0026L",
+              "slug": "cost-center-p-l"
+            },
+            {
+              "level": 3,
+              "text": "Customer Ledger",
+              "slug": "customer-ledger"
+            },
+            {
+              "level": 3,
+              "text": "Debit / Credit Note Register",
+              "slug": "debit-credit-note-register"
+            },
+            {
+              "level": 3,
+              "text": "Depreciation Schedule",
+              "slug": "depreciation-schedule"
+            },
+            {
+              "level": 3,
+              "text": "Finance Approval Pending Report",
+              "slug": "finance-approval-pending-report"
+            },
+            {
+              "level": 3,
+              "text": "Fixed Asset Register",
+              "slug": "fixed-asset-register"
+            },
+            {
+              "level": 3,
+              "text": "General Ledger",
+              "slug": "general-ledger"
+            },
+            {
+              "level": 3,
+              "text": "Intercompany Reconciliation",
+              "slug": "intercompany-reconciliation"
+            },
+            {
+              "level": 3,
+              "text": "Journal Voucher Register",
+              "slug": "journal-voucher-register"
+            },
+            {
+              "level": 3,
+              "text": "Payment Proposal Register",
+              "slug": "payment-proposal-register"
+            },
+            {
+              "level": 3,
+              "text": "Payment Register",
+              "slug": "payment-register"
+            },
+            {
+              "level": 3,
+              "text": "Period Close Checklist",
+              "slug": "period-close-checklist"
+            },
+            {
+              "level": 3,
+              "text": "Profit \u0026 Loss Statement",
+              "slug": "profit-loss-statement"
+            },
+            {
+              "level": 3,
+              "text": "Receipt Register",
+              "slug": "receipt-register"
+            },
+            {
+              "level": 3,
+              "text": "Sales Invoice Accounting Register",
+              "slug": "sales-invoice-accounting-register"
+            },
+            {
+              "level": 3,
+              "text": "TDS Register",
+              "slug": "tds-register"
+            },
+            {
+              "level": 3,
+              "text": "Trial Balance",
+              "slug": "trial-balance"
+            },
+            {
+              "level": 3,
+              "text": "Vendor Invoice Register",
+              "slug": "vendor-invoice-register"
+            },
+            {
+              "level": 3,
+              "text": "Vendor Ledger",
+              "slug": "vendor-ledger"
+            },
+            {
+              "level": 2,
               "text": "Admin",
               "slug": "admin"
             },
@@ -2859,6 +3005,16 @@
             },
             {
               "level": 3,
+              "text": "Birthday / Anniversary Campaign List",
+              "slug": "birthday-anniversary-campaign-list"
+            },
+            {
+              "level": 3,
+              "text": "Campaign Performance",
+              "slug": "campaign-performance"
+            },
+            {
+              "level": 3,
               "text": "Campaign ROI",
               "slug": "campaign-roi"
             },
@@ -2869,13 +3025,43 @@
             },
             {
               "level": 3,
+              "text": "Complaint / Service Case Register",
+              "slug": "complaint-service-case-register"
+            },
+            {
+              "level": 3,
+              "text": "Coupon / Voucher Usage Report",
+              "slug": "coupon-voucher-usage-report"
+            },
+            {
+              "level": 3,
               "text": "Customer 360",
               "slug": "customer-360"
             },
             {
               "level": 3,
+              "text": "Customer 360 Summary",
+              "slug": "customer-360-summary"
+            },
+            {
+              "level": 3,
+              "text": "Customer Inactivity / Churn Report",
+              "slug": "customer-inactivity-churn-report"
+            },
+            {
+              "level": 3,
               "text": "Customer Lifetime Value",
               "slug": "customer-lifetime-value"
+            },
+            {
+              "level": 3,
+              "text": "Customer Merge / Mobile Change Audit",
+              "slug": "customer-merge-mobile-change-audit"
+            },
+            {
+              "level": 3,
+              "text": "Customer Segmentation Report",
+              "slug": "customer-segmentation-report"
             },
             {
               "level": 3,
@@ -2886,6 +3072,11 @@
               "level": 3,
               "text": "Loyalty Ledger Summary",
               "slug": "loyalty-ledger-summary"
+            },
+            {
+              "level": 3,
+              "text": "Loyalty Points Ledger",
+              "slug": "loyalty-points-ledger"
             },
             {
               "level": 3,
@@ -2901,6 +3092,76 @@
               "level": 3,
               "text": "RFM Customer Segmentation",
               "slug": "rfm-customer-segmentation"
+            },
+            {
+              "level": 3,
+              "text": "Repeat Purchase Report",
+              "slug": "repeat-purchase-report"
+            },
+            {
+              "level": 2,
+              "text": "E-commerce \u0026 Integration",
+              "slug": "e-commerce-integration"
+            },
+            {
+              "level": 3,
+              "text": "E-commerce Sales Order Item Detail",
+              "slug": "e-commerce-sales-order-item-detail"
+            },
+            {
+              "level": 3,
+              "text": "E-commerce Sales Order Summary",
+              "slug": "e-commerce-sales-order-summary"
+            },
+            {
+              "level": 3,
+              "text": "ERP vs Unicommerce Inventory Reconciliation - Itemwise",
+              "slug": "erp-vs-unicommerce-inventory-reconciliation-itemwise"
+            },
+            {
+              "level": 3,
+              "text": "ERP vs Unicommerce Inventory Reconciliation - Summary",
+              "slug": "erp-vs-unicommerce-inventory-reconciliation-summary"
+            },
+            {
+              "level": 3,
+              "text": "Integration Retry / Failure Audit",
+              "slug": "integration-retry-failure-audit"
+            },
+            {
+              "level": 3,
+              "text": "Inventory Sync Log",
+              "slug": "inventory-sync-log"
+            },
+            {
+              "level": 3,
+              "text": "Marketplace Order Status Summary",
+              "slug": "marketplace-order-status-summary"
+            },
+            {
+              "level": 3,
+              "text": "Online Return Register",
+              "slug": "online-return-register"
+            },
+            {
+              "level": 3,
+              "text": "Order Sync Log",
+              "slug": "order-sync-log"
+            },
+            {
+              "level": 3,
+              "text": "Outlet / Facility Mapping Summary",
+              "slug": "outlet-facility-mapping-summary"
+            },
+            {
+              "level": 3,
+              "text": "Pending Sales Order Stock",
+              "slug": "pending-sales-order-stock"
+            },
+            {
+              "level": 3,
+              "text": "Sales Order Integration Error",
+              "slug": "sales-order-integration-error"
             },
             {
               "level": 2,
@@ -2939,13 +3200,73 @@
             },
             {
               "level": 2,
+              "text": "Expense Management",
+              "slug": "expense-management"
+            },
+            {
+              "level": 3,
+              "text": "Accounting Export Report",
+              "slug": "accounting-export-report"
+            },
+            {
+              "level": 3,
+              "text": "Approved Pending Payment",
+              "slug": "approved-pending-payment"
+            },
+            {
+              "level": 3,
+              "text": "Claims Pending Approval",
+              "slug": "claims-pending-approval"
+            },
+            {
+              "level": 3,
+              "text": "Department / Category / Month Summary",
+              "slug": "department-category-month-summary"
+            },
+            {
+              "level": 3,
+              "text": "Employee Expense Summary",
+              "slug": "employee-expense-summary"
+            },
+            {
+              "level": 3,
+              "text": "Expense Advance Settlement",
+              "slug": "expense-advance-settlement"
+            },
+            {
+              "level": 3,
+              "text": "Expense Aging / SLA Report",
+              "slug": "expense-aging-sla-report"
+            },
+            {
+              "level": 3,
+              "text": "Expense Claim Register",
+              "slug": "expense-claim-register"
+            },
+            {
+              "level": 3,
+              "text": "Paid Claims Register",
+              "slug": "paid-claims-register"
+            },
+            {
+              "level": 3,
+              "text": "Policy Violation / Exception Report",
+              "slug": "policy-violation-exception-report"
+            },
+            {
+              "level": 3,
+              "text": "Rejected / Returned Claims",
+              "slug": "rejected-returned-claims"
+            },
+            {
+              "level": 2,
               "text": "Finance",
               "slug": "finance"
             },
             {
               "level": 3,
               "text": "Balance Sheet",
-              "slug": "balance-sheet"
+              "slug": "balance-sheet-2"
             },
             {
               "level": 3,
@@ -2955,7 +3276,7 @@
             {
               "level": 3,
               "text": "Budget vs Actual",
-              "slug": "budget-vs-actual"
+              "slug": "budget-vs-actual-2"
             },
             {
               "level": 3,
@@ -2970,7 +3291,7 @@
             {
               "level": 3,
               "text": "Cash Flow Statement",
-              "slug": "cash-flow-statement"
+              "slug": "cash-flow-statement-2"
             },
             {
               "level": 3,
@@ -2980,7 +3301,7 @@
             {
               "level": 3,
               "text": "Cost Center P\u0026L",
-              "slug": "cost-center-p-l"
+              "slug": "cost-center-p-l-2"
             },
             {
               "level": 3,
@@ -3055,7 +3376,7 @@
             {
               "level": 3,
               "text": "Intercompany Reconciliation",
-              "slug": "intercompany-reconciliation"
+              "slug": "intercompany-reconciliation-2"
             },
             {
               "level": 3,
@@ -3109,6 +3430,51 @@
             },
             {
               "level": 2,
+              "text": "GST \u0026 Compliance",
+              "slug": "gst-compliance"
+            },
+            {
+              "level": 3,
+              "text": "E-Invoice / IRN Status Register",
+              "slug": "e-invoice-irn-status-register-2"
+            },
+            {
+              "level": 3,
+              "text": "E-Invoice Error / Retry Report",
+              "slug": "e-invoice-error-retry-report-2"
+            },
+            {
+              "level": 3,
+              "text": "GST Bill Number / Document Series Audit",
+              "slug": "gst-bill-number-document-series-audit"
+            },
+            {
+              "level": 3,
+              "text": "GST Document Tax Detail",
+              "slug": "gst-document-tax-detail"
+            },
+            {
+              "level": 3,
+              "text": "GSTR-1 B2B / B2C Summary",
+              "slug": "gstr-1-b2b-b2c-summary"
+            },
+            {
+              "level": 3,
+              "text": "GSTR-1 HSN Summary",
+              "slug": "gstr-1-hsn-summary"
+            },
+            {
+              "level": 3,
+              "text": "HSN Tax Summary",
+              "slug": "hsn-tax-summary"
+            },
+            {
+              "level": 3,
+              "text": "IRN Portal Manual Upload Report",
+              "slug": "irn-portal-manual-upload-report-2"
+            },
+            {
+              "level": 2,
               "text": "HR",
               "slug": "hr"
             },
@@ -3124,6 +3490,113 @@
             },
             {
               "level": 2,
+              "text": "HRMS",
+              "slug": "hrms"
+            },
+            {
+              "level": 3,
+              "text": "Attendance Register",
+              "slug": "attendance-register"
+            },
+            {
+              "level": 3,
+              "text": "Attrition Report",
+              "slug": "attrition-report"
+            },
+            {
+              "level": 3,
+              "text": "Employee Loan / Advance Register",
+              "slug": "employee-loan-advance-register"
+            },
+            {
+              "level": 3,
+              "text": "Employee Master Register",
+              "slug": "employee-master-register"
+            },
+            {
+              "level": 3,
+              "text": "Employee Role / Access Mapping",
+              "slug": "employee-role-access-mapping"
+            },
+            {
+              "level": 3,
+              "text": "Headcount Summary",
+              "slug": "headcount-summary"
+            },
+            {
+              "level": 3,
+              "text": "Late / Overtime Report",
+              "slug": "late-overtime-report"
+            },
+            {
+              "level": 3,
+              "text": "Leave Register",
+              "slug": "leave-register"
+            },
+            {
+              "level": 3,
+              "text": "Onboarding Checklist",
+              "slug": "onboarding-checklist"
+            },
+            {
+              "level": 3,
+              "text": "Payroll Register",
+              "slug": "payroll-register"
+            },
+            {
+              "level": 3,
+              "text": "Performance Review Summary",
+              "slug": "performance-review-summary"
+            },
+            {
+              "level": 3,
+              "text": "Salary Component Detail",
+              "slug": "salary-component-detail"
+            },
+            {
+              "level": 3,
+              "text": "Shift / Roster Report",
+              "slug": "shift-roster-report"
+            },
+            {
+              "level": 3,
+              "text": "Statutory Deduction Summary",
+              "slug": "statutory-deduction-summary"
+            },
+            {
+              "level": 3,
+              "text": "Training / Certification Register",
+              "slug": "training-certification-register"
+            }
+          ]
+        },
+        {
+          "slug": "report-catalog-2",
+          "title": "Report catalog (part 2)",
+          "section": "Reference",
+          "order": 21,
+          "summary": "Reports in Inventory to Procurement, continued from the report catalog.",
+          "audience": "store manager, finance, category manager, admin",
+          "screens": [
+            "reports"
+          ],
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Report catalog (part 2)",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
+          "source_path": "reference/report-catalog-2.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Contents",
+              "slug": "contents"
+            },
+            {
+              "level": 2,
               "text": "Inventory",
               "slug": "inventory"
             },
@@ -3131,6 +3604,16 @@
               "level": 3,
               "text": "Backflush Consumption",
               "slug": "backflush-consumption"
+            },
+            {
+              "level": 3,
+              "text": "Barcode Reprint / Label History",
+              "slug": "barcode-reprint-label-history"
+            },
+            {
+              "level": 3,
+              "text": "Barcode-wise Cost \u0026 MRP Report",
+              "slug": "barcode-wise-cost-mrp-report"
             },
             {
               "level": 3,
@@ -3144,8 +3627,38 @@
             },
             {
               "level": 3,
+              "text": "Current Stock Barcode Detail",
+              "slug": "current-stock-barcode-detail"
+            },
+            {
+              "level": 3,
+              "text": "Current Stock Itemwise Detail",
+              "slug": "current-stock-itemwise-detail"
+            },
+            {
+              "level": 3,
+              "text": "Current Stock Summary",
+              "slug": "current-stock-summary"
+            },
+            {
+              "level": 3,
+              "text": "Current Stock with Image",
+              "slug": "current-stock-with-image"
+            },
+            {
+              "level": 3,
               "text": "Demand Forecast (Trend)",
               "slug": "demand-forecast-trend"
+            },
+            {
+              "level": 3,
+              "text": "Goods In Receiving",
+              "slug": "goods-in-receiving"
+            },
+            {
+              "level": 3,
+              "text": "Inventory Matrix Summary",
+              "slug": "inventory-matrix-summary"
             },
             {
               "level": 3,
@@ -3154,8 +3667,23 @@
             },
             {
               "level": 3,
+              "text": "Inventory by Location Summary",
+              "slug": "inventory-by-location-summary"
+            },
+            {
+              "level": 3,
               "text": "Item Classification Register",
               "slug": "item-classification-register"
+            },
+            {
+              "level": 3,
+              "text": "MRP Change Register",
+              "slug": "mrp-change-register"
+            },
+            {
+              "level": 3,
+              "text": "Negative Stock Exception",
+              "slug": "negative-stock-exception"
             },
             {
               "level": 3,
@@ -3169,6 +3697,16 @@
             },
             {
               "level": 3,
+              "text": "Physical Stock Count Register",
+              "slug": "physical-stock-count-register"
+            },
+            {
+              "level": 3,
+              "text": "Physical Stock Variance Report",
+              "slug": "physical-stock-variance-report"
+            },
+            {
+              "level": 3,
               "text": "Reorder Suggestions (Configured)",
               "slug": "reorder-suggestions-configured"
             },
@@ -3179,8 +3717,18 @@
             },
             {
               "level": 3,
+              "text": "Stock Aging",
+              "slug": "stock-aging"
+            },
+            {
+              "level": 3,
               "text": "Stock Book vs Ledger (drift finder)",
               "slug": "stock-book-vs-ledger-drift-finder"
+            },
+            {
+              "level": 3,
+              "text": "Stock Details - Period Wise",
+              "slug": "stock-details-period-wise"
             },
             {
               "level": 3,
@@ -3189,13 +3737,123 @@
             },
             {
               "level": 3,
+              "text": "Stock Ledger",
+              "slug": "stock-ledger-2"
+            },
+            {
+              "level": 3,
+              "text": "Stock Ledger - Category Summary",
+              "slug": "stock-ledger-category-summary"
+            },
+            {
+              "level": 3,
+              "text": "Stock Movement History",
+              "slug": "stock-movement-history"
+            },
+            {
+              "level": 3,
+              "text": "Stock Valuation Summary",
+              "slug": "stock-valuation-summary"
+            },
+            {
+              "level": 3,
               "text": "Stock by Location",
               "slug": "stock-by-location"
+            },
+            {
+              "level": 3,
+              "text": "Unique Design Inventory Summary",
+              "slug": "unique-design-inventory-summary"
+            },
+            {
+              "level": 2,
+              "text": "MIS \u0026 Management",
+              "slug": "mis-management"
+            },
+            {
+              "level": 3,
+              "text": "Ageing Inventory Value",
+              "slug": "ageing-inventory-value"
+            },
+            {
+              "level": 3,
+              "text": "Category Performance Summary",
+              "slug": "category-performance-summary"
+            },
+            {
+              "level": 3,
+              "text": "Daily Business Summary",
+              "slug": "daily-business-summary"
+            },
+            {
+              "level": 3,
+              "text": "Fast / Slow Moving Stock",
+              "slug": "fast-slow-moving-stock"
+            },
+            {
+              "level": 3,
+              "text": "Gross Margin Summary",
+              "slug": "gross-margin-summary"
+            },
+            {
+              "level": 3,
+              "text": "Inventory Turnover Summary",
+              "slug": "inventory-turnover-summary"
+            },
+            {
+              "level": 3,
+              "text": "Management Stock \u0026 Sales Summary",
+              "slug": "management-stock-sales-summary"
+            },
+            {
+              "level": 3,
+              "text": "Sales vs Target",
+              "slug": "sales-vs-target"
+            },
+            {
+              "level": 3,
+              "text": "Stock Cover Report",
+              "slug": "stock-cover-report"
+            },
+            {
+              "level": 3,
+              "text": "Store Performance / Ranking",
+              "slug": "store-performance-ranking"
             },
             {
               "level": 2,
               "text": "Manufacturing",
               "slug": "manufacturing"
+            },
+            {
+              "level": 3,
+              "text": "BOM Costing Report",
+              "slug": "bom-costing-report"
+            },
+            {
+              "level": 3,
+              "text": "BOM Register",
+              "slug": "bom-register"
+            },
+            {
+              "level": 3,
+              "text": "Batch / Lot Traceability",
+              "slug": "batch-lot-traceability"
+            },
+            {
+              "level": 3,
+              "text": "MRP Suggestions",
+              "slug": "mrp-suggestions"
+            },
+            {
+              "level": 3,
+              "text": "Material Issue / Consumption Report",
+              "slug": "material-issue-consumption-report"
+            },
+            {
+              "level": 3,
+              "text": "Material Usage Variance",
+              "slug": "material-usage-variance"
             },
             {
               "level": 3,
@@ -3209,8 +3867,118 @@
             },
             {
               "level": 3,
+              "text": "Production Order Register",
+              "slug": "production-order-register"
+            },
+            {
+              "level": 3,
               "text": "Production Order Status",
               "slug": "production-order-status"
+            },
+            {
+              "level": 3,
+              "text": "Production Receipt / Completion",
+              "slug": "production-receipt-completion"
+            },
+            {
+              "level": 3,
+              "text": "Production Schedule",
+              "slug": "production-schedule"
+            },
+            {
+              "level": 3,
+              "text": "Quality Inspection Report",
+              "slug": "quality-inspection-report"
+            },
+            {
+              "level": 3,
+              "text": "Rework / Rejection Report",
+              "slug": "rework-rejection-report"
+            },
+            {
+              "level": 3,
+              "text": "Standard vs Actual Cost",
+              "slug": "standard-vs-actual-cost"
+            },
+            {
+              "level": 3,
+              "text": "Subcontracting / Job Work Report",
+              "slug": "subcontracting-job-work-report"
+            },
+            {
+              "level": 3,
+              "text": "Work Center Capacity / Load",
+              "slug": "work-center-capacity-load"
+            },
+            {
+              "level": 3,
+              "text": "Work In Process Report",
+              "slug": "work-in-process-report"
+            },
+            {
+              "level": 3,
+              "text": "Yield / Scrap Analysis",
+              "slug": "yield-scrap-analysis"
+            },
+            {
+              "level": 2,
+              "text": "Master Data \u0026 Audit",
+              "slug": "master-data-audit"
+            },
+            {
+              "level": 3,
+              "text": "Approval History Report",
+              "slug": "approval-history-report"
+            },
+            {
+              "level": 3,
+              "text": "Backdated Entry Report",
+              "slug": "backdated-entry-report"
+            },
+            {
+              "level": 3,
+              "text": "Item Master Register",
+              "slug": "item-master-register"
+            },
+            {
+              "level": 3,
+              "text": "Master Data Change Audit",
+              "slug": "master-data-change-audit"
+            },
+            {
+              "level": 3,
+              "text": "Report Download Audit",
+              "slug": "report-download-audit"
+            },
+            {
+              "level": 3,
+              "text": "Role Permission Audit",
+              "slug": "role-permission-audit"
+            },
+            {
+              "level": 3,
+              "text": "Store / Location Master Register",
+              "slug": "store-location-master-register"
+            },
+            {
+              "level": 3,
+              "text": "Transaction Cancellation Audit",
+              "slug": "transaction-cancellation-audit"
+            },
+            {
+              "level": 3,
+              "text": "User Access Matrix Report",
+              "slug": "user-access-matrix-report"
+            },
+            {
+              "level": 3,
+              "text": "User Activity Log",
+              "slug": "user-activity-log"
+            },
+            {
+              "level": 3,
+              "text": "Vendor Master Register",
+              "slug": "vendor-master-register"
             },
             {
               "level": 2,
@@ -3219,8 +3987,18 @@
             },
             {
               "level": 3,
+              "text": "ATP / Promise Inventory Report",
+              "slug": "atp-promise-inventory-report"
+            },
+            {
+              "level": 3,
               "text": "Allocation Pending",
               "slug": "allocation-pending"
+            },
+            {
+              "level": 3,
+              "text": "Channel Order Reconciliation",
+              "slug": "channel-order-reconciliation"
             },
             {
               "level": 3,
@@ -3229,8 +4007,18 @@
             },
             {
               "level": 3,
+              "text": "Fulfilment Status Report",
+              "slug": "fulfilment-status-report"
+            },
+            {
+              "level": 3,
               "text": "OMS Exception Queue",
               "slug": "oms-exception-queue"
+            },
+            {
+              "level": 3,
+              "text": "OMS Integration Error / Retry",
+              "slug": "oms-integration-error-retry"
             },
             {
               "level": 3,
@@ -3244,13 +4032,53 @@
             },
             {
               "level": 3,
+              "text": "Order Allocation / Reservation Report",
+              "slug": "order-allocation-reservation-report"
+            },
+            {
+              "level": 3,
+              "text": "Order Cancellation Report",
+              "slug": "order-cancellation-report"
+            },
+            {
+              "level": 3,
+              "text": "Order Line Detail",
+              "slug": "order-line-detail"
+            },
+            {
+              "level": 3,
+              "text": "Order Register",
+              "slug": "order-register"
+            },
+            {
+              "level": 3,
+              "text": "Order to Invoice Reconciliation",
+              "slug": "order-to-invoice-reconciliation"
+            },
+            {
+              "level": 3,
               "text": "Orphaned Channel Orders (pre-35.1 intake)",
               "slug": "orphaned-channel-orders-pre-35-1-intake"
             },
             {
               "level": 3,
+              "text": "Pending Order / SLA Aging",
+              "slug": "pending-order-sla-aging"
+            },
+            {
+              "level": 3,
+              "text": "Refund Status Report",
+              "slug": "refund-status-report"
+            },
+            {
+              "level": 3,
               "text": "Reserved Stock",
               "slug": "reserved-stock"
+            },
+            {
+              "level": 3,
+              "text": "Return / RTO Register",
+              "slug": "return-rto-register"
             },
             {
               "level": 3,
@@ -3266,6 +4094,11 @@
               "level": 3,
               "text": "Settlement Variance Queue",
               "slug": "settlement-variance-queue"
+            },
+            {
+              "level": 3,
+              "text": "Split Shipment Report",
+              "slug": "split-shipment-report"
             },
             {
               "level": 3,
@@ -3304,8 +4137,103 @@
             },
             {
               "level": 2,
+              "text": "PIM / PIMS",
+              "slug": "pim-pims"
+            },
+            {
+              "level": 3,
+              "text": "Attribute Definition Report",
+              "slug": "attribute-definition-report"
+            },
+            {
+              "level": 3,
+              "text": "Attribute Group Report",
+              "slug": "attribute-group-report"
+            },
+            {
+              "level": 3,
+              "text": "Category / Attribute Mapping Report",
+              "slug": "category-attribute-mapping-report"
+            },
+            {
+              "level": 3,
+              "text": "Channel Publication Error Report",
+              "slug": "channel-publication-error-report"
+            },
+            {
+              "level": 3,
+              "text": "Channel Publication Status",
+              "slug": "channel-publication-status"
+            },
+            {
+              "level": 3,
+              "text": "Channel Readiness Report",
+              "slug": "channel-readiness-report"
+            },
+            {
+              "level": 3,
+              "text": "Duplicate SKU / Barcode Exception",
+              "slug": "duplicate-sku-barcode-exception"
+            },
+            {
+              "level": 3,
+              "text": "Family Attribute Mapping Report",
+              "slug": "family-attribute-mapping-report"
+            },
+            {
+              "level": 3,
+              "text": "Media / Image Coverage Report",
+              "slug": "media-image-coverage-report"
+            },
+            {
+              "level": 3,
+              "text": "Missing Attribute Report",
+              "slug": "missing-attribute-report"
+            },
+            {
+              "level": 3,
+              "text": "PIM Workbench Queue",
+              "slug": "pim-workbench-queue"
+            },
+            {
+              "level": 3,
+              "text": "Price / Inventory Publish Status",
+              "slug": "price-inventory-publish-status"
+            },
+            {
+              "level": 3,
+              "text": "Product Change Audit",
+              "slug": "product-change-audit"
+            },
+            {
+              "level": 3,
+              "text": "Product Completeness Report",
+              "slug": "product-completeness-report"
+            },
+            {
+              "level": 3,
+              "text": "Product Family / Variant Matrix",
+              "slug": "product-family-variant-matrix"
+            },
+            {
+              "level": 3,
+              "text": "Product Master Report",
+              "slug": "product-master-report"
+            },
+            {
+              "level": 2,
               "text": "Procurement",
               "slug": "procurement"
+            },
+            {
+              "level": 3,
+              "text": "GRN Corrections Log",
+              "slug": "grn-corrections-log"
+            },
+            {
+              "level": 3,
+              "text": "GRN Payments",
+              "slug": "grn-payments"
             },
             {
               "level": 3,
@@ -3314,8 +4242,33 @@
             },
             {
               "level": 3,
+              "text": "GRN Register - every line, every step",
+              "slug": "grn-register-every-line-every-step"
+            },
+            {
+              "level": 3,
+              "text": "Goods Receipts Waiting",
+              "slug": "goods-receipts-waiting"
+            },
+            {
+              "level": 3,
+              "text": "Invoice vs GRN Differences",
+              "slug": "invoice-vs-grn-differences"
+            },
+            {
+              "level": 3,
               "text": "Open Purchase Commitments",
               "slug": "open-purchase-commitments"
+            },
+            {
+              "level": 3,
+              "text": "PO vs GRN Price Variance",
+              "slug": "po-vs-grn-price-variance"
+            },
+            {
+              "level": 3,
+              "text": "Purchase Price Changes",
+              "slug": "purchase-price-changes"
             },
             {
               "level": 3,
@@ -3324,8 +4277,180 @@
             },
             {
               "level": 3,
+              "text": "Rejections and Returns by Reason",
+              "slug": "rejections-and-returns-by-reason"
+            },
+            {
+              "level": 3,
               "text": "Vendor Ledger",
               "slug": "vendor-ledger"
+            }
+          ]
+        },
+        {
+          "slug": "report-catalog-3",
+          "title": "Report catalog (part 3)",
+          "section": "Reference",
+          "order": 22,
+          "summary": "Reports in Procurement \u0026 GRN to WMS, continued from the report catalog.",
+          "audience": "store manager, finance, category manager, admin",
+          "screens": [
+            "reports"
+          ],
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Report catalog (part 3)",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
+          "source_path": "reference/report-catalog-3.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Contents",
+              "slug": "contents"
+            },
+            {
+              "level": 2,
+              "text": "Procurement \u0026 GRN",
+              "slug": "procurement-grn"
+            },
+            {
+              "level": 3,
+              "text": "Cancelled PO Register",
+              "slug": "cancelled-po-register"
+            },
+            {
+              "level": 3,
+              "text": "Expired PO Report",
+              "slug": "expired-po-report"
+            },
+            {
+              "level": 3,
+              "text": "GRN Barcode Generation Register",
+              "slug": "grn-barcode-generation-register"
+            },
+            {
+              "level": 3,
+              "text": "GRN Cancelled Register",
+              "slug": "grn-cancelled-register"
+            },
+            {
+              "level": 3,
+              "text": "GRN Itemwise Detail",
+              "slug": "grn-itemwise-detail"
+            },
+            {
+              "level": 3,
+              "text": "GRN PO / Invoice Variance",
+              "slug": "grn-po-invoice-variance"
+            },
+            {
+              "level": 3,
+              "text": "GRN QC / Rejection Exception",
+              "slug": "grn-qc-rejection-exception"
+            },
+            {
+              "level": 3,
+              "text": "GRN Register",
+              "slug": "grn-register"
+            },
+            {
+              "level": 3,
+              "text": "GRN vs Vendor Invoice Reconciliation",
+              "slug": "grn-vs-vendor-invoice-reconciliation"
+            },
+            {
+              "level": 3,
+              "text": "PO Amendment History",
+              "slug": "po-amendment-history"
+            },
+            {
+              "level": 3,
+              "text": "PO Approval Pending Report",
+              "slug": "po-approval-pending-report"
+            },
+            {
+              "level": 3,
+              "text": "PO vs GRN Status",
+              "slug": "po-vs-grn-status"
+            },
+            {
+              "level": 3,
+              "text": "Pending / Open PO Report",
+              "slug": "pending-open-po-report"
+            },
+            {
+              "level": 3,
+              "text": "Pending GRN / Open Receipt",
+              "slug": "pending-grn-open-receipt"
+            },
+            {
+              "level": 3,
+              "text": "Pending PO with Image",
+              "slug": "pending-po-with-image"
+            },
+            {
+              "level": 3,
+              "text": "Pending PO with Variant Image",
+              "slug": "pending-po-with-variant-image"
+            },
+            {
+              "level": 3,
+              "text": "Purchase Itemwise Detail",
+              "slug": "purchase-itemwise-detail"
+            },
+            {
+              "level": 3,
+              "text": "Purchase Order Itemwise Detail",
+              "slug": "purchase-order-itemwise-detail"
+            },
+            {
+              "level": 3,
+              "text": "Purchase Order Register",
+              "slug": "purchase-order-register"
+            },
+            {
+              "level": 3,
+              "text": "Purchase Register",
+              "slug": "purchase-register"
+            },
+            {
+              "level": 3,
+              "text": "Purchase Requisition Register",
+              "slug": "purchase-requisition-register"
+            },
+            {
+              "level": 3,
+              "text": "Purchase Return Itemwise Detail",
+              "slug": "purchase-return-itemwise-detail"
+            },
+            {
+              "level": 3,
+              "text": "Purchase Return Register",
+              "slug": "purchase-return-register"
+            },
+            {
+              "level": 3,
+              "text": "RFQ / Quotation Comparison",
+              "slug": "rfq-quotation-comparison"
+            },
+            {
+              "level": 3,
+              "text": "Vendor Credit Note Register",
+              "slug": "vendor-credit-note-register"
+            },
+            {
+              "level": 3,
+              "text": "Vendor Debit Note Register",
+              "slug": "vendor-debit-note-register"
+            },
+            {
+              "level": 3,
+              "text": "Vendor Performance Summary",
+              "slug": "vendor-performance-summary"
             },
             {
               "level": 2,
@@ -3379,6 +4504,121 @@
             },
             {
               "level": 2,
+              "text": "Sales \u0026 POS",
+              "slug": "sales-pos"
+            },
+            {
+              "level": 3,
+              "text": "B2B Sales Register",
+              "slug": "b2b-sales-register"
+            },
+            {
+              "level": 3,
+              "text": "Cancelled / Void Bill Register",
+              "slug": "cancelled-void-bill-register"
+            },
+            {
+              "level": 3,
+              "text": "Credit Note Register",
+              "slug": "credit-note-register"
+            },
+            {
+              "level": 3,
+              "text": "Customer Advance Itemwise Detail",
+              "slug": "customer-advance-itemwise-detail"
+            },
+            {
+              "level": 3,
+              "text": "Customer Advance Summary",
+              "slug": "customer-advance-summary"
+            },
+            {
+              "level": 3,
+              "text": "Customer Advance Utilization",
+              "slug": "customer-advance-utilization"
+            },
+            {
+              "level": 3,
+              "text": "Export / International Sales Register",
+              "slug": "export-international-sales-register"
+            },
+            {
+              "level": 3,
+              "text": "Gift Card / Voucher Register",
+              "slug": "gift-card-voucher-register"
+            },
+            {
+              "level": 3,
+              "text": "Net Sales Summary",
+              "slug": "net-sales-summary"
+            },
+            {
+              "level": 3,
+              "text": "Sales Bill Edit Audit Report",
+              "slug": "sales-bill-edit-audit-report"
+            },
+            {
+              "level": 3,
+              "text": "Sales Counter Summary",
+              "slug": "sales-counter-summary"
+            },
+            {
+              "level": 3,
+              "text": "Sales Design Image Register",
+              "slug": "sales-design-image-register"
+            },
+            {
+              "level": 3,
+              "text": "Sales Discount Analysis",
+              "slug": "sales-discount-analysis"
+            },
+            {
+              "level": 3,
+              "text": "Sales Itemwise Detail",
+              "slug": "sales-itemwise-detail"
+            },
+            {
+              "level": 3,
+              "text": "Sales Margin Analysis",
+              "slug": "sales-margin-analysis"
+            },
+            {
+              "level": 3,
+              "text": "Sales Register",
+              "slug": "sales-register-2"
+            },
+            {
+              "level": 3,
+              "text": "Sales Return Itemwise Detail",
+              "slug": "sales-return-itemwise-detail"
+            },
+            {
+              "level": 3,
+              "text": "Sales Return Register",
+              "slug": "sales-return-register"
+            },
+            {
+              "level": 3,
+              "text": "Sales Tender Detail",
+              "slug": "sales-tender-detail"
+            },
+            {
+              "level": 3,
+              "text": "Sales Tender Summary",
+              "slug": "sales-tender-summary"
+            },
+            {
+              "level": 3,
+              "text": "Sales Variant Image Register",
+              "slug": "sales-variant-image-register"
+            },
+            {
+              "level": 3,
+              "text": "Salesman Sales Summary",
+              "slug": "salesman-sales-summary"
+            },
+            {
+              "level": 2,
               "text": "Service",
               "slug": "service"
             },
@@ -3386,6 +4626,56 @@
               "level": 3,
               "text": "Service SLA Breaches",
               "slug": "service-sla-breaches"
+            },
+            {
+              "level": 2,
+              "text": "Stock Transfer",
+              "slug": "stock-transfer"
+            },
+            {
+              "level": 3,
+              "text": "Transfer Approval / Cancellation Audit",
+              "slug": "transfer-approval-cancellation-audit"
+            },
+            {
+              "level": 3,
+              "text": "Transfer Barcode Traceability",
+              "slug": "transfer-barcode-traceability"
+            },
+            {
+              "level": 3,
+              "text": "Transfer GST / E-Way Control",
+              "slug": "transfer-gst-e-way-control"
+            },
+            {
+              "level": 3,
+              "text": "Transfer In Itemwise Detail",
+              "slug": "transfer-in-itemwise-detail"
+            },
+            {
+              "level": 3,
+              "text": "Transfer In Register",
+              "slug": "transfer-in-register"
+            },
+            {
+              "level": 3,
+              "text": "Transfer In-Transit Aging",
+              "slug": "transfer-in-transit-aging"
+            },
+            {
+              "level": 3,
+              "text": "Transfer Out Itemwise Detail",
+              "slug": "transfer-out-itemwise-detail"
+            },
+            {
+              "level": 3,
+              "text": "Transfer Out Register",
+              "slug": "transfer-out-register"
+            },
+            {
+              "level": 3,
+              "text": "Transfer Shortage / Excess Exception",
+              "slug": "transfer-shortage-excess-exception"
             },
             {
               "level": 2,
@@ -3404,6 +4694,11 @@
             },
             {
               "level": 3,
+              "text": "Appointment Calendar Report",
+              "slug": "appointment-calendar-report"
+            },
+            {
+              "level": 3,
               "text": "Batch Movement History (Recall)",
               "slug": "batch-movement-history-recall"
             },
@@ -3419,8 +4714,28 @@
             },
             {
               "level": 3,
+              "text": "Bin Inventory Report",
+              "slug": "bin-inventory-report"
+            },
+            {
+              "level": 3,
+              "text": "Bin Replenishment Report",
+              "slug": "bin-replenishment-report"
+            },
+            {
+              "level": 3,
+              "text": "Bin Stock Aging",
+              "slug": "bin-stock-aging"
+            },
+            {
+              "level": 3,
               "text": "Bin Stock Reconciliation",
               "slug": "bin-stock-reconciliation"
+            },
+            {
+              "level": 3,
+              "text": "Bin Utilization / Condition Report",
+              "slug": "bin-utilization-condition-report"
             },
             {
               "level": 3,
@@ -3434,8 +4749,43 @@
             },
             {
               "level": 3,
+              "text": "Cycle Count Register",
+              "slug": "cycle-count-register"
+            },
+            {
+              "level": 3,
+              "text": "Cycle Count Variance Report",
+              "slug": "cycle-count-variance-report"
+            },
+            {
+              "level": 3,
+              "text": "Dispatch / Shipment Register",
+              "slug": "dispatch-shipment-register"
+            },
+            {
+              "level": 3,
+              "text": "Dock Door Utilization",
+              "slug": "dock-door-utilization"
+            },
+            {
+              "level": 3,
               "text": "Facility Roll-Up Inventory Inquiry",
               "slug": "facility-roll-up-inventory-inquiry"
+            },
+            {
+              "level": 3,
+              "text": "Inbound / ASN Register",
+              "slug": "inbound-asn-register"
+            },
+            {
+              "level": 3,
+              "text": "Inbound QC Exception",
+              "slug": "inbound-qc-exception"
+            },
+            {
+              "level": 3,
+              "text": "LPN / Carton / Pallet Register",
+              "slug": "lpn-carton-pallet-register"
             },
             {
               "level": 3,
@@ -3474,6 +4824,16 @@
             },
             {
               "level": 3,
+              "text": "Location Movement Register",
+              "slug": "location-movement-register"
+            },
+            {
+              "level": 3,
+              "text": "Lot / Serial / Barcode Traceability",
+              "slug": "lot-serial-barcode-traceability"
+            },
+            {
+              "level": 3,
               "text": "Owner Stock Exceptions (3PL)",
               "slug": "owner-stock-exceptions-3pl"
             },
@@ -3481,6 +4841,41 @@
               "level": 3,
               "text": "Owner Stock Inquiry (3PL)",
               "slug": "owner-stock-inquiry-3pl"
+            },
+            {
+              "level": 3,
+              "text": "Packing Report",
+              "slug": "packing-report"
+            },
+            {
+              "level": 3,
+              "text": "Pick List Report",
+              "slug": "pick-list-report"
+            },
+            {
+              "level": 3,
+              "text": "Picking Exception Report",
+              "slug": "picking-exception-report"
+            },
+            {
+              "level": 3,
+              "text": "Putaway Completion Report",
+              "slug": "putaway-completion-report"
+            },
+            {
+              "level": 3,
+              "text": "Putaway Pending Report",
+              "slug": "putaway-pending-report"
+            },
+            {
+              "level": 3,
+              "text": "RF / Mobile Picking Productivity",
+              "slug": "rf-mobile-picking-productivity"
+            },
+            {
+              "level": 3,
+              "text": "Receiving / GRN Detail",
+              "slug": "receiving-grn-detail"
             },
             {
               "level": 3,
@@ -3501,6 +4896,36 @@
               "level": 3,
               "text": "Unslotting Suggestions (discontinued items)",
               "slug": "unslotting-suggestions-discontinued-items"
+            },
+            {
+              "level": 3,
+              "text": "WMS Stock Transfer Execution Report",
+              "slug": "wms-stock-transfer-execution-report"
+            },
+            {
+              "level": 3,
+              "text": "Warehouse Cockpit KPI Summary",
+              "slug": "warehouse-cockpit-kpi-summary"
+            },
+            {
+              "level": 3,
+              "text": "Warehouse Inventory Accuracy Summary",
+              "slug": "warehouse-inventory-accuracy-summary"
+            },
+            {
+              "level": 3,
+              "text": "Warehouse SLA / Throughput Summary",
+              "slug": "warehouse-sla-throughput-summary"
+            },
+            {
+              "level": 3,
+              "text": "Wave / Batch Picking Report",
+              "slug": "wave-batch-picking-report"
+            },
+            {
+              "level": 3,
+              "text": "Yard / Trailer Board Report",
+              "slug": "yard-trailer-board-report"
             }
           ]
         },
@@ -3665,7 +5090,26 @@
               "level": 2,
               "text": "2026-09-05",
               "slug": "2026-09-05"
-            },
+            }
+          ]
+        },
+        {
+          "slug": "release-notes-2",
+          "title": "Release notes (part 2)",
+          "section": "Reference",
+          "order": 26,
+          "summary": "Earlier releases, 2026-07-27 to 2026-09-03, continued from the release notes.",
+          "audience": "everyone",
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Release notes (part 2)",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
+          "source_path": "reference/release-notes-2.md",
+          "headings": [
             {
               "level": 2,
               "text": "2026-09-03",
@@ -3680,26 +5124,7 @@
               "level": 2,
               "text": "2026-08-31",
               "slug": "2026-08-31"
-            }
-          ]
-        },
-        {
-          "slug": "release-notes-2",
-          "title": "Release notes (part 2)",
-          "section": "Reference",
-          "order": 26,
-          "summary": "Earlier releases, 2026-07-27 to 2026-08-30, continued from the release notes.",
-          "audience": "everyone",
-          "last_verified": "2026-09-10",
-          "owner": "documentation-maintainer",
-          "status": "active",
-          "topic_type": "reference",
-          "module": "platform",
-          "task": "Release notes (part 2)",
-          "prerequisites": "Authorized access to the relevant ERP task",
-          "applies_to": "source registries; not release acceptance",
-          "source_path": "reference/release-notes-2.md",
-          "headings": [
+            },
             {
               "level": 2,
               "text": "2026-08-30",
@@ -4249,16 +5674,6 @@
               "level": 2,
               "text": "Observability / Incident",
               "slug": "observability-incident"
-            },
-            {
-              "level": 2,
-              "text": "Omnichannel / OMS",
-              "slug": "omnichannel-oms"
-            },
-            {
-              "level": 2,
-              "text": "Order Management",
-              "slug": "order-management"
             }
           ]
         },
@@ -4267,7 +5682,7 @@
           "title": "Error code reference (part 2)",
           "section": "Troubleshooting",
           "order": 21,
-          "summary": "Error codes for PIM to WMS / Logistics, continued from the error code reference.",
+          "summary": "Error codes for Omnichannel / OMS to WMS / Logistics, continued from the error code reference.",
           "audience": "everyone",
           "last_verified": "2026-09-10",
           "owner": "documentation-maintainer",
@@ -4283,6 +5698,16 @@
               "level": 2,
               "text": "Contents",
               "slug": "contents"
+            },
+            {
+              "level": 2,
+              "text": "Omnichannel / OMS",
+              "slug": "omnichannel-oms"
+            },
+            {
+              "level": 2,
+              "text": "Order Management",
+              "slug": "order-management"
             },
             {
               "level": 2,
@@ -4546,6 +5971,9 @@
     "doctype:printer": [
       "printing-stickers-and-documents"
     ],
+    "doctype:printerassignment": [
+      "printing-stickers-and-documents"
+    ],
     "doctype:printtemplate": [
       "printing-stickers-and-documents"
     ],
@@ -4744,6 +6172,8 @@
       "inventory-wms-operations",
       "journey-store-manager",
       "report-catalog",
+      "report-catalog-2",
+      "report-catalog-3",
       "what-is-this-system",
       "finding-your-way-around",
       "journey-category-manager",
@@ -4829,5 +6259,5 @@
       "wms-start-here"
     ]
   },
-  "article_count": 54
+  "article_count": 56
 }

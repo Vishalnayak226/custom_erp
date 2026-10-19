@@ -339,18 +339,19 @@ Reached via the **Procurement** flyout → **Goods Receipt**. **This is the scre
 
 ![The Goods Receipt screen, with lines loaded from a purchase order](img/goods-receipt.png)
 
-1. The screen opens on the list of receipts. Click **+ New Goods Receipt** (or **Receive goods** on the approved PO's row, which opens it with the PO already loaded) and enter the **PO Reference** for the order the stock has arrived against.
-2. Click **Load Items from PO**. Every line on that order appears in the table with its **Ordered Qty**.
+1. The screen opens on the list of receipts, with tabs for receipts waiting at each step. Click **+ New Goods Receipt** (or **Receive goods** on the approved PO's row, which opens it with the PO already loaded).
+2. Pick the **Vendor**, tick the POs this delivery is for and click **Load ticked POs** (or type a PO number and click **Add PO & Load Items**). Every open line appears in the table with its **Ordered Qty**.
    - If the vendor sent an ASN ahead of the delivery (§15C), enter the **ASN Reference** and click **Load Items from ASN** instead — same result, prefilled from what the vendor said was coming.
    - **Add Line** adds a line by hand for anything that arrived but wasn't ordered.
 3. For each line, enter what actually turned up:
-   - **Received Qty** — what you accepted into stock.
+   - **Received** — what arrived (scanning an item already on the receipt counts one more). If the vendor's bill differs, change **Invoice Qty** and **Invoice Rate** too.
    - **Rejected Qty** and **Rejection Reason** — what you refused (wrong item, wrong spec).
    - **Damaged Qty** and **Damage Reason** — what arrived broken.
    Record short and damaged quantities honestly. Entering the ordered quantity when less arrived is how stock records and reality drift apart, and it is very hard to unpick later.
 4. **Receiving Location** is where the accepted stock lands. If you leave it blank it defaults to the PO's own target warehouse — that's deliberate, not a bug.
-5. Click **Post Receipt**. You're back on the list of receipts with this one on it.
-6. **Check that it worked.** Go to **Inventory** (§18) and confirm the quantity went up by what you accepted. If the receipt could not post to the ledger, it is marked **Cancelled** and the PO stays open for a real receipt — you are told, rather than being shown a false success.
+5. Type the vendor's **Invoice No**, **Invoice Date** and **Invoice Total (incl. GST)**, then click **Save receipt**. Nothing is in stock yet; the receipt's steps open.
+6. **Verify** (GRN qty and price, rejected / damaged, Keep or Return for anything beyond the PO) → **Check prices** → type the **MRP** and **Save and post** each child. **Post all** does all three when everything matches. The User Guide §6.10 walks every step.
+7. **Check that it worked.** Go to **Inventory** (§18) and confirm the quantity went up by what you accepted once the children are posted. If a child could not post to stock, you are told and nothing of it was posted — fix the cause and post it again.
 
 The GRN number is auto-issued; you never type one.
 

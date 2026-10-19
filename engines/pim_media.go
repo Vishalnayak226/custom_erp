@@ -323,19 +323,18 @@ func saveOwnedMediaFile(tenantID, ownerDoctype string, fileBytes []byte, filenam
 			hasThumbnail = true
 		}
 	} else {
-		if err := os.MkdirAll(mediaStoreDir, 0755); err != nil {
-			return nil, fmt.Errorf("failed to prepare media storage: %v", err)
-		}
-		storedPath = filepath.Join(mediaStoreDir, checksum+ext)
-		if _, statErr := os.Stat(storedPath); os.IsNotExist(statErr) {
-			if err := os.WriteFile(storedPath, fileBytes, 0644); err != nil {
+		// Stage 75.4.1: through the server's media store (media_store.go);
+		// the record still keeps the file's path, as before.
+		key := checksum + ext
+		storedPath = filepath.Join(mediaStoreDir, key)
+		if !serverMedia.Exists(key) {
+			if err := serverMedia.Write(key, fileBytes, MediaWrite{}); err != nil {
 				return nil, fmt.Errorf("failed to store file: %v", err)
 			}
 		}
 		if thumbOK {
-			thumbPath := thumbnailStorePath(checksum)
-			if _, statErr := os.Stat(thumbPath); os.IsNotExist(statErr) {
-				if err := os.WriteFile(thumbPath, thumbBytes, 0644); err == nil {
+			if !serverMedia.Exists(thumbnailKey(checksum)) {
+				if err := serverMedia.Write(thumbnailKey(checksum), thumbBytes, MediaWrite{}); err == nil {
 					hasThumbnail = true
 				}
 			} else {
@@ -505,7 +504,7 @@ func ReadMediaThumbnail(tenantID, mediaID string) ([]byte, error) {
 		}
 		return drive.get(mediaDerivedKey(strField(data, "object_key"), "thumb"))
 	}
-	return os.ReadFile(thumbnailStorePath(checksum))
+	return serverMedia.Read(thumbnailKey(checksum))
 }
 
 // ReadMediaFile returns a ProductMedia's stored bytes, MIME type and file
@@ -533,7 +532,12 @@ func ReadMediaFile(tenantID, mediaID string) (fileBytes []byte, fileType, name s
 	if stored == "" {
 		return nil, "", "", fmt.Errorf("media record has no stored file")
 	}
-	b, err := os.ReadFile(stored)
+	var b []byte
+	if key := mediaKeyForStoredPath(stored); key != "" {
+		b, err = serverMedia.Read(key)
+	} else {
+		b, err = os.ReadFile(stored) // a path outside the store, written before it existed
+	}
 	if err != nil {
 		return nil, "", "", fmt.Errorf("stored file missing")
 	}

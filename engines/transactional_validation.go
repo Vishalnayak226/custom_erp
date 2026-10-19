@@ -498,7 +498,7 @@ func validateGRNRules(tenantID, docID string, payload map[string]interface{}) er
 				poLines = append(poLines, line)
 			}
 		}
-		if err := validateGRNAgainstPO(tenantID, docID, poID, poLines); err != nil {
+		if err := validateGRNAgainstPO(tenantID, docID, poID, poLines, IsGRNStepFlow(payload)); err != nil {
 			return err
 		}
 	}
@@ -507,7 +507,10 @@ func validateGRNRules(tenantID, docID string, payload map[string]interface{}) er
 
 // validateGRNAgainstPO is validateGRNRules' PO cross-check for one PO and the
 // receipt lines drawn from it.
-func validateGRNAgainstPO(tenantID, docID, poID string, lines []grnReceivedLine) error {
+// stepFlow (Stage 94, D6): a receipt in steps takes what arrived - more than
+// the PO, or an item not on it - and Verify asks Keep or Return for whatever
+// is beyond the tolerance, so the two over-receipt refusals do not apply here.
+func validateGRNAgainstPO(tenantID, docID, poID string, lines []grnReceivedLine, stepFlow bool) error {
 	ordered, err := fetchPOItemQuantities(tenantID, poID)
 	if err != nil && err != sql.ErrNoRows {
 		// 24.33: fail closed on a corrupt PO row instead of silently
@@ -565,7 +568,7 @@ func validateGRNAgainstPO(tenantID, docID, poID string, lines []grnReceivedLine)
 	// PURCHA-0088: every received line's SKU must actually be on the PO,
 	// unless a Stage 42.3.6 ReceiptValidationRule for this vendor (or the
 	// tenant default) explicitly allows unexpected items.
-	if !allowUnexpectedItems {
+	if !allowUnexpectedItems && !stepFlow {
 		for _, line := range lines {
 			if _, ok := ordered[line.Sku]; !ok {
 				return &ValidationError{Code: "PURCHA-0088", Message: fmt.Sprintf("SKU %q is not part of PO %s", line.Sku, poID)}
@@ -592,7 +595,7 @@ func validateGRNAgainstPO(tenantID, docID, poID string, lines []grnReceivedLine)
 
 	for _, line := range lines {
 		orderedQty, onPO := ordered[line.Sku]
-		if !onPO {
+		if !onPO || stepFlow {
 			// Not on the PO at all - already let through (or rejected) by the
 			// PURCHA-0088 check above; there is no PO qty to compare against.
 			continue

@@ -47,6 +47,9 @@ const (
 	// invoice - buyer, GSTIN, place of supply, HSN-wise tax - in its own
 	// print format; a B2C sale keeps the receipt.
 	PrintTxnPOSTaxInvoice = "POSTaxInvoice"
+	// Stage 98.1: the Sales Invoice (order and package bills) prints, exports
+	// and is sent like every other transaction.
+	PrintTxnSalesInvoice = "SalesInvoice"
 )
 
 // PrintTransactions lists them with the doctype each prints from.
@@ -65,6 +68,7 @@ var PrintTransactions = []struct {
 	{PrintTxnCreditNote, "Credit Note (to customer)", "CreditNote"},
 	{PrintTxnSalesReturn, "Sales Return", "ReturnRequest"},
 	{PrintTxnPOSTaxInvoice, "Tax Invoice (GST bill from the till)", "POSCart"},
+	{PrintTxnSalesInvoice, "Sales Invoice", "SalesInvoice"},
 }
 
 func printTxnDoctype(txn string) string {
@@ -135,6 +139,7 @@ type PrintDocument struct {
 	// values under "attributes.<code>".
 	AttributeColumns []AttributeColumn `json:"attribute_columns,omitempty"`
 	designAttrs      map[string]map[string]string
+	brandNames       map[string]string
 }
 
 // LoadPrintStore resolves a Location into a store block, its state and GSTIN
@@ -152,6 +157,7 @@ func LoadPrintStore(tenantID, locationCode string) PrintStore {
 	out.Name = firstNonEmpty(str(loc, "name"), out.Code)
 	out.Address, out.City, out.Pincode = addressLines(loc), str(loc, "city"), str(loc, "pincode")
 	out.Phone = str(loc, "contact_phone")
+	out.Email = str(loc, "email") // Stage 98.3: a sent document's Reply-To
 	if e, _, errE := fetchDocData(tenantID, "LegalEntity", str(loc, "legal_entity")); errE == nil {
 		out.LegalName = str(e, "name")
 		out.GSTIN = str(e, "gstin")
@@ -298,6 +304,19 @@ func (d *PrintDocument) addLine(tenantID string, in printLineIn, cache map[strin
 	}
 	if in.MRP == 0 {
 		l["mrp"] = numFromInterface(item["mrp"])
+	}
+	// Stage 98.1.3: the item's brand by name (Item.brand links the Brand list).
+	if b := strField(item, "brand"); b != "" {
+		if d.brandNames == nil {
+			d.brandNames = map[string]string{}
+		}
+		if _, ok := d.brandNames[b]; !ok {
+			d.brandNames[b] = b
+			if bd, _, err := fetchDocData(tenantID, "Brand", b); err == nil {
+				d.brandNames[b] = firstNonEmpty(strField(bd, "name"), b)
+			}
+		}
+		l["brand"] = d.brandNames[b]
 	}
 	if in.POID != "" {
 		l["po_id"] = in.POID
@@ -669,22 +688,7 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 		if cart, _, errC := fetchDocData(tenantID, "POSCart", strField(data, "reference_cart")); errC == nil && defaultStore == "" {
 			defaultStore = firstNonEmpty(strField(cart, "location"), strField(cart, "store"))
 		}
-		// Stage 75.2.8: the note's IRN for a template to place; "IRN PENDING"
-		// while it is on its way to the IRP.
-		if badges, _ := EInvoiceBadges(tenantID, "CreditNote", id); badges != nil {
-			switch e := badges[id]; e.State {
-			case IRPStateAcknowledged:
-				d.Fields["irn"], d.Fields["irn_ack_no"] = e.IRN, e.AckNo
-				// 75.2.8a: the IRP's signed QR, drawn by a template's QR element.
-				d.Fields["irn_signed_qr"] = e.SignedQR
-				if e.AckDate != nil {
-					d.Fields["irn_ack_date"] = e.AckDate.Format("02-01-2006 15:04")
-				}
-			case "", IRPStateNotRequired, IRPStateCancelled:
-			default:
-				d.Fields["irn_status"] = "IRN PENDING"
-			}
-		}
+		d.addIRNFields(tenantID, "CreditNote", id)
 		// The note stores one amount and no tax split - it prints as one line.
 		amount := numFromInterface(data["amount"])
 		d.addLine(tenantID, printLineIn{Qty: 1, Rate: amount, Taxable: amount,
@@ -729,6 +733,51 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 			taxable := round2(value / (1 + gstRate/100))
 			d.addLine(tenantID, printLineIn{SKU: sku, Qty: qty, Rate: unit, Taxable: taxable, GST: round2(value - taxable), GSTRate: gstRate,
 				Extra: map[string]interface{}{"discount": round2(numFromInterface(l["offer_share"]))}}, cache, withImages)
+		}
+	case PrintTxnSalesInvoice:
+		d.Title = "Tax Invoice"
+		// A Draft prints as a proforma (31.1.9): it must never look posted.
+		if d.Status == "Draft" {
+			d.Title = "Proforma Invoice (Draft - not a tax invoice)"
+		}
+		d.Number = firstNonEmpty(strField(data, "invoice_number"), strField(data, "code"), id)
+		d.Date = firstNonEmpty(strField(data, "invoice_date"), strField(data, "posting_date"), d.Date)
+		defaultStore = strField(data, "location")
+		// An order bill stores the customer's name, a package bill may store
+		// the Customer record; either prints.
+		d.Party, d.PartyTitle = loadPrintCustomer(tenantID, firstNonEmpty(strField(data, "customer_id"), strField(data, "customer"))), "Buyer"
+		d.Interstate, _ = data["interstate"].(bool)
+		d.Fields["sales_order"] = strField(data, "sales_order_id")
+		d.Fields["buyer_gstin"] = d.Party.GSTIN
+		d.addIRNFields(tenantID, "SalesInvoice", id)
+		schema, _ := db.GetTenantSchema(tenantID)
+		// The lines the e-invoice is built from (einvoice.go), so the print
+		// and the IRN bill the same thing.
+		for _, l := range salesInvoiceLines(tenantID, schema, data) {
+			// Sale prices include GST (ComputeGSTForLines): the line's value
+			// is split back into taxable value and tax at the item's rate.
+			value := PaiseToRupees(l.Gross)
+			gstRate := numFromInterface(printItemFields(tenantID, l.SKU, cache)["gst_rate"])
+			taxable := round2(value / (1 + gstRate/100))
+			unit := 0.0
+			if l.Qty > 0 {
+				unit = round2(value / l.Qty)
+			}
+			d.addLine(tenantID, printLineIn{SKU: l.SKU, Qty: l.Qty, Rate: unit, Taxable: taxable, GST: round2(value - taxable), GSTRate: gstRate,
+				Extra: map[string]interface{}{"discount": PaiseToRupees(l.Discount)}}, cache, withImages)
+		}
+		if len(d.Lines) == 0 {
+			// An invoice entered by hand carries only its amounts.
+			taxable, tax := numFromInterface(data["taxable_amount"]), numFromInterface(data["total_tax"])
+			if taxable == 0 {
+				taxable = numFromInterface(data["total_amount"]) - tax
+			}
+			gstRate := 0.0
+			if taxable > 0 {
+				gstRate = round2(tax / taxable * 100)
+			}
+			d.addLine(tenantID, printLineIn{Qty: 1, Rate: taxable, Taxable: taxable, GST: tax, GSTRate: gstRate,
+				Extra: map[string]interface{}{"item_name": "Invoice amount", "description": "Invoice amount"}}, cache, false)
 		}
 	case PrintTxnSalesReturn:
 		d.Title = "Sales Return"
@@ -790,6 +839,27 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 		d.stripValues()
 	}
 	return d, nil
+}
+
+// addIRNFields puts a document's e-invoice IRN where a template can place it
+// (75.2.8): IRN, ack number and date, and the IRP's signed QR (75.2.8a) once
+// acknowledged; "IRN PENDING" while it is on its way to the IRP.
+func (d *PrintDocument) addIRNFields(tenantID, doctype, id string) {
+	badges, _ := EInvoiceBadges(tenantID, doctype, id)
+	if badges == nil {
+		return
+	}
+	switch e := badges[id]; e.State {
+	case IRPStateAcknowledged:
+		d.Fields["irn"], d.Fields["irn_ack_no"] = e.IRN, e.AckNo
+		d.Fields["irn_signed_qr"] = e.SignedQR
+		if e.AckDate != nil {
+			d.Fields["irn_ack_date"] = e.AckDate.Format("02-01-2006 15:04")
+		}
+	case "", IRPStateNotRequired, IRPStateCancelled:
+	default:
+		d.Fields["irn_status"] = "IRN PENDING"
+	}
 }
 
 // stripValues takes every price, value and tax out of a document, so a print

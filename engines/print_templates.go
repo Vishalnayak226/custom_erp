@@ -243,7 +243,7 @@ func GetPrintCatalog(tenantID, txn string) (PrintCatalog, error) {
 		{"barcode", "Barcode"}, {"uom", "UOM"}, {"qty", "Quantity"}, {"rate", "Rate"}, {"mrp", "MRP"}, {"taxable", "Taxable value"},
 		{"gst_rate", "GST %"}, {"cgst", "CGST"}, {"sgst", "SGST"}, {"igst", "IGST"}, {"tax", "Tax"}, {"amount", "Amount"},
 		{"po_id", "PO"}, {"batch_no", "Batch"},
-		{"description", "Description (name · variant)"}, {"variant", "Variant"}, {"design", "Design / parent product"},
+		{"description", "Description (name · variant)"}, {"variant", "Variant"}, {"design", "Design / parent product"}, {"brand", "Brand"},
 		{"item_code", "Item / Barcode"},
 	} {
 		add(&out.Line, "Line", f[0], f[1])

@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -50,6 +51,15 @@ Lifecycle
   deprovision -tenant <id> -reason <text> -actor <who> [-retention-days N] -yes
   legal-hold  -tenant <id> -on|-off -reason <text> -actor <who> -yes
   purge     -tenant <id> -backup-ref <where the data was preserved> -actor <who> -yes
+
+Clean slate (Stage 91)
+  reset-data -tenant <id> -reason <text> -actor <who> -yes
+                                            empty the client back to a fresh one: every record,
+                                            stock, ledger, setting and integration goes; logins
+                                            (password hashes untouched), permissions, shipped
+                                            reference records and evidence stay; numbering
+                                            restarts from 1. Needs the client suspended and a
+                                            backup from the last 24 hours. Prints the plan first.
 
 Key rotation (Stage 49.6.5)
   reencrypt-channel-credentials -tenant <id> -reason <text> -actor <who> -yes
@@ -104,6 +114,8 @@ func main() {
 		err = cmdLegalHold(args)
 	case "purge":
 		err = cmdPurge(args)
+	case "reset-data":
+		err = cmdResetData(args)
 	case "reencrypt-channel-credentials":
 		err = cmdReencryptChannelCredentials(args)
 	default:
@@ -535,6 +547,83 @@ func cmdPurge(args []string) error {
 // ---------------------------------------------------------------------------
 // Shared
 // ---------------------------------------------------------------------------
+
+// cmdResetData (Stage 91.1) prints what a clean-slate reset removes and keeps
+// - table by table, and records by type - and with -yes applies it.
+func cmdResetData(args []string) error {
+	fs := flag.NewFlagSet("reset-data", flag.ExitOnError)
+	tenant := fs.String("tenant", "", "Tenant id (required).")
+	reason, actor, confirm := commonFlags(fs, "Why this client is being reset to a clean slate")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *tenant == "" {
+		return fmt.Errorf("-tenant is required")
+	}
+	plan, err := engines.PlanTenantDataReset(*tenant)
+	if err != nil {
+		return err
+	}
+	printResetPlan(plan)
+	if !*confirm {
+		fmt.Println()
+		if len(plan.Blockers) > 0 {
+			fmt.Println("DRY RUN - and it would be refused as things stand:")
+			for _, b := range plan.Blockers {
+				fmt.Println("  - " + b)
+			}
+			return nil
+		}
+		fmt.Println("DRY RUN - nothing changed. Re-run with -yes (and -reason) to reset this client.")
+		return nil
+	}
+	if *reason == "" {
+		return fmt.Errorf("-reason is required and is recorded in the client's evidence trail")
+	}
+	done, err := engines.ResetTenantData(*tenant, *actor, *reason)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("\n%s is reset to a clean slate. %d login(s) kept, unchanged. Resume it with: tenantctl resume -tenant %s -reason \"clean slate ready\" -yes\n",
+		*tenant, done.Users, *tenant)
+	return nil
+}
+
+func printResetPlan(plan *engines.TenantResetPlan) {
+	fmt.Printf("Client %s (schema %s, %s)\n", plan.TenantID, plan.Schema, plan.Status)
+	fmt.Printf("Backup: %s\n\n", plan.Backup.Note)
+	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(w, "ACTION\tTABLE\tROWS\tWHAT")
+	for _, t := range plan.Tables {
+		fmt.Fprintf(w, "%s\t%s\t%d\t%s\n", t.Action, t.Table, t.Rows, t.What)
+	}
+	w.Flush()
+	if len(plan.DocumentsRemoved) > 0 {
+		fmt.Println("\nRecords removed, by type:")
+		w = tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+		for _, k := range sortedKeys(plan.DocumentsRemoved) {
+			fmt.Fprintf(w, "  %s\t%d\n", k, plan.DocumentsRemoved[k])
+		}
+		w.Flush()
+	}
+	if len(plan.DocumentsKept) > 0 {
+		fmt.Println("\nShipped reference records kept:")
+		w = tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+		for _, k := range sortedKeys(plan.DocumentsKept) {
+			fmt.Fprintf(w, "  %s\t%d\n", k, plan.DocumentsKept[k])
+		}
+		w.Flush()
+	}
+}
+
+func sortedKeys(m map[string]int64) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
 
 func commonFlags(fs *flag.FlagSet, reasonHelp string) (reason, actor *string, confirm *bool) {
 	reason = fs.String("reason", "", reasonHelp+" (required - recorded in the evidence trail).")

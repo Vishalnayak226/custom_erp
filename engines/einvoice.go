@@ -503,7 +503,13 @@ type einvoiceLineSource struct {
 // line records one, as the invoice was made).
 func salesInvoiceLines(tenantID, schema string, data map[string]interface{}) []einvoiceLineSource {
 	var out []einvoiceLineSource
-	if raw, ok := data["items"].([]interface{}); ok {
+	raw, ok := data["items"].([]interface{})
+	if s, isStr := data["items"].(string); isStr {
+		// A package bill stores its lines as a JSON string (pack_invoice.go);
+		// read as an order bill it would carry the whole order (98.1).
+		ok = json.Unmarshal([]byte(s), &raw) == nil
+	}
+	if ok {
 		for _, r := range raw {
 			m, ok := r.(map[string]interface{})
 			if !ok {

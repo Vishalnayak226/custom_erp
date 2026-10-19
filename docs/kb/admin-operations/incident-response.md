@@ -72,6 +72,9 @@ of things that are genuinely urgent:
    severity) within a rolling 5-minute window, you get one alert, then a
    5-minute cooldown before the same tenant can page again — so a
    stuck-broken tenant pages you once per window, not once per second.
+   Only faults count (a background job failing, a crash, a server error):
+   a message a user was shown and can fix, such as a required field left
+   empty, does not.
 
 **What actually gets sent**: severity, source, and a truncated message only
 — never a full stack trace or request body, since the alert leaves this

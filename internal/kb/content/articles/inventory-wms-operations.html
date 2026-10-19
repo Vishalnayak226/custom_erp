@@ -18,8 +18,9 @@
 <p>row or a <strong>Serial Numbers</strong> row automatically — see <a href="/help/traceability-batch-serial">Batch, Serial &amp; Expiry Traceability</a>.</p>
 <ol><li>For an item flagged catch-weight, an <strong>Actual Weight</strong> field is required;</li></ol>
 <p><strong>L / W / H</strong> dimensions are always optional, for any line.</p>
-<ol><li>Click <strong>Add Line</strong>, repeat, then <strong>Post Receipt</strong>.</li></ol>
-<p><strong>What Post Receipt actually does</strong> (<code>PostGRNReceiptWithQC</code>, <code>engines/wms_receiving.go</code>), per line:</p>
+<ol><li>Click <strong>Add Line</strong>, repeat, then <strong>Save receipt</strong>, and work the receipt</li></ol>
+<p>through Verify, Price check and MRP and post (<a href="/help/procurement">Procurement</a>, step 4 is where stock moves).</p>
+<p><strong>What posting actually does</strong> - RF Receiving&#39;s <strong>Post Receipt</strong>, and each child GRN at step 4 (<code>PostGRNReceiptWithQC</code> / <code>PostGRNReceiptPart</code>, <code>engines/wms_receiving.go</code>), per line:</p>
 <ul><li>The <strong>accepted</strong> quantity (received minus rejected minus damaged, or an</li></ul>
 <p>explicit <code>accepted_qty</code> if the caller sends one) posts to <code>available</code> through the same ledger path every other receipt uses.</p>
 <ul><li><strong>Rejected</strong> and <strong>damaged</strong> quantities move <code>on_hand</code> up but land in the</li></ul>
@@ -36,7 +37,7 @@
 <p>to post (&#34;a GRN requires one&#34;) and tells you to use the GRN Workbench against that ASN instead.</p>
 <ul><li>A scan that doesn&#39;t match an outstanding line on the ASN is rejected</li></ul>
 <p>in-place (&#34;is not an outstanding line on this ASN&#34;) rather than silently ignored.</p>
-<p><strong>Post Receipt</strong> here calls the exact same <code>POST /api/v1/doc/GRN</code> endpoint the desktop Workbench uses — it&#39;s a different data-entry surface for the same document type, not a parallel receiving mechanism.</p>
+<p><strong>Post Receipt</strong> here calls the exact same <code>POST /api/v1/doc/GRN</code> endpoint the desktop Goods Receipt page uses — it&#39;s a different data-entry surface for the same document type, not a parallel receiving mechanism. The desktop page saves its receipt in steps (<code>&#34;flow&#34;: &#34;steps&#34;</code>), so its stock moves at step 4; RF Receiving posts at once.</p>
 <h3 id="receiving-error-codes">Receiving error codes <a class="kb-anchor" href="#receiving-error-codes" aria-label="Copy link to this section">#</a></h3>
 <table><thead><tr><th>Code</th><th>Meaning</th></tr></thead><tbody><tr><td><code>GOODSR-0089</code></td><td>Accepted quantity exceeds received quantity.</td></tr><tr><td><code>GOODSR-0090</code></td><td>Rejected quantity given with no rejection reason.</td></tr><tr><td><code>GOODSR-0095</code></td><td>A vendor invoice was posted against a GRN that isn&#39;t completed.</td></tr><tr><td><code>GRN-0253</code></td><td>GRN cancellation blocked — a downstream vendor invoice or stock movement already exists against it.</td></tr><tr><td><code>PURCHA-0084</code></td><td>The PO this GRN references is closed; no further receipts allowed against it.</td></tr></tbody></table>
 <h3 id="reading-receiving-activity">Reading receiving activity <a class="kb-anchor" href="#reading-receiving-activity" aria-label="Copy link to this section">#</a></h3>

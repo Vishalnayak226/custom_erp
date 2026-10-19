@@ -276,10 +276,10 @@ func registerStage282Settings() {
 		Key: "procurement.po_design_number_mode", Module: "Procurement",
 		Label: "Design number when a PO adds an item name's design", Type: SettingTypeSelect, Default: DesignNumberModeNew,
 		Options: []SettingOption{
-			{Value: DesignNumberModeNew, Label: "New every time - each design added gets a new design number"},
-			{Value: DesignNumberModeMatch, Label: "Reuse when it matches - same name and every design attribute brings back the existing design"},
+			{Value: DesignNumberModeNew, Label: "Always new design number - each design added gets a new design number"},
+			{Value: DesignNumberModeMatch, Label: "Inherit from existing - the PO vendor's design with the same name and every design attribute is brought back, with its combinations"},
 		},
-		Description: "What a Purchase Order does with the design number when an item name's design is added with the design number left blank. Typing an existing design number always loads that design, whichever is chosen.",
+		Description: "What a Purchase Order does with the design number when an item name's design is added with the design number left blank. Inherit searches only the PO vendor's designs (a design with no vendor still matches). Typing an existing design number always loads that design, whichever is chosen.",
 	})
 
 	// --- Point of Sale ---

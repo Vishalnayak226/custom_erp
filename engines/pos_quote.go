@@ -97,6 +97,12 @@ type QuoteLineRequest struct {
 	Sku               string  `json:"sku"`
 	Qty               int     `json:"qty"`
 	FallbackUnitPrice float64 `json:"unit_price,omitempty"`
+	// Stage 94.6 (D2): the MRP the cashier picked when the SKU is on the
+	// shelf at two MRPs, and the code that was scanned (a receipt-date
+	// barcode names its receipt, so its MRP). Both are checked against the
+	// batches on the shelf, never taken on trust.
+	MRP     float64 `json:"mrp,omitempty"`
+	Barcode string  `json:"barcode,omitempty"`
 }
 
 // QuoteRequest is the full set of selection inputs 47.2.1 names: item,
@@ -153,10 +159,13 @@ type QuoteLine struct {
 	// override - the denominator of the discount the approval gate keys on.
 	ReferencePrice float64 `json:"reference_price"`
 	MRP            float64 `json:"mrp,omitempty"`
-	LineTotal      float64 `json:"line_total"`
-	PriceSource    string  `json:"price_source"`
-	PriceListCode  string  `json:"price_list_code,omitempty"`
-	OverrideID     string  `json:"override_id,omitempty"`
+	// MRPChoices (Stage 94.6) lists the MRPs this SKU is on the shelf at when
+	// there are two or more and none was picked - the till asks which.
+	MRPChoices    []float64 `json:"mrp_choices,omitempty"`
+	LineTotal     float64   `json:"line_total"`
+	PriceSource   string    `json:"price_source"`
+	PriceListCode string    `json:"price_list_code,omitempty"`
+	OverrideID    string    `json:"override_id,omitempty"`
 	// DiscountPct is this line's own deviation below ReferencePrice, 0 when
 	// the line is charged at (or above) master price.
 	DiscountPct float64 `json:"discount_pct"`
@@ -338,8 +347,22 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 		if reference == 0 && itemMRP > 0 {
 			reference, refSource = itemMRP, PriceSourceItemMRP
 		}
+		// Stage 94.6 (D2): the MRP printed on the stock being sold - the
+		// price when the item sells at MRP, and a ceiling on any other price.
+		var mrpChoices []float64
+		if known && policy.Tracked() {
+			var shelfMRP float64
+			if shelfMRP, mrpChoices = resolveLineBatchMRP(tenantID, req.Location, sku, in); shelfMRP > 0 {
+				itemMRP = shelfMRP
+				if refSource == PriceSourceItemMRP || reference == 0 {
+					reference, refSource = shelfMRP, PriceSourceItemMRP
+				} else if reference > shelfMRP {
+					reference = shelfMRP
+				}
+			}
+		}
 
-		line := QuoteLine{Sku: sku, Qty: in.Qty, MRP: itemMRP, PriceListCode: refList}
+		line := QuoteLine{Sku: sku, Qty: in.Qty, MRP: itemMRP, MRPChoices: mrpChoices, PriceListCode: refList}
 		if known {
 			line.NotStocked = !policy.Tracked()
 			if policy.BillMode == BillHidden {
@@ -783,6 +806,7 @@ type PriceOverrideRequest struct {
 	CustomerID    string  `json:"customer_id"`
 	OverridePrice float64 `json:"override_price"`
 	Reason        string  `json:"reason"`
+	ReasonCode    string  `json:"reason_code"` // Stage 74.1.1
 }
 
 // PriceOverrideResult is the command's answer.
@@ -814,6 +838,12 @@ func RecordPriceOverride(tenantID, actorUserID, actorRole string, req PriceOverr
 	}
 	if req.OverridePrice < 0 {
 		return nil, &ValidationError{Code: "GLOBAL-0002", SubFor: "override_price", Message: "an override price cannot be negative"}
+	}
+	// Stage 74.1.1: the reason code beside the typed reason.
+	if code, text, rerr := ReasonForException(tenantID, ReasonPriceOverride, req.ReasonCode, req.Reason); rerr != nil {
+		return nil, rerr
+	} else {
+		req.ReasonCode, req.Reason = code, text
 	}
 	if strings.TrimSpace(req.Reason) == "" {
 		// A price deviation with no stated reason is not evidence, it is a
@@ -875,6 +905,7 @@ func RecordPriceOverride(tenantID, actorUserID, actorRole string, req PriceOverr
 		"override_price":  round2(req.OverridePrice),
 		"discount_pct":    discountPct,
 		"reason":          strings.TrimSpace(req.Reason),
+		"reason_code":     req.ReasonCode, // Stage 74.1.1
 		"requested_by":    actorUserID,
 		"approved_by":     approvedBy,
 		"quote_version":   quote.Version,

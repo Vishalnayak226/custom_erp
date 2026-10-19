@@ -93,9 +93,11 @@ find the purchase order and click **Approve**.
 
 ## 6. Receive the stock
 
-Back as the first user: **Procurement » Goods Receipt**. Click **Load Items from
-PO**, choose your approved PO, confirm the quantities that actually arrived, and
-click **Post Receipt**.
+Back as the first user: **Procurement » Goods Receipt** » **+ New Goods
+Receipt**. Pick the vendor, tick your approved PO, **Load ticked POs**, confirm
+the quantities that actually arrived, type the vendor's invoice number, date and
+total, and click **Save receipt**. Then **Verify**, **Check prices**, type the
+**MRP** and **Save and post** - or **Post all** when everything matches.
 
 **Now open Stock » Inventory.** The quantity should have gone up.
 

@@ -2,7 +2,10 @@ package server
 
 import (
 	"custom_erp/engines"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -61,13 +64,14 @@ func handleMatchDesign(w http.ResponseWriter, r *http.Request) {
 	}
 	var body struct {
 		Name       string            `json:"name"`
+		Vendor     string            `json:"vendor"` // Stage 94.13: the PO's vendor
 		Attributes map[string]string `json:"attributes"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	code, err := engines.FindMatchingDesign(r.Header.Get("Resolved-Tenant-ID"), body.Name, body.Attributes)
+	code, err := engines.FindMatchingDesignForVendor(r.Header.Get("Resolved-Tenant-ID"), body.Name, body.Vendor, body.Attributes)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to look up existing designs")
 		return
@@ -116,9 +120,22 @@ func handlePrintDocument(w http.ResponseWriter, r *http.Request) {
 	}
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	q := r.URL.Query()
-	doc, err := engines.BuildPrintDocument(tenantID, txn, r.PathValue("id"), q.Get("store"), q.Get("images") == "1")
+	format := q.Get("format")
+	doc, err := engines.BuildPrintDocument(tenantID, txn, r.PathValue("id"), q.Get("store"), q.Get("images") == "1" && format == "")
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusNotFound)
+		return
+	}
+	// Stage 98.1: ?format=csv|xlsx downloads the lines instead.
+	if format != "" {
+		body, name, contentType, err := engines.BuildPrintExport(doc, format)
+		if err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+		w.Header().Set("Content-Type", contentType)
+		w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
+		_, _ = w.Write(body)
 		return
 	}
 	templates, err := engines.PrintTemplatesFor(tenantID, doc)
@@ -127,6 +144,70 @@ func handlePrintDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"document": doc, "templates": templates})
+}
+
+// handlePrintDocumentSend (Stage 98.3) emails a print's PDF - made in the
+// browser from the print (98.2) - to the other party. Reading the document is
+// enough to send it, except a PO, which sending also records as sent and so
+// needs the same update right Send to Vendor always has. With no mail account
+// on the server it answers sent=false and the page downloads the PDF instead.
+func handlePrintDocumentSend(w http.ResponseWriter, r *http.Request) {
+	txn := r.PathValue("txn")
+	doctype := printTxnDoctype(txn)
+	if doctype == "" {
+		writeAPIErrorGeneric(w, r, http.StatusNotFound, "Unknown print transaction")
+		return
+	}
+	if !requireDocPermission(w, r, doctype, "read", "You do not have permission to view this document") {
+		return
+	}
+	isPO := doctype == "PurchaseOrder"
+	if isPO && !requireDocPermission(w, r, "PurchaseOrder", "update", "You do not have permission to send purchase orders") {
+		return
+	}
+	var body struct {
+		To        string `json:"to"`
+		Subject   string `json:"subject"`
+		Message   string `json:"message"`
+		FileName  string `json:"file_name"`
+		PDFBase64 string `json:"pdf_base64"`
+		Store     string `json:"store"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 22<<20)).Decode(&body); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	pdf, err := base64.StdEncoding.DecodeString(body.PDFBase64)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "The attachment could not be read - make the PDF again")
+		return
+	}
+	tenantID, userID := r.Header.Get("Resolved-Tenant-ID"), r.Header.Get("Resolved-User-ID")
+	doc, err := engines.BuildPrintDocument(tenantID, txn, r.PathValue("id"), body.Store, false)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusNotFound)
+		return
+	}
+	if isPO && (doc.Status == "Draft" || doc.Status == "Cancelled") {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "A "+strings.ToLower(doc.Status)+" purchase order cannot be sent to a vendor - submit it for approval first")
+		return
+	}
+	to, simulated, err := engines.SendDocumentEmail(tenantID, userID, doc, engines.DocumentMail{
+		To: body.To, Subject: body.Subject, Message: body.Message, FileName: body.FileName, PDF: pdf})
+	if errors.Is(err, engines.ErrMailNotConfigured) {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"sent": false, "mail_configured": false})
+		return
+	}
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusBadGateway)
+		return
+	}
+	if isPO {
+		if _, err := engines.MarkPurchaseOrderSent(tenantID, r.PathValue("id"), userID); err != nil {
+			log.Printf("[DOCUMENT-MAIL] PO %s emailed but not marked sent: %v", r.PathValue("id"), err)
+		}
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"sent": true, "to": strings.Join(to, ", "), "simulated": simulated})
 }
 
 // handlePrintCatalog (Stage 63.4) lists what the Print Template Studio can

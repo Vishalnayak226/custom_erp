@@ -97,6 +97,9 @@ Jump straight to the thing you're trying to do.
 | Understand why a field says my GSTIN, email or phone number is wrong | §8e |
 | Pick a state, fill an address, or see why a new record's code is V00001 | §8f |
 | Approve or reject something | §10 |
+| Approve or reject from my phone | §10A.4 |
+| Scan an item on my phone for its price, stock at other stores or batch age | §10A.5 |
+| Install the Store app on a phone | §10A.1 |
 | Post an accrual, correction or opening balance (journal voucher) | §9B.1 |
 | **Log a customer's service call and work it to closure** | §9C |
 | Record a customer's maintenance contract (AMC) | §9C |
@@ -158,7 +161,7 @@ The sidebar has **fifteen top-level entries**. Most are module groups: hover one
 
 **Every transaction screen looks the same.** POS, Purchase Order, Goods Receipt, Purchase Return, Stock Transfer, Returns, Vendor and Sales Invoices, Debit / Credit Notes and Journal Vouchers are each **one fixed screen that does not scroll** — like a shop's billing screen. Top to bottom:
 
-- **The bar** — the screen's name, a small chip with **who you are signed in as and your store**, the **totals and tax** of what you are entering, and the main button (**Create Draft**, **Post Receipt**, **Complete Sale**…).
+- **The bar** — the screen's name, a small chip with **who you are signed in as and your store**, the **totals and tax** of what you are entering, and the main button (**Create Draft**, **Save receipt**, **Complete Sale**…).
 - **The header boxes** — vendor, addresses, invoice details and so on, packed close together.
 - **The add-item row** — scan or search an item and add it.
 - **The items** — the only part that scrolls. Its column headings stay in place while you scroll through a long list.
@@ -277,6 +280,7 @@ You open a session once per shift, not once per sale.
    - Otherwise a short list of matching products appears underneath. Click one, or walk the list with the **↑ ↓** arrow keys and press **Enter**. **Esc** closes it.
    - If nothing matches you are told so plainly — *"No product matches …"* — rather than a blank line being added to the cart.
 2. Repeat for every item the customer is buying. Scanning the same item twice adds 2, it does not create a second line.
+   - **"Which MRP is on it?"** When an item is on your shelf at two MRPs - an older lot and a newer one at a new MRP - the line asks under the item's name, with one button per MRP. Tap the MRP printed on the piece in your hand; the line sells at it (and never above it). Until you tap, the line is priced at the lowest MRP. **change** beside the MRP asks again. A scan of a receipt-date barcode (stickers printed from a goods receipt) already knows its MRP and does not ask. One line takes one MRP - if the customer buys pieces from both lots, ring the second lot as a separate bill.
 3. **Adjust quantities with the − and + buttons** on the line, or type straight into the quantity box for a larger number. Pressing **−** on a quantity of 1 removes the line.
 4. **Read the Available column before you promise anything.** It shows the quantity you can actually sell at this store. Stock held in a location that does not sell is listed under it by the store's own names — *"Not sellable here: Damage 2 · Inward 3"* (the locations are set up under **Inventory → Stock Locations**, §5.1). That stock is physically in the shop but must not be sold. If you ask for more than can be sold, the row turns red and says *"Only N can be sold here"*. Clicking **Complete Sale** anyway names the item and how many are available (e.g. *"LAMP … available 0, requested 1"*). Click **Remove** on that line, or lower the quantity, and click **Complete Sale** again. Nothing was charged.
 5. **Ask the customer's mobile number — on every bill.** Type it into **Customer mobile** and press **Enter**. One number is one customer:
@@ -295,7 +299,7 @@ You open a session once per shift, not once per sale.
 7. Check the **Total** at the top right of the screen. The bar beside it shows the discount and the tax split — **CGST · SGST**, or **IGST** — so you can read them out to the customer.
 8. **Choose how they're paying.** **Payment Mode** lists the tenders your store takes, by their own names (*Cash*, *HDFC Card*, *Paytm*...). If it is **Cash**, type what the customer handed you into **Cash tendered** and **Change due** appears beside the Total at the top before you commit to anything (or *"Short by …"* if it isn't enough). A tender that needs a reference (a card slip, a UPI reference / UTR) asks for it once at **Complete Sale**.
    - **Salesman.** If your store records who made the sale, a **Salesman** box sits beside the payment boxes with the store's default salesman chosen. Change it if someone else served the customer. Where the store makes it compulsory, the sale cannot complete without one.
-   - **Discount.** Type a bill discount into **Discount** and choose **%** or **Rs**. It comes off the price straight away — the bar shows *Discount −99.90* and the Total drops; the tax is worked out on the discounted price. Above 5% (your administrator can change this) the till asks **why**; above your approval rules a manager must approve the sale, as before (§4.1a). To discount one line only, use **Override** on that line.
+   - **Discount.** Type a bill discount into **Discount** and choose **%** or **Rs**. It comes off the price straight away — the bar shows *Discount −99.90* and the Total drops; the tax is worked out on the discounted price. Above 5% (your administrator can change this) the till asks **why**; above your approval rules a manager must approve the sale, as before (§4.1a). To discount one line only, use **Override** on that line: type the new price, then choose why from the list (*Price match*, *Shop-soiled piece*, *Manager discretion*...) with an optional note.
    - **Paying from an advance.** If the customer has paid an advance (§4.9), **Use advance** appears beside the customer buttons with the amount. Click it and the bar shows *Advance: −300.00*; the Total is what is left to pay.
    - **Paying more than one way?** Click **More… → Split payment**. Type the fixed parts — say **Card 1,000** and **UPI 200** — and leave the rest blank. Whatever is left is paid by the **Payment Mode** you have selected; the bar shows *Split: Card 1000.00 + UPI 200.00; the rest by Payment Mode*. If the rest is cash, **Cash tendered** and **Change due** work on the cash part only. Parts that add up to more than the bill are refused. To go back to one payment mode, open **Split payment** again and clear the boxes. A split sale cannot be queued offline with a gift card, and a payment-terminal sale is never split.
 9. Click **Complete Sale** (top right, next to the Total).
@@ -337,7 +341,7 @@ Click **Print Receipt** on the finished bill. You can click it more than once �
 
 If your till has a receipt printer set up for silent printing it goes straight there with no dialog (see below); otherwise your browser's normal print dialog opens. Nothing extra is needed to print — the button always works.
 
-To get the one-click version, your administrator installs **QZ Tray** on the till PC and creates a **Printer** record whose **Default For** is `Receipt` — the full steps are in **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)**. If any of that isn't set up, the browser print dialog appears as before; nothing breaks and nothing is lost.
+To get the one-click version, your administrator installs **QZ Tray** on the till PC ([QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)). The first bill printed there goes to the till's receipt printer — chosen by itself when the PC has one, or asked once — and every bill after that prints there without asking (§7B.3). If QZ Tray isn't installed, the browser print dialog appears as before; nothing breaks and nothing is lost.
 
 A few things worth knowing:
 
@@ -463,7 +467,7 @@ For a long bill, click **More… → Upload lines (CSV)**. **Download template**
    - **Periodic count** — count what is left and type the **Counted closing qty**; the system posts *book stock − counted* as consumed (book 1,000, counted 250 → 750 consumed).
    - **Manual issue** — type the **Qty used**.
    Add each item (its book stock appears), type the quantities, add a **Count reference** (e.g. *Week 42 count*), and click **Post Consumption**, then confirm. The stock leaves the store and the cost goes to the item's expense account. A count higher than the book, or a quantity used larger than the stock, is refused — receive the difference on a GRN first. Services and other items that keep no stock can't be added.
-5. Use that row's **Transfer**, **Count** or **Hold** link for the next task.
+5. Use that row's **Transfer**, **Count** or **Hold** link for the next task. **Movements** opens **Reports → Stock Ledger** on that item and location, already run: every movement in and out with its document and the running balance.
    **Hold** carries the item and location into Place Hold; choose a Hold Code,
    quantity and reason, then save. Before you save, the screen shows the item's
    on-hand, already-held and available-to-sell quantities there and what the
@@ -574,7 +578,7 @@ Inside every store the stock sits in **locations**: **Main** (the selling floor)
 4. Check the **totals** in the bar at the top — number of items and quantity, taxable value, the tax split (CGST + SGST, or IGST) and the grand total, always in view — and the **supply-type banner** under the header boxes (§6.2).
 5. **You don't type a PO number.** The box shows "Auto (PO series)" and is greyed out on purpose. The number is issued when you save; see §6.1.
 6. Click **Create Draft**. You're back on the list, with the new order on it. Depending on the amount it may need an **approval** before it's official — that's a safety check, not a bug. Whether you may approve your own order is a setting your administrator chooses (as shipped: yes, if your role can approve it). You'll see it move to "Pending Approval", and once approved it's ready to send.
-7. **Send it to the vendor.** On the order's row in the list, **Print** opens the print window (§7B): choose **Purchase Order** or **Vendor PO** (the vendor's copy, with item pictures and no MRP), the template, and the store it is generated from; check the preview, then **Print** — or **Excel** to download the Vendor PO as a spreadsheet with a picture of each item. The standard layout has your brand, both parties' names, addresses, states and GSTINs, the item table with HSN and tax, the CGST/SGST (or IGST) split, the grand total, and the amount in words. **Send to Vendor** records the dispatch (the row shows "Sent to vendor") and opens a pre-filled email to the vendor's contact address. If your administrator has configured a notification channel, it goes out through that as well. A vendor with no email on file is fine: the PO is still marked as sent, with a short note at the top of the screen. Sending does not approve the order — **Receive goods** appears once it is **Approved**, and by default you may approve your own order in **Approvals** if your role is the one the approval rule names (ADMIN_SOP §B.10).
+7. **Send it to the vendor.** On the order's row in the list, **Send to Vendor** opens **Send**: the vendor's email from the vendor record is filled in (change it, or add more addresses separated by commas), with a subject and a short message you can edit. **Send email** emails the **Vendor PO as a PDF**, in its best-match template; **Download PDF** saves the same PDF for you to attach to your own email or WhatsApp. Either way the PO is recorded as sent (the row shows "Sent to vendor"), and a notification channel, if your administrator set one up, gets it too. A vendor with no email on file is fine — use **Download PDF**. If the server has no mail account set up yet, **Send email** downloads the PDF instead and says so. **Print** on the row opens the print window (§7B): **Purchase Order** or **Vendor PO** (the vendor's copy, with item pictures and no MRP), the template, the store it is generated from, the preview, and **Print**, **PDF**, **CSV**, **Excel**, **Excel with pictures** and **Send**. The standard layout has your brand, both parties' names, addresses, states and GSTINs, the item table with HSN and tax, the CGST/SGST (or IGST) split, the grand total, and the amount in words. Sending does not approve the order — **Receive goods** appears once it is **Approved**, and by default you may approve your own order in **Approvals** if your role is the one the approval rule names (ADMIN_SOP §B.10).
 8. **Edit** on the order's row opens it on the order page exactly like a new purchase order — vendor, billing and shipping address, GST treatment and every item line can all be changed — but it **keeps the same PO number** (shown, greyed, in the PO Number box; the breadcrumb reads *"Purchase Orders › Edit PO/…"*). Click **Save changes** to keep them or **Cancel** to go back to the list untouched. (Leaving an edit unsaved and clicking **+ New Purchase Order** starts a blank order; the unsaved edit is dropped.) Editing an already-approved PO sends it back for re-approval: the screen warns you first and asks for the reason for the change.
 
    **Delete** on the order's row removes a purchase order at any stage — draft, pending approval, approved or already sent — **as long as no goods have been received against it**. It asks you to confirm first. Once a goods receipt exists (including one that received several POs together), Delete is refused and names the receipt; cancel that receipt first. You only see **Delete** if your role is allowed to delete purchase orders — your administrator sets that under **Settings → Roles** (Purchase Order → Delete).
@@ -743,7 +747,7 @@ Use **Procurement → Purchase Return** when goods go back to the supplier. A re
    - **Accepted** is stock that went on your shelves. It shows its **Unit cost** (the PO rate before GST), because the supplier owes you for it.
    - **Rejected** and **Damaged** are what QC set aside when the goods were received on **Procurement → Goods Receipt**. The supplier was never owed for these, so they have no cost and no money changes hands for them.
    - **Can return** is what the GRN received, less what earlier returns already sent back (**Returned**) and what other returns still waiting to be posted have claimed (**On open returns**).
-3. Enter the **Reason for Return** (required), and a **Return qty** on each line that is going back. You cannot enter more than **Can return**. The bar at the top counts the lines and units going back and their value at cost.
+3. Choose the **Reason for Return** from the list (add a note underneath if it helps), and a **Return qty** on each line that is going back. You cannot enter more than **Can return**. The bar at the top counts the lines and units going back and their value at cost.
 4. Click **Save Return** (top right). It is saved as a **Draft**, gets a number such as `PRT/HO/26-27/000004`, and you're back on the list. Nothing moves yet.
 5. On the list, click **Post** on its row and confirm. In one step:
    - the stock leaves: accepted units come off your available stock at the GRN's location, rejected or damaged units come off QC hold or damaged;
@@ -846,25 +850,60 @@ In fashion you often order a design that doesn't exist in the system yet, in sev
 - **New every time** (the default, suited to fast fashion): each design added gets a new design id.
 - **Reuse when it matches**: if a design of the same item name with **exactly the same design attributes** already exists, it is used instead of creating a new one, and only the combinations it doesn't have yet are created.
 
-### 6.10 Receiving several POs on one GRN, at the vendor's invoice price
+### 6.10 Receiving goods in steps: receive, verify, price check, MRP, pay
 
-A vendor often delivers against several of your POs on one invoice, and the invoice price doesn't always match the PO. The Goods Receipt handles both — **and never puts the receipt on hold**.
+A goods receipt (GRN) is worked in five steps, each on its own page with one main button and a **Back**. Nothing enters stock until step 4, so a mistake at any earlier step is fixed by going back and changing it. Each step can be done by a different person (your administrator decides who - Admin Guide §B.3.6.1); in a small shop one person does them all.
 
-**Several POs.** On **Goods Receipt**, click **+ New Goods Receipt** (or **Receive goods** on an approved PO's row, which opens it with that PO already loaded), choose a PO and click **Add PO & Load Items**, then choose the next PO of the **same vendor** and click it again. Each PO shows as a chip (× removes it with its lines), and a **PO** column appears on the lines. Only each PO's **still-open** quantity loads; a fully received PO says so and adds nothing. A PO of a **different vendor** is refused — receive it on its own GRN.
+**① Receive - what arrived and what the invoice says**
 
-**The vendor's invoice.** Fill in **Vendor Invoice No**, **Invoice Date** and **Invoice Amount (incl. GST)** from the bill.
+1. **Procurement → Goods Receipt**, click **+ New Goods Receipt** (or **Receive goods** on an approved PO's row, which opens it with that PO already loaded).
+2. Pick the **Vendor** first. Their approved POs with anything still open appear underneath, each with its date, items, open quantity and value. Tick the ones this delivery is for and click **Load ticked POs**. You can still type a PO number and click **Add PO & Load Items**, or **Load Items from ASN**. Only one vendor's POs go on one receipt; each PO shows as a chip (× removes it with its lines).
+3. On each line, type what really arrived in **Received** - it starts at the PO's open quantity. Scanning an item that is already on the receipt (into the **SKU** box, with no quantity typed) counts one more unit, with a short beep.
+4. If the bill differs from what arrived, change **Invoice Qty** and **Invoice Rate** (the price **before GST** on the bill). They start at the received quantity and the PO price, so only lines where the bill differs need touching.
+5. Fill in the vendor's **Invoice No**, **Invoice Date** and **Invoice Total (incl. GST)** - all three are required. The same invoice number of the same vendor cannot be received twice.
+6. Click **Save receipt**. The receipt is saved as *Received* - **no stock moves** - and its step page opens.
 
-**Two prices on every line.** **PO Rate** is the agreed price before GST, read from the PO (you can't change it). **Invoice Rate** starts at the PO rate — change it to the price **before GST** printed on the vendor's bill. A line whose price differs is highlighted and shows the difference per unit.
+If your administrator turned on **blind count**, the receiving page does not show the PO quantity: you count what is there.
 
-**The totals, at the top.** The bar at the top of the screen shows the lines and accepted units, **PO value** (at PO price), **Invoice value** (at invoice price), GST, **Invoice − lines** (once you type the invoice amount) and, in large, the invoice value with GST. The line under the header boxes tells you which notes will be raised:
+**② Verify - what is really in hand, at what price**
 
-- Billed **above** the PO → a **Debit Note** to the vendor for the excess (with its GST).
-- Billed **below** the PO → a **Credit Note** to the vendor for the shortfall (with its GST).
-- If the typed invoice amount doesn't equal the lines, it says so in red — check rates and quantities. The receipt still posts and records the difference; nothing is held.
+7. For each line, **GRN Qty** (what is really in hand) starts at the received quantity and **GRN Price** at the invoice price. Change them after checking the goods and calling the vendor. Each line shows its difference from the invoice and from the PO.
+8. Enter **Rejected** and **Damaged** quantities and choose the reason from the list (an optional note goes beside it); they go back to the vendor on a Purchase Return (§6.5). Attach the vendor's invoice copy under **Vendor's invoice copy** at the bottom of the receipt while it is being worked.
+9. Goods **beyond the PO** (more than ordered, or an item not on the PO): choose **Keep** (it goes for approval - say why in the box underneath) or **Return to vendor** (added to rejected). A small excess within the vendor's tolerance is accepted without asking.
+10. The bar at the top compares **Invoice total**, the **invoice lines** and **Received and verified** (GRN qty × GRN price + GST), and tells you the note the difference will raise: a **Debit note** when the vendor billed more, a **Credit note** when they billed less.
+11. Click **Verify**. If the typed invoice total differs from the invoice lines by more than ₹1, Verify stops and names the line that is probably wrong - go **Back to Receive** and fix the invoice qty, price or total.
 
-**Post Receipt.** Stock goes in at the **invoice price**. The notes are created **and posted** straight away (you'll see their numbers in the message), and they appear on the GRN's row in the Goods Receipt list (where posting returns you) under **Price Notes** and in **Financial Accounting → Debit / Credit Notes**, each with **Print**. Only **accepted** units count — rejected and damaged units go back on a Purchase Return (§6.5).
+**Post all.** When everything matches - received = invoiced = PO quantity, invoice price = PO price, every price the same as last time and every item already has an MRP - a **Post all** button runs steps 2-4 in one go.
 
-**What it means for the money.** The PO price is the agreed price. After the notes, what you owe the vendor and what the goods cost you both come back to accepted quantity × PO price. When the vendor's bill is recorded (§6.6) it matches this GRN at the invoice price.
+**③ Price check - against the last purchase price**
+
+12. Each line shows its **previous price** (the last time this item was received, from any vendor, with the vendor and date) and the change in %. Click **Check prices**. The lines split into up to three **child GRNs**:
+    - **/A New item** - never bought before;
+    - **/B Same price** - same as last time;
+    - **/C Price changed** - higher (▲) or lower (▼).
+13. Rename a child if you like, or move an item to another child with its drop-down; **Check prices again** puts everything back where the prices say. Click **Save and go to MRP**.
+
+**④ MRP and posting - one child at a time**
+
+14. Each child is a card. Every line shows its cost, the **current MRP** (filled in when the item has one), a **suggested MRP** (cost plus your markup and GST, rounded to a price ending such as ₹x99) and the margin. Type the **MRP** or click **Use suggested**. An MRP below cost shows in red, below the current MRP in amber.
+15. Click **Save and post** on a child. That child's stock goes in **at the GRN price**, its batch carries this MRP, barcodes are issued, and the accounts are posted. Post the *Same price* child first and those goods are on the shelf today while you decide the new prices.
+16. **Print stickers** appears on a posted child: it opens Sticker Printing with this receipt loaded and only that child's lines ticked. Each sticker prints the MRP of its own lot.
+17. When the last child posts, the receipt is **Posted**. The debit or credit note (invoice total against what you received and verified) is raised, and the **vendor bill** is made from what you typed at Receive - nothing to key in again.
+
+A child holding goods **kept beyond the PO** waits until the approver decides it (**My work → Approvals**). If it is rejected, the excess becomes *Return to vendor*. Post the other children meanwhile.
+
+**⑤ Pay (optional)**
+
+18. **Due** is the invoice total less a debit note, plus a credit note, less what is already paid. Enter the **Amount** (part payments are fine), **Paid by** (Bank, UPI, Cheque or Cash), the **UTR / cheque no** (for cash any reference, or leave it blank) and the **date**, then **Pay**. Tick **Withhold TDS** when the vendor has a TDS section and you are paying the whole bill.
+19. Or click **Leave it in Payables** - the bill waits in Finance → Payables and payment proposals as usual. The receipt shows *Due*, *Part paid* or *Paid*.
+
+**Correcting a posted receipt.** On step 5, **Correct** lets you change a line's GRN qty, GRN price or MRP. **Show the effect** lists what it will do (stock, value and the note it raises) before anything changes; **Apply the correction** asks why and posts only the difference. It refuses only what cannot be undone: stock that is already sold (raise a Purchase Return for what is left), or a bill already paid beyond the new amount.
+
+**The list.** Goods Receipt opens on tabs - **To verify**, **To price**, **Ready to pay**, **Done** - each with its count and the age of its oldest receipt. **Open** takes you to that receipt's current step. Every change at every step is kept (**Changes** at the bottom of a receipt).
+
+**Reports** (Reports → Procurement): *GRN Register - every line, every step*, *Invoice vs GRN Differences*, *Purchase Price Changes*, *Goods Receipts Waiting*, *GRN Corrections Log*, *PO vs GRN Price Variance*, *GRN Payments*; and under Inventory, *Goods In Receiving* (arrived, not yet posted - not sellable).
+
+**What it means for the money.** Stock is valued at the **GRN price**. The vendor bill is the vendor's invoice total; the note brings what you pay to what you received and verified. Receipts posted before this way of working keep the earlier basis: stock at the invoice price, with a note for the difference from the PO price.
 
 ### 6.11 Adding photos to designs and Combination IDs (after the PO)
 
@@ -1119,12 +1158,17 @@ Good to know:
 
 ### 7B.1 Printing a document
 
-**Print** on any of these opens the print window: a Purchase Order, Goods Receipt, **Purchase Return** (Procurement → Purchase Return list), Stock Transfer (**Print Transfer Out / In**), a debit / credit note — vendor or **customer** (**Financial Accounting → Debit / Credit Notes**, or the GRN's **Price Notes** column), or a **Sales Return** (the Returns workbench).
+**Print** on any of these opens the print window: a Purchase Order, Goods Receipt, **Purchase Return** (Procurement → Purchase Return list), Stock Transfer (**Print Transfer Out / In**), a **Sales Invoice** (**Financial Accounting → Sales Invoices**), a debit / credit note — vendor or **customer** (**Financial Accounting → Debit / Credit Notes**, or the GRN's **Price Notes** column), or a **Sales Return** (the Returns workbench).
 
 - **Print as** — for a PO: **Purchase Order** or **Vendor PO** (the vendor's copy, with item pictures); for a GRN: **Goods Receipt Note** or **Vendor Copy**; for a transfer: **Transfer Out** or **Transfer In**.
 - **Template** — the best-matching designed template is chosen for you (marked "best match"); pick another, or **Standard layout (built-in)**.
 - **Generating store** — the store the print is issued from. It starts as the document's own store; pick another and its name, address, state and GSTIN go in the store block.
-- The **preview** shows every page exactly as it will print. **Print** prints it (choose "Save as PDF" in the print dialog for a PDF). On a PO, **Excel** downloads the Vendor PO as a spreadsheet with each item's picture.
+- The **preview** shows every page exactly as it will print.
+- **Print** — on a computer with **QZ Tray**, it goes straight to that computer's printer for this kind of document, with no dialog (§7B.3); the window shows which printer, with **Change**. Without QZ Tray your browser's print dialog opens.
+- **PDF** downloads what the preview shows, page for page, named after the document (for example *Purchase-Order-PO-HO-26-27-00045.pdf*). It is a picture of each page: it looks exactly like the print, but its text cannot be selected or copied.
+- **CSV** and **Excel** download the lines. At the top: the document, number, date, status, store, the vendor or customer, and linked numbers (the PO on a GRN, the order on a sales invoice). Then one row per line: **Design ID**, **Combination ID / SKU**, **Barcode**, item name, variant, one column per attribute — named as your Item Attribute list names it, so a renamed attribute shows its new name (§8) — **Brand**, HSN, UOM, batch, the quantities the document has (ordered, received, accepted, shipped, short…), **MRP**, then prices: a **PO** and a **GRN** show cost (cost price, taxable value, GST, amount); a **sales invoice** its selling price; transfers, returns and notes **MRP only**. A column no line fills is left out, and a **Total** row closes the list.
+- **Excel with pictures** (a PO) — the Vendor PO as a spreadsheet with each item's picture.
+- **Send** — emails the PDF to the other party: the vendor, the receiving store or the customer, their email filled in from their record — a store's is its **Store Email** (Setup → Core → Location), which is also the Reply-To on everything that store sends (§6, step 7).
 - **Design templates** opens the designer (§7B.2) on this transaction, previewing this document.
 
 Every print carries **your brand name** (your administrator sets it; otherwise your company's legal name) — even on a template that doesn't place it. Long item lists continue onto further pages with the table heading repeated; totals, the tax split, amount in words and the signature go on the last page.
@@ -1142,6 +1186,7 @@ Every print carries **your brand name** (your administrator sets it; otherwise y
 | **Debit Note** / **Credit Note** (vendor) | Item, HSN, Description / Reason, Original Taxable, Debit (Credit) Taxable, CGST, SGST, IGST, Total | Taxable debited (credited), tax, total | Prepared By · Approved By · Authorised Signatory |
 | **Credit Note** (customer) | Description / Reason, Credit Amount | Total credit note | Prepared By · Approved By · Authorised Signatory |
 | **Sales Return** | Barcode, Item / Description, Original Qty, Return Qty, MRP, Original Disc., Tax, Refund Value, Condition | Return subtotal, tax reversal, net refund / credit | Processed By · Verified / Approved By · Customer Acknowledgement |
+| **Sales Invoice** | Ln, Item / Barcode, Description, HSN, Qty, Rate (incl. GST), Discount, Taxable, GST %, Amount; the IRN, Ack and signed QR once e-invoiced | Taxable value, CGST + SGST or IGST, invoice total | Prepared By · Customer's Signature · Authorised Signatory |
 
 Good to know:
 
@@ -1149,13 +1194,14 @@ Good to know:
 - **The GRN print shows quantities, not prices.** The PO and invoice rates are still there to add as columns in a template of your own (§7B.2), and the price differences print on the debit / credit notes.
 - **Transfer In prints against what was shipped.** A line received short shows the shortfall and the reason typed at receipt, and the header says *Received with shortage*.
 - **Sales Return** splits the refund back into taxable value and GST at the item's rate (shop prices include GST).
+- **A Draft sales invoice prints as a proforma** — titled *Proforma Invoice (Draft - not a tax invoice)* — so it can never pass for a posted bill. Once posted it prints as the **Tax Invoice**.
 - A designed template of your own still wins over the Standard layout: pick **Standard layout (built-in)** in **Template** to see this one.
 
 ### 7B.2 Designing a print template (Document templates)
 
 **Setup → Printing → Print Template opens this same screen** — there is one set of document print templates, whichever way you reach it. (A *sticker* template is a different thing: it is the barcode label on the product, made under **Sticker templates**.)
 
-**Inventory → Sticker Printing → Document templates** lists each transaction — Purchase Order, Vendor PO, Goods Receipt Note, Vendor Copy, Purchase Return, Transfer Out, Transfer In, Debit Note, Credit Note (to vendor), Credit Note (to customer), Sales Return — with its templates and the **Standard layout**. **Customise** starts from the standard layout; **+ New template** does the same for the transaction you pick; **Design** edits, **Duplicate** copies, **Make default** sets the one used when nothing more specific fits, **Delete** removes one.
+**Inventory → Sticker Printing → Document templates** lists each transaction — Purchase Order, Vendor PO, Goods Receipt Note, Vendor Copy, Purchase Return, Transfer Out, Transfer In, Debit Note, Credit Note (to vendor), Credit Note (to customer), Sales Return, Sales Invoice — with its templates and the **Standard layout**. **Customise** starts from the standard layout; **+ New template** does the same for the transaction you pick; **Design** edits, **Duplicate** copies, **Make default** sets the one used when nothing more specific fits, **Delete** removes one.
 
 The designer works like the Sticker Studio:
 
@@ -1166,6 +1212,17 @@ The designer works like the Sticker Studio:
 5. **Preview with** a real document number to see it filled in; **Test print** prints the preview. Click an empty part of the page to see the template settings: page size (A4 / A5 / Letter), orientation, margin and font.
 6. **When to use it.** Leave it for any vendor and product, or limit it: **Only for vendor**, **Only for designs / families**, **Only for categories** (comma-separated). When printing, the most specific template that fits is offered first — vendor, then design, then category, then the default.
 7. **Save** (Ctrl+S).
+
+### 7B.3 Which printer prints what, on each computer
+
+Every computer that prints silently needs **QZ Tray** installed once (your administrator does it — [QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)). After that, each computer remembers **its own printer for each kind of print**: Purchase Order, Goods Receipt, Transfer, Sales Invoice, Returns and Notes, Receipt (the till bill), Sticker and Shipping Label. The choice is kept on the server under the computer's name, so clearing the browser does not lose it.
+
+1. **The first time** a kind is printed on a computer, the printer is chosen for you when the choice is clear — A4 / A5 documents go to the computer's **default printer**, bills to its one **receipt printer**, stickers and shipping labels to its one **label printer** — and a note at the top of the screen says which. Only when two printers could fit does it ask, once: *Printer for Goods Receipt — which printer prints Goods Receipt on this computer?*
+2. **Every later print** of that kind on that computer goes straight to that printer. It never asks again.
+3. **To change it**, open any print of that kind: the print window shows *Purchase Order prints on HP LaserJet · Change*. **Change** asks which printer, and that becomes the new choice.
+4. **To see every computer**, open **Setup → Printing → Printer Assignment**: one row per computer and kind of print, with its printer and store. Set a row to **Inactive** and that computer chooses again at its next print.
+
+A computer with no choice yet for a kind uses its store's default — a **Printer** record (**Setup → Printing → Printer**) at that store whose **Default For** is that kind — before it chooses for itself; one store never prints on another store's printer. A Printer record made by a computer's first choice takes the printer's name as it appears on that computer; check its **Printer Language** if it is a sticker printer (ZPL for Zebra, TSPL for TSC). **Inventory → Sticker Printing** still lets you pick the printer for a print run.
 
 ## 8. Managing Master Data (Vendors, Locations, Brands, and Similar Lists)
 
@@ -1249,7 +1306,7 @@ The suggested rates are the GST rates in force from 22 September 2025, so check 
 
 **Variant options** are picked, not typed in a code: choose an **Option** (Colour, Size and the other attributes set up under **Setup → Item Attribute**, where a *Select* attribute's options become the values to pick) and its **Value**, and **+ Add option** for the next one; **×** removes a row. For an option that is not set up, choose **Other…** and type its name — unless your attributes were set up for your business by your provider (Admin Guide §C.9): then the list is exactly those, and **Other…** is not offered. The item stores the same combination as before, so variant codes, the duplicate-combination check, PO designs and stickers read it unchanged. **Parent Product Code** can be left blank when you pick a **Product Family** (design): the design is used.
 
-**Your item attributes** live under **Setup → Item Attribute** (the *Inventory* part of the Setup menu): the basic attributes your items vary by, such as Colour and Size. The Item's variant options, the PO's design panel and the prints use this list, whether or not your business uses PIM. A new one gets its code by itself — the first time, the form asks once how codes should look. If your business also uses PIM, PIM has its own, richer list under **Setup → PIM → Product Attribute Def**: there **Used for** says whether an attribute is a *Variant* (mapped onto an Item Attribute, shown in **ERP item attribute**) or *Product information* (PIM enrichment only). Open an attribute in either list to change it: *Variant* attributes are the Item's variant options, the PO's design panel and the prints; *Product information* attributes are for PIM enrichment only. Open one to change it:
+**Your item attributes** live under **Setup → Item Attribute** (the *Inventory* part of the Setup menu): the basic attributes your items vary by, such as Colour and Size. **To rename one** — *Color* to *Colour*, say — edit its **Label**: the PO, the GRN, every print and every CSV / Excel export show the new name at once, and nothing already saved changes (values are kept under the attribute's code). The Item's variant options, the PO's design panel and the prints use this list, whether or not your business uses PIM. A new one gets its code by itself — the first time, the form asks once how codes should look. If your business also uses PIM, PIM has its own, richer list under **Setup → PIM → Product Attribute Def**: there **Used for** says whether an attribute is a *Variant* (mapped onto an Item Attribute, shown in **ERP item attribute**) or *Product information* (PIM enrichment only). Open an attribute in either list to change it: *Variant* attributes are the Item's variant options, the PO's design panel and the prints; *Product information* attributes are for PIM enrichment only. Open one to change it:
 
 - **Switch it off:** set **Status** to *Inactive* and save. It disappears from new choices everywhere; items that already use it keep their values.
 - **Remove a value:** click **×** on the value. **Add one:** type it under the values and press **Enter**. Items that already carry a removed value keep it.
@@ -1537,6 +1594,19 @@ A new item is asked once, at creation, and most of it is already answered by you
 8. **Recent runs** (below the results) lists the latest runs of the selected report: who ran it, when, how long it took and how many rows it returned. You see your own runs; a Super Admin sees everyone's, including those sent by a schedule (shown as *Schedule*).
 9. **Schedules.** Reports → **Schedules** lists the scheduled reports and dashboard digests you set up (a Super Admin sees everyone's, with the owner). Each row shows how often it runs and its **Next run** exactly as the scheduler will act on it — a date, **Due now** (it goes out at the next hourly check), or **Paused** — when it last ran, the **Result** (*Delivered* with the number of rows, or *Failed* with the reason) and who receives it, as a count and masked addresses such as a***@example.com. **Pause** stops a schedule until you **Resume** it. **Run now** sends it straight away to the same recipients; pressing it again within a minute is refused. To create one, press **Set up a scheduled report** or **Set up a dashboard digest**, then **New**: pick the report or saved dashboard layout, frequency, run-as role, first run date and the recipient email.
 10. The numbers always come from real recorded transactions — never from someone’s manual guess — so you can trust them.
+
+### 9.1 Your report catalog
+
+Your company's own report catalog — the two report spreadsheets the ERP was set up against — is built in: **252 reports** under **Reports → Sales & POS, Inventory, Procurement & GRN, Stock Transfer, GST & Compliance, E-commerce & Integration, Master Data & Audit, MIS & Management, OMS, PIM / PIMS, Accounting, Expense Management, CRM, HRMS, Manufacturing** and **WMS** (each next to the older group it extends, so *Sales & POS* sits above *Sales*). Every report has exactly the catalog's columns, in the catalog's order and with its names, so a report exported to Excel lines up with the spreadsheet you know.
+
+- **Filters.** Most take **From / To** (the document's business date: the bill, PO, GRN or posting date), **Store** (one or more store codes, comma-separated) and, where the document has one, **Status**. A point-in-time report — current stock, stock ageing, AR / AP ageing, the user access matrix — takes no dates. A stock report that shows sales (fast / slow moving, stock cover, turnover) counts the sales in the From / To period, or the last 90 days when you leave the dates blank.
+- **Money.** Till bills are GST-inclusive: item-wise figures split each line back into taxable value and GST at the item's rate, exactly as the GST invoice prints them, with the item discount (MRP to selling price) and the bill discount (offers) shown separately. Purchase figures are the GRN's vendor-invoice rates.
+- **Blank columns.** A column the ERP does not record stays in the report, blank — for example *Packing Charges*, *Silver Rate / Gram*, *E-Way Bill No* (the ERP does not issue e-way bills), *Target Amount* (no sales targets are kept), clock-in times, or the *IP Address* of an action. Everything else is filled from your records.
+- **Codes and names.** A column called *… Code* or *… ID* shows the code; the name column beside it shows the name.
+- **Control totals** also run on the catalog's **Sales Register**, **Stock Valuation Summary**, **GST Document Tax Detail**, **GSTR-1 HSN Summary**, **GSTR-1 B2B / B2C Summary**, **HSN Tax Summary**, **AP Aging** (ties to 2100 GRN Suspense) and **AR Aging** (ties to 1300 Receivables), for the dates and stores you ran them for; with a store chosen, the ledger figure is not compared (the GL holds the whole company).
+- **Not built yet (38 catalog rows).** Delivery challans, job work, material issue / receipt, wastage, damage, stock adjustment and receipt notes are documents the ERP does not have yet, so their reports come with those modules; so do the bulk stock upload, e-way bill, lead, opportunity, customer feedback and recruitment reports.
+
+**[REPORT_CATALOG.md](REPORT_CATALOG.md)** lists every report with its columns and filters.
 
 **The Trial Balance asks for an "As Of Date"** and starts on today. It shows every posting up to and including that date, so setting it to a month-end gives you that month’s closing position. Every account is listed either way; a date before you started trading correctly shows all zeros.
 
@@ -1905,6 +1975,61 @@ If your role can approve things (e.g. a manager approving a purchase order), you
 
 Each row says why it is yours and since when; **Everything / Approvals / Order desk / Catalog** filter it. **Open** takes you where the work is done: the approvals table further down this page (Approve / Reject as before), OMS → Orders with that queue showing, or PIM → My Work. If one source cannot be loaded, the page says so and shows the rest.
 
+## 10A. The Store app on your phone
+
+The **Store app** is a small app for the shop floor: decide approvals, and scan any item to see its price, MRP, stock at your store and your other stores, and how old a batch is. It is part of the ERP - your company's ERP address followed by **/store/** (for example `https://yourcompany.wholeops.in/store/`) - and you sign in with your usual username and password.
+
+### 10A.1 Install it (once per phone)
+
+1. Open the address in **Chrome** on an Android phone, or **Safari** on an iPhone.
+2. Sign in (§10A.2).
+3. **Android (Chrome):** the **⋮** menu → **Install app** (or **Add to Home screen**). **iPhone (Safari):** **Share** → **Add to Home Screen**.
+4. A **Store** icon appears on the home screen and opens full screen, like any app. There is no app store: updates arrive by themselves the next time you open it.
+
+### 10A.2 Sign in
+
+- Your username and password, as in the ERP. If your role uses two-factor sign-in, enter the code from your authenticator app, or tap **Use a recovery code**.
+- Setting up two-factor sign-in for the first time, or replacing a password your administrator set: do it once in the full ERP (the app says so), then sign in here.
+- Signing in here also signs you in to the ERP in the same browser, and the other way round. **Sign out** on the app's home screen signs you out of both.
+- The app signs you out after the same time without use as your **Auto Logout** setting (§11).
+
+### 10A.3 Your store
+
+The button at the top right shows the store you are working at. If you may work at more than one store, tap it and pick one; the ERP in the same browser switches with you. If the button cannot be tapped, you work at one store only.
+
+### 10A.4 Approvals
+
+**Approvals** lists only what is waiting for **you** - the same approvals as **My work** (§10). The number on the home screen's tile is how many.
+
+- **Show details** shows the document's main fields.
+- **Approve**: tap it, then tap **Tap again to approve** within 4 seconds. The second tap is there so a slip of the thumb never approves anything.
+- **Reject**: tap it, type why (required - the person who sent it sees your reason), then tap **Confirm reject**.
+- If a decision gives you something to note down (for example a one-time password for a password-reset request), it stays on screen until you tap **Done**.
+
+### 10A.5 Scan an item
+
+Tap **Scan an item**, then do one of these:
+
+- **Scan with camera** (Android Chrome) and point the camera at the barcode;
+- with a **Bluetooth scanner**, tap the box once, then scan - it looks the code up by itself, whether or not the scanner sends Enter;
+- or type the code and tap **Look up**.
+
+It accepts an item code, its barcode, a receipt-date barcode, or a **GRN batch number** from the sticker (capital or small letters). You see:
+
+- the picture, name, code and barcode;
+- the **price** the till charges a walk-in customer (the default price list, else the item's sale price, else its MRP), and the **MRP**, struck through when the price is lower. Offers and a customer's own price list are applied at the till;
+- **Stock**: your store first, then every other store you may work at that holds some. *Available* is what can be sold now; *on hand* also shows when some of it is reserved or on hold;
+- for a scanned **batch**: the day it came in, how many days ago, the GRN and the supplier;
+- the **oldest batches with stock left**, oldest first, so old stock can be sold first. What is left of each batch is an estimate across all stores, the same as the **Batch Lookup & Ageing** report (§6.3).
+
+Cost is never shown in the app.
+
+**On an iPhone** the browser cannot read barcodes with the camera yet - use a Bluetooth scanner, or type the code.
+
+### 10A.6 No connection
+
+The app still opens and says **You are offline**; when the connection returns it carries on by itself. Lookups and approvals need a connection.
+
 ## 11. Your Profile, Password, and Session
 
 Click your name at the bottom of the sidebar to open your account menu, then **My Profile**. From there you can see your role and (if set up) your linked employee record, change your own password, and set how long the system should wait before automatically signing you out if you step away — separate from the account-wide session limit your admin controls.
@@ -2035,7 +2160,7 @@ Log in as your second account, go to **Financial Accounting → Approvals**, fin
 
 ### Step 6 — Receive the stock
 
-Back as the first user: **Procurement → Goods Receipt**. Click **+ New Goods Receipt**, choose your approved PO and click **Add PO & Load Items** (or use **Receive goods** on the PO's row), confirm the quantities that actually arrived, and click **Post Receipt**.
+Back as the first user: **Procurement → Goods Receipt**. Click **+ New Goods Receipt**, pick the **Vendor**, tick your approved PO and click **Load ticked POs** (or use **Receive goods** on the PO's row). Confirm the quantities that actually arrived, type the vendor's invoice number, date and total, and click **Save receipt**. Then work through the steps (§6.10): **Verify**, **Check prices**, type the **MRP** and **Save and post** each child - or **Post all** when everything matches.
 
 **Now check Inventory → Stock on Hand.** The quantity should have gone up. If it hasn't, stop here — everything downstream depends on this having worked.
 

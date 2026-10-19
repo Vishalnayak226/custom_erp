@@ -458,6 +458,8 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 			Sku       string  `json:"sku"`
 			Qty       int     `json:"qty"`
 			SalePrice float64 `json:"sale_price"`
+			MRP       float64 `json:"mrp"`     // Stage 94.6: the MRP picked at the till
+			Barcode   string  `json:"barcode"` // Stage 94.6: the code scanned
 		} `json:"items"`
 	}
 
@@ -588,7 +590,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	// missing hsn_code/gst_rate exactly as it did when called from here.
 	quoteLines := make([]engines.QuoteLineRequest, len(req.Items))
 	for i, item := range req.Items {
-		quoteLines[i] = engines.QuoteLineRequest{Sku: item.Sku, Qty: item.Qty, FallbackUnitPrice: item.SalePrice}
+		quoteLines[i] = engines.QuoteLineRequest{Sku: item.Sku, Qty: item.Qty, FallbackUnitPrice: item.SalePrice, MRP: item.MRP, Barcode: item.Barcode}
 	}
 	quote, quoteErr := engines.ResolvePOSQuote(tenantID, engines.QuoteRequest{
 		CartNumber:   req.CartNumber,

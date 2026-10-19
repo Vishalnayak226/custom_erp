@@ -141,11 +141,13 @@ func referenceFiles(root, stamp string) (map[string][]byte, error) {
 	for name, body := range map[string][]byte{
 		"docs/guides/ERROR_CODES.md":               []byte(errorCodesDoc(stamp)),
 		"docs/guides/REPORT_CATALOG.md":            []byte(reportCatalogDoc(stamp)),
-		"docs/kb/reference/report-catalog.md":      []byte(kbReportCatalog(stamp)),
 		"docs/kb/reference/country-phone-rules.md": []byte(kbCountryPhoneRules(stamp)),
 		"docs/api/generated/public-v1.json":        append(spec, '\n'),
 	} {
 		files[name] = body
+	}
+	for name, body := range kbReportCatalog(stamp) {
+		files["docs/kb/reference/"+name] = []byte(body)
 	}
 	for name, body := range kbErrorCodeReference(stamp) {
 		files["docs/kb/troubleshooting/"+name] = []byte(body)

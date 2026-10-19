@@ -9,10 +9,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
+	"io"
 	"net/http"
-	"os"
 	"path"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -52,6 +51,11 @@ const (
 // removed. Enabling another doctype is one line here (plus its UI).
 var attachmentDoctypes = map[string]map[string]bool{
 	"ExpenseClaim": {"Draft": true, "Rejected": true},
+	// Stage 74.1.6: evidence on stock and purchase documents - the vendor's
+	// invoice copy on a goods receipt while it is worked in steps (94.2), the
+	// proof on a purchase return before it posts.
+	"GRN":            {"Pending": true},
+	"PurchaseReturn": {"Draft": true},
 }
 
 // attachmentTypes are the only contents accepted, keyed by the sniffed type,
@@ -179,13 +183,13 @@ func newAttachmentStorageKey(schema, ext string) (string, error) {
 	return "attachments/" + schema + "/" + hex.EncodeToString(raw) + ext, nil
 }
 
-// attachmentFilePath resolves a stored key under the media store, refusing
-// any key this engine could not have written.
-func attachmentFilePath(key string) (string, error) {
+// checkAttachmentKey refuses any storage key this engine could not have
+// written, before the media store (media_store.go) is asked for it.
+func checkAttachmentKey(key string) error {
 	if !attachmentKeyPattern.MatchString(key) {
-		return "", fmt.Errorf("attachment storage key is not valid")
+		return fmt.Errorf("attachment storage key is not valid")
 	}
-	return filepath.Join(mediaStoreDir, filepath.FromSlash(key)), nil
+	return nil
 }
 
 // AddAttachment stores a file on a document. The document is locked while
@@ -247,28 +251,19 @@ func AddAttachment(tenantID, doctype, documentID, fileName string, content []byt
 	if err != nil {
 		return nil, err
 	}
-	filePath, err := attachmentFilePath(key)
-	if err != nil {
+	if err := checkAttachmentKey(key); err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(filepath.Dir(filePath), 0750); err != nil {
-		return nil, fmt.Errorf("failed to prepare attachment storage: %v", err)
-	}
-	f, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0640)
-	if err != nil {
+	// Stage 75.4.1: written once, private, through the server's media store.
+	if err := serverMedia.Write(key, content, MediaWrite{Exclusive: true, Private: true}); err != nil {
 		return nil, fmt.Errorf("failed to store the file: %v", err)
 	}
-	_, writeErr := f.Write(content)
-	closeErr := f.Close()
 	committed := false
 	defer func() {
 		if !committed {
-			_ = os.Remove(filePath)
+			_ = serverMedia.Remove(key)
 		}
 	}()
-	if writeErr != nil || closeErr != nil {
-		return nil, fmt.Errorf("failed to store the file: %v", firstNonNil(writeErr, closeErr))
-	}
 
 	att := &DocumentAttachment{
 		Doctype: doctype, DocumentID: documentID, FileName: name, ContentType: contentType,
@@ -285,15 +280,6 @@ func AddAttachment(tenantID, doctype, documentID, fileName string, content []byt
 	}
 	committed = true
 	return att, nil
-}
-
-func firstNonNil(errs ...error) error {
-	for _, err := range errs {
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 const attachmentColumns = `id, doctype, document_id, file_name, content_type, size_bytes, sha256, uploaded_by, created_at, storage_key`
@@ -376,16 +362,15 @@ func GetAttachment(tenantID, attachmentID string) (*DocumentAttachment, error) {
 
 // OpenAttachment returns a live file's record and an open handle on its
 // bytes. The caller closes the file.
-func OpenAttachment(tenantID, attachmentID string) (*DocumentAttachment, *os.File, error) {
+func OpenAttachment(tenantID, attachmentID string) (*DocumentAttachment, io.ReadSeekCloser, error) {
 	a, err := GetAttachment(tenantID, attachmentID)
 	if err != nil {
 		return nil, nil, err
 	}
-	filePath, err := attachmentFilePath(a.storageKey)
-	if err != nil {
+	if err := checkAttachmentKey(a.storageKey); err != nil {
 		return nil, nil, err
 	}
-	f, err := os.Open(filePath)
+	f, err := serverMedia.Open(a.storageKey)
 	if err != nil {
 		return nil, nil, fmt.Errorf("the stored file is missing: %v", err)
 	}

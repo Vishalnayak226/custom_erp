@@ -2,7 +2,6 @@ package engines
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"hash/fnv"
 	"regexp"
@@ -72,18 +71,12 @@ func issueCompactNumberTx(tx *sql.Tx, schema, docType, defaultPrefix, store stri
 	if m := compactYearPattern.FindStringSubmatch(fy); m != nil {
 		yy = m[1] + m[2]
 	}
-	var current int64
-	err := tx.QueryRow(fmt.Sprintf(`SELECT current_val FROM %s.sequence_counters WHERE doc_type = $3 AND store_code = $1 AND financial_year = $2 FOR UPDATE`, schema), store, fy, docType).Scan(&current)
-	if errors.Is(err, sql.ErrNoRows) {
-		if _, err := tx.Exec(fmt.Sprintf(`INSERT INTO %s.sequence_counters (doc_type, store_code, financial_year, current_val) VALUES ($3, $1, $2, 0)`, schema), store, fy, docType); err != nil {
-			return "", err
-		}
-		current = 0
-	} else if err != nil {
-		return "", err
-	}
-	next := current + 1
-	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.sequence_counters SET current_val = $1 WHERE doc_type = $4 AND store_code = $2 AND financial_year = $3`, schema), next, store, fy, docType); err != nil {
+	// 74.1.2: one statement takes the next number, so two first bills of a new
+	// store / year at once never collide on the counter's primary key.
+	var next int64
+	if err := tx.QueryRow(fmt.Sprintf(`INSERT INTO %s.sequence_counters (doc_type, store_code, financial_year, current_val) VALUES ($3, $1, $2, 1)
+		ON CONFLICT (doc_type, store_code, financial_year) DO UPDATE SET current_val = %s.sequence_counters.current_val + 1
+		RETURNING current_val`, schema, schema), store, fy, docType).Scan(&next); err != nil {
 		return "", err
 	}
 	digits := 6

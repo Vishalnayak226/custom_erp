@@ -558,7 +558,7 @@ async function addSKUToPOSCart() {
     String(r.code || r.id || '').toLowerCase() === lower ||
     String(r.barcode || '').toLowerCase() === lower);
   if (exact) {
-    await addResolvedItemToPOSCart(exact.code || exact.id, exact.name || '');
+    await addResolvedItemToPOSCart(exact.code || exact.id, exact.name || '', term);
     return;
   }
   if (rows.length === 0) {
@@ -567,7 +567,7 @@ async function addSKUToPOSCart() {
     return;
   }
   if (rows.length === 1) {
-    await addResolvedItemToPOSCart(rows[0].code || rows[0].id, rows[0].name || '');
+    await addResolvedItemToPOSCart(rows[0].code || rows[0].id, rows[0].name || '', term);
     return;
   }
   renderPOSSearchResults(rows, term);
@@ -577,7 +577,7 @@ async function addSKUToPOSCart() {
 // for certain. Both entry points - the scanner's exact match and the cashier's
 // pick from the result list - come through here, so a line added by scanning
 // and a line added by searching are identical in every respect.
-async function addResolvedItemToPOSCart(sku, name) {
+async function addResolvedItemToPOSCart(sku, name, scanned) {
   const skuInput = document.getElementById('pos-sku-input');
   const errorEl = document.getElementById('pos-scan-error');
   if (!sku) return;
@@ -611,7 +611,9 @@ async function addResolvedItemToPOSCart(sku, name) {
     // Stage 47.2: salePrice starts unknown and is filled in by the server's
     // own quote (refreshPOSQuote below). costPrice is gone from the line
     // shape entirely - the till neither collects nor sends a cost.
-    posCart.push({ sku, name: name || sku, available: sellable, withheld, heldText, qty: 1, salePrice: 0, referencePrice: 0, priceSource: '', overrideId: '', unpriced: false });
+    // Stage 94.6: the scanned code rides along - a receipt-date barcode
+    // names the receipt, so the server knows the MRP printed on it.
+    posCart.push({ sku, name: name || sku, available: sellable, withheld, heldText, qty: 1, salePrice: 0, referencePrice: 0, priceSource: '', overrideId: '', unpriced: false, barcode: scanned && scanned !== sku ? String(scanned) : '' });
   }
   if (skuInput) { skuInput.value = ''; skuInput.focus(); }
   if (errorEl) errorEl.classList.add('hidden');
@@ -659,6 +661,7 @@ function renderPOSCartTable(skipQuote) {
       <td>
         <div style="font-weight:600;">${cfgEsc(line.name || line.sku)}</div>
         ${line.name && line.name !== line.sku ? `<div style="font-size:11.5px; color:var(--text-muted);">${cfgEsc(line.sku)}</div>` : ''}
+        ${posMRPCell(line)}
       </td>
       <td>${posAvailabilityCell(line)}</td>
       <!-- Stage 53.8: steppers beside the box, not instead of it - a cashier
@@ -856,6 +859,28 @@ const POS_PRICE_SOURCE_LABELS = {
 // text; only a line the server could not price at all (assisted mode) keeps an
 // input, and it is labelled as unverified so nobody mistakes it for a
 // system price.
+// Stage 94.6 (D2): an item on the shelf at two or more MRPs - one tap picks
+// the MRP printed on what the customer is buying; the whole line sells at it.
+function posMRPCell(line) {
+  const choices = Array.isArray(line.mrpChoices) ? line.mrpChoices : [];
+  if (choices.length > 1 && !line.mrpPicked) {
+    return `<div class="pos-mrp-choice" role="group" aria-label="MRP printed on ${cfgEsc(line.name || line.sku)}">
+      <span>Which MRP is on it?</span>
+      ${choices.map(m => `<button class="btn btn-outline btn-sm" type="button" ${actionAttrs('pickPOSLineMRP', [line.sku, m])}>${Number(m).toFixed(2)}</button>`).join('')}
+    </div>`;
+  }
+  if (!line.mrp) return '';
+  return `<div style="font-size:11.5px; color:var(--text-muted);">MRP ${Number(line.mrp).toFixed(2)}${line.mrpPicked ? ` <button class="link-btn" type="button" ${actionAttrs('pickPOSLineMRP', [line.sku, 0])}>change</button>` : ''}</div>`;
+}
+
+function pickPOSLineMRP(sku, mrp) {
+  const line = posCart.find(l => l.sku === sku);
+  if (!line) return;
+  line.mrp = Number(mrp) || 0;
+  line.mrpPicked = line.mrp > 0;
+  renderPOSCartTable();
+}
+
 function posPriceCell(line) {
   const label = POS_PRICE_SOURCE_LABELS[line.priceSource] || '';
   if (line.unpriced) {
@@ -885,11 +910,10 @@ async function openPOSPriceOverride(sku) {
     `New unit price for ${sku} (current ${Number(line.salePrice).toFixed(2)}).`,
     String(line.salePrice), 'Price Override', 'number');
   if (newPrice === null || newPrice === '') return;
-  const reason = await showCustomPrompt(`Why is ${sku} being sold below its list price?`, '', 'Override Reason');
-  if (!reason) {
-    await showCustomAlert('A reason is required for a price override.', 'Override Not Recorded');
-    return;
-  }
+  // Stage 74.1.1: a reason from the reason codes, with an optional note.
+  const rp = await import('./reason-picker.js' + new URL(import.meta.url).search);
+  const picked = await rp.chooseReason({ category: 'Price Override', title: 'Override Reason', question: `Why is ${sku} being sold below its list price?` });
+  if (!picked) return;
   const res = await apiFetch('/api/v1/pos/price-override', {
     method: 'POST',
     body: JSON.stringify({
@@ -899,7 +923,8 @@ async function openPOSPriceOverride(sku) {
       location: posLocation,
       customer_id: (document.getElementById('pos-customer') || {}).value || '',
       override_price: parseFloat(newPrice) || 0,
-      reason: reason.trim()
+      reason: picked.text,
+      reason_code: picked.code
     })
   });
   if (!res) return;
@@ -966,7 +991,7 @@ async function refreshPOSQuote() {
         // Selection only, plus the operator's own figure for anything the
         // tenant has not priced - which the server uses ONLY if it can find
         // no price of its own (and then flags for approval).
-        items: posCart.map(l => ({ sku: l.sku, qty: l.qty, unit_price: l.unpriced ? l.salePrice : 0 }))
+        items: posCart.map(l => ({ sku: l.sku, qty: l.qty, unit_price: l.unpriced ? l.salePrice : 0, mrp: l.mrpPicked ? l.mrp : 0, barcode: l.barcode || '' }))
       })
     });
   } catch (e) {
@@ -1011,6 +1036,8 @@ async function refreshPOSQuote() {
     line.unpriced = ql.price_source === 'cashier_entered';
     line.notStocked = !!ql.not_stocked;
     line.billMode = ql.bill_mode || '';
+    line.mrp = Number(ql.mrp) || 0;
+    line.mrpChoices = Array.isArray(ql.mrp_choices) ? ql.mrp_choices : (line.mrpPicked ? line.mrpChoices : []);
   });
   posPackaging = Array.isArray(data.packaging) ? data.packaging : [];
   posGifts = Array.isArray(data.gifts) ? data.gifts : [];
@@ -1127,7 +1154,9 @@ async function submitPOSCheckoutInner() {
     const cartItems = posCart.map(line => ({
       sku: line.sku,
       qty: line.qty,
-      sale_price: line.unpriced ? line.salePrice : 0
+      sale_price: line.unpriced ? line.salePrice : 0,
+      mrp: line.mrpPicked ? line.mrp : 0, // Stage 94.6
+      barcode: line.barcode || ''
     }));
     const customerId = document.getElementById('pos-customer').value.trim();
     // Stage 30.2.5: the redemption travels with the sale and is burned
@@ -1704,4 +1733,4 @@ async function dropPOSRefusedLine(res) {
   return true;
 }
 
-export { renderPOSView, refreshPOSSessionStatus, openPOSSessionFlow, closePOSSessionFlow, addSKUToPOSCart, removeSKUFromPOSCart, updatePOSCartLine, renderPOSCartTable, posCanOverridePrice, posPriceCell, openPOSPriceOverride, posCurrentCartNumber, currentPOSCouponCodes, refreshPOSQuote, submitPOSCheckout, submitPOSCheckoutInner, printPOSReceipt, checkPOSLoyaltyBalance, clearPOSRedemption, redeemPOSLoyaltyPoints, resetPOSTerminal, renderPOSCustomerNote, clearPOSProductSearch, onPOSScanKeyDown, highlightPOSSearchResult, renderPOSSearchResults, pickPOSSearchResult, addResolvedItemToPOSCart, stepPOSCartLine, posAvailabilityCell, renderPOSTender, posReceiptItems, freezePOSTill, startNewPOSSale, printCompletedPOSSale, posStoreLabel, loadPOSStoreProfile, clearPOSTillState };
+export { posMRPCell, pickPOSLineMRP, renderPOSView, refreshPOSSessionStatus, openPOSSessionFlow, closePOSSessionFlow, addSKUToPOSCart, removeSKUFromPOSCart, updatePOSCartLine, renderPOSCartTable, posCanOverridePrice, posPriceCell, openPOSPriceOverride, posCurrentCartNumber, currentPOSCouponCodes, refreshPOSQuote, submitPOSCheckout, submitPOSCheckoutInner, printPOSReceipt, checkPOSLoyaltyBalance, clearPOSRedemption, redeemPOSLoyaltyPoints, resetPOSTerminal, renderPOSCustomerNote, clearPOSProductSearch, onPOSScanKeyDown, highlightPOSSearchResult, renderPOSSearchResults, pickPOSSearchResult, addResolvedItemToPOSCart, stepPOSCartLine, posAvailabilityCell, renderPOSTender, posReceiptItems, freezePOSTill, startNewPOSSale, printCompletedPOSSale, posStoreLabel, loadPOSStoreProfile, clearPOSTillState };

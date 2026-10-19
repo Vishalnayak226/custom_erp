@@ -9,14 +9,14 @@ audience: store manager, warehouse operator, category manager, admin
 applies_to: source release 0.1.0; configured tenant permissions
 authority: canonical
 confidentiality: internal
-last_verified: 2026-10-18
+last_verified: 2026-10-19
 review_by: 2026-11-18
 supersedes: none
 superseded_by: none
 section: Module Handbooks
 order: 64
-summary: The difference between a sticker template and a document print template, where each is made, and which one prints.
-screens: [stickers, doctype:printtemplate, doctype:stickertemplate, doctype:printer]
+summary: The difference between a sticker template and a document print template, where each is made, which one prints, and how a document is printed, saved as PDF or Excel, sent, and routed to each computer's own printer.
+screens: [stickers, doctype:printtemplate, doctype:stickertemplate, doctype:printer, doctype:printerassignment]
 topic_type: how-to
 module: inventory
 task: Print item stickers and set up how documents print
@@ -30,7 +30,7 @@ The system prints two different things, and each has its own kind of template.
 
 | | Sticker template | Document print template |
 |---|---|---|
-| What it prints | The small barcode label that goes on the product | A transaction on paper: Purchase Order, Vendor PO, Goods Receipt, Vendor Copy, Purchase Return, Transfer Out, Transfer In, Debit Note, Credit Note, Sales Return |
+| What it prints | The small barcode label that goes on the product | A transaction on paper: Purchase Order, Vendor PO, Goods Receipt, Vendor Copy, Purchase Return, Transfer Out, Transfer In, Debit Note, Credit Note, Sales Return, Sales Invoice |
 | Where you make it | **Inventory → Sticker Printing → Sticker templates** | **Inventory → Sticker Printing → Document templates**, or **Setup → Printing → Print Template** (the same screen) |
 | Which one prints | The first rule that fits: the item's own, its item type's, its category's, then the default | The most specific that fits: for the vendor, then for the design, then for the category, then the transaction's default |
 | If you make none | The built-in standard label | The built-in **Standard layout** |
@@ -56,3 +56,15 @@ The system prints two different things, and each has its own kind of template.
 4. To use a template only for one vendor, design or category, fill **Only for vendor**, **Only for designs / families** or **Only for categories**. **Make default** sets the one used when nothing more specific fits.
 
 **Design**, **Duplicate** and **Delete** on a template card do what they say. After deleting, documents print with the next best template, or the standard layout.
+
+## Print, save or send a document
+
+**Print** on a PO, GRN, transfer, sales invoice, return or note opens the print window. Besides **Print** it has:
+
+- **PDF** - the pages exactly as previewed, as a file named after the document.
+- **CSV** and **Excel** - the lines: design, combination / SKU, barcode, item, each attribute, brand, quantities and MRP, with cost on a PO or GRN and the selling price on a sales invoice (transfers, returns and notes carry MRP only).
+- **Send** - emails the PDF to the vendor, the receiving store or the customer. **Download PDF** there saves it to send yourself.
+
+## The right printer on every computer
+
+With QZ Tray on a computer, **Print** goes straight to that computer's printer for the kind of document - no dialog. The first time a kind prints there, the printer is chosen for you when it is clear (the default printer for A4 / A5, the receipt printer for bills, the label printer for stickers and labels), or you are asked once. It is never asked again; **Change** in the print window changes it, and **Setup → Printing → Printer Assignment** lists every computer's choices.

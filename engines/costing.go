@@ -201,6 +201,16 @@ func RecordGRNReceiptCosting(tenantID, schema, grnID string, acceptedLines []str
 	SKU string
 	Qty float64
 }) {
+	recordGRNReceiptCostingPart(tenantID, schema, grnID, "", acceptedLines)
+}
+
+// recordGRNReceiptCostingPart is RecordGRNReceiptCosting for one child of a
+// receipt that posts in parts (Stage 94): the GL key carries the part, so the
+// second child's entry is not taken for a replay of the first.
+func recordGRNReceiptCostingPart(tenantID, schema, grnID, part string, acceptedLines []struct {
+	SKU string
+	Qty float64
+}) {
 	poID := grnPurchaseOrderID(schema, grnID)
 	// Stage 62: a priced GRN costs at the vendor's invoice rate (stamped on
 	// its lines, multi-PO aware); an older GRN still costs from its PO.
@@ -247,9 +257,13 @@ func RecordGRNReceiptCosting(tenantID, schema, grnID string, acceptedLines []str
 	if totalValuePaise <= 0 {
 		return
 	}
+	key := fmt.Sprintf("GRN:%s:RECEIPT_COST", grnID)
+	if part != "" {
+		key = fmt.Sprintf("GRN:%s:RECEIPT_COST:%s", grnID, part)
+	}
 	if err := PostDoubleEntry(tenantID, "GRN", grnID,
 		debits, map[string]int64{"2100": totalValuePaise},
-		"", fmt.Sprintf("GRN:%s:RECEIPT_COST", grnID)); err != nil {
+		"", key); err != nil {
 		LogSystemError(tenantID, "", "ERROR", "RecordGRNReceiptCosting",
 			fmt.Sprintf("GRN %s: GL posting failed (stock already received, not rolled back): %v", grnID, err), "")
 	}

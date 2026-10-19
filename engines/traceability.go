@@ -189,6 +189,7 @@ type BatchInfo struct {
 	ReceivedOn    string            `json:"received_on,omitempty"`   // that receipt's date - what batch ageing counts from
 	Location      string            `json:"location,omitempty"`      // where that receipt was posted
 	AutoNumbered  bool              `json:"auto_numbered,omitempty"` // the number was issued by the GRN (Stage 61), not typed
+	MRP           float64           `json:"mrp,omitempty"`           // Stage 94 (D2): the MRP this receipt printed on the lot
 	Status        string            `json:"status"`
 	Attributes    map[string]string `json:"attributes,omitempty"`
 }
@@ -215,6 +216,7 @@ func batchFromData(docID, dataStr, status string) BatchInfo {
 	out.ReceivedOn, _ = data["received_on"].(string)
 	out.Location, _ = data["location"].(string)
 	out.AutoNumbered = data["auto_numbered"] == "Yes"
+	out.MRP = numFromInterface(data["mrp"])
 	// The JSON status field and the documents.status column are separate values
 	// in this schema (the CycleCountLine gate documents the same distinction).
 	// The column is authoritative for a lifecycle decision, so it is only
@@ -297,6 +299,11 @@ func EnsureBatch(tenantID string, in BatchInfo, receivedQty float64, userID stri
 			patch["vendor"] = in.Vendor
 			existing.Vendor = in.Vendor
 		}
+		// Stage 94 (D2): a lot's MRP is the one its first priced receipt printed.
+		if existing.MRP <= 0 && in.MRP > 0 {
+			patch["mrp"] = round2(in.MRP)
+			existing.MRP = round2(in.MRP)
+		}
 		// One day's auto-numbered batch shared by a later GRN (per-SKU-per-day
 		// numbering): add that receipt's quantity and record the GRN, once.
 		if grn := strings.TrimSpace(in.GRN); in.AutoNumbered && grn != "" && existing.AutoNumbered {
@@ -355,6 +362,9 @@ func EnsureBatch(tenantID string, in BatchInfo, receivedQty float64, userID stri
 	}
 	if in.AutoNumbered {
 		data["auto_numbered"] = "Yes"
+	}
+	if in.MRP > 0 {
+		data["mrp"] = round2(in.MRP) // Stage 94 (D2)
 	}
 	if len(in.Attributes) > 0 {
 		attrJSON, _ := json.Marshal(in.Attributes)

@@ -57,3 +57,39 @@ func TestStage73D8GenericSaveKeepsServerKeysAndFreezesPostedMoney(t *testing.T) 
 		t.Errorf("changing a posted invoice's total: %d %s, want FIN-0844", rec.Code, rec.Body.String())
 	}
 }
+
+// Stage 104: the PO screen's edit save (poDraftPayload, view-procurement.js)
+// sends the vendor, store, lines and GST settings - never the server-issued
+// code / po_number. Before the merge above, the save replaced the record and
+// was refused "PO Number (Internal) is required" (six times on the default
+// client's production log, 2026-10-17).
+func TestStage104POEditWithoutNumberFieldsSaves(t *testing.T) {
+	db.InitDB(testConnStr())
+	const poID, vendorID = "PO-T104-EDIT-1", "T104-VENDOR"
+	clean := func() {
+		db.DB.Exec(`DELETE FROM tenant_default.documents WHERE id IN ($1, $2)`, poID, vendorID)
+	}
+	clean()
+	t.Cleanup(clean)
+	if _, err := db.DB.Exec(`INSERT INTO tenant_default.documents (id, doctype, data, status, created_by) VALUES
+		($1, 'Vendor', '{"code":"T104-VENDOR","name":"T104 Vendor"}', 'Active', 'admin'),
+		($2, 'PurchaseOrder', '{"code":"PO-T104-EDIT-1","po_number":"PO-T104-EDIT-1","vendor":"T104-VENDOR","vendor_id":"T104-VENDOR","location":"HO","target_warehouse":"HO","items":"[]","total_amount":0}', 'Draft', 'admin')`, vendorID, poID); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/doc/{doctype}/{id}", apiMiddleware(handleGenericDoc))
+	token := engines.SignToken("admin", "admin", engines.RoleSuperAdmin, "default", "HO", currentCredentialVersion("admin"))
+
+	edit := map[string]interface{}{"vendor": vendorID, "vendor_id": vendorID, "target_warehouse": "HO", "location": "HO",
+		"items": "[]", "gst_mode": engines.GSTModeExclusive, "interstate": false, "total_amount": 0, "status": "Draft"}
+	if rec := doRequest(t, mux.ServeHTTP, http.MethodPost, "/api/v1/doc/PurchaseOrder/"+poID, token, edit); rec.Code != http.StatusOK {
+		t.Fatalf("editing a PO from the PO screen: %d %s", rec.Code, rec.Body.String())
+	}
+	var afterRaw string
+	db.DB.QueryRow(`SELECT data FROM tenant_default.documents WHERE id = $1`, poID).Scan(&afterRaw)
+	var after map[string]interface{}
+	json.Unmarshal([]byte(afterRaw), &after)
+	if after["code"] != poID || after["po_number"] != poID {
+		t.Errorf("the edit lost the PO's number: code=%v po_number=%v", after["code"], after["po_number"])
+	}
+}

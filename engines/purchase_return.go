@@ -373,6 +373,15 @@ func validatePurchaseReturnRules(tenantID, docID, priorStatus string, priorData,
 	if status == "Cancelled" {
 		return nil
 	}
+	// Stage 74.1.1: the reason code beside the typed reason.
+	code, text, err := ReasonForException(tenantID, ReasonPurchaseReturn, strField(payload, "reason_code"), strField(payload, "reason"))
+	if err != nil {
+		return err
+	}
+	payload["reason"] = text
+	if code != "" {
+		payload["reason_code"] = code
+	}
 	if strings.TrimSpace(strField(payload, "reason")) == "" {
 		return &ValidationError{Code: "PURCHA-0116", SubFor: "Reason for Return", Message: "a reason for returning the goods to the vendor is required"}
 	}
@@ -480,6 +489,20 @@ func PostPurchaseReturn(tenantID, returnID, userID, storeCode string) (*Purchase
 	if err != nil {
 		return nil, err
 	}
+	// Stage 94: a GRN received in steps left its rejected and damaged units
+	// off what we pay - its invoice-vs-GRN debit note already claimed them -
+	// so sending them back moves the stock but raises no second note.
+	valued := lines
+	if stepGRNSettlesSetAside(tenantID, ctx.GRNID) {
+		valued, total = nil, 0
+		for _, l := range lines {
+			if l.StockBucket == PurchaseReturnBucketAccepted {
+				valued = append(valued, l)
+				total += l.LineValue
+			}
+		}
+		total = round2(total)
+	}
 	if ctx.Location == "" {
 		return nil, &ValidationError{Code: "PURCHA-0118", Message: fmt.Sprintf("goods receipt %s has no receiving location to return stock from", ctx.GRNID)}
 	}
@@ -546,7 +569,7 @@ func PostPurchaseReturn(tenantID, returnID, userID, storeCode string) (*Purchase
 		}
 		// Input GST already claimed on these goods is reversed in the same
 		// transaction (follow-up to 57.15; model approved 2026-10-10).
-		itcPaise, err := purchaseReturnITCReversal(tx, tenantID, schema, ctx.POID, ctx.GRNID, lines)
+		itcPaise, err := purchaseReturnITCReversal(tx, tenantID, schema, ctx.POID, ctx.GRNID, valued)
 		if err != nil {
 			return nil, err
 		}

@@ -82,7 +82,7 @@
     },
     {
       "path": "internal/kb/content/articles/error-code-reference-2.html",
-      "sha256": "8e47df8e9513f712c5785a70df1fec2046159eb9e3a33eb9001f5b54b6095fca",
+      "sha256": "89aa8f56e1b4cf1e0f0b0f5964eff4930244c6208c475cd17936928fe20a8ba9",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -91,7 +91,7 @@
     },
     {
       "path": "internal/kb/content/articles/error-code-reference.html",
-      "sha256": "4cd60fc52a63d05388a3fedb6eb04621d2d925f1aa44a90dfe8deb787586dce1",
+      "sha256": "0253c8a33fb0200d2e5fade34782cf6ad6fd5cbf81d5341ad19cadaa646c08f4",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -181,7 +181,7 @@
     },
     {
       "path": "internal/kb/content/articles/incident-response.html",
-      "sha256": "08e310beaf06768626bcb537326a5c423ec7fa34ee0de2e5584067381f09b6e2",
+      "sha256": "201c4c28c040226cbd8a7728633d766777b1eeecd0b42dbcb4ce8f6a3dc363e0",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -190,7 +190,7 @@
     },
     {
       "path": "internal/kb/content/articles/inventory-wms-operations.html",
-      "sha256": "47b4664d0193c068edfcb3dbfaf990de07573b32bb516a0cd6a24a16622c62fd",
+      "sha256": "f9b715cf675b4fcb0fe30e2cc15df4b15667b68c03c25aec97cf8145e7244ea4",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -235,7 +235,7 @@
     },
     {
       "path": "internal/kb/content/articles/journey-store-manager.html",
-      "sha256": "173394bc0d49e49dbacf323067b24eaab5868bb3d763305b822e69cf505d734c",
+      "sha256": "2d4b016f844d6601cec44b543030ef50331a4b13a3b89bf9dfe921a045adab9b",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -244,7 +244,7 @@
     },
     {
       "path": "internal/kb/content/articles/journey-warehouse-operator.html",
-      "sha256": "808b0255f00259b67a5baff1338377932c72c51e7fd809defa476f9aed09d900",
+      "sha256": "96f7f0b4a022ff08a41ec68b32af41c1cc3865ae1e080dc1bfa87d358fea5f10",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -280,7 +280,7 @@
     },
     {
       "path": "internal/kb/content/articles/open-a-shop-and-make-your-first-sale.html",
-      "sha256": "a320704903a83d4e083bae5f789aa9e65b0fc6f142d6b65253645e3c87d2b4d6",
+      "sha256": "6c3df8428ff4d0bc435fc11ca999a38d5b32ec492f4923eec3114fa64a495594",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -334,7 +334,7 @@
     },
     {
       "path": "internal/kb/content/articles/printing-stickers-and-documents.html",
-      "sha256": "b0ec8be2865b229e31a0276da4d0a0839afe4f2703c712160c530cb246a21dfd",
+      "sha256": "9ac4ed4a697e28dcd11511df5689d0aae5efb291adbaaa1e626973038066320c",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -343,7 +343,7 @@
     },
     {
       "path": "internal/kb/content/articles/procurement.html",
-      "sha256": "b8b9a49a7181862086ee260f22b05cbf19ab2caa68af6782e6b1ae9abb14187e",
+      "sha256": "6c4fb314a7396df5fc601f7d4f22c1fcd0e5d82d6c0a30048ed4a06f3cb7b81d",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -370,7 +370,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes-2.html",
-      "sha256": "e6b503c5acd251329156bd591e282be2eb65d307c4fc8740cb69b2223a6dc395",
+      "sha256": "92477be4d0715803dd1579132e6a127ba173e9f3302023197439584d7f90869c",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -379,7 +379,25 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes.html",
-      "sha256": "7754d9f36a2a2f164d6f57452dadfe6a4937e439ae07735b0a29ea7d376f7e06",
+      "sha256": "72b3dbb914485e0c0055b4700c87f3b07997a26ab887f4b48d9a8e0233a17df8",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/report-catalog-2.html",
+      "sha256": "35340ccff0fa9f0751b095b7b04388b7cde20fcec97f970bfd66da0b6e7f26d1",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/report-catalog-3.html",
+      "sha256": "fcc19b44921229a6936a2bbe8896b08f93a415b40c2c2f6ee7fb4a472f4ced30",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -388,7 +406,7 @@
     },
     {
       "path": "internal/kb/content/articles/report-catalog.html",
-      "sha256": "3bdd098fa1dd3661fb950c77f07d35473ea27f8e1d0e183e5109ef7decf4d669",
+      "sha256": "c9230e9ae30331fd559d818516b415e8233708d886488cbbffd193438103d55a",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -451,7 +469,7 @@
     },
     {
       "path": "internal/kb/content/articles/troubleshooting-index.html",
-      "sha256": "1280eb2ec59fc449341a751ec7583fe6b7b1cd02f5c85c2fc56da91ac44326b9",
+      "sha256": "96160e360f9596cc663f4be7c2ec68cee583bcbf1c6b7af1c75924c19600fa17",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -496,7 +514,7 @@
     },
     {
       "path": "internal/kb/content/index.json",
-      "sha256": "9b2021006bd82256c31fa56407d238da4462164781301a55ca3ff1eb24eb426b",
+      "sha256": "75e2d95c7581e13bc9fcc7a555aa21aa15f7d3b8abdd0d5d0e47abdb41679f6b",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -505,7 +523,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "311f346c3c4eef4ee70350a61eb4d5fb6e28babed9b057fcf548cb7051cf6518",
+      "sha256": "644dda9676baab4677207278eb9909a87dda1b484f1d0e767d7680d197dff8af",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

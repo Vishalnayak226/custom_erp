@@ -20,7 +20,7 @@ screens: [reports]
 
 # Report catalog
 
-**121** reports across **15** categories, all reachable from
+**382** reports across **26** categories, all reachable from
 **Sales & Marketplace » Reports**.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -33,23 +33,392 @@ Admin and Store Manager. They are masked rather than dropped, so the table has
 the same shape whoever runs it and a screenshot from one person lines up with a
 screenshot from another.
 
+The list runs over **3** pages. The contents below cover every category and
+open the right page.
+
 ## Contents
 
+- [Accounting](#accounting) - 26 reports
 - [Admin](#admin) - 1 reports
 - [Assets](#assets) - 1 reports
 - [BI](#bi) - 1 reports
-- [CRM](#crm) - 9 reports
+- [CRM](#crm) - 19 reports
+- [E-commerce & Integration](#e-commerce-integration) - 12 reports
 - [Exceptions](#exceptions) - 6 reports
+- [Expense Management](#expense-management) - 11 reports
 - [Finance](#finance) - 33 reports
+- [GST & Compliance](#gst-compliance) - 8 reports
 - [HR](#hr) - 2 reports
-- [Inventory](#inventory) - 13 reports
-- [Manufacturing](#manufacturing) - 3 reports
-- [OMS](#oms) - 12 reports
-- [PIM](#pim) - 4 reports
-- [Procurement](#procurement) - 4 reports
-- [Sales](#sales) - 9 reports
-- [Service](#service) - 1 reports
-- [WMS](#wms) - 22 reports
+- [HRMS](#hrms) - 15 reports
+- [Inventory](report-catalog-2.md#inventory) - 33 reports
+- [MIS & Management](report-catalog-2.md#mis-management) - 10 reports
+- [Manufacturing](report-catalog-2.md#manufacturing) - 19 reports
+- [Master Data & Audit](report-catalog-2.md#master-data-audit) - 11 reports
+- [OMS](report-catalog-2.md#oms) - 25 reports
+- [PIM](report-catalog-2.md#pim) - 4 reports
+- [PIM / PIMS](report-catalog-2.md#pim-pims) - 16 reports
+- [Procurement](report-catalog-2.md#procurement) - 12 reports
+- [Procurement & GRN](report-catalog-3.md#procurement-grn) - 27 reports
+- [Sales](report-catalog-3.md#sales) - 9 reports
+- [Sales & POS](report-catalog-3.md#sales-pos) - 22 reports
+- [Service](report-catalog-3.md#service) - 1 reports
+- [Stock Transfer](report-catalog-3.md#stock-transfer) - 9 reports
+- [WMS](report-catalog-3.md#wms) - 49 reports
+
+## Accounting
+
+### AP Aging
+
+**Report id:** `cat-ap-aging`
+
+**Parameters:**
+
+- **Store** (`location`) - text, optional
+
+**Columns:** Vendor Code · Vendor Name · Vendor Invoice No · Posting Date · Due Date · Outstanding Amount · Aging Bucket · Status
+
+**Drill-down:** no.
+
+### AR Aging
+
+**Report id:** `cat-ar-aging`
+
+**Parameters:**
+
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Approved,Posted,Partially Paid,Paid,Overdue
+
+**Columns:** Customer ID · Customer Name · Sales Invoice No · Posting Date · Due Date · Outstanding Amount · Aging Bucket · Status
+
+**Drill-down:** no.
+
+### Accounting Audit Trail
+
+**Report id:** `cat-accounting-audit-trail`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Audit ID · Posting Date · Voucher No · Document Type · Document No · Edit Action · Field Changed · Old Value · New Value · User Name · Edited At
+
+**Drill-down:** no.
+
+### Balance Sheet
+
+**Report id:** `cat-balance-sheet`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** As Of Date · GL Account · Balance
+
+**Drill-down:** no.
+
+### Bank Reconciliation Report
+
+**Report id:** `cat-bank-reconciliation-report`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Posting Date · Bank Account · Bank Statement Ref · Voucher No · Reference No · Debit Amount · Credit Amount · Reconciliation Status · Remarks
+
+**Drill-down:** no.
+
+### Budget vs Actual
+
+**Report id:** `cat-budget-vs-actual`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** From Date · To Date · Department · Cost Center *(sensitive)* · GL Account · Target Amount · Net Amount · Amount Variance · Achievement %
+
+**Drill-down:** no.
+
+### Cash Flow Statement
+
+**Report id:** `cat-cash-flow-statement`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** From Date · To Date · GL Account · Debit Amount · Credit Amount · Net Amount
+
+**Drill-down:** no.
+
+### Cost Center P&L
+
+**Report id:** `cat-cost-center-p-and-l`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** From Date · To Date · Department · Cost Center *(sensitive)* · GL Account · Debit Amount · Credit Amount · Net Amount
+
+**Drill-down:** no.
+
+### Customer Ledger
+
+**Report id:** `cat-customer-ledger`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Posting Date · Customer ID · Customer Name · Document Type · Document No · Debit Amount · Credit Amount · Balance
+
+**Drill-down:** no.
+
+### Debit / Credit Note Register
+
+**Report id:** `cat-debit-credit-note-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Document Date · Document Type · Document No · Vendor Code · Customer ID · Taxable Amount · GST Amount · Net Amount · Reason · Status
+
+**Drill-down:** no.
+
+### Depreciation Schedule
+
+**Report id:** `cat-depreciation-schedule`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Draft,Active,Capitalised,Disposed,Retired
+
+**Columns:** From Date · To Date · Item Code · Item Name · Purchase Price *(sensitive)* · Debit Amount · Balance · Status
+
+**Drill-down:** no.
+
+### Finance Approval Pending Report
+
+**Report id:** `cat-finance-approval-pending-report`
+
+**Parameters:**
+
+- **Store** (`location`) - text, optional
+
+**Columns:** Document Type · Document No · Document Date · Vendor Name · Amount · Approval Level · Pending With · Ageing Days · Status
+
+**Drill-down:** no.
+
+### Fixed Asset Register
+
+**Report id:** `cat-fixed-asset-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Draft,Active,Capitalised,Disposed,Retired
+
+**Columns:** Document Date · Document No · Item Code · Item Name · Store Code · Cost Center *(sensitive)* · Purchase Price *(sensitive)* · Status · Created At
+
+**Drill-down:** no.
+
+### General Ledger
+
+**Report id:** `cat-general-ledger`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Posting Date · Voucher No · Document Type · Document No · GL Account · Cost Center *(sensitive)* · Debit Amount · Credit Amount · Balance · Remarks
+
+**Drill-down:** no.
+
+### Intercompany Reconciliation
+
+**Report id:** `cat-intercompany-reconciliation`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Posting Date · Legal Entity · Document Type · Document No · Debit Amount · Credit Amount · Balance · Reconciliation Status
+
+**Drill-down:** no.
+
+### Journal Voucher Register
+
+**Report id:** `cat-journal-voucher-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Draft,Pending Approval,Approved,Posted,Reversed,Rejected
+
+**Columns:** Posting Date · Voucher No · GL Account · Cost Center *(sensitive)* · Debit Amount · Credit Amount · Remarks · Created By · Approved By
+
+**Drill-down:** no.
+
+### Payment Proposal Register
+
+**Report id:** `cat-payment-proposal-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Draft,Pending Approval,Approved,Paid,Rejected
+
+**Columns:** Payment Proposal No · Posting Date · Vendor Code · Vendor Name · Proposed Payment Amount · Status · Approved By · Approval Date
+
+**Drill-down:** no.
+
+### Payment Register
+
+**Report id:** `cat-payment-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Payment Date · Voucher No · Vendor Code · Vendor Name · Bank Account · Net Amount · Reference No · Payment Status
+
+**Drill-down:** no.
+
+### Period Close Checklist
+
+**Report id:** `cat-period-close-checklist`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** From Date · To Date · Legal Entity · Document Type · Status · User Name · Approved By · Approved At · Remarks
+
+**Drill-down:** no.
+
+### Profit & Loss Statement
+
+**Report id:** `cat-profit-and-loss-statement`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** From Date · To Date · GL Account · Department · Cost Center *(sensitive)* · Debit Amount · Credit Amount · Net Amount
+
+**Drill-down:** no.
+
+### Receipt Register
+
+**Report id:** `cat-receipt-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Payment Date · Voucher No · Customer ID · Customer Name · Bank Account · Net Amount · Reference No · Status
+
+**Drill-down:** no.
+
+### Sales Invoice Accounting Register
+
+**Report id:** `cat-sales-invoice-accounting-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Approved,Posted,Partially Paid,Paid,Overdue
+
+**Columns:** Posting Date · Sales Invoice No · Customer ID · Customer Name · Customer GSTIN · Taxable Amount · GST Amount · Net Amount · Outstanding Amount · Status
+
+**Drill-down:** no.
+
+### TDS Register
+
+**Report id:** `cat-tds-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Posting Date · Vendor Code · Vendor Name · Document No · GL Account · Taxable Amount · GST % · Net Amount · Status
+
+**Drill-down:** no.
+
+### Trial Balance
+
+**Report id:** `cat-trial-balance`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** From Date · To Date · GL Account · Opening Stock Qty · Debit Amount · Credit Amount · Balance
+
+**Drill-down:** no.
+
+### Vendor Invoice Register
+
+**Report id:** `cat-vendor-invoice-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Draft,Pending Approval,Approved,Partially Paid,Paid,Cancelled
+
+**Columns:** Posting Date · Vendor Invoice No · Vendor Code · Vendor Name · Vendor GSTIN · Taxable Amount · GST Amount · Net Amount · Due Date · Payment Status
+
+**Drill-down:** no.
+
+### Vendor Ledger
+
+**Report id:** `cat-vendor-ledger`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Posting Date · Vendor Code · Vendor Name · Document Type · Document No · Debit Amount · Credit Amount · Balance
+
+**Drill-down:** no.
 
 ## Admin
 
@@ -92,6 +461,30 @@ screenshot from another.
 
 ## CRM
 
+### Birthday / Anniversary Campaign List
+
+**Report id:** `cat-birthday-anniversary-campaign-list`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Customer ID · Customer Name · Customer Mobile · Campaign · Segment · Last Sale Date · Loyalty Points · Status
+
+**Drill-down:** no.
+
+### Campaign Performance
+
+**Report id:** `cat-campaign-performance`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** From Date · To Date · Campaign · Channel · Bill Count · Net Sales Amount · Discount Amount · Achievement %
+
+**Drill-down:** no.
+
 ### Campaign ROI
 
 **Report id:** `campaign-roi`
@@ -112,6 +505,34 @@ screenshot from another.
 
 **Drill-down:** no.
 
+### Complaint / Service Case Register
+
+**Report id:** `cat-complaint-service-case-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Open,In Progress,Resolved,Closed,Cancelled
+
+**Columns:** Case No · Created At · Customer ID · Customer Name · Customer Mobile · Store Name · Case Status · Reason · User Name · Remarks
+
+**Drill-down:** no.
+
+### Coupon / Voucher Usage Report
+
+**Report id:** `cat-coupon-voucher-usage-report`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Document Date · Customer ID · Customer Name · Coupon Code · Campaign · Sales Invoice No · Discount Amount · Net Amount · Status
+
+**Drill-down:** no.
+
 ### Customer 360
 
 **Report id:** `customer-360`
@@ -124,6 +545,29 @@ screenshot from another.
 
 **Drill-down:** no.
 
+### Customer 360 Summary
+
+**Report id:** `cat-customer-360-summary`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Customer ID · Customer Name · Customer Mobile · Segment · Loyalty Points · Last Sale Date · Net Sales Amount · Bill Count · Feedback Score · Status
+
+**Drill-down:** no.
+
+### Customer Inactivity / Churn Report
+
+**Report id:** `cat-customer-inactivity-churn-report`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Customer ID · Customer Name · Customer Mobile · Last Sale Date · Bill Count · Net Sales Amount · Segment · Status
+
+**Drill-down:** no.
+
 ### Customer Lifetime Value
 
 **Report id:** `customer-lifetime-value`
@@ -133,6 +577,29 @@ screenshot from another.
 - **Churn Threshold Days (default 90)** (`churn_days`) - text, optional
 
 **Columns:** Customer · Lifetime Value *(sensitive)* · Orders · First Order · Last Order · Churned?
+
+**Drill-down:** no.
+
+### Customer Merge / Mobile Change Audit
+
+**Report id:** `cat-customer-merge-mobile-change-audit`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Audit ID · Customer ID · Customer Name · Field Changed · Old Value · New Value · Edit Reason · Edited By · Edited At
+
+**Drill-down:** no.
+
+### Customer Segmentation Report
+
+**Report id:** `cat-customer-segmentation-report`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Customer ID · Customer Name · Customer Mobile · Segment · RFM Score · Bill Count · Net Sales Amount · Last Sale Date
 
 **Drill-down:** no.
 
@@ -153,6 +620,20 @@ screenshot from another.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Customer · Total Earned · Total Redeemed · Current Balance *(sensitive)* · Transactions
+
+**Drill-down:** no.
+
+### Loyalty Points Ledger
+
+**Report id:** `cat-loyalty-points-ledger`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Document Date · Customer ID · Customer Name · Sales Invoice No · Sales Return No · Loyalty Points · Edit Action · Balance
 
 **Drill-down:** no.
 
@@ -186,6 +667,176 @@ screenshot from another.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Customer · Recency (days) · Frequency · Monetary *(sensitive)* · R · F · M · Segment
+
+**Drill-down:** no.
+
+### Repeat Purchase Report
+
+**Report id:** `cat-repeat-purchase-report`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Customer ID · Customer Name · Customer Mobile · Bill Count · Net Sales Amount · Last Sale Date · Segment
+
+**Drill-down:** no.
+
+## E-commerce & Integration
+
+### E-commerce Sales Order Item Detail
+
+**Report id:** `cat-e-commerce-sales-order-item-detail`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Order Date · Order ID · Shipment ID · Invoice Code · Sales Channel · Outlet ID · Outlet Name · Channel SKU · SKU · Item Name · Qty · Line Status · Invoice Status · UC Status · POS Bill Status · POS Invoice No · Package Amount · Tracking Number · Shipping Provider
+
+**Drill-down:** no.
+
+### E-commerce Sales Order Summary
+
+**Report id:** `cat-e-commerce-sales-order-summary`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Order Date · Order ID · Shipment ID · Shipment Sequence · Invoice Code · Invoice Date · Manifest Code · Sales Channel · Outlet ID · Outlet Name · UC Status · Invoice Status · POS Bill Status · POS Invoice No · Qty · Package Amount · Tracking Number · Shipping Provider
+
+**Drill-down:** no.
+
+### ERP vs Unicommerce Inventory Reconciliation - Itemwise
+
+**Report id:** `cat-erp-vs-unicommerce-inventory-reconciliation-itemwise`
+
+**Parameters:**
+
+- **Store** (`location`) - text, optional
+
+**Columns:** As Of Date · ERP Sync Time · Outlet ID · Outlet Name · UC Facility Code · SKU · Barcode · ERP Inventory Qty · Unicommerce Inventory Qty · Variance Qty · Variance Status · Mapping Status
+
+**Drill-down:** no.
+
+### ERP vs Unicommerce Inventory Reconciliation - Summary
+
+**Report id:** `cat-erp-vs-unicommerce-inventory-reconciliation-summary`
+
+**Parameters:**
+
+- **Store** (`location`) - text, optional
+
+**Columns:** As Of Date · Latest ERP Sync Time · SKU · Item Name · ERP Inventory Qty · Unicommerce Inventory Qty · Variance Qty · Mismatch Outlet Count · Variance Status · Mapping Status
+
+**Drill-down:** no.
+
+### Integration Retry / Failure Audit
+
+**Report id:** `cat-integration-retry-failure-audit`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Created At · Source Document Type · Source Document No · Integration Status · Error Code · Error Message · Retry Count · Last Retry At · User Name
+
+**Drill-down:** no.
+
+### Inventory Sync Log
+
+**Report id:** `cat-inventory-sync-log`
+
+**Parameters:**
+
+- **Store** (`location`) - text, optional
+
+**Columns:** ERP Sync Time · Outlet ID · Outlet Name · UC Facility Code · SKU · ERP Inventory Qty · Unicommerce Inventory Qty · Integration Status · Error Code · Error Message · Retry Count
+
+**Drill-down:** no.
+
+### Marketplace Order Status Summary
+
+**Report id:** `cat-marketplace-order-status-summary`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** From Date · To Date · Sales Channel · UC Status · POS Bill Status · Invoice Status · Bill Count · Qty · Net Amount
+
+**Drill-down:** no.
+
+### Online Return Register
+
+**Report id:** `cat-online-return-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Document Date · Sales Return No · Original Bill No · Order ID · Shipment ID · Sales Channel · Outlet Name · SKU · Barcode · Return Qty · Net Amount · Status
+
+**Drill-down:** no.
+
+### Order Sync Log
+
+**Report id:** `cat-order-sync-log`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Created At · Order ID · Shipment ID · Sales Channel · Outlet Name · Integration Status · Error Code · Error Message · Retry Count · Last Retry At
+
+**Drill-down:** no.
+
+### Outlet / Facility Mapping Summary
+
+**Report id:** `cat-outlet-facility-mapping-summary`
+
+**Parameters:**
+
+- **Store** (`location`) - text, optional
+
+**Columns:** Outlet ID · Outlet Name · UC Facility Code · Mapping Status · Status · Created By
+
+**Drill-down:** no.
+
+### Pending Sales Order Stock
+
+**Report id:** `cat-pending-sales-order-stock`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Order Date · Order ID · Shipment ID · Outlet Name · SKU · Item Name · Qty · Available Qty · UC Status · POS Bill Status · Status
+
+**Drill-down:** no.
+
+### Sales Order Integration Error
+
+**Report id:** `cat-sales-order-integration-error`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Order Date · Order ID · Shipment ID · Sales Channel · Integration Status · Error Code · Error Message · Retry Count · Last Retry At
 
 **Drill-down:** no.
 
@@ -252,6 +903,172 @@ screenshot from another.
 - **Threshold Hours (default 24)** (`threshold_hours`) - text, optional
 
 **Columns:** Doctype · Document · Submitted · Hours Pending
+
+**Drill-down:** no.
+
+## Expense Management
+
+### Accounting Export Report
+
+**Report id:** `cat-accounting-export-report`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Claim No · Posting Date · Employee ID · Employee Name · Expense Category · GL Account · Cost Center *(sensitive)* · Eligible Amount · GST Amount · Status
+
+**Drill-down:** no.
+
+### Approved Pending Payment
+
+**Report id:** `cat-approved-pending-payment`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Draft,Submitted,Verified,Paid,Rejected
+
+**Columns:** Claim No · Expense Date · Employee ID · Employee Name · Department · Eligible Amount · Approval Status · Payment Status · SLA Age Hours
+
+**Drill-down:** no.
+
+### Claims Pending Approval
+
+**Report id:** `cat-claims-pending-approval`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Draft,Submitted,Verified,Paid,Rejected
+
+**Columns:** Claim No · Expense Date · Employee ID · Employee Name · Department · Expense Category · Claim Amount · Approval Status · SLA Age Hours · Manager Name
+
+**Drill-down:** no.
+
+### Department / Category / Month Summary
+
+**Report id:** `cat-department-category-month-summary`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Draft,Submitted,Verified,Paid,Rejected
+
+**Columns:** From Date · To Date · Department · Expense Category · Claim Amount · Eligible Amount · Headcount
+
+**Drill-down:** no.
+
+### Employee Expense Summary
+
+**Report id:** `cat-employee-expense-summary`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Draft,Submitted,Verified,Paid,Rejected
+
+**Columns:** From Date · To Date · Employee ID · Employee Name · Department · Claim Amount · Eligible Amount · Payment Status
+
+**Drill-down:** no.
+
+### Expense Advance Settlement
+
+**Report id:** `cat-expense-advance-settlement`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Draft,Submitted,Verified,Paid,Rejected
+
+**Columns:** Document Date · Employee ID · Employee Name · Advance No · Advance Amount · Advance Adjusted Amount · Advance Balance Amount · Status
+
+**Drill-down:** no.
+
+### Expense Aging / SLA Report
+
+**Report id:** `cat-expense-aging-sla-report`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Draft,Submitted,Verified,Paid,Rejected
+
+**Columns:** Claim No · Expense Date · Employee ID · Department · Claim Amount · Approval Status · Payment Status · SLA Due At · SLA Age Hours · Status
+
+**Drill-down:** no.
+
+### Expense Claim Register
+
+**Report id:** `cat-expense-claim-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Draft,Submitted,Verified,Paid,Rejected
+
+**Columns:** Claim No · Expense Date · Employee ID · Employee Name · Department · Expense Category · Claim Amount · Eligible Amount · Approval Status · Payment Status · Status
+
+**Drill-down:** no.
+
+### Paid Claims Register
+
+**Report id:** `cat-paid-claims-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Draft,Submitted,Verified,Paid,Rejected
+
+**Columns:** Claim No · Expense Date · Employee ID · Employee Name · Eligible Amount · Payment Date · UTR No · Payment Status
+
+**Drill-down:** no.
+
+### Policy Violation / Exception Report
+
+**Report id:** `cat-policy-violation-exception-report`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Draft,Submitted,Verified,Paid,Rejected
+
+**Columns:** Claim No · Employee ID · Employee Name · Expense Category · Claim Amount · Eligible Amount · Policy Exception · Approval Status · Status
+
+**Drill-down:** no.
+
+### Rejected / Returned Claims
+
+**Report id:** `cat-rejected-returned-claims`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Draft,Submitted,Verified,Paid,Rejected
+
+**Columns:** Claim No · Expense Date · Employee ID · Employee Name · Claim Amount · Approval Status · Reason · Remarks · User Name
 
 **Drill-down:** no.
 
@@ -678,6 +1495,120 @@ screenshot from another.
 
 **Drill-down:** no.
 
+## GST & Compliance
+
+### E-Invoice / IRN Status Register
+
+**Report id:** `cat-e-invoice-irn-status-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Document Date · Document Type · Document No · GSTIN · IRN · Ack No · Ack Date · IRN Status · IRN Error · Status
+
+**Drill-down:** no.
+
+### E-Invoice Error / Retry Report
+
+**Report id:** `cat-e-invoice-error-retry-report`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Document Date · Document No · IRN Status · IRN Error · Retry Count · Last Retry At · User Name · Status
+
+**Drill-down:** no.
+
+### GST Bill Number / Document Series Audit
+
+**Report id:** `cat-gst-bill-number-document-series-audit`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Document Date · Document Type · Document No · GST Bill No · Original Bill No · GSTIN · Status · Created By
+
+**Drill-down:** no.
+
+### GST Document Tax Detail
+
+**Report id:** `cat-gst-document-tax-detail`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Document Date · Document Type · Document No · GSTIN · Customer GSTIN · HSN Code · Place of Supply · Tax Type · GST % · Taxable Amount · CGST Amount · SGST Amount · IGST Amount · Net Amount
+
+**Drill-down:** no.
+
+### GSTR-1 B2B / B2C Summary
+
+**Report id:** `cat-gstr-1-b2b-b2c-summary`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** From Date · To Date · GSTIN · Supply Type · Place of Supply · GST % · Taxable Amount · CGST Amount · SGST Amount · IGST Amount · Net Amount
+
+**Drill-down:** no.
+
+### GSTR-1 HSN Summary
+
+**Report id:** `cat-gstr-1-hsn-summary`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** From Date · To Date · GSTIN · HSN Code · GST % · Qty · Taxable Amount · CGST Amount · SGST Amount · IGST Amount · Net Amount
+
+**Drill-down:** no.
+
+### HSN Tax Summary
+
+**Report id:** `cat-hsn-tax-summary`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** From Date · To Date · HSN Code · GST % · Qty · Taxable Amount · GST Amount · Net Amount
+
+**Drill-down:** no.
+
+### IRN Portal Manual Upload Report
+
+**Report id:** `cat-irn-portal-manual-upload-report`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Document Date · Document Type · Document No · GSTIN · Customer GSTIN · Place of Supply · Taxable Amount · CGST Amount · SGST Amount · IGST Amount · Net Amount · IRN Status · IRN Error
+
+**Drill-down:** no.
+
 ## HR
 
 ### Attendance Summary
@@ -706,836 +1637,216 @@ screenshot from another.
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
-## Inventory
+## HRMS
 
-### Backflush Consumption
+### Attendance Register
 
-**Report id:** `backflush-consumption`
+**Report id:** `cat-attendance-register`
 
 **Parameters:**
 
 - **From** (`from`) - date, optional
 - **To** (`to`) - date, optional
-- **Store** (`store`) - text, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Present,Absent,Half Day,Late,On Leave
 
-**Columns:** Date · Bill · Store · Sold item · Group · Consumed · Qty · Default · Changed · Reason · Rule (version)
+**Columns:** Attendance Date · Employee ID · Employee Name · Department · Store Name · Shift · Check In · Check Out · Attendance Status
 
 **Drill-down:** no.
 
-### Batch Lookup & Ageing
+### Attrition Report
 
-**Report id:** `batch-ageing`
+**Report id:** `cat-attrition-report`
 
 **Parameters:**
 
-- **Scan batch, barcode or SKU** (`scan`) - text, optional
-- **Older than (days)** (`min_age_days`) - text, optional
-- **Show** (`show`) - select, optional, one of: All batches,Only with stock left
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Active,Inactive,Exited,On Notice
 
-**Columns:** Batch · Item · Received On · Age (days) · Age Band · GRN · Supplier · Received Qty · Est. Left (FIFO) · Expires · Batch Status
-
-**Drill-down:** no.
-
-### Current Stock
-
-**Report id:** `current-stock`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** SKU · Location · On Hand · Available · Committed · Reserved · Safety Stock
+**Columns:** Document Date · Employee ID · Employee Name · Department · Store Name · Reason · Status
 
 **Drill-down:** no.
 
-### Demand Forecast (Trend)
+### Employee Loan / Advance Register
 
-**Report id:** `demand-forecast`
-
-**Parameters:**
-
-- **SKU** (`sku`) - text, **required**
-- **Location** (`location_code`) - text, **required**
-- **Forecast Days** (`forecast_days`) - text, **required**
-
-**Columns:** SKU · Location · Forecasted Qty
-
-**Drill-down:** no.
-
-### Inventory Valuation
-
-**Report id:** `inventory-valuation`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** SKU · Qty On Hand · Unit Cost (Avg) *(sensitive)* · Total Value *(sensitive)* · Costed
-
-**Drill-down:** no.
-
-### Item Classification Register
-
-**Report id:** `item-classification-register`
-
-**Parameters:**
-
-- **Item Type** (`item_type`) - text, optional
-- **Sellability** (`sellability`) - select, optional, one of: ,Normal sale,Promo only,Not sellable,Stored-value issue only
-
-**Columns:** SKU · Item · Item Type · Class · Stock · Valuation · Accounting · Sellability · Bill · Capture · Consumption · Item overrides · Status
-
-**Drill-down:** no.
-
-### Non-Valuated Stock
-
-**Report id:** `non-valuated-stock`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** SKU · Item · Item Type · Store · On hand · Available
-
-**Drill-down:** no.
-
-### Pegged Demand & Supply
-
-**Report id:** `pegged-demand-supply`
-
-**Parameters:**
-
-- **SKU** (`sku`) - text, **required**
-- **Location (for on-hand supply)** (`location_code`) - text, optional
-
-**Columns:** Kind · Type · Reference · Qty · Status
-
-**Drill-down:** no.
-
-### Reorder Suggestions (Configured)
-
-**Report id:** `reorder-suggestions`
-
-**Parameters:**
-
-- **Location** (`location_code`) - text, **required**
-- **Default Lead Time (days)** (`default_lead_time_days`) - text, **required**
-- **Default Safety Stock** (`default_safety_stock`) - text, **required**
-
-**Columns:** SKU · Location · Available · Daily Velocity · Reorder Point · Suggested Qty · Safety Stock · Lead Time (days)
-
-**Drill-down:** no.
-
-### Stock Ageing (by GRN batch)
-
-**Report id:** `stock-ageing`
-
-**Parameters:**
-
-- **Scan barcode or SKU (optional)** (`scan`) - text, optional
-
-**Columns:** Item · On Hand · 0-30 days · 31-60 days · 61-90 days · 91-180 days · Over 180 days · Before batch numbers · Oldest Batch Held · Oldest Received On
-
-**Drill-down:** no.
-
-### Stock Book vs Ledger (drift finder)
-
-**Report id:** `stock-book-vs-ledger`
-
-**Parameters:**
-
-- **Item Code (optional)** (`sku`) - text, optional
-- **Location (optional)** (`location`) - text, optional
-- **Include rows that agree** (`all`) - select, optional, one of: No,Yes
-
-**Columns:** Item · Location · On hand (book) · Ledger total · Difference · Ledger lines · What it suggests
-
-**Drill-down:** no.
-
-### Stock Ledger
-
-**Report id:** `stock-ledger`
-
-**Parameters:**
-
-- **SKU (optional)** (`sku`) - text, optional
-- **Location (optional)** (`location_code`) - text, optional
-- **Voucher Type (optional)** (`voucher_type`) - text, optional
-- **From (optional)** (`start`) - date, optional
-- **To (optional)** (`end`) - date, optional
-
-**Columns:** Date · SKU · Location · Qty Delta · Running Balance · Voucher Type · Voucher ID · From Location/Bin · To Location/Bin · From Condition · To Condition · User
-
-**Drill-down:** no.
-
-### Stock by Location
-
-**Report id:** `stock-by-location`
-
-**Parameters:**
-
-- **Store code (blank = all)** (`store`) - text, optional
-
-**Columns:** Store · SKU · Main · Inward · In-Transit · QC Hold · Damage · On Hold · Purchase Return · Own locations · Sellable
-
-**Drill-down:** no.
-
-## Manufacturing
-
-### Production Capacity Schedule
-
-**Report id:** `production-capacity-schedule`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Production Order · Operation Seq · Work Center · Needed Minutes · Finite Date · Infinite Date · Overflow (past due date)
-
-**Drill-down:** no.
-
-### Production Cost Variance
-
-**Report id:** `production_cost_variance`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Production Order · BOM · Quantity · Standard Cost (Total) · Actual Cost · Variance · Variance % · Flag
-
-**Drill-down:** no.
-
-### Production Order Status
-
-**Report id:** `production-order-status`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Order ID · BOM · Finished Item · Qty · Status · Date
-
-**Drill-down:** no.
-
-## OMS
-
-### Allocation Pending
-
-**Report id:** `allocation-pending`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Order · Customer · Channel · Total Amount *(sensitive)* · Created At
-
-**Drill-down:** no.
-
-### Courier Performance
-
-**Report id:** `courier-performance`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Carrier · Total Shipments · Delivered · RTO · RTO Rate % · Avg Handover->Delivered (hrs)
-
-**Drill-down:** no.
-
-### OMS Exception Queue
-
-**Report id:** `oms-exception-queue`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Event ID · Event · Status · Attempts · Queued At · Last Error
-
-**Drill-down:** no.
-
-### OMS Reconciliation Variance
-
-**Report id:** `oms-reconciliation-variance`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Order · Order Status · Shipment/Booking · Booking Status · Variance
-
-**Drill-down:** no.
-
-### Order Aging
-
-**Report id:** `order-aging`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Age Bucket · Order Count · Total Amount *(sensitive)*
-
-**Drill-down:** yes - a row's **View Details** opens the transactions behind it.
-
-### Orphaned Channel Orders (pre-35.1 intake)
-
-**Report id:** `orphaned-channel-orders`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Mapping Table · Channel · Channel Order ID · Legacy Order ID · Last Written
-
-**Drill-down:** no.
-
-### Reserved Stock
-
-**Report id:** `reserved-stock`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** SKU · Location · Reserved · Committed · On Hand · Available
-
-**Drill-down:** no.
-
-### Return Aging
-
-**Report id:** `return-aging`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Age Bucket · Return Request Count
-
-**Drill-down:** yes - a row's **View Details** opens the transactions behind it.
-
-### SLA Breach
-
-**Report id:** `sla-breach`
-
-**Parameters:**
-
-- **Threshold (minutes, default 120)** (`threshold_minutes`) - text, optional
-
-**Columns:** Task ID · Order · Location · Status · Minutes Elapsed · Threshold (mins)
-
-**Drill-down:** no.
-
-### Settlement Variance Queue
-
-**Report id:** `oms-settlement-variance`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Settlement Line · Channel · Channel Order ID · Order · Batch · Gross Amount *(sensitive)* · Expected (Invoiced) *(sensitive)* · Variance *(sensitive)* · Status · Settlement Date
-
-**Drill-down:** no.
-
-### Stock Mismatch
-
-**Report id:** `stock-mismatch`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** SKU · Location · On Hand · Available · Reserved · Safety Stock · Blocked · QC Hold · Damaged · Channel Buffer · ATS (negative = over-committed)
-
-**Drill-down:** no.
-
-### Unsettled Marketplace Orders
-
-**Report id:** `oms-unsettled-settlements`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Order · Channel · Order Status · Days Since Ship · Overdue
-
-**Drill-down:** no.
-
-## PIM
-
-### PIM Overdue Tasks
-
-**Report id:** `pim-task-overdue`
-
-**Parameters:**
-
-- **Assignee (blank = everyone)** (`assignee`) - text, optional
-
-**Columns:** Task · Title · Item · Assignee · Due · Days Overdue · Priority · Status
-
-**Drill-down:** no.
-
-### PIM Product Group Readiness
-
-**Report id:** `pim-product-group-readiness`
-
-**Parameters:**
-
-- **Product Group ID or code** (`group_id`) - text, **required**
-
-**Columns:** Item · Name · Family · Status · Completeness % · Missing Fields
-
-**Drill-down:** no.
-
-### PIM Stalled Workflow Runs
-
-**Report id:** `pim-workflow-stalled`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Run · Workflow · Item · Stage · Status · Why It Is Waiting · Age (days) · Open Tasks
-
-**Drill-down:** no.
-
-### PIM Task Workload by Assignee
-
-**Report id:** `pim-task-workload`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Assignee · Open · In Progress · Blocked · Overdue · Due This Week
-
-**Drill-down:** no.
-
-## Procurement
-
-### GRN Register
-
-**Report id:** `grn-register`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** GRN ID · PO Reference · Item Lines · Status · Date
-
-**Drill-down:** no.
-
-### Open Purchase Commitments
-
-**Report id:** `po-commitments`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Age Bucket · PO Count · Committed Amount *(sensitive)*
-
-**Drill-down:** yes - a row's **View Details** opens the transactions behind it.
-
-### RFQ Comparison Export
-
-**Report id:** `rfq-comparison`
-
-**Parameters:**
-
-- **RFQ ID** (`rfq_id`) - text, **required**
-
-**Columns:** Quote ID · Vendor · Quoted Price *(sensitive)* · Status
-
-**Drill-down:** no.
-
-### Vendor Ledger
-
-**Report id:** `vendor-ledger`
-
-**Parameters:**
-
-- **Vendor (optional)** (`vendor_id`) - text, optional
-
-**Columns:** PO ID · Vendor · PO Number · Total Amount *(sensitive)* · Status · Date
-
-**Drill-down:** no.
-
-## Sales
-
-### Competitor Price Gap
-
-**Report id:** `competitor-price-gap`
-
-**Parameters:**
-
-- **Platform (optional)** (`platform`) - select, optional, one of: Amazon,Flipkart,Myntra,Meesho,Ajio,Nykaa,Tata Cliq,JioMart,eBay,Own Website,Other
-- **Our SKU (optional)** (`sku`) - text, optional
-- **Observed on or after (optional)** (`since`) - date, optional
-- **We are (optional)** (`position`) - select, optional, one of: Above,At,Below,No price on file
-
-**Columns:** Our SKU · Item · Our Price · Our Price From · Best Competitor Price · Platform · Gap (₹) · Gap (%) · We Are · Observed On · Observations · Source
-
-**Drill-down:** no.
-
-### Customer Advance Register
-
-**Report id:** `advance-register`
-
-**Parameters:**
-
-- **Store code (blank = all)** (`store`) - text, optional
-- **Open only** (`open`) - select, optional, one of: ,Yes
-
-**Columns:** Receipt voucher · Taken · Store · Customer · For · Expected · Taken · Used · Refunded · Balance · Status · Paid by
-
-**Drill-down:** no.
-
-### Customer Ledger
-
-**Report id:** `customer-ledger`
-
-**Parameters:**
-
-- **Customer (optional)** (`customer`) - text, optional
-
-**Columns:** Invoice ID · Customer · Invoice Number · Total Amount *(sensitive)* · Status · Date
-
-**Drill-down:** no.
-
-### Gift With Purchase Register
-
-**Report id:** `gwp-issue-register`
+**Report id:** `cat-employee-loan-advance-register`
 
 **Parameters:**
 
 - **From** (`from`) - date, optional
 - **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
 
-**Columns:** Date · Bill · Store · Customer · Gift · Qty · Offer
+**Columns:** Document Date · Employee ID · Employee Name · Advance No · Advance Amount · Advance Adjusted Amount · Advance Balance Amount · Status
 
 **Drill-down:** no.
 
-### Post-Sale Edit History
+### Employee Master Register
 
-**Report id:** `post-sale-edit-history`
+**Report id:** `cat-employee-master-register`
 
 **Parameters:**
 
-- **From** (`from_date`) - date, optional
-- **To** (`to_date`) - date, optional
-- **Document type** (`document_type`) - select, optional, one of: ,Sales Invoice,Sales Order,Till bill
-- **Number** (`document_id`) - text, optional
-
-**Columns:** When · Document · Number · Status then · Field · Before · After · Changed by · Reason
-
-**Drill-down:** no.
-
-### Sales Register
-
-**Report id:** `sales-register`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Cart Number · Location · Payment Mode · Status · Sale Total *(sensitive)* · Date · Data Issue
-
-**Drill-down:** no.
-
-### Sales by Customer Reference
-
-**Report id:** `sales-by-customer-reference`
-
-**Parameters:**
-
-- **From** (`from_date`) - date, optional
-- **To** (`to_date`) - date, optional
-- **Customer PO / Ref** (`customer_reference`) - text, optional
-- **Customer** (`customer`) - text, optional
-
-**Columns:** Customer PO / Ref · Document · Number · Date · Customer · From order · Amount · Status
-
-**Drill-down:** no.
-
-### Salesman-wise Sales
-
-**Report id:** `salesman-sales`
-
-**Parameters:**
-
-- **Store code (blank = all)** (`store`) - text, optional
 - **From** (`from`) - date, optional
 - **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Active,Inactive,Exited,On Notice
 
-**Columns:** Salesman · Bills · Sales
+**Columns:** Employee ID · Employee Name · Department · Store Code · Store Name · Manager Name · Status · Created At
 
 **Drill-down:** no.
 
-### Tender-wise Sales
+### Employee Role / Access Mapping
 
-**Report id:** `tender-sales`
+**Report id:** `cat-employee-role-access-mapping`
 
 **Parameters:**
 
-- **Store code (blank = all)** (`store`) - text, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Active,Inactive,Exited,On Notice
+
+**Columns:** Employee ID · Employee Name · Department · Store Code · Store Name · User ID · User Name · Status · Approved By
+
+**Drill-down:** no.
+
+### Headcount Summary
+
+**Report id:** `cat-headcount-summary`
+
+**Parameters:**
+
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Active,Inactive,Exited,On Notice
+
+**Columns:** As Of Date · Department · Store Code · Store Name · Headcount · Status
+
+**Drill-down:** no.
+
+### Late / Overtime Report
+
+**Report id:** `cat-late-overtime-report`
+
+**Parameters:**
+
 - **From** (`from`) - date, optional
 - **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Present,Absent,Half Day,Late,On Leave
 
-**Columns:** Tender · Amount
-
-**Drill-down:** no.
-
-## Service
-
-### Service SLA Breaches
-
-**Report id:** `service-sla-breaches`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Ticket · Customer · Status · Breach Type · Respond By · Resolve By
+**Columns:** Attendance Date · Employee ID · Employee Name · Shift · Check In · Check Out · Task Duration Min · Attendance Status · Reason
 
 **Drill-down:** no.
 
-## WMS
+### Leave Register
 
-### 3PL Storage & Handling Billing
-
-**Report id:** `3pl-storage-billing`
+**Report id:** `cat-leave-register`
 
 **Parameters:**
 
-- **Owner (optional)** (`owner_id`) - text, optional
-- **Period Start** (`start`) - date, **required**
-- **Period End** (`end`) - date, **required**
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Draft,Pending Approval,Approved,Rejected,Cancelled
 
-**Columns:** Owner · Location · Current Units (EA) · Days · Billing UOM · Billing Units · Storage Charge *(sensitive)* · Handling Tasks · Handling Charge *(sensitive)* · Total *(sensitive)*
+**Columns:** Document Date · Employee ID · Employee Name · Leave Type · Leave Days · From Date · To Date · Approval Status · Manager Name · Reason
 
 **Drill-down:** no.
 
-### 3PL Storage Billing v2
+### Onboarding Checklist
 
-**Report id:** `storage-billing-v2`
+**Report id:** `cat-onboarding-checklist`
 
 **Parameters:**
 
-- **Owner (optional)** (`owner_id`) - text, optional
-- **Period Start** (`start`) - date, **required**
-- **Period End** (`end`) - date, **required**
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
 
-**Columns:** Rate · Owner · Location · Item · Snapshot Days · Average Units · Net *(sensitive)* · Tax *(sensitive)* · Total *(sensitive)*
+**Columns:** Employee ID · Employee Name · Department · Document Type · Status · User Name · Approved By · Remarks
 
 **Drill-down:** no.
 
-### Batch Movement History (Recall)
+### Payroll Register
 
-**Report id:** `batch-movement-history`
+**Report id:** `cat-payroll-register`
 
 **Parameters:**
 
-- **Batch / Lot** (`batch_no`) - text, **required**
-- **Item Code (optional)** (`sku`) - text, optional
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
 
-**Columns:** When · Item · Batch / Lot · Qty · Movement · Document · Location · From Bin · To Bin · By
+**Columns:** Payroll Period · Employee ID · Employee Name · Department · Gross Salary · Deductions · Net Pay · Payment Status
 
 **Drill-down:** no.
 
-### Batch Near-Expiry Watchlist
+### Performance Review Summary
 
-**Report id:** `batch-near-expiry`
+**Report id:** `cat-performance-review-summary`
 
 **Parameters:**
 
-- **Within (days, default 30)** (`within_days`) - text, optional
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
 
-**Columns:** Item · Batch / Lot · Expires · Days Left · Batch Status · Qty On Hand · Locations
+**Columns:** From Date · To Date · Employee ID · Employee Name · Department · Manager Name · Achievement % · Status · Remarks
 
 **Drill-down:** no.
 
-### Batch Stock Inquiry
+### Salary Component Detail
 
-**Report id:** `batch-stock-inquiry`
+**Report id:** `cat-salary-component-detail`
 
 **Parameters:**
 
-- **Item Code (optional)** (`sku`) - text, optional
-- **Location (optional)** (`location`) - text, optional
-- **Batch / Lot (optional)** (`batch_no`) - text, optional
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
 
-**Columns:** Item · Batch / Lot · Location · Bin · Condition · Qty · Expires · Days Left · Batch Status
+**Columns:** Payroll Period · Employee ID · Employee Name · Document Type · Gross Salary · Deductions · Net Pay
 
 **Drill-down:** no.
 
-### Bin Stock Reconciliation
+### Shift / Roster Report
 
-**Report id:** `bin-stock-reconciliation`
+**Report id:** `cat-shift-roster-report`
 
 **Parameters:**
 
-- **Item Code (optional)** (`sku`) - text, optional
-- **Location (optional)** (`location`) - text, optional
-- **Show** (`mismatches_only`) - select, optional, one of: Mismatches only,All rows
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
 
-**Columns:** Location · Item · On Hand · In Bins · Picked, Not Dispatched · Difference · Status
+**Columns:** Document Date · Employee ID · Employee Name · Store Name · Department · Shift · Status
 
 **Drill-down:** no.
 
-### Clean-Location Consolidation Suggestions
+### Statutory Deduction Summary
 
-**Report id:** `consolidation-suggestions`
+**Report id:** `cat-statutory-deduction-summary`
 
 **Parameters:**
 
-- **Location** (`location_code`) - text, **required**
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
 
-**Columns:** SKU · Action · From Bin · To Bin · Qty · Reason
+**Columns:** Payroll Period · Department · Document Type · Deductions · Status
 
 **Drill-down:** no.
 
-### Cross-Facility Inventory Inquiry
+### Training / Certification Register
 
-**Report id:** `cross-facility-stock`
+**Report id:** `cat-training-certification-register`
 
 **Parameters:**
 
-- **SKU** (`sku`) - text, **required**
-
-**Columns:** SKU · Location · On Hand · Available · In Transit
-
-**Drill-down:** no.
-
-### Facility Roll-Up Inventory Inquiry
-
-**Report id:** `facility-rollup`
-
-**Parameters:**
-
-- **Facility (Location code)** (`facility_code`) - text, **required**
-
-**Columns:** SKU · On Hand · Available · In Transit · Locations
-
-**Drill-down:** no.
-
-### Labor Productivity
-
-**Report id:** `labor-productivity`
-
-**Parameters:**
-
-- **From (optional)** (`start`) - date, optional
-- **To (optional)** (`end`) - date, optional
-
-**Columns:** User · Task Type · Tasks · Tasks/Hour · First Task · Last Task
-
-**Drill-down:** no.
-
-### Labour Cost
-
-**Report id:** `labor-cost`
-
-**Parameters:**
-
-- **From (optional)** (`start`) - date, optional
-- **To (optional)** (`end`) - date, optional
-
-**Columns:** Location · Tasks · Quantity · Standard Hours · Labour Cost *(sensitive)*
-
-**Drill-down:** no.
-
-### Labour Enterprise Productivity
-
-**Report id:** `labor-enterprise-productivity`
-
-**Parameters:**
-
-- **From (optional)** (`start`) - date, optional
-- **To (optional)** (`end`) - date, optional
-
-**Columns:** Scope · Tasks · Quantity · Standard Hours · Labour Cost *(sensitive)*
-
-**Drill-down:** no.
-
-### Labour Facility Performance
-
-**Report id:** `labor-facility-performance`
-
-**Parameters:**
-
-- **From (optional)** (`start`) - date, optional
-- **To (optional)** (`end`) - date, optional
-
-**Columns:** Location · Tasks · Quantity · Standard Hours · Labour Cost *(sensitive)*
-
-**Drill-down:** no.
-
-### Labour Standards Audit
-
-**Report id:** `labor-standards-audit`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Standard · Operation · Element Seconds · Travel Seconds · Allowance Seconds · Total Seconds
-
-**Drill-down:** no.
-
-### Labour Task Productivity
-
-**Report id:** `labor-task-productivity`
-
-**Parameters:**
-
-- **From (optional)** (`start`) - date, optional
-- **To (optional)** (`end`) - date, optional
-
-**Columns:** Task Type · Tasks · Quantity · Standard Hours · Labour Cost *(sensitive)*
-
-**Drill-down:** no.
-
-### Labour User Performance
-
-**Report id:** `labor-user-performance`
-
-**Parameters:**
-
-- **From (optional)** (`start`) - date, optional
-- **To (optional)** (`end`) - date, optional
-
-**Columns:** User · Tasks · Quantity · Standard Hours · Labour Cost *(sensitive)*
-
-**Drill-down:** no.
-
-### Owner Stock Exceptions (3PL)
-
-**Report id:** `owner-stock-exceptions`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Exception · Location · Bin · Item · Condition · Bin Qty · Owner Qty · What to do
-
-**Drill-down:** no.
-
-### Owner Stock Inquiry (3PL)
-
-**Report id:** `owner-stock-inquiry`
-
-**Parameters:**
-
-- **Item Code (optional)** (`sku`) - text, optional
-- **Location (optional)** (`location`) - text, optional
-- **Owner (optional)** (`owner_id`) - text, optional
-
-**Columns:** Owner · Item · Bin · Location · Condition · Qty
-
-**Drill-down:** no.
-
-### Serial Movement History
-
-**Report id:** `serial-movement-history`
-
-**Parameters:**
-
-- **Serial Number** (`serial_no`) - text, **required**
-- **Item Code (optional)** (`sku`) - text, optional
-
-**Columns:** When · Item · Serial Number · Movement · Document · Location · From · To · By
-
-**Drill-down:** no.
-
-### Serial Number Inquiry
-
-**Report id:** `serial-inquiry`
-
-**Parameters:**
-
-- **Item Code (optional)** (`sku`) - text, optional
-- **Serial Number (optional)** (`serial_no`) - text, optional
-- **Status (optional)** (`status`) - select, optional, one of: InStock,Allocated,Shipped,Returned,Scrapped
-
-**Columns:** Item · Serial Number · Batch / Lot · Status · Current Bin · Location · Reserved For · Supplier
-
-**Drill-down:** no.
-
-### Slotting / Re-Slotting Suggestions
-
-**Report id:** `slotting-suggestions`
-
-**Parameters:**
-
-- **Location** (`location_code`) - text, **required**
-
-**Columns:** SKU · Velocity Tier · Daily Velocity · Suggested Action · From Bin · To Bin · Qty · Reason
-
-**Drill-down:** no.
-
-### Unslotting Suggestions (discontinued items)
-
-**Report id:** `unslotting-suggestions`
-
-**Parameters:**
-
-- **Location** (`location_code`) - text, **required**
-
-**Columns:** SKU · Action · From Bin · To Bin · Qty · Reason
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Document Date · Employee ID · Employee Name · Department · Document Type · Status · Remarks
 
 **Drill-down:** no.
 
