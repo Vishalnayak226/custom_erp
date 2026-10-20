@@ -142,14 +142,22 @@ if (-not ($out | Where-Object { $_.Trim() -eq 'DEPLOY-OK' })) { Stop-Deploy "dep
 # ---------------------------------------------------------------- D4 verify
 Write-Gate 'D4 Every host answers with the new build'
 $ver = [regex]::Match(((& git -C $repo show "$($target):public/app.js") -join "`n"), "VIEW_MODULE_VERSION = '(\d+)'").Groups[1].Value
+# Caddy answers 503 for the first seconds after the restart (0.9.0: every host 503
+# at D4, all 200 twenty seconds later), so a host gets up to 90 s before it counts.
 $bad = @()
 foreach ($h in $cfg.hosts) {
-    foreach ($path in @('/', '/api/v1/health', "/app.js?v=$ver")) {
-        $r = Invoke-WebRequest -Uri "https://$h$path" -TimeoutSec 20 -SkipHttpErrorCheck -UseBasicParsing
-        if ($r.StatusCode -ne 200) { $bad += "$h$path -> $($r.StatusCode)" }
-    }
-    $v = Get-Live $h
-    if (-not $v -or -not $target.StartsWith("$($v.git_commit)")) { $bad += "$h reports $($v.git_commit)" } else { Note "$h  200  $($v.version) ($($v.git_commit))" }
+    $until = (Get-Date).AddSeconds(90)
+    do {
+        $hostBad = @()
+        foreach ($path in @('/', '/api/v1/health', "/app.js?v=$ver")) {
+            $r = Invoke-WebRequest -Uri "https://$h$path" -TimeoutSec 20 -SkipHttpErrorCheck -UseBasicParsing
+            if ($r.StatusCode -ne 200) { $hostBad += "$h$path -> $($r.StatusCode)" }
+        }
+        $v = Get-Live $h
+        if (-not $v -or -not $target.StartsWith("$($v.git_commit)")) { $hostBad += "$h reports $($v.git_commit)" }
+        if ($hostBad.Count -and (Get-Date) -lt $until) { Start-Sleep -Seconds 5 }
+    } while ($hostBad.Count -and (Get-Date) -lt $until)
+    if ($hostBad.Count) { $bad += $hostBad } else { Note "$h  200  $($v.version) ($($v.git_commit))" }
 }
 if ($bad.Count) { Stop-Deploy "deployed, but: $($bad -join '; ') - check the site now (rollback copy: $rd/$rb)" }
 $disk = (Remote "df -P / | awk 'NR==2{print `$5}'")[0]

@@ -352,7 +352,7 @@ function ensureEditPrefixModal() {
           </div>
           <div class="form-group" id="edit-prefix-year-group">
             <label class="form-label" for="edit-prefix-year">Year in the number</label>
-            <select class="form-select" id="edit-prefix-year" data-act="previewEditPrefix" data-act-on="change"></select>
+            <select class="form-select" id="edit-prefix-year" data-act="pickEditPrefixYear" data-act-on="change"></select>
           </div>
           <div class="form-group" id="edit-prefix-yearpos-group">
             <label class="form-label" for="edit-prefix-yearpos">Where the year goes</label>
@@ -422,9 +422,10 @@ function openEditPrefixModal(c) {
     : { ANNUAL: 'Every financial year', MONTHLY: 'Every month', NEVER: 'Never - no year in the number' };
   document.querySelectorAll('#edit-prefix-reset option').forEach(o => { o.textContent = resetLabels[o.value] || o.textContent; });
   document.getElementById('edit-prefix-reset').value = s.reset_frequency || 'ANNUAL';
-  // A GRN batch number's period is its receipt date, not a year.
+  // A GRN batch number's period is its receipt date, not a year: no year
+  // format, but the date still goes before the number or at the end.
   document.getElementById('edit-prefix-year-group').hidden = isGRNBatchSeries(s);
-  document.getElementById('edit-prefix-yearpos-group').hidden = isGRNBatchSeries(s);
+  document.querySelector('label[for="edit-prefix-yearpos"]').textContent = isGRNBatchSeries(s) ? 'Where the date goes' : 'Where the year goes';
   document.getElementById('edit-prefix-yearpos').value = s.year_position === 'END' ? 'END' : '';
   const yearSel = document.getElementById('edit-prefix-year');
   yearSel.innerHTML = [...SERIES_YEAR_FORMATS, ''].map(f => `<option value="${f}"></option>`).join('');
@@ -526,6 +527,13 @@ function previewEditPrefix() {
     : SERIES_DISPLAY_NAMES[s.doc_type] ? '' : `Longest number: ${Math.max(el.textContent.length, ...stores.map(st => prefixConfigSample(s, st).length))} of ${seriesMaxLength()} characters.`;
 }
 window.previewEditPrefix = previewEditPrefix;
+
+// "No year" is the Never setting: a number that restarted every financial
+// year without its year would repeat every April.
+window.pickEditPrefixYear = function() {
+  if (!document.getElementById('edit-prefix-year').value) document.getElementById('edit-prefix-reset').value = 'NEVER';
+  previewEditPrefix();
+};
 
 window.closeEditPrefixModal = function() {
   const modal = document.getElementById('edit-prefix-modal');

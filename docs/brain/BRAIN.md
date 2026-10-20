@@ -9,13 +9,13 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 
 | | |
 |---|---|
-| Graph built from commit | `f0a324f3` |
-| Brain redrawn | source graph f0a324f3 |
+| Graph built from commit | `7cfe141e` |
+| Brain redrawn | source graph 7cfe141e |
 | Regions / lobes | 38 / 8 |
-| Files in the working tree | 1591 (1155 of them parsed into the graph) |
+| Files in the working tree | 1592 (1156 of them parsed into the graph) |
 | Files claimed by a region | **100.0%** |
-| Symbols in the graph | 14570 |
-| Cross-region relationships | 5557 extracted (94% inferred) + 8 declared by hand |
+| Symbols in the graph | 14596 |
+| Cross-region relationships | 5558 extracted (94% inferred) + 8 declared by hand |
 
 **Interactive version: [brain.html](brain.html)** — open it in a browser and click any region.
 
@@ -39,7 +39,7 @@ flowchart LR
   n_business["Functional Lobes — Business Operations<br/><small>329 files · 3917 symbols</small>"]
   n_peripheral["Peripheral Nerves — Integrations<br/><small>51 files · 905 symbols</small>"]
   n_autonomic["Autonomic — Background & Reflexes<br/><small>16 files · 211 symbols</small>"]
-  n_memory["Hippocampus — Written Memory<br/><small>351 files · 4252 symbols</small>"]
+  n_memory["Hippocampus — Written Memory<br/><small>352 files · 4278 symbols</small>"]
   n_motor["Motor Cortex — Build & Delivery<br/><small>55 files · 217 symbols</small>"]
   n_verification["Cerebellum — Verification<br/><small>339 files · 1453 symbols</small>"]
   n_business -->|1979| n_brainstem
@@ -100,7 +100,7 @@ flowchart LR
 | **Functional Lobes — Business Operations** | The specialised areas. Each one owns a domain and can be licensed on its own. | 16 | 329 | 3917 | 1208 |
 | **Peripheral Nerves — Integrations** | Contact with the outside world: storefronts, payment terminals, marketing clouds, third-party extensions. | 3 | 51 | 905 | 7 |
 | **Autonomic — Background & Reflexes** | Runs without anyone asking it to: outbox drain, pollers, alerting, scheduled sweeps. | 2 | 16 | 211 | 26 |
-| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 351 | 4252 | 206 |
+| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 352 | 4278 | 207 |
 | **Motor Cortex — Build & Delivery** | How the system actually moves: build, migrate, promote, back up, restore. | 1 | 55 | 217 | 0 |
 | **Cerebellum — Verification** | Balance and correction. Kept out of the wiring diagrams on purpose — tests touch everything, so drawing them would grey out every real edge. | 1 | 339 | 1453 | 0 |
 
@@ -161,14 +161,14 @@ flowchart LR
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>344 files · 4131 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>345 files · 4157 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 121 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
     direction TB
     n_ops_tooling["Build, Deploy & Operate<br/><small>55 files · 217 symbols</small>"]
   end
-  n_brain -->|205| n_docs_memory
+  n_brain -->|206| n_docs_memory
   n_wms -.->|169| n_persistence
   n_ui_shell -.->|138| n_ui_offline
   n_wms -.->|114| n_api_errors
@@ -367,14 +367,14 @@ flowchart LR
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>344 files · 4131 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>345 files · 4157 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 121 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
     direction TB
     n_ops_tooling["Build, Deploy & Operate<br/><small>55 files · 217 symbols</small>"]
   end
-  n_brain -->|205| n_docs_memory
+  n_brain -->|206| n_docs_memory
   n_ui_shell -.->|138| n_ui_offline
   n_procurement -.->|111| n_doc_kernel
   n_pos -.->|84| n_finance
@@ -759,8 +759,8 @@ flowchart LR
 | [Extension Platform](#extension-platform) | Peripheral Nerves — Integrations | 14 | 187 | → Persistence & Migrations (28) |
 | [Event Outbox & Async Job Runner](#event-outbox--async-job-runner) | Autonomic — Background & Reflexes | 6 | 55 | ← Logging, Alerting & Notifications (19) |
 | [Logging, Alerting & Notifications](#logging-alerting--notifications) | Autonomic — Background & Reflexes | 10 | 156 | ← Warehouse Management (WMS) (73) |
-| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 344 | 4131 | ← The Brain Map (this) (205) |
-| [The Brain Map (this)](#the-brain-map-this) | Hippocampus — Written Memory | 7 | 121 | → Project Documentation (205) |
+| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 345 | 4157 | ← The Brain Map (this) (206) |
+| [The Brain Map (this)](#the-brain-map-this) | Hippocampus — Written Memory | 7 | 121 | → Project Documentation (206) |
 | [Build, Deploy & Operate](#build-deploy--operate) | Motor Cortex — Build & Delivery | 55 | 217 | → Persistence & Migrations (5) |
 | [Security Baseline & Attack Surface](#security-baseline--attack-surface) | Brainstem — Kernel | 16 | 165 | → Persistence & Migrations (9) |
 | [Test Suite](#test-suite) | Cerebellum — Verification | 339 | 1453 | — |
@@ -2830,7 +2830,7 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the guides, SOPs
 - → **Reporting Engine** — 2 relationships, 2 inferred
 - → **The Brain Map (this)** — 1 relationship, all extracted
 - → **Expense Management** — 1 relationship, 1 inferred
-- ← **The Brain Map (this)** — 205 relationships, 1 inferred
+- ← **The Brain Map (this)** — 206 relationships, 1 inferred
 - ← **Build, Deploy & Operate** — 4 relationships, 3 inferred
 - ← **Security Baseline & Attack Surface** — 4 relationships, all extracted
 - ← **Device Printing (QZ Tray)** — 2 relationships, 2 inferred
@@ -2839,7 +2839,7 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the guides, SOPs
 - ← **Tax & Statutory** — 1 relationship, 1 inferred
 - ← **The Brain Map (this)** — declared: keeps in sync
 
-<details><summary>344 files</summary>
+<details><summary>345 files</summary>
 
 - [README.md](../../README.md)
 - [cmd/doclint/capabilities.go](../../cmd/doclint/capabilities.go)
@@ -2949,6 +2949,7 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the guides, SOPs
 - [docs/guides/img/setup-menu.png](../../docs/guides/img/setup-menu.png)
 - [docs/guides/img/sidebar.png](../../docs/guides/img/sidebar.png)
 - [docs/guides/img/trial-balance.png](../../docs/guides/img/trial-balance.png)
+- [docs/guides/po-setup-guide.md](../../docs/guides/po-setup-guide.md)
 - [docs/guides/update-guides.ps1](../../docs/guides/update-guides.ps1)
 - [docs/implementation/delivery-workbook.md](../../docs/implementation/delivery-workbook.md)
 - [docs/implementation/onboarding-workbook.md](../../docs/implementation/onboarding-workbook.md)
@@ -3203,7 +3204,7 @@ The map you are reading and the generator that draws it. brain.map.json is the o
 
 **Wired to**
 
-- → **Project Documentation** — 205 relationships, 1 inferred
+- → **Project Documentation** — 206 relationships, 1 inferred
 - → **Build, Deploy & Operate** — 4 relationships, all extracted
 - → **Extension Platform** — 1 relationship, all extracted
 - → **Security Baseline & Attack Surface** — 1 relationship, all extracted
@@ -3675,10 +3676,10 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 
 ## 6. What the brain does not know yet
 
-Nothing — every one of the 1591 files in the working tree is claimed by a region (100.0% coverage). When that stops being true, the unclaimed files get listed here and `update-brain.ps1 -Check` fails, which is the signal to add a `match` pattern (or a whole new region) to `brain.map.json`.
+Nothing — every one of the 1592 files in the working tree is claimed by a region (100.0% coverage). When that stops being true, the unclaimed files get listed here and `update-brain.ps1 -Check` fails, which is the signal to add a `match` pattern (or a whole new region) to `brain.map.json`.
 
 Two other things the brain is honest about not seeing:
 
-- **1155 of 1591 files are parsed into the call graph.** The rest — `.sql` migrations, JSON industry profiles, PowerShell, CI config, Markdown — are filed into regions by path, but contribute no symbols or edges, because graphify has no extractor for them. A region can therefore be substantial and still show few symbols.
+- **1156 of 1592 files are parsed into the call graph.** The rest — `.sql` migrations, JSON industry profiles, PowerShell, CI config, Markdown — are filed into regions by path, but contribute no symbols or edges, because graphify has no extractor for them. A region can therefore be substantial and still show few symbols.
 - **902 graph nodes are external type references** (`sql.Tx`, `context.Context` and friends) with no source file of their own. They belong to no region by design.
 

@@ -19,13 +19,15 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **169** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **170** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
 - [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-06
 
 ## 2026-10-19
+
+**Stage 124 — a step-by-step guide to set an organisation up for purchase orders** *(docs, NOT COMMITTED)*
 
 **Stage 122 — Configuration → Item fields keeps its column header in view** *(code, NOT COMMITTED)*
 

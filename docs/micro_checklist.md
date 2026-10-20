@@ -3876,3 +3876,23 @@ Verified on a scratch server (:8163) with Playwright, light and dark: sign-in lo
 | 122.1 | Done |
 
 - [x] **122.1 Item fields header scrolls away** (user, 2026-10-19: *"If i scroll in config, I will not no what is the config on/ off for. freeze it. and it sould not go up than the header"*). Cause: three scroll boxes between the table and the page scroller (the Configuration panel's `overflow:hidden`, `#config-fields`' `overflow:auto`, the table's own `overflow-x:auto` wrapper) plus `border-collapse: collapse` on `.item-fields-table`, so the global sticky `th` (Stage 41/116) stuck to a box that never scrolls. Fix (public/view-admin.js, view-item-form.js): drop the three overflows (the rail rounds its own corners), separate borders. Every other table on Configuration freezes the same way now. Below 820px the app-wide rule (styles.css: a `.table-panel` scrolls sideways, headers not frozen) still applies, unchanged. *Verified 2026-10-19:* scratch server, Item fields scrolled ~1000px - header top 99 = top-bar bottom and painted over the rows at 1440 and 1100 wide. *Status: Done*
+
+## Stage 123 — Number Series form: the GRN batch series shows year boxes; "No year" will not select (opened 2026-10-19 from the user's Number Series - GRN batch number + VE screenshots)
+
+| Phase | Status |
+|---|---|
+| 123.1 | Done |
+| 123.2 | Done |
+| 123.3 | Needs decision |
+
+- [x] **123.1 GRN batch number shows "Year in the number"** (user, 2026-10-19: *"What is this bug"* - GRN batch number, Every day, Year 2627, At the end, preview GRN0001261019). A batch number prints its receipt date, so the year format does nothing; the form set `hidden` on both year boxes (Stages 86.2, 115.1) but `.form-group { display: flex }` overrides `hidden`, so neither box ever hid. Fix: `.form-group[hidden]` hides. "Where the year goes" stays visible for this series as "Where the date goes", because the server applies it to the date (`joinNumberParts`) and hiding it would leave a saved "At the end" in force out of sight. *Verified 2026-10-19 (browser, dev DB):* GRN batch shows no year box, "Where the date goes", preview B-261019-0001; cold core 184,244 / 184,320. *Status: Done*
+- [x] **123.2 "No year" cannot be picked** (user, 2026-10-19: *"No year not selecting"* - VE series, Every financial year). "No year" was only the placeholder the year box shows when Restart numbering is Never; `previewEditPrefix` put the previous format back whenever the box was blank. A yearly restart with no year in the number would repeat numbers every April, so picking "No year" now sets Restart numbering to "Never - no year in the number". *Verified 2026-10-19 (browser):* ASN series - No year → Never, preview ASN/B59-LOC/00001; back to yearly restores 26-27; 2627 picks normally. Nothing saved. *Status: Done*
+- [ ] **123.3 Type a store's own code** (user, 2026-10-19, prod Setup → Location: *"I want to edit user's code of store"* - BLR Warehouse is still Location/HQ/2026/000001; the Renumber panel only offers a prefix + running digits). The renumber engine (`engines/master_recode.go` `recodeInSchemaTx`) already rewrites every reference from an old → new list, so typed codes are possible. [needs design decision: only while a store is on an old long code, or any time from its Edit form; stores only or every master] *Status: Needs decision*
+
+## Stage 124 — A step-by-step guide to set an organisation up for purchase orders (opened 2026-10-19 from the user's ask)
+
+| Phase | Status |
+|---|---|
+| 124.1 | Built, not verified |
+
+- [ ] **124.1 PO setup guide** (user, 2026-10-19: *"Prepare a doc to configure an org step by step to do po seamlessly"*, then *"All config I will set up"* - the user configures the org themselves; the doc is their runbook, no settings changed by Claude). New `docs/guides/po-setup-guide.md` (kebab-case, as doclint requires for new paths): steps 0-15 in dependency order, a 13-check first-PO test, and a blockers table. Linked from docs/README.md and Admin Guide §B.3.0. *Verified against:* the guides plus code (Vendor fields, reason categories, Inventory defaults); doclint clean except *unregistered* (cleared by the release); brain redrawn. Not walked live - the user's own pass is the live check. *Status: Built, not verified*

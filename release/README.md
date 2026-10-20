@@ -24,7 +24,7 @@ in this order:
 | Click | What it does |
 |---|---|
 | **`Release.cmd`** | Runs every gate below on a snapshot of the tree, then commits and pushes - only if all pass. About 15 minutes. |
-| **`Deploy.cmd`** | Puts the released commit on production (app and minn): lists any change to client data and waits for you to type YES, takes a backup (checked against its sha256) and a rollback copy, deploys, checks every site. A few minutes. |
+| **`Deploy.cmd`** | Puts the released commit on production (app and minn): lists any change to client data and waits for you to type YES, takes a backup (checked against its sha256) and a rollback copy, deploys, checks every site (each gets up to 90 s after the restart - Caddy answers 503 for the first seconds, 0.9.0). A few minutes. |
 | **`Cleanup.cmd`** | Cleans the server now. Not needed day to day: the server cleans itself every night at 03:30. |
 
 Each run writes a report to `reports\` (kept on this machine, never committed).

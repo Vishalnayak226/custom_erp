@@ -1462,6 +1462,7 @@ tr:hover td {
   flex-direction: column;
   gap: 6px;
 }
+.form-group[hidden] { display: none; }
 
 .form-label {
   font-size: 13px;

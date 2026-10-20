@@ -44,6 +44,12 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 272. Stage 124 — a step-by-step guide to set an organisation up for purchase orders (2026-10-19, docs, NOT COMMITTED)
+
+- **Asked**: a doc to configure an org step by step so POs run without a stop; the user does the configuration themselves, so nothing in the app was changed.
+- **Built**: `docs/guides/po-setup-guide.md`. Steps 0-15 cover the data to gather, industry, legal entity, locations, departments, HSN/UOM, number series, Configuration settings (Procurement / Inventory / Security / Platform, with shipped defaults), Item fields, item masters (Category → Product Type → Item Attribute → MRP Rule → Item Name), vendors, reason codes, roles, users, approval rules, and printing/sending. Step 16 is a 13-check first-PO test, followed by a table of blockers with error codes and fixes. Linked from `docs/README.md` and Admin Guide §B.3.0 (Setup path).
+- **Verified**: every step traced to User Guide §6/§13, Admin Guide §B.2-B.3, Admin SOP §B, and checked in code where the guides were silent: Vendor fields (no TDS field; TDS is picked at payment), reason-code categories (`engines/reason_codes.go`), and Inventory setting defaults (`settings_definitions.go`). doclint is clean except *unregistered* (the release rewrites the register); the brain map was redrawn at 100%. Not walked live; the user walks it as they configure. Checklist Stage 124.
+
 ## 271. Stage 122 — Configuration → Item fields keeps its column header in view (2026-10-19, code, NOT COMMITTED)
 
 - **Asked**: scrolling the Item fields table lost the header, so nobody could tell which checkbox was which; freeze it, below the top bar.

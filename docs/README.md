@@ -41,6 +41,7 @@ The same help topics open inside the app from **Help** on every screen.
 | I want to… | Read |
 |---|---|
 | Configure the company, stores, users, roles and approvals | [Admin guide](guides/ADMIN_GUIDE.md), [Admin SOP](guides/ADMIN_SOP.md) |
+| Set an organisation up for purchase orders, step by step | [PO setup guide](guides/po-setup-guide.md) |
 | Understand who can approve what | [Security and approvals](kb/module-handbooks/security-approvals.md) |
 | Print or read the admin manual offline | [Tenant admin manual](user/tenant-admin-manual.html) |
 | Bring in a new customer and their data | [Onboarding workbook](implementation/onboarding-workbook.md), [data handbook](data/data-handbook.md) |
