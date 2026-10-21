@@ -145,6 +145,8 @@ type PrintCatalog struct {
 var printStoreFieldLabels = [][2]string{
 	{"name", "Name"}, {"legal_name", "Legal name"}, {"address", "Address"}, {"city", "City"}, {"pincode", "PIN code"},
 	{"state", "State"}, {"state_code", "State code"}, {"gstin", "GSTIN"}, {"phone", "Phone"}, {"email", "Email"}, {"code", "Code"},
+	// Stage 127.4: the seller identity from the Legal Entity.
+	{"trade_name", "Trade name"}, {"bank", "Bank details"}, {"terms", "Terms"},
 }
 
 // GetPrintCatalog lists every placeable value for txn: document header
@@ -168,6 +170,8 @@ func GetPrintCatalog(tenantID, txn string) (PrintCatalog, error) {
 	add(&out.Header, "Document", "date", "Date")
 	add(&out.Header, "Document", "status", "Status")
 	add(&out.Header, "Document", "brand.name", "Brand name")
+	add(&out.Header, "Document", "copy_label", "Copy label (Original for Recipient...)") // Stage 127.4
+	add(&out.Header, "Document", "fields.profile_footer", "Print profile footer line")
 	if metas, err := GetDocTypeMeta(tenantID, doctype); err == nil {
 		for _, m := range metas {
 			if m.Fieldtype == "JSONTable" || m.Fieldname == "items" || m.Fieldname == "received_items" {

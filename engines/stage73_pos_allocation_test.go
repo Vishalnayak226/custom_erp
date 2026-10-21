@@ -611,7 +611,7 @@ func TestStage73AllocationArithmetic(t *testing.T) {
 	// 270 points, Card 1000 + UPI 200 + Cash the rest. Returning a shirt at a
 	// time must give parts that add up to the unit's net, every time, and
 	// both shirts together must give back the shirt line's whole tenders.
-	alloc := buildSaleAllocation([]string{"SHIRT", "SOCKS"}, []int{2, 2}, []int64{200000, 100000}, []int64{20000, 10000},
+	alloc := buildSaleAllocation([]string{"SHIRT", "SOCKS"}, []int{2, 2}, []int64{200000, 100000}, []int64{20000, 10000}, 0,
 		270, 100, 0, []tenderPart{{"Card", 100000}, {"UPI", 20000}, {"Cash", 123000}})
 	byS := map[string]*skuSaleShare{}
 	for _, a := range alloc {

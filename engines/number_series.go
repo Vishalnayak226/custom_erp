@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 	"time"
@@ -46,6 +47,42 @@ type NumberSeries struct {
 	StoreOverrides map[string]StoreSeriesOverride `json:"store_overrides"`
 	YearFormat     string                         `json:"year_format"`
 	YearPosition   string                         `json:"year_position"` // "" before the number, END at the end (115.1)
+	// RecordCode (Stage 126.4): a master's code or a payslip id. It is drawn
+	// with no store and no year (GenerateSequence(t, key, "", "")), so it
+	// prints neither, and its Restart / Store only pick its counter. Set by
+	// the server, never taken from a request.
+	RecordCode bool `json:"record_code"`
+	confirmed  bool // prefix_configs.confirmed_at is set (76.5)
+}
+
+// barcodeCounters mint barcode digits of a fixed shape: EAN needs exactly 9
+// counter digits, the receipt-date barcode keeps the last 4, and both count
+// in the no-store, no-year bucket (pim_barcode.go, barcode_policy.go).
+var barcodeCounters = map[string]bool{"PIMBarcodeSeq": true, "PIMDatedBarcodeSeq": true}
+
+// recordCodeSeries is every series key that numbers a record's code rather
+// than a document: the masters (serverNumberedMasters and every doctype_meta
+// Master, less the typed-code ones) and the payslip.
+func recordCodeSeries(schema string) (map[string]bool, error) {
+	out := map[string]bool{"Payslip": true}
+	for d := range serverNumberedMasters {
+		out[d] = true
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT name FROM %s.doctype_meta WHERE document_type = 'Master'`, schema))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		if !typedCodeMasters[name] {
+			out[name] = true
+		}
+	}
+	return out, rows.Err()
 }
 
 var validResetFrequency = map[string]bool{"ANNUAL": true, "MONTHLY": true, "NEVER": true}
@@ -122,10 +159,15 @@ func ListNumberSeries(tenantID string) ([]NumberSeries, error) {
 	if err != nil {
 		return nil, err
 	}
+	records, err := recordCodeSeries(schema)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, doc_type, prefix, COALESCE(suffix, ''), COALESCE(separator, '/'), COALESCE(padding_width, 6),
 		       COALESCE(reset_frequency, 'ANNUAL'), COALESCE(active_status, TRUE), COALESCE(include_store, TRUE),
-		       COALESCE(store_overrides, '{}'::jsonb)::text, COALESCE(year_format, ''), COALESCE(year_position, '')
+		       COALESCE(store_overrides, '{}'::jsonb)::text, COALESCE(year_format, ''), COALESCE(year_position, ''),
+		       confirmed_at IS NOT NULL
 		  FROM %s.prefix_configs ORDER BY doc_type`, schema))
 	if err != nil {
 		return nil, err
@@ -136,10 +178,11 @@ func ListNumberSeries(tenantID string) ([]NumberSeries, error) {
 		var s NumberSeries
 		var overrides string
 		if err := rows.Scan(&s.ID, &s.DocType, &s.Prefix, &s.Suffix, &s.Separator, &s.PaddingWidth,
-			&s.ResetFrequency, &s.ActiveStatus, &s.IncludeStore, &overrides, &s.YearFormat, &s.YearPosition); err != nil {
+			&s.ResetFrequency, &s.ActiveStatus, &s.IncludeStore, &overrides, &s.YearFormat, &s.YearPosition, &s.confirmed); err != nil {
 			return nil, err
 		}
 		s.StoreOverrides = parseStoreOverrides(overrides)
+		s.RecordCode = records[s.DocType]
 		out = append(out, s)
 	}
 	return out, rows.Err()
@@ -195,7 +238,9 @@ func SaveNumberSeries(tenantID string, s NumberSeries, includeStore *bool, overr
 	cleaned := map[string]StoreSeriesOverride{}
 	for store, o := range overrides {
 		store = strings.TrimSpace(store)
-		o.Prefix, o.Code, o.Suffix = norm(o.Prefix), norm(o.Code), norm(o.Suffix)
+		// A store's code is always capitals (seriesStoreCodePattern) - a
+		// counter's lower-case one was refused (126.4).
+		o.Prefix, o.Code, o.Suffix = norm(o.Prefix), strings.ToUpper(strings.TrimSpace(o.Code)), norm(o.Suffix)
 		if store == "" || (o.Prefix == "" && o.Code == "" && o.Suffix == "") {
 			continue
 		}
@@ -213,6 +258,21 @@ func SaveNumberSeries(tenantID string, s NumberSeries, includeStore *bool, overr
 	if includeStore != nil {
 		include = *includeStore
 	}
+	// Stage 126.4: a record code's Restart and Store only pick its counter,
+	// so changing either restarted the count at 1 over codes already issued.
+	// They stay as the series counts now; a master not yet confirmed takes
+	// what its first record gives it (ensureMasterSeries: never, no store).
+	records, err := recordCodeSeries(schema)
+	if err != nil {
+		return err
+	}
+	if s.RecordCode = records[s.DocType]; s.RecordCode {
+		if current != nil && (current.confirmed || s.DocType == "Payslip") {
+			s.ResetFrequency, include = current.ResetFrequency, current.IncludeStore
+		} else {
+			s.ResetFrequency, include = "NEVER", false
+		}
+	}
 	s.IncludeStore = include
 	stores, err := loadSeriesStores(schema)
 	if err != nil {
@@ -227,15 +287,19 @@ func SaveNumberSeries(tenantID string, s NumberSeries, includeStore *bool, overr
 	if err != nil {
 		return err
 	}
+	// A saved series is confirmed (Stage 126.4, the user: "after typing the
+	// values it is not showing"): a master's series set on the screen was
+	// unconfirmed, so its first record replaced it with the suggestion.
 	_, err = db.DB.Exec(fmt.Sprintf(`
-		INSERT INTO %s.prefix_configs (doc_type, prefix, suffix, separator, padding_width, reset_frequency, active_status, include_store, store_overrides, year_format, year_position)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11)
+		INSERT INTO %s.prefix_configs (doc_type, prefix, suffix, separator, padding_width, reset_frequency, active_status, include_store, store_overrides, year_format, year_position, confirmed_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, NOW())
 		ON CONFLICT (doc_type) DO UPDATE SET
 			prefix = EXCLUDED.prefix, suffix = EXCLUDED.suffix, separator = EXCLUDED.separator,
 			padding_width = EXCLUDED.padding_width, reset_frequency = EXCLUDED.reset_frequency,
 			active_status = EXCLUDED.active_status, include_store = EXCLUDED.include_store,
 			store_overrides = EXCLUDED.store_overrides, year_format = EXCLUDED.year_format,
-			year_position = EXCLUDED.year_position`, schema),
+			year_position = EXCLUDED.year_position,
+			confirmed_at = COALESCE(prefix_configs.confirmed_at, NOW())`, schema),
 		s.DocType, s.Prefix, s.Suffix, s.Separator, s.PaddingWidth, s.ResetFrequency, s.ActiveStatus, include, string(overridesJSON), s.YearFormat, s.YearPosition)
 	return err
 }
@@ -295,6 +359,15 @@ type seriesSample struct{ Number, Store string }
 func seriesSampleNumbers(s NumberSeries, overrides map[string]StoreSeriesOverride, stores []seriesStore) []seriesSample {
 	now := time.Now()
 	fy := documentFinancialYear(now)
+	if s.RecordCode {
+		// Drawn with no store and no year (126.4) - GenerateSequence's own
+		// period for an empty financial year.
+		_, p := sequencePeriod(s.ResetFrequency, "", now)
+		if p != "" {
+			p = formatPeriodSegment(s.YearFormat, s.ResetFrequency, "", now)
+		}
+		return []seriesSample{{Number: joinNumberParts(s.Prefix, "", p, fmt.Sprintf("%0*d", s.PaddingWidth, 1), s.Suffix, s.Separator, s.YearPosition)}}
+	}
 	_, period := sequencePeriod(s.ResetFrequency, fy, now)
 	if period != "" {
 		period = formatPeriodSegment(s.YearFormat, s.ResetFrequency, fy, now)
@@ -334,12 +407,31 @@ func seriesSampleNumbers(s NumberSeries, overrides map[string]StoreSeriesOverrid
 	return out
 }
 
+// sameSeriesSamples reports whether two sets of sample numbers are the same
+// numbers at the same stores.
+func sameSeriesSamples(a, b []seriesSample) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func validateNumberSeries(s NumberSeries, current *NumberSeries, overrides map[string]StoreSeriesOverride, all []NumberSeries, stores []seriesStore, country ...string) error {
 	home := ""
 	if len(country) > 0 {
 		home = country[0]
 	}
 	maxLen, gstRules := seriesNumberRules(home)
+	// A record's code (a vendor's, an item's) is not a GST document number,
+	// so GST's characters and 16 do not apply to it (126.4).
+	if s.RecordCode {
+		gstRules = false
+	}
 	bad := func(msg string) error { return &ValidationError{Code: "ADMINC-0311", SubFor: s.DocType, Message: msg} }
 	if s.DocType == "" {
 		return bad("choose the transaction this series numbers")
@@ -350,7 +442,22 @@ func validateNumberSeries(s NumberSeries, current *NumberSeries, overrides map[s
 	if s.PaddingWidth < 1 || s.PaddingWidth > 12 {
 		return bad("number length must be between 1 and 12 digits")
 	}
+	// Stage 126.4: a barcode counter's shape is fixed - another length breaks
+	// every EAN, another Restart or Store moves its counter and repeats
+	// barcodes already printed.
+	if barcodeCounters[s.DocType] && current != nil && (s.Prefix != current.Prefix || s.Suffix != current.Suffix ||
+		s.Separator != current.Separator || s.PaddingWidth != current.PaddingWidth ||
+		!strings.EqualFold(s.ResetFrequency, current.ResetFrequency) || s.IncludeStore != current.IncludeStore ||
+		!reflect.DeepEqual(overrides, current.StoreOverrides)) {
+		return bad("a barcode counter's digits are fixed - only its status can change")
+	}
 	document := !counterSeries[s.DocType]
+	// A save that prints exactly the numbers the series prints now - a status
+	// change on a series made before the 16-character rule - is not held to
+	// that length (126.4: such a series could not be saved at all, even
+	// unchanged). A character GST refuses is still named: a store's own code
+	// fixes it.
+	unchanged := current != nil && sameSeriesSamples(seriesSampleNumbers(s, overrides, stores), seriesSampleNumbers(*current, current.StoreOverrides, stores))
 	if len(s.Separator) > 3 || strings.ContainsAny(s.Separator, " \t") {
 		return bad("separator must be at most 3 characters with no spaces")
 	}
@@ -426,7 +533,7 @@ func validateNumberSeries(s NumberSeries, current *NumberSeries, overrides map[s
 		}
 	}
 
-	if document {
+	if document && !s.RecordCode {
 		at := func(store string) string {
 			if store == "" {
 				return ""
@@ -447,7 +554,7 @@ func validateNumberSeries(s NumberSeries, current *NumberSeries, overrides map[s
 				longest = n
 			}
 		}
-		if len(longest.Number) > maxLen {
+		if len(longest.Number) > maxLen && !unchanged {
 			rule := "GST allows"
 			if !gstRules {
 				rule = "a document number here allows"

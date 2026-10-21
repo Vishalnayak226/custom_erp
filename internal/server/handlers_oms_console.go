@@ -33,6 +33,8 @@ func omsConsoleFilterFromQuery(r *http.Request) engines.OrderConsoleFilter {
 		SLAMinutes: atoi("sla_minutes"),
 		Limit:      atoi("limit"),
 		Offset:     atoi("offset"),
+		// Stage 88.3.1: "problem" lists answers the channel did not get.
+		ChannelPush: q.Get("channel_push"),
 	}
 }
 

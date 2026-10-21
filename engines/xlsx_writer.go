@@ -8,7 +8,8 @@ import (
 	"strings"
 )
 
-// Stage 63.6: a minimal Office Open XML (.xlsx) writer - one worksheet,
+// Stage 63.6: a minimal Office Open XML (.xlsx) writer - worksheets (one, or
+// several since Stage 128),
 // text and number cells, bold rows, column widths, and pictures anchored to
 // cells. Hand-written on archive/zip + encoding/xml rather than a library, per
 // the "no new dependency" rule; it covers exactly what the Vendor PO export
@@ -20,6 +21,10 @@ type XLSXCell struct {
 	Num   float64
 	IsNum bool
 	Bold  bool
+	// Stage 128: Header is bold on grey (a table's column names), Hint small
+	// grey italic (the line under a header saying what the column takes).
+	Header bool
+	Hint   bool
 }
 
 // XLSXImage is a picture placed over one cell.
@@ -36,6 +41,10 @@ type XLSXSheet struct {
 	Rows       [][]XLSXCell
 	RowHeights map[int]float64 // points, zero-based row
 	Images     []XLSXImage
+	// Stage 128: the top FreezeRows rows stay in view while scrolling, and
+	// Validations give columns an in-cell drop-down.
+	FreezeRows  int
+	Validations []XLSXListValidation
 }
 
 func xlsxColName(i int) string {
@@ -52,8 +61,40 @@ func xmlEscape(s string) string {
 	return b.String()
 }
 
+// XLSXListValidation is an in-cell drop-down: the column's cells from FromRow
+// to ToRow (zero-based, inclusive) accept only Options. Excel holds the list
+// in a 255-character formula, so a longer list, or one with a comma or a
+// quote in an option, is left without a drop-down rather than mangled.
+type XLSXListValidation struct {
+	Col, FromRow, ToRow int
+	Options             []string
+}
+
+func xlsxSheetName(name string, i int) string {
+	if name == "" {
+		name = fmt.Sprintf("Sheet%d", i+1)
+	}
+	for _, bad := range []string{"/", "\\", "?", "*", "[", "]", ":"} {
+		name = strings.ReplaceAll(name, bad, "-")
+	}
+	if len(name) > 31 {
+		name = name[:31]
+	}
+	return name
+}
+
 // WriteXLSX renders the sheet as .xlsx bytes.
 func WriteXLSX(s XLSXSheet) ([]byte, error) {
+	return WriteXLSXBook([]XLSXSheet{s})
+}
+
+// WriteXLSXBook renders several sheets, in order, as one .xlsx workbook
+// (Stage 128: the setup workbook). One sheet renders exactly as WriteXLSX
+// always did.
+func WriteXLSXBook(sheets []XLSXSheet) ([]byte, error) {
+	if len(sheets) == 0 {
+		return nil, fmt.Errorf("a workbook needs at least one sheet")
+	}
 	var buf bytes.Buffer
 	z := zip.NewWriter(&buf)
 	put := func(name, body string) error {
@@ -64,42 +105,51 @@ func WriteXLSX(s XLSXSheet) ([]byte, error) {
 		_, err = w.Write([]byte(body))
 		return err
 	}
-	sheetName := s.Name
-	if sheetName == "" {
-		sheetName = "Sheet1"
-	}
-	if len(sheetName) > 31 {
-		sheetName = sheetName[:31]
-	}
-	for _, bad := range []string{"/", "\\", "?", "*", "[", "]", ":"} {
-		sheetName = strings.ReplaceAll(sheetName, bad, "-")
-	}
-	hasImages := len(s.Images) > 0
 
-	ct := `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+	var ct, wbSheets, wbRels strings.Builder
+	ct.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
 <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
 <Default Extension="xml" ContentType="application/xml"/>
 <Default Extension="jpeg" ContentType="image/jpeg"/>
 <Default Extension="png" ContentType="image/png"/>
 <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
-<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
-<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>`
-	if hasImages {
-		ct += `
-<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>`
+<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>`)
+	wbRels.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`)
+	used := map[string]bool{}
+	for i, s := range sheets {
+		n := i + 1
+		name := xlsxSheetName(s.Name, i)
+		for base, k := name, 2; used[strings.ToLower(name)]; k++ {
+			suffix := fmt.Sprintf(" %d", k)
+			if len(base)+len(suffix) > 31 {
+				base = base[:31-len(suffix)]
+			}
+			name = base + suffix
+		}
+		used[strings.ToLower(name)] = true
+		fmt.Fprintf(&ct, "\n"+`<Override PartName="/xl/worksheets/sheet%d.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`, n)
+		if len(s.Images) > 0 {
+			fmt.Fprintf(&ct, "\n"+`<Override PartName="/xl/drawings/drawing%d.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>`, n)
+		}
+		fmt.Fprintf(&wbSheets, `<sheet name="%s" sheetId="%d" r:id="rId%d"/>`, xmlEscape(name), n, n)
+		fmt.Fprintf(&wbRels, `<Relationship Id="rId%d" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet%d.xml"/>`, n, n)
 	}
-	ct += "\n</Types>"
+	ct.WriteString("\n</Types>")
+	fmt.Fprintf(&wbRels, `<Relationship Id="rId%d" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`, len(sheets)+1)
+
 	steps := []struct{ name, body string }{
-		{"[Content_Types].xml", ct},
+		{"[Content_Types].xml", ct.String()},
 		{"_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`},
 		{"xl/workbook.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="` + xmlEscape(sheetName) + `" sheetId="1" r:id="rId1"/></sheets></workbook>`},
-		{"xl/_rels/workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`},
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>` + wbSheets.String() + `</sheets></workbook>`},
+		{"xl/_rels/workbook.xml.rels", wbRels.String()},
+		// cellXfs: 0 text, 1 bold, 2 number, 3 bold number, 4 hint (small
+		// grey italic), 5 header (bold on grey).
 		{"xl/styles.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.00"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="164" fontId="1" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1" applyAlignment="1"><alignment vertical="center"/></xf></cellXfs></styleSheet>`},
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.00"/></numFmts><fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font><font><i/><sz val="9"/><color rgb="FF6B7280"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE5E7EB"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="164" fontId="1" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf></cellXfs></styleSheet>`},
 	}
 	for _, st := range steps {
 		if err := put(st.name, st.body); err != nil {
@@ -107,49 +157,82 @@ func WriteXLSX(s XLSXSheet) ([]byte, error) {
 		}
 	}
 
-	var sh strings.Builder
-	sh.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+	media := 0
+	for i, s := range sheets {
+		n := i + 1
+		hasImages := len(s.Images) > 0
+		var sh strings.Builder
+		sh.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">`)
-	if len(s.ColWidths) > 0 {
-		sh.WriteString("<cols>")
-		for i, w := range s.ColWidths {
-			fmt.Fprintf(&sh, `<col min="%d" max="%d" width="%.2f" customWidth="1"/>`, i+1, i+1, w)
+		if s.FreezeRows > 0 {
+			fmt.Fprintf(&sh, `<sheetViews><sheetView workbookViewId="0"><pane ySplit="%d" topLeftCell="A%d" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`, s.FreezeRows, s.FreezeRows+1)
 		}
-		sh.WriteString("</cols>")
-	}
-	sh.WriteString("<sheetData>")
-	for r, row := range s.Rows {
-		if h, ok := s.RowHeights[r]; ok {
-			fmt.Fprintf(&sh, `<row r="%d" ht="%.1f" customHeight="1">`, r+1, h)
-		} else {
-			fmt.Fprintf(&sh, `<row r="%d">`, r+1)
-		}
-		for c, cell := range row {
-			ref := fmt.Sprintf("%s%d", xlsxColName(c), r+1)
-			style := 0
-			if cell.Bold {
-				style = 1
+		if len(s.ColWidths) > 0 {
+			sh.WriteString("<cols>")
+			for c, w := range s.ColWidths {
+				fmt.Fprintf(&sh, `<col min="%d" max="%d" width="%.2f" customWidth="1"/>`, c+1, c+1, w)
 			}
-			if cell.IsNum {
-				fmt.Fprintf(&sh, `<c r="%s" s="%d"><v>%s</v></c>`, ref, style+2, strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.4f", cell.Num), "0"), "."))
-			} else if cell.Text != "" {
-				fmt.Fprintf(&sh, `<c r="%s" s="%d" t="inlineStr"><is><t xml:space="preserve">%s</t></is></c>`, ref, style, xmlEscape(cell.Text))
-			}
+			sh.WriteString("</cols>")
 		}
-		sh.WriteString("</row>")
-	}
-	sh.WriteString("</sheetData>")
-	if hasImages {
-		sh.WriteString(`<drawing r:id="rId1"/>`)
-	}
-	sh.WriteString("</worksheet>")
-	if err := put("xl/worksheets/sheet1.xml", sh.String()); err != nil {
-		return nil, err
-	}
+		sh.WriteString("<sheetData>")
+		for r, row := range s.Rows {
+			if h, ok := s.RowHeights[r]; ok {
+				fmt.Fprintf(&sh, `<row r="%d" ht="%.1f" customHeight="1">`, r+1, h)
+			} else {
+				fmt.Fprintf(&sh, `<row r="%d">`, r+1)
+			}
+			for c, cell := range row {
+				ref := fmt.Sprintf("%s%d", xlsxColName(c), r+1)
+				style := 0
+				switch {
+				case cell.Header:
+					style = 5
+				case cell.Hint:
+					style = 4
+				case cell.Bold:
+					style = 1
+				}
+				if cell.IsNum {
+					numStyle := 2
+					if cell.Bold || cell.Header {
+						numStyle = 3
+					}
+					fmt.Fprintf(&sh, `<c r="%s" s="%d"><v>%s</v></c>`, ref, numStyle, strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.4f", cell.Num), "0"), "."))
+				} else if cell.Text != "" {
+					fmt.Fprintf(&sh, `<c r="%s" s="%d" t="inlineStr"><is><t xml:space="preserve">%s</t></is></c>`, ref, style, xmlEscape(cell.Text))
+				}
+			}
+			sh.WriteString("</row>")
+		}
+		sh.WriteString("</sheetData>")
+		var dv strings.Builder
+		count := 0
+		for _, v := range s.Validations {
+			list := strings.Join(v.Options, ",")
+			if len(v.Options) == 0 || len(list) > 255 || strings.ContainsAny(strings.Join(v.Options, ""), `,"`) || v.ToRow < v.FromRow {
+				continue
+			}
+			col := xlsxColName(v.Col)
+			fmt.Fprintf(&dv, `<dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="%s%d:%s%d"><formula1>"%s"</formula1></dataValidation>`,
+				col, v.FromRow+1, col, v.ToRow+1, xmlEscape(list))
+			count++
+		}
+		if count > 0 {
+			fmt.Fprintf(&sh, `<dataValidations count="%d">%s</dataValidations>`, count, dv.String())
+		}
+		if hasImages {
+			sh.WriteString(`<drawing r:id="rId1"/>`)
+		}
+		sh.WriteString("</worksheet>")
+		if err := put(fmt.Sprintf("xl/worksheets/sheet%d.xml", n), sh.String()); err != nil {
+			return nil, err
+		}
+		if !hasImages {
+			continue
+		}
 
-	if hasImages {
-		if err := put("xl/worksheets/_rels/sheet1.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>`); err != nil {
+		if err := put(fmt.Sprintf("xl/worksheets/_rels/sheet%d.xml.rels", n), fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing%d.xml"/></Relationships>`, n)); err != nil {
 			return nil, err
 		}
 		var dr, rels strings.Builder
@@ -157,31 +240,32 @@ func WriteXLSX(s XLSXSheet) ([]byte, error) {
 <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">`)
 		rels.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`)
-		for i, img := range s.Images {
+		for k, img := range s.Images {
 			ext := "jpeg"
 			if img.Mime == "image/png" {
 				ext = "png"
 			}
-			media := fmt.Sprintf("image%d.%s", i+1, ext)
-			w, err := z.Create("xl/media/" + media)
+			media++
+			file := fmt.Sprintf("image%d.%s", media, ext)
+			w, err := z.Create("xl/media/" + file)
 			if err != nil {
 				return nil, err
 			}
 			if _, err := w.Write(img.Data); err != nil {
 				return nil, err
 			}
-			fmt.Fprintf(&rels, `<Relationship Id="rId%d" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/%s"/>`, i+1, media)
+			fmt.Fprintf(&rels, `<Relationship Id="rId%d" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/%s"/>`, k+1, file)
 			// A 54 pt square, inset 3 pt into the cell (EMU: 1 pt = 12700);
 			// the row is 60 pt high.
 			fmt.Fprintf(&dr, `<xdr:oneCellAnchor><xdr:from><xdr:col>%d</xdr:col><xdr:colOff>38100</xdr:colOff><xdr:row>%d</xdr:row><xdr:rowOff>38100</xdr:rowOff></xdr:from><xdr:ext cx="685800" cy="685800"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="%d" name="Picture %d"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="rId%d"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="685800" cy="685800"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>`,
-				img.Col, img.Row, i+2, i+1, i+1)
+				img.Col, img.Row, k+2, k+1, k+1)
 		}
 		dr.WriteString("</xdr:wsDr>")
 		rels.WriteString("</Relationships>")
-		if err := put("xl/drawings/drawing1.xml", dr.String()); err != nil {
+		if err := put(fmt.Sprintf("xl/drawings/drawing%d.xml", n), dr.String()); err != nil {
 			return nil, err
 		}
-		if err := put("xl/drawings/_rels/drawing1.xml.rels", rels.String()); err != nil {
+		if err := put(fmt.Sprintf("xl/drawings/_rels/drawing%d.xml.rels", n), rels.String()); err != nil {
 			return nil, err
 		}
 	}

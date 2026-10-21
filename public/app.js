@@ -121,7 +121,23 @@ function showCustomPrompt(message, defaultValue = '', title = 'Input Required', 
     };
 
     document.getElementById('custom-dialog-ok-btn').addEventListener('click', () => {
-      const val = document.getElementById('custom-dialog-prompt-input').value;
+      const input = document.getElementById('custom-dialog-prompt-input');
+      const val = input.value;
+      // Stage 127.1: a number prompt takes a number or nothing - never
+      // "12abc", which parseFloat would quietly read as 12.
+      if (inputType === 'number' && ((input.validity && input.validity.badInput) || (val.trim() !== '' && !Number.isFinite(Number(val))))) {
+        let err = document.getElementById('custom-dialog-prompt-error');
+        if (!err) {
+          err = document.createElement('div');
+          err.id = 'custom-dialog-prompt-error';
+          err.style.cssText = 'color: var(--danger-color, #b3261e); font-size: 12.5px; margin-top: 6px;';
+          err.setAttribute('role', 'alert');
+          input.after(err);
+        }
+        err.textContent = 'Enter a number.';
+        input.focus();
+        return;
+      }
       cleanUp();
       resolve(val);
     });
@@ -316,7 +332,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '58';
+const VIEW_MODULE_VERSION = '59';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -354,7 +370,6 @@ const LAZY_VIEW_MODULES = {
   users: ['view-users.js', 'renderUsersView', 'Users', 'txn-screen.css'],
   'stock-locations': ['view-stock-locations.js', 'renderStockLocationsView', 'Stock Locations', 'txn-screen.css'],
   'stock-moves': ['view-stock-locations.js', 'renderStockMovesView', 'Move Stock', 'txn-screen.css'],
-  fulfillment: ['view-warehouse.js', 'renderFulfillmentView', 'Fulfillment'],
   putaway: ['view-warehouse.js', 'renderPutawayView', 'Putaway'],
   'warehouse-cockpit': ['view-warehouse.js', 'renderWarehouseCockpitView', 'Warehouse Cockpit'],
   'appointment-calendar': ['view-warehouse.js', 'renderAppointmentCalendarView', 'Appointment Calendar'],
@@ -371,7 +386,6 @@ const LAZY_VIEW_MODULES = {
   'location-movement': ['view-warehouse.js', 'renderLocationMovementView', 'Location Movement'],
   'wave-picking': ['view-warehouse.js', 'renderWavePickingView', 'Wave Picking'],
   'mobile-picking': ['view-warehouse.js', 'renderMobilePickingView', 'Mobile Picking'],
-  marketplace: ['view-oms.js', 'renderMarketplaceView', 'Marketplace'],
   oms: ['view-oms.js', 'renderOMSWorkbenchView', 'OMS'],
   approvals: ['view-inbox.js', 'renderTaskInboxView', 'Approvals'],
   'purchase-orders': ['view-procurement.js', 'renderPurchaseOrdersView', 'Purchase Orders', 'txn-screen.css'],
@@ -381,9 +395,11 @@ const LAZY_VIEW_MODULES = {
   inventory: ['view-reports.js', 'renderInventoryView', 'Inventory'],
   rfq: ['view-rfq.js', 'renderRFQView', 'Request for Quotation'],
   stickers: ['view-printing.js', 'renderStickersView', 'Sticker Printing'],
+  // Stage 127.6: every document printed, by the client's modules; print it again.
+  reprint: ['view-reprint.js', 'renderReprintView', 'Reprint'],
   hr: ['view-hr.js', 'renderHRView', 'HR'],
   assets: ['view-assets.js', 'renderAssetsView', 'Fixed Assets'],
-  transfers: ['view-transfers.js', 'renderTransfersView', 'Stock Transfer', 'txn-screen.css'],
+  transfers: ['view-transfers.js', 'renderTransfersView', 'Stock Movement', 'txn-screen.css'],
   expenses: ['view-expenses.js', 'renderExpensesView', 'Expenses'],
   manufacturing: ['view-manufacturing.js', 'renderManufacturingView', 'Manufacturing'],
   pim: ['view-pim.js', 'renderPIMView', 'PIM'],
@@ -1266,7 +1282,15 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
   //
   // Off by default, so all ~45 existing pickers send exactly the request they
   // sent before.
-  const filterParams = Object.entries(opts.filters || {})
+  //
+  // Stage 127.7: except the search scope - a picker finds a record by what
+  // identifies it (code, name, number, barcode, phone; q_fields=@identity),
+  // so typing "A" no longer lists every record whose status reads "Active"
+  // (the user's 94.24 bug, once fixed on the PO screen only). opts.anyField
+  // keeps the old every-field search for a picker that needs it.
+  const typeaheadFilters = { ...(opts.filters || {}) };
+  if (!typeaheadFilters.q_fields && !opts.anyField && typeof opts.source !== 'function') typeaheadFilters.q_fields = '@identity';
+  const filterParams = Object.entries(typeaheadFilters)
     .map(([k, v]) => `&${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join('');
 
@@ -2589,37 +2613,10 @@ function emptyPickerHint(doctype, label) {
   return `<div class="empty-state-hint">No ${getDoctypeLabel(label || doctype)} records exist yet &mdash; ${setupLink(doctype, 'create one first')}.</div>`;
 }
 
-// ===========================================================================
-// Setup guidance (Stage 41)
-//
-// The brief: when something the user needs has not been set up, the ERP
-// should say so where they are, link straight to it, let that link open in a
-// new tab, respect what the user is actually allowed to do, and say all of it
-// the same way every time - without turning into a nag.
-//
-// Four decisions shape everything below.
-//
-// 1. ONE VOCABULARY. Every hint in the product is one of three sentences
-//    (SETUP_MSG). A user learns the phrasing once and then recognises it
-//    instantly anywhere, and there is exactly one place to change the wording.
-//
-// 2. ONE ATTACHMENT POINT. attachLinkTypeahead() is the single door all ~45
-//    pickers in this app already go through, and renderView() is the single
-//    door every screen goes through. Hooking those two means a screen written
-//    next year gets this for free, and no screen can be forgotten.
-//
-// 3. LOUD WHEN BLOCKING, QUIET OTHERWISE. If the target list is EMPTY the user
-//    genuinely cannot proceed, so the hint is always visible. If it has
-//    records, the "can't find it? add one" line appears only while the field
-//    is focused. That is the difference between guidance and noise - and it is
-//    why this is a hint rather than a dialog: nothing here ever interrupts,
-//    steals focus, or has to be dismissed before work continues.
-//
-// 4. PERMISSION-AWARE, ALWAYS. A user who cannot create the record is never
-//    shown a link that would refuse them. They get the standard "ask your
-//    administrator" sentence instead. state.permissions is already populated
-//    for exactly this kind of pre-emptive check (30.5.7).
-// ===========================================================================
+// Setup guidance (Stage 41): one vocabulary (SETUP_MSG), hooked once in
+// attachLinkTypeahead() and renderView(); always shown when the list is
+// empty, on focus otherwise, never a dialog; no link a user cannot follow
+// ("ask your administrator" instead, from state.permissions).
 
 // The whole vocabulary. Three sentences, one place.
 const SETUP_MSG = {
@@ -2883,7 +2880,6 @@ const VIEW_SETUP_PREREQS = {
   'purchase-returns': ['Vendor'],
   'asn': ['Vendor', 'Location'],
   'rfq': ['Vendor', 'Item'],
-  'fulfillment': ['Location'],
   'putaway': ['Location', 'Bin'],
   'bin-conditions': ['Bin'],
   'cycle-count': ['Location', 'Bin'],
@@ -2891,7 +2887,6 @@ const VIEW_SETUP_PREREQS = {
   'bin-replenishment': ['Location', 'Bin'],
   'location-movement': ['Location', 'Bin'],
   'wave-picking': ['Location'],
-  'marketplace': ['Item'],
   'oms': ['Item', 'Location'],
   'manufacturing': ['Item', 'Location'],
   'hr': ['Employee'],
@@ -3232,7 +3227,7 @@ async function handleLoginSubmit(event) {
     const res = await fetch('/api/v1/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Tenant-ID': tenantID },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({ username, password, device_token: localStorage.getItem('erp_mfa_device:' + username) || '' })
     });
     const data = await res.json();
     if (!res.ok) {
@@ -3250,6 +3245,9 @@ async function handleLoginSubmit(event) {
       pendingMFAToken = data.challenge_token;
       document.getElementById('login-form').classList.add('hidden');
       document.getElementById('mfa-challenge-screen').classList.remove('hidden');
+      // 125.8: remember this device, for the client's days (0 = off).
+      document.getElementById('mfa-remember-days').textContent = data.remember_days;
+      document.getElementById('mfa-remember-row').classList.toggle('hidden', !data.remember_days);
       return;
     }
 
@@ -3262,10 +3260,9 @@ async function handleLoginSubmit(event) {
   }
 }
 
-// completeLogin stores the session and enters the app - the shared final
-// step whether login was a single step (non-MFA role) or ended via MFA
-// enrollment/verification.
+// completeLogin stores the session (and a remembered device) and enters the app.
 function completeLogin(data) {
+  if (data.device_token) localStorage.setItem('erp_mfa_device:' + data.user, data.device_token);
   localStorage.setItem('erp_token', data.token);
   localStorage.setItem('erp_username', data.user);
   localStorage.setItem('erp_role', data.role);
@@ -3282,10 +3279,7 @@ function completeLogin(data) {
   showApp();
   init();
 
-  // 32.5: signing in with a recovery code means the authenticator is
-  // presumably gone. Say so, and say what to do about it - otherwise the user
-  // burns codes one login at a time and is back to a hard lockout once the
-  // last one is spent.
+  // 32.5: a recovery code means the authenticator is likely gone - say what to do.
   if (data.used_recovery_code) {
     const left = Number(data.recovery_codes_remaining || 0);
     showToast(
@@ -3294,8 +3288,7 @@ function completeLogin(data) {
   }
 }
 
-// startMFAEnrollment fetches a fresh TOTP secret for a first-time MFA login
-// and reveals the enrollment screen (manual-entry code + confirmation form).
+// startMFAEnrollment: a fresh TOTP secret and the first-time setup screen.
 async function startMFAEnrollment() {
   const errorEl = document.getElementById('login-error');
   try {
@@ -3329,7 +3322,7 @@ async function submitMFACode(url, codeInputId, errorElId, submitBtnId) {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${pendingMFAToken}` },
-      body: JSON.stringify({ code })
+      body: JSON.stringify({ code, remember_device: document.getElementById('mfa-remember').checked })
     });
     const data = await res.json();
     if (!res.ok) {
@@ -3337,9 +3330,7 @@ async function submitMFACode(url, codeInputId, errorElId, submitBtnId) {
       errorEl.classList.remove('hidden');
       return;
     }
-    // 32.5: enrollment hands back a set of recovery codes that exist in
-    // plaintext exactly once. Park the session and show them first; the app
-    // is only entered after the user ticks the acknowledgement.
+    // 32.5: enrollment's recovery codes are shown once, before the app.
     if (Array.isArray(data.recovery_codes) && data.recovery_codes.length) {
       pendingSessionData = data;
       showRecoveryCodesScreen(data.recovery_codes);
@@ -3364,17 +3355,9 @@ async function handleMFAChallengeSubmit(event) {
   await submitMFACode('/api/v1/auth/mfa/verify', 'mfa-challenge-code', 'mfa-challenge-error', 'mfa-challenge-submit-btn');
 }
 
-// --- 32.5: MFA recovery codes -------------------------------------------
-//
-// Before this, a lost phone meant SSH-ing to the server and clearing
-// mfa_enabled by hand. These three pieces are the in-app path: entering a
-// recovery code instead of a TOTP code, saving the codes at enrollment, and
-// (on the profile screen) moving the authenticator to a new device.
+// --- 32.5: MFA recovery codes: sign in with one, save them, change device.
 
-// setRecoveryCodeMode retargets the single challenge input between a 6-digit
-// TOTP code and a recovery code. The numeric pattern/maxlength have to be
-// lifted or the browser's own validation rejects a recovery code before it is
-// ever submitted.
+// setRecoveryCodeMode switches the one code input between TOTP and recovery code.
 function setRecoveryCodeMode(on) {
   const input = document.getElementById('mfa-challenge-code');
   const label = document.querySelector('label[for="mfa-challenge-code"]');
@@ -3639,19 +3622,11 @@ async function fetchLabels() {
   }
 }
 
-// 22.6: which doctype(s) gate each sidebar item's visibility, derived from
-// what the backend actually enforces today (grepped every handler's own
-// role check, not guessed) - not a hand-maintained per-role allowlist. An
-// item is visible if the caller's role has allow_read on ANY listed
-// doctype (`doctypes`), is HR/Admin (`adminOnly` - matches requireHRAdmin,
-// a literal role check with no role_permissions row to key off of, e.g.
-// Users/Roles/DocType Builder), or is explicitly `open` (the item's own
-// backing handler has no role_permissions gate at all server-side - e.g.
-// Reports, Finance/GL, POS billing, Approvals' per-transaction slab+role
-// routing, Fulfillment/Marketplace, Fixed Assets' bespoke
-// /api/v1/assets/register endpoint - showing these to every authenticated
-// role matches current server behavior exactly, not a new restriction).
-// Any menu id not listed here defaults open the same way.
+// 22.6: which doctype(s) gate each sidebar item, from what each handler's own
+// role check enforces. Visible if the role reads ANY listed doctype
+// (`doctypes`), is HR/Admin (`adminOnly`, as requireHRAdmin), or the item is
+// `open` (no role_permissions gate server-side: Reports, Finance/GL, POS,
+// Approvals, Fixed Assets). An unlisted menu id is open the same way.
 const MENU_PERMISSION_MAP = {
   'menu-home': { open: true },
   'menu-pos': { doctypes: ['POSCart', 'POSSession'] },
@@ -3668,8 +3643,6 @@ const MENU_PERMISSION_MAP = {
   'menu-sales-invoices': { doctypes: ['SalesInvoice'] },
   'menu-journal-vouchers': { doctypes: ['JournalVoucher'] },
 
-  'menu-fulfillment': { modules: ['OMS'] },
-  'menu-marketplace': { modules: ['OMS', 'PIM'] },
 	'menu-oms': { modules: ['OMS'] },
   'menu-customers': { doctypes: ['Customer'] },
   // Stage 57.17: these two had no rule at all, so every role saw them.
@@ -3788,6 +3761,12 @@ const MENU_MODULE_MAP = {
       "home"
     ]
   },
+  "menu-reprint": {
+    "module": "core",
+    "views": [
+      "reprint"
+    ]
+  },
   "menu-putaway": {
     "module": "wms",
     "views": [
@@ -3840,18 +3819,6 @@ const MENU_MODULE_MAP = {
     "module": "wms",
     "views": [
       "wave-picking"
-    ]
-  },
-  "menu-fulfillment": {
-    "module": "wms",
-    "views": [
-      "fulfillment"
-    ]
-  },
-  "menu-marketplace": {
-    "module": "oms",
-    "views": [
-      "marketplace"
     ]
   },
   "menu-oms": {
@@ -4445,14 +4412,16 @@ let setupMenuFilter = '';
 // A new ERP inventory list is added here.
 const SETUP_INVENTORY_ERP = ['Item', 'ItemAttribute', 'ItemBarcode', 'ItemException', 'ItemType', 'ReorderPointConfig', 'BackflushRule'];
 // Stage 88.1.14: print setup is its own Setup group, whatever module the list is filed under.
-const SETUP_PRINTING = ['PrintTemplate', 'StickerTemplate', 'Printer', 'PrinterAssignment'];
+const SETUP_PRINTING = ['PrintTemplate', 'PrintProfile', 'StickerTemplate', 'Printer', 'PrinterAssignment']; // PrintProfile: Stage 127.4
+// Stage 88.2.9 / 88.4: a module's own setup page heads its list; Templates stands for both template lists.
+const SETUP_PAGES = { OMS: '<li><a class="submenu-item" id="menu-oms-settings" data-go="oms:settings" data-like="menu-oms">OMS settings</a></li>', Printing: '<li><a class="submenu-item" id="menu-templates" data-go="doctype-table" data-doctype="PrintTemplate">Templates</a></li><li><a class="submenu-item" id="menu-reprint" data-go="reprint">Reprint</a></li>' };
 
 function renderSidebarSubmenu() {
   const sub = document.getElementById('submenu-master');
   if (!sub) return;
   sub.innerHTML = '';
 
-  const visible = state.activeDoctypes.filter(d => d.document_type === 'Master' && canReadDoctype(d.name) &&
+  const visible = state.activeDoctypes.filter(d => d.document_type === 'Master' && canReadDoctype(d.name) && !['PrintTemplate', 'StickerTemplate'].includes(d.name) &&
     !document.querySelector(`.sidebar-menu [data-doctype="${d.name}"]`));
   const needle = setupMenuFilter.trim().toLowerCase();
   const groupOf = d => SETUP_PRINTING.includes(d.name) ? 'Printing' : d.module === 'Inventory' && !SETUP_INVENTORY_ERP.includes(d.name) ? 'WMS' : (d.module || 'Other');
@@ -4496,7 +4465,7 @@ function renderSidebarSubmenu() {
   Object.keys(byModule).sort().forEach(mod => {
     const list = byModule[mod].sort((a, b) => label(a).localeCompare(label(b)));
     const advanced = list.filter(d => d.setup_advanced).map(entry).join('');
-    const items = list.filter(d => !d.setup_advanced).map(entry).join('') + (advanced ? `<li class="submenu-group-label">Advanced</li>${advanced}` : '');
+    const items = (SETUP_PAGES[mod] || '') + list.filter(d => !d.setup_advanced).map(entry).join('') + (advanced ? `<li class="submenu-group-label">Advanced</li>${advanced}` : '');
     const row = document.createElement('li');
     if (needle) {
       row.className = 'submenu-group-label';
@@ -4671,20 +4640,6 @@ function setupEventListeners() {
     setActiveMenu('menu-finance');
     closeSubmenus();
     renderView('finance');
-  });
-
-  document.getElementById('menu-fulfillment').addEventListener('click', (e) => {
-    e.preventDefault();
-    setActiveMenu('menu-fulfillment');
-    closeSubmenus();
-    renderView('fulfillment');
-  });
-
-  document.getElementById('menu-marketplace').addEventListener('click', (e) => {
-    e.preventDefault();
-    setActiveMenu('menu-marketplace');
-    closeSubmenus();
-    renderView('marketplace');
   });
 
 	document.getElementById('menu-oms').addEventListener('click', (e) => {
@@ -4954,40 +4909,10 @@ function setupEventListeners() {
   setupAccountMenu();
 }
 
-// ---------------------------------------------------------------------------
-// Reset (Stage 53.17)
-//
-// Why this is a second button and not a bigger Sync.
-//
-// Refresh re-asks the server for labels and screen definitions. Everything
-// else survives it: the per-tab stale-while-revalidate cache (SWR_PREFIX in
-// sessionStorage, which backs every record list and field-metadata read), the
-// in-memory `state` object, the sidebar's remembered open/closed sections, and
-// whatever half-finished work is sitting on the current screen. That is the
-// right behaviour for "a label changed" and the wrong behaviour for "this
-// screen is showing me something that is not true any more".
-//
-// A browser reload is not the cure for the second case either, which is the
-// trap worth naming: F5 re-runs the app against the SAME sessionStorage and
-// localStorage, so the stale copy is read straight back in. Reset is the only
-// thing that drops the cached copy before rebuilding from the server.
-//
-// What it clears:
-//   - every SWR entry in sessionStorage (the real "cache" in this app)
-//   - the in-memory state caches - doctype list, field metadata, fetched rows,
-//     label map, permissions - all re-fetched immediately afterwards
-//   - the sidebar nav state
-//   - all unsaved on-screen work, including the POS till (cart, customer,
-//     coupon, discount, tender, frozen bill, store binding)
-//
-// What it deliberately does NOT clear, and why each one:
-//   - Unsynced offline sales. These are sales that happened; the customer has
-//     walked out with the goods. They are not cache. Reset REFUSES outright
-//     while any are queued rather than quietly destroying them - the same
-//     posture closePOSSessionFlow already takes for the same reason.
-//   - Your session. Reset is not Sign Out; a cashier mid-shift must not be
-//     thrown back to a login screen for asking a screen to redraw cleanly.
-//   - Your theme. A personal preference is not stale data.
+// Reset (Stage 53.17): drops what Refresh and F5 keep (F5 reads the same
+// sessionStorage back) - the SWR cache, in-memory state, nav state, unsaved
+// screen work incl. the POS till. Keeps the session and theme, and refuses
+// while unsynced offline sales are queued (real sales, not cache).
 async function resetClientState() {
   // Guard first, before anything is cleared and before the user is asked to
   // confirm - there is no point confirming an action that must not proceed.
@@ -5828,8 +5753,6 @@ const STATIC_VIEW_MENU_IDS = {
   home: 'menu-home',
   pos: 'menu-pos',
   finance: 'menu-finance',
-  fulfillment: 'menu-fulfillment',
-  marketplace: 'menu-marketplace',
 	oms: 'menu-oms',
   'rf-traceability': 'menu-rf-traceability',
   returns: 'menu-returns',
@@ -6088,6 +6011,8 @@ async function renderView(view) {
 
 async function renderViewContent(view, root) {
   // Stage 88.1: "view:tab" opens one tab of a tabbed screen as its own page; the screen reads currentViewTab.
+  // Stage 88.2: retired screens open their OMS step.
+  view = ({ fulfillment: 'oms:pick', marketplace: 'oms:ship' })[view] || view;
   [view, currentViewTab = ''] = view.split(':');
   // Invalidate a pending quick-create return target the moment navigation
   // strays anywhere other than the new master's own list or back to the
@@ -6480,9 +6405,7 @@ async function renderMFARecoveryPanel(panel) {
   const remaining = Number(info.remaining || 0);
   const perSet = Number(info.issued_per_set || 10);
 
-  // The status line is the whole point of the panel: "you have N ways back in
-  // if your phone dies". Zero is called out in danger colours because that is
-  // the state the Stage 32.5 lockout report was actually written about.
+  // "N ways back in if your phone dies"; zero is shown in danger colours.
   let statusBadge, statusNote;
   if (remaining === 0) {
     statusBadge = '<span class="badge badge-danger">No recovery codes</span>';
@@ -6509,9 +6432,16 @@ async function renderMFARecoveryPanel(panel) {
       <button type="button" class="btn btn-secondary" id="mfa-regen-btn">Generate new recovery codes</button>
       <button type="button" class="btn btn-secondary" id="mfa-newdevice-btn">Set up a new authenticator device</button>
       ${info.reenroll_in_progress ? '<button type="button" class="btn btn-secondary" id="mfa-cancel-reenroll-btn">Cancel device change</button>' : ''}
+      ${info.remembered_devices ? `<button type="button" class="btn btn-secondary" id="mfa-forget-devices-btn">Forget remembered devices (${info.remembered_devices})</button>` : ''}
     </div>
   `;
 
+  document.getElementById('mfa-forget-devices-btn')?.addEventListener('click', async () => {
+    const r = await apiFetch('/api/v1/me/mfa/devices/forget', { method: 'POST', body: '{}' });
+    if (r && !r.ok) return showApiError(r, 'Failed to forget your devices.');
+    localStorage.removeItem('erp_mfa_device:' + localStorage.getItem('erp_username'));
+    await renderMFARecoveryPanel(panel);
+  });
   document.getElementById('mfa-regen-btn').addEventListener('click', async () => {
     const password = await showCustomPrompt(
       'Confirm your password to generate a new set. This immediately invalidates any codes you already hold.',
@@ -6608,35 +6538,10 @@ function isAdminRoleName(name) {
   return ['superadmin', 'hr/admin', 'hradmin', 'admin'].includes(String(name || '').toLowerCase().replace(/\s+/g, ''));
 }
 
-// ===========================================================================
-// Home (BLD-033: task-oriented role navigation and onboarding)
-//
-// DEFAULT_VIEW's own comment has the short version. The longer one: the
-// retired Dashboard (2026-08-01) failed because it was a second, generic
-// front door into screens the sidebar already listed - "derived counts and
-// shortcut tiles into Settings screens" was the user's own verdict. Home is
-// deliberately NOT that:
-//   - It links only to day-to-day TASK screens (POS, Purchase Orders,
-//     Warehouse Cockpit, Finance...), never a Settings/admin/config screen -
-//     an Administrator's sidebar already has every one of those, unchanged,
-//     one click away; duplicating that list here is exactly the mistake
-//     that got the old screen removed.
-//   - Every tile is real, permission-derived navigation the visitor can
-//     already reach some other way (the same MENU_PERMISSION_MAP/
-//     MENU_MODULE_MAP rules the sidebar itself is gated by), never a static
-//     list shown regardless of role - a permission-limited tenant simply
-//     sees fewer tiles, never a disabled one.
-//   - It surfaces STATE (approvals waiting, what you last touched, whether
-//     the tenant has anything set up yet) rather than only being a link
-//     farm - the thing a generic sidebar structurally cannot do.
-//
-// HOME_QUICK_ACTIONS is deliberately NOT keyed by role name: state.permissions
-// (fetchAndApplyPermissions' own comment) already made that call for the
-// exact same reason - a role-name branch can't see a tenant's custom role or
-// a template edit, a doctype/module/capability check always can. Each entry
-// reuses the SAME menuId its sidebar item is gated by, so Home can never
-// show a tile the sidebar itself would hide, and a future MENU_PERMISSION_MAP/
-// MENU_MODULE_MAP edit is picked up here for free.
+// Home (BLD-033): task screens only, never Settings (the retired Dashboard's
+// mistake); tiles gated by the same menuId as the sidebar (never by role
+// name), so a limited user sees fewer tiles, never a disabled one; shows
+// state (approvals, recent work, setup) the sidebar cannot.
 const HOME_QUICK_ACTIONS = [
   { id: 'pos', label: 'Point of Sale', desc: 'Ring up sales, take payment, handle receipted returns.', view: 'pos', menuId: 'menu-pos' },
   { id: 'warehouse-cockpit', label: 'Warehouse Cockpit', desc: 'Open tasks, exceptions, waves and inbound for one location.', view: 'warehouse-cockpit', menuId: 'menu-warehouse-cockpit' },
@@ -6650,7 +6555,7 @@ const HOME_QUICK_ACTIONS = [
   { id: 'sales-invoices', label: 'Sales Invoices', desc: 'What customers owe the company.', view: 'sales-invoices', menuId: 'menu-sales-invoices' },
   { id: 'journal-vouchers', label: 'Journal Vouchers', desc: 'Manual entries: accruals, corrections, opening balances.', view: 'journal-vouchers', menuId: 'menu-journal-vouchers' },
   { id: 'oms', label: 'Orders', desc: 'Track orders across every channel.', view: 'oms', menuId: 'menu-oms' },
-  { id: 'fulfillment', label: 'Fulfillment', desc: 'Pick, pack and ship open orders.', view: 'fulfillment', menuId: 'menu-fulfillment' },
+  { id: 'pending', label: 'Pending Orders', desc: 'Accept or reject new channel orders.', view: 'oms:pending', menuId: 'menu-oms' },
   { id: 'returns', label: 'Returns', desc: 'Process customer returns and exceptions.', view: 'returns', menuId: 'menu-returns' },
   { id: 'hr', label: 'HR & People', desc: 'Leave and attendance.', view: 'hr', menuId: 'menu-hr' }
 ];
@@ -7106,7 +7011,9 @@ async function qzLogJob(entry) {
  * @returns true if it printed, false if the caller should fall back.
  */
 async function qzTryPrint(jobType, opts = {}) {
-  if (!await qzTryConnect()) return false;
+  // Stage 127.2: opts.why, when given, is told why nothing printed.
+  const fail = (reason) => { if (opts.why) opts.why.reason = reason; return false; };
+  if (!await qzTryConnect()) return fail(qzLastError ? `PrintBridge is not reachable (${qzLastError}).` : 'PrintBridge is not reachable.');
   // Stage 98.4: this computer's own printer per kind of print (print-routing.js).
   const routing = await loadViewModule('./print-routing.js');
 
@@ -7136,12 +7043,13 @@ async function qzTryPrint(jobType, opts = {}) {
       print_kind: opts.printKind || ''
     })
   });
-  if (!res) return false;
+  if (!res) return fail('The server could not be reached.');
   if (!res.ok) {
     if (!opts.printerCode && await routing.needsChoice(res)) return routing.chooseAndPrint(jobType, opts);
     if (opts.quiet) {
-      console.debug('[QZ] falling back to the browser sheet:', await getErrorMessage(res, 'no print payload'));
-      return false;
+      const msg = await getErrorMessage(res, 'no print payload');
+      console.debug('[QZ] falling back to the browser sheet:', msg);
+      return fail(msg);
     }
     await showApiError(res, 'Could not prepare the print job.', 'Print Failed');
     return false;
@@ -7160,7 +7068,7 @@ async function qzTryPrint(jobType, opts = {}) {
   if (!printerName) {
     if (opts.quiet) {
       console.debug('[QZ] printer has no OS printer name set; falling back to the browser sheet');
-      return false;
+      return fail(`Printer "${(payload.printer && payload.printer.name) || opts.printerCode}" has no OS printer name set.`);
     }
     await showCustomAlert(
       `Printer "${(payload.printer && payload.printer.name) || opts.printerCode}" has no OS printer name set. ` +
@@ -7178,6 +7086,7 @@ async function qzTryPrint(jobType, opts = {}) {
       qz_printer_name: printerName, print_format: payload.format, copies: payload.copies,
       status: 'Failed', error_detail: err.message || String(err)
     });
+    if (opts.quiet) return fail(`The printer refused the job: ${err.message || String(err)}.`);
     await showCustomAlert(err.message || String(err), 'Print Failed');
     return false;
   }

@@ -106,12 +106,15 @@ func ReconcileSale(tenantID, cartNumber string) (*SaleReconciliationRow, error) 
 	// (5250) and gift cards (2610) paid with. Stage 73.1.6: net, not debit +
 	// credit - a split sale moves money between clearing accounts, and a gift
 	// card settles against one, so summing both sides double-counted them.
-	var clearingNet, pointsAndCards int64
+	// Stage 94.15: the bill's round-off to the rupee (5280) is netted out, so
+	// the tender is held to the lines' value like revenue is.
+	var clearingNet, pointsAndCards, roundOffNet int64
 	_ = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT COALESCE(SUM(CASE WHEN account_code IN ('1100','1101','1102') THEN debit - credit ELSE 0 END), 0),
-		       COALESCE(SUM(CASE WHEN account_code IN ('5250','2610','2620') THEN debit ELSE 0 END), 0)
-		FROM %s.gl_postings WHERE document_type = 'POSCart' AND document_id = $1`, schema), cartNumber).Scan(&clearingNet, &pointsAndCards)
-	row.TenderPosted = PaiseToRupees(clearingNet + pointsAndCards)
+		       COALESCE(SUM(CASE WHEN account_code IN ('5250','2610','2620') THEN debit ELSE 0 END), 0),
+		       COALESCE(SUM(CASE WHEN account_code = '5280' THEN debit - credit ELSE 0 END), 0)
+		FROM %s.gl_postings WHERE document_type = 'POSCart' AND document_id = $1`, schema), cartNumber).Scan(&clearingNet, &pointsAndCards, &roundOffNet)
+	row.TenderPosted = PaiseToRupees(clearingNet + pointsAndCards + roundOffNet)
 
 	_ = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT COALESCE(SUM(CASE WHEN transaction_type = 'Burn' THEN points ELSE -points END), 0)

@@ -315,6 +315,7 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/me/mfa/reenroll", apiMiddleware(handleMFAReenrollStart))
 	http.HandleFunc("POST /api/v1/me/mfa/reenroll/confirm", apiMiddleware(handleMFAReenrollConfirm))
 	http.HandleFunc("POST /api/v1/me/mfa/reenroll/cancel", apiMiddleware(handleMFAReenrollCancel))
+	http.HandleFunc("POST /api/v1/me/mfa/devices/forget", apiMiddleware(handleForgetMyMFADevices)) // Stage 125.8
 
 	// Admin user/role management (Stage 21 QA fix) - the Users/Roles sidebar
 	// items had never had a backend at all. HR/Admin-only, enforced in each handler.
@@ -350,6 +351,12 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/stock-locations/defaults", apiMiddleware(handleStockLocationDefault))
 	http.HandleFunc("GET /api/v1/stock-locations/balance", apiMiddleware(handleStockLocationBalance))
 	http.HandleFunc("POST /api/v1/stock-locations/move", apiMiddleware(handleMoveStock))
+	// Stage 88.5: Inventory ▸ Dashboard, MRP Change and Stock Adjustment (handlers_inventory_erp.go).
+	http.HandleFunc("GET /api/v1/inventory/dashboard", apiMiddleware(moduleGate("inventory", handleInventoryDashboard)))
+	http.HandleFunc("POST /api/v1/inventory/mrp-changes", apiMiddleware(moduleGate("inventory", handleCreateMRPChange)))
+	http.HandleFunc("POST /api/v1/inventory/mrp-changes/{id}/cancel", apiMiddleware(moduleGate("inventory", handleCancelMRPChange)))
+	http.HandleFunc("POST /api/v1/inventory/adjustments", apiMiddleware(moduleGate("inventory", handleCreateInventoryAdjustment)))
+	http.HandleFunc("POST /api/v1/inventory/adjustments/{id}/post", apiMiddleware(moduleGate("inventory", handlePostInventoryAdjustment)))
 	// Stage 85.E8: uploaded line codes to items.
 	http.HandleFunc("POST /api/v1/lines/resolve", apiMiddleware(handleResolveLineCodes))
 	// Stage 85.C: the customer at the till (handlers_pos_customers.go).
@@ -386,6 +393,14 @@ func registerRoutes() {
 	// Stage 28.1: module-by-module admin configuration (system_settings).
 	http.HandleFunc("GET /api/v1/admin/settings", apiMiddleware(handleGetSettings))
 	http.HandleFunc("PUT /api/v1/admin/settings", apiMiddleware(handleUpdateSettings))
+	// Stage 128: the Setup Workbook - a whole organisation's setup from one Excel file.
+	http.HandleFunc("GET /api/v1/admin/setup-workbook/template", apiMiddleware(handleSetupWorkbookTemplate))
+	http.HandleFunc("GET /api/v1/admin/setup-workbook/export", apiMiddleware(handleSetupWorkbookExport))
+	http.HandleFunc("POST /api/v1/admin/setup-workbook/preview", apiMiddleware(handleSetupWorkbookPreview))
+	http.HandleFunc("POST /api/v1/admin/setup-workbook/apply", apiMiddleware(handleSetupWorkbookApply))
+	http.HandleFunc("GET /api/v1/admin/setup-workbook/runs", apiMiddleware(handleSetupWorkbookRuns))
+	http.HandleFunc("GET /api/v1/admin/setup-workbook/runs/{id}", apiMiddleware(handleSetupWorkbookRun))
+	http.HandleFunc("GET /api/v1/admin/setup-workbook/runs/{id}/file", apiMiddleware(handleSetupWorkbookRunFile))
 	http.HandleFunc("GET /api/v1/ops/deployment-status", apiMiddleware(handleDeploymentStatus))
 	http.HandleFunc("GET /api/v1/ops/backup-status", apiMiddleware(handleBackupStatus))
 	http.HandleFunc("GET /api/v1/ops/alerting-status", apiMiddleware(handleAlertingStatus)) // Stage 55.21
@@ -507,13 +522,13 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/wms/transfer/pack", apiMiddleware(moduleGate("wms", handlePackTransferOrder)))
 	// Stage 26.12.3: FulfillmentTask Pick/Pack scan endpoints - same module
 	// gate as the pick-list/putaway/condition-transition floor-ops routes above.
-	http.HandleFunc("POST /api/v1/wms/pick-scan", apiMiddleware(moduleGate("wms", handlePickScan)))
-	http.HandleFunc("POST /api/v1/wms/pack-scan", apiMiddleware(moduleGate("wms", handlePackScan)))
-	http.HandleFunc("POST /api/v1/wms/short-pick", apiMiddleware(moduleGate("wms", handleShortPick)))
+	http.HandleFunc("POST /api/v1/wms/pick-scan", apiMiddleware(moduleGateAny([]string{"oms", "wms"}, handlePickScan)))
+	http.HandleFunc("POST /api/v1/wms/pack-scan", apiMiddleware(moduleGateAny([]string{"oms", "wms"}, handlePackScan)))
+	http.HandleFunc("POST /api/v1/wms/short-pick", apiMiddleware(moduleGateAny([]string{"oms", "wms"}, handleShortPick)))
 	// Stage 42.4.6: this route now runs through handlePackCompleteValidated
 	// (handlers_wms_outbound.go), which defers to the same, unchanged
 	// CompletePackTask after an additive pre-pack checklist.
-	http.HandleFunc("POST /api/v1/wms/pack-complete", apiMiddleware(moduleGate("wms", handlePackCompleteValidated)))
+	http.HandleFunc("POST /api/v1/wms/pack-complete", apiMiddleware(moduleGateAny([]string{"oms", "wms"}, handlePackCompleteValidated)))
 	http.HandleFunc("POST /api/v1/wms/cycle-count/reconcile", apiMiddleware(moduleGate("wms", handleReconcileCycleCount)))
 
 	// Stage 26.5 (WMS Enterprise Maturity Sprint): cross-dock staging, LPN/
@@ -1070,7 +1085,7 @@ func registerRoutes() {
 	// Store Fulfillment & Returns APIs. moduleGate("wms",...) (Stage 27) now
 	// stacks alongside the pre-existing featureGate("wms_integration",...),
 	// same reasoning as the Shopify routes above.
-	http.HandleFunc("POST /api/v1/fulfillment/task/transition", apiMiddleware(moduleGate("wms", featureGate("wms_integration", handleFulfillmentTaskTransition))))
+	http.HandleFunc("POST /api/v1/fulfillment/task/transition", apiMiddleware(moduleGateAny([]string{"oms", "wms"}, featureGate("wms_integration", handleFulfillmentTaskTransition))))
 	http.HandleFunc("POST /api/v1/fulfillment/return", apiMiddleware(moduleGate("wms", featureGate("wms_integration", handleFulfillmentReturn))))
 
 	// Transfer-order lifecycle (Stage 17.6)
@@ -1141,6 +1156,9 @@ func registerRoutes() {
 	// Stage 63: designed transaction prints and the Vendor PO in Excel.
 	http.HandleFunc("GET /api/v1/print/document/{txn}/{id}", apiMiddleware(handlePrintDocument))
 	http.HandleFunc("POST /api/v1/print/document/{txn}/{id}/send", apiMiddleware(handlePrintDocumentSend))
+	// Stage 127.6: every document print recorded; Setup > Printing > Reprint.
+	http.HandleFunc("POST /api/v1/print/document/{txn}/{id}/log", apiMiddleware(handlePrintDocumentLog))
+	http.HandleFunc("GET /api/v1/print/history", apiMiddleware(handleDocumentPrintHistory))
 	http.HandleFunc("GET /api/v1/print/catalog", apiMiddleware(handlePrintCatalog))
 	http.HandleFunc("GET /api/v1/procurement/purchase-order/{id}/excel", apiMiddleware(moduleGate("procurement", handleVendorPOExcel)))
 	// Stage 73.2.4 (D05): PO reconciliation and short-close.

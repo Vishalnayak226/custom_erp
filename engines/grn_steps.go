@@ -100,7 +100,7 @@ func init() {
 			{Value: "49", Label: "₹x49 or ₹x99 - 1,049, 1,099"},
 			{Value: "9", Label: "₹x9 - 1,089, 1,099"},
 			{Value: "0", Label: "Round up to ₹10"},
-			{Value: "none", Label: "No rounding"},
+			{Value: "none", Label: "Nearest rupee"},
 		},
 		Description: "How the suggested MRP is rounded up at the MRP step.",
 	})
@@ -1630,7 +1630,7 @@ func roundUpToEnding(p float64, ending string) float64 {
 	}
 	switch ending {
 	case "none":
-		return round2(p)
+		return WholeRupeeMRP(p) // Stage 94.15: an MRP is a whole rupee
 	case "0":
 		return math.Ceil(p/10-1e-9) * 10
 	case "9":

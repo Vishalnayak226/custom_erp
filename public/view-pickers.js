@@ -924,7 +924,9 @@ async function attachVariantOptionsEditor(input) {
     .split(',').map(s => s.trim()).filter(Boolean);
   const valueControl = (key, value) => {
     const choices = choicesOf(key);
-    if (!choices.length) return `<input type="text" class="form-input" data-v="val" placeholder="Value" value="${escapeHTMLText(value)}">`;
+    // Stage 127.1: a Number attribute takes a number.
+    const numeric = (byCode.get(key) || {}).value_type === 'Number';
+    if (!choices.length) return `<input type="${numeric ? 'number' : 'text'}" class="form-input" data-v="val" placeholder="Value" value="${escapeHTMLText(value)}"${numeric ? ' step="any"' : ''}>`;
     if (value && !choices.includes(value)) choices.push(value);
     return `<select class="form-select" data-v="val">${opt('', '— Value —', !value)}${choices.map(c => opt(c, c, c === value)).join('')}</select>`;
   };

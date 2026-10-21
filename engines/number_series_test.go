@@ -153,11 +153,17 @@ func TestNumberSeriesStoreCodeYearFormatAndGSTLength(t *testing.T) {
 	include := true
 	var verr *ValidationError
 
-	// The screenshot's series: the longest store's ASN/JAY/26-27/00001 is 19
-	// characters - refused, naming that store's number.
-	err := SaveNumberSeries(tenantID, NumberSeries{DocType: "ASN", Prefix: "ASN", Separator: "/", PaddingWidth: 5, ResetFrequency: "ANNUAL", ActiveStatus: true}, &include, map[string]StoreSeriesOverride{})
-	if !errors.As(err, &verr) || verr.Code != "ADMINC-0311" || !strings.Contains(verr.Message, "ASN/JAY/"+fy+"/00001") || !strings.Contains(verr.Message, "16") {
-		t.Fatalf("a 19-character series: err = %v, want ADMINC-0311 naming ASN/JAY/%s/00001 and 16", err, fy)
+	// The screenshot's series with one more digit: the longest store's
+	// ASN/JAY/26-27/000001 is 20 characters - refused, naming that store's number.
+	err := SaveNumberSeries(tenantID, NumberSeries{DocType: "ASN", Prefix: "ASN", Separator: "/", PaddingWidth: 6, ResetFrequency: "ANNUAL", ActiveStatus: true}, &include, map[string]StoreSeriesOverride{})
+	if !errors.As(err, &verr) || verr.Code != "ADMINC-0311" || !strings.Contains(verr.Message, "ASN/JAY/"+fy+"/000001") || !strings.Contains(verr.Message, "16") {
+		t.Fatalf("a 20-character series: err = %v, want ADMINC-0311 naming ASN/JAY/%s/000001 and 16", err, fy)
+	}
+	// Stage 126.4: the seeded series as it is (ASN/JAY/26-27/00001, 19
+	// characters, made before the 16-character rule) saves when nothing in
+	// its number changes - a status change is not refused.
+	if err := SaveNumberSeries(tenantID, NumberSeries{DocType: "ASN", Prefix: "ASN", Separator: "/", PaddingWidth: 5, ResetFrequency: "ANNUAL", ActiveStatus: false}, &include, map[string]StoreSeriesOverride{}); err != nil {
+		t.Fatalf("status-only save of the seeded ASN series: %v", err)
 	}
 
 	// The store's own code changes only its segment; 2627 with no separator fits.

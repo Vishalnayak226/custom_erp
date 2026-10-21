@@ -123,7 +123,7 @@ Think of this system as one big digital notebook that your whole business shares
 2. Type in your **username** and **password** (your manager or admin gives these to you).
 3. Click **Login**.
 4. **The first time you sign in** — and the first time after an administrator has reset your password — you are asked to **Set your own password**: type the password you were given, then your new one twice. Nothing else in the system opens until you have done this, so the password your administrator knows never stays in use. If you forget your password later, ask your administrator to reset it; you will be asked to choose a new one again.
-5. Only administrator accounts (Admin and Super Admin) are asked for a **6-digit code** from an authenticator app on their phone. This is called **MFA** (Multi-Factor Authentication) — an extra lock on the door, on top of the password. Everyone else signs in with username and password only.
+5. Only administrator accounts (Admin and Super Admin) are asked for a **6-digit code** from an authenticator app on their phone. This is called **MFA** (Multi-Factor Authentication) — an extra lock on the door, on top of the password. Everyone else signs in with username and password only. On your own computer you can tick **Remember this device** to skip the code there for a while (see below).
 6. If you type your password wrong too many times in a row, the system will temporarily lock your account to keep it safe. Wait a bit and try again, or ask an admin for help.
 
 ### If your role uses MFA: your recovery codes
@@ -135,6 +135,15 @@ The very first time you set up MFA, the app shows you **ten recovery codes** and
 - **Each code works once.** On the login screen, if you don't have your phone, click **"Lost your phone? Use a recovery code"** and type one in instead of the 6-digit code. Dashes, spaces and capitals don't matter.
 - After you sign in with a recovery code, you'll see a message telling you how many you have left. **That message is a prompt to act, not just information** — see below.
 
+### Remember this device (fewer codes on your own computer)
+
+On the code screen, tick **Remember this device for 30 days** before you click **Verify**. For the next 30 days, signing in **on that browser** asks only for your username and password — no code. Your administrator sets the number of days (Configuration → Security → **Remember a device for**; 0 hides the tick box).
+
+- **Tick it only on your own computer or phone.** Never on a shared counter PC, a cyber café or someone else's laptop: anyone who then knows your password could sign in as you there.
+- **The password is always asked.** Remembering only skips the 6-digit code.
+- **It stops by itself** when the days run out, when you change your password, when you set up a new authenticator, or when an administrator resets your two-factor setup.
+- **To stop it yourself** — a lost laptop, a computer you no longer use: **My Profile → Two-Factor Recovery → Forget remembered devices**. Every browser you ticked asks for the code again at its next sign-in, this one included.
+
 ### Moving your authenticator to a new phone
 
 Do this *before* you get rid of an old phone if you can, but it also works afterwards as long as you can still sign in (with a recovery code, if need be).
@@ -143,7 +152,7 @@ Do this *before* you get rid of an old phone if you can, but it also works after
 2. In the **Two-Factor Recovery** panel, click **Set up a new authenticator device**.
 3. Confirm your **password** (not a code — the whole point is that your old device may be gone).
 4. Add the code shown to the authenticator app on your **new** phone, then enter the 6-digit code it displays.
-5. Your old device stops working at that moment, and you are given a **fresh set of recovery codes** — save these too; the old set no longer works.
+5. Your old device stops working at that moment, and you are given a **fresh set of recovery codes** — save these too; the old set no longer works. Any browser you had ticked **Remember this device** on asks for the new code at its next sign-in.
 
 Your old authenticator keeps working the whole time until step 4 succeeds, so it is safe to start this and change your mind.
 
@@ -180,11 +189,11 @@ The POS till is the exception: it opens ready to sell, and its **Sale** / **Retu
 | **Home** | Opens directly. This is where you land when you first sign in — see "Home, your landing screen" below. |
 | **POS** | POS / Billing (§4) · POS Profiles · Offline Sync Review · Offline Queue Gaps |
 | **Financial Accounting** | Finance / GL · Approvals (§10) · Vendor Invoice · Payment Proposals · Bank Reconciliation · Debit / Credit Notes · Sales Invoice |
-| **OMS** | Orders (§9A) · Fulfillment · Marketplace · Returns |
+| **OMS** | Orders (§9A) · Pending Orders (§9A.8) · Pick (§9A.9) · Pack (§9A.10) · Ship (§9A.11) · Returns · Settlements (§9A.12). OMS's own configuration — channel connectors, SKU mapping, bundles and its lists — is **Setup → OMS → OMS settings** (§9A.13). |
 | **CRM** | Customers · Loyalty · Campaigns · Vouchers · Service Tickets |
 | **Reports** | **Dashboard** of live figures, then one entry per area — Sales, Procurement, Inventory, WMS, OMS, CRM, Finance, Manufacturing, PIM, HR and the rest. Point at an area and its reports open beside it (§9). **Schedules** is last. |
 | **Procurement** | Purchase Requisitions · Purchase Order (§6) · ASN · **Goods Receipt** · **Purchase Return** (§6.5) · Vendors · RFQ / Quotes |
-| **Inventory** | Stock on Hand (§5) · Stock Transfer (§7) · Move Stock · Stock Locations · Sticker Printing (§7A) |
+| **Inventory** | Dashboard (§5.3) · Stock on Hand (§5) · Inventory Ledger (§5.4) · Stock Movement (§7) · Stock Adjustment (§5.5) · MRP Change (§5.6) · Move Stock · Stock Locations · Sticker Printing (§7A) |
 | **WMS** | Warehouse Cockpit, then three groups that each open beside it: **Inbound** (Appointment Calendar · Dock Doors · Yard Board · Trailers · RF Receiving · Putaway · Cross-Dock Plans) · **Storage & Control** (Bin · Bin Conditions · LPN / Cartons / Pallets · Bin Replenishment · Location Movement · Cycle Count · RF Lot & Serial · Holds · Place Hold · Hold Release Requests) · **Outbound** (Waves · Wave / Batch Picking · Mobile Picking · Sortation / Put-Wall · Loading) |
 | **HRM** | HR · Fixed Assets (§6.7) · Expenses |
 | **Manufacturing** | Production: Production Orders · Production Schedule · Subcontracting — Planning: MRP Suggestions · Supply Proposals — Quality: Quality Inspections · Certificates · Non-conformance — Maintenance: Maintenance Orders |
@@ -296,7 +305,7 @@ You open a session once per shift, not once per sale.
    - **A large redemption needs a manager.** Above the value your administrator set (₹500 as shipped), the till asks you to **choose a reason** and raises a request for a Store Manager. The info line names the request and says it is waiting under **Approvals**. Once the manager approves it there, complete the sale as normal; until then, **Complete Sale** refuses with *"needs a manager's approval"*. Each approval is for this one bill and this number of points — it cannot be reused on another bill.
    - **Points the customer has already spent elsewhere can make the balance negative** after a return (see §4.7). Such a customer cannot redeem until new purchases bring the balance back above zero.
 6. **Any offers that apply appear on their own, in a panel under the items** — see §4.2. If the customer has a coupon, type it into the **Coupon code** box.
-7. Check the **Total** at the top right of the screen. The bar beside it shows the discount and the tax split — **CGST · SGST**, or **IGST** — so you can read them out to the customer.
+7. Check the **Total** at the top right of the screen. The bar beside it shows the discount and the tax split — **CGST · SGST**, or **IGST** — so you can read them out to the customer. The bill is paid to the **whole rupee**: when the lines come to paise, the bar shows a **Round off** (for example *Round off -0.40* on 970.40, so the Total is 970) and the receipt prints the same line. A later return pays back what the customer paid for those pieces.
 8. **Choose how they're paying.** **Payment Mode** lists the tenders your store takes, by their own names (*Cash*, *HDFC Card*, *Paytm*...). If it is **Cash**, type what the customer handed you into **Cash tendered** and **Change due** appears beside the Total at the top before you commit to anything (or *"Short by …"* if it isn't enough). A tender that needs a reference (a card slip, a UPI reference / UTR) asks for it once at **Complete Sale**.
    - **Salesman.** If your store records who made the sale, a **Salesman** box sits beside the payment boxes with the store's default salesman chosen. Change it if someone else served the customer. Where the store makes it compulsory, the sale cannot complete without one.
    - **Discount.** Type a bill discount into **Discount** and choose **%** or **Rs**. It comes off the price straight away — the bar shows *Discount −99.90* and the Total drops; the tax is worked out on the discounted price. Above 5% (your administrator can change this) the till asks **why**; above your approval rules a manager must approve the sale, as before (§4.1a). To discount one line only, use **Override** on that line: type the new price, then choose why from the list (*Price match*, *Shop-soiled piece*, *Manager discretion*...) with an optional note.
@@ -555,6 +564,38 @@ Inside every store the stock sits in **locations**: **Main** (the selling floor)
 - The till and the online channels sell only what is in a selling location. **Reports → Inventory → Stock by Location** shows every store's stock location by location, and what can be sold.
 - The warehouse module uses the same locations: a bin's condition **Good / Damaged / QC-Hold / RTV** is the store's Main / Damage / QC Hold / Purchase Return.
 
+### 5.3 Inventory Dashboard
+
+**Inventory → Dashboard** is the stock picture on one page: **Units on hand**, **Stock value** (at the moving-average cost; shown only to roles that may see cost), how many items are **low or out of stock**, and **adjustments waiting approval**. Below: units and value **by store** (pick a store at the top right to see just that one), the **low or out of stock** items (free stock at or under its safety stock, or none left), the **latest movements** (with **Inventory Ledger** for the rest) and, when there are any, the adjustments waiting for approval (with **Approvals**).
+
+### 5.4 Inventory Ledger
+
+**Inventory → Inventory Ledger** lists every stock movement: when, the item, the store, what came **In** or went **Out**, the item's **Balance** at that store after it, the document that moved it (goods receipt, sale, transfer, move, adjustment, dispatch…), from and to where, and who. It opens on the last 30 days; filter by **Item**, **Store**, **Document type** and dates, then **Show**. The latest 500 movements are listed — narrow the dates or pick an item to see older ones.
+
+### 5.5 Stock Adjustment
+
+Use a stock adjustment when the stock on the system is wrong and no other document explains it: damaged or expired goods, shrinkage, stock found.
+
+1. **Inventory → Stock Adjustment → + New Stock Adjustment**.
+2. **Store** — whose stock changes (your own store is filled in). **Loss class** — for stock taken off, what kind of loss it is: **Shrinkage**, **Damage**, **Expiry** or **Theft** (leave it at *None* for stock found or added). Damage and expiry can be booked to their own accounts (your administrator sets them). **Note** is optional.
+3. Add each item (search by code, barcode or name). For each, enter the **Change**: **-3** takes three off, **4** adds four. Pick the **Reason** — every line needs one (Damaged - written off, Expired, Shrinkage, Stock found…). A line **Note** is optional.
+4. **Save adjustment.**
+
+If your business has an **approval rule** for stock adjustments (Settings → Users & Access → Approval Rules, document *InventoryAdjustment*), it waits as **Pending Approval** and posts when someone else approves it (**Approvals**). Otherwise it posts at once. Posting changes the stock, writes each line to the Inventory Ledger and books its value at the item's cost: stock taken off is charged to **5190 Stock Adjustment**, stock added is credited to it. You cannot take off more than is free to sell at that store — the message says how many are. If stock went between raising and approving, the adjustment stays **Approved** with the reason; **Post** on its row tries again.
+
+The list is the history: each adjustment's number (**ADJ/<store>/2627/0001**), store, lines with their reasons, the value added and taken off, and its status.
+
+### 5.6 MRP Change
+
+**Inventory → MRP Change** changes items' MRP from a date, and its list is every MRP change — old and new MRP — so it is also each item's MRP history (type an item in the box above the list and **Find**).
+
+1. **+ New MRP Change**.
+2. **Effective from** — today applies the new MRP at once; a later date waits as **Scheduled** and applies that morning.
+3. Add each item (search by code, barcode or name): its **Current MRP** and **Sale price** are shown. Enter the **New MRP**. *Sale price is above this MRP* warns you when you would be selling above the new MRP — change the sale price too.
+4. **Reason** (optional), then **Save MRP change**.
+
+When the change applies at once and any of the items is in stock, you are asked whether to print new stickers: **OK** opens Sticker Printing with those items added and the reprint reason filled in. **Reprint stickers** on an applied change's row does the same later. A **Scheduled** change can be **Cancel**led before its date; to undo an applied one, make another change. MRP is the item's, not a batch's.
+
 ## 6. Ordering More Stock (Purchase Order)
 
 1. Click **Purchase Order**. The screen opens on the list of your purchase orders (the count is beside the title). Click **+ New Purchase Order** at the top right — the order form opens as its own page, **Purchase Orders › New purchase order**. **Purchase Orders** in that breadcrumb (or your browser's Back) returns to the list; whatever you had typed is still there when you click **+ New Purchase Order** again.
@@ -577,7 +618,7 @@ Inside every store the stock sits in **locations**: **Main** (the selling floor)
    If a line turns red, that item is missing its HSN code or GST rate on the Item master. Fix it under **Setup → Items** and the line clears.
 
    **Buying a new design?** You don't have to create the items first. Type the item name in the same box and pick it (its HSN and GST come with it). Its attributes open right under the row: type the design number, click the colours, sizes and other values you're buying, remove any combination you aren't buying, and **Add** makes the design and every combination and puts them on the order — see §6.9.
-4. Check the **totals** in the bar at the top — number of items and quantity, taxable value, the tax split (CGST + SGST, or IGST) and the grand total, always in view — and the **supply-type banner** under the header boxes (§6.2).
+4. Check the **totals** in the bar at the top — number of items and quantity, taxable value, the tax split (CGST + SGST, or IGST), a **Round off** when the total has paise, and the grand total to the whole rupee, always in view — and the **supply-type banner** under the header boxes (§6.2).
 5. **You don't type a PO number.** The box shows "Auto (PO series)" and is greyed out on purpose. The number is issued when you save; see §6.1.
 6. Click **Create Draft**. You're back on the list, with the new order on it. Depending on the amount it may need an **approval** before it's official — that's a safety check, not a bug. Whether you may approve your own order is a setting your administrator chooses (as shipped: yes, if your role can approve it). You'll see it move to "Pending Approval", and once approved it's ready to send.
 7. **Send it to the vendor.** On the order's row in the list, **Send to Vendor** opens **Send**: the vendor's email from the vendor record is filled in (change it, or add more addresses separated by commas), with a subject and a short message you can edit. **Send email** emails the **Vendor PO as a PDF**, in its best-match template; **Download PDF** saves the same PDF for you to attach to your own email or WhatsApp. Either way the PO is recorded as sent (the row shows "Sent to vendor"), and a notification channel, if your administrator set one up, gets it too. A vendor with no email on file is fine — use **Download PDF**. If the server has no mail account set up yet, **Send email** downloads the PDF instead and says so. **Print** on the row opens the print window (§7B): **Purchase Order** or **Vendor PO** (the vendor's copy, with item pictures and no MRP), the template, the store it is generated from, the preview, and **Print**, **PDF**, **CSV**, **Excel**, **Excel with pictures** and **Send**. The standard layout has your brand, both parties' names, addresses, states and GSTINs, the item table with HSN and tax, the CGST/SGST (or IGST) split, the grand total, and the amount in words. Sending does not approve the order — **Receive goods** appears once it is **Approved**, and by default you may approve your own order in **Approvals** if your role is the one the approval rule names (ADMIN_SOP §B.10).
@@ -646,12 +687,9 @@ You don't tick this any more. The system compares the state of the **legal entit
 
 The banner above the items tells you which it chose and why — for example *"Inter-state (IGST) — vendor in Karnataka (29), billing address in Maharashtra (27)"*.
 
-Each side's state comes from its GSTIN (the first two digits are the state code), falling back to the **State** field on the record if there's no GSTIN.
+Each side's state comes from its GSTIN (the first two digits are the state code), falling back to the **State** field on the record if there's no GSTIN. For the billing address that is the Legal Entity behind the store, then the store's own **State**.
 
-If the banner turns amber and says it **could not work the supply type out**, it names exactly what's missing — usually "this vendor has no GSTIN or state recorded". Two options:
-
-- **Fix the master** (better): add the GSTIN or State to the vendor under **Procurement → Vendors**, or to the Legal Entity behind your Location. Every future PO for that vendor then gets it right automatically.
-- **Set it by hand** (for this PO only): tick **Inter-state (IGST)** in the banner.
+Until both a vendor and a billing address are picked, the banner just asks you to pick them. If either one has **no state**, the banner turns amber and asks for it: *"Bandra Store has no state — choose it, so the PO knows IGST or CGST + SGST"*, with the state list and **Save to store** (or **Save to vendor**). Choose the state and click Save: it is saved on that store or vendor, the banner works the supply type out at once, and every later PO for it gets it right. There is no guessing tick. If you are not allowed to change stores or vendors, the banner says to ask an administrator. If the save is refused because the store record itself is incomplete (for example it has no Legal Entity), the message says what to fill in; use **Edit store** under the billing address.
 
 You can also **Override** a derived answer when you know something the master records don't — a bill-to/ship-to split, for instance. Once you override, your choice sticks and later saves won't quietly undo it.
 
@@ -834,16 +872,18 @@ Every Item has an **Item Type** (Setup → Item). Most items are **Product**, th
 In fashion you often order a design that doesn't exist in the system yet, in several colours and sizes. You create it right in the PO's add row, in two parts: the **item name** (the parent — what it is, with its HSN and GST) and the **variants** (the children — colour, size and so on).
 
 1. On **Purchase Order**, pick the **Vendor** (a new design is recorded as bought from this PO's vendor; **Add** asks for it if you haven't picked one).
-2. **Item name.** In the **Item name or SKU** box, type the item name (*Necklaces Antique*, *Kurta Cotton*) and pick it from **Item names** in the list. Its attributes open right under the row, with its **Category**, **HSN** and **GST** on the first line — you never type them again for that item name. **Not in the list?** When nothing matches, choose **Create "…"**: a small form asks the **Category** (*Necklaces*), the **Product Type** (*Antique*), the **HSN** (pick it and the GST rate fills in) and the **GST %** — once. A missing category or product type can be created from inside that form the same way.
-3. **Design number.** A **Design number** box appears in the row, and the cursor is in it. Type the design's number — often the vendor's own (*D-1024*). As you type, the item name's existing designs that **start with** what you typed are listed; pick one to add to that design. If nothing matches, the list stays empty and the line under the row says **New design**: it is created when you add it, with its own design id. The box reads **auto - or type one**: leave it blank and the design is numbered automatically. **Enter** moves on to **Purchase price**.
-4. Set **Purchase price** and **MRP** (optional) in the row. As you type, they fill every variant row below. There is no Qty in this row - each variant has its own **Qty** (starting at 1). **Purchase price is required**: **Add** (or **Ctrl+D**) refuses a row with none and says which.
+2. **Item name.** In the **Item name or SKU** box, type the item name (*Necklaces Antique*, *Kurta Cotton*) and pick it from **Item names** in the list. The box then holds it as a value, not as text you can type over: press **Backspace** or **Delete** in it, or click **Clear item name**, to choose a different one. The cursor moves on to **Purchase price**. Its attributes open right under the row, with its **Category**, **HSN** and **GST** on the first line — you never type them again for that item name. **Not in the list?** When nothing matches, choose **Create "…"**: a small form asks the **Category** (*Necklaces*), the **Product Type** (*Antique*), the **HSN** (pick it and the GST rate fills in) and the **GST %** — once. A missing category or product type can be created from inside that form the same way.
+3. **Design number.** A **Design number** box appears in the row. The cursor skips it: click into it only when you want to type or paste a number. Type the design's number — often the vendor's own (*D-1024*). As you type, the item name's existing designs that **start with** what you typed are listed; pick one to add to that design. If nothing matches, the list stays empty and the line under the row says **New design**: it is created when you add it, with its own design id. The box reads **auto - or type one**: leave it blank and the design is numbered automatically. **Enter** moves on to **Purchase price**.
+4. Set **Purchase price** and **MRP** (optional) in the row. An MRP is always a whole rupee: one typed with paise is saved rounded to the nearest rupee. As you type, they fill every variant row below. There is no Qty in this row - each variant has its own **Qty** (starting at 1). **Purchase price is required**: **Add** (or **Ctrl+D**) refuses a row with none and says which. **Enter moves you on:** Purchase price → MRP → the first variant cell, then cell by cell across each row (*Colour*, *Size*… **Qty**, **Purchase price**, **MRP**), row after row, ending on **Add**; Enter on Add adds. Picking a value from a cell's list also moves on to the next cell. Arrow keys on a closed list change its value in place; press Enter to move on.
 5. **Variants.** Under the row is a small table: a column for each product attribute your administrator set to be asked in the PO (*Colour*, *Size*, *Fabric*…), then **Qty**, **Purchase price** and **MRP**. When **attributes follow the item's type** is on, only the attributes mapped to this item name's type (or its category) appear, with only their mapped values — order a necklace and you see necklace colours (§8g). Each row is one variant you are buying: choose its value in each column.
    - **+ Row** adds another variant, starting as a copy of the last row — change just the value that differs (say Colour *Red* → *Marron*). **×** removes a row.
    - A column with the **same value on every row** (say Size = *4-6*) describes the **design**; a column whose value differs between rows (Colour = *Red* on one, *Marron* on another) makes each row a **combination**. Leave a column empty on every row if it does not apply — but not on some rows only, and no two rows may be the same variant; **Add** says which row to fix.
    - **A value that isn't there yet?** In that cell choose **+ New value...**, type it and click OK — it is saved to the attribute (**Setup → Item Attribute**) and set on that row. **A new attribute?** Type its name and first value in the boxes under the table and click **+ Attribute**; it becomes a column, set on every row. With either box empty, **+ Attribute** tells you which to fill. (These need the right to change item attributes; your administrator grants it.) When your attributes were set up for your business by your provider, only those attributes are shown and there is no **+ Attribute** — a new value is still added the same way. Only your item attributes appear here; PIM's product-information attributes are a separate list.
 6. Each row's **Purchase price** and **MRP** come from the row above; change any one row's. Typing a new price in the row above sets it on every row again; a row emptied by hand takes the row above's. When you picked an existing design number, its combinations are already listed as rows, each with its **Combination ID** — add rows for the new ones.
-7. Click **Add** (it reads **Add 6** when it will add six combinations), press **Ctrl+D**, or press **Enter** in the price or MRP box. The system creates the design (or uses the one you picked) and one item per combination — its **Combination ID** is the next number in the series, e.g. `I00042` (your administrator sets its prefix under Prefix Configurations → **Combination ID / item**) — each with the item name's HSN and GST, and adds them as lines on the PO, with a column per attribute. Barcodes follow your barcode policy (§6.8). On the PO the lines are **grouped by design**: a heading per design (*Design D00012 · 3 combinations · Qty 6 · ₹1,800.00*) with its combinations under it, each showing **#**, the item, **Design**, **Combination ID** and the attribute values. Under the lines a strip shows **Designs**, **Items**, **Total qty**, **Purchase cost** (before GST), the GST and the **Grand total**, and the keys: **Tab** next box, **Enter** confirm or add, **Esc** close a list, **Ctrl+D** add the item or design, **Alt+R** the top bar's **Reset**. A PO line with no purchase price shows in red, *enter the purchase price*, and the PO will not save until it has one.
-8. The row is then cleared — item name, attributes, qty, price and MRP — ready for the next item. To stop part-way instead, click **Clear item name**, or just type something else in the box — the row goes back to its own qty, price and MRP.
+7. Click **Add** (it reads **Add 6** when it will add six combinations), press **Ctrl+D**, or press **Enter** when the cursor reaches **Add**. The system creates the design (or uses the one you picked) and one item per combination — its **Combination ID** is the next number in the series, e.g. `I00042` (your administrator sets its prefix under Prefix Configurations → **Combination ID / item**) — each with the item name's HSN and GST, and adds them as lines on the PO, with a column per attribute. Barcodes follow your barcode policy (§6.8). On the PO the lines are **grouped by design**: a heading per design (*Design D00012 · 3 combinations · Qty 6 · ₹1,800.00*) with its combinations under it, each showing **#**, the item, **Design**, **Combination ID** and the attribute values. Under the lines a strip shows **Designs**, **Items**, **Total qty**, **Purchase cost** (before GST), the GST and the **Grand total**, and the keys: **Tab** next box, **Enter** confirm or add, **Esc** close a list, **Ctrl+D** add the item or design, **Alt+R** the top bar's **Reset**. A PO line with no purchase price shows in red, *enter the purchase price*, and the PO will not save until it has one.
+8. The row is then cleared — item name, attributes, qty, price and MRP — ready for the next item. To stop part-way instead, click **Clear item name** (or press Backspace in the item name box) — the row goes back to its own qty, price and MRP.
+
+**Changing a design already on the PO.** Each design heading in the lines has an **Edit** button. It opens that design in the add row again: the item name, the design number, and one variant row per combination on this PO with its qty, purchase price and MRP. Change what you need: a qty or price, or **+ Row** for another colour or size. Then click **Update** (or press Enter on it). The design's lines are replaced where they were. A row whose values match an existing combination keeps its Combination ID, a new value becomes a new combination, and a row set to qty 0 comes off the PO. **Cancel edit** leaves the lines as they were.
 
 **The printed PO.** With the **Standard layout**, a PO whose lines have attributes prints **Description** and then one column per attribute (*Colour*, *Size*…) instead of one *Description / Variant* column. A designed print template can add the same columns: they are listed under **Attributes** in the template's line fields.
 
@@ -929,13 +969,13 @@ Once a PO is saved, add the product photos for what it orders: images for each *
 
 **Uploading the same photo twice** keeps it once. A photo that shows *This image could not be loaded* is on the image drive and the drive did not answer — tell your administrator (Admin Guide §B.3.0, **Image drive**).
 
-## 7. Moving Stock Between Locations (Stock Transfer)
+## 7. Moving Stock Between Locations (Stock Movement)
 
-1. Click **Stock Transfer** in the sidebar.
+1. Open **Inventory → Stock Movement**. It lists every transfer between stores (its document is still the *Stock Transfer*); **+ New Stock Transfer** starts one.
 2. The screen opens on the list of transfers. Click **+ New Transfer**, fill in the From and To warehouse/location, then add one or more line items (SKU + quantity) using the **Add Line** button — a transfer needs at least one line before it can be created. The bar at the top counts the lines and units. The Transfer Number is filled in for you when you save (§6.1).
 3. Click **Create Transfer** (top right). It starts as a **Draft**, and you're back on the list with it on top. Adding the same item twice adds to its one line.
 4. **Get it approved.** A transfer is approved by someone other than the person who made it:
-   - **Send for approval** puts it in **Pending Approval**. A Store Manager (or an administrator) opens Stock Transfer (or **Approvals**) and clicks **Approve** — or **Reject**, with a reason. The person who created it may decide it too unless your administrator set **Who can approve their own documents** to *Nobody* (then they get "you cannot approve or reject a document you submitted").
+   - **Send for approval** puts it in **Pending Approval**. A Store Manager (or an administrator) opens Stock Movement (or **Approvals**) and clicks **Approve** — or **Reject**, with a reason. The person who created it may decide it too unless your administrator set **Who can approve their own documents** to *Nobody* (then they get "you cannot approve or reject a document you submitted").
    - **Approve now** is for small transfers. If your business has set a **transfer direct-approval limit** (Admin Guide, Settings → Inventory) and the transfer is worth less than it at item cost, a Store Manager of the sending or receiving store approves it alone. Otherwise the button tells you why (limit switched off, value at or above the limit, or an item with no cost on record) and offers to send it for approval instead.
 5. Click **Dispatch** to move the stock out of the source location (it sits "in transit" until received). If an item is tracked:
    - **Serial-tracked** — scan one serial number per unit (one per line). Each must be in stock at the sending store; it is reserved to this transfer until it arrives.
@@ -970,7 +1010,7 @@ The move is refused, with the reason shown, if the destination bin is inactive, 
 If your business stores goods for other businesses (you are a 3PL), each client is an **owner**. Your administrator chooses whether a warehouse may hold one owner or several (Admin Guide B.3.11). With several owners, each client's stock is kept apart all the way through:
 
 1. **Receiving and putaway.** On **WMS → Putaway**, fill in **Owner** with the client whose goods you are putting away. A bin that belongs to another client refuses them; in a warehouse that holds several clients' stock, putaway without an owner is refused and asks whose stock it is. (A goods receipt can carry the owner too, in its **Owner** field.)
-2. **Orders.** Every order is for one owner. Before an order is released to the warehouse, set its owner on **WMS → Fulfillment → Order owner** (type the order, the owner, **Set Owner**). An order with no owner is given the warehouse's own owner; at a warehouse holding several clients' stock it is refused at release, with a message saying so. Once released, the order keeps its owner. The **Fulfillment** list shows each pick task's owner.
+2. **Orders.** Every order is for one owner. Before an order is released to the warehouse, set its owner on **OMS → Pending Orders**: **Owner** on the order's row (shown where WMS is in use), type the owner, **OK**. An order with no owner is given the warehouse's own owner; at a warehouse holding several clients' stock it is refused at release, with a message saying so. Once released, the order keeps its owner. Its pick task carries that owner.
 3. **Picking.** A pick list (single order or wave) only ever offers the owner's own units. If that owner has too few in the bins, the pick list shows a shortfall - it never borrows another client's stock. Stock is also sourced only where the owner's own stock covers the order.
 4. **Moving and damage.** On **Location Movement** and **Bin Conditions**, fill in **Owner** when the bin holds more than one client's stock; the client's units move (or change condition) and stay theirs. A client's units cannot go into another client's bin.
 5. **Counting.** A count line can carry the owner; the posted difference records it.
@@ -993,7 +1033,7 @@ A delivery runs **Appointment → Yard → RF Receiving → Putaway**, and each 
 
 1. **Make a wave.** **WMS → Wave / Batch Picking**, choose the **Location**. *Orders ready to wave* lists every released order there that is not in a wave yet (Pending or Picking): tick the ones to pick together (or the box in the heading for all), choose **Into** — *A new wave* or an open one — and click **Put N selected into the wave**. An order at another location, already in a wave or past picking is not added, and the screen says which and why.
 2. **Release it.** *Open waves* shows each wave's status and how many of its orders are to pick, picking, packed and dispatched. A new wave is *Planned* — **Release** it when the floor should start. Then **Pick list** shows the walking-order list and, per order, what could be allocated and what is short; **Pick on a phone** opens Mobile Picking with that wave.
-3. **Pick on a phone.** One line at a time: item, bin, batch and quantity, with *N confirmed · M to go*. **Confirm & Next** (or say "next" / "confirm"). After the last line the screen lists the orders that are complete and the ones that are **short** (which item, how many). **Mark N order(s) packed** packs the complete ones. A short order is left as it is — finish it on **Fulfillment** when the stock is there, or reject it there to send it to another location. Picking and packing move no stock; stock leaves when the order is dispatched.
+3. **Pick on a phone.** One line at a time: item, bin, batch and quantity, with *N confirmed · M to go*. **Confirm & Next** (or say "next" / "confirm"). After the last line the screen lists the orders that are complete and the ones that are **short** (which item, how many). **Mark N order(s) packed** packs the complete ones. A short order is left as it is — finish it on **OMS → Pick** when the stock is there, or **Reject** it there to send it to another location. Picking and packing move no stock; stock leaves when the order is dispatched.
 4. **Load.** **WMS → Loading** lists the loads open at the doors (door, trailer, manifest, cartons scanned) — **Open** one to carry on, or open a new load with the door, trailer and manifest picked from their lists. The load shows the packages *still to load* on its manifest. Scan each package. If fewer cartons are scanned than expected, **Complete Load** asks first and records what was actually loaded. Then record the pallet exchange and **Depart**, and print the Bill of Lading.
 
 When a wave's orders are all packed, dispatched or rejected, **Complete** it on Wave / Batch Picking.
@@ -1015,13 +1055,13 @@ Every warehouse screen is under **WMS** (Warehouse Cockpit, then the **Inbound**
 - **Set up once, in this order:** Location → Zones (optional) → **Bin** (Bin Code, Location, Status; capacity and Bin Status are enforced) → each Item's **Batch, serial and expiry** section → **Dock Doors** → **Hold Codes** (Setup → WMS → Hold Code).
 - **Receiving:** ASN → **Appointment Calendar** → **Yard Board** (check in, assign to a door) → **RF Receiving** or **Goods Receipt** → **Putaway** (the list shows stock not yet in a bin) → for batch-tracked items, **RF Lot & Serial → Put a lot away**.
 - **Keeping stock right:** **Location Movement** and **Bin Replenishment** move stock between bins; **Bin Conditions** marks stock Damaged / QC-Hold / RTV; **Place Hold** stops a quantity being sold (release it through **Hold Release Requests**); **Cycle Count** corrects it.
-- **Shipping:** releasing a sales order creates its tasks → **Wave / Batch Picking** (or **Mobile Picking** on a phone) → **Loading** → **Fulfillment → Dispatch**, which is the step that takes the stock out.
+- **Shipping:** releasing a sales order creates its tasks → **Wave / Batch Picking** (or **Mobile Picking** on a phone) → **Loading** → handover on **OMS → Ship** (§9A.11), which dispatches the tasks and takes the stock out.
 
 Moving stock between bins never changes how much you have at the location; a Goods Receipt, a transfer, a sale and an approved cycle count do. The Help article also lists what the system does not do for you yet (for example, a Goods Receipt does not create a putaway task, and a hold does not stop a pick list for an order that was already reserved).
 
 ## 7A. Printing Barcode Stickers and Labels
 
-**Inventory → Sticker Printing.** This is where item labels come from — the small barcode tags that go on the product itself. The screen has four tabs: **Print** (do a print run), **Sticker templates** (decide what a label looks like), **Template rules** (which template each item's label uses — §7A.5) and **Document templates** (how POs, GRNs, transfers and debit / credit notes print — §7B).
+**Inventory → Sticker Printing.** This is where item labels come from — the small barcode tags that go on the product itself. The screen is the print run itself. What a label looks like (**sticker templates**) and which template each item's label uses (**template rules**, §7A.5) are on **Setup → Printing → Templates** with every other template — the **Templates** button at the top of Sticker Printing goes there.
 
 > **Before your first print run you need one Printer record.** Setup → Printing → **Printer**, Active, one record per physical label printer. Without one, the Printer dropdown on this screen is empty and printing stops with "Select a printer first." (On this screen you always pick the printer yourself, so **Default For** = `Sticker` is not required here — it is what makes the *other* print screens one-click.) Getting labels to come out *silently* — straight to a **TSC (TSPL)** or **Zebra (ZPL)** thermal printer with no browser dialog — is a separate one-time per-PC setup covered in **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)**; the Printer record needs its **Printer Language** (TSPL or ZPL), **Printer DPI** and **OS Printer Name** filled in. Until that is done, printing still works, it just opens the normal browser print dialog (as roll-sized pages or an A4 sticker sheet — §7A.2, *Label tab*).
 
@@ -1030,7 +1070,7 @@ Moving stock between bins never changes how much you have at the location; a Goo
 This is the normal way to print. You don't type SKUs — you point at the document the goods arrived on, and the system reads its own lines.
 
 1. Go to **Sticker Printing**. The **Print** tab opens by default, on the **Print history** — every run, who printed it, from which document, and when.
-2. Click **+ Print Stickers**. In the **Print from Transaction** panel, pick **Goods Receipt (GRN)** or **Transfer Order** in the **Module** dropdown.
+2. Click **+ Print Stickers**. In the **Print from Transaction** panel, pick **Goods Receipt (GRN)** or **Transfer Order** in the **Module** dropdown - or any other transaction your company has that carries items (purchase order, purchase return, sales invoice, return, shipping package, ASN, vendor quote, RFQ...; a new one appears in the list by itself). You see only the transactions you may open.
 3. Click **Document** to see the latest ones, or start typing the number — the list narrows as you type; pick the one you want. You can also type just the end of the number (for example `00048`) and click **Load**: when only one document ends that way it loads; when several do, or none, a message says so.
 4. The line list appears, one row per SKU (or per SKU-and-lot, if a SKU arrived on more than one lot):
    - **Category** — what that item's Item Master says.
@@ -1057,11 +1097,11 @@ If the document loads but says *"That document has no stickerable lines"*, the l
 
 Out of the box, every SKU prints the **Standard label** — 50 × 25 mm with the name, the variant's values (for example **Silver / 7**; left off for an item with no variant), the SKU's barcode, SKU and HSN, and the batch barcode. To get any other look (a jewellery tail tag with weight and a QR code, a smaller earring tag, a 2-up retail roll), design a **template** in the **Sticker Studio**. You do this yourself; it needs no developer.
 
-**The Templates tab** shows every template as a card with a live preview of the label, its size, DPI, how many elements it has and the categories it covers. **Edit** (or clicking the preview) opens it in the studio; **Duplicate** opens a copy to start a variant from. With more than six templates a **Filter templates…** box appears. The first card is always the **Standard label** (badge **Built-in**). It cannot be edited, but its **Duplicate** opens a copy of it in the studio, named *Standard label copy* — rename it, change what you like, **Save**, and it is a template of your own.
+**Setup → Printing → Templates**, under **Stickers and barcodes**, shows every sticker template as a card with a live preview of the label, its size, DPI, how many elements it has and the categories it covers. **Edit** (or clicking the preview) opens it in the studio; **Duplicate** opens a copy to start a variant from. With more than six templates a **Filter templates…** box appears. The first card is always the **Standard label** (badge **Built-in**). It cannot be edited, but its **Duplicate** opens a copy of it in the studio, named *Standard label copy* — rename it, change what you like, **Save**, and it is a template of your own.
 
 #### Start a template
 
-1. **Sticker Printing → Templates → New template**. The studio opens full-screen.
+1. **Setup → Printing → Templates** → *Stickers and barcodes* → **New template**. The studio opens full-screen.
 2. **Start a new label** asks for the size of the roll you print on. Pick one of the standard sizes — **Jewellery tags** (tail tags 92 × 12, 95 × 12, 100 × 15, 100 × 14.3, small tag 70 × 10), **Retail** (38 × 25, 50 × 25, 50 × 38, 75 × 50), **Multi-up rolls** (2-up 38 × 25, 3-up 32 × 25), **Shipping** (100 × 50, 4 × 6 in), **Ready designs** (a jewellery **Square 2-up** on a 54.5 mm roll, a **Ring tag 97.6 × 11.9** and four **Seznik** designs for the Seznik 100 × 14.3 jewellery tag, the Ring layout on the taller tag (barcode panel, text panel, then the tail) — pick the one that matches how your roll feeds: **Seznik horizontal × 1** (one tag lying across the roll), **Seznik horizontal × 3** (three lying tags stacked down the roll in one print), **Seznik vertical × 1** (one tag standing along the roll, read top to bottom) and **Seznik vertical × 3** (three standing tags side by side — the Seznik roll with three tags across) — each already laid out with the barcode, name, colour, design, polish, weight, Combination ID, size and MRP; retype the sideways "Brand name" with your shop's name. The same designs are **Built-in** cards on the **Sticker templates** tab. Pick one straight from the template list on **Print** or in a template rule (§7A.5) and it is saved as your own template on the spot; **Duplicate** one to change it first) — or **Use the standard label (50 × 25)** to start from the Standard label (name, variant, the SKU's barcode, SKU and HSN, and the batch barcode) and drag it into your own arrangement, or **Blank 50 × 25**. Any size can be changed later.
 3. Type a name in **Name this template** at the top left (for example `Bridal silver tag`). It is the only thing you must fill in to save.
 
@@ -1137,7 +1177,7 @@ The table at the bottom of the **Print** tab is the print history: SKU, barcode,
 
 ### 7A.5 Which template each item uses (Template rules)
 
-**Sticker Printing → Template rules.** An item's label uses the **first rule that applies**, checked top to bottom:
+**Setup → Printing → Templates → Stickers and barcodes → Template rules.** An item's label uses the **first rule that applies**, checked top to bottom:
 
 | # | Rule | Where it is set |
 | --- | --- | --- |
@@ -1148,7 +1188,7 @@ The table at the bottom of the **Print** tab is the print history: SKU, barcode,
 | 5 | **Default** — everything no rule above picked | The **Default** dropdown on this screen. |
 | 6 | **Standard label** — the built-in label | Nothing to set. **Duplicate the standard label** opens a copy of it in the studio. |
 
-1. Open **Sticker Printing → Template rules**.
+1. Open **Setup → Printing → Templates** and scroll to **Template rules** (under *Stickers and barcodes*).
 2. Pick a template in any dropdown. It saves the moment you pick it, and a message confirms it (for example *"Category Rings saved."*).
 3. **Next rule** (or **Standard label (built-in)** for the default) takes that rule away again.
 
@@ -1165,12 +1205,15 @@ Good to know:
 ### 7B.1 Printing a document
 
 **Print** on any of these opens the print window: a Purchase Order, Goods Receipt, **Purchase Return** (Procurement → Purchase Return list), Stock Transfer (**Print Transfer Out / In**), a **Sales Invoice** (**Financial Accounting → Sales Invoices**), a debit / credit note — vendor or **customer** (**Financial Accounting → Debit / Credit Notes**, or the GRN's **Price Notes** column), or a **Sales Return** (the Returns workbench).
+If your administrator has set a **print profile** for a document (Stage 127.4), Print gives the whole set in one go - for example three copies of an invoice labelled *Original for Recipient*, *Duplicate for Transporter* and *Triplicate for Supplier* - with the profile's template and footer line. The preview shows every copy.
+
+**Every other transaction prints too** (Stage 127.3). Open any saved transaction from its list - a journal voucher, RFQ, vendor quote, landed cost voucher, warehouse task, production order, ASN and so on - and click **Print** beside its title. A transaction with no print of its own prints in a standard layout: its title and number, date and status, your store and the vendor or customer, every filled field in the order the form shows them (a linked record by its name), its lines, and the total of each quantity and amount column. A transaction added to the ERP later prints the same way, with nothing to set up. Silent printing treats these as the kind **Other Documents** (§7B.3). Some print in their standard form: a **journal voucher** with each account by its name and debit / credit in rupees, a **payslip** as earnings and deductions, a **subcontract order** as the **Job Work Challan (Rule 55)** - goods sent and to come back, a **vendor invoice** as the **Purchase Bill** with its payments, and a **loading task** as the **Bill of Lading** with its cartons (WMS → Loading Dock → **Print Bill of Lading** opens this same print window).
 
 - **Print as** — for a PO: **Purchase Order** or **Vendor PO** (the vendor's copy, with item pictures); for a GRN: **Goods Receipt Note** or **Vendor Copy**; for a transfer: **Transfer Out** or **Transfer In**.
 - **Template** — the best-matching designed template is chosen for you (marked "best match"); pick another, or **Standard layout (built-in)**. A till sale or sales invoice also offers **3-inch roll bill (built-in)**; printing a roll layout goes to the till's receipt printer (§4.3).
 - **Generating store** — the store the print is issued from. It starts as the document's own store; pick another and its name, address, state and GSTIN go in the store block.
 - The **preview** shows every page exactly as it will print.
-- **Print** — on a computer with **QZ Tray**, it goes straight to that computer's printer for this kind of document, with no dialog (§7B.3); the window shows which printer, with **Change**. Without QZ Tray your browser's print dialog opens.
+- **Print** — on a computer with **QZ Tray**, it goes straight to that computer's printer for this kind of document, with no dialog (§7B.3); the window shows which printer, with **Change**. Without QZ Tray your browser's print dialog opens. Once a computer has a printer for a kind, a print of that kind never opens the browser's dialog by itself: if PrintBridge is not running or the printer does not answer, a box says *<kind> did not print* and why, with **Retry**, **Print with the browser instead** and **Cancel**.
 - **PDF** downloads what the preview shows, page for page, named after the document (for example *Purchase-Order-PO-HO-26-27-00045.pdf*). It is a picture of each page: it looks exactly like the print, but its text cannot be selected or copied.
 - **CSV** and **Excel** download the lines. At the top: the document, number, date, status, store, the vendor or customer, and linked numbers (the PO on a GRN, the order on a sales invoice). Then one row per line: **Design ID**, **Combination ID / SKU**, **Barcode**, item name, variant, one column per attribute — named as your Item Attribute list names it, so a renamed attribute shows its new name (§8) — **Brand**, HSN, UOM, batch, the quantities the document has (ordered, received, accepted, shipped, short…), **MRP**, then prices: a **PO** and a **GRN** show cost (cost price, taxable value, GST, amount); a **sales invoice** its selling price; transfers, returns and notes **MRP only**. A column no line fills is left out, and a **Total** row closes the list.
 - **Excel with pictures** (a PO) — the Vendor PO as a spreadsheet with each item's picture.
@@ -1203,11 +1246,11 @@ Good to know:
 - **A Draft sales invoice prints as a proforma** — titled *Proforma Invoice (Draft - not a tax invoice)* — so it can never pass for a posted bill. Once posted it prints as the **Tax Invoice**.
 - A designed template of your own still wins over the Standard layout: pick **Standard layout (built-in)** in **Template** to see this one.
 
-### 7B.2 Designing a print template (Document templates)
+### 7B.2 Designing a print template (Setup → Printing → Templates)
 
-**Setup → Printing → Print Template opens this same screen** — there is one set of document print templates, whichever way you reach it. (A *sticker* template is a different thing: it is the barcode label on the product, made under **Sticker templates**.)
+**Setup → Printing → Templates is the one page for every template**, module by module: **ERP documents** (this section), **Stickers and barcodes** (§7A) and **OMS** (the OMS bill, the pick list and the courier label — §9A.10). The buttons at the top jump to each.
 
-**Inventory → Sticker Printing → Document templates** lists each transaction — Purchase Order, Vendor PO, Goods Receipt Note, Vendor Copy, Purchase Return, Transfer Out, Transfer In, Debit Note, Credit Note (to vendor), Credit Note (to customer), Sales Return, Sales Invoice — with its templates and the **Standard layout**. **Customise** starts from the standard layout; **+ New template** does the same for the transaction you pick; **Design** edits, **Duplicate** copies, **Make default** sets the one used when nothing more specific fits, **Delete** removes one.
+Under **ERP documents** the page lists each transaction — Purchase Order, Vendor PO, Goods Receipt Note, Vendor Copy, Purchase Return, Transfer Out, Transfer In, Debit Note, Credit Note (to vendor), Credit Note (to customer), Sales Return, Sales Invoice — with its templates and the **Standard layout**. **Customise** starts from the standard layout; **+ New template** does the same for the transaction you pick; **Design** edits, **Duplicate** copies, **Make default** sets the one used when nothing more specific fits, **Delete** removes one.
 
 The designer works like the Sticker Studio:
 
@@ -1221,7 +1264,7 @@ The designer works like the Sticker Studio:
 
 ### 7B.3 Which printer prints what, on each computer
 
-Every computer that prints silently needs **QZ Tray** installed once (your administrator does it — [QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)). After that, each computer remembers **its own printer for each kind of print**: Purchase Order, Goods Receipt, Transfer, Sales Invoice, Returns and Notes, Receipt (the till bill), Sticker and Shipping Label. The choice is kept on the server under the computer's name, so clearing the browser does not lose it.
+Every computer that prints silently needs **QZ Tray** installed once (your administrator does it — [QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)). After that, each computer remembers **its own printer for each kind of print**: Purchase Order, Goods Receipt, Transfer, Sales Invoice, Returns and Notes, Receipt (the till bill), Sticker, Shipping Label, Pick List and **Other Documents** (every other transaction - see below). The choice is kept on the server under the computer's name, so clearing the browser does not lose it.
 
 1. **The first time** a kind is printed on a computer, the printer is chosen for you when the choice is clear — A4 / A5 documents go to the computer's **default printer**, bills to its one **receipt printer**, stickers and shipping labels to its one **label printer** — and a note at the top of the screen says which. Only when two printers could fit does it ask, once: *Printer for Goods Receipt — which printer prints Goods Receipt on this computer?*
 2. **Every later print** of that kind on that computer goes straight to that printer. It never asks again.
@@ -1230,11 +1273,21 @@ Every computer that prints silently needs **QZ Tray** installed once (your admin
 
 A computer with no choice yet for a kind uses its store's default — a **Printer** record (**Setup → Printing → Printer**) at that store whose **Default For** is that kind — before it chooses for itself; one store never prints on another store's printer. A Printer record made by a computer's first choice takes the printer's name as it appears on that computer; check its **Printer Language** if it is a sticker printer (ZPL for Zebra, TSPL for TSC). **Inventory → Sticker Printing** still lets you pick the printer for a print run.
 
+### 7B.4 Reprint a document
+
+**Setup → Printing → Reprint** lists every document printed - newest first: when, which document and number, the store, how (**Print**, **PDF**, **Send** or **Reprint**), who, and a reprint's reason. You see only the documents of the modules your company has and that your role may open.
+
+1. Narrow the list with **Document** (one kind) and **Number or text** (a number, a name or who printed it), then **Search**.
+2. Click **Reprint** on a row. The print window opens titled **Reprint**; click **Print**, type **why it is being printed again** (it cannot be left blank), and it prints - silently on a computer set up for it (§7B.3). The page's printed line reads *Printed: <you> - REPRINT*, and the list gains a **Reprint** row with your reason.
+3. A document printed before this list began, or never printed: pick its **Document**, type its number and click **Print this number**.
+
+Barcode labels and stickers are reprinted from **Sticker Printing → Print history** (§7A.4).
+
 ## 8. Managing Master Data (Vendors, Locations, Brands, and Similar Lists)
 
 "Master data" just means the reference lists everything else points to — your vendors, your locations, your items, and things like brands, colors or sizes. A few of the most-used ones also appear directly in a module (**Vendors** under Procurement, **Customers**, **Campaigns** and **Vouchers** under CRM, **POS Profiles** under POS, **Bin**, **Dock Doors** and **Trailers** under WMS); those are not repeated in **Setup**, which holds all the others.
 
-The **Setup** menu lists **module names** only (Core, Finance, HR, Inventory, Master Data, OMS, PIM, Printing, Sales, WMS and so on). **Printing** holds the print setup in one place: **Print Template** (the layouts of PO, GRN, transfer and bill prints), **Sticker Template** (the barcode label) and **Printer**. point at one and its reference lists open beside it — a long one in two columns. The technical lists most businesses never touch come last in each module's list, under **Advanced**. The **filter box** at the top searches every list at once: type a few letters and every match is listed under its module, Advanced ones included, so nothing is ever hidden from a search. On a phone, a module's lists open under its row.
+The **Setup** menu lists **module names** only (Core, Finance, HR, Inventory, Master Data, OMS, PIM, Printing, Sales, WMS and so on). **Printing** holds the print setup in one place: **Templates** (every print layout and sticker label, module by module — §7B.2), **Printer** and **Printer Assignment**. **OMS** starts with **OMS settings** (§9A.13), then its lists. point at one and its reference lists open beside it — a long one in two columns. The technical lists most businesses never touch come last in each module's list, under **Advanced**. The **filter box** at the top searches every list at once: type a few letters and every match is listed under its module, Advanced ones included, so nothing is ever hidden from a search. On a phone, a module's lists open under its row.
 
 > **Your shop is a Location.** Setup → Core → **Location**, with its **Type** set to Store, Warehouse or HO — this is the record every transaction points at. A Location also holds the shop's **Address, City, Contact Phone** and **Manager**. (Earlier versions had a separate "Stores" list under the Stock menu that nothing else read; it was retired and its fields folded into Location.)
 
@@ -1321,6 +1374,10 @@ The suggested rates are the GST rates in force from 22 September 2025, so check 
 #### 8.1.3 Bins and zones
 
 A Bin's **Zone** is picked from your Zone list, showing each zone's name. If the zone does not exist yet ("Cold Room"), choose **Create "Cold Room"** in the picker and save the small form — then save the Bin. You never need to know or type a zone's code.
+
+### 8.1a How pickers search
+
+Every box where you pick a record - a vendor, an item, a store, a document - searches what **identifies** the record: its name, code or number, and for people and items their barcode, phone, email or GSTIN (Stage 127.7). Typing *A* finds names and numbers with an *A* in them, not every record whose status reads *Active* or whose category happens to match. Number boxes take numbers only: a quantity, price or amount typed with letters is refused with *Enter a number*.
 
 ### 8.2 Phone numbers
 
@@ -1623,7 +1680,7 @@ Your company's own report catalog — the two report spreadsheets the ERP was se
 
 ## 9A. Orders (OMS) — taking and processing customer orders
 
-**OMS → Orders** is the one screen that follows a customer order all the way through: order → stock allocated → picked and packed → shipped → invoiced. Orders arrive here from three places, and they all behave identically once they're in:
+**OMS → Orders** is the one screen that follows a customer order all the way through: order → accepted → picked → packed and billed → shipped → invoiced. Each step has a page of its own in the **OMS** menu — **Pending Orders**, **Pick**, **Pack**, **Ship**, **Returns** and **Settlements** (§9A.8–9A.12) — and the Orders page is where you find and change any one order. Orders arrive here from three places, and they all behave identically once they're in:
 
 - a **sales channel** (a marketplace or webstore your administrator has connected),
 - **Unicommerce** or another OMS middleware, if that's how your orders are routed,
@@ -1644,6 +1701,8 @@ Use this for a phone order, a walk-in wholesale order, a replacement, or anythin
 3. Add items with **+ Add item**: search for the item, set the quantity and the unit price.
 4. Click **Create Order**. The confirmation names the order by its number — `SO/<store>/2627/00001`, from the store that fulfils it — and you're back on the Orders console, with the order in its **Orders** table. That number is what the Orders table shows, and searching for it finds the order.
 
+**A manual order skips Pending Orders.** You keyed it in, so you have already accepted it: once its stock is reserved it goes straight to **Pick**. (A channel order waits on **Pending Orders** for someone to accept it — §9A.8.)
+
 **What happens the moment you click it:** the order goes through exactly the same engine a marketplace order does — stock is checked and **reserved**, the order is allocated, and any hold rules your business has configured are evaluated. This is deliberate. A manual order is a real order, so it can't be allowed to skip the checks a channel order goes through.
 
 That also means a manual order **can be refused**, and the most common reason is *"insufficient stock for reservation"*. That isn't a bug — it's the system declining to promise stock you don't have. Check **Inventory** for that item, receive the stock in (§6), and try again.
@@ -1654,7 +1713,7 @@ That also means a manual order **can be refused**, and the most common reason is
 
 **If you're working a queue rather than looking for one order, use the filters.** Above the Orders table there is a row of filters: **Channel**, **Status**, **Hold reason**, **Location**, a **From/To** date range, and **SLA breach over** (1 hour / 4 hours / 24 hours). Each dropdown shows a count next to every option, so you can see how much work is behind a filter before you pick it. **Clear filters** resets them.
 
-For a daily starting point, use **Start with work needing attention**: **Allocation/payment holds**, **Ready to release**, and **Overdue open** open the corresponding order queues. **Unmapped channel items** takes you to the mapping exceptions. Open an order to see its linked fulfillment tasks, bookings and invoices; those links search the saved record directly. An order without a linked record has not yet produced that downstream step.
+For a daily starting point, use **Start with work needing attention**: **Allocation or payment holds** and **Overdue open orders** filter the Orders table; **Pending Orders** opens that page (§9A.8); **Unmapped channel items** opens **OMS settings** (§9A.13), where the mapping exceptions are. Open an order to see its linked fulfillment tasks, bookings and invoices; those links search the saved record directly. An order without a linked record has not yet produced that downstream step.
 
 Filters you use repeatedly can be kept: set them up, then **Save this view** and give it a name. It reappears in the **Saved views…** dropdown. Views are private to you.
 
@@ -1672,8 +1731,8 @@ Across the top of that page is the action bar:
 
 | Action | What it does |
 | --- | --- |
-| **Release to Fulfillment** | The next step for a **Reserved** order: sends it to the warehouse. One pick task is created per location holding its stock, the order becomes **Released**, and the tasks appear on the **Fulfillment** screen. Clicking it twice does not create a second set. Only shown while the order is Reserved. |
-| **Book shipment** | After a task is packed/dispatched, opens **Marketplace** with this saved order, task and destination PIN filled. Review them and choose a serviceable carrier. It is hidden when a live booking already exists or the order has shipped. |
+| **Accept - send to Pick** | The next step for a **Reserved** order — the same as **Accept** on Pending Orders (§9A.8): one pick task per location holding its stock, the order becomes **Released**, the tasks appear on **Pick**, and a channel order's channel is told. Clicking it twice does not create a second set. Only shown while the order is Reserved. |
+| **Book shipment** | After a task is packed with no courier yet, opens **OMS → Ship** at that parcel with its PIN filled (§9A.11). It is hidden when a live booking already exists or the order has shipped. |
 | **Release hold** | Clears a hold and re-allocates. Only shown while the order is On Hold. |
 | **Hold** | Stops the order. Asks for an active Hold reason code, which is recorded. |
 | **Edit** | Change the customer, phone, shipping/billing address or payment status. **Saving re-runs the same checks a new order goes through** — so if your edit leaves the order unfulfillable (an address with no PIN code, say) the order is placed On Hold with the reason, rather than saved silently broken. |
@@ -1687,7 +1746,7 @@ Across the top of that page is the action bar:
 
 If an action is greyed out, the order has reached a status that closes it (Shipped, Delivered, Closed, Cancelled). An administrator can reopen any of these by configuring a Status Transition Rule.
 
-**Once an order is Released**, the warehouse is already picking it, so **Hold**, **Hold line**, **Switch facility** and **Split** are refused with a message saying so. **Edit** (address, contact) and **Expedite** still work. **Cancel order** still works until anything is packed: the open pick tasks are stopped (shown as **Cancelled** on the Fulfillment screen — put back anything already picked) and the reserved stock is released. Once a task is **Packed**, cancel is refused — let it ship and raise a return, or mark the shipment RTO. **Edit lines** is described in §9A.7. If the location cannot fulfil it, **Reject** the task on the Fulfillment screen; the system re-routes it to the next best location with stock.
+**Once an order is Released**, the warehouse is already picking it, so **Hold**, **Hold line**, **Switch facility** and **Split** are refused with a message saying so. **Edit** (address, contact) and **Expedite** still work. **Cancel order** still works until anything is packed: the open pick tasks are stopped (they leave **Pick** — put back anything already picked) and the reserved stock is released. Once a task is **Packed**, cancel is refused — let it ship and raise a return, or mark the shipment RTO. **Edit lines** is described in §9A.7. If the location cannot fulfil it, **Reject** the task on **Pick**; the system re-routes it to the next best location with stock.
 
 **Acting on many orders at once:** tick the checkboxes in the Orders table — the header checkbox selects the whole page — and a bar appears with **Release Hold**, **Hold** and **Cancel**. Each order is still checked individually, so a mixed selection does what it can and tells you exactly which orders refused and why (an order that has already shipped can't be cancelled, and says so).
 
@@ -1695,16 +1754,16 @@ If an action is greyed out, the order has reached a status that closes it (Shipp
 
 1. **Order arrives** (channel, middleware, or the manual panel above). Stock is reserved automatically.
 2. **Clear any hold.** An order sitting On Hold does not progress. Open it, read the reason, fix it, click **Release hold**. Working a backlog? Filter the queue by **Status = On Hold**, or by the specific **Hold reason**, tick the ones you've resolved and release them together.
-3. **Release to the warehouse.** Open the order (now **Reserved**) and click **Release to Fulfillment**. The order becomes **Released**.
-4. **Pick and pack.** Go to **Fulfillment** — the task for this order is routed to the location holding the stock. Work it through pick → pack. Anything you marked **Expedite** appears at the top of the picking worklist. (Warehouses using wave picking or mobile picking do the same thing from those screens.)
-5. **Book the shipment.** Open the order and choose **Book shipment**. **Marketplace** opens on its **Book a shipment** page with the order/task/PIN filled — check them, enter a serviceable carrier, and choose **Book** (you're then back on the Logistics Bookings list). The booking and AWB then appear in the order's **Shipments** section. A package-based label may require its invoice first; the screen will refuse an early print.
-6. **Hand over.** On **Marketplace**, generate a manifest for that courier and location, then **Hand Over**. The booking becomes **Handed Over** and, when every task has dispatched, the order becomes **Shipped**. **In-Transit** is a later tracking action, not the handover status. Dispatch moves the shipped quantity out of location stock; handover closes the order and starts invoice/notification work.
-7. **Invoice.** A Draft invoice appears in the order's **Invoices** section for the shipped quantity. Open it, post it, and settle it when the customer has paid. Notifications show what actually happened: **Queued** (waiting to be sent), **Retrying** (the provider could not be reached; it tries again), **Accepted** (the provider took it, delivery not yet confirmed), **Delivered** or **Failed** (the provider's own answer, or Failed after every retry), and **Skipped-…** when nothing was sent (no template, no channel set up, a sandbox client, or sending switched off). **Sent** appears only on notifications from before this change — it meant "tried", never "delivered". Tell a customer a message reached them only when it says **Delivered**.
+3. **Accept it.** A channel order waits on **OMS → Pending Orders**: **Accept** sends it to Pick and tells the channel (§9A.8). A manual order skips this step.
+4. **Pick.** On **OMS → Pick** the order's task is waiting at the location holding the stock, expedited ones first. **Pick**, scan each unit, short-pick what cannot be found (§9A.9). Warehouses using wave or mobile picking do the same from those screens.
+5. **Pack, bill and label.** On **OMS → Pack**, scan each unit into the box, then **Pack, bill and label**: the package, the **OMS bill** (the customer's GST invoice) and the courier booking with its AWB are made in one go (§9A.10). Print the bill for the box and the label for the outside.
+6. **Ship.** On **OMS → Ship**, make the manifest for that courier and store, raise the **gate pass** for the vehicle, then **Hand over**. The booking becomes **Handed Over** and, when every task has dispatched, the order becomes **Shipped**. **In-Transit** and **Delivered** are later tracking steps on the same page. Handover takes the shipped quantity out of stock (§9A.11).
+7. **The ERP bill.** Handing over makes the **ERP bill** — a posted Sales Invoice — from each parcel's OMS bill, carrying the OMS bill's number (§9A.10). You do not raise or post an invoice for these orders yourself. Settle it when the customer has paid. Notifications show what actually happened: **Queued** (waiting to be sent), **Retrying** (the provider could not be reached; it tries again), **Accepted** (the provider took it, delivery not yet confirmed), **Delivered** or **Failed** (the provider's own answer, or Failed after every retry), and **Skipped-…** when nothing was sent (no template, no channel set up, a sandbox client, or sending switched off). **Sent** appears only on notifications from before this change — it meant "tried", never "delivered". Tell a customer a message reached them only when it says **Delivered**.
 8. **Delivered.** Record **Mark Delivered** on the booking when the courier confirms delivery; that event moves the order to Delivered.
 
-On **Marketplace**, a manual settlement now lets you add real saved channel orders one by one. Changing the channel clears the selection. Do not enter a payout until you have the provider's settlement evidence; this picker alone is not a reconciliation.
+On **OMS → Settlements**, a manual settlement lets you add real saved channel orders one by one (§9A.12). Changing the channel clears the selection. Do not enter a payout until you have the provider's settlement evidence; this picker alone is not a reconciliation.
 
-If you're comparing this to how Unicommerce or a similar OMS describes the same flow: their "sale order → inventory allocation → picklist → invoice → manifest/dispatch" maps onto steps 1–7 above. The vocabulary differs; the sequence doesn't.
+If you're comparing this to how Unicommerce or a similar OMS describes the same flow: their "sale order → accept → picklist → invoice → manifest/dispatch" maps onto steps 1–7 above, and their invoice at packing is the OMS bill. The vocabulary differs; the sequence doesn't.
 
 ### 9A.5 Invoicing a customer in a foreign currency
 
@@ -1737,19 +1796,19 @@ Under **Start with the work needing attention**, four more buttons each show how
 | Queue | What lands in it | What to do |
 |---|---|---|
 | **Stuck payments** | Open orders whose payment is still Pending after 30 minutes | Confirm the payment (Edit → Payment status) then release the hold — or cancel the order |
-| **Carrier exceptions** | Packed tasks with no carrier booking for 4 hours; bookings with no carrier movement for 48 hours; RTO parcels not yet received back | Book the shipment; chase the carrier and record tracking or RTO on Marketplace; receive the RTO and run its return QC |
+| **Carrier exceptions** | Packed tasks with no carrier booking for 4 hours; bookings with no carrier movement for 48 hours; RTO parcels not yet received back | Book the courier on **Ship**; chase the carrier and record tracking or RTO on **Ship**; receive the RTO and run its return QC |
 | **Returns and refunds** | Return requests open more than 2 days; refunds waiting more than 1 day | Approve or reject, schedule the pickup, run QC, approve or process the refund |
 | **Settlement** | Payout lines in Variance or Disputed; shipped channel orders with no settled payout after the aging period | Raise a dispute, write the variance off with a reason, record the corrected amount, or import and reconcile the payout file |
 
 Click a button to list its rows, oldest first: the order, why it is there, since when, for how many hours, the next step, and the document to open. Click the order to open it. The same queues appear in **My work** (§10) for anyone allowed to read orders.
 
-**The order screen** now opens with a **Next step** line — the step the system will actually accept next (for example *Confirm payment*, *Release to fulfillment*, *Book shipment*, *Record delivery or RTO*, *Work the return*) with its button. Below the lines, the **Timeline** lists everything that happened to the order in date order: received, notifications, pick tasks, status changes, bookings, invoices, returns, refunds, replacements and each recorded change with who did it. The section-by-section tables are still there under **Related documents by type**.
+**The order screen** now opens with a **Next step** line — the step the system will actually accept next (for example *Confirm payment*, *Accept - send to Pick*, *Book shipment*, *Record delivery or RTO*, *Work the return*) with its button. Below the lines, the **Timeline** lists everything that happened to the order in date order: received, notifications, pick tasks, status changes, bookings, invoices, returns, refunds, replacements and each recorded change with who did it. The section-by-section tables are still there under **Related documents by type**.
 
 **Returns and refunds on the order.** A return or refund raised against the order's invoice is listed on the order itself and counts in the **Returns and refunds** queue — you do not need to look it up separately.
 
-**Channel connectors** (the panel under the queues) shows each marketplace channel's state: **Not connected** — its credentials have not been added yet (add them on **Marketplace**); **Never synced** — connected but no sync has run; otherwise the last sync's result and time, with the error of a failed sync (passwords and tokens are masked). **24h failures** counts failed syncs in the last day.
+**Channel connectors** (on **Setup → OMS → OMS settings**, §9A.13) shows each marketplace channel's state: **Credentials not set** — no credentials have been added for it yet; **Never synced** — connected but no sync has run; otherwise the last sync's result and time, with the error of a failed sync (passwords and tokens are masked). **24h failures** counts failed syncs in the last day.
 
-**Bundles.** **Manage bundles** lists your bundles. To make one, click **New Product Bundle**, pick the **Bundle SKU** (the item customers order), a name, the fulfilment and pricing modes, then under **Components** click **+ Add Line** for each item in the bundle with its **Quantity**. The list shows the components as *SKU × quantity*. A bundle cannot contain its own SKU.
+**Bundles** are on **OMS settings** too (§9A.13). **Manage definitions** lists your bundles. To make one, click **New Product Bundle**, pick the **Bundle SKU** (the item customers order), a name, the fulfilment and pricing modes, then under **Components** click **+ Add Line** for each item in the bundle with its **Quantity**. The list shows the components as *SKU × quantity*. A bundle cannot contain its own SKU.
 
 ### 9A.7 Changing an order: lines, cancelling after release, reship and replacement
 
@@ -1757,11 +1816,67 @@ Click a button to list its rows, oldest first: the order, why it is there, since
 
 - extra stock is reserved for any increase, and released for any decrease or removed line, in one step — if there is not enough free stock, nothing changes and you are told how much is available;
 - the order total is recalculated; if the payment was **Confirmed** and the new total is higher, the order goes **On Hold** for payment (confirm the extra amount, then release); if it is lower, the order shows **Refund the difference** with the amount;
-- a **Released** order goes back to **Reserved** and its untouched pick tasks are cancelled — choose **Release to Fulfillment** again so the warehouse picks the edited lines.
+- a **Released** order goes back to **Reserved** and its untouched pick tasks are cancelled — **Accept** it again (Pending Orders, or **Accept - send to Pick** on the order) so the warehouse picks the edited lines. The channel is not told twice.
 
 Lines cannot change once the warehouse starts picking, once the order is invoiced, for a line that is part of a bundle, or if the change would remove every line (cancel instead).
 
 **Reship / replace** (order Shipped, Delivered, Closed or Dispatched): choose **Reship** to send the same goods again (lost or undelivered) or **Replacement** for the same or an exchanged item (damaged or wrong). Enter how many of each shipped line to send again — never more than shipped, less anything already sent again — and a reason. The new order is **free of charge**, ships from available stock like any order, shows **Reship of** / **Replacement of** the original, and the original lists it under **Replacements and reships**. Clicking **Create order** twice returns the same new order. Collect the damaged or wrong goods with a return request.
+
+### 9A.8 Pending Orders — accept or reject a channel order
+
+**OMS → Pending Orders** lists the orders waiting for your answer: marketplace and website orders whose stock is reserved, oldest first. Nothing is picked until you answer. (Orders keyed in on the Orders page skip this — §9A.1.)
+
+- **Accept** sends the order to **Pick** and tells the channel it is accepted.
+- **Reject** asks for a reason (from your **Cancellation** reasons), cancels the order, releases its stock and tells the channel.
+- **Owner** (only where WMS is in use) sets the 3PL client whose stock the order is picked from (§7.2).
+- **Open** opens the order itself.
+
+To answer many at once, tick them — the header box ticks the page — and use **Accept** or **Reject** in the bar that appears. Each order is checked on its own, and the message names any that were refused and why. An order marked **Changed after acceptance** was accepted before and then edited; accepting it again re-releases it without telling the channel a second time.
+
+**Answers the channel did not get** appears under the list when an answer could not be sent: **Not connected** (the channel is not set up — add it under **Setup → PIM → Channel** with its credentials) or **Failed** (the channel refused it after every retry; the reason is shown). Fix the cause and click **Retry**. Amazon and Flipkart take accept / reject in their own seller portals, so their orders show **Not supported** and you answer them there. On a test or training server nothing is sent and the answer shows **Simulated**.
+
+**Accept orders automatically.** A business that does not want this step turns on **Accept channel orders automatically** (**Settings → Customize → Configuration**, OMS): channel orders are then accepted as they arrive and go straight to Pick.
+
+### 9A.9 Pick
+
+**OMS → Pick** is the picking worklist: every task with something left to pick, **Expedite** first, then oldest first. Each row is the order (who it is for, the channel and its number, the task's own id in small type), the store, how many units are left to pick, and how long it has waited. **Location** filters it when you pick at more than one store.
+
+1. **Pick list** prints the task's pick list (its layout is on **Setup → Printing → Templates → OMS**).
+2. **Pick** opens the scan panel above the list. Scan each unit's barcode (or type its code and press Enter). Each scan counts one unit; a code that is not on the task says which item it is and is refused.
+3. If the rest of a line cannot be found, **Short-pick** it with a reason. Its reserved stock is released.
+4. When every line is picked or short-picked, **Go to Pack** takes you to the same task on Pack.
+
+**Reject** sends the task to another store that has the stock (or the order waits for stock). A task in a WMS wave shows its wave instead; pick it on **Mobile Picking** (the button at the top, shown where WMS is in use). **Close** shuts the scan panel; it comes back on its own if you refresh while it is open.
+
+### 9A.10 Pack — and the two bills
+
+**OMS → Pack** lists the tasks that are fully picked. **Pack** opens the scan panel: scan each picked unit into the box. When everything is in, enter the box's **weight** (if you weigh it), tick **Bill and documents are in the box** if your business checks that, and click **Pack, bill and label**. In one go it:
+
+1. marks the task packed,
+2. makes the **package**,
+3. makes the **OMS bill** for what is in the box, and
+4. books the courier — the first courier that serves the order's PIN code — with its **AWB**.
+
+Then **Print bill** prints the OMS bill and **Print label** the courier label. If no courier serves the PIN (or the order has none), the parcel is still packed and billed, and waits on **Ship → Book the courier**. A run that stopped part-way shows **Packed - not booked** on Pack; **Finish** runs the rest.
+
+**Two bills, one sale.** The **OMS bill** goes to the customer in the box. It is numbered from its own series, **OB/<store>/2627/00001**, and **its number is the GST invoice number**. When the parcel is handed over (§9A.11), the **ERP bill** — an ordinary Sales Invoice — is made from it with the same lines, the same tax and **the OMS bill's number**, and posted. Only the ERP bill posts to the accounts, so GST counts the sale once, under the OMS number. Find either on the order (**Related documents**) or in their lists (Setup → OMS → OMS settings → OMS Bill; Financial Accounting → Sales Invoice). A package billed before this change keeps the Sales Invoice it was billed with.
+
+### 9A.11 Ship
+
+**OMS → Ship** has four parts, top to bottom:
+
+- **Book the courier** — packed parcels with no courier. Check the **Pincode**, leave **Courier** blank for the first one that serves it (or type one), **Book**.
+- **Booked - make the manifest** — booked parcels, grouped by courier and store. **Print label** (or **View** to read it) for each; a parcel whose label was not printed is held out of the manifest. **Make manifest** groups the rest.
+- **Manifests** — the open ones. **Gate pass** asks for the collecting vehicle's number and the driver, and issues the pass. **Hand over** dispatches every parcel on the manifest, closes the gate pass, makes each parcel's ERP bill and moves the order to **Shipped** once all its parcels have gone. Handed-over manifests are under **Handed over**.
+- **On the way** — parcels with the courier: **In transit**, **Delivered**, or **RTO** with the courier's reason. Delivered and returned ones are under **Delivered and returned**.
+
+### 9A.12 Settlements
+
+**OMS → Settlements** is where marketplace payouts are reconciled: the payout list with **+ Reconcile Payout** (a payout you already have the figures for), and **Settlement Reconciliation** — **Import / View Settlement Lines** to bring in a marketplace's settlement file, **Run Auto-Reconcile** to match each line against what was billed, and the queue of lines outside tolerance with **Dispute**, **Resolve** and **Write Off**.
+
+### 9A.13 OMS settings
+
+**Setup → OMS → OMS settings** holds OMS's configuration on one page: **Channel connectors** (each channel's last sync, **Pull orders**, **Push ATS**), **Unmapped channel SKUs** (map a channel's SKU to your item here), **Bundles and kits** (with assemble / disassemble for stocked kits) and **OMS lists** — every OMS list your role may open (courier service areas, status rules, return requests, the OMS bills and so on).
 
 ## 9B. Finance work to review
 
@@ -1925,7 +2040,7 @@ A campaign is set up once and then sends by itself: every hour the system finds 
    - **Purchase order** — pick the **Vendor**; one Draft PO is created for all the ticked items, priced at their cost (moving average, else the item's standard cost — check the prices before submitting).
    - **Transfer from another location** — pick **From location**; one Draft stock transfer is created.
    - **Production order** — one Draft production order per ticked item, on its active BOM (an item without a BOM is refused).
-   Click **Approve selected**. The message names the documents; open them on Purchase Orders, Stock Transfer or Manufacturing → Production Orders to review and submit as usual. Approve one location at a time.
+   Click **Approve selected**. The message names the documents; open them on Purchase Orders, Inventory → Stock Movement or Manufacturing → Production Orders to review and submit as usual. Approve one location at a time.
 4. Rows you will not act on: tick them and **Reject selected** with a reason (in **Note / reason**, or asked for).
 5. **Show** switches between open, converted, rejected and all proposals. A converted proposal shows the document it became, who decided and when; that document shows the proposals it came from. A proposal is converted once — approving it again is refused.
 

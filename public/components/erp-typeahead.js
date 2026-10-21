@@ -220,7 +220,8 @@ class ErpTypeahead extends HTMLElement {
     const seq = ++this._requestSeq;
     if (!q) { this._closeMenu(); return; }
     if (typeof window.apiFetch !== 'function') return;
-    const res = await window.apiFetch(`/api/v1/doc/${this.doctype}?q=${encodeURIComponent(q)}&limit=${this.limit}`);
+    // Stage 127.7: found by what identifies it (code, name, number...), not every field.
+    const res = await window.apiFetch(`/api/v1/doc/${this.doctype}?q=${encodeURIComponent(q)}&q_fields=@identity&limit=${this.limit}`);
     if (seq !== this._requestSeq) return;
     if (!res || !res.ok) { this._closeMenu(); return; }
     this._items = await res.json();

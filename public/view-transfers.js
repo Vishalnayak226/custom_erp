@@ -47,7 +47,7 @@ async function renderTransfersView(container) {
   screen.dataset.landing = 'history';
   screen.innerHTML = `
     <div class="txn-bar">
-      ${txnPageTitle({ screen: 'transfer-screen', title: 'Stock Transfer', page: 'New transfer', count: transfers.length })}
+      ${txnPageTitle({ screen: 'transfer-screen', title: 'Stock Movement', page: 'New transfer', count: transfers.length })}
       ${txnContext()}
       ${txnNewButton({ screen: 'transfer-screen', label: 'New Transfer' })}
       <div id="transfer-sum" class="txn-sum txn-main-only"></div>

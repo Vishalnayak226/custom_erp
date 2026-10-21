@@ -5,7 +5,7 @@ order: 4
 summary: Receive, put away, pick, pack, dispatch - and the counting work that keeps the numbers honest.
 audience: warehouse operator
 last_verified: 2026-08-17
-screens: [grn, asn, putaway, fulfillment, wave-picking, mobile-picking, cycle-count, lpn, bin-replenishment, bin-conditions, transfers, stickers]
+screens: [grn, asn, putaway, oms, wave-picking, mobile-picking, cycle-count, lpn, bin-replenishment, bin-conditions, transfers, stickers]
 doc_id: DOC-4F17D60B48
 type: procedure
 status: draft
@@ -66,8 +66,8 @@ is what stops the pick queue stalling mid-morning.
 
 ## Outbound
 
-**Fulfillment** is the main work queue: pick, pack, dispatch, each step
-recording who did it and when. Orders flagged **Expedite** sort to the top, and
+**OMS → Pick**, **Pack** and **Ship** are the work queues, one page per step,
+each recording who did it and when. Orders flagged **Expedite** sort to the top, and
 that is honoured by the queue itself.
 
 Two alternatives for higher volume:
@@ -93,7 +93,7 @@ found, and let the variance be what it is.
 
 ## Moving stock between locations
 
-**Stock » Stock Transfer**. A transfer is two half-events - out of one place and
+**Inventory » Stock Movement**. A transfer is two half-events - out of one place and
 into another - and stock in transit belongs to neither until the receiving end
 confirms it. Confirm arrivals the day they arrive.
 

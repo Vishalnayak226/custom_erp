@@ -99,6 +99,18 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, r, "STKLOC-0865", "")
 		return
 	}
+	// Stage 88.3.2: an OMS bill is a GST invoice issued at Pack; one typed or
+	// changed here would carry a tax number no package backs.
+	if doctype == "OMSBill" && r.Method != http.MethodGet {
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "An OMS bill is made by OMS ▸ Pack and cannot be created or changed here.")
+		return
+	}
+	// Stage 88.5: an MRP change or stock adjustment written here would never
+	// reach the items or the stock.
+	if (doctype == "MRPChange" || doctype == "InventoryAdjustment") && r.Method != http.MethodGet {
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "MRP changes and stock adjustments are made on their Inventory pages.")
+		return
+	}
 
 	// 26.4.10: a Supplier login is an OUTSIDE party. Doctype-level RBAC alone
 	// would let every supplier read every other supplier's submissions, so
@@ -397,6 +409,11 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				// than every row whose status reads "Active". Opt-in, like
 				// sort=recent - every other caller keeps the any-field search.
 				if v := r.URL.Query().Get("q_fields"); v != "" {
+					// Stage 127.7: @identity is the doctype's own identifying
+					// fields - what every link picker now asks for.
+					if strings.TrimSpace(v) == "@identity" {
+						v = strings.Join(engines.SearchIdentityFields(tenantID, doctype), ",")
+					}
 					var placeholders []string
 					for _, f := range strings.Split(v, ",") {
 						if f = strings.TrimSpace(f); f != "" {
@@ -891,7 +908,9 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// of truth and the header total follows from them.
 			if breakdown.TaxableAmount > 0 || breakdown.NonTaxableAmount() > 0 {
 				payload["total_amount"] = math.Round((breakdown.TaxableAmount+breakdown.NonTaxableAmount())*100) / 100
-				payload["grand_total"] = breakdown.TotalAmount
+				// Stage 94.15: the PO total is to the whole rupee, with its
+				// round-off line beside it.
+				payload["grand_total"], payload["round_off"] = engines.RoundToRupee(breakdown.TotalAmount)
 			}
 		}
 
@@ -1349,8 +1368,10 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				writeEngineError(w, r, gErr, http.StatusInternalServerError)
 				return
 			}
-		} else if documentType == "Transaction" && status == "Approved" {
-			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Approved transactional documents cannot be deleted")
+		} else if documentType == "Transaction" && postedDocumentStatuses[status] {
+			// Stage 74.1.5: a posted document is undone by its own reversing
+			// document, never deleted - its stock and GL rows would be orphaned.
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "An approved or posted document cannot be deleted - reverse it instead")
 			return
 		}
 		_, err = db.DB.Exec(fmt.Sprintf("UPDATE %s.documents SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND doctype = $2 AND deleted_at IS NULL", schema), id, doctype)
@@ -1779,6 +1800,14 @@ func handleGetDocTypeMeta(w http.ResponseWriter, r *http.Request) {
 // approvalOnlyStatuses are reached only through SubmitForApproval/
 // DecideApproval on an approval-gated doctype, never by a plain save.
 var approvalOnlyStatuses = []string{"Approved", "Rejected"}
+
+// postedDocumentStatuses (Stage 74.1.5) are the statuses after which a
+// transactional document has moved stock or money: the generic API refuses to
+// delete it (a reversal is a linked reversing document).
+var postedDocumentStatuses = map[string]bool{
+	"Approved": true, "Posted": true, "Paid": true, "Partially Paid": true, "Received": true, "Partially Received": true,
+	"Dispatched": true, "In Transit": true, "Completed": true, "Closed": true, "Reversed": true, "Delivered": true, "Shipped": true,
+}
 
 func isApprovalOnlyStatus(s string) bool {
 	for _, a := range approvalOnlyStatuses {

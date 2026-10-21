@@ -158,6 +158,9 @@ func ImportChannelSalesOrder(tenantID string, input ChannelOrderInput) (string, 
 	// phantom id forever. Repointing it makes the table converge on truth.
 	// Replays of a healthy row never reach here - they returned above.
 	_, err = db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.channel_order_mapping (order_id, channel, channel_order_id) VALUES ($1, $2, $3) ON CONFLICT (channel, channel_order_id) DO UPDATE SET order_id = EXCLUDED.order_id`, schema), orderID, input.Channel, input.ChannelOrderID)
+	if err == nil {
+		acceptImportedChannelOrder(tenantID, orderID) // Stage 88.3.1
+	}
 	return orderID, err
 }
 
@@ -230,6 +233,7 @@ func ImportUnicommerceSalesOrder(tenantID, channelOrderID, storeCode string, lin
 		return "", err
 	}
 	LogAuditEvent(tenantID, "system", "UNICOMMERCE_ORDER_IMPORTED", "SUCCESS", fmt.Sprintf("order=%s store=%s items=%d", orderID, storeCode, len(lines)))
+	acceptImportedChannelOrder(tenantID, orderID) // Stage 88.3.1
 	return orderID, nil
 }
 

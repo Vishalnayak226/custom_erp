@@ -410,7 +410,7 @@ async function openPOSSessionFlow() {
     await showCustomAlert('Pick the store you are working at, at the top of the screen.', 'Store Required');
     return;
   }
-  const openingStr = await showCustomPrompt('Opening cash float for this session?');
+  const openingStr = await showCustomPrompt('Opening cash float for this session?', '', 'Open Session', 'number');
   if (openingStr === null) return;
   const opening = parseFloat(openingStr);
   const res = await apiFetch('/api/v1/pos/session/open', {
@@ -722,6 +722,11 @@ function renderPOSCartTable(skipQuote) {
     redeemRow.classList.toggle('hidden', !pointsValue);
   }
 
+  // Stage 94.15: the bill is paid to the whole rupee, rounded exactly as the
+  // server's quote rounds it.
+  const bill = Math.max(0, Math.round((total - posOfferDiscount) * 100) / 100);
+  const roundOff = Math.round((Math.round(bill) - bill) * 100) / 100;
+
   // Stage 85.E6 (77.12): the bar carries the discount and the tax split of
   // the server's quote, beside the total.
   const taxRow = document.getElementById('pos-tax-row');
@@ -731,6 +736,7 @@ function renderPOSCartTable(skipQuote) {
     if (posOfferDiscount > 0) parts.push(`Discount -${posOfferDiscount.toFixed(2)}`);
     if (g && g.interstate && g.igst) parts.push(`IGST ${Number(g.igst).toFixed(2)}`);
     if (g && !g.interstate && (g.cgst || g.sgst)) parts.push(`CGST ${Number(g.cgst).toFixed(2)} · SGST ${Number(g.sgst).toFixed(2)}`);
+    if (roundOff) parts.push(`Round off ${roundOff > 0 ? '+' : ''}${roundOff.toFixed(2)}`);
     taxRow.textContent = parts.join(' · ');
     taxRow.classList.toggle('hidden', !parts.length);
   }
@@ -741,7 +747,7 @@ function renderPOSCartTable(skipQuote) {
     giftRow.textContent = giftPaid > 0 ? `Gift card: -${giftPaid.toFixed(2)} (${posGiftCardTenders.map(g => g.card).join(', ')})` : '';
     giftRow.classList.toggle('hidden', !(giftPaid > 0));
   }
-  const due = total - pointsValue - posOfferDiscount - giftPaid;
+  const due = bill + roundOff - pointsValue - giftPaid;
   const exRow = document.getElementById('pos-exchange-row');
   if (exRow && posExchange) exRow.textContent = `Exchange credit: -${posExchange.amount.toFixed(2)}${posExchange.amount > due ? ` (${(posExchange.amount - due).toFixed(2)} back to the customer)` : ''}`;
   // Stage 85.D3: the customer's advance pays next; the bar keeps the bill's
@@ -755,7 +761,7 @@ function renderPOSCartTable(skipQuote) {
     advRow.textContent = advanceUsed > 0 ? `Advance: -${advanceUsed.toFixed(2)}` : '';
     advRow.classList.toggle('hidden', !(advanceUsed > 0));
   }
-  totalEl.dataset.gross = (total - posOfferDiscount).toFixed(2);
+  totalEl.dataset.gross = (bill + roundOff).toFixed(2);
   totalEl.dataset.beforeAdvance = beforeAdvance.toFixed(2);
   totalEl.textContent = Math.max(0, beforeAdvance - advanceUsed).toFixed(2);
   renderPOSTender();
@@ -890,6 +896,13 @@ const POS_PRICE_SOURCE_LABELS = {
 // text; only a line the server could not price at all (assisted mode) keeps an
 // input, and it is labelled as unverified so nobody mistakes it for a
 // system price.
+// Stage 94.15: an MRP is a whole rupee, shown without paise (one saved with
+// paise before then still shows them).
+function posMRPText(mrp) {
+  const n = Number(mrp) || 0;
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+}
+
 // Stage 94.6 (D2): an item on the shelf at two or more MRPs - one tap picks
 // the MRP printed on what the customer is buying; the whole line sells at it.
 function posMRPCell(line) {
@@ -897,11 +910,11 @@ function posMRPCell(line) {
   if (choices.length > 1 && !line.mrpPicked) {
     return `<div class="pos-mrp-choice" role="group" aria-label="MRP printed on ${cfgEsc(line.name || line.sku)}">
       <span>Which MRP is on it?</span>
-      ${choices.map(m => `<button class="btn btn-outline btn-sm" type="button" ${actionAttrs('pickPOSLineMRP', [line.sku, m])}>${Number(m).toFixed(2)}</button>`).join('')}
+      ${choices.map(m => `<button class="btn btn-outline btn-sm" type="button" ${actionAttrs('pickPOSLineMRP', [line.sku, m])}>${posMRPText(m)}</button>`).join('')}
     </div>`;
   }
   if (!line.mrp) return '';
-  return `<div style="font-size:11.5px; color:var(--text-muted);">MRP ${Number(line.mrp).toFixed(2)}${line.mrpPicked ? ` <button class="link-btn" type="button" ${actionAttrs('pickPOSLineMRP', [line.sku, 0])}>change</button>` : ''}</div>`;
+  return `<div style="font-size:11.5px; color:var(--text-muted);">MRP ${posMRPText(line.mrp)}${line.mrpPicked ? ` <button class="link-btn" type="button" ${actionAttrs('pickPOSLineMRP', [line.sku, 0])}>change</button>` : ''}</div>`;
 }
 
 function pickPOSLineMRP(sku, mrp) {
@@ -1534,9 +1547,12 @@ async function printCompletedPOSSale() {
   // dialog in the cashier's way. quiet: true because a shop with no
   // Receipt printer configured is the normal case, not an error, and
   // must simply fall through to the print sheet below.
-  if (await qzTryPrint('Receipt', { documentRef: sale.cartNumber, quiet: true })) return;
-  printPOSReceipt(sale.billNumber || sale.cartNumber, posLocation, sale.paymentMode, sale.items,
-    sale.saleTotal, sale.loyaltyDiscount || 0, sale.offerDiscount || 0);
+  // Stage 127.2: set up for silent print, a failure explains itself instead.
+  const routing = await loadViewModule('./print-routing.js');
+  await routing.printNoDialog('Receipt', posLocation,
+    (why) => qzTryPrint('Receipt', { documentRef: sale.cartNumber, quiet: true, why }),
+    () => printPOSReceipt(sale.billNumber || sale.cartNumber, posLocation, sale.paymentMode, sale.items,
+      sale.saleTotal, sale.loyaltyDiscount || 0, sale.offerDiscount || 0));
 }
 
 // posStoreLabel is how the store reads to a human - its name, falling back to

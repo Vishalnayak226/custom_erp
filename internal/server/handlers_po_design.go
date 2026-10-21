@@ -95,14 +95,10 @@ func handlePostVendorCreditNote(w http.ResponseWriter, r *http.Request) {
 }
 
 // printTxnDoctype maps a print transaction to the doctype whose read
-// permission it needs.
-func printTxnDoctype(txn string) string {
-	for _, t := range engines.PrintTransactions {
-		if t.Key == txn {
-			return t.Doctype
-		}
-	}
-	return ""
+// permission it needs - a format's own, or (Stage 127.3) any transactional
+// doctype printed through the generic format.
+func printTxnDoctype(r *http.Request, txn string) string {
+	return engines.PrintTxnDoctype(r.Header.Get("Resolved-Tenant-ID"), txn)
 }
 
 // handlePrintDocument (Stage 63.1) returns one document's print data and the
@@ -110,7 +106,7 @@ func printTxnDoctype(txn string) string {
 // print is generated from; ?images=1 embeds item pictures.
 func handlePrintDocument(w http.ResponseWriter, r *http.Request) {
 	txn := r.PathValue("txn")
-	doctype := printTxnDoctype(txn)
+	doctype := printTxnDoctype(r, txn)
 	if doctype == "" {
 		writeAPIErrorGeneric(w, r, http.StatusNotFound, "Unknown print transaction")
 		return
@@ -153,7 +149,7 @@ func handlePrintDocument(w http.ResponseWriter, r *http.Request) {
 // on the server it answers sent=false and the page downloads the PDF instead.
 func handlePrintDocumentSend(w http.ResponseWriter, r *http.Request) {
 	txn := r.PathValue("txn")
-	doctype := printTxnDoctype(txn)
+	doctype := printTxnDoctype(r, txn)
 	if doctype == "" {
 		writeAPIErrorGeneric(w, r, http.StatusNotFound, "Unknown print transaction")
 		return

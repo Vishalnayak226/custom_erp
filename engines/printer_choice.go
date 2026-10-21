@@ -19,7 +19,7 @@ import (
 // it here; every later print of that kind goes straight to it.
 
 // PrintKinds are the kinds of print a computer chooses a printer for.
-var PrintKinds = []string{"Purchase Order", "Goods Receipt", "Transfer", "Sales Invoice", "Returns and Notes", "Receipt", "Sticker", "Shipping Label"}
+var PrintKinds = []string{"Purchase Order", "Goods Receipt", "Transfer", "Sales Invoice", "Returns and Notes", "Receipt", "Sticker", "Shipping Label", "Pick List", "Other Documents"}
 
 // PrintKindForJob is the kind of print a QZ job is: the caller's kind, else
 // its job type. The legacy "Invoice" job is the Sales Invoice; a "Document"

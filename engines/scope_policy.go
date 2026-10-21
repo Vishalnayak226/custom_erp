@@ -139,6 +139,7 @@ var doctypeScopes = map[string]DoctypeScope{
 	"POSPriceOverride":       locScope("location", true),
 	"POSProfile":             locScope("location", true),
 	"POSSession":             locScope("location", true),
+	"InventoryAdjustment":    locScope("location", true), // Stage 88.5.4
 	"PhysicalInventory":      locScope("location", true),
 	"StockMove":              locScope("location", true), // Stage 85.B
 	"ProductionOrder":        locScope("location", true),
@@ -173,6 +174,7 @@ var doctypeScopes = map[string]DoctypeScope{
 	"FloorAssistRequest":    locScope("location", false),
 	"PackStation":           locScope("location_code", false),
 	"PreShipValidationRule": locScope("location_code", false),
+	"OMSBill":               locScope("location", false), // Stage 88.3.2
 	"Printer":               locScope("location", false),
 	"PrinterAssignment":     locScope("location", false), // Stage 98.4: a computer's printer choice, by its store
 	"PurchaseReturn":        locScope("location", false),

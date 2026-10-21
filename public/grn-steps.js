@@ -23,6 +23,8 @@ let gs = null; // { id, view, page, edit, mrp, moves, names, root, onChanged }
 
 const esc = (s) => escapeHTMLText(s == null ? '' : String(s));
 const money = (v) => formatMoney(Number(v) || 0);
+// Stage 94.15: an MRP is a whole rupee, shown without paise.
+const mrpText = (v) => { const n = Number(v) || 0; return Number.isInteger(n) ? n.toLocaleString('en-IN') : money(n); };
 const num = (v) => (v === '' || v == null || isNaN(Number(v)) ? null : Number(v));
 // Stage 110.1: a line of a GST-inclusive PO shows and takes its prices incl.
 // GST, like its PO; the server keeps them ex-GST. A price typed back to what
@@ -343,9 +345,9 @@ function postHTML(v) {
         : (exGST < l.grn_price ? '<span class="gs-red">Below cost</span>' : (l.current_mrp && m < l.current_mrp ? '<span class="gs-amber">Below the current MRP</span>' : ''));
       return `<tr>
         <td>${itemCell(l)}</td><td class="num">${l.accepted_qty}</td><td class="num">${money(l.grn_price)}</td>
-        <td class="num">${l.current_mrp ? money(l.current_mrp) : '<span class="text-muted">none</span>'}</td>
-        <td class="num">${posted ? money(l.mrp) : numInput(l.line_no, 'mrp', gs.mrp[l.line_no], '0.01')}</td>
-        <td class="num">${l.suggested_mrp ? money(l.suggested_mrp) : ''}${l.suggested_mrp && l.suggested_mrp_rule ? `<div class="text-muted" style="font-size: 11px;" title="MRP rule (Setup &gt; MRP Rule)">${esc(l.suggested_mrp_rule)}</div>` : ''}</td>
+        <td class="num">${l.current_mrp ? mrpText(l.current_mrp) : '<span class="text-muted">none</span>'}</td>
+        <td class="num">${posted ? mrpText(l.mrp) : numInput(l.line_no, 'mrp', gs.mrp[l.line_no], '1')}</td>
+        <td class="num">${l.suggested_mrp ? mrpText(l.suggested_mrp) : ''}${l.suggested_mrp && l.suggested_mrp_rule ? `<div class="text-muted" style="font-size: 11px;" title="MRP rule (Setup &gt; MRP Rule)">${esc(l.suggested_mrp_rule)}</div>` : ''}</td>
         <td class="num">${margin == null ? '' : margin + '%'}</td><td>${posted ? '' : warn}</td></tr>`;
     }).join('');
     return `<section class="gs-child">
@@ -409,7 +411,7 @@ function correctHTML(v) {
       <tbody>${v.lines.map(l => `<tr><td>${l.line_no}</td><td>${itemCell(l)}</td>
         <td class="num">${numInput(l.line_no, 'c_grn_qty', gs.edit[l.line_no].c_grn_qty ?? l.grn_qty)}</td>
         <td class="num">${numInput(l.line_no, 'c_grn_price', gs.edit[l.line_no].c_grn_price ?? l.grn_price, '0.01')}</td>
-        <td class="num">${numInput(l.line_no, 'c_mrp', gs.edit[l.line_no].c_mrp ?? l.mrp, '0.01')}</td></tr>`).join('')}</tbody>
+        <td class="num">${numInput(l.line_no, 'c_mrp', gs.edit[l.line_no].c_mrp ?? l.mrp, '1')}</td></tr>`).join('')}</tbody>
     </table></div>
     ${eff ? `<div class="gs-effect">
       ${(eff.lines || []).map(x => `<div>Line ${x.line_no} ${esc(x.sku)}: ${esc(x.field.replace(/_/g, ' '))} ${x.old} &rarr; ${x.new}${x.stock_delta ? `, stock ${x.stock_delta > 0 ? '+' : ''}${x.stock_delta}` : ''}${x.value_delta ? `, value ${x.value_delta > 0 ? '+' : ''}${money(x.value_delta)}` : ''}</div>`).join('') || '<div>Nothing changes.</div>'}

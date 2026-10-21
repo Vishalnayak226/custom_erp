@@ -315,6 +315,8 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/finance/vendor-credit-note/{id}/post":             {LevelAuthenticated, "finance.default"},
 	"GET /api/v1/print/document/{txn}/{id}":                         {LevelAuthenticated, "doc.default"},
 	"POST /api/v1/print/document/{txn}/{id}/send":                   {LevelAuthenticated, "doc.default"},
+	"POST /api/v1/print/document/{txn}/{id}/log":                    {LevelAuthenticated, "doc.default"},
+	"GET /api/v1/print/history":                                     {LevelAuthenticated, "doc.default"},
 	"GET /api/v1/print/catalog":                                     {LevelAuthenticated, "doc.default"},
 	"GET /api/v1/procurement/purchase-order/{id}/excel":             {LevelAuthenticated, "procurement.default"},
 	"GET /api/v1/procurement/purchase-order/{id}/reconciliation":    {LevelAuthenticated, "procurement.default"},
@@ -518,10 +520,16 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/me/mfa/reenroll":                                  {LevelAuthenticated, "me.default"},
 	"POST /api/v1/me/mfa/reenroll/cancel":                           {LevelAuthenticated, "me.default"},
 	"POST /api/v1/me/mfa/reenroll/confirm":                          {LevelAuthenticated, "me.default"},
+	"POST /api/v1/me/mfa/devices/forget":                            {LevelAuthenticated, "me.default"},
 	"POST /api/v1/me/working-store":                                 {LevelAuthenticated, "me.default"},
 	"POST /api/v1/stock-locations":                                  {LevelAdmin, "admin.stock_locations"},
 	"POST /api/v1/stock-locations/defaults":                         {LevelAdmin, "admin.stock_locations"},
 	"POST /api/v1/stock-locations/move":                             {LevelAuthenticated, "inventory.default"},
+	"GET /api/v1/inventory/dashboard":                               {LevelAuthenticated, "inventory.default"}, // Stage 88.5
+	"POST /api/v1/inventory/mrp-changes":                            {LevelAuthenticated, "inventory.default"}, // Stage 88.5
+	"POST /api/v1/inventory/mrp-changes/{id}/cancel":                {LevelAuthenticated, "inventory.default"}, // Stage 88.5
+	"POST /api/v1/inventory/adjustments":                            {LevelAuthenticated, "inventory.default"}, // Stage 88.5
+	"POST /api/v1/inventory/adjustments/{id}/post":                  {LevelAuthenticated, "inventory.default"}, // Stage 88.5
 	"POST /api/v1/lines/resolve":                                    {LevelAuthenticated, "inventory.default"},
 	"POST /api/v1/pos/walk-in-customer":                             {LevelAuthenticated, "pos.default"},
 	"POST /api/v1/pos/advances":                                     {LevelAuthenticated, "pos.default"},
@@ -778,6 +786,14 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/platform/tenants/{tenant}/records":                 {LevelAdmin, "platform.console"},
 	"GET /api/v1/platform/tenants/{tenant}/records/{doctype}":       {LevelAdmin, "platform.console"},
 	"POST /api/v1/platform/tenants/{tenant}/records/{doctype}/{id}": {LevelAdmin, "platform.console"},
+
+	"GET /api/v1/admin/setup-workbook/template":       {LevelAdmin, "admin.setup-workbook"},
+	"GET /api/v1/admin/setup-workbook/export":         {LevelAdmin, "admin.setup-workbook"},
+	"POST /api/v1/admin/setup-workbook/preview":       {LevelAdmin, "admin.setup-workbook"},
+	"POST /api/v1/admin/setup-workbook/apply":         {LevelAdmin, "admin.setup-workbook"},
+	"GET /api/v1/admin/setup-workbook/runs":           {LevelAdmin, "admin.setup-workbook"},
+	"GET /api/v1/admin/setup-workbook/runs/{id}":      {LevelAdmin, "admin.setup-workbook"},
+	"GET /api/v1/admin/setup-workbook/runs/{id}/file": {LevelAdmin, "admin.setup-workbook"},
 }
 
 // capabilityLookupMux exists only to recover the registered pattern string

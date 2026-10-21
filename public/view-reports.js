@@ -339,6 +339,8 @@ function stockTableHTML(rows, showTasks = false, searched = false) {
 }
 
 async function renderInventoryView(container) {
+  // Stage 88.5: Inventory's Dashboard, Ledger and MRP Change are pages of their own (inventory:<page>).
+  if (currentViewTab && await (await import('./view-inventory-erp.js' + new URL(import.meta.url).search)).renderInventoryPage(currentViewTab, container)) return;
   const res = await apiFetch('/api/v1/reports/current-stock');
   if (!res) return;
   if (!res.ok) { renderErrorPanel(container, 'Failed to load inventory.', () => renderView('inventory')); return; }
@@ -349,7 +351,7 @@ async function renderInventoryView(container) {
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
-      <h1 class="page-title">Inventory</h1>
+      <h1 class="page-title">Stock on Hand</h1>
     </div>
   `;
   // Stage 72.6: butter paper counted at week end, tape used for the shop -

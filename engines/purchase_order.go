@@ -71,8 +71,10 @@ type POPreview struct {
 	DefaultGSTMode string        `json:"default_gst_mode"`
 	PlaceOfSupply  PlaceOfSupply `json:"place_of_supply"`
 	Breakdown      GSTBreakdown  `json:"breakdown"`
-	// GrandTotal is what the vendor bills: taxable + non-taxable + tax.
+	// GrandTotal is what the vendor bills: taxable + non-taxable + tax,
+	// rounded to the rupee by RoundOff (Stage 94.15).
 	GrandTotal float64 `json:"grand_total"`
+	RoundOff   float64 `json:"round_off"`
 	// Blocking is true when at least one line could not be tax-classified, so
 	// the screen can disable Save with a reason rather than letting the maker
 	// discover it on submit.
@@ -216,7 +218,8 @@ func PreviewPurchaseOrder(tenantID string, payload map[string]interface{}) (POPr
 	if out.Breakdown.TaxableAmount > 0 {
 		out.Breakdown.GSTRate = round2(out.Breakdown.TotalTax / out.Breakdown.TaxableAmount * 100)
 	}
-	out.GrandTotal = out.Breakdown.TotalAmount
+	// Stage 94.15: the PO total is to the whole rupee, with its round-off line.
+	out.GrandTotal, out.RoundOff = RoundToRupee(out.Breakdown.TotalAmount)
 
 	attrs := make([]map[string]string, len(out.Lines))
 	for i := range out.Lines {
@@ -258,6 +261,7 @@ type POPrint struct {
 	PlaceOfSupply PlaceOfSupply   `json:"place_of_supply"`
 	Breakdown     GSTBreakdown    `json:"breakdown"`
 	GrandTotal    float64         `json:"grand_total"`
+	RoundOff      float64         `json:"round_off"`
 	AmountInWords string          `json:"amount_in_words"`
 	SentAt        string          `json:"sent_at,omitempty"`
 }
@@ -328,6 +332,7 @@ func BuildPurchaseOrderPrint(tenantID, poID string) (POPrint, error) {
 		PlaceOfSupply: preview.PlaceOfSupply,
 		Breakdown:     preview.Breakdown,
 		GrandTotal:    preview.GrandTotal,
+		RoundOff:      preview.RoundOff,
 		AmountInWords: AmountInWords(preview.GrandTotal),
 		SentAt:        str(po, "sent_to_vendor_at"),
 	}

@@ -128,6 +128,11 @@ func main() {
 
 	for _, u := range targets {
 		_, err := db.Exec(fmt.Sprintf(`UPDATE %s.users SET mfa_enabled = false, mfa_secret = NULL WHERE username = $1`, *schema), u)
+		if err == nil {
+			// Stage 125.8: remembered browsers ask for the new code. The table
+			// is absent before that migration, so a failure here is ignored.
+			_, _ = db.Exec(fmt.Sprintf(`DELETE FROM %s.mfa_trusted_devices WHERE user_id = (SELECT id FROM %s.users WHERE username = $1)`, *schema, *schema), u)
+		}
 		if err != nil {
 			log.Printf("Failed to reset MFA for %s: %v", u, err)
 			logAudit(db, *schema, u, "FAILED", details+fmt.Sprintf(" error=%v", err))

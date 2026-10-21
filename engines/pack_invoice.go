@@ -65,40 +65,11 @@ func GenerateInvoiceForPackage(tenantID, packageID, userID string, opts PackInvo
 		return "", fmt.Errorf("shipping package %s has no contents to invoice", packageID)
 	}
 
-	// Prices come from the order's own lines, never from the item master. The
-	// customer agreed a price when they placed the order; re-reading today's
-	// sale_price would silently re-price a shipment mid-flight, which is the
-	// classic version of this bug.
-	prices, err := orderLineUnitPrices(schema, p.OrderID)
+	bill, err := packageBillFigures(tenantID, schema, p, opts)
 	if err != nil {
 		return "", err
 	}
-
-	lines := make([]GSTLineInput, 0, len(p.Items))
-	invoiceLines := make([]map[string]interface{}, 0, len(p.Items))
-	grossTotal := 0.0
-	for _, it := range p.Items {
-		unit, ok := prices[it.SKU]
-		if !ok {
-			return "", fmt.Errorf("sku %s is in package %s but not on order %s - cannot price it", it.SKU, packageID, p.OrderID)
-		}
-		lineTotal := round2(unit * float64(it.Qty))
-		grossTotal = round2(grossTotal + lineTotal)
-		lines = append(lines, GSTLineInput{Sku: it.SKU, Qty: it.Qty, UnitRate: unit})
-		invoiceLines = append(invoiceLines, map[string]interface{}{
-			"sku": it.SKU, "qty": it.Qty, "unit_price": unit, "line_total": lineTotal,
-		})
-	}
-
-	interstate, basis := resolvePackInterstate(tenantID, schema, p, opts)
-	breakdown, err := ComputeGSTForLines(tenantID, lines, interstate)
-	if err != nil {
-		return "", fmt.Errorf("cannot invoice package %s: %v", packageID, err)
-	}
-	if breakdown.TotalAmount <= 0 || grossTotal <= 0 {
-		return "", fmt.Errorf("shipping package %s prices to zero - nothing to invoice", packageID)
-	}
-	amounts := reconcileInvoiceAmounts(breakdown, grossTotal, interstate)
+	invoiceLines, amounts, interstate, basis, breakdown := bill.lines, bill.amounts, bill.interstate, bill.basis, bill.breakdown
 
 	customerName, _ := orderFieldString(schema, p.OrderID, "customer_name")
 	invoiceID := NewDocID("SINV")
@@ -165,6 +136,55 @@ func GenerateInvoiceForPackage(tenantID, packageID, userID string, opts PackInvo
 	LogAuditEvent(tenantID, userID, "CREATE_SALES_INVOICE", "SUCCESS",
 		fmt.Sprintf("Created draft invoice %s from shipping package %s (order %s, total=%.2f, %s)", invoiceID, packageID, p.OrderID, breakdown.TotalAmount, basis))
 	return invoiceID, nil
+}
+
+// packageBill is what one package bills for: its lines at the order's agreed
+// prices and their GST. Shared by the pack-time Sales Invoice (35.4.2) and the
+// OMS bill (Stage 88.3.2), so both bill a box the same way.
+type packageBill struct {
+	lines      []map[string]interface{}
+	amounts    invoiceAmounts
+	interstate bool
+	basis      string
+	breakdown  GSTBreakdown
+}
+
+func packageBillFigures(tenantID, schema string, p *ShippingPackage, opts PackInvoiceOptions) (*packageBill, error) {
+	// Prices come from the order's own lines, never from the item master. The
+	// customer agreed a price when they placed the order; re-reading today's
+	// sale_price would silently re-price a shipment mid-flight, which is the
+	// classic version of this bug.
+	prices, err := orderLineUnitPrices(schema, p.OrderID)
+	if err != nil {
+		return nil, err
+	}
+
+	lines := make([]GSTLineInput, 0, len(p.Items))
+	invoiceLines := make([]map[string]interface{}, 0, len(p.Items))
+	grossTotal := 0.0
+	for _, it := range p.Items {
+		unit, ok := prices[it.SKU]
+		if !ok {
+			return nil, fmt.Errorf("sku %s is in package %s but not on order %s - cannot price it", it.SKU, p.ID, p.OrderID)
+		}
+		lineTotal := round2(unit * float64(it.Qty))
+		grossTotal = round2(grossTotal + lineTotal)
+		lines = append(lines, GSTLineInput{Sku: it.SKU, Qty: it.Qty, UnitRate: unit})
+		invoiceLines = append(invoiceLines, map[string]interface{}{
+			"sku": it.SKU, "qty": it.Qty, "unit_price": unit, "line_total": lineTotal,
+		})
+	}
+
+	interstate, basis := resolvePackInterstate(tenantID, schema, p, opts)
+	breakdown, err := ComputeGSTForLines(tenantID, lines, interstate)
+	if err != nil {
+		return nil, fmt.Errorf("cannot invoice package %s: %v", p.ID, err)
+	}
+	if breakdown.TotalAmount <= 0 || grossTotal <= 0 {
+		return nil, fmt.Errorf("shipping package %s prices to zero - nothing to invoice", p.ID)
+	}
+	return &packageBill{lines: invoiceLines, amounts: reconcileInvoiceAmounts(breakdown, grossTotal, interstate),
+		interstate: interstate, basis: basis, breakdown: breakdown}, nil
 }
 
 // invoiceAmounts is one invoice's money, rounded to paise and guaranteed to

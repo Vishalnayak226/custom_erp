@@ -31,26 +31,26 @@ The system prints two different things, and each has its own kind of template.
 | | Sticker template | Document print template |
 |---|---|---|
 | What it prints | The small barcode label that goes on the product | A transaction on paper: Purchase Order, Vendor PO, Goods Receipt, Vendor Copy, Purchase Return, Transfer Out, Transfer In, Debit Note, Credit Note, Sales Return, Sales Invoice |
-| Where you make it | **Inventory → Sticker Printing → Sticker templates** | **Inventory → Sticker Printing → Document templates**, or **Setup → Printing → Print Template** (the same screen) |
+| Where you make it | **Setup → Printing → Templates → Stickers and barcodes** | **Setup → Printing → Templates → ERP documents** (and **OMS** for the OMS bill and the pick list) |
 | Which one prints | The first rule that fits: the item's own, its item type's, its category's, then the default | The most specific that fits: for the vendor, then for the design, then for the category, then the transaction's default |
 | If you make none | The built-in standard label | The built-in **Standard layout** |
 
-**Setup → Printing → Print Template and Document templates are the same thing.** Both open the same list of document print templates, grouped by transaction. There is one set of templates, whichever way you reach it.
+**Setup → Printing → Templates is the one page for every template**, module by module: ERP documents, stickers and barcodes (with the template rules), and OMS (the OMS bill, the pick list, and the built-in courier label). Sticker Printing's **Templates** button goes there too.
 
 ## Print stickers
 
 1. Set up one **Printer** first (**Setup → Printing → Printer**, Active). Without one, printing stops with *Select a printer first*.
-2. Open **Inventory → Sticker Printing → Print**. Load the lines from a Goods Receipt or a Transfer Order, or add items by SKU.
+2. Open **Inventory → Sticker Printing** and **+ Print Stickers**. Load the lines from a Goods Receipt or a Transfer Order, or add items by SKU.
 3. Check the copies and the **Template** of each line. The template comes from the rules below; you can pick another one for this print only.
 4. Choose the printer and print.
 
 ## Choose which sticker each item uses
 
-**Sticker Printing → Template rules** decides it, checked top to bottom: the **Sticker template** on the item itself, then the item type's, then the category's, then the **Default**. If none applies, the standard label prints. **Duplicate the standard label** gives you a copy to change.
+**Template rules** (Setup → Printing → Templates, under Stickers and barcodes) decides it, checked top to bottom: the **Sticker template** on the item itself, then the item type's, then the category's, then the **Default**. If none applies, the standard label prints. **Duplicate the standard label** gives you a copy to change.
 
 ## Set up how a document prints
 
-1. Open **Inventory → Sticker Printing → Document templates** (or **Setup → Printing → Print Template**).
+1. Open **Setup → Printing → Templates** (ERP documents, or OMS for the OMS bill and the pick list).
 2. Each transaction shows its templates and its **Standard layout**. Press **Customise** to start from the standard layout, or pick a transaction under **New template for** and press **+ New template**.
 3. In the designer, drag fields onto the page and columns onto the items table, then **Save**. Use **Preview with** and a real document number to check it.
 4. To use a template only for one vendor, design or category, fill **Only for vendor**, **Only for designs / families** or **Only for categories**. **Make default** sets the one used when nothing more specific fits.

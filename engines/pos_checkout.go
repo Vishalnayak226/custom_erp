@@ -265,6 +265,12 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	for _, o := range lineOffer {
 		netSalePaise -= o
 	}
+	// Stage 94.15: the bill is paid to the whole rupee - the quote the till
+	// showed rounded the same net the same way. Revenue stays the lines' net;
+	// the round-off line goes to 5280. Points, gift cards, the exchange
+	// credit and the money tenders all pay the rounded bill.
+	roundOff := roundOffPaise(netSalePaise)
+	billPaise := netSalePaise + roundOff
 
 	// Stage 73.2.10: an issued voucher the quote applied is spent here, with
 	// the sale - locked, re-checked and counted - so it is used if and only if
@@ -298,14 +304,14 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 			return nil, err
 		}
 		pointsUsed = cart.RedeemPoints
-		if RupeesToPaise(float64(loyaltyDiscount)) > netSalePaise {
+		if RupeesToPaise(float64(loyaltyDiscount)) > billPaise {
 			// Cap rather than reject: the points were already accepted, and a
 			// customer covering more than the bill simply pays nothing. The
 			// unused POINTS go straight back - in the same transaction, so they
 			// can no longer be lost to a failed compensating write. 73.1.1: the
 			// cap is the net bill, and what goes back is points, not rupees
 			// (the two differ whenever a point is worth more than Rs 1).
-			pointsUsed = int(netSalePaise / RupeesToPaise(float64(valuePerPoint)))
+			pointsUsed = int(billPaise / RupeesToPaise(float64(valuePerPoint)))
 			if _, err := tx.Exec(fmt.Sprintf(`
 				INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id)
 				VALUES ($1, 'Earn', $2, 'POSCart', $3)`, schema),
@@ -317,7 +323,7 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	}
 
 	loyaltyDiscountPaise := RupeesToPaise(float64(loyaltyDiscount))
-	if err := PostSalesFinanceBookingTx(tx, schema, tenantID, cartNumber, netSalePaise, totalCostPaise, cart.PaymentMode, loyaltyDiscountPaise); err != nil {
+	if err := postSalesFinanceBookingRoundedTx(tx, schema, tenantID, cartNumber, netSalePaise, roundOff, totalCostPaise, cart.PaymentMode, loyaltyDiscountPaise); err != nil {
 		return nil, fmt.Errorf("GL booking failed: %v", err)
 	}
 	// Stage 73.2.12: when accruing, points redeemed release the liability.
@@ -334,7 +340,7 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 		giftTotal += t.AmountPaise
 	}
 	if len(cart.GiftCardTenders) > 0 {
-		if owed := netSalePaise - loyaltyDiscountPaise; giftTotal > owed {
+		if owed := billPaise - loyaltyDiscountPaise; giftTotal > owed {
 			return nil, &ValidationError{Code: "POSOFF-0435", Message: fmt.Sprintf("gift cards cover %.2f but the bill comes to %.2f", PaiseToRupees(giftTotal), PaiseToRupees(owed))}
 		}
 		if err := redeemGiftCardTendersTx(tx, schema, tenantID, cartNumber, cart.Location, cashier, cart.PaymentMode, cart.GiftCardTenders); err != nil {
@@ -346,14 +352,14 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	var exchangeUse int64
 	if cart.ExchangeCreditID != "" {
 		exchangeUse, _, err = useExchangeCreditTx(tx, tenantID, schema, cartNumber, cart.ExchangeCreditID, cart.PaymentMode, cart.POSSession,
-			netSalePaise-loyaltyDiscountPaise-giftTotal)
+			billPaise-loyaltyDiscountPaise-giftTotal)
 		if err != nil {
 			return nil, err
 		}
 	}
 	// Stage 73.1.6: what is left after points and gift cards is paid in money,
 	// split across the cart's tenders, each in its own clearing account.
-	moneyParts, err := settlePOSTenders(cart.Tenders, cart.PaymentMode, netSalePaise-loyaltyDiscountPaise-giftTotal-exchangeUse)
+	moneyParts, err := settlePOSTenders(cart.Tenders, cart.PaymentMode, billPaise-loyaltyDiscountPaise-giftTotal-exchangeUse)
 	if err != nil {
 		return nil, err
 	}
@@ -394,7 +400,7 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	// Customer 360 read as the customer's spend; nothing stored it before.
 	// in the same transaction - a return, the drawer and the reports read it
 	// rather than re-deriving it.
-	allocation, err := json.Marshal(buildSaleAllocation(lineSKUs, lineQtys, lineGross, lineOffer,
+	allocation, err := json.Marshal(buildSaleAllocation(lineSKUs, lineQtys, lineGross, lineOffer, roundOff,
 		pointsUsed, RupeesToPaise(float64(valuePerPoint)), giftTotal, moneyParts))
 	if err != nil {
 		return nil, err
@@ -407,9 +413,9 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	}
 	if _, err := tx.Exec(fmt.Sprintf(
 		`UPDATE %s.documents SET status = 'Paid',
-		   data = jsonb_set(data, '{payment_state}', to_jsonb('Posted'::text)) || jsonb_build_object('allocation', $2::jsonb, 'amount_paid', $3::numeric, 'bill_number', $4::text),
+		   data = jsonb_set(data, '{payment_state}', to_jsonb('Posted'::text)) || jsonb_build_object('allocation', $2::jsonb, 'amount_paid', $3::numeric, 'bill_number', $4::text, 'round_off', $5::numeric),
 		   updated_at = CURRENT_TIMESTAMP
-		 WHERE doctype = 'POSCart' AND id = $1`, schema), cartNumber, string(allocation), PaiseToRupees(netSalePaise), billNumber); err != nil {
+		 WHERE doctype = 'POSCart' AND id = $1`, schema), cartNumber, string(allocation), PaiseToRupees(billPaise), billNumber, PaiseToRupees(roundOff)); err != nil {
 		return nil, err
 	}
 
@@ -496,7 +502,7 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	// earn base is what was paid in money: 73.1.1 nets off the offer as well
 	// as anything paid for with points, matching what a return reverses.
 	if cart.CustomerID != "" {
-		if errEarn := EarnLoyaltyPoints(tenantID, cart.CustomerID, int(PaiseToRupees(netSalePaise-loyaltyDiscountPaise)), cartNumber); errEarn != nil {
+		if errEarn := EarnLoyaltyPoints(tenantID, cart.CustomerID, int(PaiseToRupees(billPaise-loyaltyDiscountPaise)), cartNumber); errEarn != nil {
 			LogSystemError(tenantID, correlationID, "LOYALTY_EARN_FAILED", "/api/v1/checkout", errEarn.Error(), "")
 		}
 	}

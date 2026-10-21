@@ -333,7 +333,8 @@ function renderTop() {
   q('redo').addEventListener('click', redo);
   q('save').addEventListener('click', save);
   q('close').addEventListener('click', closeStudio);
-  q('test').addEventListener('click', async () => { await T.qrEncoderReady(S.layout); T.printPages(T.renderPages(S.layout, S.sample), S.layout); });
+  // Stage 127.2: a test print goes where a real one would, with no browser dialog once set up.
+  q('test').addEventListener('click', () => T.printLayout(S.txn, S.layout, S.sample));
   const sampleEl = q('sample');
   const doctype = (T.TRANSACTIONS.find(t => t.key === S.txn) || {}).doctype;
   if (window.attachLinkTypeahead && doctype) window.attachLinkTypeahead(sampleEl, doctype);
@@ -717,7 +718,10 @@ function bindInspector(box, el) {
 // Gallery (Printing -> Document templates)
 // ---------------------------------------------------------------------------
 
-export async function renderPrintTemplateGallery(container) {
+// Stage 88.4: Setup ▸ Printing ▸ Templates shows the gallery per module -
+// only names the transactions of one section, title heads it.
+export async function renderPrintTemplateGallery(container, { only = null, title = 'Document print templates' } = {}) {
+  const txns = only ? T.TRANSACTIONS.filter(t => only.includes(t.key)) : T.TRANSACTIONS;
   const res = await api('/api/v1/doc/PrintTemplate');
   if (!res) return;
   if (!res.ok) { window.renderErrorPanel?.(container, 'Failed to load print templates.', () => window.renderView(currentView)); return; }
@@ -729,15 +733,15 @@ export async function renderPrintTemplateGallery(container) {
   panel.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
       <div>
-        <h2 style="font-size:16px;font-weight:700;margin:0;">Document print templates</h2>
+        <h2 style="font-size:16px;font-weight:700;margin:0;">${esc(title)}</h2>
       </div>
       <div style="display:flex;gap:8px;align-items:flex-end;">
         <label class="form-label" style="display:flex;flex-direction:column;gap:4px;font-size:12px;">New template for
-          <select class="form-input" data-gal="txn">${T.TRANSACTIONS.map(t => `<option value="${t.key}">${esc(t.label)}</option>`).join('')}</select></label>
+          <select class="form-input" data-gal="txn">${txns.map(t => `<option value="${t.key}">${esc(t.label)}</option>`).join('')}</select></label>
         <button type="button" class="btn btn-primary btn-sm" data-gal="new">+ New template</button>
       </div>
     </div>
-    ${T.TRANSACTIONS.map(t => {
+    ${txns.map(t => {
       const list = all.filter(x => x.transaction === t.key);
       return `<div class="pts-section-title">${esc(t.label)}</div>
         <div class="pts-gallery">

@@ -597,6 +597,7 @@ func CreateReplacementOrder(tenantID, originalOrderID, kind string, lines []Repl
 		Channel: channel, CustomerName: customer, ShippingAddress: address, ShippingState: state,
 		ShippingLine2: strField(original, "shipping_address_line2"), ShippingCity: strField(original, "shipping_city"), ShippingPincode: strField(original, "shipping_pincode"), // Stage 76.3
 		CustomerPhone: phone, PaymentStatus: "Confirmed", Lines: inputs,
+		SkipPending: true, AcceptedBy: userID, // Stage 88.3.1: staff-made, already accepted
 	})
 	if err != nil {
 		return "", false, err

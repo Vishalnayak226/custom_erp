@@ -3,143 +3,8 @@ import { documentSearchLink } from './view-document-links.js';
 // BLD-041: native ES module, loaded on first authorized view visit.
 // Shared app services resolve from the classic shell; these named exports
 // are published by the loader for legacy cross-view calls.
-async function renderFulfillmentView(container) {
-  const res = await apiFetch('/api/v1/doc/FulfillmentTask');
-  if (!res) return;
-
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">Fulfillment</h1>
-    </div>
-  `;
-  container.appendChild(header);
-
-  if (!res.ok) {
-    // BLD-036: was a dead-end static message under the header with no retry -
-    // matches the same gap already fixed on Approvals.
-    renderErrorPanel(container, 'Failed to load fulfillment tasks.', () => renderView('fulfillment'));
-    return;
-  }
-
-  const tasks = await res.json();
-  // 2026-10-09: a picker identifies an order by who it is for, not by its
-  // generated id - one read of the orders, mapped by id, labels every row
-  // (the id stays, small, for anyone who needs to quote it).
-  const orderInfo = {};
-  if ((tasks || []).some(t => t.order_id)) {
-    const ordersRes = await apiFetch('/api/v1/doc/SalesOrder?limit=500');
-    if (ordersRes && ordersRes.ok) {
-      for (const o of await ordersRes.json()) orderInfo[o.code || o.id] = o;
-    }
-  }
-  const panel = document.createElement('div');
-  panel.className = 'table-panel';
-  let html = `
-    <table>
-      <thead>
-        <tr>
-          <th>Task ID</th>
-          <th>Order</th>
-          <th>Location</th>
-          <th>Owner</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
-  if (!tasks || tasks.length === 0) {
-    html += `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No fulfillment tasks routed to your location. Tasks appear automatically when a Sales Order is released under <b>Order Management</b>.</td></tr>`;
-  }
-  (tasks || []).forEach(t => {
-    const badgeClass = FULFILLMENT_STATUS_BADGE[t.status] || 'badge-secondary';
-    html += `
-      <tr>
-        <td style="font-family: monospace;">${t.code || t.id}</td>
-        <td>${fulfillmentOrderLabel(t.order_id, orderInfo[t.order_id])}</td>
-        <td>${t.location_code || ''}</td>
-        <td>${escapeHTMLText(t.owner_id || '')}</td>
-        <td><span class="badge ${badgeClass}">${t.status}</span></td>
-        <td>${renderFulfillmentActions(t)}</td>
-      </tr>
-    `;
-  });
-  html += `</tbody></table>`;
-  panel.innerHTML = html;
-  container.appendChild(panel);
-
-  // Stage 59.2: a warehouse shared by several 3PL clients picks an order only
-  // from its owner's stock - set the owner here before the order is released.
-  const ownerPanel = document.createElement('div');
-  ownerPanel.className = 'table-panel';
-  ownerPanel.style.padding = '16px';
-  ownerPanel.style.marginTop = '16px';
-  ownerPanel.innerHTML = `
-    <h2 style="font-size: 15px; font-weight: 700; margin-bottom: 8px;">Order owner (3PL client)</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="fo-order">Order</label>
-        <input type="text" id="fo-order" class="form-input" style="width: 200px;" autocomplete="off" placeholder="Order ID, not yet released"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="fo-owner">Owner</label>
-        <input type="text" id="fo-owner" class="form-input" style="width: 160px;" autocomplete="off" placeholder="Blank clears it"></div>
-      <button class="btn btn-outline" id="fo-save" type="button">Set Owner</button>
-    </div>`;
-  container.appendChild(ownerPanel);
-  attachLinkTypeahead(document.getElementById('fo-order'), 'SalesOrder');
-  document.getElementById('fo-save').addEventListener('click', async () => {
-    const orderID = document.getElementById('fo-order').value.trim();
-    if (!orderID) { await showCustomAlert('Choose the order.', 'Order Owner'); return; }
-    const res = await apiFetch('/api/v1/wms/order-owner', { method: 'POST',
-      body: JSON.stringify({ order_id: orderID, owner_id: document.getElementById('fo-owner').value.trim() }) });
-    if (!res) return;
-    if (!res.ok) { await showApiError(res, 'The owner could not be set.', 'Order Owner'); return; }
-    showToast(`Order ${orderID}: owner set.`);
-  });
-}
-
-function fulfillmentOrderLabel(orderID, order) {
-  if (!orderID) return '';
-  if (!order) return escapeHTMLText(orderID);
-  const who = order.customer_name || '';
-  const ref = order.channel_order_id ? ` · ${order.channel_order_id}` : '';
-  return `${escapeHTMLText(who || orderID)}<div style="font-size: 11.5px; color: var(--text-muted);">${escapeHTMLText((order.channel || 'Manual') + ref)}</div><div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">${escapeHTMLText(orderID)}</div>`;
-}
-
-function renderFulfillmentActions(task) {
-  const id = task.code || task.id;
-  switch (task.status) {
-    case 'Pending':
-      return `
-        <button class="action-btn" ${actionAttrs('transitionFulfillmentTask', [id, 'Picking'])}>Start Picking</button>
-        <button class="action-btn action-btn-danger" ${actionAttrs('transitionFulfillmentTask', [id, 'Rejected'])}>Reject</button>
-        <button class="action-btn" ${actionAttrs('viewPickList', [id])}>View Pick List</button>
-      `;
-    case 'Picking':
-      return `
-        <button class="action-btn" ${actionAttrs('transitionFulfillmentTask', [id, 'Packed'])}>Mark Packed</button>
-        <button class="action-btn action-btn-danger" ${actionAttrs('transitionFulfillmentTask', [id, 'Rejected'])}>Reject</button>
-        <button class="action-btn" ${actionAttrs('viewPickList', [id])}>View Pick List</button>
-      `;
-    case 'Packed':
-      return `<button class="action-btn" ${actionAttrs('transitionFulfillmentTask', [id, 'Dispatched'])}>Dispatch</button>`;
-    default:
-      return '';
-  }
-}
-
-async function transitionFulfillmentTask(taskId, newStatus) {
-  const res = await apiFetch('/api/v1/fulfillment/task/transition', {
-    method: 'POST',
-    body: JSON.stringify({ task_id: taskId, status: newStatus })
-  });
-  if (!res) return;
-  if (!res.ok) {
-    await showApiError(res, 'Failed to update task status.');
-    return;
-  }
-  renderView('fulfillment');
-}
+// Stage 88.2: the Fulfillment screen that stood here is retired - its pick,
+// pack and dispatch steps are OMS ▸ Pick / Pack / Ship (view-oms-steps.js).
 
 // viewPickList (Stage 26.3.4) shows GenerateBinPickList's bin-grouped,
 // walk-route-sorted result for one FulfillmentTask in a lightweight
@@ -1731,35 +1596,10 @@ async function loadLoadingDock() {
     loadLoadingDock();
   });
   const printBtn = document.getElementById('load-print-bol-btn');
-  if (printBtn) printBtn.addEventListener('click', () => renderBOLPrintSheet(task, packages));
-}
-
-function renderBOLPrintSheet(task, packages) {
-  const area = document.getElementById('bol-print-area');
-  if (!area) return;
-  const rows = packages.map(p => `<tr><td>${p.package_code}</td><td>${p.order_id || '&mdash;'}</td><td>${p.weight_kg || '&mdash;'}</td></tr>`).join('');
-  area.innerHTML = `
-    <div class="invoice-sheet">
-      <div class="invoice-title">Bill of Lading</div>
-      <hr>
-      <table>
-        <tr><td class="invoice-key">Load</td><td>${task.doc_id}</td></tr>
-        <tr><td class="invoice-key">Dock Door</td><td>${task.dock_door}</td></tr>
-        <tr><td class="invoice-key">Trailer</td><td>${task.trailer_no}</td></tr>
-        <tr><td class="invoice-key">Status</td><td>${task.status}</td></tr>
-        <tr><td class="invoice-key">Pallets Out / In</td><td>${task.pallet_exchange_out || 0} / ${task.pallet_exchange_in || 0}</td></tr>
-      </table>
-      <hr>
-      <table>
-        <thead><tr><th>Package</th><th>Order</th><th>Weight (kg)</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-      <div class="invoice-total">Total Cartons: ${packages.length}</div>
-    </div>
-  `;
-  area.classList.add('printing');
-  window.print();
-  setTimeout(() => area.classList.remove('printing'), 500);
+  // Stage 127.3.1: the Bill of Lading is a print like any other - silent
+  // once this computer is set up, logged for Reprint.
+  if (printBtn) printBtn.addEventListener('click', async () =>
+    (await import('./trade-docs.js' + new URL(import.meta.url).search)).printTransactionDocument('LoadingTask', task.doc_id));
 }
 
 // Stage 42.2.10 - the warehouse cockpit: one screen combining open tasks by
@@ -3066,12 +2906,4 @@ async function fetchABCCycleCountPlan() {
 // new dialog mechanism, no framework.
 // ---------------------------------------------------------------------------
 
-const FULFILLMENT_STATUS_BADGE = {
-  Pending: 'badge-warning',
-  Picking: 'badge-secondary',
-  Packed: 'badge-secondary',
-  Dispatched: 'badge-success',
-  Rejected: 'badge-danger'
-};
-
-export { renderFulfillmentView, renderFulfillmentActions, transitionFulfillmentTask, renderPutawayView, submitPlannedCrossDockPutaway, checkCrossDockOpportunity, submitCrossDockPutaway, suggestPutawayBin, submitPutaway, renderPlaceHoldView, submitPlaceHold, renderYardBoardView, loadYardBoard, submitYardCheckIn, submitYardCheckInInner, patchYardCheckIn, renderAppointmentCalendarView, shiftCalendarDate, calendarWeekDates, loadAppointmentCalendar, timeToMinutes, apptChip, submitNewAppointment, submitNewAppointmentInner, renderRFReceivingView, loadRFReceivingASN, renderRFReceivingBody, confirmRFScan, postRFReceipt, renderSortationView, loadSortationSlots, sortationAssignSlot, renderLoadingDockView, createLoadingDockTask, createLoadingDockTaskInner, loadLoadingDock, renderBOLPrintSheet, renderWarehouseCockpitView, loadWarehouseCockpit, renderBinConditionsView, submitBinConditionTransition, renderLPNView, submitLPNAssign, lookupLPNContents, renderBinReplenishmentView, fetchBinReplenishmentSuggestions, renderLocationMovementView, loadLocationMovementStock, renderWavePickingView, renderMobilePickingView, loadMobilePickList, renderMobilePickCard, speakMobilePickLine, toggleMobilePickListening, submitWaveAssign, submitWavePickList, renderCycleCountView, submitCycleCountReconcile, loadCycleCountLines, fetchABCCycleCountPlan };
+export { renderPutawayView, submitPlannedCrossDockPutaway, checkCrossDockOpportunity, submitCrossDockPutaway, suggestPutawayBin, submitPutaway, renderPlaceHoldView, submitPlaceHold, renderYardBoardView, loadYardBoard, submitYardCheckIn, submitYardCheckInInner, patchYardCheckIn, renderAppointmentCalendarView, shiftCalendarDate, calendarWeekDates, loadAppointmentCalendar, timeToMinutes, apptChip, submitNewAppointment, submitNewAppointmentInner, renderRFReceivingView, loadRFReceivingASN, renderRFReceivingBody, confirmRFScan, postRFReceipt, renderSortationView, loadSortationSlots, sortationAssignSlot, renderLoadingDockView, createLoadingDockTask, createLoadingDockTaskInner, loadLoadingDock, renderWarehouseCockpitView, loadWarehouseCockpit, renderBinConditionsView, submitBinConditionTransition, renderLPNView, submitLPNAssign, lookupLPNContents, renderBinReplenishmentView, fetchBinReplenishmentSuggestions, renderLocationMovementView, loadLocationMovementStock, renderWavePickingView, renderMobilePickingView, loadMobilePickList, renderMobilePickCard, speakMobilePickLine, toggleMobilePickListening, submitWaveAssign, submitWavePickList, renderCycleCountView, submitCycleCountReconcile, loadCycleCountLines, fetchABCCycleCountPlan };

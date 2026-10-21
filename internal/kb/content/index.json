@@ -186,7 +186,6 @@
           "screens": [
             "oms",
             "pos",
-            "fulfillment",
             "sales-invoices"
           ],
           "last_verified": "2026-08-12",
@@ -494,7 +493,7 @@
             "grn",
             "asn",
             "putaway",
-            "fulfillment",
+            "oms",
             "wave-picking",
             "mobile-picking",
             "cycle-count",
@@ -560,7 +559,6 @@
           "audience": "category manager",
           "screens": [
             "pim",
-            "marketplace",
             "reports",
             "stickers"
           ],
@@ -1094,8 +1092,8 @@
             },
             {
               "level": 2,
-              "text": "Transfers (Stock Transfer)",
-              "slug": "transfers-stock-transfer"
+              "text": "Transfers (Stock Movement)",
+              "slug": "transfers-stock-movement"
             },
             {
               "level": 3,
@@ -1574,7 +1572,6 @@
           "summary": "Book a shipment, check serviceability, print a label, and track it to delivery or RTO — the manual carrier-agnostic flow every warehouse uses today, and the real Delhivery/Shiprocket API layer built alongside it but not yet reachable from a screen.",
           "audience": "warehouse operator, admin",
           "screens": [
-            "marketplace",
             "oms",
             "doctype:courierservicearea",
             "doctype:ndrcase",
@@ -1618,8 +1615,8 @@
             },
             {
               "level": 2,
-              "text": "Day to day: the Marketplace screen's manual flow",
-              "slug": "day-to-day-the-marketplace-screen-s-manual-flow"
+              "text": "Day to day: the OMS Pack and Ship pages",
+              "slug": "day-to-day-the-oms-pack-and-ship-pages"
             },
             {
               "level": 2,
@@ -5448,7 +5445,6 @@
             "purchase-orders",
             "grn",
             "sales-invoices",
-            "marketplace",
             "transfers"
           ],
           "last_verified": "2026-08-17",
@@ -6029,10 +6025,6 @@
     "finance-notes": [
       "journey-finance"
     ],
-    "fulfillment": [
-      "first-order",
-      "journey-warehouse-operator"
-    ],
     "grn": [
       "inventory-wms-operations",
       "traceability-batch-serial",
@@ -6078,11 +6070,6 @@
     "manufacturing": [
       "manufacturing-mrp"
     ],
-    "marketplace": [
-      "courier-integrations",
-      "journey-category-manager",
-      "troubleshooting-index"
-    ],
     "mobile-picking": [
       "wms-start-here",
       "journey-warehouse-operator"
@@ -6112,12 +6099,13 @@
       "pos-operations"
     ],
     "oms": [
+      "courier-integrations",
       "oms-order-management",
       "channel-connectors",
-      "courier-integrations",
       "first-order",
       "journey-store-manager",
-      "troubleshooting-index"
+      "troubleshooting-index",
+      "journey-warehouse-operator"
     ],
     "payment-proposals": [
       "journey-finance"
@@ -6205,8 +6193,8 @@
       "journey-admin"
     ],
     "sales-invoices": [
-      "journey-finance",
       "first-order",
+      "journey-finance",
       "troubleshooting-index"
     ],
     "sortation": [
@@ -6237,8 +6225,8 @@
     ],
     "transfers": [
       "inventory-wms-operations",
-      "journey-store-manager",
       "troubleshooting-index",
+      "journey-store-manager",
       "journey-warehouse-operator"
     ],
     "users": [

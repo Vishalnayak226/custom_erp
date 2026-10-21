@@ -254,6 +254,13 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
 /* Stage 114.2: the PO lines grouped by design, the totals strip under them
    and the keyboard hints (the user's sample PO screen, not a copy). */
 .po-lines tr.po-design-head td { background: var(--bg-color); font-size: 12.5px; padding-top: 10px; padding-bottom: 6px; border-top: 2px solid var(--border-color); }
+
+/* Stage 126: Edit on a design heading; a picked item name reads as a value,
+   not as a dimmed read-only box; a missing state asked in the supply banner. */
+.po-design-edit { margin-left: 10px; padding: 1px 10px; }
+.txn-entry .form-input.po-entry-picked[readonly] { color: var(--text-main); font-weight: 600; cursor: default; }
+.po-state-ask { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.po-state-ask .po-state-pick { width: auto; min-width: 180px; padding: 3px 8px; }
 .po-totals-strip { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0 0; }
 .po-strip-cell { flex: 1 1 120px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 6px 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--panel-bg); font-size: 12px; color: var(--text-muted); }
 .po-strip-cell b { font-size: 14px; color: var(--text-main); font-variant-numeric: tabular-nums; }

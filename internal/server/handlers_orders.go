@@ -33,7 +33,10 @@ func handleCreateSalesOrder(w http.ResponseWriter, r *http.Request) {
 		ShippingPincode string `json:"shipping_pincode"`
 		PaymentStatus   string `json:"payment_status"`
 		OwnerID         string `json:"owner_id"` // Stage 59.2: the 3PL client (optional)
-		Lines           []struct {
+		// Stage 88.3.1 (D12): the OMS manual-order form sets it - an order keyed in
+		// by staff skips Pending. API callers leave it off and wait at Pending.
+		Manual bool `json:"manual"`
+		Lines  []struct {
 			SKU       string  `json:"sku"`
 			Qty       int     `json:"qty"`
 			UnitPrice float64 `json:"unit_price"`
@@ -77,6 +80,8 @@ func handleCreateSalesOrder(w http.ResponseWriter, r *http.Request) {
 		CustomerPhone:   req.CustomerPhone,
 		CustomerRef:     req.CustomerRef,
 		OwnerID:         req.OwnerID, // Stage 59.2
+		SkipPending:     req.Manual,
+		AcceptedBy:      r.Header.Get("Resolved-User-ID"),
 		Lines:           lines,
 	})
 	if err != nil {

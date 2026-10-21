@@ -191,6 +191,12 @@ func ConfirmReenrollSecret(tenantID, userID string) error {
 	_, err = db.DB.Exec(fmt.Sprintf(
 		`UPDATE %s.users SET mfa_secret = mfa_pending_secret, mfa_pending_secret = NULL, mfa_enabled = TRUE
 		 WHERE id = $1 AND mfa_pending_secret IS NOT NULL`, schema), userID)
+	if err != nil {
+		return err
+	}
+	// Stage 125.8: a new phone usually means the old one is gone - remembered
+	// browsers start asking for the new code.
+	_, err = ForgetMFADevices(tenantID, userID)
 	return err
 }
 

@@ -132,13 +132,20 @@ func handleInvoiceShippingPackage(w http.ResponseWriter, r *http.Request) {
 	// failure on no content must not be an error.
 	_ = json.NewDecoder(r.Body).Decode(&req)
 
-	invoiceID, err := engines.GenerateInvoiceForPackage(tenantID, r.PathValue("id"),
+	// Stage 88.3.2: Pack now makes the OMS bill (its own series, the GST
+	// invoice); the ERP Sales Invoice follows at manifest handover. A package
+	// billed before this returns its Sales Invoice with no bill_number.
+	billID, billNumber, err := engines.GenerateOMSBillForPackage(tenantID, r.PathValue("id"),
 		r.Header.Get("Resolved-User-ID"), engines.PackInvoiceOptions{Interstate: req.Interstate})
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "invoiced", "invoice_id": invoiceID})
+	out := map[string]string{"status": "invoiced", "bill_id": billID, "bill_number": billNumber}
+	if billNumber == "" {
+		out["invoice_id"] = billID
+	}
+	_ = json.NewEncoder(w).Encode(out)
 }
 
 // handleCreateGatePass is 35.4.4.

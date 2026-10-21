@@ -10,7 +10,7 @@
 <p><strong>Stock » LPN / Cartons / Pallets</strong> tracks handling units: a carton or pallet identified as one thing, so a whole unit can be moved, received or shipped without scanning every item inside it.</p>
 <p><strong>Stock » Bin Replenishment</strong> moves stock from bulk storage into pick faces before a picker finds the face empty. Working the replenishment list first thing is what stops the pick queue stalling mid-morning.</p>
 <h2 id="outbound">Outbound <a class="kb-anchor" href="#outbound" aria-label="Copy link to this section">#</a></h2>
-<p><strong>Fulfillment</strong> is the main work queue: pick, pack, dispatch, each step recording who did it and when. Orders flagged <strong>Expedite</strong> sort to the top, and that is honoured by the queue itself.</p>
+<p><strong>OMS → Pick</strong>, <strong>Pack</strong> and <strong>Ship</strong> are the work queues, one page per step, each recording who did it and when. Orders flagged <strong>Expedite</strong> sort to the top, and that is honoured by the queue itself.</p>
 <p>Two alternatives for higher volume:</p>
 <ul><li><strong>Stock » Wave / Batch Picking</strong> groups many orders into one pass through the</li></ul>
 <p>warehouse, so a picker walks the route once rather than once per order.</p>
@@ -21,7 +21,7 @@
 <p><strong>Stock » Cycle Count</strong> is a rolling count of part of the warehouse rather than a full annual stop. Count what the screen asks for, enter what you actually found, and let the variance be what it is.</p>
 <aside class="kb-admonition kb-admonition-warning" role="note"><p class="kb-admonition-title">Warning</p><p>Do not &#34;correct&#34; a count to match the system. The variance is the only signal anyone has that something upstream is wrong, and a count adjusted to agree with the record destroys the evidence and keeps the error.</p></aside>
 <h2 id="moving-stock-between-locations">Moving stock between locations <a class="kb-anchor" href="#moving-stock-between-locations" aria-label="Copy link to this section">#</a></h2>
-<p><strong>Stock » Stock Transfer</strong>. A transfer is two half-events - out of one place and into another - and stock in transit belongs to neither until the receiving end confirms it. Confirm arrivals the day they arrive.</p>
+<p><strong>Inventory » Stock Movement</strong>. A transfer is two half-events - out of one place and into another - and stock in transit belongs to neither until the receiving end confirms it. Confirm arrivals the day they arrive.</p>
 <h2 id="when-picking-cannot-find-the-stock">When picking cannot find the stock <a class="kb-anchor" href="#when-picking-cannot-find-the-stock" aria-label="Copy link to this section">#</a></h2>
 <p>In order of likelihood:</p>
 <ol><li><strong>The receipt was never posted.</strong> Check <strong>Goods Receipt</strong> for an unposted</li></ol>

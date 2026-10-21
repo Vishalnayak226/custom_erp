@@ -1922,7 +1922,7 @@ async function testPrint(anchor) {
 export async function renderStickerTemplateGallery(container, { onChange } = {}) {
   const res = await window.apiFetch('/api/v1/doc/StickerTemplate');
   if (!res) return;
-  if (!res.ok) { window.renderErrorPanel?.(container, 'Failed to load sticker templates.', () => window.renderView('stickers')); return; }
+  if (!res.ok) { window.renderErrorPanel?.(container, 'Failed to load sticker templates.', () => window.renderView(currentView)); return; }
   const docs = await res.json();
   const templates = docs.map(d => Object.assign(E.templateFromDoc(d), { id: d.id }));
   const panel = document.createElement('div');
@@ -2003,7 +2003,7 @@ export async function renderStickerTemplateGallery(container, { onChange } = {})
     await E.ensureTemplateAssets(t);
     thumb(panel.querySelector(`.stk-card[data-i="${i}"] canvas`), t);
   }
-  const reopen = () => (onChange ? onChange() : window.renderView('stickers'));
+  const reopen = () => (onChange ? onChange() : window.renderView(currentView));
   panel.addEventListener('click', e => {
     const b = e.target.closest('[data-g]');
     if (!b) return;
@@ -2039,7 +2039,7 @@ export async function renderStickerTemplateRules(container) {
     window.apiFetch('/api/v1/doc/Category')
   ]);
   if (!tRes) return;
-  if (!tRes.ok) { window.renderErrorPanel?.(container, 'Failed to load sticker templates.', () => window.renderView('stickers')); return; }
+  if (!tRes.ok) { window.renderErrorPanel?.(container, 'Failed to load sticker templates.', () => window.renderView(currentView)); return; }
   let all = await tRes.json();
   let active = all.filter(t => (t.status || 'Active') === 'Active');
   const designs = E.unsavedDesigns(all);
@@ -2112,7 +2112,7 @@ export async function renderStickerTemplateRules(container) {
     </ol>`;
   container.appendChild(panel);
 
-  const reload = () => window.renderView('stickers');
+  const reload = () => window.renderView(currentView); // Sticker Printing or Templates (Stage 88.4)
   const saved = msg => { window.showToast?.(msg, { variant: 'success' }); reload(); };
   const busy = async (el, fn) => { el.disabled = true; try { return await fn(); } finally { el.disabled = false; } };
 

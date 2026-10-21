@@ -7,10 +7,10 @@ async function renderDocTableView(container) {
   // generic table showed its layout as a raw text column, beside the very
   // same records Sticker Printing's Document templates tab designs. Setup's
   // entry opens that gallery, so there is one place and one way to make one.
-  if (currentDoctype === 'PrintTemplate') {
-    container.insertAdjacentHTML('beforeend', '<div class="page-header"><div class="page-title-section"><h1 class="page-title">Print Templates</h1></div></div>');
-    const { renderPrintTemplateGallery } = await import('./trade-docs.js' + new URL(import.meta.url).search);
-    return renderPrintTemplateGallery(container);
+  // Stage 88.4: sticker templates too - every template on one page, by module.
+  if (currentDoctype === 'PrintTemplate' || currentDoctype === 'StickerTemplate') {
+    const { renderTemplatesPage } = await import('./templates-page.js' + new URL(import.meta.url).search);
+    return renderTemplatesPage(container);
   }
   const doctypeAtRequestTime = currentDoctype;
   const pageAtRequestTime = currentTablePage;
@@ -1111,6 +1111,20 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
 
   const activeDoc = state.activeDoctypes.find(d => d.name === currentDoctype);
   const isMaster = activeDoc && activeDoc.document_type === 'Master';
+  // Stage 127.3: every saved transaction prints - its own format, or the
+  // generic one (header + lines) when it has none.
+  if (isEdit && !isMaster) {
+    const printBtn = document.createElement('button');
+    printBtn.type = 'button';
+    printBtn.className = 'btn btn-outline btn-sm';
+    printBtn.style.marginLeft = '12px';
+    printBtn.textContent = 'Print';
+    const doctype = currentDoctype, id = existingRecord.id;
+    printBtn.addEventListener('click', async () => {
+      (await import('./trade-docs.js' + new URL(import.meta.url).search)).printTransactionDocument(doctype, id);
+    });
+    title.appendChild(printBtn);
+  }
   const isPurchaseRequisition = currentDoctype === 'PurchaseRequisition';
   // Stage 76: the state dropdown, the GSTIN rule and the master code format
   // live with the other shared form widgets (view-pickers.js).
@@ -1364,7 +1378,10 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
           input.placeholder = 'Auto-generated from Prefix Configs on save';
           // Stage 55.3: whoever may set numbering reaches this type's series
           // from here - its preview shows the next number before any is used.
-          if (typeof MENU_PERMISSION_MAP !== 'undefined' && isMenuRuleVisible(MENU_PERMISSION_MAP['menu-prefix-configs'])) {
+          // Stage 126.4: by the series' own key (LV for Leave); a derived code
+          // (HSN) has no series, so no link.
+          const seriesKey = f.number_series || (isPurchaseRequisition ? 'PR' : '');
+          if (seriesKey && typeof MENU_PERMISSION_MAP !== 'undefined' && isMenuRuleVisible(MENU_PERMISSION_MAP['menu-prefix-configs'])) {
             const link = document.createElement('a');
             link.href = '#';
             link.className = 'empty-state-link';
@@ -1372,7 +1389,7 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
             link.textContent = 'Numbering for this record type';
             link.addEventListener('click', event => {
               event.preventDefault();
-              try { sessionStorage.setItem('erp_prefix_for', currentDoctype); } catch (_) { /* storage off: the screen still opens */ }
+              try { sessionStorage.setItem('erp_prefix_for', seriesKey); } catch (_) { /* storage off: the screen still opens */ }
               closeDynamicModal();
               setActiveMenu('menu-prefix-configs');
               renderView('prefix-configs');

@@ -5,7 +5,7 @@ order: 4
 summary: Follow one order from placement to invoice, so the screens in between stop being a mystery.
 audience: cashier, store manager
 last_verified: 2026-08-12
-screens: [oms, pos, fulfillment, sales-invoices]
+screens: [oms, pos, sales-invoices]
 doc_id: DOC-B7AB4C1114
 type: procedure
 status: draft
@@ -67,8 +67,11 @@ location with enough available-to-sell stock.
 
 ## 3. Pick, pack and dispatch
 
-**Fulfillment** shows the work queue. An order moves through picking, packing
-and dispatch; each step records who did it and when.
+A channel order first waits on **OMS → Pending Orders** until someone accepts
+it (an order keyed in by staff skips this). Then each step has its own page:
+**Pick** (scan the units), **Pack** (scan them into the box, then **Pack, bill
+and label** - the OMS bill and the courier AWB in one go) and **Ship**
+(manifest, gate pass, hand over). Each step records who did it and when.
 
 > [!TIP]
 > Use **Priority** on an order in the OMS console to push it to the front of the
@@ -77,8 +80,10 @@ and dispatch; each step records who did it and when.
 
 ## 4. Invoice
 
-Once dispatched, the order can be invoiced from **Sales Invoices**. The invoice
-carries the tax treatment resolved from the product's own HSN code and the
+The customer's bill is the **OMS bill** made at Pack; its number is the GST
+invoice number. Handing the manifest over makes the **ERP bill** - a posted
+Sales Invoice with the same number - so you do not raise one by hand. Both
+carry the tax treatment resolved from the product's own HSN code and the
 places of supply - you do not enter tax rates by hand anywhere.
 
 ## What to look at when something stalls

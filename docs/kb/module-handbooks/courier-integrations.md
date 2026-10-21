@@ -5,7 +5,7 @@ order: 46
 summary: Book a shipment, check serviceability, print a label, and track it to delivery or RTO — the manual carrier-agnostic flow every warehouse uses today, and the real Delhivery/Shiprocket API layer built alongside it but not yet reachable from a screen.
 audience: warehouse operator, admin
 last_verified: 2026-09-03
-screens: [marketplace, oms, doctype:courierservicearea, doctype:ndrcase, doctype:couriertrackingevent, doctype:manifest]
+screens: [oms, doctype:courierservicearea, doctype:ndrcase, doctype:couriertrackingevent, doctype:manifest]
 doc_id: DOC-1512253FF0
 type: procedure
 status: draft
@@ -36,8 +36,8 @@ using:
 
 - **The manual booking flow** (Stage 26.12.4) — `CourierServiceArea` master
   data plus `LogisticsBooking` documents, manifests, and hand-entered
-  tracking updates. This is what the **Marketplace** screen's Logistics
-  Bookings panel actually drives, and it is real and fully usable — but it
+  tracking updates. This is what **OMS → Ship** (and the courier booking
+  inside **Pack, bill and label**) actually drives, and it is real and fully usable — but it
   does not call a courier's live API. Its own code comment says so plainly:
   *"the AWB number is a locally-generated placeholder — a real courier API
   call is deliberately out of scope here."* Serviceability comes from a
@@ -125,14 +125,15 @@ calls `RecordRTO` — the same three functions the manual flow's own
 hand (see below), so a booking is not locked into "manual" or "automatic"
 forever — whichever one reports a status first wins.
 
-## Day to day: the Marketplace screen's manual flow
+## Day to day: the OMS Pack and Ship pages
 
-**Marketplace → Logistics Bookings** (`renderMarketplaceView`) is what a
-warehouse actually uses today:
+**OMS → Pack** books the courier as part of **Pack, bill and label**, and
+**OMS → Ship** (`view-oms-steps.js`) does the rest - what a warehouse
+actually uses today:
 
-1. **Book** a shipment: Order ID, optional Fulfillment Task, Destination
-   Pincode, Carrier (leave blank to auto-select), optional Tracking Number,
-   Shipping Charge. A blank Carrier with a Destination Pincode auto-selects
+1. **Book** a shipment: packing books it on its own from the order's PIN; a
+   parcel left without one waits under **Book the courier** on Ship with its
+   Pincode and a Courier box (leave blank to auto-select). A blank Carrier with a Destination Pincode auto-selects
    the highest-priority **CourierServiceArea** row whose `pincode_prefix`
    matches (**Setup → OMS → Courier Service Area** — it's flagged
    `setup_advanced` so it is listed under that module's Advanced heading rather than
@@ -145,11 +146,13 @@ warehouse actually uses today:
    serviceable row configured for it is refused as `WMSLOG-0138`
    ("AWB generation failed").
 2. **Manifests** group every AWB-assigned booking for one courier at one
-   location; **Hand Over Manifest** dispatches every fulfillment task in it
-   and flips an order to Shipped once all its tasks have shipped.
-3. Per booking: **Print Label** (auto-picks the printer whose Default For is
-   Shipping Label via QZ Tray, falling back to the on-screen **Label** view
-   if QZ Tray isn't running), **Mark In-Transit**/**Mark Delivered**
+   location (**Make manifest**); **Gate pass** records the collecting vehicle;
+   **Hand over** dispatches every fulfillment task in it, makes each
+   parcel's ERP bill, closes the gate pass and flips an order to Shipped once
+   all its tasks have shipped.
+3. Per booking: **Print label** (auto-picks the printer whose Default For is
+   Shipping Label via QZ Tray, falling back to the on-screen label view
+   if QZ Tray isn't running), **In transit** / **Delivered** under **On the way**
    (`RecordDeliveryEvent`, `WMSLOG-0139` on failure), and **Report RTO**
    (`RecordRTO`) once a booking is Handed Over.
 
@@ -197,7 +200,7 @@ Every route under `/api/v1/marketplace/*` — couriers included — runs
 through `featureGate("oms_integration", ...)`. A tenant without that
 feature enabled gets a `403` on all of them (a generic "Feature 'oms_integration'
 is disabled for this tenant" message), which looks identical to a
-permissions problem. If every button on the Marketplace/OMS screens fails
+permissions problem. If every button on the OMS Pack / Ship pages fails
 the same way, check with an admin whether the feature is enabled before
 assuming something is broken — the same first-check pattern the WMS module
 uses for `moduleGate("wms", ...)`.
@@ -241,13 +244,13 @@ QZ Tray.
 ## What is not here yet
 
 **Two systems, one wired, one not.** The manual booking/manifest/RTO flow
-on the Marketplace screen is complete and is what actually ships product
+on OMS → Pack and Ship is complete and is what actually ships product
 today — but it never calls a real courier account, so its AWB numbers,
 rates and carrier selection are all local approximations. The real
 Delhivery/Shiprocket integration (live AWB, live rate shopping, NDR
 workflow, reverse pickup, the proper barcode label) is built and tested but
 has no screen — see the warning above. Bringing the two together — the
-Marketplace booking screen calling the real adapter instead of generating a
+Pack / Ship booking calling the real adapter instead of generating a
 placeholder AWB, once credentials exist — is the natural next step and is
 flagged in `docs/micro_checklist.md`.
 

@@ -475,6 +475,18 @@ func HandoverManifest(tenantID, manifestID, userID string) error {
 		return err
 	}
 
+	// Stage 88.3.3: each OMS-billed parcel gets its ERP bill as it leaves -
+	// before the closure check, so the order-level fallback invoice finds it.
+	// A bill that fails is logged and leaves the handover standing.
+	for _, b := range bookings {
+		if b.packageID == "" {
+			continue
+		}
+		if _, errB := RaiseERPBillForPackage(tenantID, b.packageID, userID); errB != nil {
+			LogSystemError(tenantID, "", "ERROR", "oms-erp-bill", fmt.Sprintf("manifest %s, package %s: %v", manifestID, b.packageID, errB), "")
+		}
+	}
+
 	for orderID := range affectedOrders {
 		if err := evaluateOrderShipmentClosure(tenantID, schema, orderID, userID); err != nil {
 			return fmt.Errorf("order %s closure check: %v", orderID, err)

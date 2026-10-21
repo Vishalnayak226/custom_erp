@@ -168,6 +168,9 @@ func vendorStateCode(tenantID, vendorID string) (string, error) {
 
 // buyerStateCode resolves the buying entity's state by walking
 // Location -> LegalEntity, reading the entity's GSTIN first then its state.
+// Stage 126.2: a store whose Legal Entity gives neither (or that has none
+// linked) falls back to the store's own State - the one the PO screen asks
+// for and saves. A fallback only, so nothing that derived before changes.
 func buyerStateCode(tenantID, locationCode string) (string, error) {
 	if strings.TrimSpace(locationCode) == "" {
 		return "", nil
@@ -176,16 +179,16 @@ func buyerStateCode(tenantID, locationCode string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var gstin, state sql.NullString
+	var gstin, state, locState sql.NullString
 	err = db.DB.QueryRow(fmt.Sprintf(`
-		SELECT e.data->>'gstin', e.data->>'state'
+		SELECT e.data->>'gstin', e.data->>'state', l.data->>'state'
 		  FROM %s.documents l
-		  JOIN %s.documents e
+		  LEFT JOIN %s.documents e
 		    ON e.doctype = 'LegalEntity' AND e.deleted_at IS NULL
 		   AND (e.id = l.data->>'legal_entity' OR e.data->>'code' = l.data->>'legal_entity')
 		 WHERE l.doctype = 'Location' AND l.deleted_at IS NULL
 		   AND (l.id = $1 OR l.data->>'code' = $1)
-		 LIMIT 1`, schema, schema), locationCode).Scan(&gstin, &state)
+		 LIMIT 1`, schema, schema), locationCode).Scan(&gstin, &state, &locState)
 	if err == sql.ErrNoRows {
 		return "", nil
 	}
@@ -195,7 +198,10 @@ func buyerStateCode(tenantID, locationCode string) (string, error) {
 	if code := StateCodeFromGSTIN(gstin.String); code != "" {
 		return code, nil
 	}
-	return StateCodeFromName(state.String), nil
+	if code := StateCodeFromName(state.String); code != "" {
+		return code, nil
+	}
+	return StateCodeFromName(locState.String), nil
 }
 
 // ResolvePlaceOfSupply compares the buying Location's Legal Entity against the
@@ -222,10 +228,12 @@ func ResolvePlaceOfSupply(tenantID, locationCode, vendorID string) PlaceOfSupply
 	out.BuyerStateLabel, out.VendorState = StateLabel(buyer), StateLabel(vendor)
 
 	switch {
+	case strings.TrimSpace(locationCode) == "":
+		out.Reason = "no billing address is chosen yet"
 	case buyer == "" && vendor == "":
-		out.Reason = "neither the buying entity nor the vendor has a GSTIN or state recorded"
+		out.Reason = "neither the billing store nor the vendor has a GSTIN or state recorded"
 	case buyer == "":
-		out.Reason = "the Location's Legal Entity has no GSTIN or state recorded"
+		out.Reason = "the billing store has no GSTIN or state recorded"
 	case vendor == "":
 		out.Reason = "this vendor has no GSTIN or state recorded"
 	default:

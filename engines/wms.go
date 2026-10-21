@@ -722,6 +722,9 @@ func PostCycleCountAdjustment(tenantID, lineID, userID string) error {
 		return err
 	}
 	defer tx.Rollback()
+	if err := db.SetSearchPath(tx, schema); err != nil { // the GL leg posts in this transaction (74.2.3)
+		return err
+	}
 	var status, dataStr string
 	if err := tx.QueryRow(fmt.Sprintf(
 		`SELECT status, data FROM %s.documents WHERE doctype = 'CycleCountLine' AND id = $1 FOR UPDATE`, schema), lineID).
@@ -767,6 +770,36 @@ func PostCycleCountAdjustment(tenantID, lineID, userID string) error {
 		return err
 	}
 
+	// Stage 74.2.3 (closing 74.0.2 b): the variance's value is booked with it,
+	// in this transaction - a gain Dr 1200 / Cr 5190, a shortage the other way,
+	// at the item's cost, through the adjustment posting profiles (74.1.3). An
+	// item with no cost on record books nothing, as a till sale does.
+	if costPaise, ok := ResolveQuoteUnitCostPaise(tenantID, sku); ok && costPaise > 0 && variance != 0 {
+		units := int64(variance)
+		event, debit, credit := PostingEventAdjustmentGain, accountInventory, accountStockAdjustment
+		if variance < 0 {
+			units, event, debit, credit = -units, PostingEventAdjustmentLoss, accountStockAdjustment, accountInventory
+		}
+		value := costPaise * units
+		acc := ResolvePostingAccounts(tenantID, event, PostingContext{LegalEntity: locationLegalEntity(tenantID, location), ReasonCode: strField(data, "variance_reason_code")}, debit, credit)
+		if err := PostDoubleEntryTx(tx, tenantID, schema, "CycleCountLine", lineID, map[string]int64{acc.Debit: value}, map[string]int64{acc.Credit: value}, "", "CycleCount:"+lineID+":GL"); err != nil {
+			return err
+		}
+		data["variance_value"] = PaiseToRupees(value)
+	}
+	// 26.10.1: the physical count correction itself, signed the same way as
+	// the inventory_availability update just above - now inside the
+	// transaction (74.2.3), so the ledger can never miss a posted count.
+	if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
+		ItemID: sku, WarehouseID: location, Qty: float64(variance),
+		VoucherType: "CycleCount", VoucherID: lineID, UserID: userID,
+		IdempotencyKey: "CYCLECOUNT:" + lineID,
+		// Stage 59.4: a count of one owner's stock says so on the ledger.
+		OwnerID: strField(data, "owner_id"),
+	}); err != nil {
+		return err
+	}
+
 	data["status"] = "Posted"
 	data["posted_by"] = userID
 	marshaled, _ := json.Marshal(data)
@@ -777,17 +810,6 @@ func PostCycleCountAdjustment(tenantID, lineID, userID string) error {
 	}
 	if err := tx.Commit(); err != nil {
 		return err
-	}
-	// 26.10.1: the physical count correction itself, signed the same way as
-	// the inventory_availability update just above.
-	if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
-		ItemID: sku, WarehouseID: location, Qty: float64(variance),
-		VoucherType: "CycleCount", VoucherID: lineID, UserID: userID,
-		IdempotencyKey: "CYCLECOUNT:" + lineID,
-		// Stage 59.4: a count of one owner's stock says so on the ledger.
-		OwnerID: strField(data, "owner_id"),
-	}); lerr != nil {
-		LogSystemError(tenantID, "", "WARN", "PostCycleCountAdjustment", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
 	}
 	logTaskCompletion(tenantID, "CycleCount", userID, location, lineID, 1)
 	// Stage 42.2.2: additive WarehouseTask retrofit.

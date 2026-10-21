@@ -84,10 +84,18 @@ func WriteStockLedgerEntry(tenantID string, e StockLedgerEntry) error {
 	if err != nil {
 		return err
 	}
+	return insertStockLedgerEntry(db.DB, schema, e)
+}
 
+// insertStockLedgerEntry writes one entry through q - the database, or a
+// caller's transaction (WriteStockLedgerLinesTx, 74.1.5).
+func insertStockLedgerEntry(q interface {
+	Exec(string, ...interface{}) (sql.Result, error)
+	QueryRow(string, ...interface{}) *sql.Row
+}, schema string, e StockLedgerEntry) error {
 	if e.IdempotencyKey != "" {
 		var exists bool
-		if err := db.DB.QueryRow(fmt.Sprintf(
+		if err := q.QueryRow(fmt.Sprintf(
 			`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'StockLedgerEntry' AND data->>'idempotency_key' = $1)`, schema),
 			e.IdempotencyKey).Scan(&exists); err != nil {
 			return err
@@ -147,7 +155,7 @@ func WriteStockLedgerEntry(tenantID string, e StockLedgerEntry) error {
 	query := fmt.Sprintf(`
 		INSERT INTO %s.documents (id, doctype, data, status, created_by)
 		VALUES ($1, $2, $3, $4, $5)`, schema)
-	_, err = db.DB.Exec(query, id, "StockLedgerEntry", marshaled, "Active", "system")
+	_, err = q.Exec(query, id, "StockLedgerEntry", marshaled, "Active", "system")
 	return err
 }
 
@@ -375,6 +383,17 @@ func (e *InsufficientStockError) Error() string {
 // entries are idempotency-keyed, so a crash between the commit and this call
 // leaves entries that a replay writes exactly once.
 func WriteStockLedgerLines(tenantID, locationCode, voucherType, voucherID, userID string, lines []PostedStockLine) {
+	for _, entry := range stockLedgerEntriesFor(locationCode, voucherType, voucherID, userID, lines) {
+		if lerr := WriteStockLedgerEntry(tenantID, entry); lerr != nil {
+			LogSystemError(tenantID, "", "WARN", "PostInventoryLedgerWithVoucher", fmt.Sprintf("stock ledger write failed for %s at %s: %v", entry.ItemID, locationCode, lerr), "")
+		}
+	}
+}
+
+// stockLedgerEntriesFor is the ledger entries a voucher's movements make -
+// shared by WriteStockLedgerLines and WriteStockLedgerLinesTx (74.1.5), so the
+// two cannot drift in how they merge lines or key a replay.
+func stockLedgerEntriesFor(locationCode, voucherType, voucherID, userID string, lines []PostedStockLine) []StockLedgerEntry {
 	// Lines that share a key (one SKU, and lot, on two lines of the same
 	// voucher) are one movement of their summed qty. Written separately, the
 	// second was swallowed as a replay of the first, so the ledger showed 2 of
@@ -394,6 +413,7 @@ func WriteStockLedgerLines(tenantID, locationCode, voucherType, voucherID, userI
 		}
 		lines = merged
 	}
+	entries := make([]StockLedgerEntry, 0, len(lines))
 	for _, p := range lines {
 		entry := StockLedgerEntry{
 			ItemID: p.SKU, WarehouseID: locationCode, Qty: float64(p.Qty),
@@ -410,10 +430,9 @@ func WriteStockLedgerLines(tenantID, locationCode, voucherType, voucherID, userI
 				entry.IdempotencyKey += ":" + p.BatchNo
 			}
 		}
-		if lerr := WriteStockLedgerEntry(tenantID, entry); lerr != nil {
-			LogSystemError(tenantID, "", "WARN", "PostInventoryLedgerWithVoucher", fmt.Sprintf("stock ledger write failed for %s at %s: %v", p.SKU, locationCode, lerr), "")
-		}
+		entries = append(entries, entry)
 	}
+	return entries
 }
 
 // computeATS is the ATP formula's one shared choke point - CreateReservation's

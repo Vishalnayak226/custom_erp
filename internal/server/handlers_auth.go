@@ -21,6 +21,9 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
+		// Stage 125.8: a remembered browser's token, standing in for the
+		// authenticator code (never the password) - see mfa_trusted_devices.go.
+		DeviceToken string `json:"device_token"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
@@ -166,8 +169,18 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// MFA-mandatory roles (SEC-V2 Sec.12) never get a full session token
 	// straight out of /login - they're routed into enrollment (first time)
-	// or a TOTP challenge (subsequently) instead.
-	if engines.RequiresMFA(u.Role) {
+	// or a TOTP challenge (subsequently) instead. Stage 125.8: unless this
+	// browser was remembered after a correct code; it then counts as the
+	// code, and the password above was still checked.
+	rememberedDevice := false
+	if engines.RequiresMFA(u.Role) && req.DeviceToken != "" {
+		if enabled, _, mfaErr := engines.GetUserMFAStatus(tenantID, u.ID); mfaErr == nil && enabled &&
+			engines.TrustedMFADevice(tenantID, u.ID, req.DeviceToken, u.CredentialVersion) {
+			rememberedDevice = true
+			engines.LogAuditEvent(tenantID, u.Username, "LOGIN", "MFA_REMEMBERED_DEVICE", "Password correct; authenticator code skipped on a remembered device")
+		}
+	}
+	if engines.RequiresMFA(u.Role) && !rememberedDevice {
 		enabled, _, mfaErr := engines.GetUserMFAStatus(tenantID, u.ID)
 		if mfaErr != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to resolve MFA status")
@@ -197,6 +210,8 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"mfa_required":    true,
 			"challenge_token": challengeToken,
+			// Stage 125.8: 0 hides "Remember this device".
+			"remember_days": engines.MFARememberDays(tenantID),
 		})
 		return
 	}
@@ -393,7 +408,8 @@ func handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Code string `json:"code"`
+		Code           string `json:"code"`
+		RememberDevice bool   `json:"remember_device"` // Stage 125.8
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
@@ -448,13 +464,22 @@ func handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 	// probably gone - set up a new device" prompt. Without it the user gets a
 	// session but is still one lost code away from the lockout this stage
 	// exists to prevent.
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+	resp := map[string]interface{}{
 		"token":                    token,
 		"role":                     engines.CanonicalRole(role),
 		"user":                     username,
 		"used_recovery_code":       usedRecoveryCode,
 		"recovery_codes_remaining": remaining,
-	})
+	}
+	// Stage 125.8: the browser keeps device_token and sends it with its next
+	// login. Best-effort - failing to remember must not fail the sign-in.
+	if req.RememberDevice {
+		if deviceToken, days, rememberErr := engines.RememberMFADevice(tenantID, userID, r.UserAgent()); rememberErr == nil && deviceToken != "" {
+			resp["device_token"], resp["device_days"] = deviceToken, days
+			engines.LogAuditEvent(tenantID, username, "LOGIN", "MFA_DEVICE_REMEMBERED", fmt.Sprintf("This browser skips the authenticator code for %d days", days))
+		}
+	}
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // Generic CRUD handler wrapping security RBAC authorization and validation rules

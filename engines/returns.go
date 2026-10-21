@@ -57,6 +57,9 @@ type returnItemRecord struct {
 	NetPaise  int64            `json:"net_paise,omitempty"`
 	Points    int              `json:"points,omitempty"`
 	Tenders   map[string]int64 `json:"tenders,omitempty"`
+	// RoundOffPaise (Stage 94.15) is the part of NetPaise that was these
+	// units' share of the bill's round-off to the rupee, reversed from 5280.
+	RoundOffPaise int64 `json:"round_off_paise,omitempty"`
 }
 
 // originalLinePrice is what resolveOriginalSaleLinePrices/
@@ -624,7 +627,7 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 	var refundTotal, costReceivedTotal, exchangeCostTotal float64
 	// Stage 73.1.1: what goes back, split the way the sale was paid. money is
 	// every tender except points; points go back as points (73.1.3).
-	var moneyPaise, pointsPaise, netPaise int64
+	var moneyPaise, pointsPaise, netPaise, roundOffPaise int64
 	refundPoints := 0
 	refundTenders := map[string]int64{}
 	for i := range items {
@@ -678,6 +681,7 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 			moneyPaise += items[i].moneyPaise()
 			if items[i].Allocated {
 				netPaise += items[i].NetPaise
+				roundOffPaise += items[i].RoundOffPaise
 				pointsPaise += items[i].Tenders[TenderLoyaltyPoints]
 				refundPoints += items[i].Points
 				for k, v := range items[i].Tenders {
@@ -721,6 +725,9 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 		}
 		if len(refundTenders) > 0 {
 			refundDoc["tenders"] = refundTenders
+		}
+		if roundOffPaise != 0 {
+			refundDoc["round_off_paise"] = roundOffPaise
 		}
 		returnLocation, _ := data["return_location"].(string)
 		issueNumberInto(refundDoc, tenantID, "RefundRequest", refundRequestID, "", returnLocation) // Stage 76.11
@@ -976,6 +983,16 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 	refundPoints := int(numFromInterface(data["points"]))
 	revenueDebits := map[string]int64{"4100": moneyPaise + pointsPaise}
 	revenueCredits := map[string]int64{}
+	// Stage 94.15: the units' share of the bill's round-off came in through
+	// 5280, not revenue, so it goes back out the same way.
+	if ro := int64(numFromInterface(data["round_off_paise"])); ro != 0 && ro < moneyPaise+pointsPaise {
+		revenueDebits["4100"] -= ro
+		if ro > 0 {
+			revenueDebits[accountRoundOff] = ro
+		} else {
+			revenueCredits[accountRoundOff] = -ro
+		}
+	}
 	// Stage 73.1.6: money goes back the way the returned units were paid -
 	// each mode to its own clearing account, the gift-card share back onto the
 	// card. A refund with no tender split (an RTO, a No Receipt return, one

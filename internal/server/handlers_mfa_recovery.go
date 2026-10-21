@@ -68,6 +68,7 @@ func handleMFARecoveryStatus(w http.ResponseWriter, r *http.Request) {
 		"remaining":            remaining,
 		"issued_per_set":       engines.RecoveryCodeCount,
 		"reenroll_in_progress": pending != "",
+		"remembered_devices":   engines.CountMFADevices(tenantID, userID), // Stage 125.8
 	})
 }
 
@@ -326,6 +327,12 @@ func handleAdminResetUserMFA(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, err := tx.Exec(fmt.Sprintf(
 		`DELETE FROM %s.mfa_recovery_codes WHERE user_id = $1`, schema), targetID); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to reset MFA")
+		return
+	}
+	// Stage 125.8: a reset means the authenticator is gone - every browser
+	// remembered with it asks for the new code.
+	if _, err := tx.Exec(fmt.Sprintf(`DELETE FROM %s.mfa_trusted_devices WHERE user_id = $1`, schema), targetID); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to reset MFA")
 		return
 	}

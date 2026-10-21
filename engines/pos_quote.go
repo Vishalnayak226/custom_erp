@@ -232,8 +232,10 @@ type QuoteResult struct {
 	GSTBreakdown GSTBreakdown `json:"gst_breakdown"`
 
 	// Total is what the customer owes before loyalty redemption, which is
-	// applied at finalization because it burns a real balance.
-	Total float64 `json:"total"`
+	// applied at finalization because it burns a real balance. Stage 94.15: to
+	// the whole rupee; RoundOff is the round-off line that got it there.
+	Total    float64 `json:"total"`
+	RoundOff float64 `json:"round_off"`
 	// Stage 73.1.5: Loyalty is set whenever the cart has a customer, and
 	// AmountDue = Total - Loyalty.Value is what the till asks the customer for
 	// (before any gift card).
@@ -478,6 +480,9 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 	if result.Total < 0 {
 		result.Total = 0
 	}
+	// Stage 94.15: the bill is paid to the whole rupee; finalization rounds the
+	// same net the same way and books RoundOff to 5280.
+	result.Total, result.RoundOff = RoundToRupee(result.Total)
 	result.AmountDue = result.Total
 	if strings.TrimSpace(req.CustomerID) != "" {
 		loyalty, err := quoteLoyalty(tenantID, req.CustomerID, req.RedeemPoints, result.Total)

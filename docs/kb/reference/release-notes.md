@@ -19,13 +19,23 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **171** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **176** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
 - [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-08
 
 ## 2026-10-21
+
+**Stage 128 — Setup Workbook: a whole organisation's setup from one Excel file** *(code + docs, NOT COMMITTED)*
+
+**94.15 money rounding; Stage 127 — every transaction prints, silent print with no browser dialog, print profiles, Reprint by module, number fields, picker search scope** *(code + docs, tab B, NOT COMMITTED)*
+
+**Stage 88 (88.2-88.6) — OMS one page per step, the Pending gate and the two bills, one Templates page, Inventory documents** *(code + docs, NOT COMMITTED)*
+
+**Stage 126 — New purchase order: Enter moves through the entry, a missing state asked and saved, Edit on an added design; Prefix Configurations bug sweep** *(code, NOT COMMITTED)*
+
+**Stage 125.8 — remember this device for the authenticator** *(code, NOT COMMITTED)*
 
 **Stage 125 — one login for every client; Super Admin is the platform operator's alone** *(code, NOT COMMITTED)*
 

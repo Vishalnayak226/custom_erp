@@ -87,13 +87,12 @@
           <div class="form-group">
             <label class="form-label" for="mfa-challenge-code">6-digit code</label>
             <input type="text" id="mfa-challenge-code" class="form-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
-            <!-- 32.5: the same field takes a recovery code; toggleRecoveryCodeMode()
-                 relaxes the numeric pattern/maxlength rather than adding a second
-                 form, so there is only ever one input to submit. -->
+            <!-- 32.5: also takes a recovery code (setRecoveryCodeMode). -->
             <p id="mfa-challenge-hint" style="margin-top: 6px; font-size: 12px; color: var(--text-muted);">
               Lost your phone? <a href="#" id="mfa-use-recovery-link">Use a recovery code</a>
             </p>
           </div>
+          <label id="mfa-remember-row" class="hidden" style="display:flex;gap:8px;align-items:center;margin:0 0 12px;font-size:13px"><input type="checkbox" id="mfa-remember"><span>Remember this device for <span id="mfa-remember-days">30</span> days</span></label>
           <div id="mfa-challenge-error" class="login-error hidden"></div>
           <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;" id="mfa-challenge-submit-btn">Verify</button>
         </form>
@@ -203,9 +202,12 @@
           </a>
           <ul class="menu-flyout">
             <li><a class="menu-item" id="menu-oms"><span>Orders</span></a></li>
-            <li><a class="menu-item" id="menu-fulfillment"><span>Fulfillment</span></a></li>
-            <li><a class="menu-item" id="menu-marketplace"><span>Marketplace</span></a></li>
+            <li><a class="menu-item" id="menu-oms-pending" data-go="oms:pending" data-like="menu-oms"><span>Pending Orders</span></a></li>
+            <li><a class="menu-item" id="menu-oms-pick" data-go="oms:pick" data-like="menu-oms"><span>Pick</span></a></li>
+            <li><a class="menu-item" id="menu-oms-pack" data-go="oms:pack" data-like="menu-oms"><span>Pack</span></a></li>
+            <li><a class="menu-item" id="menu-oms-ship" data-go="oms:ship" data-like="menu-oms"><span>Ship</span></a></li>
             <li><a class="menu-item" id="menu-returns"><span>Returns</span></a></li>
+            <li><a class="menu-item" id="menu-oms-settlements" data-go="oms:settlements" data-doctype="MarketplaceSettlement"><span>Settlements</span></a></li>
           </ul>
         </li>
 
@@ -276,8 +278,12 @@
             </svg>
           </a>
           <ul class="menu-flyout">
+            <li><a class="menu-item" id="menu-inventory-dashboard" data-go="inventory:dashboard" data-like="menu-inventory"><span>Dashboard</span></a></li>
             <li><a class="menu-item" id="menu-inventory"><span>Stock on Hand</span></a></li>
-            <li><a class="menu-item" id="menu-transfers"><span>Stock Transfer</span></a></li>
+            <li><a class="menu-item" id="menu-inventory-ledger" data-go="inventory:ledger" data-like="menu-inventory"><span>Inventory Ledger</span></a></li>
+            <li><a class="menu-item" id="menu-transfers"><span>Stock Movement</span></a></li>
+            <li><a class="menu-item" id="menu-inventory-adjustments" data-go="inventory:adjustments" data-doctype="InventoryAdjustment"><span>Stock Adjustment</span></a></li>
+            <li><a class="menu-item" id="menu-inventory-mrp" data-go="inventory:mrp" data-doctype="MRPChange"><span>MRP Change</span></a></li>
             <!-- Stage 85.B: the store's own stock locations (ERP, not WMS). -->
             <li><a class="menu-item" id="menu-stock-moves"><span>Move Stock</span></a></li>
             <li><a class="menu-item" id="menu-stock-locations"><span>Stock Locations</span></a></li>
@@ -780,7 +786,7 @@
   <!-- 21.14: this app's first Web Component - plain <script>, no build
        step, registers <erp-typeahead> globally before app.js runs. -->
   <script src="/components/erp-typeahead.js?v=1"></script>
-  <script src="/app.js?v=58"></script>
+  <script src="/app.js?v=59"></script>
   <!-- 31.1: QZ Tray bridge for silent printing. Loaded after app.js because
        it calls apiFetch() for the certificate and per-request signature. -->
   <script src="/qz-print.js?v=1"></script>

@@ -246,6 +246,19 @@ $state.version = $releaseVersion
 $releaseKind = if ($codeShips) { 'feat' } else { 'docs' }
 Note "release $releaseVersion (live $($live.version) at $($live.git_commit); this release ships $(if ($codeShips) { 'code' } else { 'docs only' }))"
 
+# ------------------------------------------------- G4c budget, before the slow gates
+# Its files are final once G4 has bumped the versions and nothing after G4 writes
+# them, so it is judged here, not after the ~5 min of G5-G7 (0.11.0: stopped at
+# G8 at 5:52 for 983 bytes).
+Write-Gate 'G4c Release budget'
+$budgetText = (Invoke-Native -Exe $go -Arguments @('run', './cmd/releasebudget') -WorkDir $wt -AllowFail) -join "`n"
+if ($budgetText -match '"status":\s*"over') {
+    $over = [regex]::Matches($budgetText, '"(\w+)":\s*\{[^{}]*"value":\s*(\d+)[^{}]*"limit":\s*(\d+)[^{}]*"status":\s*"over_budget"') | ForEach-Object { "$($_.Groups[1].Value) $($_.Groups[2].Value) > $($_.Groups[3].Value)" }
+    Stop-Release "release budget over: $($over -join '; '). The cold core counts view-pos.js too - move new code into a lazily loaded module, or condense comments in app.js / view-pos.js"
+}
+if ($budgetText -notmatch '"cold_core_gzip_bytes"') { Stop-Release "releasebudget gave no report:`n$(($budgetText -split "`n" | Select-Object -Last 15) -join "`n")" }
+Note 'release budget within limits'
+
 # ------------------------------------------------- G5 generated Go and reports
 Write-Gate 'G5 Report catalog spec'
 # Always regenerated, even when its inputs did not change: a stale file
@@ -329,8 +342,8 @@ if ($lintBad.Count) { Stop-Release "doclint: $($lintBad.Count) broken link / reg
 Note 'document register rewritten; no broken links'
 
 # ---------------------------------------------------------------- G8 static
-Write-Gate 'G8 Build, vet, JS, budget'
-# Build, vet, the budget and compiling the two test programs G10 runs only read
+Write-Gate 'G8 Build, vet, JS'
+# Build, vet and compiling the two test programs G10 runs only read
 # the tree, so they run side by side (Stage 109.10); the Go build cache is safe
 # to share between them.
 function Start-GoJob([string]$name, [string[]]$a) {
@@ -342,7 +355,7 @@ function Start-GoJob([string]$name, [string[]]$a) {
     [pscustomobject]@{ Name = $name; Proc = $p; Log = $log }
 }
 $testExes = [System.Collections.Generic.List[string]]::new()
-$goJobs = @((Start-GoJob 'build' @('build', './...')), (Start-GoJob 'vet' @('vet', './...')), (Start-GoJob 'budget' @('run', './cmd/releasebudget')))
+$goJobs = @((Start-GoJob 'build' @('build', './...')), (Start-GoJob 'vet' @('vet', './...')))
 foreach ($p in @('engines', 'internal/server')) {
     $exe = Join-Path $env:TEMP "release_$($p -replace '/', '_')_$ts.test.exe"
     $testExes.Add($exe)
@@ -351,20 +364,13 @@ foreach ($p in @('engines', 'internal/server')) {
 $jsFiles = @($ship | Where-Object { $_.Code -ne ' D' -and $_.Path -like '*.js' } | ForEach-Object Path) + @('public/app.js') | Select-Object -Unique
 foreach ($js in $jsFiles) { Invoke-Native -Exe 'node' -Arguments @('--check', (Join-Path $wt $js)) | Out-Null }
 Note "node --check: $($jsFiles.Count) file(s)"
-$budgetText = ''
 foreach ($j in $goJobs) {
     $j.Proc.WaitForExit()
     $out = @(Get-Content -LiteralPath $j.Log -ErrorAction SilentlyContinue) + @(Get-Content -LiteralPath "$($j.Log).err" -ErrorAction SilentlyContinue)
     Remove-Item -LiteralPath $j.Log, "$($j.Log).err" -ErrorAction SilentlyContinue
-    if ($j.Name -eq 'budget') { $budgetText = $out -join "`n"; continue }   # judged by its report, below
     if ($j.Proc.ExitCode -ne 0) { Stop-Release "go $($j.Name) failed:`n$(($out | Select-Object -Last 20) -join "`n")" }
 }
 Note 'go build + go vet clean; test programs compiled'
-if ($budgetText -match '"status":\s*"over') {
-    $over = [regex]::Matches($budgetText, '"(\w+)":\s*\{[^{}]*"value":\s*(\d+)[^{}]*"limit":\s*(\d+)[^{}]*"status":\s*"over_budget"') | ForEach-Object { "$($_.Groups[1].Value) $($_.Groups[2].Value) > $($_.Groups[3].Value)" }
-    Stop-Release "release budget over: $($over -join '; '). The cold core counts view-pos.js too - move new code into a lazily loaded module"
-}
-Note 'release budget within limits'
 
 # ---------------------------------------------------- G9 data-change scan
 Write-Gate 'G9 What this changes in client data'

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 )
@@ -176,6 +177,11 @@ type SalesOrderInput struct {
 	// one owner per order. Optional: blank takes the warehouse's owner at
 	// release (engines.ResolveTaskOwnerQ).
 	OwnerID string
+	// SkipPending (Stage 88.3.1, D12): an order keyed in by staff was accepted
+	// by the person creating it, so it goes straight to Pick; AcceptedBy is
+	// that person. Channel imports leave it false and wait at Pending.
+	SkipPending bool
+	AcceptedBy  string
 }
 
 // CreateSalesOrder validates then reserves stock for a new order, in the
@@ -316,6 +322,8 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 		"total_amount":     totalAmount,
 		"contains_bundles": len(bundleLines) > 0,
 		"bundle_lines":     bundleLines,
+		// Stage 88.3.1: Pending until someone accepts or rejects it.
+		"acceptance_status": AcceptancePending,
 	}
 	if owner := strings.TrimSpace(in.OwnerID); owner != "" {
 		orderDoc["owner_id"] = owner // Stage 59.2
@@ -420,6 +428,13 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 		DispatchNotification(tenantID, "Order On Hold", orderID, map[string]string{"hold_reason": holdReason})
 	}
 
+	// Stage 88.3.1 (D12): staff-keyed orders skip Pending. A failure here
+	// leaves the order at Pending rather than failing a create that succeeded.
+	if in.SkipPending && orderStatus == "Reserved" {
+		if _, err := AcceptPendingOrder(tenantID, orderID, in.AcceptedBy); err != nil {
+			log.Printf("[OMS] order %s created but not released to Pick: %v", orderID, err)
+		}
+	}
 	return orderID, nil
 }
 

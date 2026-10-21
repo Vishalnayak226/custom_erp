@@ -316,17 +316,17 @@ func registerStage282Settings() {
 	})
 	RegisterSetting(SettingDefinition{
 		Key: "pos.high_value.address_from", Module: "Point of Sale",
-		Label: "Buyer's address needed from (bill total)", Type: SettingTypeString, Default: "",
+		Label: "Buyer's address needed from (bill total)", Type: SettingTypeFloat, Default: "", Optional: true, Min: settingBound(0),
 		Description: "A bill of this total or more needs the buyer's address before it completes. Blank uses your country's rule (India: 50,000 to a buyer with no GSTIN, CGST Rule 46(e); UK and Germany: 250; UAE: 10,000). 0 turns it off.",
 	})
 	RegisterSetting(SettingDefinition{
 		Key: "pos.high_value.pan_above", Module: "Point of Sale",
-		Label: "PAN needed above (bill total)", Type: SettingTypeString, Default: "",
+		Label: "PAN needed above (bill total)", Type: SettingTypeFloat, Default: "", Optional: true, Min: settingBound(0),
 		Description: "A bill above this total needs the buyer's PAN, or a signed Form 97 when they have none. Blank uses your country's rule (India: 2,00,000, Income-tax Rules r.159). 0 turns it off.",
 	})
 	RegisterSetting(SettingDefinition{
 		Key: "pos.high_value.cash_limit", Module: "Point of Sale",
-		Label: "Cash refused from (per bill)", Type: SettingTypeString, Default: "",
+		Label: "Cash refused from (per bill)", Type: SettingTypeFloat, Default: "", Optional: true, Min: settingBound(0),
 		Description: "Cash of this much or more on one bill is refused; the rest is taken by card or UPI. Blank uses your country's rule (India: 2,00,000, s.269ST). 0 turns it off.",
 	})
 	RegisterSetting(SettingDefinition{
@@ -473,6 +473,12 @@ func registerStage282Settings() {
 		Description: "How far a TOTP code may be out of step with server time and still be accepted. 1 tolerates ±30 seconds of drift. Raising this widens the window an intercepted code stays usable.",
 	})
 	RegisterSetting(SettingDefinition{
+		Key: SettingMFARememberDays, Module: "Security",
+		Label: "Remember a device for", Type: SettingTypeInt, Default: "30", Unit: "days",
+		Min: settingBound(0), Max: settingBound(90),
+		Description: "Stage 125.8: after a correct authenticator code, Admin and Super Admin may tick \"Remember this device\"; that browser then skips the code (never the password) for this many days. A password change, a 2FA reset or a new authenticator ends it. 0 turns the option off and makes every remembered device ask for the code again. Lowering it shortens devices already remembered.",
+	})
+	RegisterSetting(SettingDefinition{
 		Key: "security.password_min_length", Module: "Security",
 		Label: "Minimum password length", Type: SettingTypeInt, Default: "12", Unit: "characters",
 		Min: settingBound(8), Max: settingBound(128),
@@ -606,6 +612,12 @@ func registerStage282Settings() {
 		Label: "Settlement auto-match tolerance", Type: SettingTypeFloat, Default: "2.00", Unit: "₹",
 		Min:         settingBound(0),
 		Description: "A settlement line whose gross amount differs from the matched order's invoiced value by no more than this is auto-matched and posted; a larger gap is held as a Variance for an operator to dispute or write off.",
+	})
+	// Stage 88.3.1 (D2): channel orders wait at Pending unless this is on.
+	RegisterSetting(SettingDefinition{
+		Key: "oms.accept_channel_orders", Module: "OMS",
+		Label: "Accept channel orders automatically", Type: SettingTypeBool, Default: "false",
+		Description: "Off: a marketplace or website order whose stock is reserved waits on OMS ▸ Pending Orders until someone accepts or rejects it, and the answer is sent to the channel. On: it is accepted as it arrives and goes straight to Pick. Orders keyed in by staff always skip Pending.",
 	})
 	RegisterSetting(SettingDefinition{
 		Key: "oms.settlement_aging_days", Module: "OMS",

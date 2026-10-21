@@ -244,17 +244,19 @@ existing sale-side tax changed by building this.
 compares the state behind two masters:
 
 - The **buying side**: the Location's `legal_entity` → that `LegalEntity`'s
-  GSTIN (first two digits) → falling back to its `state` field.
+  GSTIN (first two digits) → falling back to its `state` field → then the
+  Location's own `state` (Stage 126.2).
 - The **vendor side**: the Vendor's own GSTIN (first two digits) → falling
   back to its `state` field.
 
 Same state → **CGST + SGST**. Different states → **IGST**. The banner above
 the line grid states which and why (e.g. *"Inter-state (IGST) — vendor in
 Karnataka (29), billing entity in Maharashtra (27)"*). If either side's state
-can't be established, the banner turns amber and names exactly what's
-missing rather than silently defaulting to intra-state — **Override** lets
-you tick Inter-state by hand for that one PO, and the override sticks across
-later saves rather than being silently recomputed away.
+can't be established, the banner turns amber and asks for the missing state
+of that vendor or store, with the state list and a **Save** that writes it to
+the record - no guessing tick. On a derived answer, **Override** lets you set
+Inter-state by hand for that one PO, and the override sticks across later
+saves rather than being silently recomputed away.
 
 ### Printing and sending
 
@@ -516,10 +518,11 @@ registered report.
 GST rate on the master. Fix it under **Setup → Items**; the line clears on
 the next preview (250ms after your last edit).
 
-**"Could not work the supply type out" banner, amber.** Either the vendor or
-the buying Location's Legal Entity has no GSTIN and no State recorded. Fix
-the master (better — every future PO gets it right automatically) or tick
-**Override** and set Inter-state by hand for this one PO.
+**"... has no state — choose it" banner, amber.** Either the vendor or the
+billing store (and its Legal Entity) has no GSTIN and no State recorded.
+Choose the state in the banner and click **Save to vendor** / **Save to
+store** - it is saved on that record, so every future PO gets it right - or
+fix the master in Setup.
 
 **"amendment reason is required to change an Approved purchase order" on
 Save Amendment.** This is `PURCHA-0085` — the composer should prompt for a

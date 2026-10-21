@@ -563,7 +563,9 @@ func readGRNBilling(tx queryRower, schema, poID, grnID string) (grnBilling, erro
 		return b, err
 	}
 	poNet := numFromInterface(poData["total_amount"])
-	poGross := numFromInterface(poData["grand_total"])
+	// Stage 94.15: grand_total is rounded to the rupee; the tax ratio is the
+	// lines' own gross, before the round-off.
+	poGross := numFromInterface(poData["grand_total"]) - numFromInterface(poData["round_off"])
 	taxRatio := 1.0
 	if poGross > 0 && poNet > 0 {
 		taxRatio = poGross / poNet

@@ -76,7 +76,7 @@ Every WMS screen is under **WMS**. Goods come in through a Goods Receipt, which 
 3. Pick on paper from the pick list, or press **Pick on a phone** (**Mobile Picking**): confirm each line, then **Mark N order(s) packed**. Orders that are short stay as they are.
 4. **Sortation / Put-Wall** (optional): record which order goes into which slot of a sort station.
 5. **Loading**: **Open New Load** for a dock door and trailer, scan the invoiced packages, then **Complete Load** (which runs your pre-ship checks), **Record Exchange & Depart**, and **Print Bill of Lading** if you need one.
-6. **OMS → Fulfillment → Dispatch** is the step that takes the stock out of the location and its bins. Loading does not do this.
+6. **Hand over** on **OMS → Ship** is the step that dispatches the tasks and takes the stock out of the location and its bins. Loading does not do this.
 
 ## Watching the floor
 

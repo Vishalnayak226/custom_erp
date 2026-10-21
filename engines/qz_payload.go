@@ -514,6 +514,7 @@ type receiptTotals struct {
 	saleTotal       float64
 	loyaltyDiscount float64
 	offerDiscount   float64
+	roundOff        float64
 	amountDue       float64
 }
 
@@ -615,7 +616,9 @@ func BuildReceiptPayload(tenantID, cartNumber string, printer QZPrinter) (*QZPri
 			totals.loyaltyDiscount = net
 		}
 	}
-	totals.amountDue = totals.saleTotal - totals.loyaltyDiscount - totals.offerDiscount
+	// Stage 94.15: a sale posted since then is paid to the whole rupee.
+	totals.roundOff = numFromInterface(data["round_off"])
+	totals.amountDue = totals.saleTotal - totals.loyaltyDiscount - totals.offerDiscount + totals.roundOff
 	var splitLines []receiptLine
 	if len(moneyPaid) > 1 {
 		paymentMode = "Split"
@@ -707,6 +710,9 @@ func BuildReceiptPayload(tenantID, cartNumber string, printer QZPrinter) (*QZPri
 		if totals.loyaltyDiscount > 0 {
 			b.WriteString(escposRow("Loyalty points applied", "-"+money(totals.loyaltyDiscount), cols))
 		}
+		if totals.roundOff != 0 {
+			b.WriteString(escposRow("Round off", fmt.Sprintf("%+.2f", totals.roundOff), cols))
+		}
 		for _, g := range giftTenders {
 			b.WriteString(escposRow("Gift card "+g.sku, "-"+money(g.amount), cols))
 		}
@@ -751,6 +757,9 @@ func BuildReceiptPayload(tenantID, cartNumber string, printer QZPrinter) (*QZPri
 	}
 	if totals.loyaltyDiscount > 0 {
 		rows.WriteString("<tr><td>Loyalty points applied</td><td class=\"r\">-" + money(totals.loyaltyDiscount) + "</td></tr>")
+	}
+	if totals.roundOff != 0 {
+		rows.WriteString("<tr><td>Round off</td><td class=\"r\">" + fmt.Sprintf("%+.2f", totals.roundOff) + "</td></tr>")
 	}
 
 	customerLine := ""
@@ -994,6 +1003,9 @@ func renderPurchaseOrderPayload(po POPrint, printer QZPrinter) *QZPrintPayload {
 		} else {
 			b.WriteString(escposRow("CGST", money(po.Breakdown.CGST), cols))
 			b.WriteString(escposRow("SGST", money(po.Breakdown.SGST), cols))
+		}
+		if po.RoundOff != 0 {
+			b.WriteString(escposRow("Round off", fmt.Sprintf("%+.2f", po.RoundOff), cols))
 		}
 		b.WriteString(escBoldOn)
 		b.WriteString(escposRow("GRAND TOTAL", money(po.GrandTotal), cols))

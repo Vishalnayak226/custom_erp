@@ -34,7 +34,7 @@ func exportPriceColumns(txn string) []exportColumn {
 		return append([]exportColumn{{"rate", "Cost price", false}}, tax...)
 	case PrintTxnGRN:
 		return append([]exportColumn{{"po_rate", "PO rate", false}, {"rate", "Cost price", false}, {"rate_difference", "Rate difference", false}}, tax...)
-	case PrintTxnSalesInvoice, PrintTxnPOSTaxInvoice:
+	case PrintTxnSalesInvoice, PrintTxnPOSTaxInvoice, PrintTxnOMSBill:
 		return append([]exportColumn{{"rate", "Selling price", false}, {"discount", "Discount", true}}, tax...)
 	}
 	return nil

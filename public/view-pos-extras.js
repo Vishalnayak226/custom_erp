@@ -420,7 +420,7 @@ export async function redeemPOSLoyaltyPoints(t) {
     infoEl.textContent = l.balance > 0 ? `${customerId} has ${l.balance} point(s), but none can be used on this bill.` : `${customerId} has no loyalty points to redeem.`;
     return;
   }
-  const pointsStr = await showCustomPrompt(`How many points to redeem? ${customerId} has ${l.balance}; 1 point = ${l.value_per_point} off. This bill can take up to ${l.max_points}.`);
+  const pointsStr = await showCustomPrompt(`How many points to redeem? ${customerId} has ${l.balance}; 1 point = ${l.value_per_point} off. This bill can take up to ${l.max_points}.`, '', 'Redeem Points', 'number');
   const points = parseInt(pointsStr, 10);
   if (!points || points <= 0) return;
   if (points > l.max_points) {
@@ -541,7 +541,7 @@ export async function closePOSSessionFlow(t) {
     await showCustomAlert(`${stillQueued} sale${stillQueued === 1 ? '' : 's'} still need${stillQueued === 1 ? 's' : ''} to sync before this session can close. Reconnect and try again, or click the offline badge above to sync now.`, 'Offline Sales Pending');
     return;
   }
-  const countedStr = await showCustomPrompt('Counted cash in the till?');
+  const countedStr = await showCustomPrompt('Counted cash in the till?', '', 'Close Session', 'number');
   if (countedStr === null) return;
   const counted = parseFloat(countedStr);
   const send = (reason) => apiFetch('/api/v1/pos/session/close', {
@@ -616,7 +616,7 @@ async function openPOSTakeover() {
     await showCustomAlert('Pick the store first.', 'Take over');
     return;
   }
-  const countedStr = await showCustomPrompt('Count the cash in the till and type it here. That closes the current cashier\'s session against your count and opens yours with it as the float.', '', 'Take over this till');
+  const countedStr = await showCustomPrompt('Count the cash in the till and type it here. That closes the current cashier\'s session against your count and opens yours with it as the float.', '', 'Take over this till', 'number');
   if (countedStr === null) return;
   const counted = parseFloat(countedStr) || 0;
   const send = (reason) => apiFetch('/api/v1/pos/session/takeover', { method: 'POST', body: JSON.stringify({ location: till.location, counted_cash: counted, variance_reason: reason || '' }) });
@@ -1037,18 +1037,24 @@ async function posIssueGiftCard(p) {
 
 // The issue receipt is separate from any sale bill (blueprint 16.1).
 function posPrintGiftCardReceipt(r) {
-  const w = window.open('', '_blank', 'width=360,height=520');
-  if (!w) { showCustomAlert(`${r.card} loaded with ${Number(r.amount).toFixed(2)}. Balance ${Number(r.balance).toFixed(2)}.`, 'Gift Card Issued'); return; }
   const store = till.storeLabel();
-  w.document.write(`<!doctype html><title>Gift Card</title><body style="font-family:monospace; font-size:13px; padding:12px;">
-    <div style="text-align:center; font-weight:bold;">GIFT CARD ${r.event === 'RELOAD' ? 'TOP-UP' : 'ISSUE'}</div>
+  const slip = `<div style="text-align:center; font-weight:bold;">GIFT CARD ${r.event === 'RELOAD' ? 'TOP-UP' : 'ISSUE'}</div>
     <div style="text-align:center;">${cfgEsc(store)}</div><hr>
     <div>Card: ${cfgEsc(r.card)}</div><div>Amount: ${Number(r.amount).toFixed(2)}</div><div>Balance: ${Number(r.balance).toFixed(2)}</div>
     ${r.expires_on ? `<div>Valid until: ${cfgEsc(r.expires_on)}</div>` : ''}<div>Paid by: ${cfgEsc(r.payment_mode || '')}</div>
     <div>Ref: GC-${r.entry_id}</div><div>${cfgEsc(new Date(r.at).toLocaleString())}</div><hr>
-    <div style="font-size:11px;">Keep this card safe - its balance is spent by whoever presents it.</div>
+    <div style="font-size:11px;">Keep this card safe - its balance is spent by whoever presents it.</div>`;
+  const browser = () => {
+    const w = window.open('', '_blank', 'width=360,height=520');
+    if (!w) { showCustomAlert(`${r.card} loaded with ${Number(r.amount).toFixed(2)}. Balance ${Number(r.balance).toFixed(2)}.`, 'Gift Card Issued'); return; }
+    w.document.write(`<!doctype html><title>Gift Card</title><body style="font-family:monospace; font-size:13px; padding:12px;">${slip}
     <script>window.print();<\/script></body>`);
-  w.document.close();
+    w.document.close();
+  };
+  // Stage 127.2: on the receipt printer like the bill, no browser dialog once set up.
+  import('./trade-docs.js' + new URL(import.meta.url).search)
+    .then(docs => docs.printSlip(slip, `GC-${r.entry_id}`, browser))
+    .catch(e => { console.debug('[POS] gift card slip unavailable, using the browser', e); browser(); });
 }
 
 async function posGiftCardAction(p) {

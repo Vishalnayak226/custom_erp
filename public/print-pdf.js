@@ -161,6 +161,19 @@ export async function pagesToPDF(pages, widthMM, heightMM) {
   return buildPDF(images, widthMM, heightMM);
 }
 
+// canvasesToPDF (Stage 127.2) is already-drawn pages - sticker labels at the
+// printer's own dots - as a PDF Blob, one page per canvas, page size in mm.
+// Quality 1: the bars of a barcode must not blur.
+export function canvasesToPDF(canvases, widthMM, heightMM) {
+  const images = canvases.map(canvas => {
+    const bin = atob(canvas.toDataURL('image/jpeg', 1).split(',')[1]);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return { bytes, w: canvas.width, h: canvas.height };
+  });
+  return buildPDF(images, widthMM, heightMM);
+}
+
 export function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();

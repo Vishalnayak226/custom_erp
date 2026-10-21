@@ -5,7 +5,7 @@ order: 2
 summary: Start from what you saw, not from a code - each symptom below names the codes it produces and what actually fixes it.
 audience: everyone
 last_verified: 2026-08-17
-screens: [pos, oms, inventory, purchase-orders, grn, sales-invoices, marketplace, transfers]
+screens: [pos, oms, inventory, purchase-orders, grn, sales-invoices, transfers]
 doc_id: DOC-9A83B74029
 type: procedure
 status: draft

@@ -1036,7 +1036,7 @@ async function renderPIMDetailPanel(container, itemCode) {
         <label class="form-label" for="pim-attr-select">Attribute</label>
         <select id="pim-attr-select" class="form-input" style="width: 200px;">
           <option value="">Select attribute</option>
-          ${attrDefs.map(a => `<option value="${escapeHTMLText(a.code || a.id)}">${escapeHTMLText(a.label || a.code || a.id)}</option>`).join('')}
+          ${attrDefs.map(a => `<option value="${escapeHTMLText(a.code || a.id)}" data-value-type="${escapeHTMLText(a.value_type || 'Data')}">${escapeHTMLText(a.label || a.code || a.id)}</option>`).join('')}
         </select>
       </div>
       <div class="form-group" style="margin-bottom: 0;">
@@ -1180,6 +1180,12 @@ async function renderPIMDetailPanel(container, itemCode) {
     }
   }));
 
+  // Stage 127.1: a Number attribute takes a number, a Date one a date.
+  document.getElementById('pim-attr-select').addEventListener('change', (e) => {
+    const vt = (e.target.selectedOptions[0] && e.target.selectedOptions[0].dataset.valueType) || 'Data';
+    const input = document.getElementById('pim-attr-value');
+    if (input) input.type = vt === 'Number' ? 'number' : (vt === 'Date' ? 'date' : 'text');
+  });
   document.getElementById('pim-attr-save-btn').addEventListener('click', () => savePIMAttributeValue(itemCode));
   document.getElementById('pim-content-assist-btn').addEventListener('click', () => runPIMContentAssist(itemCode));
   document.getElementById('pim-content-save-btn').addEventListener('click', () => savePIMContent(itemCode, 'Draft'));

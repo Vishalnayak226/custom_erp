@@ -35,6 +35,7 @@ const TenantEventDataReset = "data_reset"
 var tenantResetKeep = map[string]string{
 	"users":                    "the logins, with their password hashes",
 	"mfa_recovery_codes":       "the logins' two-factor recovery codes",
+	"mfa_trusted_devices":      "the logins' remembered devices (Stage 125.8)",
 	"roles":                    "roles",
 	"role_permissions":         "permissions",
 	"field_permissions":        "permissions",

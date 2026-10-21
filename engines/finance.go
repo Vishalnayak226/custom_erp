@@ -507,6 +507,18 @@ func PostSalesFinanceBooking(tenantID string, checkoutID string, salePrice int64
 }
 
 func PostSalesFinanceBookingTx(tx *sql.Tx, schema, tenantID, checkoutID string, salePrice int64, costPrice int64, paymentMode string, loyaltyDiscount int64) error {
+	return postSalesFinanceBookingRoundedTx(tx, schema, tenantID, checkoutID, salePrice, 0, costPrice, paymentMode, loyaltyDiscount)
+}
+
+// accountRoundOff (Stage 94.15) takes a bill's round-off line: credited when
+// the bill rounds up, debited when it rounds down.
+const accountRoundOff = "5280"
+
+// postSalesFinanceBookingRoundedTx is the sale's posting with the bill rounded
+// to the rupee (Stage 94.15). roundOff is the paise the bill was rounded by
+// (-50..50); the customer pays salePrice+roundOff, revenue is still the lines'
+// salePrice, and the difference sits in the same voucher on 5280.
+func postSalesFinanceBookingRoundedTx(tx *sql.Tx, schema, tenantID, checkoutID string, salePrice, roundOff, costPrice int64, paymentMode string, loyaltyDiscount int64) error {
 	// Stage 47.2.2 relaxed costPrice from "must be positive" to "must not be
 	// negative". A zero cost is now a real, reachable state rather than a
 	// nonsense one: the client-submitted cost_price that used to guarantee
@@ -528,22 +540,31 @@ func PostSalesFinanceBookingTx(tx *sql.Tx, schema, tenantID, checkoutID string, 
 	if loyaltyDiscount < 0 {
 		return errors.New("loyalty discount cannot be negative")
 	}
-	if loyaltyDiscount > salePrice {
+	bill := salePrice + roundOff
+	if salePrice == 0 || bill < 0 {
+		bill, roundOff = salePrice, 0
+	}
+	if loyaltyDiscount > bill {
 		// Points can cover a whole sale, never more than one - otherwise the
 		// clearing-account debit below would go negative and the customer
 		// would in effect be paid to shop.
-		return fmt.Errorf("loyalty discount (%d) cannot exceed the sale value (%d)", loyaltyDiscount, salePrice)
+		return fmt.Errorf("loyalty discount (%d) cannot exceed the sale value (%d)", loyaltyDiscount, bill)
 	}
 
 	// 1. Post Revenue Bookings
 	revenueDebits := map[string]int64{}
-	if cash := salePrice - loyaltyDiscount; cash > 0 {
+	if cash := bill - loyaltyDiscount; cash > 0 {
 		revenueDebits[paymentModeClearingAccount(paymentMode)] = cash // Debit: Cash/Card/UPI clearing account
 	}
 	if loyaltyDiscount > 0 {
 		revenueDebits["5250"] = loyaltyDiscount // Debit: Loyalty Points Redeemed (5250)
 	}
 	revenueCredits := map[string]int64{"4100": salePrice} // Credit: Sales Revenue Account
+	if roundOff > 0 {
+		revenueCredits[accountRoundOff] = roundOff
+	} else if roundOff < 0 {
+		revenueDebits[accountRoundOff] = -roundOff
+	}
 	if salePrice > 0 {
 		if err := PostDoubleEntryTx(tx, tenantID, schema, "POSCart", checkoutID, revenueDebits, revenueCredits, "", fmt.Sprintf("POSCart:%s:SALE_REVENUE", checkoutID)); err != nil {
 			return err

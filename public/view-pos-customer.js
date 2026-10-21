@@ -379,13 +379,19 @@ function voucherHTML(title, rows, note) {
     <hr>${note ? `<div style="font-size:11px;">${esc(note)}</div>` : ''}</div>`;
 }
 
-function printVoucher(html) {
-  const area = document.getElementById('receipt-print-area');
-  if (!area) return;
-  area.innerHTML = html;
-  area.classList.add('printing');
-  window.print();
-  setTimeout(() => area.classList.remove('printing'), 500);
+function printVoucher(html, ref) {
+  const browser = () => {
+    const area = document.getElementById('receipt-print-area');
+    if (!area) return;
+    area.innerHTML = html;
+    area.classList.add('printing');
+    window.print();
+    setTimeout(() => area.classList.remove('printing'), 500);
+  };
+  // Stage 127.2: on the receipt printer like the bill, no browser dialog once set up.
+  import('./trade-docs.js' + new URL(import.meta.url).search)
+    .then(docs => docs.printSlip(html, ref || 'Voucher', browser))
+    .catch(e => { console.debug('[POS] voucher slip unavailable, using the browser', e); browser(); });
 }
 
 export function printAdvanceReceipt(a) {
@@ -394,14 +400,14 @@ export function printAdvanceReceipt(a) {
     ['Voucher', a.number], ['Customer', a.customer_name], ['For', a.purpose], ['Expected', a.expected_date],
     ['Supply', a.supply_type], ...(a.tax ? [['Taxable value', money2(taxable)], [`GST ${a.gst_rate}%`, money2(a.tax)]] : []),
     ['Received', `${money2(a.amount)} (${a.payment_mode})`], ['Balance', money2(a.balance)],
-  ], 'Advance received against a future purchase. Not a tax invoice - it is adjusted on the final bill.'));
+  ], 'Advance received against a future purchase. Not a tax invoice - it is adjusted on the final bill.'), a.number);
 }
 
 function printAdvanceRefund(a, voucher, amount, reason) {
   printVoucher(voucherHTML('ADVANCE REFUND VOUCHER', [
     ['Voucher', voucher], ['Against advance', a.number], ['Customer', a.customer_name],
     ['Refunded', `${money2(amount)} (${a.payment_mode})`], ['Reason', reason], ['Balance', money2(a.balance)],
-  ], 'Refund of an advance, back the way it was paid.'));
+  ], 'Refund of an advance, back the way it was paid.'), voucher);
 }
 
 let advanceCustomer = null;
@@ -504,7 +510,7 @@ async function takeAdvance(pane) {
 
 async function refundAdvance(pane, a) {
   if (!a) return;
-  const amountStr = await showCustomPrompt(`Refund how much of ${a.number}? It goes back by ${a.payment_mode}, the way it was paid.`, money2(a.balance), 'Refund Advance');
+  const amountStr = await showCustomPrompt(`Refund how much of ${a.number}? It goes back by ${a.payment_mode}, the way it was paid.`, money2(a.balance), 'Refund Advance', 'number');
   if (amountStr === null) return;
   const reason = await showCustomPrompt('Why is the advance refunded?', '', 'Refund Advance');
   if (reason === null) return;

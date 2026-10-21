@@ -3,6 +3,7 @@ package engines
 import (
 	"custom_erp/db"
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -30,10 +31,12 @@ func TestPurchaseOrderPreviewAndPrint(t *testing.T) {
 		vendorBad = "TEST35-VENDOR-NOSTATE"
 		entityMH  = "TEST35-ENTITY-MH"
 		locationX = "TEST35-LOC"
+		locNoLE   = "TEST35-LOC-OWNSTATE" // no Legal Entity, its own State (126.2)
+		locBare   = "TEST35-LOC-BARE"
 		poID      = "TEST35-PO-1"
 	)
 
-	ids := []string{skuA, skuB, skuNoHSN, vendorKA, vendorMH, vendorBad, entityMH, locationX, poID}
+	ids := []string{skuA, skuB, skuNoHSN, vendorKA, vendorMH, vendorBad, entityMH, locationX, locNoLE, locBare, poID}
 	cleanup := func() {
 		for _, id := range ids {
 			db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", id)
@@ -59,6 +62,8 @@ func TestPurchaseOrderPreviewAndPrint(t *testing.T) {
 	insert(vendorBad, "Vendor", map[string]interface{}{"code": vendorBad, "name": "Unregistered Supplier"})
 	insert(entityMH, "LegalEntity", map[string]interface{}{"code": entityMH, "name": "Test Entity", "gstin": "27AAPFU0939F1ZV", "address": "Mumbai"})
 	insert(locationX, "Location", map[string]interface{}{"code": locationX, "name": "Test Store", "type": "Store", "legal_entity": entityMH})
+	insert(locNoLE, "Location", map[string]interface{}{"code": locNoLE, "name": "Own State Store", "type": "Store", "state": "Karnataka"})
+	insert(locBare, "Location", map[string]interface{}{"code": locBare, "name": "Bare Store", "type": "Store"})
 
 	itemsJSON := func(lines ...map[string]interface{}) string {
 		raw, _ := json.Marshal(lines)
@@ -92,6 +97,24 @@ func TestPurchaseOrderPreviewAndPrint(t *testing.T) {
 		}
 		if pos.Reason == "" {
 			t.Fatal("an undetermined place of supply must say why")
+		}
+	})
+
+	// Stage 126.2: the PO screen saves a missing state on the store itself.
+	t.Run("a store with no Legal Entity state falls back to its own State", func(t *testing.T) {
+		pos := ResolvePlaceOfSupply(tenantID, locNoLE, vendorKA)
+		if !pos.Derived || pos.BuyerStateCode != "29" || pos.Interstate {
+			t.Fatalf("got %+v, want intra-state 29 -> 29 from the store's own State", pos)
+		}
+		if s := LoadPrintStore(tenantID, locNoLE); s.StateCode != "29" {
+			t.Fatalf("store block state code = %q, want 29 from the store's own State", s.StateCode)
+		}
+		bare := ResolvePlaceOfSupply(tenantID, locBare, vendorKA)
+		if bare.Derived || bare.BuyerStateCode != "" || !strings.Contains(bare.Reason, "billing store") {
+			t.Fatalf("a store with no state anywhere: got %+v, want undetermined naming the billing store", bare)
+		}
+		if none := ResolvePlaceOfSupply(tenantID, "", vendorKA); none.Derived || !strings.Contains(none.Reason, "billing address") {
+			t.Fatalf("no billing address: got %+v, want undetermined asking for one", none)
 		}
 	})
 

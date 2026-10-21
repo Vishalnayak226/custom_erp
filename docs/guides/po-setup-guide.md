@@ -24,6 +24,8 @@ This is the order in which to set up an organisation so that its first purchase 
 
 **How to use it:** work top to bottom. Each step uses what the steps before it created, so doing them out of order is what causes most blocked POs. Tick each box as you finish it. **Settings → Configuration** shows the same order at the top of the page (**Setup path**), marking each master **Done**, **Next**, **To do** or **Waiting**. Use it to see where you are.
 
+**All at once, from one Excel file:** steps 1–14 can also be filled into the **Setup Workbook** and uploaded in one go, with a preview first and as many corrections as needed afterwards (**Settings → Configuration → Setup Workbook**, [Admin Guide §B.3.19](ADMIN_GUIDE.md)). This page still says what each sheet sets up and why.
+
 **Time:** about two hours for one company with a few stores, a handful of vendors and items. Most of that time is gathering the data in step 0.
 
 **Finding a Setup list:** the **Setup** menu groups lists by module. Type the list's name (*Legal Entity*, *Reason Code*, *MRP Rule*...) into its filter box at the top to go straight to it.
@@ -304,7 +306,7 @@ The full walk of each screen is in the [User Guide](USER_GUIDE.md), §6 (PO) and
 
 | You see | Why | Fix |
 |---|---|---|
-| Amber banner: *could not work the supply type out* | The vendor has no GSTIN or State, or the store's Legal Entity is missing | Add it to the vendor (step 10) or the legal entity (step 2). For one PO only: tick **Inter-state (IGST)** in the banner. |
+| Amber banner: *... has no state — choose it* | The vendor, or the billing store and its Legal Entity, have no GSTIN or State | Choose the state in the banner and click **Save to vendor** / **Save to store**; it is saved on that record for every later PO. Or add it to the vendor (step 10) or the legal entity (step 2). |
 | A PO line turns red | That item has no HSN code or GST rate | Fix the item (or its item name) in Setup. |
 | *enter the purchase price* | A line has no purchase price | Every PO line needs one. |
 | *has no approval rule configured* | The PO amount falls in a gap between bands | Close the gap (step 14). |

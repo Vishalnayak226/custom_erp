@@ -107,8 +107,8 @@ function prefixConfigRow(c, stores, restarts) {
         <td style="font-family: monospace;">${escapeHTMLText(c.prefix)}</td>
         <td>${c.padding_width}</td>
         <td style="font-family: monospace;">${escapeHTMLText(c.suffix || '')}</td>
-        <td>${(isGRNBatchSeries(c) ? GRN_BATCH_RESTARTS : restarts)[c.reset_frequency] || escapeHTMLText(c.reset_frequency)}</td>
-        <td>${c.include_store === false ? 'No' : 'Yes'}</td>
+        <td>${c.record_code ? restarts.NEVER || 'Never' : (isGRNBatchSeries(c) ? GRN_BATCH_RESTARTS : restarts)[c.reset_frequency] || escapeHTMLText(c.reset_frequency)}</td>
+        <td>${c.record_code || c.include_store === false ? 'No' : 'Yes'}</td>
         <td>${overrides ? overrides + (overrides === 1 ? ' store' : ' stores') : '-'}</td>
         <td style="font-family: monospace;">${escapeHTMLText(prefixConfigSample(c, stores[0]))}${tooLong ? `<div class="series-too-long" style="font-size: 12px; font-family: inherit;">${tooLong.store ? escapeHTMLText(tooLong.store.name) + ': ' : ''}${tooLong.short}</div>` : ''}</td>
         <td>${c.active_status ? 'Active' : 'Inactive'}</td>
@@ -216,6 +216,50 @@ function isGRNBatchSeries(c) {
   return c && c.doc_type === 'GRNBatchSeq';
 }
 
+// Stage 126.4: what a series numbers decides what its form offers. A record
+// code (a master's code, a payslip id) prints no store and no year, and its
+// Restart / Store only pick its counter (the server keeps them); a barcode
+// counter's shape is fixed - only its status changes.
+const SERIES_BARCODE_COUNTERS = { PIMBarcodeSeq: true, PIMDatedBarcodeSeq: true };
+const SERIES_TYPED_CODE_MASTERS = { Currency: true, UOM: true, HSNCode: true };
+function seriesIsRecordCode(docType) {
+  const c = (state.prefixConfigs || []).find(x => x.doc_type === docType);
+  if (c) return !!c.record_code;
+  if (docType === 'Payslip' || SERIES_RECORD_NAMES[docType]) return true;
+  const d = (state.activeDoctypes || []).find(x => x.name === docType);
+  return !!(d && d.document_type === 'Master' && !SERIES_TYPED_CODE_MASTERS[docType]);
+}
+function seriesKind(docType) {
+  if (SERIES_BARCODE_COUNTERS[docType] && (state.prefixConfigs || []).some(x => x.doc_type === docType)) return 'barcode';
+  return seriesIsRecordCode(docType) ? 'record' : '';
+}
+
+// seriesSamplesSame: two forms of a series print the same numbers at every
+// store - a status-only save of a series made before the 16-character rule
+// is let through (the server checks the same, 126.4).
+function seriesSamplesSame(a, b) {
+  const stores = (state.seriesStores || []).length ? state.seriesStores : [null];
+  return [null, ...stores].every(st => prefixConfigSample(a, st) === prefixConfigSample(b, st));
+}
+
+// seriesKeyFor resolves what was typed in Transaction to the key a series is
+// saved under - "purchase order", "po" and "PO" are all PO (126.4: a typed
+// "customer" saved a series nothing used, then hid it under Other).
+function seriesKnownKeys() {
+  const keys = new Set([...Object.keys(SERIES_TRANSACTION_NAMES), ...Object.keys(SERIES_DISPLAY_NAMES), ...Object.keys(SERIES_RECORD_NAMES), 'Payslip']);
+  (state.activeDoctypes || []).forEach(d => { if (d.document_type === 'Master' && !SERIES_TYPED_CODE_MASTERS[d.name]) keys.add(d.name); });
+  (state.prefixConfigs || []).forEach(c => keys.add(c.doc_type));
+  return [...keys];
+}
+function seriesKeyFor(typed) {
+  const t = String(typed || '').trim().toLowerCase();
+  if (!t) return '';
+  const keys = seriesKnownKeys();
+  return keys.find(k => k.toLowerCase() === t)
+    || keys.find(k => seriesDisplayName(k).toLowerCase() === t || String(SERIES_TRANSACTION_NAMES[k] || '').toLowerCase() === t)
+    || '';
+}
+
 // Stage 86.2: how the year prints - engines/numbering.go formatPeriodSegment.
 // The counter is keyed by the financial year itself, so a format changed
 // mid-year carries the count on.
@@ -241,6 +285,8 @@ function seriesYearText(format, reset) {
 // segment; a store prefix saved before 86.2 still replaces the series prefix,
 // as the server keeps doing.
 function prefixConfigSample(c, store) {
+  // A record code is drawn with no store and no year (126.4).
+  if (c.record_code) return [c.prefix, String(1).padStart(c.padding_width || 1, '0'), c.suffix].filter(Boolean).join(c.separator || '');
   const o = (store && c.store_overrides && c.store_overrides[store.code]) || {};
   const parts = [o.prefix || c.prefix];
   if (c.include_store !== false) parts.push(o.code || seriesStoreSegment(store));
@@ -278,22 +324,25 @@ const seriesMaxLength = () => (seriesIndia() ? 16 : 20);
 const seriesCapRule = () => (seriesIndia() ? 'GST allows' : 'a document number here allows');
 const GST_NUMBER_PATTERN = /^[A-Z1-9][A-Z0-9/-]*$/;
 const seriesCharsOK = (sample) => !seriesIndia() || GST_NUMBER_PATTERN.test(sample);
+// A record's code (a vendor's, an item's) is not a GST document number, so
+// it is not held to these rules either (126.4; the server says the same).
 function seriesNumberOK(c, sample) {
-  return !!SERIES_DISPLAY_NAMES[c.doc_type] || (seriesCharsOK(sample) && sample.length <= seriesMaxLength());
+  return !!SERIES_DISPLAY_NAMES[c.doc_type] || !!c.record_code || (seriesCharsOK(sample) && sample.length <= seriesMaxLength());
 }
 function seriesProblem(c) {
-  if (SERIES_DISPLAY_NAMES[c.doc_type]) return null;
-  const stores = c.include_store === false || !(state.seriesStores || []).length ? [null] : state.seriesStores;
+  if (SERIES_DISPLAY_NAMES[c.doc_type] || c.record_code) return null;
+  const stores = c.record_code || c.include_store === false || !(state.seriesStores || []).length ? [null] : state.seriesStores;
   let worst = null;
   for (const store of stores) {
     const sample = prefixConfigSample(c, store);
     const where = store ? store.name + ': ' : '';
     if (!seriesCharsOK(sample)) {
-      return { store, short: 'not a valid GST number', text: `${where}${sample} - a GST number may use only capital letters, digits, / and -, and may not start with 0, / or -.${store ? ' Give that store a Code in number.' : ''}` };
+      return { kind: 'chars', store, short: 'not a valid GST number', text: `${where}${sample} - a GST number may use only capital letters, digits, / and -, and may not start with 0, / or -.${store ? ' Give that store a Code in number.' : ''}` };
     }
     if (sample.length > seriesMaxLength() && (!worst || sample.length > worst.sample.length)) worst = { sample, store, where };
   }
   return worst && {
+    kind: 'length',
     store: worst.store,
     short: `${worst.sample.length} characters - ${seriesCapRule()} ${seriesMaxLength()}`,
     text: `${worst.where}${worst.sample} is ${worst.sample.length} characters - ${seriesCapRule()} at most ${seriesMaxLength()}. Shorten the prefix, show the year as ${seriesYearText('FY_COMPACT', 'ANNUAL')} or ${seriesYearText('START_YY', 'ANNUAL')}, use fewer digits or leave the separator blank.`
@@ -317,7 +366,9 @@ function ensureEditPrefixModal() {
       <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
         <div class="form-group">
           <label class="form-label" for="edit-prefix-doctype">Transaction</label>
-          <input type="text" class="form-input" id="edit-prefix-doctype" required placeholder="Record type, e.g. Vendor, Item">
+          <input type="text" class="form-input" id="edit-prefix-doctype" required placeholder="Pick a transaction or record type, e.g. Purchase order, Vendor" list="edit-prefix-doctype-list" autocomplete="off" data-act="previewEditPrefix" data-act-on="input">
+          <datalist id="edit-prefix-doctype-list"></datalist>
+          <div id="edit-prefix-kind-note" class="text-muted" style="font-size: 12.5px; margin-top: 4px;"></div>
         </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
           <div class="form-group">
@@ -381,7 +432,7 @@ function ensureEditPrefixModal() {
           <div id="edit-prefix-preview" style="font-family: Consolas, Monaco, monospace; font-size: 15px; padding: 8px 10px; border: 1px dashed var(--border-color); border-radius: 6px;"></div>
           <div id="edit-prefix-length" role="status" aria-live="polite"></div>
         </div>
-        <div class="form-group">
+        <div class="form-group" id="edit-prefix-stores-group">
           <span class="form-label">Store-wise code and suffix (optional - blank uses the store's Short Code and the series' suffix)</span>
           <div id="edit-prefix-stores" style="max-height: 260px; overflow-y: auto;"></div>
         </div>
@@ -400,10 +451,20 @@ function openEditPrefixModal(c) {
   const modal = document.getElementById('edit-prefix-modal');
   if (!modal) return;
   const isNew = !c;
-  const s = c || { doc_type: '', prefix: '', separator: '/', padding_width: 5, suffix: '', reset_frequency: 'ANNUAL', include_store: true, active_status: true, store_overrides: {}, year_format: '' };
+  // A new series starts inside GST's 16 characters: PO/HO/2627/0001 (126.4 -
+  // the old default, ZZ/HO/26-27/00001, was itself refused).
+  const s = c || { doc_type: '', prefix: '', separator: '/', padding_width: 4, suffix: '', reset_frequency: 'ANNUAL', include_store: true, active_status: true, store_overrides: {}, year_format: 'FY_COMPACT' };
   const docInput = document.getElementById('edit-prefix-doctype');
   docInput.value = s.doc_type;
   docInput.readOnly = !isNew;
+  // The transactions and record types a series can number, less the ones
+  // that already have one (those open with their Edit button).
+  const taken = new Set((state.prefixConfigs || []).map(x => x.doc_type));
+  document.getElementById('edit-prefix-doctype-list').innerHTML = isNew
+    ? seriesKnownKeys().filter(k => !taken.has(k)).map(k => ({ k, name: seriesDisplayName(k) }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(({ k, name }) => `<option value="${escapeHTMLText(k)}">${escapeHTMLText(name)}</option>`).join('')
+    : '';
   document.getElementById('edit-prefix-title').textContent = isNew ? 'New Number Series' : 'Number Series - ' + seriesDisplayName(s.doc_type);
   document.getElementById('edit-prefix-prefix').value = s.prefix || '';
   // GST allows "/", "-" or none; an older series' other separator is shown
@@ -441,8 +502,11 @@ function openEditPrefixModal(c) {
   // longer offered, but a store that has one keeps it (its numbers must not
   // change) and it can be cleared here.
   const legacy = stores.some(st => (overrides[st.code] || {}).prefix);
+  // A counter keeps the case it is typed in; a store's code is always capitals.
+  const counter = !!SERIES_DISPLAY_NAMES[s.doc_type];
+  ['edit-prefix-prefix', 'edit-prefix-suffix'].forEach(id => { document.getElementById(id).style.textTransform = counter ? 'none' : 'uppercase'; });
   const input = (i, part, value, label, max) =>
-    `<input type="text" class="form-input" maxlength="${max}" style="text-transform: uppercase;" data-store-index="${i}" data-store-part="${part}" value="${escapeHTMLText(value || '')}" aria-label="${label}" data-act="previewEditPrefix" data-act-on="input"${part === 'code' ? ` placeholder="${escapeHTMLText(seriesStoreSegment(stores[i]))}"` : ''}>`;
+    `<input type="text" class="form-input" maxlength="${max}" style="text-transform: ${part === 'code' || !counter ? 'uppercase' : 'none'};" data-store-index="${i}" data-store-part="${part}" value="${escapeHTMLText(value || '')}" aria-label="${label}" data-act="previewEditPrefix" data-act-on="input"${part === 'code' ? ` placeholder="${escapeHTMLText(seriesStoreSegment(stores[i]))}"` : ''}>`;
   const rows = stores.map((st, i) => {
     const o = overrides[st.code] || {};
     const label = escapeHTMLText(st.name);
@@ -477,7 +541,7 @@ function readEditPrefixForm() {
   };
   document.querySelectorAll('#edit-prefix-stores input[data-store-index]').forEach(input => {
     const st = stores[Number(input.dataset.storeIndex)];
-    const v = text(input);
+    const v = input.dataset.storePart === 'code' ? input.value.trim().toUpperCase() : text(input);
     if (!st || !v) return;
     overrides[st.code] = overrides[st.code] || {};
     overrides[st.code][input.dataset.storePart] = v;
@@ -495,6 +559,7 @@ function readEditPrefixForm() {
     store_overrides: overrides,
     year_format: (yearSel && yearSel.dataset.format) || 'FY_SHORT',
     year_position: (document.getElementById('edit-prefix-yearpos') || {}).value || '',
+    record_code: seriesKind(docType) === 'record', // the preview's; the server decides
   };
 }
 
@@ -503,6 +568,15 @@ function readEditPrefixForm() {
 function previewEditPrefix() {
   const el = document.getElementById('edit-prefix-preview');
   if (!el) return;
+  // Stage 126.4: a record code offers only its prefix, digits and suffix (its
+  // boxes show what applies: never restarts, no store); a barcode counter
+  // only its status.
+  const docInput = document.getElementById('edit-prefix-doctype');
+  const kind = seriesKind(seriesKeyFor(docInput.value) || docInput.value.trim());
+  if (kind === 'record') {
+    document.getElementById('edit-prefix-reset').value = 'NEVER';
+    document.getElementById('edit-prefix-store').value = 'no';
+  }
   const reset = document.getElementById('edit-prefix-reset').value;
   const yearSel = document.getElementById('edit-prefix-year');
   if (yearSel.value) yearSel.dataset.format = yearSel.value;
@@ -510,6 +584,15 @@ function previewEditPrefix() {
   yearSel.disabled = reset === 'NEVER';
   document.getElementById('edit-prefix-yearpos').disabled = reset === 'NEVER';
   yearSel.value = reset === 'NEVER' ? '' : yearSel.dataset.format;
+
+  const lock =(ids, on) => ids.forEach(id => { const el = document.getElementById(id); if (el && on) el.disabled = true; else if (el && !['edit-prefix-year', 'edit-prefix-yearpos'].includes(id)) el.disabled = false; });
+  lock(['edit-prefix-reset', 'edit-prefix-year', 'edit-prefix-yearpos', 'edit-prefix-store'], !!kind);
+  lock(['edit-prefix-prefix', 'edit-prefix-separator', 'edit-prefix-padding', 'edit-prefix-suffix'], kind === 'barcode');
+  document.querySelectorAll('#edit-prefix-stores input').forEach(i => { i.disabled = kind === 'barcode'; });
+  document.getElementById('edit-prefix-stores-group').hidden = kind === 'record';
+  document.getElementById('edit-prefix-kind-note').textContent = kind === 'record'
+    ? 'A record\'s code: no store or year is printed in it and it never restarts - set its prefix, digits and suffix.'
+    : kind === 'barcode' ? 'A barcode counter: its digits are fixed, so barcodes already printed never repeat - only its status can change.' : '';
 
   const s = readEditPrefixForm();
   const stores = state.seriesStores || [];
@@ -522,9 +605,11 @@ function previewEditPrefix() {
   });
   const status = document.getElementById('edit-prefix-length');
   const problem = seriesProblem(s);
-  status.className = problem ? 'series-too-long' : 'text-muted';
-  status.textContent = problem ? problem.text
-    : SERIES_DISPLAY_NAMES[s.doc_type] ? '' : `Longest number: ${Math.max(el.textContent.length, ...stores.map(st => prefixConfigSample(s, st).length))} of ${seriesMaxLength()} characters.`;
+  const stored = docInput.readOnly && (state.prefixConfigs || []).find(c => c.doc_type === s.doc_type);
+  const asItIs = !!(problem && problem.kind === 'length' && stored && seriesSamplesSame(s, stored));
+  status.className = problem && !asItIs ? 'series-too-long' : 'text-muted';
+  status.textContent = problem ? problem.text + (asItIs ? ' This series prints these numbers today, so it can be saved as it is; a change to the number has to fit.' : '')
+    : SERIES_DISPLAY_NAMES[s.doc_type] ? '' : `Longest number: ${Math.max(el.textContent.length, ...(s.record_code ? [] : stores.map(st => prefixConfigSample(s, st).length)))} of ${seriesMaxLength()} characters.`;
 }
 window.previewEditPrefix = previewEditPrefix;
 
@@ -549,7 +634,23 @@ window.submitEditPrefix = async function(e) {
     await showCustomAlert('Enter the transaction (record type) this series numbers.');
     return;
   }
-  if (seriesProblem(body)) {
+  // Stage 126.4: a new series is saved under the key the system numbers by;
+  // one that already has a series opens with its Edit button (saving it here
+  // replaced it and dropped its store codes).
+  const isNew = !document.getElementById('edit-prefix-doctype').readOnly;
+  if (isNew) {
+    const key = seriesKeyFor(body.doc_type);
+    if (key) body.doc_type = key;
+    const existing = (state.prefixConfigs || []).find(c => c.doc_type.toLowerCase() === body.doc_type.toLowerCase());
+    if (existing) {
+      await showCustomAlert(`${seriesDisplayName(existing.doc_type)} already has a number series - close this and use its Edit button.`);
+      return;
+    }
+    if (!key && !(await showCustomConfirm(`"${body.doc_type}" is not a transaction or record type the system numbers, so nothing would use this series. Pick one from the list instead - or save it anyway?`, 'Unknown transaction'))) return;
+  }
+  const stored = !isNew && (state.prefixConfigs || []).find(c => c.doc_type === body.doc_type);
+  const problem = seriesProblem(body);
+  if (problem && !(problem.kind === 'length' && stored && seriesSamplesSame(body, stored))) {
     await showCustomAlert(document.getElementById('edit-prefix-length').textContent);
     return;
   }
@@ -557,7 +658,13 @@ window.submitEditPrefix = async function(e) {
   if (!res) return;
   if (res.ok) {
     window.closeEditPrefixModal();
-    showToast('Number series for ' + body.doc_type + ' saved.');
+    showToast('Number series for ' + seriesDisplayName(body.doc_type) + ' saved.');
+    // The list keeps its group filter; a series saved under another group
+    // would be hidden, so the list opens on the saved one's group.
+    try {
+      const kept = sessionStorage.getItem('erp_prefix_group');
+      if (kept && kept !== seriesGroup(body.doc_type)) sessionStorage.setItem('erp_prefix_group', seriesGroup(body.doc_type));
+    } catch (_) { /* storage off */ }
     renderView('prefix-configs');
   } else {
     await showApiError(res, 'Failed to save the number series.');
@@ -1554,7 +1661,8 @@ async function renderConfigurationView(container) {
   modules.splice(modules.includes('Inventory') ? modules.indexOf('Inventory') + 1 : modules.length - 1, 0, CONFIG_ITEM_FIELDS_MODULE);
   if (!configSelectedModule || !modules.includes(configSelectedModule)) configSelectedModule = modules[0];
   // Stage 82: the industry heads the rail; the page still opens on settings.
-  modules.unshift(CONFIG_INDUSTRY_MODULE);
+  // Stage 128: the Setup Workbook under it - everything at once.
+  modules.unshift(CONFIG_INDUSTRY_MODULE, CONFIG_SETUP_WORKBOOK_MODULE);
 
   const panel = document.createElement('div');
   panel.className = 'table-panel';
@@ -1621,6 +1729,8 @@ function configInputId(key) { return 'config-input-' + key; }
 const CONFIG_INDUSTRY_MODULE = 'Industry';
 // Stage 89: Configuration -> Item fields (view-item-form.js renderConfigItemFields).
 const CONFIG_ITEM_FIELDS_MODULE = 'Item fields';
+// Stage 128: the whole setup from one Excel file (view-setup-workbook.js).
+const CONFIG_SETUP_WORKBOOK_MODULE = 'Setup Workbook';
 
 async function renderConfigIndustry(host) {
   host.innerHTML = '<p class="text-muted">Loading…</p>';
@@ -1837,6 +1947,11 @@ function renderConfigFields() {
     updateConfigDirtyState();
     return;
   }
+  if (configSelectedModule === CONFIG_SETUP_WORKBOOK_MODULE) {
+    loadViewModule('/view-setup-workbook.js').then(m => m.renderSetupWorkbook(host));
+    updateConfigDirtyState();
+    return;
+  }
   const items = configSearch
     ? configSettings.filter(s => `${s.label} ${s.description || ''} ${s.key} ${s.module}`.toLowerCase().includes(configSearch))
     : configSettings.filter(s => s.module === configSelectedModule);
@@ -1876,7 +1991,9 @@ function configFieldHtml(s) {
     const max = (s.max !== null && s.max !== undefined) ? `max="${s.max}"` : '';
     // float settings (tolerances, rupee thresholds) accept decimals; int stays whole-number.
     const step = s.type === 'float' ? 'step="any"' : 'step="1"';
-    control = `<input type="number" id="${id}" class="form-input" value="${cfgEsc(s.value)}" ${min} ${max} ${step} style="max-width:200px; display:inline-block;">${unit}`;
+    // Stage 127.1: an optional number may be left blank - its description says what blank means.
+    const blank = s.optional ? 'placeholder="Blank: the rule described"' : '';
+    control = `<input type="number" id="${id}" class="form-input" value="${cfgEsc(s.value)}" ${min} ${max} ${step} ${blank} style="max-width:200px; display:inline-block;">${unit}`;
   } else {
     control = `<input type="text" id="${id}" class="form-input" value="${cfgEsc(s.value)}" style="max-width:360px; display:inline-block;">${unit}`;
   }
@@ -2565,6 +2682,10 @@ function consoleInput(c, text) {
   }
   if (c.type.startsWith('json') || c.type === 'JSONTable' || c.type === 'JSONMap' || text.length > 80) {
     return `<textarea class="form-textarea" rows="${Math.min(16, text.split('\n').length + 1)}" data-pc-col="${escapeHTMLText(c.name)}" style="font-family: monospace; font-size: 12px;">${escapeHTMLText(text)}</textarea>`;
+  }
+  // Stage 127.1: a Number field or a numeric column takes a number.
+  if (c.type === 'Number' || /^(integer|bigint|smallint|numeric|real|double precision|decimal)/.test(c.type)) {
+    return `<input type="number" step="any" ${attrs} value="${escapeHTMLText(text)}">`;
   }
   return `<input ${attrs} value="${escapeHTMLText(text)}">`;
 }

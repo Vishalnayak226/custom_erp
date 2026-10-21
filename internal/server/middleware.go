@@ -662,6 +662,22 @@ func moduleGate(moduleKey string, next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// moduleGateAny admits a tenant with any one of the modules. Stage 88.2: the
+// fulfillment task's pick, pack and reject routes serve OMS ▸ Pick / Pack as
+// well as the WMS floor, so an OMS-only tenant can fulfil its own orders.
+func moduleGateAny(moduleKeys []string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tenantID := r.Header.Get("Resolved-Tenant-ID")
+		for _, key := range moduleKeys {
+			if enabled, _ := engines.IsModuleEnabled(tenantID, key); enabled {
+				next(w, r)
+				return
+			}
+		}
+		writeAPIError(w, r, "SAAS-0191", "")
+	}
+}
+
 // trustProxy (Stage 28.4) is set when the app runs behind a trusted reverse
 // proxy (Caddy - see deploy/Caddyfile). Off by default: without a proxy in
 // front, a direct client could forge X-Forwarded-For, so the socket's

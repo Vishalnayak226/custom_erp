@@ -183,7 +183,7 @@ async function capitalizeAsset(assetId, usefulLifeYears, asset = {}) {
   // and depreciation cannot be worked out without one - ask for it here.
   let life = Number(usefulLifeYears) || 0;
   if (life <= 0) {
-    const answer = await showCustomPrompt('Useful life in years (needed to work out depreciation):', '5');
+    const answer = await showCustomPrompt('Useful life in years (needed to work out depreciation):', '5', 'Useful Life', 'number');
     if (answer === null || answer === undefined || answer === '') return;
     life = Number(answer);
     if (!(life > 0)) {

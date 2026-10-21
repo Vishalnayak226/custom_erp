@@ -77,7 +77,12 @@ var documentNumberSeriesByDoctype = map[string]documentNumberSeries{
 	"GatePass":          {SeriesKey: "GP", NumberFields: []string{"code"}, StoreFields: []string{"location_code"}, KeepID: true},
 	"ConsumptionEntry":  {SeriesKey: "CE", NumberFields: []string{"code"}, StoreFields: []string{"location"}, KeepID: true},
 	"BundleAssembly":    {SeriesKey: "KIT", NumberFields: []string{"code"}, StoreFields: []string{"location_code"}, KeepID: true},
-	"LandedCostVoucher": {SeriesKey: "LCV", NumberFields: []string{"code"}, KeepID: true},
+	// Stage 88: the OMS bill (its number is the GST invoice number, D5), the
+	// stock adjustment (on 76.12's ADJ series) and the MRP change.
+	"OMSBill":             {SeriesKey: "OB", NumberFields: []string{"bill_number"}, StoreFields: []string{"location"}, KeepID: true},
+	"InventoryAdjustment": {SeriesKey: "ADJ", NumberFields: []string{"code"}, StoreFields: []string{"location"}, KeepID: true},
+	"MRPChange":           {SeriesKey: "MRP", NumberFields: []string{"code"}, KeepID: true},
+	"LandedCostVoucher":   {SeriesKey: "LCV", NumberFields: []string{"code"}, KeepID: true},
 }
 
 // DocumentNumber (Stage 76.11) is the number a person reads for a document

@@ -108,6 +108,9 @@ func handlePrintStickers(w http.ResponseWriter, r *http.Request) {
 	}
 	var labels []engines.StickerLabel
 	var err error
+	if req.SourceDoctype != "" && !stickerSourceReadable(w, r, req.SourceDoctype) {
+		return
+	}
 	if req.SourceDoctype != "" && req.SourceDocID != "" {
 		// Stage 52: the browser-print-fallback path for bulk printing from a
 		// GRN/Transfer Order - mirrors the QZ silent-print branch in
@@ -139,6 +142,9 @@ func handlePreviewStickers(w http.ResponseWriter, r *http.Request) {
 	sourceDocID := r.URL.Query().Get("source_doc_id")
 	if sourceDoctype == "" || sourceDocID == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameters 'source_doctype' and 'source_doc_id' are required")
+		return
+	}
+	if !stickerSourceReadable(w, r, sourceDoctype) {
 		return
 	}
 	lines, err := engines.PreviewDocumentStickerLines(tenantID, sourceDoctype, sourceDocID)
@@ -671,3 +677,14 @@ func handlePIMSearchFeedExport(w http.ResponseWriter, r *http.Request) {
 // handlers cover the lifecycle actions (capitalise/transfer/dispose) and
 // the depreciation-calculated register view, which need logic the generic
 // endpoint doesn't have.
+
+// stickerSourceReadable (Stage 127.5): any transaction with item lines is a
+// sticker source now, and its preview shows those lines - so a source other
+// than a GRN or Transfer Order (which sticker printing has always read) needs
+// read permission on its own doctype.
+func stickerSourceReadable(w http.ResponseWriter, r *http.Request, doctype string) bool {
+	if doctype == "GRN" || doctype == "TransferOrder" {
+		return true
+	}
+	return requireDocPermission(w, r, doctype, "read", "You do not have permission to view this document")
+}

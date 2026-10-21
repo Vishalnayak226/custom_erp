@@ -509,6 +509,15 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 	// Stage 73.1.10 (D09): an Approved PeriodReopenRequest reopens its period
 	// and starts a new close round. Logged rather than failing the committed
 	// decision; the period's close board offers the retry.
+	// Stage 88.5.4: an approved stock adjustment moves the stock and books it
+	// here. A refusal (the stock is no longer there) stays on the adjustment,
+	// which remains Approved for Inventory ▸ Stock Adjustment's Post again.
+	if doctype == InventoryAdjustmentDoctype && decision == "Approved" {
+		if errPost := PostInventoryAdjustment(tenantID, docID, actorUserID); errPost != nil {
+			LogSystemError(tenantID, "", "ERROR", "DecideApproval", fmt.Sprintf("InventoryAdjustment %s approved but not posted: %v", docID, errPost), "")
+		}
+	}
+
 	if doctype == "PeriodReopenRequest" && decision == "Approved" {
 		if errReopen := ApplyApprovedPeriodReopen(tenantID, docID, actorUserID); errReopen != nil {
 			LogSystemError(tenantID, "", "ERROR", "DecideApproval",

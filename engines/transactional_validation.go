@@ -63,6 +63,8 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 		return validateVendorInvoiceCreateRules(tenantID, payload)
 	case "PurchaseOrder":
 		return validatePurchaseOrderEditRules(tenantID, docID, priorStatus, priorData, payload)
+	case "PostingProfile": // Stage 74.1.3
+		return validatePostingProfileRules(tenantID, payload)
 	case "TransferOrder":
 		return validateTransferOrderCreateRules(tenantID, payload)
 	case "CycleCountLine":
@@ -717,6 +719,15 @@ func validateVendorInvoiceCreateRules(tenantID string, payload map[string]interf
 // not a status-only update (e.g. the approval flow moving Draft ->
 // Approved touches nothing this function cares about).
 func validatePurchaseOrderEditRules(tenantID, docID, priorStatus string, priorData, payload map[string]interface{}) error {
+	// Stage 127.7: the purchase price the PO screen requires (114.7) is required
+	// of every save that writes lines - the API and an import too. A save that
+	// leaves the lines as they were (an approval, a status move) is not
+	// checked, so an older PO saved without prices still moves on.
+	if newItems, _ := payload["items"].(string); docID == "" || priorData == nil || newItems != strField(priorData, "items") {
+		if err := validatePurchaseOrderLinePrices(newItems); err != nil {
+			return err
+		}
+	}
 	if docID == "" || priorData == nil {
 		return nil
 	}
@@ -956,4 +967,29 @@ func CheckAttendanceLocationMismatch(tenantID string, payload map[string]interfa
 		return false, ""
 	}
 	return true, fmt.Sprintf("Attendance for employee %s recorded at %q, assigned work location is %q", employeeID, attLocation, empLocation)
+}
+
+// validatePurchaseOrderLinePrices refuses a PO line with no purchase price or
+// quantity (Stage 127.7), naming the lines.
+func validatePurchaseOrderLinePrices(itemsJSON string) error {
+	if strings.TrimSpace(itemsJSON) == "" {
+		return nil
+	}
+	lines, err := ParsePOLines(itemsJSON)
+	if err != nil {
+		return nil // a malformed items list is the PO's own validation's to refuse
+	}
+	var missing []string
+	for i, l := range lines {
+		if strings.TrimSpace(l.SKU) == "" {
+			continue
+		}
+		if l.Rate <= 0 || l.Qty <= 0 {
+			missing = append(missing, fmt.Sprintf("line %d (%s)", i+1, l.SKU))
+		}
+	}
+	if len(missing) > 0 {
+		return &ValidationError{Code: "PURCHA-0490", SubFor: "Purchase price", Message: "enter the purchase price and quantity on " + strings.Join(missing, ", ")}
+	}
+	return nil
 }

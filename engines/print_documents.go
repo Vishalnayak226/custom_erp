@@ -50,6 +50,11 @@ const (
 	// Stage 98.1: the Sales Invoice (order and package bills) prints, exports
 	// and is sent like every other transaction.
 	PrintTxnSalesInvoice = "SalesInvoice"
+	// Stage 88.3.2: the OMS bill made at Pack - the GST invoice the customer
+	// gets; it prints like the Sales Invoice.
+	PrintTxnOMSBill = "OMSBill"
+	// Stage 88.2.3: one fulfillment task's pick list (OMS ▸ Pick).
+	PrintTxnPickList = "PickList"
 )
 
 // PrintTransactions lists them with the doctype each prints from.
@@ -69,6 +74,8 @@ var PrintTransactions = []struct {
 	{PrintTxnSalesReturn, "Sales Return", "ReturnRequest"},
 	{PrintTxnPOSTaxInvoice, "Tax Invoice (GST bill from the till)", "POSCart"},
 	{PrintTxnSalesInvoice, "Sales Invoice", "SalesInvoice"},
+	{PrintTxnOMSBill, "OMS Bill", "OMSBill"},
+	{PrintTxnPickList, "Pick List", "FulfillmentTask"},
 }
 
 func printTxnDoctype(txn string) string {
@@ -93,6 +100,10 @@ type PrintStore struct {
 	GSTIN     string `json:"gstin,omitempty"`
 	Phone     string `json:"phone,omitempty"`
 	Email     string `json:"email,omitempty"`
+	// Stage 127.4: the seller's identity from the Legal Entity.
+	TradeName string `json:"trade_name,omitempty"`
+	Bank      string `json:"bank,omitempty"`
+	Terms     string `json:"terms,omitempty"`
 }
 
 // PrintTaxRow is one GST rate's share of the document - or, on a tax
@@ -161,12 +172,21 @@ func LoadPrintStore(tenantID, locationCode string) PrintStore {
 	if e, _, errE := fetchDocData(tenantID, "LegalEntity", str(loc, "legal_entity")); errE == nil {
 		out.LegalName = str(e, "name")
 		out.GSTIN = str(e, "gstin")
+		out.TradeName, out.Terms = str(e, "trade_name"), str(e, "print_terms")
+		out.Phone, out.Email = firstNonEmpty(out.Phone, str(e, "contact_phone")), firstNonEmpty(out.Email, str(e, "email"))
+		out.Bank = entityBankLine(e)
 		code := firstNonEmpty(StateCodeFromGSTIN(out.GSTIN), StateCodeFromName(str(e, "state")))
 		out.StateCode = code
 		out.State = StateLabel(code)
 		if out.Address == "" {
 			out.Address = addressLines(e)
 		}
+	}
+	// Stage 126.2: the store's own State where its Legal Entity gives none -
+	// the same fallback the place of supply uses.
+	if out.StateCode == "" {
+		out.StateCode = StateCodeFromName(str(loc, "state"))
+		out.State = StateLabel(out.StateCode)
 	}
 	if out.State == "Not set" {
 		out.State = ""
@@ -436,7 +456,7 @@ func docHeaderFields(data map[string]interface{}) map[string]interface{} {
 // BuildPrintDocument assembles the print data for one transaction. store
 // overrides the generating store; withImages embeds each item's picture.
 func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (PrintDocument, error) {
-	doctype := printTxnDoctype(txn)
+	doctype := PrintTxnDoctype(tenantID, txn) // Stage 127.3: any transaction prints
 	if doctype == "" {
 		return PrintDocument{}, &ValidationError{Code: "GLOBAL-0002", SubFor: "Transaction", Message: fmt.Sprintf("%q is not a printable transaction", txn)}
 	}
@@ -741,22 +761,37 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 			d.addLine(tenantID, printLineIn{SKU: sku, Qty: qty, Rate: unit, Taxable: taxable, GST: round2(value - taxable), GSTRate: gstRate,
 				Extra: map[string]interface{}{"discount": round2(numFromInterface(l["offer_share"]))}}, cache, withImages)
 		}
-	case PrintTxnSalesInvoice:
+	case PrintTxnPickList:
+		d.Title, d.Number = "Pick List", firstNonEmpty(strField(data, "code"), id)
+		defaultStore = strField(data, "location_code")
+		orderID := strField(data, "order_id")
+		schema, _ := db.GetTenantSchema(tenantID)
+		customer, _ := orderFieldString(schema, orderID, "customer_name")
+		d.Party, d.PartyTitle = loadPrintCustomer(tenantID, customer), "Ship to"
+		d.Fields["sales_order"] = DocumentNumber(tenantID, "SalesOrder", orderID)
+		d.Fields["customer"] = customer
+		for _, it := range jsonLines(data["items"]) {
+			// What is still to pick; a short-picked remainder will not be found.
+			qty := numFromInterface(it["qty"]) - numFromInterface(it["short_qty"])
+			d.addLine(tenantID, printLineIn{SKU: strField(it, "sku"), Qty: qty, Extra: map[string]interface{}{"picked_qty": numFromInterface(it["picked_qty"])}}, cache, withImages)
+		}
+	case PrintTxnSalesInvoice, PrintTxnOMSBill:
 		d.Title = "Tax Invoice"
 		// A Draft prints as a proforma (31.1.9): it must never look posted.
 		if d.Status == "Draft" {
 			d.Title = "Proforma Invoice (Draft - not a tax invoice)"
 		}
-		d.Number = firstNonEmpty(strField(data, "invoice_number"), strField(data, "code"), id)
+		d.Number = firstNonEmpty(strField(data, "invoice_number"), strField(data, "bill_number"), strField(data, "code"), id)
 		d.Date = firstNonEmpty(strField(data, "invoice_date"), strField(data, "posting_date"), d.Date)
 		defaultStore = strField(data, "location")
 		// An order bill stores the customer's name, a package bill may store
 		// the Customer record; either prints.
 		d.Party, d.PartyTitle = loadPrintCustomer(tenantID, firstNonEmpty(strField(data, "customer_id"), strField(data, "customer"))), "Buyer"
 		d.Interstate, _ = data["interstate"].(bool)
-		d.Fields["sales_order"] = strField(data, "sales_order_id")
+		d.Fields["sales_order"] = DocumentNumber(tenantID, "SalesOrder", strField(data, "sales_order_id")) // its number, not its id
 		d.Fields["buyer_gstin"] = d.Party.GSTIN
-		d.addIRNFields(tenantID, "SalesInvoice", id)
+		// An OMS bill's IRN is its ERP bill's, once that exists (88.3.3).
+		d.addIRNFields(tenantID, "SalesInvoice", firstNonEmpty(strField(data, "sales_invoice_id"), id))
 		schema, _ := db.GetTenantSchema(tenantID)
 		// The lines the e-invoice is built from (einvoice.go), so the print
 		// and the IRN bill the same thing.
@@ -823,6 +858,9 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 					"original_disc": round2(math.Max(numFromInterface(item["mrp"])-l.OriginalUnitPrice, 0)),
 					"condition":     l.Disposition, "exchange_sku": l.ExchangeSKU}}, cache, withImages)
 		}
+	default:
+		// Stage 127.3: a transaction with no format of its own.
+		defaultStore = buildGenericPrint(tenantID, &d, data, cache, withImages)
 	}
 
 	d.Store = LoadPrintStore(tenantID, firstNonEmpty(strings.TrimSpace(store), defaultStore))
@@ -834,6 +872,7 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 		d.Fields["place_of_supply"] = pos
 	}
 	d.Brand = map[string]string{"name": printBrandName(tenantID, d.Store)}
+	d.applyPrintProfile(tenantID, txn) // Stage 127.4
 	d.finish()
 	d.orderAttributeColumns(tenantID)
 	// Stage 71: the common header and audit fields every print carries.

@@ -1383,75 +1383,143 @@ async function printThermal(segments, printer, jobRef) {
 // unsmoothed, so the driver gets the bars the printer will burn instead of
 // greys to dither; and the first page's size is also the document's default
 // page, which is what Chromium hands the driver as the paper size.
-async function printSheet(segments, dpi) {
-  const area = document.getElementById('sticker-print-area');
-  if (!area) return;
-  const pngCache = new Map();
-  const png = (t, label) => {
-    const key = t;
-    let perT = pngCache.get(key);
-    if (!perT) { perT = new Map(); pngCache.set(key, perT); }
-    if (perT.has(label)) return perT.get(label);
-    const roll = t.settings.sheet.mode !== 'a4';
-    const pdpi = roll ? (dpi || t.settings.dpi || 203) : Math.max(300, t.settings.dpi);
-    const dpm = pdpi / MM_PER_INCH;
-    const cell = cellSize(t);
-    const c = newCanvas(Math.round(cell.w * dpm), Math.round(cell.h * dpm));
-    const ctx = c.getContext('2d', { willReadFrequently: true });
-    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
-    drawCell(ctx, t, label, { scale: dpm, dpi: pdpi, snap: true, mono: roll });
-    if (roll) {
-      const bmp = canvasToBits(ctx, c.width, c.height);
-      const img = ctx.createImageData(c.width, c.height);
-      for (let y = 0; y < c.height; y++) {
-        for (let x = 0; x < c.width; x++) {
-          const v = bmp.bits[y * bmp.bytesPerRow + (x >> 3)] & (0x80 >> (x & 7)) ? 0 : 255;
-          const i = (y * c.width + x) * 4;
-          img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255;
-        }
-      }
-      ctx.putImageData(img, 0, 0);
-    }
-    const url = c.toDataURL('image/png');
-    perT.set(label, url);
-    return url;
-  };
+// labelDots draws one label at the print's own resolution: a roll label 1-bit
+// at the printer's dots, an A4 sheet label at 300 dpi or more. Shared by the
+// browser sheet and the silent PDF (Stage 127.2), so both print the same bars.
+function printDPI(t, dpi) {
+  return t.settings.sheet.mode !== 'a4' ? (dpi || t.settings.dpi || 203) : Math.max(300, t.settings.dpi);
+}
 
-  let css = '@media print { html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; } }\n';
-  let html = '';
+function labelDots(t, label, dpi) {
+  const roll = t.settings.sheet.mode !== 'a4';
+  const pdpi = printDPI(t, dpi);
+  const dpm = pdpi / MM_PER_INCH;
+  const cell = cellSize(t);
+  const c = newCanvas(Math.round(cell.w * dpm), Math.round(cell.h * dpm));
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+  drawCell(ctx, t, label, { scale: dpm, dpi: pdpi, snap: true, mono: roll });
+  if (roll) {
+    const bmp = canvasToBits(ctx, c.width, c.height);
+    const img = ctx.createImageData(c.width, c.height);
+    for (let y = 0; y < c.height; y++) {
+      for (let x = 0; x < c.width; x++) {
+        const v = bmp.bits[y * bmp.bytesPerRow + (x >> 3)] & (0x80 >> (x & 7)) ? 0 : 255;
+        const i = (y * c.width + x) * 4;
+        img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  return { canvas: c, dpm };
+}
+
+// sheetPages is where every label of a print lands: one entry per page with
+// its size and each label's top-left, in mm (Stage 127.2: one layout for the
+// browser sheet and the silent PDF).
+function sheetPages(segments) {
+  const pages = [];
   segments.forEach((seg, si) => {
     const t = seg.t, s = t.settings, cell = cellSize(t);
-    const pageName = `stk${si}`;
     if (s.sheet.mode === 'a4') {
-      css += `${si === 0 ? '@page { size: 210mm 297mm; margin: 0; }\n' : ''}@page ${pageName} { size: 210mm 297mm; margin: 0; }\n`;
       const sh = s.sheet;
       const cols = Math.max(1, Math.floor((210 - 2 * sh.margin_left_mm + sh.gap_h_mm) / (cell.w + sh.gap_h_mm)));
       const rowsPer = Math.max(1, Math.floor((297 - 2 * sh.margin_top_mm + sh.gap_v_mm) / (cell.h + sh.gap_v_mm)));
       const perPage = cols * rowsPer;
       for (let p = 0; p < seg.items.length; p += perPage) {
-        html += `<div class="stk-page" style="page:${pageName}; width:210mm; height:297mm;">`;
-        seg.items.slice(p, p + perPage).forEach((label, k) => {
-          const x = sh.margin_left_mm + (k % cols) * (cell.w + sh.gap_h_mm) + s.offset_x_mm;
-          const y = sh.margin_top_mm + Math.floor(k / cols) * (cell.h + sh.gap_v_mm) + s.offset_y_mm;
-          html += `<img src="${png(t, label)}" style="left:${x}mm; top:${y}mm; width:${cell.w}mm; height:${cell.h}mm;" alt="">`;
-        });
-        html += '</div>';
+        pages.push({ si, t, a4: true, w: 210, h: 297, flip: false, cells: seg.items.slice(p, p + perPage).map((label, k) => ({ label,
+          x: sh.margin_left_mm + (k % cols) * (cell.w + sh.gap_h_mm) + s.offset_x_mm,
+          y: sh.margin_top_mm + Math.floor(k / cols) * (cell.h + sh.gap_v_mm) + s.offset_y_mm })) });
       }
     } else {
       const mw = mediaWidthMM(t), ph = printHeightMM(t);
-      css += `${si === 0 ? `@page { size: ${mw}mm ${ph}mm; margin: 0; }\n` : ''}@page ${pageName} { size: ${mw}mm ${ph}mm; margin: 0; }\n`;
       for (const row of segmentRows(seg)) {
         for (let c = 0; c < row.copies; c++) {
-          html += `<div class="stk-page" style="page:${pageName}; width:${mw}mm; height:${ph}mm;${s.flip ? ' transform: rotate(180deg);' : ''}">`;
-          row.cells.forEach((label, k) => {
+          pages.push({ si, t, a4: false, w: mw, h: ph, flip: !!s.flip, cells: row.cells.map((label, k) => {
             const o = cellOrigin(t, k);
-            html += `<img src="${png(t, label)}" style="left:${s.offset_x_mm + o.x}mm; top:${s.offset_y_mm + o.y}mm; width:${cell.w}mm; height:${cell.h}mm; image-rendering: pixelated;" alt="">`;
-          });
-          html += '</div>';
+            return { label, x: s.offset_x_mm + o.x, y: s.offset_y_mm + o.y };
+          }) });
         }
       }
     }
   });
+  return pages;
+}
+
+// stickerPDFs (Stage 127.2) is the print as PDFs for a label printer driven
+// by its Windows driver: each page drawn at the printer's dots, labels copied
+// in pixel for pixel, one PDF per run of same-sized pages.
+async function stickerPDFs(segments, dpi) {
+  const pdf = await import('./print-pdf.js' + new URL(import.meta.url).search);
+  const cache = new Map();
+  const out = [];
+  let run = null;
+  for (const pg of sheetPages(segments)) {
+    let perT = cache.get(pg.t);
+    if (!perT) { perT = new Map(); cache.set(pg.t, perT); }
+    const dpm = printDPI(pg.t, dpi) / MM_PER_INCH;
+    const page = newCanvas(Math.round(pg.w * dpm), Math.round(pg.h * dpm));
+    const g = page.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    g.fillStyle = '#fff'; g.fillRect(0, 0, page.width, page.height);
+    if (pg.flip) { g.translate(page.width, page.height); g.rotate(Math.PI); }
+    for (const c of pg.cells) {
+      let dots = perT.get(c.label);
+      if (!dots) { dots = labelDots(pg.t, c.label, dpi); perT.set(c.label, dots); }
+      g.drawImage(dots.canvas, Math.round(c.x * dpm), Math.round(c.y * dpm));
+    }
+    if (!run || run.w !== pg.w || run.h !== pg.h) { run = { w: pg.w, h: pg.h, canvases: [] }; out.push(run); }
+    run.canvases.push(page);
+  }
+  return Promise.all(out.map(async r => pdf.blobToBase64(pdf.canvasesToPDF(r.canvases, r.w, r.h))));
+}
+
+// printStickersSilently (Stage 127.2) sends the print to this computer's
+// Sticker printer through PrintBridge: raw commands when it speaks ZPL or
+// TSPL, else the PDF. false with why.reason when it cannot.
+async function printStickersSilently(segments, formPrinter, jobRef, why) {
+  if (!window.QZPrint || !window.qzTryPrint || !window.qzTryConnect || !await window.qzTryConnect()) { why.reason = 'PrintBridge is not reachable.'; return false; }
+  const r = await window.loadViewModule('./print-routing.js');
+  const location = (window.erpWorkingStore || {}).code || '';
+  const printer = await r.chosenPrinter('Sticker', location) || await r.choosePrinter('Sticker', location);
+  if (!printer) { why.reason = 'No sticker printer is chosen for this computer.'; return false; }
+  if (await printThermal(segments, printer, jobRef)) return true;
+  const dpi = Number(printer.dpi) || Number(formPrinter && formPrinter.dpi) || 0;
+  for (const dataBase64 of await stickerPDFs(segments, dpi)) {
+    if (!await window.qzTryPrint('Document', { documentRef: jobRef || 'Stickers', dataBase64, docFormat: 'pdf',
+      printKind: 'Sticker', printerCode: printer.code, location, quiet: true, why })) return false;
+  }
+  return true;
+}
+
+async function printSheet(segments, dpi) {
+  const area = document.getElementById('sticker-print-area');
+  if (!area) return;
+  const pngCache = new Map();
+  const png = (t, label) => {
+    let perT = pngCache.get(t);
+    if (!perT) { perT = new Map(); pngCache.set(t, perT); }
+    if (perT.has(label)) return perT.get(label);
+    const url = labelDots(t, label, dpi).canvas.toDataURL('image/png');
+    perT.set(label, url);
+    return url;
+  };
+
+  let css = '@media print { html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; } }\n';
+  segments.forEach((seg, si) => {
+    const t = seg.t, pageName = `stk${si}`;
+    const [mw, ph] = t.settings.sheet.mode === 'a4' ? [210, 297] : [mediaWidthMM(t), printHeightMM(t)];
+    css += `${si === 0 ? `@page { size: ${mw}mm ${ph}mm; margin: 0; }\n` : ''}@page ${pageName} { size: ${mw}mm ${ph}mm; margin: 0; }\n`;
+  });
+  let html = '';
+  for (const pg of sheetPages(segments)) {
+    const cell = cellSize(pg.t);
+    html += `<div class="stk-page" style="page:stk${pg.si}; width:${pg.w}mm; height:${pg.h}mm;${pg.flip ? ' transform: rotate(180deg);' : ''}">`;
+    pg.cells.forEach(c => {
+      html += `<img src="${png(pg.t, c.label)}" style="left:${c.x}mm; top:${c.y}mm; width:${cell.w}mm; height:${cell.h}mm;${pg.a4 ? '' : ' image-rendering: pixelated;'}" alt="">`;
+    });
+    html += '</div>';
+  }
 
   const style = document.createElement('style');
   style.id = 'sticker-print-page-style';
@@ -1470,6 +1538,18 @@ async function printSheet(segments, dpi) {
   }, 500);
 }
 
+// printStickersNoDialog (Stage 127.2): the form's thermal printer first, then
+// this computer's Sticker printer; the browser sheet only when this computer
+// is not set up for silent stickers, or when the user picks it after a failure.
+async function printStickersNoDialog(segments, printer, jobRef) {
+  if (await printThermal(segments, printer, jobRef)) return;
+  const dpi = Number(printer && printer.dpi) || 0;
+  const r = window.loadViewModule ? await window.loadViewModule('./print-routing.js') : null;
+  if (!r) { await printSheet(segments, dpi); return; }
+  await r.printNoDialog('Sticker', (window.erpWorkingStore || {}).code || '',
+    (why) => printStickersSilently(segments, printer, jobRef, why), () => printSheet(segments, dpi));
+}
+
 // Entry point for every sticker print in the app. `labels` is what
 // POST /api/v1/stickers/print returned (already validated and written to the
 // sticker print log); this only decides how the ink reaches the paper.
@@ -1478,8 +1558,7 @@ export async function printStickerLabels(labels, { printer, copies = 1, apiFetch
   defaultTemplate();
   const templates = await loadTemplates(labels, apiFetch || window.apiFetch);
   const segments = expandRuns(labels, templates, copies);
-  if (await printThermal(segments, printer, jobRef)) return;
-  await printSheet(segments, Number(printer && printer.dpi) || 0);
+  await printStickersNoDialog(segments, printer, jobRef);
 }
 
 // One design, one print - the studio's Test Print (no print-log row: nothing
@@ -1487,8 +1566,7 @@ export async function printStickerLabels(labels, { printer, copies = 1, apiFetch
 export async function printTestLabel(t, label, printer) {
   await ensureTemplateAssets(t);
   const segments = [{ t, items: Array(t.settings.per_row * t.settings.per_col).fill(label) }];
-  if (await printThermal(segments, printer, 'Test print')) return;
-  await printSheet(segments, Number(printer && printer.dpi) || 0);
+  await printStickersNoDialog(segments, printer, 'Test print');
 }
 
 // Draws a template thumbnail/preview into an existing canvas at `scale` px/mm

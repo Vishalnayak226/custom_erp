@@ -65,6 +65,7 @@ type ShippingPackage struct {
 	HeightCm       float64               `json:"height_cm"`
 	PackageType    string                `json:"package_type"`
 	SalesInvoiceID string                `json:"sales_invoice_id"`
+	OMSBillID      string                `json:"oms_bill_id"` // Stage 88.3.2: the bill made at Pack
 	SplitFrom      string                `json:"split_from"`
 	Status         string                `json:"status"`
 
@@ -129,6 +130,7 @@ func loadShippingPackage(schema, packageID string) (*ShippingPackage, error) {
 	p.LocationCode, _ = data["location_code"].(string)
 	p.PackageType, _ = data["package_type"].(string)
 	p.SalesInvoiceID, _ = data["sales_invoice_id"].(string)
+	p.OMSBillID, _ = data["oms_bill_id"].(string)
 	p.SplitFrom, _ = data["split_from"].(string)
 	p.WeightKg = numFromInterface(data["weight_kg"])
 	p.LengthCm = numFromInterface(data["length_cm"])
@@ -155,6 +157,9 @@ func (p *ShippingPackage) save(ex sqlExecer, schema string) error {
 	p.data["height_cm"] = p.HeightCm
 	p.data["package_type"] = p.PackageType
 	p.data["sales_invoice_id"] = p.SalesInvoiceID
+	if p.OMSBillID != "" {
+		p.data["oms_bill_id"] = p.OMSBillID
+	}
 	p.data["split_from"] = p.SplitFrom
 	p.data["status"] = p.Status
 	marshaled, err := json.Marshal(p.data)

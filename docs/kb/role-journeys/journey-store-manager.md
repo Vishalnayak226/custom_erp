@@ -78,7 +78,7 @@ Receiving is the step that turns a purchase into sellable stock, and a receipt
 that was never posted is the most common cause of "we definitely have that in
 the back".
 
-**Move it between shops.** **Stock » Stock Transfer**.
+**Move it between shops.** **Inventory » Stock Movement**. **Fix a wrong count.** **Inventory » Stock Adjustment** - a reason on every line. **Change an MRP.** **Inventory » MRP Change**, then reprint the stickers it offers.
 
 ## What only you can decide
 

@@ -32,15 +32,21 @@ const (
 // SaleLineAllocation is one sold line's share of what the bill took off and
 // how it was paid. NetPaise = GrossPaise - OfferPaise is the tax-inclusive
 // value the customer was charged for the line; Tenders splits it by how it was
-// paid (the payment mode, Gift Card, Loyalty Points) and always adds up to it.
+// paid (the payment mode, Gift Card, Loyalty Points) and always adds up to
+// NetPaise + RoundOffPaise.
+//
+// RoundOffPaise (Stage 94.15) is the line's share of the bill's round-off to
+// the rupee, so the drawer counts the cash really taken and a return pays back
+// exactly what its units were paid, reversing the share from 5280.
 type SaleLineAllocation struct {
-	SKU        string           `json:"sku"`
-	Qty        int              `json:"qty"`
-	GrossPaise int64            `json:"gross_paise"`
-	OfferPaise int64            `json:"offer_paise"`
-	NetPaise   int64            `json:"net_paise"`
-	Points     int              `json:"points,omitempty"`
-	Tenders    map[string]int64 `json:"tenders"`
+	SKU           string           `json:"sku"`
+	Qty           int              `json:"qty"`
+	GrossPaise    int64            `json:"gross_paise"`
+	OfferPaise    int64            `json:"offer_paise"`
+	NetPaise      int64            `json:"net_paise"`
+	RoundOffPaise int64            `json:"round_off_paise,omitempty"`
+	Points        int              `json:"points,omitempty"`
+	Tenders       map[string]int64 `json:"tenders"`
 }
 
 // allocatePaise splits total across weights pro rata, largest remainder first
@@ -89,21 +95,36 @@ func allocatePaise(total int64, weights []int64) []int64 {
 // the payment mode's rest last) what is still unpaid - the order a bill is
 // settled in. When the money tenders add up to what is left, as a settled sale's
 // always do, every line's tenders add up to its net exactly.
-func buildSaleAllocation(skus []string, qtys []int, gross, offer []int64, points int, pointValuePaise, giftPaise int64, money []tenderPart) []SaleLineAllocation {
+func buildSaleAllocation(skus []string, qtys []int, gross, offer []int64, roundOff int64, points int, pointValuePaise, giftPaise int64, money []tenderPart) []SaleLineAllocation {
 	n := len(skus)
 	net := make([]int64, n)
 	for i := range skus {
 		net[i] = gross[i] - offer[i]
 	}
-	pointShares := allocatePaise(int64(points), net)
+	// Stage 94.15: the round-off is shared by line value first, so each line's
+	// bill (net + share) is what points, gift cards and money then pay. It is
+	// under half a rupee and never more than the bill, so no line's share
+	// exceeds its net.
+	roundShares := allocatePaise(roundOff, net)
+	if roundOff < 0 {
+		roundShares = allocatePaise(-roundOff, net)
+		for i := range roundShares {
+			roundShares[i] = -roundShares[i]
+		}
+	}
+	bill := make([]int64, n)
+	for i := range skus {
+		bill[i] = net[i] + roundShares[i]
+	}
+	pointShares := allocatePaise(int64(points), bill)
 	left := make([]int64, n)
 	for i := range skus {
-		left[i] = net[i] - pointShares[i]*pointValuePaise
+		left[i] = bill[i] - pointShares[i]*pointValuePaise
 	}
 	out := make([]SaleLineAllocation, n)
 	for i := range skus {
 		out[i] = SaleLineAllocation{SKU: skus[i], Qty: qtys[i], GrossPaise: gross[i], OfferPaise: offer[i], NetPaise: net[i],
-			Points: int(pointShares[i]), Tenders: map[string]int64{}}
+			RoundOffPaise: roundShares[i], Points: int(pointShares[i]), Tenders: map[string]int64{}}
 		if v := pointShares[i] * pointValuePaise; v != 0 {
 			out[i].Tenders[TenderLoyaltyPoints] = v
 		}
@@ -179,6 +200,7 @@ func POSCartItemsFromQuote(quote *QuoteResult) []map[string]interface{} {
 type skuSaleShare struct {
 	Qty      int
 	NetPaise int64
+	RoundOff int64
 	Points   int
 	Tenders  map[string]int64
 }
@@ -239,7 +261,7 @@ func loadSaleAllocation(q interface {
 		if mode == "" {
 			mode = "Cash"
 		}
-		lines = buildSaleAllocation(skus, qtys, gross, offers, burned, pointValue, gift,
+		lines = buildSaleAllocation(skus, qtys, gross, offers, 0, burned, pointValue, gift,
 			[]tenderPart{{Key: mode, Paise: net - int64(burned)*pointValue - gift}})
 	}
 	bySku := map[string]*skuSaleShare{}
@@ -251,6 +273,7 @@ func loadSaleAllocation(q interface {
 		}
 		s.Qty += l.Qty
 		s.NetPaise += l.NetPaise
+		s.RoundOff += l.RoundOffPaise
 		s.Points += l.Points
 		for k, v := range l.Tenders {
 			s.Tenders[k] += v
@@ -306,7 +329,10 @@ func applySaleAllocationToRecords(records []returnItemRecord, alloc map[string]*
 				r.NetPaise += share
 			}
 		}
-		r.OriginalUnitPrice = PaiseToRupees(r.NetPaise) / float64(qty)
+		// Stage 94.15: the tenders include the units' share of the bill's
+		// round-off; the line's own value (and its GST) is without it.
+		r.RoundOffPaise = unitShare(s.RoundOff, from, qty, s.Qty)
+		r.OriginalUnitPrice = PaiseToRupees(r.NetPaise-r.RoundOffPaise) / float64(qty)
 		claimed[r.SKU] += qty
 	}
 }

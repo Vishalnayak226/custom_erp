@@ -166,6 +166,9 @@ func (amazonSPConnector) PushInventory(ctx context.Context, c map[string]string,
 	return nil
 }
 func (amazonSPConnector) PushOrderStatus(ctx context.Context, c map[string]string, u ConnectorStatusUpdate) error {
+	if isOrderDecision(u.Status) {
+		return ErrOrderDecisionPushUnsupported // Stage 88.3.1: this call is the shipment confirmation
+	}
 	token, err := amazonToken(ctx, c)
 	if err != nil {
 		return err
@@ -325,6 +328,9 @@ func (flipkartConnector) PushInventory(ctx context.Context, c map[string]string,
 	return nil
 }
 func (flipkartConnector) PushOrderStatus(ctx context.Context, c map[string]string, u ConnectorStatusUpdate) error {
+	if isOrderDecision(u.Status) {
+		return ErrOrderDecisionPushUnsupported // Stage 88.3.1: this call is the dispatch
+	}
 	token, err := flipkartToken(ctx, c)
 	if err != nil {
 		return err

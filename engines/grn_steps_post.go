@@ -93,7 +93,7 @@ func PostGRNChildStep(tenantID, userID, storeCode, grnID, childKey string, in GR
 			l["old_mrp"] = current
 		}
 		if mrp > 0 {
-			l["mrp"] = round2(mrp)
+			l["mrp"] = WholeRupeeMRP(mrp) // Stage 94.15
 		}
 		// D2: a per-SKU-per-day batch already priced at another MRP by an
 		// earlier receipt today gets a lot of its own, so each lot has one MRP.
@@ -884,10 +884,11 @@ func CorrectGRNStep(tenantID, userID, storeCode, grnID string, in GRNCorrectionI
 		if math.Abs(newPrice-oldPrice) >= 0.005 {
 			eff.Lines = append(eff.Lines, GRNCorrectionEffectLine{LineNo: c.LineNo, SKU: sku, Field: "grn_price", Old: oldPrice, New: newPrice, ValueDelta: round2(oldAcc * (newPrice - oldPrice))})
 		}
-		if c.MRP != nil && math.Abs(*c.MRP-numFromInterface(l["mrp"])) >= 0.005 {
-			eff.Lines = append(eff.Lines, GRNCorrectionEffectLine{LineNo: c.LineNo, SKU: sku, Field: "mrp", Old: numFromInterface(l["mrp"]), New: round2(*c.MRP)})
-			mrpChanges = append(mrpChanges, map[string]interface{}{"sku": sku, "batch": strField(l, "batch_no"), "mrp": round2(*c.MRP)})
-			l["mrp"] = round2(*c.MRP)
+		if c.MRP != nil && math.Abs(WholeRupeeMRP(*c.MRP)-numFromInterface(l["mrp"])) >= 0.005 {
+			newMRP := WholeRupeeMRP(*c.MRP) // Stage 94.15
+			eff.Lines = append(eff.Lines, GRNCorrectionEffectLine{LineNo: c.LineNo, SKU: sku, Field: "mrp", Old: numFromInterface(l["mrp"]), New: newMRP})
+			mrpChanges = append(mrpChanges, map[string]interface{}{"sku": sku, "batch": strField(l, "batch_no"), "mrp": newMRP})
+			l["mrp"] = newMRP
 		}
 		eff.StockDelta += dq
 		valueDelta += dv

@@ -42,6 +42,15 @@ function omsFilterQuery(extra = {}) {
 }
 
 async function renderOMSWorkbenchView(container) {
+  // Stage 88.2: each OMS step is its own page (oms:<step> from the OMS menu);
+  // Orders is the console without its configuration, which is OMS settings.
+  const tab = typeof currentViewTab === 'string' ? currentViewTab : '';
+  if (tab === 'settlements') return renderOMSSettlementsView(container);
+  if (tab === 'settings') return renderOMSSettingsView(container);
+  if (tab) {
+    const steps = await import('./view-oms-steps.js' + new URL(import.meta.url).search);
+    if (steps.isOMSStep(tab)) return steps.renderOMSStep(tab, container);
+  }
   // Stage 69: the console is the page; + New Order opens the manual order as a
   // page of its own (txn-screen.js, the standard ERP shape).
   const { txnPageTitle, txnNewButton, txnRestorePane } = await loadTxnScreen();
@@ -64,29 +73,13 @@ async function renderOMSWorkbenchView(container) {
       <h2 style="font-size:16px;margin:0 0 8px;">Start with the work needing attention</h2>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-outline btn-sm" data-oms-queue="hold">Allocation or payment holds</button>
-        <button class="btn btn-outline btn-sm" data-oms-queue="release">Ready to release</button>
+        <button class="btn btn-outline btn-sm" data-oms-go="pending">Pending Orders</button>
         <button class="btn btn-outline btn-sm" data-oms-queue="overdue">Overdue open orders</button>
-        <button class="btn btn-outline btn-sm" data-oms-queue="mapping">Unmapped channel items</button>
+        <button class="btn btn-outline btn-sm" data-oms-go="settings">Unmapped channel items</button>
         <a class="btn btn-outline btn-sm" href="#/setup/ReturnRequest">Return requests</a>
       </div>
       <div id="oms-exception-queues" class="oms-queue-buttons" aria-label="Exception queues"></div>
       <div id="oms-queue-rows"></div>
-    </div>
-    <div class="table-panel" style="padding:24px;margin-bottom:24px;">
-      <div class="oms-console-head">
-        <div><h2 style="font-size:16px;margin:0;">Channel connectors</h2></div>
-        <button class="btn btn-outline btn-sm" id="oms-connectors-refresh">Refresh connectors</button>
-      </div>
-      <div id="oms-connector-health" class="table-wrapper" style="margin-top:16px;"></div>
-      <h3 style="font-size:14px;margin:20px 0 8px;">Unmapped SKU exceptions</h3>
-      <div id="oms-sku-exceptions" class="table-wrapper"></div>
-    </div>
-    <div class="table-panel" style="padding:24px;margin-bottom:24px;">
-      <div class="oms-console-head">
-        <div><h2 style="font-size:16px;margin:0;">Bundles and kits</h2></div>
-        <button class="btn btn-outline btn-sm" id="oms-bundles-manage">Manage definitions</button>
-      </div>
-      <div id="oms-bundle-operations" class="table-wrapper" style="margin-top:16px;"></div>
     </div>
     <div class="table-panel oms-compact-panel" style="padding:16px 24px;margin-bottom:24px;">
       <div class="oms-search-row">
@@ -122,13 +115,14 @@ async function renderOMSWorkbenchView(container) {
   txnRestorePane('oms-screen');
 
   document.getElementById('oms-refresh').addEventListener('click', () => renderView('oms'));
+  container.querySelectorAll('[data-oms-go]').forEach(button => button.addEventListener('click', () => {
+    const page = button.dataset.omsGo;
+    setActiveMenu(`menu-oms-${page}`);
+    renderView(`oms:${page}`);
+  }));
   container.querySelectorAll('[data-oms-queue]').forEach(button => button.addEventListener('click', async () => {
     const queue = button.dataset.omsQueue;
-    if (queue === 'mapping') {
-      document.getElementById('oms-sku-exceptions')?.scrollIntoView({ block: 'center' });
-      return;
-    }
-    omsConsoleState.filter = { channel: '', status: queue === 'hold' ? 'On Hold' : queue === 'release' ? 'Reserved' : '', hold_reason: '', location: '', from_date: '', to_date: '', sla_minutes: queue === 'overdue' ? 60 : 0 };
+    omsConsoleState.filter = { channel: '', status: queue === 'hold' ? 'On Hold' : '', hold_reason: '', location: '', from_date: '', to_date: '', sla_minutes: queue === 'overdue' ? 60 : 0 };
     omsConsoleState.offset = 0;
     omsConsoleState.selected.clear();
     await loadOMSOrders();
@@ -146,13 +140,45 @@ async function renderOMSWorkbenchView(container) {
   document.getElementById('oms-save-view').addEventListener('click', saveCurrentOMSView);
   document.getElementById('oms-delete-view').addEventListener('click', deleteSelectedOMSView);
   document.getElementById('oms-saved-views').addEventListener('change', applySelectedOMSView);
-  document.getElementById('oms-connectors-refresh').addEventListener('click', loadOMSConnectorOperations);
-  document.getElementById('oms-bundles-manage').addEventListener('click', () => openOMSDoctype('ProductBundle', ''));
 
   renderManualOrderPanel(document.getElementById('oms-manual-panel'));
   // The tiles, the saved views and the order list are independent reads, so
   // they go out together rather than in sequence.
-  await Promise.all([loadOMSTiles(), loadOMSExceptionQueues(), loadOMSSavedViews(), loadOMSOrders(), loadOMSConnectorOperations(), loadOMSBundleOperations()]);
+  await Promise.all([loadOMSTiles(), loadOMSExceptionQueues(), loadOMSSavedViews(), loadOMSOrders()]);
+}
+
+// Stage 88.2.9: OMS settings on one page, reached from Setup ▸ OMS - channel
+// connectors, unmapped channel SKUs, bundles and every OMS list - moved off
+// the Orders console so it holds working pages only (D10).
+async function renderOMSSettingsView(container) {
+  const lists = (state.activeDoctypes || []).filter(d => d.module_key === 'oms' && canReadDoctype(d.name))
+    .sort((a, b) => String(a.label || a.name).localeCompare(String(b.label || b.name)));
+  container.innerHTML = `
+    <div class="page-section-bar"><h1 class="page-title">OMS settings</h1></div>
+    <div class="table-panel oms-step-panel">
+      <div class="oms-console-head">
+        <h2 class="oms-step-heading">Channel connectors</h2>
+        <button class="btn btn-outline btn-sm" id="oms-connectors-refresh">Refresh connectors</button>
+      </div>
+      <div id="oms-connector-health" class="table-wrapper"></div>
+      <h3 class="oms-step-heading">Unmapped channel SKUs</h3>
+      <div id="oms-sku-exceptions" class="table-wrapper"></div>
+    </div>
+    <div class="table-panel oms-step-panel">
+      <div class="oms-console-head">
+        <h2 class="oms-step-heading">Bundles and kits</h2>
+        <button class="btn btn-outline btn-sm" id="oms-bundles-manage">Manage definitions</button>
+      </div>
+      <div id="oms-bundle-operations" class="table-wrapper"></div>
+    </div>
+    <div class="table-panel oms-step-panel">
+      <h2 class="oms-step-heading">OMS lists</h2>
+      <div class="oms-queue-buttons">${lists.length ? lists.map(d => `<button class="btn btn-outline btn-sm" data-oms-list="${escapeHTMLText(d.name)}">${escapeHTMLText(d.label || d.name)}</button>`).join('') : '<span class="text-muted">No OMS list is open to your role.</span>'}</div>
+    </div>`;
+  document.getElementById('oms-connectors-refresh').addEventListener('click', loadOMSConnectorOperations);
+  document.getElementById('oms-bundles-manage').addEventListener('click', () => openOMSDoctype('ProductBundle', ''));
+  container.querySelectorAll('[data-oms-list]').forEach(b => b.addEventListener('click', () => openOMSDoctype(b.dataset.omsList, '')));
+  await Promise.all([loadOMSConnectorOperations(), loadOMSBundleOperations()]);
 }
 
 // Stage 73.2.14 - stuck payment, carrier, return/refund and settlement work.
@@ -271,7 +297,7 @@ async function loadOMSConnectorOperations() {
     const { channels = [] } = await healthRes.json();
     healthHost.innerHTML = channels.length === 0 ? '<div class="text-muted">No active channels configured.</div>' : `
       <table><thead><tr><th>Channel</th><th>Platform</th><th>Last sync</th><th>Lag</th><th>24h failures</th><th>Exceptions</th><th>Actions</th></tr></thead><tbody>${channels.map(h => `
-        <tr><td>${escapeHTMLText(h.channel)}</td><td>${escapeHTMLText(h.platform)}</td><td><span class="badge ${h.last_status === 'Failed' ? 'badge-danger' : h.last_status ? 'badge-success' : 'badge-warning'}">${escapeHTMLText(h.last_status || (h.credentials_set ? 'Never synced' : 'Not connected'))}</span><div class="oms-channel-ref">${escapeHTMLText(h.last_sync_at || (h.credentials_set ? '—' : 'Add its credentials on Marketplace'))}</div>${h.last_status === 'Failed' && h.last_error ? `<div class="oms-channel-ref" style="color:var(--danger-strong);">${escapeHTMLText(h.last_error)}</div>` : ''}</td><td>${formatOMSLag(h.lag_seconds)}</td><td>${Number(h.failures_24h || 0)} / ${Number(h.runs_24h || 0)}</td><td>${Number(h.open_exceptions || 0)}</td><td>${h.can_pull_orders ? `<button class="btn btn-outline btn-sm" data-channel-sync="pull-orders" data-channel="${escapeHTMLText(h.channel)}">Pull orders</button>` : ''} ${h.can_push_ats ? `<button class="btn btn-outline btn-sm" data-channel-sync="sync-inventory" data-channel="${escapeHTMLText(h.channel)}">Push ATS</button>` : ''}${!h.can_pull_orders && !h.can_push_ats ? '<span class="text-muted">Catalogue only</span>' : ''}</td></tr>`).join('')}
+        <tr><td>${escapeHTMLText(h.channel)}</td><td>${escapeHTMLText(h.platform)}</td><td><span class="badge ${h.last_status === 'Failed' ? 'badge-danger' : h.last_status ? 'badge-success' : 'badge-warning'}">${escapeHTMLText(h.last_status || (h.credentials_set ? 'Never synced' : 'Not connected'))}</span><div class="oms-channel-ref">${escapeHTMLText(h.last_sync_at || (h.credentials_set ? '—' : 'Credentials not set'))}</div>${h.last_status === 'Failed' && h.last_error ? `<div class="oms-channel-ref" style="color:var(--danger-strong);">${escapeHTMLText(h.last_error)}</div>` : ''}</td><td>${formatOMSLag(h.lag_seconds)}</td><td>${Number(h.failures_24h || 0)} / ${Number(h.runs_24h || 0)}</td><td>${Number(h.open_exceptions || 0)}</td><td>${h.can_pull_orders ? `<button class="btn btn-outline btn-sm" data-channel-sync="pull-orders" data-channel="${escapeHTMLText(h.channel)}">Pull orders</button>` : ''} ${h.can_push_ats ? `<button class="btn btn-outline btn-sm" data-channel-sync="sync-inventory" data-channel="${escapeHTMLText(h.channel)}">Push ATS</button>` : ''}${!h.can_pull_orders && !h.can_push_ats ? '<span class="text-muted">Catalogue only</span>' : ''}</td></tr>`).join('')}
       </tbody></table>`;
     healthHost.querySelectorAll('[data-channel-sync]').forEach(button => button.addEventListener('click', () => runOMSChannelSync(button)));
   }
@@ -684,6 +710,7 @@ window.openOMSOrderDetail = async function(orderID) {
           ${order.customer_reference ? `<div><span class="stat-label">Customer PO / Ref</span><div>${escapeHTMLText(order.customer_reference)}</div></div>` : ''}
           <div><span class="stat-label">Payment</span><div>${escapeHTMLText(order.payment_status || '—')}</div></div>
           <div><span class="stat-label">Priority</span><div>${escapeHTMLText(order.priority || 'Normal')}</div></div>
+          ${order.channel_push && order.channel_push.decision ? `<div><span class="stat-label">Channel told</span><div title="${escapeHTMLText(order.channel_push.error || '')}">${escapeHTMLText(order.channel_push.decision)} · ${escapeHTMLText(order.channel_push.status || '')}</div></div>` : ''}
           <div><span class="stat-label">Value</span><div>${formatMoney(order.total_amount)}</div></div>
           ${order.original_order_id ? `<div><span class="stat-label">${escapeHTMLText(order.replacement_kind || 'Replacement')} of</span><div><button class="action-btn" data-open-original="${escapeHTMLText(order.original_order_id)}">${escapeHTMLText(order.original_order_id)}</button></div></div>` : ''}
         </div>
@@ -691,7 +718,7 @@ window.openOMSOrderDetail = async function(orderID) {
         <div class="oms-detail-address"><span class="stat-label">Ship to</span><div>${escapeHTMLText(omsShipTo(order) || '—')}</div></div>
 
         <div class="oms-action-bar">
-          ${status === 'Reserved' ? `<button class="btn btn-primary btn-sm" data-action="fulfil" title="Create the pick tasks for this order at its sourcing location(s)">Release to Fulfillment</button>` : ''}
+          ${status === 'Reserved' ? `<button class="btn btn-primary btn-sm" data-action="fulfil" title="Create the pick tasks for this order at its sourcing location(s)">Accept - send to Pick</button>` : ''}
           ${taskForBooking ? `<button class="btn btn-primary btn-sm" data-action="book" title="Create a carrier booking and AWB for this order">Book shipment</button>` : ''}
           ${status === 'On Hold' ? `<button class="btn btn-primary btn-sm" data-action="release">Release hold</button>` : `<button class="btn btn-outline btn-sm" data-action="hold"${terminal ? ' disabled' : ''}>Hold</button>`}
           <button class="btn btn-outline btn-sm" data-action="edit"${terminal ? ' disabled' : ''}>Edit</button>
@@ -761,8 +788,16 @@ window.openOMSOrderDetail = async function(orderID) {
     const path = `/api/v1/orders/${encodeURIComponent(orderID)}`;
     if (action === 'release') return omsPost(`${path}/release-hold`, {}, 'Failed to release the hold.', after);
     // FA-20261005-03: the Reserved order's next step - creates its pick
-    // tasks, which then appear on the Fulfillment screen.
-    if (action === 'fulfil') return omsPost(`${path}/release-to-fulfillment`, {}, 'Failed to release this order to fulfillment.', after);
+    // tasks, which then appear on the Pick page (Stage 88.2).
+    // Stage 88.3.1: Accept goes through the Pending gate, which also answers the channel.
+    if (action === 'fulfil') {
+      const res = await apiFetch('/api/v1/oms/orders/bulk', { method: 'POST', body: JSON.stringify({ action: 'accept', order_ids: [orderID] }) });
+      if (!res) return;
+      if (!res.ok) { await showApiError(res, 'Failed to accept this order.'); return; }
+      const why = Object.values((await res.json()).failed || {})[0];
+      if (why) { await showCustomAlert(why, 'Accept'); return; }
+      return after();
+    }
     if (action === 'book') {
       sessionStorage.setItem('erp_marketplace_booking_context', JSON.stringify({
         order_id: orderID,
@@ -770,7 +805,8 @@ window.openOMSOrderDetail = async function(orderID) {
         destination_pincode: order.shipping_pincode || String(order.shipping_address || '').match(/\b\d{6}\b/)?.[0] || ''
       }));
       close();
-      return renderView('marketplace');
+      setActiveMenu('menu-oms-ship');
+      return renderView('oms:ship');
     }
     if (action === 'hold') {
       const reasonCode = await showCustomPrompt('Active Hold reason-code:', '', 'Hold Order');
@@ -808,7 +844,7 @@ window.openOMSOrderDetail = async function(orderID) {
   overlay.querySelectorAll('[data-open-original]').forEach(btn => btn.addEventListener('click', () => openOMSOrderDetail(btn.dataset.openOriginal)));
   // The next step's button: an action on this order presses its action-bar
   // button; a step done elsewhere opens that screen (Stage 73.2.14).
-  const omsNextScreens = { returns: ['returns', 'menu-returns'], invoice: ['sales-invoices', 'menu-sales-invoices'], fulfillment: ['fulfillment', 'menu-fulfillment'], marketplace: ['marketplace', 'menu-marketplace'] };
+  const omsNextScreens = { returns: ['returns', 'menu-returns'], invoice: ['sales-invoices', 'menu-sales-invoices'], fulfillment: ['oms:pick', 'menu-oms-pick'], marketplace: ['oms:ship', 'menu-oms-ship'] };
   overlay.querySelector('[data-next-step]')?.addEventListener('click', event => {
     const step = event.currentTarget.dataset.nextStep;
     const inBar = overlay.querySelector(`.oms-action-bar [data-action="${CSS.escape(step)}"]`);
@@ -1191,6 +1227,7 @@ async function createManualOrderInner() {
       shipping_state: val('mo-state'),
       shipping_pincode: val('mo-pin'),
       payment_status: document.getElementById('mo-payment').value,
+      manual: true, // Stage 88.3.1 (D12): keyed in by staff, so it skips Pending
       lines
     })
   });
@@ -1213,33 +1250,25 @@ function openOMSDoctype(doctype, id) { currentDoctype = doctype; currentSearchQu
 async function releaseOMSOrder(id) { const res = await apiFetch(`/api/v1/orders/${encodeURIComponent(id)}/release-hold`, { method: 'POST' }); if (!res) return; if (!res.ok) { await showApiError(res, 'Failed to release order hold.'); return; } renderView('oms'); }
 async function cancelOMSOrder(id) { const reasonCode = await showCustomPrompt('Active Cancellation reason-code:', '', 'Cancel Order'); if (reasonCode === null || !reasonCode.trim()) return; const res = await apiFetch(`/api/v1/orders/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: JSON.stringify({ reason_code: reasonCode.trim() }) }); if (!res) return; if (!res.ok) { await showApiError(res, 'Failed to cancel order.'); return; } renderView('oms'); }
 
-// Marketplace settlement + logistics booking screen (Stage 13.7) - both
-// MarketplaceSettlement and LogisticsBooking are already real doctypes
-// (listed via the generic GET /api/v1/doc/... endpoint, no new backend code
-// needed for reading), and reconciliation/booking already work via
-// POST /api/v1/marketplace/settlement/reconcile and .../logistics/book.
-async function renderMarketplaceView(container) {
-  const [settlementsRes, bookingsRes, manifestsRes] = await Promise.all([
-    apiFetch('/api/v1/doc/MarketplaceSettlement'),
-    apiFetch('/api/v1/doc/LogisticsBooking'),
-    apiFetch('/api/v1/doc/Manifest')
-  ]);
-  if (!settlementsRes || !bookingsRes || !manifestsRes) return;
+// Stage 88.2.7: OMS ▸ Settlements - marketplace payouts and the per-line
+// reconciliation queue (Stage 13.7 / 35.8). Courier bookings and manifests,
+// which shared the old Marketplace screen, are on OMS ▸ Ship.
+async function renderOMSSettlementsView(container) {
+  const settlementsRes = await apiFetch('/api/v1/doc/MarketplaceSettlement');
+  if (!settlementsRes) return;
 
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
-      <h1 class="page-title">Marketplace</h1>
+      <h1 class="page-title">Settlements</h1>
     </div>
   `;
   container.appendChild(header);
 
   const settlements = settlementsRes.ok ? await settlementsRes.json() : [];
-  const bookings = bookingsRes.ok ? await bookingsRes.json() : [];
-  const manifests = manifestsRes.ok ? await manifestsRes.json() : [];
-  // Stage 69: Settlements, Logistics Bookings and Manifests are each a list
-  // with + New, the form a page of its own (txn-screen.js).
+  // Stage 69: Settlements is a list with + New, the form a page of its own
+  // (txn-screen.js).
   const { txnPagedSection, txnRestorePane } = await loadTxnScreen();
   const section = (el) => { el.style.marginBottom = '24px'; return el; };
 
@@ -1327,160 +1356,11 @@ async function renderMarketplaceView(container) {
   // tolerance.
   await renderSettlementReconciliationPanel(container);
 
-  // --- Logistics bookings panel (Stage 26.12.4: serviceability-driven AWB
-  // assignment - Carrier/Tracking Number are now optional, auto-resolved by
-  // engines.CreateLogisticsBooking off the CourierServiceArea master when a
-  // Destination Pincode is given) ---
-  const bookingPanel = document.createElement('div');
-  bookingPanel.className = 'table-panel';
-  bookingPanel.style.padding = '24px';
-  bookingPanel.innerHTML = `
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="mkt-order-id">Order ID</label>
-        <input type="text" id="mkt-order-id" class="form-input" style="width: 140px;">
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="mkt-fulfillment-task-id">Fulfillment Task (optional)</label>
-        <input type="text" id="mkt-fulfillment-task-id" class="form-input" style="width: 140px;">
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="mkt-pincode">Destination Pincode</label>
-        <input type="text" id="mkt-pincode" class="form-input" style="width: 120px;">
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="mkt-carrier">Carrier (blank = auto)</label>
-        <input type="text" id="mkt-carrier" class="form-input" style="width: 130px;">
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="mkt-tracking">Tracking Number (optional)</label>
-        <input type="text" id="mkt-tracking" class="form-input" style="width: 140px;">
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="mkt-shipping-charge">Shipping Charge</label>
-        <input type="number" id="mkt-shipping-charge" class="form-input" style="width: 110px;">
-      </div>
-      <button class="btn btn-primary" id="mkt-book-btn">Book</button>
-    </div>
-    <div id="mkt-booking-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
-  `;
-  const bookingList = document.createElement('div');
-  bookingList.className = 'table-panel';
-  bookingList.innerHTML = `
-    <div class="table-wrapper">
-    <table>
-      <thead>
-        <tr>
-          <th>Booking ID</th>
-          <th>Order ID</th>
-          <th>Carrier</th>
-          <th>AWB Number</th>
-          <th>Pincode</th>
-          <th>Manifest</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${bookings.length === 0
-          ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No logistics bookings yet. Click <b>+ Book Shipment</b> to book a shipment with a courier.</td></tr>`
-          : bookings.map(b => `
-            <tr>
-              <td style="font-family: monospace;">${b.code || b.id}</td>
-              <td>${b.order_id || ''}</td>
-              <td>${b.carrier || ''}</td>
-              <td style="font-family: monospace;">${b.awb_number || ''}</td>
-              <td>${b.destination_pincode || ''}</td>
-              <td>${b.manifest_id || ''}</td>
-              <td><span class="badge ${b.status === 'RTO' ? 'badge-danger' : b.status === 'Delivered' ? 'badge-success' : 'badge-secondary'}">${b.status}</span></td>
-              <td>${renderLogisticsBookingActions(b)}</td>
-            </tr>
-          `).join('')}
-      </tbody>
-    </table>
-    </div>
-  `;
-  container.appendChild(section(txnPagedSection({ id: 'mkt-bookings', title: 'Logistics Bookings', page: 'Book a shipment',
-    count: bookings.length, newLabel: 'Book Shipment', form: bookingPanel, list: bookingList, heading: 'h2' })));
-  txnRestorePane('mkt-bookings');
-
-  // --- Manifests panel (Stage 26.12.4) ---
-  const manifestPanel = document.createElement('div');
-  manifestPanel.className = 'table-panel';
-  manifestPanel.style.padding = '24px';
-  manifestPanel.innerHTML = `
-    <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px;">Groups every AWB-assigned shipment for one courier at one location. Handing over a manifest dispatches its fulfillment tasks and, once every task on an order has shipped, flips the order to Shipped.</p>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="mkt-manifest-courier">Courier</label>
-        <input type="text" id="mkt-manifest-courier" class="form-input" style="width: 150px;">
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="mkt-manifest-location">Location Code</label>
-        <input type="text" id="mkt-manifest-location" class="form-input" style="width: 150px;">
-      </div>
-      <button class="btn btn-primary" id="mkt-manifest-btn">Generate Manifest</button>
-    </div>
-    <div id="mkt-manifest-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
-  `;
-  const manifestList = document.createElement('div');
-  manifestList.className = 'table-panel';
-  manifestList.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>Manifest ID</th>
-          <th>Courier</th>
-          <th>Location</th>
-          <th>Shipments</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${manifests.length === 0
-          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No manifests yet. Click <b>+ Generate Manifest</b> once shipments have been booked.</td></tr>`
-          : manifests.map(m => `
-            <tr>
-              <td style="font-family: monospace;">${m.code || m.id}</td>
-              <td>${m.courier || ''}</td>
-              <td>${m.location_code || ''}</td>
-              <td>${m.shipment_count ?? 0}</td>
-              <td><span class="badge ${m.status === 'Handed Over' ? 'badge-success' : 'badge-warning'}">${m.status}</span></td>
-              <td>${m.status === 'Open' ? `<button class="action-btn" ${actionAttrs('handoverManifest', [m.code || m.id])}>Hand Over</button>` : ''}</td>
-            </tr>
-          `).join('')}
-      </tbody>
-    </table>
-  `;
-  container.appendChild(section(txnPagedSection({ id: 'mkt-manifests', title: 'Manifests', page: 'Generate manifest',
-    count: manifests.length, newLabel: 'Generate Manifest', form: manifestPanel, list: manifestList, heading: 'h2' })));
-  txnRestorePane('mkt-manifests');
-
   document.getElementById('mkt-reconcile-btn').addEventListener('click', submitMarketplaceReconcile);
   document.getElementById('mkt-order-add').addEventListener('click', addOMSSettlementOrder);
   document.getElementById('mkt-channel').addEventListener('change', () => { omsSettlementOrderIDs = []; renderOMSSettlementOrderSelection(); });
   attachLinkTypeahead(document.getElementById('mkt-order-pick'), 'SalesOrder', { noSetupHint: true });
   renderOMSSettlementOrderSelection();
-  document.getElementById('mkt-book-btn').addEventListener('click', submitLogisticsBooking);
-  document.getElementById('mkt-manifest-btn').addEventListener('click', submitGenerateManifest);
-  attachLinkTypeahead(document.getElementById('mkt-order-id'), 'SalesOrder', { noSetupHint: true });
-  attachLinkTypeahead(document.getElementById('mkt-fulfillment-task-id'), 'FulfillmentTask', { noSetupHint: true });
-  attachLinkTypeahead(document.getElementById('mkt-manifest-location'), 'Location');
-  const bookingContext = sessionStorage.getItem('erp_marketplace_booking_context');
-  sessionStorage.removeItem('erp_marketplace_booking_context');
-  if (bookingContext) {
-    try {
-      const source = JSON.parse(bookingContext);
-      window.txnShowPane('mkt-bookings:new'); // a booking handed over from Fulfillment opens its New page
-      document.getElementById('mkt-order-id').value = String(source.order_id || '');
-      document.getElementById('mkt-fulfillment-task-id').value = String(source.fulfillment_task_id || '');
-      document.getElementById('mkt-pincode').value = String(source.destination_pincode || '');
-      document.getElementById('mkt-booking-error').textContent = 'Review the destination pincode and choose a serviceable carrier before booking.';
-      document.getElementById('mkt-booking-error').classList.remove('hidden');
-      document.getElementById('mkt-booking-error').classList.add('info');
-    } catch (error) { /* An old navigation hint cannot block a fresh booking. */ }
-  }
   populateMarketplaceChannelOptions();
 }
 
@@ -1526,8 +1406,7 @@ async function renderSettlementReconciliationPanel(container) {
   panel.innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
       <div>
-        <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 4px;">Settlement Reconciliation</h2>
-        <p style="color: var(--text-muted); font-size: 13px; margin: 0;">Import a marketplace payout file, then auto-match each line against what was actually invoiced. Anything outside tolerance lands in the queue below.</p>
+        <h2 style="font-size: 16px; font-weight: 700; margin: 0;">Settlement Reconciliation</h2>
       </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn btn-outline" id="stl-import-btn">Import / View Settlement Lines</button>
@@ -1623,7 +1502,7 @@ async function raiseSettlementDisputeUI(lineId) {
 }
 
 async function resolveSettlementDisputeUI(lineId) {
-  const corrected = await showCustomPrompt('Corrected gross amount from the marketplace:', '', 'Resolve Dispute');
+  const corrected = await showCustomPrompt('Corrected gross amount from the marketplace:', '', 'Resolve Dispute', 'number');
   if (corrected === null || corrected.trim() === '' || isNaN(parseFloat(corrected))) return;
   const res = await apiFetch(`/api/v1/oms/settlements/${encodeURIComponent(lineId)}/resolve`, {
     method: 'POST',
@@ -1707,147 +1586,8 @@ async function submitMarketplaceReconcile() {
   }
   omsSettlementOrderIDs = [];
   (await loadTxnScreen()).txnDone('mkt-settlements');
-  renderView('marketplace');
+  renderView('oms:settlements');
 }
-
-// Stage 26.12.4: Carrier and Tracking Number are now optional - a blank
-// Carrier auto-selects the top-priority courier serviceable for Destination
-// Pincode (engines.CheckCourierServiceability), and a blank Tracking Number
-// defaults to the generated AWB number. Only Order ID and Destination
-// Pincode are required (a pincode is needed either way, to validate an
-// explicit carrier or to auto-select one).
-async function submitLogisticsBooking() {
-  const errorEl = document.getElementById('mkt-booking-error');
-  errorEl.classList.add('hidden');
-
-  const orderId = document.getElementById('mkt-order-id').value.trim();
-  const fulfillmentTaskId = document.getElementById('mkt-fulfillment-task-id').value.trim();
-  const pincode = document.getElementById('mkt-pincode').value.trim();
-  const carrier = document.getElementById('mkt-carrier').value.trim();
-  const trackingNumber = document.getElementById('mkt-tracking').value.trim();
-  const shippingCharge = parseFloat(document.getElementById('mkt-shipping-charge').value) || 0;
-
-  if (!orderId || !pincode) {
-    errorEl.textContent = 'Order ID and Destination Pincode are required.';
-    errorEl.classList.remove('hidden');
-    return;
-  }
-
-  const res = await apiFetch('/api/v1/marketplace/logistics/book', {
-    method: 'POST',
-    body: JSON.stringify({
-      order_id: orderId,
-      fulfillment_task_id: fulfillmentTaskId,
-      destination_pincode: pincode,
-      carrier,
-      tracking_number: trackingNumber,
-      shipping_charge: shippingCharge
-    })
-  });
-  if (!res) return;
-  if (!res.ok) {
-    errorEl.textContent = await getErrorMessage(res, 'Booking failed.');
-    errorEl.classList.remove('hidden');
-    return;
-  }
-  (await loadTxnScreen()).txnDone('mkt-bookings');
-  renderView('marketplace');
-}
-
-// renderLogisticsBookingActions (Stage 26.12.4) shows the tracking-sync/RTO
-// actions valid from a booking's current Shipment-engine status - a label
-// is always viewable once AWB-assigned; In-Transit/Delivered/RTO only apply
-// once the shipment has actually been handed over to the courier (a
-// Manifested-but-not-yet-Handed-Over booking has nothing to track yet).
-function renderLogisticsBookingActions(b) {
-  const id = b.code || b.id;
-  const status = b.status;
-  // 31.1.9: "Print Label" is the one-click path (server picks the printer
-  // whose Default For is Shipping Label, and a thermal unit gets a real
-  // Code 128 AWB rather than digits); "Label" stays as the on-screen read,
-  // and is also what Print falls back to when QZ Tray is not running.
-  const buttons = [
-    `<button class="action-btn" ${actionAttrs('printShippingLabel', [id])}>Print Label</button>`,
-    `<button class="action-btn" ${actionAttrs('viewShippingLabel', [id])}>Label</button>`
-  ];
-  if (status === 'Handed Over') {
-    buttons.push(`<button class="action-btn" ${actionAttrs('recordShipmentTracking', [id, 'In-Transit'])}>Mark In-Transit</button>`);
-  }
-  if (status === 'Handed Over' || status === 'In-Transit') {
-    buttons.push(`<button class="action-btn" ${actionAttrs('recordShipmentTracking', [id, 'Delivered'])}>Mark Delivered</button>`);
-    buttons.push(`<button class="action-btn action-btn-danger" ${actionAttrs('reportShipmentRTO', [id])}>Report RTO</button>`);
-  }
-  return buttons.join(' ');
-}
-
-async function submitGenerateManifest() {
-  const errorEl = document.getElementById('mkt-manifest-error');
-  errorEl.classList.add('hidden');
-
-  const courier = document.getElementById('mkt-manifest-courier').value.trim();
-  const locationCode = document.getElementById('mkt-manifest-location').value.trim();
-  if (!courier || !locationCode) {
-    errorEl.textContent = 'Courier and Location Code are required.';
-    errorEl.classList.remove('hidden');
-    return;
-  }
-
-  const res = await apiFetch('/api/v1/marketplace/logistics/manifest', {
-    method: 'POST',
-    body: JSON.stringify({ courier, location_code: locationCode })
-  });
-  if (!res) return;
-  if (!res.ok) {
-    errorEl.textContent = await getErrorMessage(res, 'No AWB-assigned shipments found for that courier/location.');
-    errorEl.classList.remove('hidden');
-    return;
-  }
-  (await loadTxnScreen()).txnDone('mkt-manifests');
-  renderView('marketplace');
-}
-
-window.handoverManifest = async function(manifestId) {
-  const confirmed = await showCustomConfirm(`Hand over manifest ${manifestId} to the courier? This dispatches every fulfillment task in it and may flip the parent order(s) to Shipped.`, 'Hand Over Manifest');
-  if (!confirmed) return;
-  const res = await apiFetch('/api/v1/marketplace/logistics/manifest/handover', {
-    method: 'POST',
-    body: JSON.stringify({ manifest_id: manifestId })
-  });
-  if (!res) return;
-  if (!res.ok) {
-    await showApiError(res, 'Failed to hand over manifest.');
-    return;
-  }
-  renderView('marketplace');
-};
-
-window.recordShipmentTracking = async function(bookingId, status) {
-  const res = await apiFetch('/api/v1/marketplace/logistics/tracking', {
-    method: 'POST',
-    body: JSON.stringify({ booking_id: bookingId, status })
-  });
-  if (!res) return;
-  if (!res.ok) {
-    await showApiError(res, 'Failed to update tracking status.');
-    return;
-  }
-  renderView('marketplace');
-};
-
-window.reportShipmentRTO = async function(bookingId) {
-  const reason = await showCustomPrompt(`Reason the courier is returning booking ${bookingId} undelivered:`, '', 'Report RTO');
-  if (!reason) return;
-  const res = await apiFetch('/api/v1/marketplace/logistics/rto', {
-    method: 'POST',
-    body: JSON.stringify({ booking_id: bookingId, reason })
-  });
-  if (!res) return;
-  if (!res.ok) {
-    await showApiError(res, 'Failed to record RTO.');
-    return;
-  }
-  renderView('marketplace');
-};
 
 // printShippingLabel (Stage 31.1.9) sends a booking's label straight to the
 // bench's label printer. The payload is built server-side from the booking
@@ -1897,7 +1637,7 @@ window.viewShippingLabel = async function(bookingId) {
 // caller's role/location) with Approve/Reject actions against the already-
 // working POST /api/v1/approval/decide.
 
-export { renderOMSWorkbenchView, loadOMSBundleOperations, runOMSBundleOperation, loadOMSConnectorOperations, formatOMSLag, runOMSChannelSync, resolveOMSChannelSKU, loadOMSTiles, loadOMSOrders, renderOMSFacets, omsStatusBadge, renderOMSOrderTable, updateOMSBulkBar, runOMSBulkAction, runOMSGlobalSearch, loadOMSSavedViews, saveCurrentOMSView, applySelectedOMSView, deleteSelectedOMSView, omsPost, openOMSOrderEdit, renderManualOrderPanel, renderManualOrderLines, createManualOrder, createManualOrderInner, openOMSDoctype, releaseOMSOrder, cancelOMSOrder, renderMarketplaceView, renderSettlementReconciliationPanel, loadSettlementVarianceQueue, runSettlementReconcile, raiseSettlementDisputeUI, resolveSettlementDisputeUI, writeOffSettlementVarianceUI, populateMarketplaceChannelOptions, submitMarketplaceReconcile, submitLogisticsBooking, renderLogisticsBookingActions, submitGenerateManifest };
+export { renderOMSWorkbenchView, loadOMSBundleOperations, runOMSBundleOperation, loadOMSConnectorOperations, formatOMSLag, runOMSChannelSync, resolveOMSChannelSKU, loadOMSTiles, loadOMSOrders, renderOMSFacets, omsStatusBadge, renderOMSOrderTable, updateOMSBulkBar, runOMSBulkAction, runOMSGlobalSearch, loadOMSSavedViews, saveCurrentOMSView, applySelectedOMSView, deleteSelectedOMSView, omsPost, openOMSOrderEdit, renderManualOrderPanel, renderManualOrderLines, createManualOrder, createManualOrderInner, openOMSDoctype, releaseOMSOrder, cancelOMSOrder, renderOMSSettlementsView, renderOMSSettingsView, renderSettlementReconciliationPanel, loadSettlementVarianceQueue, runSettlementReconcile, raiseSettlementDisputeUI, resolveSettlementDisputeUI, writeOffSettlementVarianceUI, populateMarketplaceChannelOptions, submitMarketplaceReconcile };
 
 // omsShipTo (Stage 76.3) is the delivery address on one line: line 1 plus the
 // parts a manual order keeps apart (engines.ShippingAddressText).

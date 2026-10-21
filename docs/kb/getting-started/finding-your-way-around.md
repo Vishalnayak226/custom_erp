@@ -45,11 +45,11 @@ Center** have no flyout and open straight away.
 | **Home** | Opens directly. Where you land when you first sign in: your own quick actions (only the day-to-day screens your role can actually use), anything waiting on you, what you last touched, and - on a tenant that is still mostly empty - a "Get started" nudge toward the first master record to set up. |
 | **POS** | POS / Billing · POS Profiles · Offline Sync Review · Offline Queue Gaps |
 | **Financial Accounting** | Finance / GL · Approvals · Vendor Invoice · Payment Proposals · Bank Reconciliation · Debit / Credit Notes · Sales Invoice |
-| **OMS** | Orders · Fulfillment · Marketplace · Returns |
+| **OMS** | Orders · Pending Orders · Pick · Pack · Ship · Returns · Settlements |
 | **CRM** | Customers · Loyalty · Campaigns · Vouchers · Service Tickets |
 | **Reports** | A dashboard of live figures, then one entry per area (Sales, Procurement, Inventory, WMS, OMS, CRM, Finance and the rest) whose reports open beside it, then Schedules. |
 | **Procurement** | Purchase Requisitions · Purchase Order · ASN · Goods Receipt · Vendors · RFQ / Quotes |
-| **Inventory** | Stock on Hand · Stock Transfer · Move Stock · Stock Locations · Sticker Printing |
+| **Inventory** | Dashboard · Stock on Hand · Inventory Ledger · Stock Movement · Stock Adjustment · MRP Change · Move Stock · Stock Locations · Sticker Printing |
 | **WMS** | Warehouse Cockpit, then **Inbound** (Appointment Calendar, Dock Doors, Yard Board, Trailers, RF Receiving, Putaway, Cross-Dock Plans), **Storage & Control** (Bin, Bin Conditions, LPN, Replenishment, Location Movement, Cycle Count, RF Lot & Serial, Holds) and **Outbound** (Waves, Picking, Sortation, Loading) |
 | **HRM** | HR · Fixed Assets · Expenses |
 | **Manufacturing** | Production Orders · Production Schedule · Subcontracting · MRP Suggestions · Supply Proposals · Quality Inspections · Certificates · Non-conformance · Maintenance Orders |

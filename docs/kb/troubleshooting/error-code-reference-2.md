@@ -20,7 +20,7 @@ applies_to: source registries; not release acceptance
 # Error code reference (part 2)
 
 This page continues the [error code reference](error-code-reference.md), which
-lists every area and explains how to read a code. It holds **197** codes, from
+lists every area and explains how to read a code. It holds **198** codes, from
 Omnichannel / OMS to WMS / Logistics.
 
 ## Contents
@@ -35,7 +35,7 @@ Omnichannel / OMS to WMS / Logistics.
 - [Payments](#payments) - 7 codes
 - [Planning](#planning) - 1 codes
 - [Procurement / RFQ](#procurement-rfq) - 6 codes
-- [Purchase Order](#purchase-order) - 14 codes
+- [Purchase Order](#purchase-order) - 15 codes
 - [Purchase Return](#purchase-return) - 1 codes
 - [Purchase Return / RTV](#purchase-return-rtv) - 5 codes
 - [Quality & Maintenance](#quality-maintenance) - 6 codes
@@ -207,6 +207,7 @@ Omnichannel / OMS to WMS / Logistics.
 | `PURCHA-0487` | Short-close without a valid reason code | Choose why the rest of this order is being closed. | Pick an active reason code of category Cancellation (Masters > Reason Codes). | Medium | 422 |
 | `PURCHA-0488` | Short-close not possible in the PO's state | This purchase order cannot be short-closed now. | Only an Approved order with units still open can be short-closed. | Medium | 422 |
 | `PURCHA-0489` | Receipt or amendment on a closed (short-closed) PO | This purchase order is closed. | Raise a new purchase order for anything still needed. | High | 422 |
+| `PURCHA-0490` | A PO line without a purchase price or quantity (Stage 127.7) | Every line of a purchase order needs its purchase price and quantity. | Enter the purchase price (and quantity) on each line named, then save again. | Medium | 422 |
 | `PURCHA-0621` | Sending a cancelled (e.g. auto-cancelled) purchase order to the vendor | This purchase order is cancelled. | Raise a new purchase order for anything still needed. | Medium | 422 |
 
 ## Purchase Return

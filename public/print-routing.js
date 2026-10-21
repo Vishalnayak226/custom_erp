@@ -22,14 +22,18 @@ const KIND_OF = {
   PurchaseOrder: 'Purchase Order', VendorPO: 'Purchase Order',
   GRN: 'Goods Receipt', GRNVendorCopy: 'Goods Receipt',
   TransferOut: 'Transfer', TransferIn: 'Transfer',
-  SalesInvoice: 'Sales Invoice', POSTaxInvoice: 'Sales Invoice',
+  SalesInvoice: 'Sales Invoice', POSTaxInvoice: 'Sales Invoice', OMSBill: 'Sales Invoice', // Stage 88.3.2
+  PickList: 'Pick List', // Stage 88.2.3
   DebitNote: 'Returns and Notes', VendorCreditNote: 'Returns and Notes', PurchaseReturn: 'Returns and Notes',
   CreditNote: 'Returns and Notes', SalesReturn: 'Returns and Notes',
   // QZ job types
   Receipt: 'Receipt', Sticker: 'Sticker', 'Shipping Label': 'Shipping Label', Invoice: 'Sales Invoice',
   'Purchase Order': 'Purchase Order', Document: 'Shipping Label'
 };
-export const printKindFor = (txnOrJob) => KIND_OF[txnOrJob] || txnOrJob;
+// Stage 127.3: a transaction printed through the generic format is an Other
+// Document; a value that already is a kind stays as it is.
+const KINDS = new Set([...Object.values(KIND_OF), 'Other Documents']);
+export const printKindFor = (txnOrJob) => KIND_OF[txnOrJob] || (KINDS.has(txnOrJob) ? txnOrJob : 'Other Documents');
 
 const RECEIPT_RE = /(pos|thermal|receipt|\btm-?[a-z]?\d|\brp-?\d|xp-?\d|80\s?mm|58\s?mm|retsol|xprinter)/i;
 const LABEL_RE = /(zebra|\bzd\d|\bgk4|\bgx4|\btsc|\btte|\btlp|godex|argox|label|barcode|datamax|honeywell|snbc)/i;
@@ -41,7 +45,11 @@ let computerName = null;
 export async function printComputer() {
   if (computerName) return computerName;
   let name = '';
-  try { name = String(await window.QZPrint.hostname() || '').trim(); } catch (_) { /* old tray */ }
+  // Stage 127.2: only a connected tray is asked, so a computer whose tray is
+  // down still knows its name (and its printers) without waiting on it.
+  if (window.QZPrint?.isConnected?.()) {
+    try { name = String(await window.QZPrint.hostname() || '').trim(); } catch (_) { /* old tray */ }
+  }
   if (!name) { try { name = localStorage.getItem(COMPUTER_KEY) || ''; } catch (_) { /* storage blocked */ } }
   if (!name) name = 'PC-' + Math.random().toString(36).slice(2, 8).toUpperCase();
   try { localStorage.setItem(COMPUTER_KEY, name); } catch (_) { /* storage blocked */ }
@@ -139,6 +147,78 @@ export async function needsChoice(res) {
 // for the job's kind, then print on it.
 export async function chooseAndPrint(jobType, opts) {
   const printer = await choosePrinter(printKindFor(opts.printKind || jobType), opts.location);
-  if (!printer) return false;
+  if (!printer) {
+    if (opts.why) opts.why.reason = 'No printer was chosen, or PrintBridge lists none on this computer.';
+    return false;
+  }
   return window.qzTryPrint(jobType, { ...opts, printerCode: printer.code, chosen: true });
+}
+
+// --- Stage 127.2: no browser print dialog once PrintBridge is set up ---------
+//
+// User, 2026-10-21: "if the app installed and we configured the qz silence for
+// print it should not ask any where the computer print page for any print".
+// Set up = this computer has a printer chosen for that kind of print. Then a
+// print of that kind goes to it, or says why it could not and offers Retry or
+// the browser - it never opens the browser's print dialog by itself. A
+// computer with nothing chosen prints through the browser exactly as before.
+
+// silentSetUp says whether this computer prints this kind through PrintBridge.
+export async function silentSetUp(kind, location) {
+  try { return !!(await chosenPrinter(printKindFor(kind), location)); } catch (_) { return false; }
+}
+
+// explainFailure is the one question after a silent print failed:
+// 'retry' | 'browser' | 'cancel'.
+function explainFailure(kind, reason) {
+  return new Promise((resolve) => {
+    const backdrop = document.getElementById('custom-dialog-container');
+    if (!backdrop) { resolve('cancel'); return; }
+    const extra = document.getElementById('custom-dialog-extra');
+    const ok = document.getElementById('custom-dialog-ok-btn');
+    const okText = ok.textContent;
+    document.getElementById('custom-dialog-title').textContent = `${kind} did not print`;
+    document.getElementById('custom-dialog-message').textContent =
+      `${reason || 'PrintBridge did not answer.'} Check that PrintBridge is running on this computer and the printer is on and loaded, then Retry.`;
+    extra.innerHTML = '<button type="button" class="btn btn-outline btn-sm" id="custom-dialog-browser" style="margin-top:12px;">Print with the browser instead</button>';
+    extra.classList.remove('hidden');
+    ok.textContent = 'Retry';
+    const cancel = document.getElementById('custom-dialog-cancel-btn');
+    cancel.style.display = '';
+    backdrop.classList.remove('hidden');
+    ok.focus();
+    const done = (value) => {
+      backdrop.classList.add('hidden');
+      extra.innerHTML = '';
+      extra.classList.add('hidden');
+      ok.textContent = okText;
+      ['custom-dialog-ok-btn', 'custom-dialog-cancel-btn', 'custom-dialog-close-btn'].forEach(id => {
+        const b = document.getElementById(id);
+        b.replaceWith(b.cloneNode(true));
+      });
+      resolve(value);
+    };
+    ok.addEventListener('click', () => done('retry'));
+    cancel.addEventListener('click', () => done('cancel'));
+    document.getElementById('custom-dialog-close-btn').addEventListener('click', () => done('cancel'));
+    document.getElementById('custom-dialog-browser').addEventListener('click', () => done('browser'));
+  });
+}
+
+// printNoDialog is every print's way out (Stage 127.2). trySilent(why) prints
+// through PrintBridge and returns true, or false with why.reason set;
+// browserPrint opens the browser's print. Returns false only when the user
+// gave up on a failed silent print.
+export async function printNoDialog(kind, location, trySilent, browserPrint) {
+  for (;;) {
+    const why = {};
+    let printed = false;
+    try { printed = await trySilent(why); } catch (e) { why.reason = why.reason || (e && e.message) || String(e); }
+    if (printed) return true;
+    if (!await silentSetUp(kind, location)) { await browserPrint(); return true; }
+    const choice = await explainFailure(printKindFor(kind), why.reason || '');
+    if (choice === 'retry') continue;
+    if (choice === 'browser') { await browserPrint(); return true; }
+    return false;
+  }
 }

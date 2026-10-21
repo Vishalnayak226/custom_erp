@@ -53,11 +53,19 @@ func moduleRouteFacts(t *testing.T) []moduleRouteFact {
 	t.Helper()
 	var facts []moduleRouteFact
 	gates := regexp.MustCompile(`moduleGate\("([^"]+)"`)
+	// Stage 88.2: moduleGateAny([]string{"oms", "wms"}, ...) admits any one of its modules.
+	anyGates := regexp.MustCompile(`moduleGateAny\(\[\]string\{([^}]*)\}`)
+	quoted := regexp.MustCompile(`"([^"]+)"`)
 	for _, line := range strings.Split(moduleSource(t, "routes.go"), "\n") {
 		if m := routeLinePattern.FindStringSubmatch(line); m != nil {
 			fact := moduleRouteFact{Pattern: m[1]}
 			for _, g := range gates.FindAllStringSubmatch(line, -1) {
 				fact.Modules = append(fact.Modules, g[1])
+			}
+			for _, g := range anyGates.FindAllStringSubmatch(line, -1) {
+				for _, q := range quoted.FindAllStringSubmatch(g[1], -1) {
+					fact.Modules = append(fact.Modules, q[1])
+				}
 			}
 			facts = append(facts, fact)
 		}

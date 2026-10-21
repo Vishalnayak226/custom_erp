@@ -9,3 +9,26 @@
 .oms-related-docs > summary { cursor: pointer; font-weight: 600; }
 .oms-add-line-row { display: grid; grid-template-columns: auto 1fr auto 90px auto 120px; gap: 8px; align-items: center; margin-bottom: 12px; }
 @media (max-width: 640px) { .oms-add-line-row { grid-template-columns: 1fr; } }
+/* Stage 88.2 - the OMS step pages (view-oms-steps.js) and OMS settings. */
+.oms-step-panel { padding: 16px 20px; margin-bottom: 20px; }
+.oms-step-heading { font-size: 16px; margin: 0 0 10px; }
+h3.oms-step-heading { font-size: 14px; margin-top: 18px; }
+.oms-step-empty { text-align: center; color: var(--text-muted); padding: 20px; }
+.oms-step-note { margin: 10px 0 0; font-size: 13px; }
+.oms-step-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.oms-mono { font-family: monospace; }
+.oms-scan-panel { padding: 16px 20px; margin-bottom: 20px; border-left: 4px solid var(--primary-color); }
+.oms-scan-panel h2 { font-size: 16px; margin: 0; }
+.oms-scan-row { display: flex; gap: 8px; margin: 12px 0 6px; max-width: 520px; }
+.oms-scan-row .form-input { flex: 1; min-height: 44px; font-size: 16px; }
+.oms-scan-msg { min-height: 20px; font-size: 13px; margin-bottom: 8px; }
+.oms-scan-bad { color: var(--danger-strong); font-weight: 600; }
+.oms-line-done td { color: var(--text-muted); }
+.oms-pack-finish { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.oms-pack-finish > [data-pack-result] { flex-basis: 100%; }
+.oms-pack-docs { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+.oms-pack-steps { margin: 4px 0 8px 18px; padding: 0; font-size: 13px; }
+.oms-ship-group { margin-bottom: 16px; }
+.oms-ship-group h3 { font-size: 14px; margin: 0; }
+.oms-input-sm { width: 110px; }
+@media (max-width: 640px) { .oms-scan-row { max-width: none; } .oms-input-sm { width: 90px; } }

@@ -1135,7 +1135,8 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		claimSettled = true
 		response["status"] = "authorized"
 		response["payment_state"] = auth.PaymentState
-		response["amount_due"] = auth.AmountDue - float64(loyaltyDiscount) - quote.OfferDiscount - giftPaid
+		response["amount_due"] = engines.PaiseToRupees(engines.RupeesToPaise(auth.AmountDue - float64(loyaltyDiscount) - quote.OfferDiscount + quote.RoundOff - giftPaid)) // 94.15: to the rupee
+		response["round_off"] = quote.RoundOff
 		response["gift_card_paid"] = giftPaid
 		response["sale_total"] = auth.AmountDue
 		_ = json.NewEncoder(w).Encode(response)
@@ -1196,7 +1197,8 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	response["sale_total"] = outcome.SaleTotal
 	response["loyalty_discount"] = outcome.LoyaltyDiscount
 	response["bill_number"] = outcome.BillNumber
-	response["amount_due"] = outcome.SaleTotal - float64(outcome.LoyaltyDiscount) - quote.OfferDiscount - giftPaid - exchangeUse
+	response["amount_due"] = engines.PaiseToRupees(engines.RupeesToPaise(outcome.SaleTotal - float64(outcome.LoyaltyDiscount) - quote.OfferDiscount + quote.RoundOff - giftPaid - exchangeUse)) // 94.15: to the rupee
+	response["round_off"] = quote.RoundOff
 	response["gift_card_paid"] = giftPaid
 	if req.ExchangeCreditID != "" {
 		// Stage 73.2.6: what the exchange credit paid, and what went back.

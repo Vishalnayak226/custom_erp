@@ -37,6 +37,9 @@ type OrderConsoleFilter struct {
 	SLAMinutes int
 	Limit      int
 	Offset     int
+	// ChannelPush "problem" (Stage 88.3.1) keeps orders whose accept / reject
+	// answer did not reach the channel: Failed, or Not connected.
+	ChannelPush string
 }
 
 // OrderConsoleFacet is one facet value and how many orders carry it.
@@ -103,6 +106,9 @@ func orderConsoleConditions(schema string, f OrderConsoleFilter, skipDimension s
 		args = append(args, f.SLAMinutes)
 		clauses = append(clauses, "d.status <> ALL($"+fmt.Sprint(argOffset+1)+")")
 		args = append(args, pqTextArray(terminalOrderStatuses))
+	}
+	if f.ChannelPush == "problem" {
+		clauses = append(clauses, "COALESCE(d.data->'channel_push'->>'status', '') IN ('Failed', 'Not connected')")
 	}
 	return clauses, args
 }
@@ -174,7 +180,11 @@ func ListOrdersForConsole(tenantID string, f OrderConsoleFilter) (*OrderConsoleR
 		       GREATEST(EXTRACT(EPOCH FROM (NOW() - d.created_at)) / 60, 0)::int,
 		       COALESCE((SELECT string_agg(DISTINCT NULLIF(l.data->>'location_code', ''), ', ')
 		                 FROM %s.documents l WHERE l.doctype = 'SalesOrderLine' AND l.data->>'order_id' = d.id AND l.deleted_at IS NULL), ''),
-		       (SELECT COUNT(*) FROM %s.documents l WHERE l.doctype = 'SalesOrderLine' AND l.data->>'order_id' = d.id AND l.deleted_at IS NULL)
+		       (SELECT COUNT(*) FROM %s.documents l WHERE l.doctype = 'SalesOrderLine' AND l.data->>'order_id' = d.id AND l.deleted_at IS NULL),
+		       COALESCE(d.data->>'acceptance_status', ''),
+		       COALESCE(d.data->'channel_push'->>'decision', ''),
+		       COALESCE(d.data->'channel_push'->>'status', ''),
+		       COALESCE(d.data->'channel_push'->>'error', '')
 		FROM %s.documents d
 		WHERE %s
 		ORDER BY (COALESCE(d.data->>'priority', '') = 'Expedite') DESC, d.created_at DESC
@@ -187,11 +197,13 @@ func ListOrdersForConsole(tenantID string, f OrderConsoleFilter) (*OrderConsoleR
 
 	for rows.Next() {
 		var id, orderNumber, channel, channelOrderID, customerName, customerPhone, status, holdReason, paymentStatus, priority, locations string
+		var acceptance, pushDecision, pushStatus, pushError string
 		var totalAmount float64
 		var lineCount, ageMinutes int
 		var createdAt time.Time
 		if err := rows.Scan(&id, &orderNumber, &channel, &channelOrderID, &customerName, &customerPhone, &status, &holdReason,
-			&paymentStatus, &totalAmount, &priority, &createdAt, &ageMinutes, &locations, &lineCount); err != nil {
+			&paymentStatus, &totalAmount, &priority, &createdAt, &ageMinutes, &locations, &lineCount,
+			&acceptance, &pushDecision, &pushStatus, &pushError); err != nil {
 			return nil, err
 		}
 		terminal := false
@@ -209,6 +221,8 @@ func ListOrdersForConsole(tenantID string, f OrderConsoleFilter) (*OrderConsoleR
 			"locations": locations, "line_count": lineCount,
 			"age_minutes": ageMinutes,
 			"terminal":    terminal,
+			// Stage 88.3.1: the Pending gate's answer and whether the channel has it.
+			"acceptance_status": acceptance, "push_decision": pushDecision, "push_status": pushStatus, "push_error": pushError,
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -595,8 +609,15 @@ func BulkOrderAction(tenantID, action string, orderIDs []string, reasonCode, use
 			err = ReleaseOrderHold(tenantID, orderID)
 		case "cancel":
 			err = CancelOrder(tenantID, orderID, reasonCode)
+		// Stage 88.3.1: the Pending gate's answers, one or many.
+		case "accept":
+			_, err = AcceptPendingOrder(tenantID, orderID, userID)
+		case "reject":
+			_, err = RejectPendingOrder(tenantID, orderID, reasonCode, userID)
+		case "retry_push":
+			err = RetryChannelDecisionPush(tenantID, orderID, userID)
 		default:
-			return nil, fmt.Errorf("unknown bulk action %q (expected hold, release or cancel)", action)
+			return nil, fmt.Errorf("unknown bulk action %q (expected hold, release, cancel, accept, reject or retry_push)", action)
 		}
 		if err != nil {
 			result.Failed[orderID] = err.Error()

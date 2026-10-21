@@ -9,7 +9,7 @@
 
 Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.
 
-There are **511** codes. Each row says what the user is shown, what to do about
+There are **512** codes. Each row says what the user is shown, what to do about
 it, and how serious it is.
 
 **How to read an error dialog** - it has up to three lines: the *headline* (the
@@ -57,7 +57,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 - [Payments](#payments) - 7 codes
 - [Planning](#planning) - 1 codes
 - [Procurement / RFQ](#procurement--rfq) - 6 codes
-- [Purchase Order](#purchase-order) - 14 codes
+- [Purchase Order](#purchase-order) - 15 codes
 - [Purchase Return](#purchase-return) - 1 codes
 - [Purchase Return / RTV](#purchase-return--rtv) - 5 codes
 - [Quality & Maintenance](#quality--maintenance) - 6 codes
@@ -91,7 +91,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `ADMINC-0038` | Payment mode configuration missing | Payment mode configuration is missing. Please contact administrator. | Contact admin to configure. | High | 422 |
 | `ADMINC-0039` | Template configuration missing | Document template is not configured. Please contact administrator. | Contact admin to configure. | High | 422 |
 | `ADMINC-0310` | Number series prefix already used by another series | This prefix is already used by another number series. | Choose a prefix no other transaction uses - two series with one prefix could print the same number. | High | 422 |
-| `ADMINC-0311` | Number series settings invalid | The number series settings are not valid. | Use letters, digits, '/', '-', '_' or '.' in prefix and suffix (no spaces, up to 20), a separator of up to 3 characters and a length of 1 to 12 digits. | Medium | 422 |
+| `ADMINC-0311` | Number series settings invalid | The number series settings are not valid. | Use capital letters, digits, '/' and '-' in prefix and suffix (no spaces, up to 20), a separator of / or - (or none), a length of 1 to 12 digits, and keep the whole number to 16 characters. | Medium | 422 |
 | `PLATFORM-0316` | Data console edit refused for a protected table or column | This value cannot be changed from the data console. | Keys, hidden (secret or personal) values and audit tables are protected. Change the record through its own screen instead. | Medium | 422 |
 | `PLATFORM-0317` | Cross-client action (data console, client list, plans, sandboxes) by someone who is not a platform operator | Only a platform operator can see or change other clients. | Ask the server administrator to add your client and username to ERP_PLATFORM_OPERATORS. | High | 403 |
 | `STORE-0850` | Working at, or switching to, a store the user has not been given | You have not been given this store. | Ask an administrator to add the store in Users -> Stores, or on your role in Roles -> Stores. | High | 422 |
@@ -680,6 +680,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `PURCHA-0487` | Short-close without a valid reason code | Choose why the rest of this order is being closed. | Pick an active reason code of category Cancellation (Masters > Reason Codes). | Medium | 422 |
 | `PURCHA-0488` | Short-close not possible in the PO's state | This purchase order cannot be short-closed now. | Only an Approved order with units still open can be short-closed. | Medium | 422 |
 | `PURCHA-0489` | Receipt or amendment on a closed (short-closed) PO | This purchase order is closed. | Raise a new purchase order for anything still needed. | High | 422 |
+| `PURCHA-0490` | A PO line without a purchase price or quantity (Stage 127.7) | Every line of a purchase order needs its purchase price and quantity. | Enter the purchase price (and quantity) on each line named, then save again. | Medium | 422 |
 | `PURCHA-0621` | Sending a cancelled (e.g. auto-cancelled) purchase order to the vendor | This purchase order is cancelled. | Raise a new purchase order for anything still needed. | Medium | 422 |
 
 ## Purchase Return

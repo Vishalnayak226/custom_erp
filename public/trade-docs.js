@@ -79,9 +79,15 @@ export const TRANSACTIONS = [
   // Stage 85.D2: a till sale to a GSTIN buyer.
   { key: 'POSTaxInvoice', label: 'Tax Invoice (GST bill from the till)', doctype: 'POSCart' },
   // Stage 98.1: order and package bills.
-  { key: 'SalesInvoice', label: 'Sales Invoice', doctype: 'SalesInvoice' }
+  { key: 'SalesInvoice', label: 'Sales Invoice', doctype: 'SalesInvoice' },
+  // Stage 88: the OMS bill made at Pack (the customer's GST invoice) and the
+  // pick list of one fulfillment task.
+  { key: 'OMSBill', label: 'OMS Bill', doctype: 'OMSBill' },
+  { key: 'PickList', label: 'Pick List', doctype: 'FulfillmentTask' }
 ];
-export const txnLabel = (k) => (TRANSACTIONS.find(t => t.key === k) || {}).label || k;
+// Stage 127.3: a transaction with no format of its own prints by its doctype
+// ("JournalVoucher" reads "Journal Voucher").
+export const txnLabel = (k) => (TRANSACTIONS.find(t => t.key === k) || {}).label || String(k || '').replace(/([a-z])([A-Z])/g, '$1 $2');
 
 // ---------------------------------------------------------------------------
 // Values
@@ -105,6 +111,8 @@ export function formatValue(v, fmt) {
   if (typeof v === 'object') return '';
   switch (fmt) {
     case 'money': return isNaN(Number(v)) ? String(v) : moneyFmt.format(Number(v));
+    // Stage 94.15: an MRP is a whole rupee; one saved with paise keeps them.
+    case 'rupee': return isNaN(Number(v)) ? String(v) : (Number.isInteger(Number(v)) ? qtyFmt.format(Number(v)) : moneyFmt.format(Number(v)));
     case 'qty': return isNaN(Number(v)) ? String(v) : qtyFmt.format(Number(v));
     case 'percent': return isNaN(Number(v)) ? String(v) : `${qtyFmt.format(Number(v))}%`;
     case 'date': {
@@ -119,6 +127,7 @@ export function formatValue(v, fmt) {
 // guessFormat picks a sensible format for a key when the template set none.
 export function guessFormat(key) {
   const k = String(key || '').split('.').pop();
+  if (/^(mrp|old_mrp|current_mrp|suggested_mrp)$/.test(k)) return 'rupee';
   if (/^(rate|mrp|taxable|cgst|sgst|igst|tax|amount|grand_total|round_off|po_rate|invoice_rate|rate_difference|po_value|invoice_value|invoice_gst|invoice_total|vendor_invoice_amount|invoice_amount_difference|total_amount|standard_cost|sale_price|gst_amount|total_with_gst|original_taxable|original_disc|discount)$/.test(k)) return 'money';
   if (/(^|_)qty$|^qty|line_count/.test(k)) return 'qty';
   if (/gst_rate$/.test(k)) return 'percent';
@@ -219,10 +228,18 @@ TXN_COLUMNS.SalesInvoice = TXN_COLUMNS.POSTaxInvoice;
 TXN_INFO.SalesInvoice = [['Buyer GSTIN: {fields.buyer_gstin}', 0, 0], ['Sales order: {fields.sales_order}', 1, 0], ['Customer reference: {fields.customer_reference}', 0, 1]];
 TXN_TOTALS.SalesInvoice = TXN_TOTALS.POSTaxInvoice;
 TXN_SIGNATURES.SalesInvoice = TXN_SIGNATURES.POSTaxInvoice;
+TXN_COLUMNS.OMSBill = TXN_COLUMNS.SalesInvoice;
+TXN_INFO.OMSBill = TXN_INFO.SalesInvoice;
+TXN_TOTALS.OMSBill = TXN_TOTALS.SalesInvoice;
+TXN_SIGNATURES.OMSBill = TXN_SIGNATURES.SalesInvoice;
+TXN_COLUMNS.PickList = [col('sr', 'Ln', 4, { align: 'center' }), col('image', 'Image', 14, { format: 'image', align: 'center' }), col('item_code', 'Barcode / Item', 22), col('description', 'Description', 50), col('uom', 'UOM', 8), col('qty', 'To pick', 12), col('picked_mark', 'Picked', 14, { format: 'text' })];
+TXN_INFO.PickList = [['Order: {fields.sales_order}', 0, 0], ['Customer: {fields.customer}', 1, 0]];
+TXN_TOTALS.PickList = [tot('qty', 'Total pieces', { strong: true })];
+TXN_SIGNATURES.PickList = ['Picked By', 'Checked By', 'Packed By'];
 
 // Prints that carry no money (quantities only) have no tax summary and no
 // amount in words.
-const QTY_ONLY = { GRN: 1, GRNVendorCopy: 1, TransferIn: 1, CreditNote: 1 };
+const QTY_ONLY = { GRN: 1, GRNVendorCopy: 1, TransferIn: 1, CreditNote: 1, PickList: 1 };
 // The one note the pack prints on the document itself.
 const TXN_NOTE = {
   GRNVendorCopy: 'This acknowledges the quantity received at this location. It is not a confirmation of invoice acceptance, payment approval, final QC acceptance or agreed valuation.'
@@ -239,12 +256,20 @@ function withAttributeColumns(columns, txn, doc) {
 }
 
 export function defaultLayout(txn, doc) {
-  const blockTitle = { PurchaseOrder: 'Bill to', VendorPO: 'Bill to', GRN: 'Received at', GRNVendorCopy: 'Received at', PurchaseReturn: 'Dispatched from', TransferOut: 'From location', TransferIn: 'To location', DebitNote: 'Issuer', VendorCreditNote: 'Issuer', CreditNote: 'Issuer', SalesReturn: 'Store', POSTaxInvoice: 'Supplier', SalesInvoice: 'Supplier' }[txn] || 'From';
+  const blockTitle = { PurchaseOrder: 'Bill to', VendorPO: 'Bill to', GRN: 'Received at', GRNVendorCopy: 'Received at', PurchaseReturn: 'Dispatched from', TransferOut: 'From location', TransferIn: 'To location', DebitNote: 'Issuer', VendorCreditNote: 'Issuer', CreditNote: 'Issuer', SalesReturn: 'Store', POSTaxInvoice: 'Supplier', SalesInvoice: 'Supplier', OMSBill: 'Supplier', PickList: 'Pick at' }[txn] || 'From';
   const E = (o) => ({ id: newElementId(), fontSize: 9, align: 'left', pages: 'first', ...o });
-  const info = TXN_INFO[txn] || [];
+  // Stage 127.3: a transaction with no format of its own - the server sends
+  // its header rows, line columns and totals (engines/print_generic.go).
+  const G = !TXN_COLUMNS[txn] && doc && doc.fields && doc.fields.generic_print;
+  const info = G ? (G.header || []).slice(0, 16).map((h, i) => [`${h.label}: {fields.${h.key}}`, i % 2, Math.floor(i / 2)]) : (TXN_INFO[txn] || []);
   const infoRows = info.reduce((n, i) => Math.max(n, i[2] + 1), 0);
   const tableY = 63 + infoRows * 5 + 2;
-  const noMoney = !!QTY_ONLY[txn];
+  const noMoney = G ? !(G.columns || []).some(c => c.key === 'amount') : !!QTY_ONLY[txn];
+  const genericColumns = () => {
+    const cs = G.columns || [];
+    const share = Math.max(8, Math.floor((96 - (cs.some(c => c.key === 'item_name') ? 28 : 0)) / Math.max(1, cs.filter(c => c.key !== 'sr' && c.key !== 'item_name').length)));
+    return cs.map(c => col(c.key, c.label, c.key === 'sr' ? 4 : (c.key === 'item_name' ? 28 : share)));
+  };
   const note = TXN_NOTE[txn];
   const signs = TXN_SIGNATURES[txn] || TXN_SIGNATURES.DebitNote;
   return {
@@ -261,15 +286,23 @@ export function defaultLayout(txn, doc) {
       E({ type: 'block', block: 'store', title: blockTitle, x: 10, y: 30, w: 93, h: 30, border: true }),
       E({ type: 'block', block: 'party', title: '{party_title}', x: 107, y: 30, w: 93, h: 30, border: true }),
       ...info.map(([text, c, r]) => E({ type: 'text', text, x: c === 1 ? 107 : 10, y: 62 + r * 5, w: c === 2 ? 190 : 93, h: 5, fontSize: 8 })),
-      E({ type: 'table', x: 10, y: tableY, w: 190, h: 218 - tableY, columns: withAttributeColumns(TXN_COLUMNS[txn] || TXN_COLUMNS.PurchaseOrder, txn, doc), fontSize: 8, headerBg: '#f1f3f5', imageSize: 14, pages: 'all' }),
-      ...(noMoney ? [] : [E({ type: 'taxSummary', x: 10, y: 222, w: 112, h: 30, fontSize: 8, pages: 'last' })]),
-      E({ type: 'totals', x: 128, y: 222, w: 72, h: 32, fontSize: 9, pages: 'last', rows: TXN_TOTALS[txn] || TXN_TOTALS.PurchaseOrder }),
+      E({ type: 'table', x: 10, y: tableY, w: 190, h: 218 - tableY, columns: G ? genericColumns() : withAttributeColumns(TXN_COLUMNS[txn] || TXN_COLUMNS.PurchaseOrder, txn, doc), fontSize: 8, headerBg: '#f1f3f5', imageSize: 14, pages: 'all' }),
+      ...(noMoney || G ? [] : [E({ type: 'taxSummary', x: 10, y: 222, w: 112, h: 30, fontSize: 8, pages: 'last' })]),
+      ...(G && !(G.totals || []).length ? [] : [E({ type: 'totals', x: 128, y: 222, w: 72, h: 32, fontSize: 9, pages: 'last', rows: G ? G.totals.map(t => ({ key: t.key, label: t.label, format: t.format })) : (TXN_TOTALS[txn] || TXN_TOTALS.PurchaseOrder) })]),
       ...(noMoney ? [] : [E({ type: 'text', text: 'Amount in words: {amount_in_words}', x: 10, y: 255, w: 190, h: 6, fontSize: 8.5, italic: true, pages: 'last' })]),
+      // Stage 127.4: a bill carries the seller's bank and terms (its Legal
+      // Entity's), and every print its profile's footer line - each blank,
+      // so nothing prints, until they are set.
+      ...(['SalesInvoice', 'OMSBill', 'POSTaxInvoice'].includes(txn) ? [
+        E({ type: 'text', text: 'Bank: {store.bank}', x: 10, y: 262, w: 190, h: 4, fontSize: 7.5, pages: 'last' }),
+        E({ type: 'text', text: '{store.terms}', x: 10, y: 266, w: 190, h: 4, fontSize: 7.5, pages: 'last' })
+      ] : []),
+      E({ type: 'text', text: '{fields.profile_footer}', x: 10, y: 270, w: 190, h: 4, fontSize: 7.5, align: 'center', pages: 'last' }),
       ...(note ? [E({ type: 'text', text: note, x: 10, y: 222, w: 112, h: 18, fontSize: 8, italic: true, border: true, pages: 'last' })] : []),
       // Stage 75.2.8a: an e-invoiced credit note's IRN, Ack and signed QR
       // (all blank, so nothing prints, for a note that is not e-invoiced);
       // "IRN PENDING" in the same place while it is on its way.
-      ...(txn === 'CreditNote' || txn === 'SalesInvoice' ? [
+      ...(txn === 'CreditNote' || txn === 'SalesInvoice' || txn === 'OMSBill' ? [
         E({ type: 'qr', key: 'fields.irn_signed_qr', x: 10, y: 222, w: 30, h: 30, pages: 'last' }),
         E({ type: 'text', text: '{fields.irn_status}', x: 42, y: 222, w: 80, h: 6, fontSize: 10, bold: true, pages: 'last' }),
         E({ type: 'text', text: 'IRN: {fields.irn}', x: 42, y: 222, w: 80, h: 12, fontSize: 7.5, pages: 'last' }),
@@ -583,8 +616,21 @@ export function printContext(doc) {
     fields: doc.fields || {}, totals: doc.totals || {},
     // Stage 71: who printed it and when, beside the server's created /
     // approved audit fields.
-    audit: { ...(doc.audit || {}), printed_by: printedBy(), printed_at: printedAt() }
+    audit: { ...(doc.audit || {}), printed_by: printedBy() + (doc.reprint ? ' - REPRINT' : ''), printed_at: printedAt() }
   };
+}
+
+// logPrint (Stage 127.6) records a print for Setup > Printing > Reprint. Best
+// effort: a log that fails never stops a print.
+async function logPrint(txn, id, doc, action, reason = '') {
+  try {
+    await window.apiFetch(`/api/v1/print/document/${encodeURIComponent(txn)}/${encodeURIComponent(id)}/log`, {
+      method: 'POST',
+      body: JSON.stringify({ action, number: doc.number || '', title: doc.title || '', store: doc.store?.code || '', reprint_reason: reason })
+    });
+  } catch (e) {
+    console.debug('[print] could not record the print', e);
+  }
 }
 
 function printedBy() {
@@ -705,7 +751,8 @@ function transactionsFor(doctype, doc) {
   if (doctype === 'GRN') return ['GRN', 'GRNVendorCopy'];
   if (doctype === 'TransferOrder') return (doc && doc.status === 'Received') ? ['TransferIn', 'TransferOut'] : ['TransferOut', 'TransferIn'];
   const t = TRANSACTIONS.find(x => x.doctype === doctype);
-  return t ? [t.key] : [];
+  // Stage 127.3: any other transaction prints through the generic format.
+  return t ? [t.key] : (doctype ? [doctype] : []);
 }
 
 // printTransactionDocument opens the print dialog: transaction (PO / Vendor
@@ -723,7 +770,7 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
   overlay.innerHTML = `
     <div class="td-dialog" role="dialog" aria-modal="true" aria-label="Print">
       <div class="td-dialog-head">
-        <h2>Print</h2>
+        <h2>${opts.reprint ? 'Reprint' : 'Print'}</h2>
         <button type="button" class="btn btn-ghost btn-sm" data-td="close" aria-label="Close">&times;</button>
       </div>
       <div class="td-dialog-controls">
@@ -745,7 +792,7 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
     </div>`;
   document.body.appendChild(overlay);
   const q = (k) => overlay.querySelector(`[data-td="${k}"]`);
-  const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+  const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); opts.onClose?.(); };
   const onKey = (e) => { if (e.key === 'Escape') close(); };
   document.addEventListener('keydown', onKey);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
@@ -760,7 +807,7 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
   const paint = async () => {
     const layout = currentLayout();
     await qrEncoderReady(layout);
-    const pages = renderPages(layout, S.data.document);
+    const pages = renderCopies(layout, S.data.document);
     const prev = q('preview');
     prev.innerHTML = '';
     const [pw] = pageDims(layout.page);
@@ -784,7 +831,11 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
     const sel = q('template');
     const templates = data.templates || [];
     const roll = offersRollBill(S.txn);
-    if (!templates.some(t => t.id === S.templateId) && !(roll && S.templateId === ROLL_TEMPLATE_ID)) S.templateId = (templates.find(t => t.recommended) || {}).id || '';
+    // Stage 127.4: the print profile's template first, then one drawn for its
+    // paper, then the best match.
+    const profile = data.document?.fields?.print_profile || {};
+    const forPaper = (t) => profile.paper && parseLayout(t.layout, S.txn, data.document).page?.size === profile.paper;
+    if (!templates.some(t => t.id === S.templateId) && !(roll && S.templateId === ROLL_TEMPLATE_ID)) S.templateId = (templates.find(t => t.id === profile.template_id) || templates.find(forPaper) || templates.find(t => t.recommended) || {}).id || '';
     sel.innerHTML = templates.map(t => `<option value="${esc(t.id)}"${t.id === S.templateId ? ' selected' : ''}>${esc(t.name)}${t.recommended ? ' (best match)' : ''}</option>`).join('')
       + `<option value=""${S.templateId ? '' : ' selected'}>Standard layout (built-in)</option>`
       + (roll ? `<option value="${ROLL_TEMPLATE_ID}"${S.templateId === ROLL_TEMPLATE_ID ? ' selected' : ''}>3-inch roll bill (built-in)</option>` : '');
@@ -810,11 +861,20 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
   q('store').addEventListener('blur', storeChanged);
   q('print').addEventListener('click', () => busy(q('print'), async () => {
     if (!S.data) return;
-    const layout = currentLayout();
-    await qrEncoderReady(layout);
-    if (isRollPage(layout.page)) { await printRollBill(layout, S.data.document); close(); return; }
-    if (await printSilently(S.txn, S.data.document, pdfNow)) { close(); return; }
-    await printPages(renderPages(layout, S.data.document), layout);
+    // Stage 127.6: a reprint says why before it prints, and the page says
+    // it is a reprint.
+    let reason = '';
+    if (opts.reprint) {
+      reason = String((await window.showCustomPrompt('Why is this being printed again?', '', 'Reprint')) || '').trim();
+      if (!reason) return;
+      S.data.document.reprint = true;
+    }
+    // Stage 127.2: set up for silent print, a failure explains itself
+    // instead of opening the browser's print dialog.
+    if (await printLayout(S.txn, currentLayout(), S.data.document)) {
+      await logPrint(S.txn, id, S.data.document, opts.reprint ? 'Reprint' : 'Print', reason);
+      close();
+    }
   }));
   // Stage 98.4: with QZ Tray running, where this kind prints on this
   // computer, and Change.
@@ -848,9 +908,13 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
   };
   q('pdf').addEventListener('click', () => busy(q('pdf'), async () => {
     const out = await pdfOrExplain(pdfNow);
-    if (out) (await pdfModule()).downloadBlob(out.blob, out.name);
+    if (out) {
+      (await pdfModule()).downloadBlob(out.blob, out.name);
+      logPrint(S.txn, id, S.data.document, 'PDF');
+    }
   }));
-  q('send').addEventListener('click', () => S.data && openSendDocument(S.txn, id, { doc: S.data.document, store: S.store, makePDF: pdfNow }));
+  q('send').addEventListener('click', () => S.data && openSendDocument(S.txn, id, { doc: S.data.document, store: S.store, makePDF: pdfNow,
+    onDone: () => logPrint(S.txn, id, S.data.document, 'Send') }));
   q('design').addEventListener('click', async () => {
     const studio = await import('./print-template-studio.js' + VERSION_QUERY);
     close();
@@ -880,11 +944,40 @@ async function downloadResponse(resPromise, fallbackName, failMsg) {
 const pdfModule = () => import('./print-pdf.js' + VERSION_QUERY);
 
 // layoutPDF is the PDF of a layout over print data (Stage 98.2).
+// renderCopies (Stage 127.4) is renderPages once per copy label the
+// document's print profile names - one print run is one set (Original for
+// Recipient, Duplicate for Transporter...) - each page carrying its label at
+// the top right unless the template places {copy_label} itself. A roll prints
+// once.
+export function renderCopies(layout, doc) {
+  const labels = doc?.fields?.print_profile?.copy_labels || [];
+  if (!labels.length || isRollPage(layout.page)) return renderPages(layout, doc);
+  const placed = (layout.elements || []).some(e => String(e.text || e.key || '').includes('copy_label'));
+  const [w] = pageDims(layout.page);
+  const marked = placed ? layout : { ...layout, elements: [...(layout.elements || []),
+    { id: 'copy-label', type: 'text', text: '{copy_label}', x: w - 80, y: 3, w: 70, h: 4.5, fontSize: 7.5, italic: true, bold: true, align: 'right', pages: 'all' }] };
+  return labels.flatMap(label => renderPages(marked, { ...doc, copy_label: label }));
+}
+
 export async function layoutPDF(layout, doc) {
   await qrEncoderReady(layout);
   const [w] = pageDims(layout.page);
-  const pages = renderPages(layout, doc);
+  const pages = renderCopies(layout, doc);
   return (await pdfModule()).pagesToPDF(pages, w, renderedHeightMM(pages[0], layout));
+}
+
+// printLayout (Stage 127.2) prints a layout over print data the way every
+// print does: silently when this computer is set up for that kind, the
+// browser's print dialog only when it is not (or the user picks it after a
+// failure). Returns false when the user gave up on a failed print.
+export async function printLayout(txn, layout, doc) {
+  await qrEncoderReady(layout);
+  if (isRollPage(layout.page)) return printRollBill(layout, doc);
+  const make = async () => ({ blob: await layoutPDF(layout, doc), name: printFileName(doc, 'pdf') });
+  const r = await window.loadViewModule('./print-routing.js');
+  return r.printNoDialog(r.printKindFor(txn), doc.store?.code || '',
+    (why) => printSilently(txn, doc, make, why),
+    () => printPages(renderCopies(layout, doc), layout));
 }
 
 // printFileName is "<title>-<number>.<ext>", as the server names its exports.
@@ -908,14 +1001,14 @@ async function pdfOrExplain(make) {
 // this computer's printer for its kind - chosen once (print-routing.js) - as
 // the PDF of these pages. false: no tray, or no printer was chosen; the
 // caller opens the browser's print dialog as before.
-async function printSilently(txn, doc, make) {
-  if (!window.QZPrint || !window.qzTryPrint || !await window.qzTryConnect()) return false;
+async function printSilently(txn, doc, make, why = {}) {
+  if (!window.QZPrint || !window.qzTryPrint || !await window.qzTryConnect()) { why.reason = 'PrintBridge is not reachable.'; return false; }
   const out = await pdfOrExplain(make);
-  if (!out) return false;
+  if (!out) { why.reason = 'The PDF could not be made.'; return false; }
   const r = await window.loadViewModule('./print-routing.js');
   return window.qzTryPrint('Document', {
     documentRef: doc.number || out.name, dataBase64: await (await pdfModule()).blobToBase64(out.blob), docFormat: 'pdf',
-    printKind: r.printKindFor(txn), location: doc.store?.code || '', quiet: true
+    printKind: r.printKindFor(txn), location: doc.store?.code || '', quiet: true, why
   });
 }
 
@@ -929,26 +1022,47 @@ export async function printRollBill(layout, doc) {
   const pages = renderPages(layout, doc);
   const [w] = pageDims(layout.page);
   const h = renderedHeightMM(pages[0], layout);
-  try {
-    if (window.QZPrint && window.qzTryPrint && window.qzTryConnect && await window.qzTryConnect()) {
-      const r = await window.loadViewModule('./print-routing.js');
-      const store = doc.store?.code || '';
-      const printer = await r.chosenPrinter('Receipt', store);
-      if (printer) {
-        const pdf = await pdfModule();
-        const escpos = /ESC-?POS/i.test(printer.printer_language || '');
-        const dataBase64 = escpos
-          ? await pdf.pageToESCPOS(pages[0], w, h, { paperMM: parseFloat(printer.label_width_mm) || w, dpi: parseFloat(printer.dpi) || 203 })
-          : await pdf.blobToBase64(await pdf.pagesToPDF(pages, w, h));
-        if (await window.qzTryPrint('Document', { documentRef: doc.number, dataBase64, docFormat: escpos ? 'ESC-POS' : 'pdf',
-          printKind: 'Receipt', printerCode: printer.code, location: store, quiet: true })) return true;
-      }
-    }
-  } catch (e) {
-    console.debug('[print] roll bill to the receipt printer failed, using the print dialog', e);
-  }
-  await printPages(pages, layout);
+  await rollToReceipt(pages, w, h, doc.number, doc.store?.code || '', () => printPages(pages, layout));
   return true;
+}
+
+// rollToReceipt sends roll pages to this computer's Receipt printer through
+// PrintBridge (Stage 127.2): ESC-POS raster for an ESC-POS printer, else the
+// PDF. browserPrint only when this computer is not set up for receipts, or
+// the user picks it after a failure. Handled either way: a print the user
+// gave up on must not fall through to another path that opens the dialog.
+async function rollToReceipt(pages, w, h, ref, store, browserPrint) {
+  const r = await window.loadViewModule('./print-routing.js');
+  const trySilent = async (why) => {
+    if (!window.QZPrint || !window.qzTryPrint || !window.qzTryConnect || !await window.qzTryConnect()) { why.reason = 'PrintBridge is not reachable.'; return false; }
+    // Stage 127.2: the first bill on a new computer picks (or asks once
+    // for) its receipt printer, as every other print does.
+    const printer = await r.chosenPrinter('Receipt', store) || await r.choosePrinter('Receipt', store);
+    if (!printer) { why.reason = 'No receipt printer is chosen for this computer.'; return false; }
+    const pdf = await pdfModule();
+    const escpos = /ESC-?POS/i.test(printer.printer_language || '');
+    const dataBase64 = escpos
+      ? await pdf.pageToESCPOS(pages[0], w, h, { paperMM: parseFloat(printer.label_width_mm) || w, dpi: parseFloat(printer.dpi) || 203 })
+      : await pdf.blobToBase64(await pdf.pagesToPDF(pages, w, h));
+    return window.qzTryPrint('Document', { documentRef: ref, dataBase64, docFormat: escpos ? 'ESC-POS' : 'pdf',
+      printKind: 'Receipt', printerCode: printer.code, location: store, quiet: true, why });
+  };
+  return r.printNoDialog('Receipt', store, trySilent, browserPrint);
+}
+
+// printSlip (Stage 127.2) prints a small slip the till builds as HTML - an
+// advance voucher, a gift-card receipt - on this computer's receipt printer,
+// like the bill. browserPrint is how the slip printed before.
+export async function printSlip(html, ref, browserPrint) {
+  const page = `<div style="width:80mm; box-sizing:border-box; padding:3mm 4mm; background:#fff; color:#000; font:12px/1.4 system-ui, sans-serif;">` +
+    `<style>.receipt-line{display:flex;justify-content:space-between;gap:8px}hr{border:0;border-top:1px dashed #000;margin:6px 0}</style>${html}</div>`;
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed; left:-10000px; top:0;';
+  probe.innerHTML = page;
+  document.body.appendChild(probe);
+  const h = Math.ceil(probe.firstElementChild.getBoundingClientRect().height / (96 / 25.4)) + 2;
+  probe.remove();
+  return rollToReceipt([page], 80, h, ref, (window.erpWorkingStore || {}).code || '', browserPrint);
 }
 
 // printPOSBill is the till's Print Receipt (Stage 106.3): the sale's tax
@@ -968,7 +1082,9 @@ export async function printPOSBill(cartNumber) {
   const layout = templates.map(x => parseLayout(x.layout, 'POSTaxInvoice', data.document)).find(l => isRollPage(l.page))
     || rollBillLayout('POSTaxInvoice');
   if (layoutUsesImages(layout)) data = (await get(true)) || data;
-  return printRollBill(layout, data.document);
+  const printed = await printRollBill(layout, data.document);
+  logPrint('POSTaxInvoice', cartNumber, data.document, 'Print'); // Stage 127.6
+  return printed;
 }
 
 // documentPDF builds a transaction's PDF with its best-match template, without

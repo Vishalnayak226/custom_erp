@@ -150,6 +150,9 @@ func handleQZPrintPayload(w http.ResponseWriter, r *http.Request) {
 		// printed.
 		var labels []engines.StickerLabel
 		var sErr error
+		if req.SourceDoctype != "" && !stickerSourceReadable(w, r, req.SourceDoctype) {
+			return
+		}
 		if req.SourceDoctype != "" && req.SourceDocID != "" {
 			// Stage 52: bulk print from a GRN/Transfer Order - the selection
 			// (if any) narrows the document's lines, which is what makes

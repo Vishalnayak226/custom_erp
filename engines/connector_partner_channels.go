@@ -178,6 +178,12 @@ func (wooCommerceConnector) PushInventory(ctx context.Context, cred map[string]s
 }
 func (wooCommerceConnector) PushOrderStatus(ctx context.Context, cred map[string]string, update ConnectorStatusUpdate) error {
 	status := strings.ToLower(strings.ReplaceAll(update.Status, " ", "-"))
+	switch update.Status { // Stage 88.3.1: the Pending gate's answers in WooCommerce's words
+	case OrderDecisionAccepted:
+		status = "processing"
+	case OrderDecisionRejected:
+		status = "cancelled"
+	}
 	return connectorJSONRequest(ctx, "WooCommerce", http.MethodPut, wooBase(cred)+"/orders/"+url.PathEscape(update.ChannelOrderID), wooHeaders(cred), map[string]string{"status": status}, nil)
 }
 func (wooCommerceConnector) PublishProduct(ctx context.Context, cred map[string]string, payload ChannelProductPayload) (string, error) {

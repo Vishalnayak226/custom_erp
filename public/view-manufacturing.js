@@ -279,7 +279,7 @@ function renderProductionOrderActions(order) {
 }
 
 async function reportPartialProductionCompletion(orderId) {
-  const qtyStr = await showCustomPrompt('Quantity to report as completed in this batch:', '', 'Report Partial Completion');
+  const qtyStr = await showCustomPrompt('Quantity to report as completed in this batch:', '', 'Report Partial Completion', 'number');
   if (qtyStr === null || qtyStr === '') return;
   const qty = parseFloat(qtyStr);
   if (!qty || qty <= 0) {
@@ -323,7 +323,7 @@ export {
 };
 
 async function confirmProductionOperation(orderId) {
-  const seqStr = await showCustomPrompt('Operation sequence number to confirm (from the order\'s Routing):', '1', 'Confirm Operation');
+  const seqStr = await showCustomPrompt('Operation sequence number to confirm (from the order\'s Routing):', '1', 'Confirm Operation', 'number');
   if (seqStr === null || seqStr === '') return;
   const seq = parseInt(seqStr, 10);
   const res = await apiFetch('/api/v1/manufacturing/confirm-operation', {
@@ -345,7 +345,7 @@ async function confirmProductionOperation(orderId) {
 async function postProductionScrap(orderId) {
   const sku = await showCustomPrompt('SKU being scrapped:', '', 'Post Scrap');
   if (sku === null || sku === '') return;
-  const qtyStr = await showCustomPrompt('Scrap quantity:', '', 'Post Scrap');
+  const qtyStr = await showCustomPrompt('Scrap quantity:', '', 'Post Scrap', 'number');
   if (qtyStr === null || qtyStr === '') return;
   const qty = parseFloat(qtyStr);
   if (!qty || qty <= 0) {
@@ -368,7 +368,7 @@ async function postProductionScrap(orderId) {
 }
 
 async function sendProductionToRework(orderId) {
-  const qtyStr = await showCustomPrompt('Quantity to send to rework:', '', 'Send to Rework');
+  const qtyStr = await showCustomPrompt('Quantity to send to rework:', '', 'Send to Rework', 'number');
   if (qtyStr === null || qtyStr === '') return;
   const qty = parseFloat(qtyStr);
   if (!qty || qty <= 0) {
@@ -391,7 +391,7 @@ async function sendProductionToRework(orderId) {
 }
 
 async function recordProductionActualCost(orderId) {
-  const costStr = await showCustomPrompt('Actual total cost incurred for this production order:', '', 'Record Actual Cost');
+  const costStr = await showCustomPrompt('Actual total cost incurred for this production order:', '', 'Record Actual Cost', 'number');
   if (costStr === null || costStr === '') return;
   const cost = parseFloat(costStr);
   if (cost < 0 || isNaN(cost)) {

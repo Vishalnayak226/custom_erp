@@ -43,8 +43,65 @@ func ResolveDocumentStickerLines(tenantID, sourceDoctype, sourceDocID string) ([
 	case "TransferOrder":
 		return resolveTransferOrderStickerLines(tenantID, sourceDocID)
 	default:
-		return nil, fmt.Errorf("%w: %q (supported: GRN, TransferOrder)", ErrUnsupportedStickerSource, sourceDoctype)
+		// Stage 127.5 (user, 2026-10-21: "any new taxn should load properly
+		// in print"): any other transaction whose lines carry items.
+		if DoctypeIsTransaction(tenantID, sourceDoctype) {
+			return resolveGenericStickerLines(tenantID, sourceDoctype, sourceDocID)
+		}
+		return nil, fmt.Errorf("%w: %q is not a transaction", ErrUnsupportedStickerSource, sourceDoctype)
 	}
+}
+
+// resolveGenericStickerLines reads any transaction's item lines - its line
+// table, else items / lines / received_items / return_items - one sticker per
+// unit, lots kept apart like a GRN's.
+func resolveGenericStickerLines(tenantID, doctype, id string) ([]DocStickerLine, error) {
+	data, status, err := fetchDocData(tenantID, doctype, id)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("no %s is numbered %q - pick one from the list under the box", humanizeDoctype(doctype), id)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("could not load %s %s: %v", doctype, id, err)
+	}
+	if status == "Cancelled" {
+		return nil, fmt.Errorf("%s %s is cancelled", humanizeDoctype(doctype), id)
+	}
+	names := []string{}
+	if fields, err := GetDocTypeMeta(tenantID, doctype); err == nil {
+		for _, f := range fields {
+			if f.Fieldtype == "JSONTable" {
+				names = append(names, f.Fieldname)
+			}
+		}
+	}
+	names = append(names, "items", "lines", "received_items", "return_items")
+	type key struct{ sku, batch string }
+	byLine := map[key]*DocStickerLine{}
+	var order []key
+	for _, name := range names {
+		for _, l := range genericLineList(data[name]) {
+			sku := genericLineSKU(l)
+			qty := int(numFromInterface(firstPresent(l, "accepted_qty", "qty", "quantity", "return_qty", "received_qty", "issued_qty")))
+			if sku == "" || qty <= 0 {
+				continue
+			}
+			k := key{sku, strField(l, "batch_no")}
+			if existing, ok := byLine[k]; ok {
+				existing.Qty += qty
+				continue
+			}
+			byLine[k] = &DocStickerLine{SKU: sku, Qty: qty, BatchNo: k.batch, ExpiryDate: strField(l, "expiry_date")}
+			order = append(order, k)
+		}
+		if len(order) > 0 {
+			break
+		}
+	}
+	lines := make([]DocStickerLine, 0, len(order))
+	for _, k := range order {
+		lines = append(lines, *byLine[k])
+	}
+	return lines, nil
 }
 
 // resolveGRNStickerLines prints against accepted_qty (qty minus the

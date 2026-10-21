@@ -58,6 +58,9 @@ type SettingDefinition struct {
 	Options     []SettingOption `json:"options,omitempty"`
 	Min         *float64        `json:"min,omitempty"`
 	Max         *float64        `json:"max,omitempty"`
+	// Optional (Stage 127.1): a number setting that may also be blank, where
+	// blank means the rule its description names (a country's limit, say).
+	Optional bool `json:"optional,omitempty"`
 }
 
 var settingsRegistry = map[string]SettingDefinition{}
@@ -307,6 +310,9 @@ func ValidateSetting(key, value string) error {
 }
 
 func validateSettingValue(def SettingDefinition, value string) error {
+	if def.Optional && strings.TrimSpace(value) == "" && (def.Type == SettingTypeInt || def.Type == SettingTypeFloat) {
+		return nil
+	}
 	switch def.Type {
 	case SettingTypeInt:
 		n, err := strconv.Atoi(strings.TrimSpace(value))

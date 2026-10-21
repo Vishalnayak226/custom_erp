@@ -209,8 +209,8 @@ drives the order forward. They are deliberately not the same mechanism.
 
 ### Bin-grouped pick list
 
-From **Fulfillment**, a Pending or Picking task's **View Pick List** button
-opens a read-only modal (`GET /api/v1/wms/pick-list?task_id=...`,
+The bin-level pick list (used by WMS picking; OMS → Pick prints the task's
+own **Pick list** template) is a read-only view (`GET /api/v1/wms/pick-list?task_id=...`,
 `GenerateBinPickList`) — the bins/zones/aisles/racks to walk, in
 walk-route order, for that one task's items. A SKU with insufficient binned
 stock shows a **Shortfall** rather than failing the whole list, so a picker
@@ -251,8 +251,8 @@ readout (`speechSynthesis`) and voice "next"/"confirm" control
 
 ### What actually moves the order forward
 
-The order itself advances on the **Fulfillment** screen, by a coarse status
-transition (`POST /api/v1/fulfillment/task/transition`):
+The order itself advances on **OMS → Pick / Pack / Ship**, by scans and the
+task's status transitions (`POST /api/v1/fulfillment/task/transition`):
 **Pending → Picking → Packed → Dispatched** (or **Rejected** from Pending or
 Picking). "Start Picking", "Mark Packed" and "Dispatch" are plain status
 changes — they don't take a quantity or a bin, and don't call the pick list
@@ -423,13 +423,13 @@ units into that location.
   sell. **Reports → Stock by Location** shows every store location by
   location.
 
-## Transfers (Stock Transfer)
+## Transfers (Stock Movement)
 
 The basic transfer workflow is Draft →
 Approved → Dispatch → Receive click-through. This section goes deeper into
 what actually happens at each step and where it can go wrong.
 
-**WMS → Stock Transfer** (`renderTransfersView`) drives a `TransferOrder`
+**Inventory → Stock Movement** (`renderTransfersView`) drives a `TransferOrder`
 through five possible states:
 
 1. **Draft** — add **From Warehouse**, **To Warehouse**, and one or more

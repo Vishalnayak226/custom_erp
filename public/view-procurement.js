@@ -497,7 +497,7 @@ function renderPOComposer(panel) {
       </div>
       <div class="form-group">
         <label class="form-label" for="po-entry-mrp">MRP <span class="po-optional">optional</span></label>
-        <input type="number" id="po-entry-mrp" class="form-input num" min="0" step="0.01" placeholder="&mdash;">
+        <input type="number" id="po-entry-mrp" class="form-input num" min="0" step="1" placeholder="&mdash;">
       </div>
       <button class="btn btn-primary btn-sm" id="po-entry-add" type="button" title="Add to the PO (Enter)">Add</button>
     </div>
@@ -592,11 +592,14 @@ function renderPOComposer(panel) {
     if (poDesign) leavePODesignMode();
   });
   // Enter adds the line; an open menu takes Enter first (the picker stops it).
-  // On an item name, Enter moves on to its design number.
+  // On an item name, Enter moves on to its purchase price (126.1).
   skuEl.addEventListener('keydown', (e) => {
+    // Stage 126.1: a picked item name is a value, not text - Backspace or
+    // Delete clears it to choose another.
+    if (skuEl.readOnly && poDesign && (e.key === 'Backspace' || e.key === 'Delete')) { e.preventDefault(); clearPOItemName(); return; }
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    if (poDesign) document.getElementById('pod-dno')?.focus();
+    if (poDesign) podFocus(document.getElementById('po-entry-rate'));
     else addPOEntry();
   });
   ['qty', 'rate', 'mrp'].forEach(field => {
@@ -617,7 +620,17 @@ function renderPOComposer(panel) {
     el.addEventListener('change', commit);
     el.addEventListener('blur', commit);
     if (field !== 'qty') el.addEventListener('input', () => { if (poDesign) commit(); });
-    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); addPOEntry(); } });
+    // Stage 126.1 (the user: "It should skip to pp and than mrp than hop to
+    // variant section. enter should be hop"): on an item name Enter moves on;
+    // Add (or Ctrl+D) adds. A SKU still adds on Enter.
+    el.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      commit();
+      if (!poDesign || !poDesign.itemName) addPOEntry();
+      else if (field === 'rate') podFocus(document.getElementById('po-entry-mrp'));
+      else podHopFrom(el);
+    });
   });
   document.getElementById('po-entry-add').addEventListener('click', addPOEntry);
   bindPODesignNumber();
@@ -861,7 +874,7 @@ function renderPOLines() {
         ${attrCols.map(a => `<td class="po-derived">${derived((p.attributes || {})[a.code])}</td>`).join('')}
         <td><input type="number" class="form-input num" data-po-field="qty" min="1" step="1" value="${escapeHTMLText(line.qty)}"></td>
         <td><input type="number" class="form-input num" data-po-field="rate" min="0" step="0.01" value="${escapeHTMLText(line.rate)}"></td>
-        <td><input type="number" class="form-input num" data-po-field="mrp" min="0" step="0.01" value="${escapeHTMLText(line.mrp)}" placeholder="&mdash;"></td>
+        <td><input type="number" class="form-input num" data-po-field="mrp" min="0" step="1" value="${escapeHTMLText(line.mrp)}" placeholder="&mdash;"></td>
         <td class="po-derived">${derived(p.hsn_code)}</td>
         <td class="po-derived num">${p.gst_rate ? escapeHTMLText(String(p.gst_rate)) + '%' : (p.tax_treatment && p.tax_treatment !== 'Taxable' ? escapeHTMLText(p.tax_treatment) : '<span class="text-muted">&mdash;</span>')}</td>
         <td class="po-derived num">${p.taxable ? formatMoney(p.taxable) : '<span class="text-muted">&mdash;</span>'}</td>
@@ -875,7 +888,8 @@ function renderPOLines() {
     const ps = g.rows.map(i => previewLines[i] || {});
     const qty = g.rows.reduce((s, i) => s + (Number(d.lines[i].qty) || 0), 0);
     const total = ps.reduce((s, p) => s + (Number(p.line_total) || 0), 0);
-    return `<tr class="po-design-head"><td colspan="${cols}"><b>Design ${escapeHTMLText(g.design)}</b> &middot; ${g.rows.length} combination${g.rows.length === 1 ? '' : 's'} &middot; Qty ${qty}${total ? ` &middot; ${formatMoney(total)}` : ''}</td></tr>`;
+    return `<tr class="po-design-head"><td colspan="${cols}"><b>Design ${escapeHTMLText(g.design)}</b> &middot; ${g.rows.length} combination${g.rows.length === 1 ? '' : 's'} &middot; Qty ${qty}${total ? ` &middot; ${formatMoney(total)}` : ''}
+      <button type="button" class="btn btn-outline btn-sm po-design-edit" data-po-edit-design="${escapeHTMLText(g.design)}" title="Open this design in the entry row to change its colours, sizes, qty or prices">Edit</button></td></tr>`;
   };
   body.innerHTML = d.lines.length === 0
     ? `<tr><td colspan="${cols}" class="po-lines-empty">No items yet &mdash; type an item name or a SKU above.</td></tr>`
@@ -915,6 +929,10 @@ function renderPOLines() {
       try { if (keep.start !== null) again.setSelectionRange(keep.start, keep.end); } catch (e) { /* number inputs have no caret */ }
     }
   }
+
+  body.querySelectorAll('[data-po-edit-design]').forEach(btn => {
+    btn.addEventListener('click', () => editPODesign(btn.getAttribute('data-po-edit-design')));
+  });
 
   body.querySelectorAll('[data-po-remove]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -984,6 +1002,8 @@ async function enterPODesignMode(code) {
 function leavePODesignMode() {
   const before = poDesign && poDesign.before;
   poDesign = null;
+  const skuEl = document.getElementById('po-entry-sku');
+  if (skuEl) { skuEl.readOnly = false; skuEl.classList.remove('po-entry-picked'); }
   if (before) {
     ['qty', 'rate', 'mrp'].forEach(f => {
       poDraft.entry[f] = before[f] || (f === 'qty' ? '1' : '');
@@ -992,6 +1012,31 @@ function leavePODesignMode() {
     });
   }
   renderPOEntryAttrs();
+}
+
+// clearPOItemName empties the Add row's item name for the next one.
+function clearPOItemName() {
+  leavePODesignMode();
+  poDraft.entry.text = '';
+  poDraft.entry.sku = '';
+  const skuEl = document.getElementById('po-entry-sku');
+  if (skuEl) { skuEl.value = ''; skuEl.title = ''; skuEl.focus(); }
+}
+
+// The Enter path on an item name (Stage 126.1): Purchase price, MRP, then the
+// variant cells in reading order, ending on Add. Design number is left out -
+// it is clicked into only to type or paste a number.
+const POD_HOP = '[data-pod-typed], [data-pod-cell], [data-pod-vrow]';
+function podFocus(el) {
+  if (!el) return;
+  el.focus();
+  if (el.tagName === 'INPUT') { try { el.select(); } catch (e) { /* not every input type selects */ } }
+}
+function podHopFrom(el) {
+  const box = document.getElementById('po-entry-attrs');
+  const list = box ? [...box.querySelectorAll(POD_HOP)] : [];
+  const next = el && el.id === 'po-entry-mrp' ? list[0] : list[list.indexOf(el) + 1];
+  podFocus(next || document.getElementById('po-entry-add'));
 }
 
 // vrowValue: a variant row's qty / price / MRP, else the design's (the Add
@@ -1047,11 +1092,18 @@ function poDesignRowProblem(d) {
   return '';
 }
 
+// A combination's values are its own options over the design's attributes:
+// a design made with one variant keeps its colour / size on the design, so
+// its one combination has none of its own - and without the design's, a
+// second colour added later (or on Edit, 126.3) made that first variant again
+// under a new combination ID.
 function poDesignExistingFor(d, values) {
   if (!d.loaded) return null;
   const want = Object.keys(values).sort().map(k => `${k.toLowerCase()}:${String(values[k]).toLowerCase()}`).join(';');
+  const lower = m => Object.fromEntries(Object.entries(m || {}).map(([k, v]) => [k.toLowerCase(), v]));
+  values = lower(values);
   return (d.loaded.combinations || []).find(c => {
-    const o = c.options || {};
+    const o = { ...lower(d.loaded.attributes), ...lower(c.options) };
     const keys = Object.keys(o).filter(k => o[k] !== '' && Object.prototype.hasOwnProperty.call(values, k));
     const have = keys.sort().map(k => `${k.toLowerCase()}:${String(o[k]).toLowerCase()}`).join(';');
     return keys.length === Object.keys(values).length && have === want;
@@ -1088,12 +1140,21 @@ async function pickPOItemName(code) {
   d.designNumber = '';
   d.loaded = null;
   if (poDesign !== d) return; // the box changed while this loaded
+  // Stage 126.1 (the user: "Item name created it shoud not be open text. It
+  // should be value"): the box holds the picked name, read-only, until it is
+  // cleared; the cursor goes on to the purchase price.
   const skuEl = document.getElementById('po-entry-sku');
-  if (skuEl) { skuEl.value = poDraft.entry.text = d.itemName.name; skuEl.title = d.itemName.code; }
+  if (skuEl) {
+    skuEl.value = poDraft.entry.text = d.itemName.name;
+    skuEl.readOnly = true;
+    skuEl.classList.add('po-entry-picked');
+    skuEl.title = `${d.itemName.name} - Backspace or Delete clears it to choose another`;
+  }
   poDraft.entry.sku = '';
   renderPOEntryAttrs();
   const dnoEl = document.getElementById('pod-dno');
-  if (dnoEl) { dnoEl.value = ''; dnoEl.focus(); }
+  if (dnoEl) dnoEl.value = '';
+  podFocus(document.getElementById('po-entry-rate'));
 }
 
 // syncPOEntryButton: on an item name, Add says how many combinations it adds
@@ -1103,9 +1164,11 @@ function syncPOEntryButton() {
   if (!btn) return;
   const d = poDesign;
   const kept = d && d.itemName ? d.vrows.length : -1;
-  btn.textContent = kept > 1 ? `Add ${kept}` : 'Add';
+  const verb = d && d.editing ? 'Update' : 'Add';
+  btn.textContent = kept > 1 ? `${verb} ${kept}` : verb;
   btn.disabled = kept === 0;
-  btn.title = kept >= 0 ? 'Create the design and add its combinations to the PO (Enter)' : 'Add to the PO (Enter)';
+  btn.title = d && d.editing ? 'Put the changed design back on the PO (Enter)'
+    : kept >= 0 ? 'Create the design and add its combinations to the PO (Enter)' : 'Add to the PO (Enter)';
 }
 
 // renderPOEntryAttrs draws the picked item name's attributes under the Add
@@ -1154,12 +1217,14 @@ function renderPOEntryAttrs() {
   box.innerHTML = `
     <div class="po-entry-attrs-head">
       <span><strong>${escapeHTMLText(inm.name)}</strong>${inm.category ? ` &middot; ${escapeHTMLText(inm.category)}` : ''} &middot; HSN <strong>${escapeHTMLText(inm.hsn_code || '—')}</strong> &middot; GST <strong>${escapeHTMLText(String(inm.gst_rate ?? '—'))}%</strong></span>
-      <span class="po-design-mode">${d.loaded
+      <span class="po-design-mode">${d.editing
+        ? `Editing design <strong>${escapeHTMLText(poDesignLabel(d.loaded || { code: d.editing.design }))}</strong> on this PO &mdash; <b>Update</b> puts it back in place of its lines; a row with qty 0 comes off.`
+        : d.loaded
         ? `Adding to design <strong>${escapeHTMLText(poDesignLabel(d.loaded))}</strong> (${escapeHTMLText(d.loaded.code)}) &mdash; its ${(d.loaded.combinations || []).length} existing combination(s) are listed. <button type="button" class="link-btn" id="pod-unload">Another design number</button>`
         : exact ? `Design <strong>${escapeHTMLText(poDesignLabel(exact))}</strong> exists &mdash; <button type="button" class="link-btn" id="pod-use-exact">load it</button>`
         : d.designNumber.trim() ? '<span class="badge badge-secondary">New design</span>'
         : `${d.designs.length} design(s) under this item name.`}</span>
-      <button type="button" class="link-btn" id="pod-close">Clear item name</button>
+      <button type="button" class="link-btn" id="pod-close">${d.editing ? 'Cancel edit' : 'Clear item name'}</button>
     </div>
     ${otherAttrs.length ? `<div class="po-design-row">${otherAttrs.map(a => `
       <div class="form-group"><label class="form-label">${escapeHTMLText(a.label)}</label><input type="${a.value_type === 'Number' ? 'number' : a.value_type === 'Date' ? 'date' : 'text'}" class="form-input" style="width:150px;" data-pod-typed="${escapeHTMLText(a.code)}" value="${escapeHTMLText(d.typed[a.code] || '')}"></div>`).join('')}</div>` : ''}
@@ -1191,13 +1256,7 @@ function renderPOEntryAttrs() {
     </div>
   `;
 
-  document.getElementById('pod-close').addEventListener('click', () => {
-    leavePODesignMode();
-    poDraft.entry.text = '';
-    poDraft.entry.sku = '';
-    const skuEl = document.getElementById('po-entry-sku');
-    if (skuEl) { skuEl.value = ''; skuEl.title = ''; skuEl.focus(); }
-  });
+  document.getElementById('pod-close').addEventListener('click', clearPOItemName);
   const unload = document.getElementById('pod-unload');
   if (unload) unload.addEventListener('click', () => {
     d.loaded = null; d.designNumber = ''; d.vrows = [{ values: {} }];
@@ -1209,22 +1268,33 @@ function renderPOEntryAttrs() {
   if (useExact && exact) useExact.addEventListener('click', () => loadPODesign(exact.code || exact.id));
   // A changed row makes a refusal shown at Add stale.
   const clearErr = () => document.getElementById('po-entry-error')?.classList.add('hidden');
-  const focusCell = (i, code) => box.querySelector(`[data-pod-cell="${i}"]${code ? `[data-pod-attr="${CSS.escape(code)}"]` : ''}`)?.focus();
+  const cellEl = (i, code) => box.querySelector(`[data-pod-cell="${i}"]${code ? `[data-pod-attr="${CSS.escape(code)}"]` : ''}`);
+  const focusCell = (i, code) => cellEl(i, code)?.focus();
+  // Stage 126.1 (the user: "Once item selcted it should hop. ... It is all
+  // for all attribute color polish etc."): Enter moves on cell by cell and
+  // ends on Add, and a value picked from a list moves on by itself. Arrow
+  // keys on a closed list still step through its values in place.
+  box.querySelectorAll(POD_HOP).forEach(input => input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); podHopFrom(input); return; }
+    if (input.tagName === 'SELECT') input.dataset.podListPick = (e.key === ' ' || e.key === 'F4' || (e.altKey && /^Arrow(Up|Down)$/.test(e.key))) ? '1' : '';
+  }));
+  box.querySelectorAll('[data-pod-cell]').forEach(sel => sel.addEventListener('mousedown', () => { sel.dataset.podListPick = '1'; }));
   box.querySelectorAll('[data-pod-cell]').forEach(sel => sel.addEventListener('change', async () => {
     const i = Number(sel.getAttribute('data-pod-cell'));
     const code = sel.getAttribute('data-pod-attr');
+    const hop = sel.dataset.podListPick === '1';
+    const after = () => (hop ? podHopFrom(cellEl(i, code)) : focusCell(i, code));
     clearErr();
     if (sel.value === '__new') {
       const a = d.matrix.attributes.find(x => x.code === code) || { label: code };
       const v = await showCustomPrompt(`New ${a.label} value:`, '', `Add a ${a.label}`);
-      if (v && String(v).trim()) await addPODesignAttributeValue(code, '', v, i);
-      else renderPOEntryAttrs();
-      focusCell(i, code);
+      if (v && String(v).trim()) { await addPODesignAttributeValue(code, '', v, i); after(); }
+      else { renderPOEntryAttrs(); focusCell(i, code); }
       return;
     }
     if (sel.value) d.vrows[i].values[code] = sel.value; else delete d.vrows[i].values[code];
     renderPOEntryAttrs();
-    focusCell(i, code);
+    after();
   }));
   // Stage 114.3 (the user: "Attribute is not working"): with a box empty the
   // button did nothing at all; it now says which box to fill.
@@ -1282,8 +1352,8 @@ function bindPODesignNumber() {
   dnoEl.addEventListener('input', () => { if (poDesign) { poDesign.designNumber = dnoEl.value; paintSuggest(); } });
   dnoEl.addEventListener('focus', paintSuggest);
   dnoEl.addEventListener('blur', () => setTimeout(() => { suggestEl.classList.add('hidden'); if (poDesign && !poDesign.loaded) renderPOEntryAttrs(); }, 150));
-  // Enter moves on along the row.
-  dnoEl.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('po-entry-qty')?.focus(); } });
+  // Enter moves on along the row (qty is per variant, so the price is next).
+  dnoEl.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); podFocus(document.getElementById('po-entry-rate')); } });
 }
 
 // addPODesignAttributeValue saves a new value (or a new attribute with its
@@ -1327,6 +1397,59 @@ async function loadPODesign(code) {
     if (el && !el.value && d[f]) el.value = poDraft.entry[f] = d[f];
   });
   renderPOEntryAttrs();
+}
+
+// editPODesign: Stage 126.3 (the user: "Need a edit button once created
+// item"). A design already on the PO opens again in the Add row - its item
+// name, the design loaded, one variant row per combination on this PO with
+// that line's qty / price / MRP. Update puts the rows back where those lines
+// were (a new colour or size is a new combination); Cancel edit leaves the
+// lines as they were.
+async function editPODesign(design) {
+  const previewLines = (poPreview && poPreview.lines) || [];
+  const lines = poDraft.lines.filter((l, i) => (previewLines[i] || {}).design === design);
+  if (!lines.length) return;
+  if (poDesign && poDesign.itemName && !(await showCustomConfirm(`${poDesign.itemName.name} is open in the entry row and has not been added. Leave it and edit design ${design}?`, 'Edit design'))) return;
+  const fam = await lookupLinkDoc('ProductFamily', design);
+  if (!fam || !fam.item_name) {
+    showToast(`Design ${design} has no item name, so it cannot open in the entry row - change its qty and prices in the lines.`, { variant: 'warning' });
+    return;
+  }
+  await enterPODesignMode(fam.item_name);
+  const d = poDesign;
+  if (!d || !d.itemName) return;
+  await loadPODesign(fam.code || fam.id || design);
+  if (poDesign !== d || !d.loaded) return;
+  // applyLoadedDesign made one row per existing combination, in order; keep
+  // the ones on this PO (a combination listed twice becomes one row).
+  const combos = d.loaded.combinations || [];
+  const rows = [];
+  const skus = [];
+  lines.forEach(l => {
+    const k = combos.findIndex(c => c.sku === l.sku);
+    if (k < 0 || !d.vrows[k]) return;
+    const seen = skus.indexOf(l.sku);
+    if (seen >= 0) { rows[seen].qty = String((Number(rows[seen].qty) || 0) + (Number(l.qty) || 0)); return; }
+    skus.push(l.sku);
+    rows.push({ values: { ...d.vrows[k].values }, qty: l.qty, rate: l.rate, mrp: l.mrp });
+  });
+  if (!rows.length) {
+    clearPOItemName();
+    showToast(`Design ${design}'s lines are not among its combinations - change them in the lines.`, { variant: 'warning' });
+    return;
+  }
+  d.vrows = rows;
+  d.editing = { design, skus };
+  // The row's price and MRP start as the first line's; each row keeps its own.
+  ['rate', 'mrp'].forEach(f => {
+    d[f] = rows[0][f] || '';
+    poDraft.entry[f] = d[f];
+    const el = document.getElementById(`po-entry-${f}`);
+    if (el) el.value = d[f];
+  });
+  renderPOEntryAttrs();
+  document.getElementById('po-entry')?.scrollIntoView({ block: 'nearest' });
+  podFocus(document.getElementById('po-entry-rate'));
 }
 
 function applyLoadedDesign(d, design) {
@@ -1458,16 +1581,24 @@ async function createPODesign() {
     if (qty > 0) added.push({ sku, qty: String(qty), rate: rate ? String(rate) : '', mrp: mrpRaw === '' || mrpRaw == null ? '' : String(mrpRaw) });
   }
 
-  // 3. Onto the PO.
-  poDraft.lines.push(...added);
+  // 3. Onto the PO - an edited design back in place of its old lines (126.3).
+  if (d.editing) {
+    const gone = new Set(d.editing.skus);
+    const at = poDraft.lines.findIndex(l => gone.has(l.sku));
+    poDraft.lines = poDraft.lines.filter(l => !gone.has(l.sku));
+    poDraft.lines.splice(at < 0 ? poDraft.lines.length : at, 0, ...added);
+  } else {
+    poDraft.lines.push(...added);
+  }
   renderPOLines();
   schedulePOPreview();
   const label = typedNo || designCode;
   if (failures.length) {
     fail(`Design ${label}: ${added.length} combination(s) added; ${failures.length} could not be created - ${failures.join('; ')}`);
+    if (d.editing) d.editing.skus = added.map(l => l.sku); // already put back; a retry replaces these
     return;
   }
-  showToast(`Design ${label}: ${added.length} combination(s) added to the PO.`, { variant: 'success' });
+  showToast(`Design ${label}: ${added.length} combination(s) ${d.editing ? 'updated on' : 'added to'} the PO.`, { variant: 'success' });
   // A clean slate for the next item (user, 94.27): the item name, its
   // attributes and the row's qty / price / MRP are all cleared.
   leavePODesignMode();
@@ -1563,11 +1694,8 @@ function renderPOSupplyBanner() {
   }
 
   if (!pos.derived) {
-    el.className = 'po-supply-banner po-supply-warn';
-    el.innerHTML = `
-      <span><strong>Supply type could not be derived</strong> &mdash; ${escapeHTMLText(pos.reason || 'a state is missing')}.
-      Tick it here, or add the GSTIN/state on the store or vendor.</span>
-      <label class="po-override"><input type="checkbox" id="po-interstate" ${d.interstate ? 'checked' : ''}> Inter-state (IGST)</label>`;
+    renderPOStateAsks(el, pos);
+    return;
   } else {
     const kind = pos.interstate ? 'Inter-state' : 'Intra-state';
     const tax = pos.interstate ? 'IGST' : 'CGST + SGST';
@@ -1594,6 +1722,53 @@ function renderPOSupplyBanner() {
   });
 }
 
+// renderPOStateAsks: the supply type could not be worked out. Stage 126.2
+// (the user: "It should ask vendor state is missing as config to set up and
+// save don't show interstate can't decide"): no Inter-state tick to guess
+// with - the vendor or billing store with no state is asked for it, the state
+// is saved on that record, and the supply type is worked out again.
+function renderPOStateAsks(el, pos) {
+  const d = poDraft;
+  const asks = [];
+  if (d.vendor && !pos.vendor_state_code) {
+    asks.push({ doctype: 'Vendor', ref: d.vendor, what: 'vendor', name: typedTextOf(document.getElementById('po-vendor')) || d.vendor });
+  }
+  if (d.location && !pos.buyer_state_code) {
+    asks.push({ doctype: 'Location', ref: d.location, what: 'store', name: (poPreview && poPreview.bill_to && poPreview.bill_to.name) || d.location });
+  }
+  const pick = [!d.vendor && 'the vendor', !d.location && 'the billing address'].filter(Boolean).join(' and ');
+  const regions = (window.FIELD_META && window.FIELD_META.regions) || [];
+  const stateBox = (k, a) => regions.length
+    ? `<select class="form-input po-state-pick" data-po-state="${k}" aria-label="State of ${escapeHTMLText(a.name)}"><option value="">Choose the state...</option>${regions.map(r => `<option value="${escapeHTMLText(r.name)}">${escapeHTMLText(r.name)}</option>`).join('')}</select>`
+    : `<input type="text" class="form-input po-state-pick" data-po-state="${k}" placeholder="State" aria-label="State of ${escapeHTMLText(a.name)}">`;
+  el.className = `po-supply-banner ${asks.length ? 'po-supply-warn' : 'po-supply-idle'}`;
+  el.innerHTML = asks.map((a, k) => canUpdateDoctype(a.doctype)
+    ? `<span class="po-state-ask"><span><strong>${escapeHTMLText(a.name)}</strong> has no state &mdash; choose it, so the PO knows IGST or CGST + SGST:</span>
+        ${stateBox(k, a)}<button type="button" class="btn btn-primary btn-sm" data-po-state-save="${k}">Save to ${a.what}</button></span>`
+    : `<span class="po-state-ask"><span><strong>${escapeHTMLText(a.name)}</strong> has no state &mdash; ask an administrator to set it on the ${a.what}, so the PO knows IGST or CGST + SGST.</span></span>`).join('')
+    + (pick ? `<span>Pick ${pick} &mdash; the supply type is worked out from their states.</span>` : '')
+    + (!asks.length && !pick ? `<span><strong>Supply type could not be worked out</strong> &mdash; ${escapeHTMLText(pos.reason || 'a state is missing')}.</span>` : '');
+
+  el.querySelectorAll('[data-po-state-save]').forEach(btn => btn.addEventListener('click', () => {
+    const k = btn.getAttribute('data-po-state-save');
+    const a = asks[Number(k)];
+    const box = el.querySelector(`[data-po-state="${k}"]`);
+    const state = box ? box.value.trim() : '';
+    if (!state) { box?.focus(); return; }
+    guardAgainstDoubleSubmit(btn, 'Saving...', async () => {
+      const doc = await lookupLinkDoc(a.doctype, a.ref);
+      if (!doc) { showToast(`${a.name} was not found.`, { variant: 'error' }); return; }
+      // An update keeps every field it does not send, so only the state goes.
+      const res = await apiFetch(`/api/v1/doc/${a.doctype}/${encodeURIComponent(doc.id || a.ref)}`, { method: 'POST', body: JSON.stringify({ state }) });
+      if (!res) return;
+      if (!res.ok) { await showApiError(res, `Could not save the state on ${a.name}.`); return; }
+      rememberLinkDoc(a.doctype, { ...doc, state });
+      showToast(`${a.name}: state saved as ${state}.`, { variant: 'success' });
+      runPOPreview();
+    });
+  }));
+}
+
 function renderPOTotals() {
   const el = document.getElementById('po-totals');
   if (!el) return;
@@ -1609,6 +1784,7 @@ function renderPOTotals() {
   el.innerHTML = cell('Designs', designs) + cell('Items', lines) + cell('Total qty', qty)
     + cell('Purchase cost', txnMoney((b.taxable_amount || 0) + nonTaxable))
     + (b.interstate ? cell('IGST', txnMoney(b.igst || 0)) : cell('CGST', txnMoney(b.cgst || 0)) + cell('SGST', txnMoney(b.sgst || 0)))
+    + (p && p.round_off ? cell('Round off', (p.round_off > 0 ? '+' : '') + Number(p.round_off).toFixed(2)) : '') // Stage 94.15
     + cell('Grand total', txnMoney((p && p.grand_total) || 0), ' po-strip-total');
 }
 
@@ -1843,7 +2019,7 @@ async function sendSubcontractOrder(id) {
 }
 
 async function receiveSubcontractOrder(id, expectedQty) {
-  const qtyStr = await showCustomPrompt('Actual quantity received back from the subcontractor:', expectedQty || '', 'Receive Subcontract Order');
+  const qtyStr = await showCustomPrompt('Actual quantity received back from the subcontractor:', expectedQty || '', 'Receive Subcontract Order', 'number');
   if (qtyStr === null) return;
   const qty = Number(qtyStr);
   if (!qty || qty <= 0) {

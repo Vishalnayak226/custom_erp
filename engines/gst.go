@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 )
 
@@ -13,6 +14,93 @@ import (
 // new dependency for it.
 func round2(v float64) float64 {
 	return math.Round(v*100) / 100
+}
+
+// RoundToRupee (Stage 94.15) is a bill or order total rounded to the whole
+// rupee, and the round-off line that gets it there (rounded - total). The
+// total is taken to paise first, so 970.495000001 cannot round differently
+// from the 970.50 every screen shows.
+func RoundToRupee(total float64) (rounded, roundOff float64) {
+	total = round2(total)
+	rounded = math.Round(total)
+	return rounded, round2(rounded - total)
+}
+
+// roundOffPaise is RoundToRupee for a paise amount: the paise that take it to
+// the nearest whole rupee, half a rupee rounding up (away from zero).
+func roundOffPaise(p int64) int64 {
+	if p >= 0 {
+		return (p+50)/100*100 - p
+	}
+	return -roundOffPaise(-p)
+}
+
+// WholeRupeeMRP (Stage 94.15): an MRP is always a whole rupee, typed or
+// suggested. Paise round to the nearest rupee; 0 (no MRP) stays 0.
+func WholeRupeeMRP(mrp float64) float64 {
+	if mrp <= 0 {
+		return mrp
+	}
+	return math.Round(round2(mrp))
+}
+
+// NormalizeDocumentMRP rounds a document's MRP to the whole rupee as it is
+// saved - the record's own "mrp" and, on a PurchaseOrder, each line's mrp in
+// its items JSON. Called from ValidateDocument's shared exit, so the form, the
+// API and a CSV import cannot store an MRP with paise.
+func NormalizeDocumentMRP(doctype string, docData map[string]interface{}) {
+	roundIn := func(m map[string]interface{}) bool {
+		v, ok := m["mrp"]
+		if !ok || v == nil {
+			return false
+		}
+		var f float64
+		switch t := v.(type) {
+		case float64:
+			f = t
+		case string:
+			parsed, err := strconv.ParseFloat(strings.TrimSpace(t), 64)
+			if err != nil {
+				return false
+			}
+			f = parsed
+		default:
+			return false
+		}
+		if w := WholeRupeeMRP(f); w != f || isString(v) {
+			m["mrp"] = w
+			return true
+		}
+		return false
+	}
+	roundIn(docData)
+	if doctype != "PurchaseOrder" {
+		return
+	}
+	itemsStr, _ := docData["items"].(string)
+	if !strings.Contains(itemsStr, `"mrp"`) {
+		return
+	}
+	var lines []map[string]interface{}
+	if err := json.Unmarshal([]byte(itemsStr), &lines); err != nil {
+		return
+	}
+	changed := false
+	for _, l := range lines {
+		if roundIn(l) {
+			changed = true
+		}
+	}
+	if changed {
+		if b, err := json.Marshal(lines); err == nil {
+			docData["items"] = string(b)
+		}
+	}
+}
+
+func isString(v interface{}) bool {
+	_, ok := v.(string)
+	return ok
 }
 
 // The four GST treatments an Item can be sold under (Stage 26.6.11), stored

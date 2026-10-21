@@ -134,15 +134,17 @@ const BULK_STICKER_SOURCE_DOCTYPES = [
   { doctype: 'GRN', label: 'Goods Receipt (GRN)' },
   { doctype: 'TransferOrder', label: 'Transfer Order' }
 ];
-let currentStickerTab = 'print';
-const STICKER_TABS = [
-  { id: 'print', label: 'Print' },
-  { id: 'templates', label: 'Sticker templates' },
-  // Stage 70: which template an item's label uses.
-  { id: 'rules', label: 'Template rules' },
-  // Stage 63: how PO / GRN / transfers / debit-credit notes print.
-  { id: 'documents', label: 'Document templates' }
-];
+// stickerSourceDoctypes (Stage 127.5: "any new taxn should load properly in
+// print"): GRN and Transfer Order, then every other transaction the client's
+// modules include whose lines carry items - a new one appears with no code.
+function stickerSourceDoctypes() {
+  const fixed = BULK_STICKER_SOURCE_DOCTYPES.map(d => d.doctype);
+  const more = ((typeof state !== 'undefined' && state.activeDoctypes) || [])
+    .filter(d => d.has_lines && d.document_type !== 'Master' && !fixed.includes(d.name))
+    .map(d => ({ doctype: d.name, label: typeof getDoctypeLabel === 'function' ? getDoctypeLabel(d.name) : d.name }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  return [...BULK_STICKER_SOURCE_DOCTYPES, ...more];
+}
 let stickerSourceDoctype = BULK_STICKER_SOURCE_DOCTYPES[0].doctype;
 let stickerSourceDocId = '';
 let stickerSourceLines = [];    // last GET /api/v1/stickers/preview response
@@ -162,38 +164,16 @@ async function renderStickersView(container) {
     <div class="page-title-section">
       <h1 class="page-title">Sticker Printing</h1>
     </div>
+    <button type="button" class="btn btn-outline" data-sticker-templates>Templates</button>
   `;
   container.appendChild(header);
-
-  const tabBar = document.createElement('div');
-  tabBar.style.display = 'flex';
-  tabBar.style.gap = '8px';
-  tabBar.style.marginBottom = '16px';
-  tabBar.innerHTML = STICKER_TABS.map(t =>
-    `<button class="btn ${t.id === currentStickerTab ? 'btn-primary' : 'btn-outline'} btn-sm" data-sticker-tab="${t.id}">${t.label}</button>`
-  ).join('');
-  container.appendChild(tabBar);
-  tabBar.querySelectorAll('[data-sticker-tab]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      currentStickerTab = btn.getAttribute('data-sticker-tab');
-      renderView('stickers');
-    });
+  // Stage 88.4: sticker and document templates and the template rules are on
+  // Setup ▸ Printing ▸ Templates, with every other template.
+  header.querySelector('[data-sticker-templates]').addEventListener('click', () => {
+    currentDoctype = 'PrintTemplate'; currentSearchQuery = ''; currentTablePage = 1;
+    setActiveMenu('menu-templates');
+    renderView('doctype-table');
   });
-
-  if (currentStickerTab === 'templates') {
-    await renderStickerTemplatesTab(container);
-    return;
-  }
-  if (currentStickerTab === 'rules') {
-    const { renderStickerTemplateRules } = await loadStickerStudio();
-    await renderStickerTemplateRules(container);
-    return;
-  }
-  if (currentStickerTab === 'documents') {
-    const { renderPrintTemplateGallery } = await import('./trade-docs.js' + PRINTING_MODULE_QUERY);
-    await renderPrintTemplateGallery(container);
-    return;
-  }
   await renderStickerPrintTab(container);
 }
 
@@ -304,6 +284,15 @@ async function renderStickerPrintTab(container) {
   });
   document.getElementById('sticker-print-btn').addEventListener('click', printStickers);
 
+  // Stage 88.5.5: an MRP change hands its items over for the sticker reprint.
+  let prefill = null;
+  try { prefill = JSON.parse(sessionStorage.getItem('erp_sticker_prefill') || 'null'); sessionStorage.removeItem('erp_sticker_prefill'); } catch (_) { /* storage off */ }
+  if (prefill && Array.isArray(prefill.skus) && prefill.skus.length) {
+    stickerSKUs = [...new Set(prefill.skus)];
+    document.getElementById('sticker-print-on-scan').checked = false;
+    document.getElementById('sticker-reprint-reason').value = prefill.reason || '';
+    window.txnShowPane('sticker-print:new');
+  }
   renderStickerSKUList();
 }
 
@@ -323,7 +312,7 @@ function renderStickerSourcePanel(container, printers) {
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="sticker-source-doctype">Module</label>
         <select id="sticker-source-doctype" class="form-input" style="width: 200px;">
-          ${BULK_STICKER_SOURCE_DOCTYPES.map(d => `<option value="${d.doctype}">${d.label}</option>`).join('')}
+          ${stickerSourceDoctypes().map(d => `<option value="${d.doctype}">${escapeHTMLText(d.label)}</option>`).join('')}
         </select>
       </div>
       <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
@@ -791,11 +780,6 @@ function loadStickerEngine() { return import('./sticker-engine.js' + PRINTING_MO
 // Stage 69: the Print tab's list / New pages.
 function loadTxnScreen() { return import('./txn-screen.js' + PRINTING_MODULE_QUERY); }
 
-async function renderStickerTemplatesTab(container) {
-  const { renderStickerTemplateGallery } = await loadStickerStudio();
-  await renderStickerTemplateGallery(container);
-}
-
 // Every sticker print ends here: the labels came back from
 // POST /api/v1/stickers/print (validated and written to the print log), and the
 // engine draws them with the same renderer the studio shows - silently to a
@@ -813,7 +797,7 @@ async function printStickerRun(labels, { printerCode, copies = 1, jobRef = '' } 
 // aren't master data and need their own UI.
 
 
-export { renderQZSetupPanel, qzRefreshStatus, qzDetectPrinters, qzTestPrint, qzPrintPickedDocument, renderStickersView, renderStickerPrintTab, renderStickerSourcePanel, loadStickerSourcePreview, renderStickerSourceLines, printStickerSourceLines, addStickerSKU, removeStickerSKU, renderStickerSKUList, printStickers, stickerFieldText, renderStickerElementHTML, renderStickerTemplatesTab, printStickerRun };
+export { renderQZSetupPanel, qzRefreshStatus, qzDetectPrinters, qzTestPrint, qzPrintPickedDocument, renderStickersView, renderStickerPrintTab, renderStickerSourcePanel, loadStickerSourcePreview, renderStickerSourceLines, printStickerSourceLines, addStickerSKU, removeStickerSKU, renderStickerSKUList, printStickers, stickerFieldText, renderStickerElementHTML, printStickerRun };
 
 // Stage 55.19: a print request carries a key that survives a failed or
 // timed-out attempt at the same selection, so pressing Print again re-sends

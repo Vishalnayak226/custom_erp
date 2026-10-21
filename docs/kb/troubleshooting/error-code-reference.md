@@ -19,7 +19,7 @@ applies_to: source registries; not release acceptance
 
 # Error code reference
 
-Every refusal in this application carries a code. There are **511** of them,
+Every refusal in this application carries a code. There are **512** of them,
 across **53** areas. This page is produced from the running catalog, so it
 cannot describe a code the application does not have, or miss one it does.
 
@@ -75,7 +75,7 @@ open the right page.
 - [Payments](error-code-reference-2.md#payments) - 7 codes
 - [Planning](error-code-reference-2.md#planning) - 1 codes
 - [Procurement / RFQ](error-code-reference-2.md#procurement-rfq) - 6 codes
-- [Purchase Order](error-code-reference-2.md#purchase-order) - 14 codes
+- [Purchase Order](error-code-reference-2.md#purchase-order) - 15 codes
 - [Purchase Return](error-code-reference-2.md#purchase-return) - 1 codes
 - [Purchase Return / RTV](error-code-reference-2.md#purchase-return-rtv) - 5 codes
 - [Quality & Maintenance](error-code-reference-2.md#quality-maintenance) - 6 codes
@@ -107,7 +107,7 @@ open the right page.
 | `ADMINC-0038` | Payment mode configuration missing | Payment mode configuration is missing. Please contact administrator. | Contact admin to configure. | High | 422 |
 | `ADMINC-0039` | Template configuration missing | Document template is not configured. Please contact administrator. | Contact admin to configure. | High | 422 |
 | `ADMINC-0310` | Number series prefix already used by another series | This prefix is already used by another number series. | Choose a prefix no other transaction uses - two series with one prefix could print the same number. | High | 422 |
-| `ADMINC-0311` | Number series settings invalid | The number series settings are not valid. | Use letters, digits, '/', '-', '_' or '.' in prefix and suffix (no spaces, up to 20), a separator of up to 3 characters and a length of 1 to 12 digits. | Medium | 422 |
+| `ADMINC-0311` | Number series settings invalid | The number series settings are not valid. | Use capital letters, digits, '/' and '-' in prefix and suffix (no spaces, up to 20), a separator of / or - (or none), a length of 1 to 12 digits, and keep the whole number to 16 characters. | Medium | 422 |
 | `PLATFORM-0316` | Data console edit refused for a protected table or column | This value cannot be changed from the data console. | Keys, hidden (secret or personal) values and audit tables are protected. Change the record through its own screen instead. | Medium | 422 |
 | `PLATFORM-0317` | Cross-client action (data console, client list, plans, sandboxes) by someone who is not a platform operator | Only a platform operator can see or change other clients. | Ask the server administrator to add your client and username to ERP_PLATFORM_OPERATORS. | High | 403 |
 | `STORE-0850` | Working at, or switching to, a store the user has not been given | You have not been given this store. | Ask an administrator to add the store in Users -> Stores, or on your role in Roles -> Stores. | High | 422 |
