@@ -9,8 +9,8 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 
 | | |
 |---|---|
-| Graph built from commit | `52c834a4` |
-| Brain redrawn | source graph 52c834a4 |
+| Graph built from commit | `b5f726be` |
+| Brain redrawn | source graph b5f726be |
 | Regions / lobes | 38 / 8 |
 | Files in the working tree | 1649 (1199 of them parsed into the graph) |
 | Files claimed by a region | **100.0%** |
