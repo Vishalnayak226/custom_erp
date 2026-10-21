@@ -26,8 +26,8 @@ const (
 //
 // SEC-V2 Sec.12 marks MFA mandatory for "admin/finance/IT/super users/
 // production support". This codebase has no distinct Finance/IT role today -
-// Super Admin is the only privileged, admin-equivalent role, so it stands in
-// for the whole group.
+// Super Admin and a client's Admin (Stage 125) are the privileged roles, so
+// they stand in for the whole group.
 //
 // Stage 40.3: goes through IsSuperAdmin rather than a role->bool map keyed on
 // the literal, so a session or user record still carrying the legacy
@@ -35,7 +35,7 @@ const (
 // returned false for it, which would have dropped MFA off exactly the
 // accounts that most need it.
 func RequiresMFA(role string) bool {
-	return IsSuperAdmin(role)
+	return HasFullAccess(role)
 }
 
 var totpBase32 = base32.StdEncoding.WithPadding(base32.NoPadding)

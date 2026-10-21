@@ -12,7 +12,7 @@ import (
 )
 
 func handleCourierCredentials(w http.ResponseWriter, r *http.Request) {
-	if !engines.IsSuperAdmin(r.Header.Get("Resolved-Role")) {
+	if !engines.HasFullAccess(r.Header.Get("Resolved-Role")) {
 		writeAPIError(w, r, "GLOBAL-0011", "")
 		return
 	}

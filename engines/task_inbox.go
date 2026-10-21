@@ -79,7 +79,7 @@ func ListTaskInbox(tenantID string, scope TaskInboxScope) (*TaskInbox, error) {
 			}
 			amount := DocumentBaseAmount(doc)
 			required, err := RequiredApproverRoleForAmount(tenantID, doctype, amount)
-			if err != nil || (!IsSuperAdmin(scope.Role) && required != scope.Role) {
+			if err != nil || (!HasFullAccess(scope.Role) && required != scope.Role) {
 				continue
 			}
 			code := id

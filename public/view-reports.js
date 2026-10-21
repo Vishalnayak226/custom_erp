@@ -760,7 +760,7 @@ function renderReportColumnsPanel() {
   const panel = document.getElementById('rc-columns-panel');
   if (!panel) return;
   const role = localStorage.getItem('erp_role') || '';
-  const canUniversal = role === 'Super Admin' || role === 'HR/Admin' || role === 'Store Manager';
+  const canUniversal = role === 'Super Admin' || role === 'HR/Admin' || role === 'Admin' || role === 'Store Manager';
   const smallBtn = 'padding:2px 8px; font-size:12px;';
   const rows = reportCatalogColumnState.map((c, i) => `
     <div style="display:flex; align-items:center; gap:8px; padding:4px 0;">

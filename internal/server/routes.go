@@ -278,6 +278,7 @@ func registerRoutes() {
 	// /login itself (see rateLimitCategory).
 	http.HandleFunc("POST /api/v1/auth/forgot-password", apiMiddleware(handleForgotPassword))
 	http.HandleFunc("POST /api/v1/auth/reset-password", apiMiddleware(handleResetPassword))
+	http.HandleFunc("POST /api/v1/auth/operator-handoff", apiMiddleware(handleOperatorHandoff)) // Stage 125.2
 
 	// Self-service User Profile (Stage 21)
 	http.HandleFunc("GET /api/v1/me", apiMiddleware(handleGetProfile))
@@ -1250,6 +1251,7 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/platform/control-panel", apiMiddleware(handleControlPanel))                                // Stage 65.5
 	http.HandleFunc("POST /api/v1/platform/tenants/{tenant}/status", apiMiddleware(handleControlPanelTenantStatus))         // Stage 65.6
 	http.HandleFunc("POST /api/v1/platform/tenants/{tenant}/trial", apiMiddleware(handleControlPanelTenantTrial))           // Stage 65.6
+	http.HandleFunc("POST /api/v1/platform/tenants/{tenant}/open", apiMiddleware(handleControlPanelOpenTenant))             // Stage 125.2
 	http.HandleFunc("GET /api/v1/platform/tenants/{tenant}/attribute-library", apiMiddleware(handleAttributeLibrary))       // Stage 81
 	http.HandleFunc("POST /api/v1/platform/tenants/{tenant}/attribute-library", apiMiddleware(handleApplyAttributeLibrary)) // Stage 81
 	http.HandleFunc("GET /api/v1/platform/tenants/{tenant}/tables", apiMiddleware(handlePlatformTables))

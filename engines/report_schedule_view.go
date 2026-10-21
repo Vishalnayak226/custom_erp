@@ -85,7 +85,7 @@ func ListReportSchedules(tenantID, userID, role string) ([]ReportScheduleView, e
 		WHERE doctype IN ('ScheduledReport', 'DashboardDigest') AND deleted_at IS NULL
 		  AND ($2 OR created_by = $3)
 		ORDER BY doctype DESC, created_at DESC
-		LIMIT 500`, schema, schema), today, IsSuperAdmin(role), userID)
+		LIMIT 500`, schema, schema), today, HasFullAccess(role), userID)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +195,7 @@ func SetReportSchedulePaused(tenantID, kind, id, userID, role string, paused boo
 		UPDATE %s.documents SET status = $1::text, data = jsonb_set(data, '{status}', to_jsonb($1::text)),
 		       updated_at = CURRENT_TIMESTAMP, version = version + 1
 		WHERE doctype = $2 AND id = $3 AND deleted_at IS NULL AND ($4 OR created_by = $5)`, schema),
-		status, doctype, id, IsSuperAdmin(role), userID)
+		status, doctype, id, HasFullAccess(role), userID)
 	if err != nil {
 		return err
 	}
@@ -239,7 +239,7 @@ func ClaimReportScheduleRun(tenantID, kind, id, userID, role string) (*ReportSch
 	if err != nil {
 		return nil, err
 	}
-	if owner != userID && !IsSuperAdmin(role) {
+	if owner != userID && !HasFullAccess(role) {
 		return nil, ErrReportScheduleNotFound
 	}
 	var data map[string]interface{}
@@ -318,7 +318,7 @@ func ListRecentReportRuns(tenantID, reportID, userID, role string, limit int) ([
 		       COALESCE((data->>'duration_ms')::numeric, 0)::bigint, COALESCE((data->>'row_count')::numeric, 0)::bigint
 		FROM %s.documents
 		WHERE doctype = 'ReportRunLog' AND data->>'report_id' = $1 AND ($2 OR data->>'user_id' = $3)
-		ORDER BY created_at DESC LIMIT $4`, schema), reportID, IsSuperAdmin(role), userID, limit)
+		ORDER BY created_at DESC LIMIT $4`, schema), reportID, HasFullAccess(role), userID, limit)
 	if err != nil {
 		return nil, err
 	}

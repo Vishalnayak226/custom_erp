@@ -110,7 +110,7 @@ func (rule documentReadRule) visible(data map[string]interface{}) bool {
 		if !hasLoc {
 			docLoc, hasLoc = data["location_code"]
 		}
-		if hasLoc && fmt.Sprintf("%v", docLoc) != rule.location && !engines.IsSuperAdmin(rule.role) {
+		if hasLoc && fmt.Sprintf("%v", docLoc) != rule.location && !engines.HasFullAccess(rule.role) {
 			return false
 		}
 	}

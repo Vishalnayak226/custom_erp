@@ -188,7 +188,7 @@ func ApproverDoctypesForRole(tenantID, role string) (map[string]bool, error) {
 		return nil, err
 	}
 	out := map[string]bool{}
-	if IsSuperAdmin(role) {
+	if HasFullAccess(role) {
 		rows, err := db.DB.Query(fmt.Sprintf(`SELECT DISTINCT doctype FROM %s.approval_rules`, schema))
 		if err != nil {
 			return nil, err

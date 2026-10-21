@@ -247,7 +247,7 @@ func pimUserExists(tenantID, username string) (bool, error) {
 	}
 	var exists bool
 	err = db.DB.QueryRow(fmt.Sprintf(
-		`SELECT EXISTS(SELECT 1 FROM %s.users WHERE username = $1 AND status = 'Active')`, schema),
+		`SELECT EXISTS(SELECT 1 FROM %s.users WHERE username = $1 AND status = 'Active' AND %s)`, schema, NotSupportUserSQL("users")),
 		username).Scan(&exists)
 	return exists, err
 }
@@ -275,7 +275,7 @@ func ListPIMAssignableUsers(tenantID string) ([]PIMAssignableUser, error) {
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT username, COALESCE(role, '') FROM %s.users WHERE status = 'Active' ORDER BY username`, schema))
+		`SELECT username, COALESCE(role, '') FROM %s.users WHERE status = 'Active' AND %s ORDER BY username`, schema, NotSupportUserSQL("users")))
 	if err != nil {
 		return nil, err
 	}

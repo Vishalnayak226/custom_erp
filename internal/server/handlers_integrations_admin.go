@@ -25,8 +25,8 @@ func handleUnicommerceCredentials(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	if !engines.IsSuperAdmin(role) {
-		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can configure Unicommerce credentials")
+	if !engines.HasFullAccess(role) {
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only an administrator can configure Unicommerce credentials")
 		return
 	}
 	var req struct {
@@ -147,8 +147,8 @@ func handlePineLabsCredentials(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	if !engines.IsSuperAdmin(role) {
-		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can configure Pine Labs credentials")
+	if !engines.HasFullAccess(role) {
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only an administrator can configure Pine Labs credentials")
 		return
 	}
 	var req struct {
@@ -233,8 +233,8 @@ func handlePineLabsReconcile(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	if !engines.IsSuperAdmin(role) {
-		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can run Pine Labs reconciliation")
+	if !engines.HasFullAccess(role) {
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only an administrator can run Pine Labs reconciliation")
 		return
 	}
 	result, err := engines.ReconcilePineLabsTransactions(tenantID)
@@ -273,8 +273,8 @@ func handleCleverTapCredentials(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	if !engines.IsSuperAdmin(role) {
-		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can configure CleverTap credentials")
+	if !engines.HasFullAccess(role) {
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only an administrator can configure CleverTap credentials")
 		return
 	}
 	var req struct {
@@ -667,7 +667,7 @@ func handleTenantUsage(w http.ResponseWriter, r *http.Request) {
 			ConfiguredLimits: map[string]int{},
 		}
 
-		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.users WHERE status = 'Active'`, t.schema)).Scan(&row.ActiveUsers)
+		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.users WHERE status = 'Active' AND %s`, t.schema, engines.NotSupportUserSQL("users"))).Scan(&row.ActiveUsers)
 
 		limitRows, err := db.DB.Query(fmt.Sprintf(`SELECT limit_key, limit_value FROM %s.tenant_limits WHERE tenant_id = $1`, t.schema), t.tenantID)
 		if err == nil {

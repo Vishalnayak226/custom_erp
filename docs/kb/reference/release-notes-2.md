@@ -2,7 +2,7 @@
 title: Release notes (part 2)
 section: Reference
 order: 26
-summary: Earlier releases, 2026-07-27 to 2026-09-06, continued from the release notes.
+summary: Earlier releases, 2026-07-27 to 2026-09-08, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,7 +19,13 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **75** earlier entries, 2026-07-27 to 2026-09-06.
+This page continues the [release notes](release-notes.md) with **76** earlier entries, 2026-07-27 to 2026-09-08.
+
+## 2026-09-08
+
+**Stage 49.1.7 — Outside-in verification, and a real static-server method gap it found** *(code + tool + tests + docs)*
+
+The last open sub-item of 49.1 needed something none of the rest of Stage 49 S0 could provide from inside this tree: a genuinely external vantage point. `cmd/edgecheck` is a new, reusable CLI — not a one-off script — that probes a deployed instance the way an anonymous internet client would: declared public routes answer as declared, `/internal/*` never reaches the edge, alternate HTTP methods and encoded/traversal paths fail safely, the app's own bind port and a handful of common service ports are unreachable directly, and (when `TENANT_BASE_DOMAIN` is live) an unknown tenant subdomain is refused rather than silently falling through. Run from the developer's own machine over the ordinary internet — not the SSH tunnel, not `127.0.0.1`, the exact distinction the 2026-08-14 TLS bring-up already learned the hard way when a firewall problem was invisible from inside the box.
 
 ## 2026-09-06
 

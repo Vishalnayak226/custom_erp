@@ -46,7 +46,7 @@ var periodCloseTaskDefs = []periodCloseTaskDef{
 // Accountant role template (whose job is period close), or a tenant role
 // literally named Finance Head.
 func CanManagePeriodClose(role string) bool {
-	return IsSuperAdmin(role) || strings.EqualFold(strings.TrimSpace(role), "Accountant") ||
+	return HasFullAccess(role) || strings.EqualFold(strings.TrimSpace(role), "Accountant") ||
 		strings.EqualFold(strings.TrimSpace(role), "Finance Head")
 }
 
@@ -334,7 +334,7 @@ func lockOpenPeriod(tx *sql.Tx, schema, periodID string) (name string, round int
 // AssignPeriodCloseTask names a task's owner (Finance Head / Admin only).
 func AssignPeriodCloseTask(tenantID, periodID, taskKey, owner, actor, actorRole string) error {
 	if !CanManagePeriodClose(actorRole) {
-		return &ValidationError{Code: "FIN-0504", Message: "only an Accountant or a Super Admin can assign close tasks"}
+		return &ValidationError{Code: "FIN-0504", Message: "only an Accountant or an Admin can assign close tasks"}
 	}
 	def, ok := periodCloseTaskDefByKey(taskKey)
 	if !ok {
@@ -539,7 +539,7 @@ func requireSignedCloseTasks(tx *sql.Tx, schema, periodID string, round int) err
 // routes it to approval. The requester can never approve it.
 func RequestPeriodReopen(tenantID, periodID, reason, actorUserID, actorUsername, actorRole string) (string, error) {
 	if !CanManagePeriodClose(actorRole) {
-		return "", &ValidationError{Code: "FIN-0504", Message: "only an Accountant or a Super Admin can request a period reopen"}
+		return "", &ValidationError{Code: "FIN-0504", Message: "only an Accountant or an Admin can request a period reopen"}
 	}
 	reason = strings.TrimSpace(reason)
 	if len([]rune(reason)) < 10 {

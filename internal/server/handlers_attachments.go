@@ -155,7 +155,7 @@ func handleListAttachments(w http.ResponseWriter, r *http.Request) {
 	editable := canUpdate && engines.AttachmentStatusAllowsChange(doctype, parent.Status)
 	views := make([]attachmentView, 0, len(files))
 	for _, f := range files {
-		views = append(views, attachmentView{f, engines.IsSuperAdmin(role) || (editable && f.UploadedBy == userID)})
+		views = append(views, attachmentView{f, engines.HasFullAccess(role) || (editable && f.UploadedBy == userID)})
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"attachments": views,
@@ -302,7 +302,7 @@ func handleRemoveAttachment(w http.ResponseWriter, r *http.Request) {
 	if _, ok := authorizeAttachmentParent(w, r, tenantID, meta.Doctype, meta.DocumentID, true); !ok {
 		return
 	}
-	att, err := engines.RemoveAttachment(tenantID, meta.ID, userID, engines.IsSuperAdmin(role))
+	att, err := engines.RemoveAttachment(tenantID, meta.ID, userID, engines.HasFullAccess(role))
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusInternalServerError)
 		return

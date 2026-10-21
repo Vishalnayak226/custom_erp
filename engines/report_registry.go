@@ -117,6 +117,7 @@ func ListReportDefinitions() []ReportDefinition {
 // through CanonicalRole first, so the legacy "HR/Admin" still resolves here.
 var reportFullVisibilityRoles = map[string]bool{
 	RoleSuperAdmin:   true,
+	RoleAdmin:        true,
 	RoleStoreManager: true,
 }
 

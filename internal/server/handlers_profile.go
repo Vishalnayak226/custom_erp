@@ -90,14 +90,17 @@ func handleMyPermissions(w http.ResponseWriter, r *http.Request) {
 	role := r.Header.Get("Resolved-Role")
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 
-	if engines.IsSuperAdmin(role) {
+	if engines.HasFullAccess(role) {
+		// Stage 125: is_admin is a client's administrator (Admin too);
+		// is_super_admin alone opens the platform's developer screens.
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
-			"role":     role,
-			"is_admin": true,
-			"doctypes": []string{},
-			"create":   []string{},
-			"update":   []string{},
-			"delete":   []string{},
+			"role":           role,
+			"is_admin":       true,
+			"is_super_admin": engines.IsSuperAdmin(role),
+			"doctypes":       []string{},
+			"create":         []string{},
+			"update":         []string{},
+			"delete":         []string{},
 			// Stage 47.2.3: the capabilities this session holds, so a screen
 			// can offer a capability-gated action (the POS price override) from
 			// the same source of truth checkRouteCapability enforces with,

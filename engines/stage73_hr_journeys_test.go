@@ -109,8 +109,12 @@ func TestGrievanceAccessMatchesThePolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("admin access: %v", err)
 	}
-	if len(admin.ContentReaders) != 1 || admin.ContentReaders[0] != RoleSuperAdmin {
+	// Stage 125: a client's Admin reads grievances as Super Admin does.
+	if len(admin.ContentReaders) != 2 || admin.ContentReaders[0] != RoleSuperAdmin || admin.ContentReaders[1] != RoleAdmin {
 		t.Fatalf("content readers %v", admin.ContentReaders)
+	}
+	if clientAdmin, _ := GetGrievanceAccess(tenantID, RoleAdmin); clientAdmin == nil || !clientAdmin.You.ReadContent || !clientAdmin.You.AllCases {
+		t.Fatalf("client Admin: %+v", clientAdmin)
 	}
 	if !containsRole(admin.CaseListRoles, RoleStoreManager) || containsRole(admin.CaseListRoles, RoleCashier) {
 		t.Fatalf("case list roles %v", admin.CaseListRoles)

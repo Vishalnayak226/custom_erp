@@ -74,7 +74,7 @@ func normalizeForCompare(v interface{}) interface{} {
 
 // irpTaxRole is who may ask for a cancel or a manual import.
 func irpTaxRole(role string) bool {
-	return IsSuperAdmin(role) || RoleHasCapability(role, "finance.statements")
+	return HasFullAccess(role) || RoleHasCapability(role, "finance.statements")
 }
 
 var irpCancelCodes = map[string]bool{"1": true, "2": true, "3": true, "4": true}

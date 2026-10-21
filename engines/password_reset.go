@@ -53,7 +53,7 @@ func RequestPasswordReset(tenantID, usernameOrEmail, resetLinkBase string) error
 
 	var userID, username, email string
 	err = db.DB.QueryRow(fmt.Sprintf(
-		`SELECT id, username, COALESCE(email, '') FROM %s.users WHERE (username = $1 OR email = $1) AND status = 'Active'`, schema),
+		`SELECT id, username, COALESCE(email, '') FROM %s.users WHERE (username = $1 OR email = $1) AND status = 'Active' AND %s`, schema, NotSupportUserSQL("users")),
 		usernameOrEmail).Scan(&userID, &username, &email)
 	if err != nil {
 		// No matching active user - silently no-op, see doc comment above.

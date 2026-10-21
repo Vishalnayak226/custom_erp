@@ -27,7 +27,7 @@ type ReportExportJobSummary struct {
 
 // ReportExportJobVisible reports whether userID may see this job.
 func ReportExportJobVisible(tenantID, jobID, userID, role string) (bool, error) {
-	if IsSuperAdmin(role) {
+	if HasFullAccess(role) {
 		return true, nil
 	}
 	schema, err := db.GetTenantSchema(tenantID)

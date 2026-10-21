@@ -57,7 +57,7 @@ func handleOwnerAvailability(w http.ResponseWriter, r *http.Request) {
 // administrator only - it re-attributes stock between clients.
 func handleCorrectOwnerStock(w http.ResponseWriter, r *http.Request) {
 	role := r.Header.Get("Resolved-Role")
-	if !engines.IsSuperAdmin(role) && engines.CanonicalRole(role) != "Store Manager" {
+	if !engines.HasFullAccess(role) && engines.CanonicalRole(role) != "Store Manager" {
 		writeAPIError(w, r, "GLOBAL-0011", "")
 		return
 	}

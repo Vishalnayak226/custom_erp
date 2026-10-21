@@ -422,6 +422,7 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/auth/mfa/enroll":                                  {LevelAuthenticated, "auth.default"},
 	"POST /api/v1/auth/mfa/verify":                                  {LevelAuthenticated, "auth.default"},
 	"POST /api/v1/auth/reset-password":                              {LevelPublic, "auth.default"},
+	"POST /api/v1/auth/operator-handoff":                            {LevelPublic, "auth.default"},
 	"POST /api/v1/checkout":                                         {LevelAuthenticated, "checkout.default"},
 	"POST /api/v1/clevertap/credentials":                            {LevelAuthenticated, "clevertap.default"},
 	"POST /api/v1/crm/customer/merge":                               {LevelAuthenticated, "crm_loyalty.default"},
@@ -768,6 +769,7 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/platform/control-panel":                            {LevelAdmin, "platform.console"},
 	"POST /api/v1/platform/tenants/{tenant}/status":                 {LevelAdmin, "platform.console"},
 	"POST /api/v1/platform/tenants/{tenant}/trial":                  {LevelAdmin, "platform.console"},
+	"POST /api/v1/platform/tenants/{tenant}/open":                   {LevelAdmin, "platform.console"},
 	"GET /api/v1/platform/tenants/{tenant}/attribute-library":       {LevelAdmin, "platform.console"},
 	"POST /api/v1/platform/tenants/{tenant}/attribute-library":      {LevelAdmin, "platform.console"},
 	"GET /api/v1/platform/tenants/{tenant}/tables":                  {LevelAdmin, "platform.console"},
@@ -845,6 +847,16 @@ func matchedRoutePattern(r *http.Request) string {
 // is guarding against: before this stage there WAS no price-override command
 // - a cashier simply typed a lower price - so every role's access to it is
 // being decided for the first time here rather than reduced.
+// devOnlyCapabilities are the LevelAdmin areas that stay Super Admin only
+// (Stage 125.6): the platform's developer and cross-client tools. Every other
+// LevelAdmin route is a client's own administration, which its Admin holds.
+var devOnlyCapabilities = map[string]bool{
+	"platform.console": true, "admin.tenant": true, "admin.tenants": true,
+	"admin.tenant-usage": true, "admin.sandbox-tenants": true, "admin.modules": true,
+	"admin.packages": true, "admin.extension": true, "admin.patch": true,
+	"admin.scale-test": true,
+}
+
 var restrictedCapabilities = []string{
 	"audit.logs", "system.logs", "finance.statements",
 	"assets.manage", "hr.payroll", "expenses.manage",
@@ -880,7 +892,10 @@ func checkRouteCapability(pattern string, role string) (ok bool, classification 
 	case LevelPublic:
 		return true, classification, true
 	case LevelAdmin:
-		return engines.IsSuperAdmin(role), classification, true
+		if devOnlyCapabilities[classification.Capability] {
+			return engines.IsSuperAdmin(role), classification, true
+		}
+		return engines.HasFullAccess(role), classification, true
 	default: // LevelAuthenticated, LevelBackground
 		if allowed, restricted := capabilityRoleAllowlist[classification.Capability]; restricted {
 			for _, want := range allowed {

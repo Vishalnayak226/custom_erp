@@ -279,7 +279,8 @@ func rateLimitCategory(path, method string) (category string, limit int) {
 		// is one log line, so a generous ceiling is still a ceiling.
 		return "csp-report", 600
 	case strings.HasSuffix(path, "/login") || strings.HasSuffix(path, "/mfa/verify") || strings.HasSuffix(path, "/mfa/activate") ||
-		strings.HasSuffix(path, "/forgot-password") || strings.HasSuffix(path, "/reset-password"):
+		strings.HasSuffix(path, "/forgot-password") || strings.HasSuffix(path, "/reset-password") ||
+		strings.HasSuffix(path, "/operator-handoff"):
 		// Login API: also covers MFA code submission (brute-forceable
 		// 6-digit TOTP) and password reset request/completion (24.28) -
 		// both are exactly the kind of low-frequency, high-sensitivity
@@ -439,6 +440,8 @@ var publicRoutes = map[string]bool{
 	"/api/v1/security/csp-report":  true,
 	"/api/v1/auth/forgot-password": true,
 	"/api/v1/auth/reset-password":  true,
+	// Stage 125.2: the single-use hand-off code is the credential.
+	"/api/v1/auth/operator-handoff": true,
 	// Stage 35.5: couriers cannot hold a human ERP bearer token. These two
 	// fixed provider endpoints are public only up to their handler's mandatory
 	// per-tenant HMAC verification; a missing or invalid signature is 401.

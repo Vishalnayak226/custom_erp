@@ -54,7 +54,7 @@ func reportStoreKey(d ReportDefinition) string {
 // control total) and is not cut; a lookup failure cuts everything (fail
 // closed).
 func reportStoreScope(tenantID, role, userID string) (StoreAccess, bool) {
-	if strings.TrimSpace(userID) == "" || CanonicalRole(role) == RoleSuperAdmin || roleTemplateGrantsGlobalScope(role, ScopeLocation) {
+	if strings.TrimSpace(userID) == "" || HasFullAccess(role) || roleTemplateGrantsGlobalScope(role, ScopeLocation) {
 		return StoreAccess{}, false
 	}
 	access, err := UserStoreAccess(tenantID, userID)

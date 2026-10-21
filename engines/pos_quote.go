@@ -965,7 +965,7 @@ func RecordPriceOverride(tenantID, actorUserID, actorRole string, req PriceOverr
 // codebase has no role ranking to consult and inventing one here would be a
 // guess that silently widens authority.
 func roleSatisfies(actorRole, requiredRole string) bool {
-	if IsSuperAdmin(actorRole) {
+	if HasFullAccess(actorRole) {
 		return true
 	}
 	return actorRole == requiredRole

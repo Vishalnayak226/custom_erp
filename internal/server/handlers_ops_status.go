@@ -53,7 +53,7 @@ func deployBuildStatusCode(buildStatus, notes string) string {
 
 func handleDeploymentStatus(w http.ResponseWriter, r *http.Request) {
 	role := r.Header.Get("Resolved-Role")
-	if !requireHRAdmin(w, r, role) {
+	if !requireSuperAdmin(w, r, role) {
 		return
 	}
 
@@ -105,7 +105,7 @@ type opsRunRow struct {
 
 func handleBackupStatus(w http.ResponseWriter, r *http.Request) {
 	role := r.Header.Get("Resolved-Role")
-	if !requireHRAdmin(w, r, role) {
+	if !requireSuperAdmin(w, r, role) {
 		return
 	}
 
@@ -189,7 +189,7 @@ func handleBackupStatus(w http.ResponseWriter, r *http.Request) {
 // responder are set and whether this environment sends anything at all;
 // never the webhook URL itself (it is a bearer credential).
 func handleAlertingStatus(w http.ResponseWriter, r *http.Request) {
-	if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+	if !requireSuperAdmin(w, r, r.Header.Get("Resolved-Role")) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(engines.OpsAlertDeliveryStatus())

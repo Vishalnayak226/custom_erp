@@ -32,9 +32,27 @@ const (
 	// everywhere, never written.
 	RoleLegacySuperAdmin = "HR/Admin"
 
+	// RoleAdmin (Stage 125) is a client's own top account: everything Super
+	// Admin does inside the client (HasFullAccess), users, roles, settings and
+	// audit included. Super Admin belongs to the platform operator alone and
+	// adds only the developer areas, which IsSuperAdmin keeps strict.
+	RoleAdmin = "Admin"
+
 	RoleStoreManager = "Store Manager"
 	RoleCashier      = "Cashier"
 )
+
+// HasFullAccess reports whether a role administers its client - every record
+// type, store, approval, module and admin screen. Super Admin and Admin both
+// do; IsSuperAdmin is only for the platform's developer areas (Data Console,
+// Control Panel, tenants and modules, extensions, patches, system status).
+func HasFullAccess(role string) bool {
+	switch normalizeRoleKey(role) {
+	case "superadmin", "hr/admin", "hradmin", "admin":
+		return true
+	}
+	return false
+}
 
 // IsSuperAdmin reports whether a role has unrestricted access, under either
 // the current or the legacy name.
@@ -58,6 +76,9 @@ func IsSuperAdmin(role string) bool {
 func CanonicalRole(role string) string {
 	if IsSuperAdmin(role) {
 		return RoleSuperAdmin
+	}
+	if HasFullAccess(role) {
+		return RoleAdmin // Super Admin returned above; what is left is Admin
 	}
 	return role
 }

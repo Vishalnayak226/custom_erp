@@ -198,16 +198,16 @@ type GrievanceAccessYou struct {
 // session's own answer (You) reads the merged permissions, while the role
 // lists name the policy's own grants.
 func GetGrievanceAccess(tenantID, role string) (*GrievanceAccess, error) {
-	out := &GrievanceAccess{ContentReaders: []string{RoleSuperAdmin}, CaseListRoles: []string{}}
+	out := &GrievanceAccess{ContentReaders: []string{RoleSuperAdmin, RoleAdmin}, CaseListRoles: []string{}}
 	if rule, ok := sensitiveFields["Grievance"]["description"]; ok {
 		for _, r := range rule.ReadRoles {
-			if r != anySensitiveWriter && !IsSuperAdmin(r) {
+			if r != anySensitiveWriter && !HasFullAccess(r) {
 				out.ContentReaders = append(out.ContentReaders, r)
 			}
 		}
 	}
 	for r, doctypes := range selfScopeExemptions {
-		if doctypes["Grievance"] && !IsSuperAdmin(r) && !containsRole(out.ContentReaders, r) {
+		if doctypes["Grievance"] && !HasFullAccess(r) && !containsRole(out.ContentReaders, r) {
 			out.CaseListRoles = append(out.CaseListRoles, r)
 		}
 	}
@@ -232,7 +232,7 @@ func GetGrievanceAccess(tenantID, role string) (*GrievanceAccess, error) {
 		WriteNotes:  writable("resolution_notes"),
 		// DecideApproval's own rule; a grievance carries no location, so its
 		// location check never applies.
-		Decide: IsSuperAdmin(role) || (reviewer != "" && role == reviewer),
+		Decide: HasFullAccess(role) || (reviewer != "" && role == reviewer),
 	}
 	return out, nil
 }

@@ -66,7 +66,7 @@ func combineStoreAccess(role, home, userMode string, userStores []string, roleMo
 	if a.Home != "" {
 		a.Stores[a.Home] = true
 	}
-	if IsSuperAdmin(role) {
+	if HasFullAccess(role) {
 		a.All = true
 		return a
 	}
@@ -263,7 +263,7 @@ type RoleStoreSetting struct {
 // GetRoleStoreAccess returns the role's setting; a role never set is Home.
 func GetRoleStoreAccess(tenantID, role string) (RoleStoreSetting, error) {
 	out := RoleStoreSetting{Role: role, Access: StoreAccessHome, Stores: []string{}}
-	if IsSuperAdmin(role) {
+	if HasFullAccess(role) {
 		out.Access = StoreAccessAll
 		return out, nil
 	}
@@ -315,7 +315,7 @@ func SetRoleStoreAccess(tenantID, role, mode string, stores []string, actor stri
 	if role == "" {
 		return &ValidationError{Code: "STORE-0851", Message: "Choose the role."}
 	}
-	if IsSuperAdmin(role) {
+	if HasFullAccess(role) {
 		return &ValidationError{Code: "STORE-0853", Message: "Super Admin always works at every store; it cannot be narrowed."}
 	}
 	mode, err := normaliseStoreMode(mode, false)

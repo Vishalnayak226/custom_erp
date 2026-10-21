@@ -58,7 +58,7 @@ func logAudit(db *sql.DB, schema, targetUser, status, details string) {
 func main() {
 	schema := flag.String("schema", "", "Tenant schema to operate on, e.g. tenant_default (required - no more silent all-schema sweep).")
 	username := flag.String("user", "", "Exact username whose MFA should be reset (required unless -all-admins is set).")
-	allAdmins := flag.Bool("all-admins", false, "Reset MFA for every HR/Admin user in -schema instead of one -user. Wider blast radius - only for when you genuinely don't know which admin is locked out.")
+	allAdmins := flag.Bool("all-admins", false, "Reset MFA for every Super Admin and Admin user in -schema instead of one -user. Wider blast radius - only for when you genuinely don't know which admin is locked out.")
 	reason := flag.String("reason", "", "Why this reset is being performed, e.g. an incident/ticket reference (required - recorded in the audit trail).")
 	confirm := flag.Bool("yes", false, "Actually perform the reset. Without this flag the tool only prints what it would do.")
 	flag.Parse()
@@ -67,7 +67,7 @@ func main() {
 		log.Fatal("-schema is required, e.g. -schema=tenant_default")
 	}
 	if *username == "" && !*allAdmins {
-		log.Fatal("-user=<username> is required (or pass -all-admins to reset every HR/Admin in this schema)")
+		log.Fatal("-user=<username> is required (or pass -all-admins to reset every Super Admin and Admin in this schema)")
 	}
 	if *reason == "" {
 		log.Fatal("-reason is required and is recorded in the audit trail")
@@ -98,7 +98,7 @@ func main() {
 
 	var rows *sql.Rows
 	if *allAdmins {
-		rows, err = db.Query(fmt.Sprintf(`SELECT username FROM %s.users WHERE role = 'HR/Admin' AND mfa_enabled = true`, *schema))
+		rows, err = db.Query(fmt.Sprintf(`SELECT username FROM %s.users WHERE role IN ('Super Admin', 'HR/Admin', 'Admin') AND mfa_enabled = true`, *schema))
 	} else {
 		rows, err = db.Query(fmt.Sprintf(`SELECT username FROM %s.users WHERE username = $1 AND mfa_enabled = true`, *schema), *username)
 	}

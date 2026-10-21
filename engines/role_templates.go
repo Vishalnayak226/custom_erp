@@ -115,6 +115,18 @@ var roleTemplates = []RoleTemplate{
 		GlobalScopes: []ScopeDimension{ScopeLocation, ScopeSelf, ScopeOwner, ScopeEntity},
 	},
 	{
+		// Stage 125: a client's own top account - Administrator without the
+		// platform's system logs.
+		Name:    RoleAdmin,
+		Summary: "Runs the whole client - every module, store, approval, user, role and setting. Only the platform's developer tools stay with Super Admin.",
+		Modules: allModules(AccessManage),
+		Capabilities: []string{
+			"audit.logs", "finance.statements", "assets.manage", "hr.payroll",
+			"expenses.manage", "pos.price_override", "returns.exception",
+		},
+		GlobalScopes: []ScopeDimension{ScopeLocation, ScopeSelf, ScopeOwner, ScopeEntity},
+	},
+	{
 		Name:        "Store Supervisor",
 		Summary:     "Runs one store: opens and closes tills, approves overrides and returns, keeps stock and the team's day right.",
 		LegacyNames: []string{RoleStoreManager},

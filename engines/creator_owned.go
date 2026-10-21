@@ -16,7 +16,7 @@ func CreatorOwnedDoctype(doctype string) bool { return creatorOwnedDoctypes[doct
 // CreatorMayAccess reports whether this session may see or change one record
 // of doctype that createdBy (documents.created_by, a user id) created.
 func CreatorMayAccess(doctype, role, userID, createdBy string) bool {
-	if !creatorOwnedDoctypes[doctype] || IsSuperAdmin(role) {
+	if !creatorOwnedDoctypes[doctype] || HasFullAccess(role) {
 		return true
 	}
 	return userID != "" && createdBy == userID

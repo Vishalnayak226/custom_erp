@@ -129,7 +129,7 @@ func IsGRNStepFlow(data map[string]interface{}) bool {
 // setting: blank allows every role (the handler has already checked the GRN
 // edit right), otherwise the role must be listed. Super Admin always may.
 func GRNStepAllowed(tenantID, role, step string) bool {
-	if IsSuperAdmin(role) {
+	if HasFullAccess(role) {
 		return true
 	}
 	key := map[string]string{

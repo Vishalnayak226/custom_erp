@@ -56,7 +56,7 @@ func GetSetupPath(tenantID string) ([]SetupPathStep, error) {
 	}
 	series, _ := ListNumberSeries(tenantID)
 	var users int
-	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.users WHERE COALESCE(status, 'Active') = 'Active'`, schema)).Scan(&users)
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.users WHERE COALESCE(status, 'Active') = 'Active' AND %s`, schema, NotSupportUserSQL("users"))).Scan(&users)
 
 	steps := make([]SetupPathStep, len(setupPathPlan))
 	done := map[string]bool{}

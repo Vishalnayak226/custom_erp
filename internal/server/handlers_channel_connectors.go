@@ -10,7 +10,7 @@ func handleConnectorDescriptors(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"connectors": engines.ListConnectorDescriptors()})
 }
 func handleChannelConnectorCredentials(w http.ResponseWriter, r *http.Request) {
-	if !engines.IsSuperAdmin(r.Header.Get("Resolved-Role")) {
+	if !engines.HasFullAccess(r.Header.Get("Resolved-Role")) {
 		writeAPIError(w, r, "GLOBAL-0011", "")
 		return
 	}

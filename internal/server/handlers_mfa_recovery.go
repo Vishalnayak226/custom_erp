@@ -234,6 +234,9 @@ func handleSetUserSupplier(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'id' and 'supplier_code' are required")
 		return
 	}
+	if forbidSupportUserTarget(w, r, req.ID) {
+		return
+	}
 
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	actor := r.Header.Get("Resolved-Username")
@@ -288,6 +291,9 @@ func handleAdminResetUserMFA(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'id' is required")
+		return
+	}
+	if forbidSupportUserTarget(w, r, req.ID) {
 		return
 	}
 	targetID := req.ID

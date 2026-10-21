@@ -316,7 +316,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '57';
+const VIEW_MODULE_VERSION = '58';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -3475,6 +3475,13 @@ function bootstrap() {
   });
   bindRecoveryCodeScreen();
 
+  // 125.2: Control Panel Open (view-handoff.js).
+  const handoff = /^#operator_handoff=([\w-]+)$/.exec(location.hash);
+  if (handoff) {
+    history.replaceState(null, '', location.pathname + location.search);
+    loadViewModule('./view-handoff.js').then(m => m.redeemOperatorHandoff(handoff[1]));
+    return;
+  }
   if (localStorage.getItem('erp_token')) {
     showApp();
     init();
@@ -3740,25 +3747,25 @@ const MENU_PERMISSION_MAP = {
   'menu-prefix-configs': { adminOnly: true },
   'menu-approval-rules': { adminOnly: true },
   'menu-dynamic-labels': { adminOnly: true },
-  'menu-doctype-builder': { adminOnly: true },
-  'menu-extension-hooks': { adminOnly: true },
+  'menu-doctype-builder': { devOnly: true },
+  'menu-extension-hooks': { devOnly: true },
   'menu-audit-logs': { adminOnly: true },
   // System Status dashboard (Stage 26.1.2) - reuses the same HR/Admin-only
   // gate as the ops-visibility endpoints it reads (requireHRAdmin on
   // handleDeploymentStatus/handleBackupStatus, Stage 25.8).
-  'menu-system-status': { adminOnly: true },
+  'menu-system-status': { devOnly: true },
   // Configuration / system settings (Stage 28.1) - HR/Admin-only, same gate
   // as GET/PUT /api/v1/admin/settings.
   'menu-configuration': { adminOnly: true },
   // Tenant Entitlements admin screen (Stage 26.1.4) - reads/writes
   // cross-tenant module entitlements, HR/Admin-only same as every other
   // admin/tenant-control endpoint it calls.
-  'menu-tenant-entitlements': { adminOnly: true },
+  'menu-tenant-entitlements': { devOnly: true },
   // Tenant Usage/health dashboard (Stage 26.1.5) - same HR/Admin-only gate
   // as handleTenantUsage.
-  'menu-tenant-usage': { adminOnly: true },
-  'menu-platform-console': { adminOnly: true },
-  'menu-control-panel': { adminOnly: true }
+  'menu-tenant-usage': { devOnly: true },
+  'menu-platform-console': { devOnly: true },
+  'menu-control-panel': { devOnly: true }
 };
 
 // Module navigation registry: sidebar entries and direct screen entry share
@@ -4184,28 +4191,18 @@ function canReadDoctype(doctype) {
   return state.permissions.isAdmin || state.permissions.doctypes.has(doctype);
 }
 
-// Stage 30.5.7: the same shape as canReadDoctype, for the other three verbs.
-// These hide an affordance the role cannot use; the server's own check is
-// still the enforcement point, exactly as with the sidebar trimming - this
-// only stops a user filling in a whole form to be refused at Save.
-function canCreateDoctype(doctype) {
-  return state.permissions.isAdmin || state.permissions.create.has(doctype);
-}
-
-function canUpdateDoctype(doctype) {
-  return state.permissions.isAdmin || state.permissions.update.has(doctype);
-}
-
-function canDeleteDoctype(doctype) {
-  return state.permissions.isAdmin || state.permissions.delete.has(doctype);
-}
+// 30.5.7: hide what the role cannot do (the server decides).
+const canDo = (verb, doctype) => state.permissions.isAdmin || state.permissions[verb].has(doctype);
+function canCreateDoctype(doctype) { return canDo('create', doctype); }
+function canUpdateDoctype(doctype) { return canDo('update', doctype); }
+function canDeleteDoctype(doctype) { return canDo('delete', doctype); }
 
 function isMenuRuleVisible(rule) {
   if (!rule || rule.open) return true;
   if (rule.adminOnly) return state.permissions.isAdmin;
+  if (rule.devOnly) return state.permissions.isSuperAdmin; // 125.6
   if (rule.doctypes) return state.permissions.isAdmin || rule.doctypes.some(canReadDoctype);
-  // Stage 57.17: a module screen shows once the role can read anything in it
-  // (these were `open` to every role).
+  // 57.17: a module shows once the role can read anything in it.
   if (rule.modules) {
     return state.permissions.isAdmin ||
       state.activeDoctypes.some(d => rule.modules.includes(d.module) && canReadDoctype(d.name));
@@ -4401,14 +4398,12 @@ async function fetchAndApplyPermissions() {
       const data = await res.json();
       state.permissions = {
         isAdmin: !!data.is_admin,
+        isSuperAdmin: !!data.is_super_admin,
         doctypes: new Set(data.doctypes || []),
         create: new Set(data.create || []),
         update: new Set(data.update || []),
         delete: new Set(data.delete || []),
-        // Stage 47.2.3: capability-gated actions (POS price override) show
-        // or hide from this, not from a hardcoded role name. Server-side
-        // enforcement is unchanged and unconditional; this only avoids
-        // offering a button that would be refused.
+        // Stage 47.2.3: capability-gated actions show from this, not a role name.
         capabilities: new Set(data.capabilities || []),
         loaded: true
       };
@@ -6610,7 +6605,7 @@ async function startMFADeviceChange(panel) {
 
 // Built-in roles with full access (the Roles screen itself is view-roles.js).
 function isAdminRoleName(name) {
-  return ['superadmin', 'hr/admin', 'hradmin'].includes(String(name || '').toLowerCase().replace(/\s+/g, ''));
+  return ['superadmin', 'hr/admin', 'hradmin', 'admin'].includes(String(name || '').toLowerCase().replace(/\s+/g, ''));
 }
 
 // ===========================================================================

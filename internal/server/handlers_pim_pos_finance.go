@@ -167,7 +167,7 @@ func handleSaveChannelCredential(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	if !engines.IsSuperAdmin(role) {
+	if !engines.HasFullAccess(role) {
 		writeAPIError(w, r, "GLOBAL-0011", "")
 		return
 	}

@@ -1040,7 +1040,7 @@ func ApproveTransferOrderDirect(tenantID, transferOrderID, userID, role, userLoc
 	refuse := func(v TransferValue, msg string) (TransferValue, error) {
 		return v, &ValidationError{Code: "STOCKT-0481", Message: msg}
 	}
-	if !IsSuperAdmin(role) && CanonicalRole(role) != "Store Manager" {
+	if !HasFullAccess(role) && CanonicalRole(role) != "Store Manager" {
 		return refuse(TransferValue{}, "only a Store Manager can approve a transfer directly - submit it for approval instead")
 	}
 	schema, err := db.GetTenantSchema(tenantID)
@@ -1061,7 +1061,7 @@ func ApproveTransferOrderDirect(tenantID, transferOrderID, userID, role, userLoc
 	}
 	from, _ := data["from_warehouse"].(string)
 	to, _ := data["to_warehouse"].(string)
-	if !IsSuperAdmin(role) && userLocation != "" && userLocation != from && userLocation != to {
+	if !HasFullAccess(role) && userLocation != "" && userLocation != from && userLocation != to {
 		return refuse(TransferValue{}, "you can approve directly only a transfer from or to your own store")
 	}
 	itemsStr, _ := data["items"].(string)

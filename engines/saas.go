@@ -284,11 +284,24 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 	}
 	_, err = tx.Exec(fmt.Sprintf(`
 		INSERT INTO %s.users (id, username, password_hash, email, role, status, idle_timeout_minutes)
-		VALUES ('admin', 'admin', $1, $2, 'HR/Admin', 'Active', $3)
+		VALUES ('admin', 'admin', $1, $2, 'Admin', 'Active', $3)
 		ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash`, schemaName),
 		string(hash), fmt.Sprintf("admin@%s.local", tenantID), GetSettingInt(tenantID, "security.default_idle_timeout_minutes"))
 	if err != nil {
 		return "", fmt.Errorf("failed to create tenant admin user: %v", err)
+	}
+	// Stage 125: Super Admin is the platform operator's alone, so the approval
+	// and field rules copied from tenant_default name Admin - the same as
+	// db/migrations_stage125_4_clients_admin_role.sql does for live clients.
+	for _, stmt := range []string{
+		`UPDATE %[1]s.approval_rules SET required_role = 'Admin' WHERE required_role IN ('Super Admin', 'HR/Admin')`,
+		`INSERT INTO %[1]s.field_permissions (role, doctype_name, fieldname, allow_read, allow_write)
+		 SELECT 'Admin', doctype_name, fieldname, allow_read, allow_write FROM %[1]s.field_permissions
+		  WHERE role IN ('Super Admin', 'HR/Admin') ON CONFLICT DO NOTHING`,
+	} {
+		if _, err = tx.Exec(fmt.Sprintf(stmt, schemaName)); err != nil {
+			return "", fmt.Errorf("failed to give the client's Admin its approval and field rules: %v", err)
+		}
 	}
 
 	// 6. (49.1.5) Record the one-time credential and its expiry, and open the

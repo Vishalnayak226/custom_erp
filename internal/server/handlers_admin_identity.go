@@ -38,16 +38,39 @@ import (
 // explicit check is defense-in-depth against a future role_permissions-style
 // misconfiguration ever granting "" a role, not a fix for a currently
 // reachable bypass.
+//
+// Stage 125: a client's Admin passes too - it administers its own client.
+// requireSuperAdmin is the same gate for the platform's developer views.
 func requireHRAdmin(w http.ResponseWriter, r *http.Request, role string) bool {
+	return requireAdminGate(w, r, engines.HasFullAccess(role))
+}
+
+func requireSuperAdmin(w http.ResponseWriter, r *http.Request, role string) bool {
+	return requireAdminGate(w, r, engines.IsSuperAdmin(role))
+}
+
+func requireAdminGate(w http.ResponseWriter, r *http.Request, allowed bool) bool {
 	if r.Header.Get("Resolved-Purpose") == "extension" {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Extension tokens cannot access admin/configuration endpoints")
 		return false
 	}
-	if !engines.IsSuperAdmin(role) {
+	if !allowed {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can access this")
 		return false
 	}
 	return true
+}
+
+// forbidSupportUserTarget answers 404 when an admin action names the client's
+// hidden support user (Stage 125.2): a client's Admin must not reset, move or
+// switch off the account the platform operator opens the client with - and
+// may not learn it exists.
+func forbidSupportUserTarget(w http.ResponseWriter, r *http.Request, targetID string) bool {
+	if engines.IsPlatformSupportUser(r.Header.Get("Resolved-Tenant-ID"), targetID) {
+		writeAPIErrorGeneric(w, r, http.StatusNotFound, "User not found")
+		return true
+	}
+	return false
 }
 
 // handleVerifyAuditLogChain (24.24) is the on-demand "checked periodically"
@@ -94,7 +117,7 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 		COALESCE(to_jsonb(u)->>'department', ''),
 		COALESCE((SELECT e.id FROM %s.documents e WHERE e.doctype = 'Employee' AND e.deleted_at IS NULL AND e.data->>'user_id' = u.id
 		          ORDER BY (e.status = 'Active') DESC LIMIT 1), '')
-		FROM %s.users u ORDER BY username`, schema, schema))
+		FROM %s.users u WHERE %s ORDER BY username`, schema, schema, engines.NotSupportUserSQL("u")))
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
@@ -182,6 +205,7 @@ func tenantRoleNames(schema string) ([]string, error) {
 		}
 		regRows.Close()
 	}
+	add(engines.RoleAdmin) // built in (Stage 125), held or not
 	sort.Strings(roles)
 	return roles, nil
 }
@@ -215,7 +239,7 @@ func handleCreateRole(w http.ResponseWriter, r *http.Request) {
 	// A name that normalises to the administrator role would silently grant
 	// full admin rights (engines.IsSuperAdmin matches on the normalised key),
 	// so it can never be created through this door.
-	if engines.IsSuperAdmin(name) {
+	if engines.HasFullAccess(name) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("%q is the built-in administrator role and cannot be created again.", name))
 		return
 	}
@@ -300,13 +324,21 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 		}
-		if matched == "" && !engines.IsSuperAdmin(req.Role) {
+		if matched == "" && !engines.HasFullAccess(req.Role) {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("Role %q does not exist yet - create it on the Roles screen first.", req.Role))
 			return
 		}
 		if matched != "" {
 			req.Role = matched
 		}
+	}
+	// Stage 125 (D4): Super Admin is the platform operator's alone. A client's
+	// top account is Admin; the operator reaches a client through the Control
+	// Panel's Open instead of holding a login there. Only a Super Admin makes
+	// another, and only in the operator's own client.
+	if engines.IsSuperAdmin(req.Role) && (!engines.IsPlatformTenant(tenantID) || !engines.IsSuperAdmin(role)) {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Super Admin is kept for the platform operator. Give this person the Admin role.")
+		return
 	}
 
 	// Stage 93.9: every person belongs to a department from day one (a
@@ -338,7 +370,7 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	// exceeding it. No tenant_limits row for this tenant = no cap (open),
 	// same as every other optional-config convention in this codebase.
 	var activeUserCount int
-	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.users WHERE status = 'Active'`, schema)).Scan(&activeUserCount); err != nil {
+	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.users WHERE status = 'Active' AND %s`, schema, engines.NotSupportUserSQL("users"))).Scan(&activeUserCount); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -395,6 +427,9 @@ func handleSetUserStatus(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'id' and 'status' (Active or Inactive) are required")
 		return
 	}
+	if forbidSupportUserTarget(w, r, req.ID) {
+		return
+	}
 
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	actorUsername := r.Header.Get("Resolved-Username")
@@ -443,6 +478,9 @@ func handleSetUserLocation(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == "" || (req.LocationCode == "" && req.Department == nil) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'id' and 'location_code' (or 'department') are required")
+		return
+	}
+	if forbidSupportUserTarget(w, r, req.ID) {
 		return
 	}
 
@@ -504,6 +542,9 @@ func handleRequestPasswordReset(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'id' is required")
+		return
+	}
+	if forbidSupportUserTarget(w, r, req.ID) {
 		return
 	}
 

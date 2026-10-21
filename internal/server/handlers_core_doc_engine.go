@@ -323,7 +323,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 					args = append(args, c.Value)
 					argIndex++
 				}
-			} else if !engines.IsSuperAdmin(role) {
+			} else if !engines.HasFullAccess(role) {
 				whereClause += fmt.Sprintf(" AND (COALESCE(data->>'location', data->>'location_code') = $%d OR COALESCE(data->>'location', data->>'location_code') IS NULL)", argIndex)
 				args = append(args, location)
 				argIndex++
@@ -340,7 +340,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			}
 			// Stage 73.D.9: a scheduled report / digest lists for its creator
 			// (and a Super Admin) only - engines.CreatorMayAccess.
-			if engines.CreatorOwnedDoctype(doctype) && !engines.IsSuperAdmin(role) {
+			if engines.CreatorOwnedDoctype(doctype) && !engines.HasFullAccess(role) {
 				whereClause += fmt.Sprintf(" AND created_by = $%d", argIndex)
 				args = append(args, userID)
 				argIndex++
@@ -793,7 +793,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// are unrestricted. Enforced here at the generic-doc choke point so the
 		// client-side gate can't be bypassed by a hand-crafted request.
 		if doctype == "ReportColumnProfile" {
-			if scope, _ := payload["scope"].(string); scope == "Universal" && !engines.IsSuperAdmin(role) && role != "Store Manager" {
+			if scope, _ := payload["scope"].(string); scope == "Universal" && !engines.HasFullAccess(role) && role != "Store Manager" {
 				writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin or Store Manager can create or edit a Universal column profile")
 				return
 			}
@@ -1368,7 +1368,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 }
 
 func checkPermission(tenantID string, role string, doctype string, action string) (bool, error) {
-	if engines.IsSuperAdmin(role) {
+	if engines.HasFullAccess(role) {
 		return true, nil
 	}
 

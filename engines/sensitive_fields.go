@@ -234,7 +234,7 @@ func costRule(why string) sensitiveFieldRule {
 // letting the POS handler invent a second, drifting answer to the same
 // question.
 func RoleMaySeeCost(role string) bool {
-	if IsSuperAdmin(role) {
+	if HasFullAccess(role) {
 		return true
 	}
 	return roleListAllows(costRule("").ReadRoles, role)
@@ -262,7 +262,7 @@ func roleListAllows(allowed []string, role string) bool {
 // read-only cost field both express correctly.
 func sensitiveFieldPolicy(role, doctype string) map[string]FieldPermission {
 	rules, ok := sensitiveFields[doctype]
-	if !ok || IsSuperAdmin(role) {
+	if !ok || HasFullAccess(role) {
 		return nil
 	}
 	out := make(map[string]FieldPermission, len(rules))
@@ -326,7 +326,7 @@ func ExplainSensitiveFields(role, doctype string) []SensitiveFieldAccess {
 	if !ok {
 		return nil
 	}
-	superAdmin := IsSuperAdmin(role)
+	superAdmin := HasFullAccess(role)
 	out := make([]SensitiveFieldAccess, 0, len(rules))
 	for _, field := range SensitiveFieldNames(doctype) {
 		rule := rules[field]

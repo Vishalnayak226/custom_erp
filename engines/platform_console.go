@@ -79,6 +79,29 @@ func IsPlatformOperator(tenantID, username, role string) bool {
 	return false
 }
 
+// IsPlatformTenant reports whether a client is the operator's own (Stage
+// 125): a tenant named in ERP_PLATFORM_OPERATORS, or "default" when none is
+// set. Only there may a Super Admin user be created; every other client's
+// top account is Admin.
+func IsPlatformTenant(tenantID string) bool {
+	tenantID = strings.ToLower(strings.TrimSpace(tenantID))
+	if tenantID == "" {
+		tenantID = "default"
+	}
+	named := false
+	for _, entry := range strings.Split(os.Getenv(platformOperatorsEnv), ",") {
+		t, _, ok := strings.Cut(strings.TrimSpace(entry), ":")
+		if !ok {
+			continue
+		}
+		named = true
+		if strings.ToLower(strings.TrimSpace(t)) == tenantID {
+			return true
+		}
+	}
+	return !named && tenantID == "default"
+}
+
 // PlatformTenant is one client in the registry.
 type PlatformTenant struct {
 	TenantID string `json:"tenant_id"`

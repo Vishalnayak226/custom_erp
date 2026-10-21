@@ -318,7 +318,7 @@ var catMasterChanges = &catSource{Label: "Master change", Rows: auditChangeRows(
 // usersRows: one row per user and store scope (the users table).
 func usersRows(tenantID, schema string, p map[string]string) ([]*catRow, error) {
 	rows, err := dbQuery(fmt.Sprintf(`SELECT id, username, COALESCE(role, ''), COALESCE(status, ''), COALESCE(location_code, ''), created_at,
-		COALESCE(store_access, ''), COALESCE(stores::text, '') FROM %s.users ORDER BY username`, schema))
+		COALESCE(store_access, ''), COALESCE(stores::text, '') FROM %s.users WHERE %s ORDER BY username`, schema, NotSupportUserSQL("users")))
 	if err != nil {
 		return nil, err
 	}

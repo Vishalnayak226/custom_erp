@@ -509,7 +509,7 @@ func RaiseBankException(tenantID, lineID, owner, reason, actor string) error {
 // match. Finance Head / Admin only, with a note; it stays reported.
 func ExplainBankException(tenantID, lineID, note, actor, actorRole string) error {
 	if !CanManagePeriodClose(actorRole) {
-		return &ValidationError{Code: "FIN-0504", Message: "only an Accountant or a Super Admin can close an exception as explained"}
+		return &ValidationError{Code: "FIN-0504", Message: "only an Accountant or an Admin can close an exception as explained"}
 	}
 	note = strings.TrimSpace(note)
 	if len([]rune(note)) < 10 {

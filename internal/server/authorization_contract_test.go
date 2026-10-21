@@ -76,7 +76,12 @@ func TestAuthorizationContractMatrix(t *testing.T) {
 			case LevelPublic:
 				want = true
 			case LevelAdmin:
-				want = engines.IsSuperAdmin(role)
+				// Stage 125.6: a client's Admin administers its client; the
+				// platform's developer routes stay Super Admin only.
+				want = engines.HasFullAccess(role)
+				if devOnlyCapabilities[classification.Capability] {
+					want = engines.IsSuperAdmin(role)
+				}
 			default:
 				if restricted[classification.Capability] {
 					want = engines.IsSuperAdmin(role) || declaredCapability(role, classification.Capability)
@@ -96,14 +101,15 @@ func TestAuthorizationContractMatrix(t *testing.T) {
 }
 
 // The single most important line of the whole item, stated on its own so a
-// regression names itself: no floor role reaches an administrative route.
+// regression names itself: no floor role reaches an administrative route, and
+// (Stage 125.6) only Super Admin reaches a developer route - not even Admin.
 func TestOnlyTheAdministratorTemplateReachesAdminRoutes(t *testing.T) {
 	for pattern, classification := range routeCapabilities {
 		if classification.Level != LevelAdmin {
 			continue
 		}
 		for _, role := range contractRoles() {
-			if engines.IsSuperAdmin(role) {
+			if engines.IsSuperAdmin(role) || (engines.HasFullAccess(role) && !devOnlyCapabilities[classification.Capability]) {
 				continue
 			}
 			if allowed, _, _ := checkRouteCapability(pattern, role); allowed {

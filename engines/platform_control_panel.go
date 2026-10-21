@@ -175,7 +175,7 @@ func fillControlPanelClient(c *ControlPanelClient) {
 		}
 		mRows.Close()
 	}
-	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.users WHERE status = 'Active'`, c.Schema)).Scan(&c.ActiveUsers)
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.users WHERE status = 'Active' AND %s`, c.Schema, NotSupportUserSQL("users"))).Scan(&c.ActiveUsers)
 	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.documents WHERE deleted_at IS NULL`, c.Schema)).Scan(&c.Records)
 	var last, lastErr sql.NullTime
 	if db.DB.QueryRow(fmt.Sprintf(`SELECT MAX(created_at) FROM %s.audit_logs`, c.Schema)).Scan(&last) == nil {

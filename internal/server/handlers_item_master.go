@@ -17,7 +17,7 @@ import (
 // issue": posting consumption, registering, blocking and cancelling cards.
 func requireStoreManager(w http.ResponseWriter, r *http.Request) bool {
 	role := r.Header.Get("Resolved-Role")
-	if engines.IsSuperAdmin(role) || engines.CanonicalRole(role) == engines.RoleStoreManager {
+	if engines.HasFullAccess(role) || engines.CanonicalRole(role) == engines.RoleStoreManager {
 		return true
 	}
 	writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only a store manager or an administrator can do this")

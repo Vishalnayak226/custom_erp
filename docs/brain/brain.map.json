@@ -257,6 +257,8 @@
         "internal/server/handlers_platform_console.go",
         "engines/platform_control_panel.go",
         "internal/server/handlers_control_panel.go",
+        "engines/platform_support.go",
+        "internal/server/handlers_platform_support.go",
         "engines/release_versions.go",
         "cmd/releasever/*",
         "cmd/tenantctl/*",

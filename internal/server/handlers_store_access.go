@@ -83,6 +83,9 @@ func handleUserStores(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{"stores": stores})
 			return
 		}
+		if forbidSupportUserTarget(w, r, id) {
+			return
+		}
 		setting, err := engines.GetUserStoreAccess(tenantID, id)
 		if err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusNotFound, "User not found")
@@ -98,6 +101,9 @@ func handleUserStores(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.ID) == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'id' and 'access' are required")
+		return
+	}
+	if forbidSupportUserTarget(w, r, req.ID) {
 		return
 	}
 	if err := engines.SetUserStoreAccess(tenantID, req.ID, req.Access, req.Stores, r.Header.Get("Resolved-Username")); err != nil {

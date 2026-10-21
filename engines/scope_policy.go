@@ -302,7 +302,7 @@ type SessionScope struct {
 
 // HasGlobalScope reports whether the role sees every row of a dimension.
 func (s SessionScope) HasGlobalScope(dimension ScopeDimension, doctype string) bool {
-	if IsSuperAdmin(s.Role) {
+	if HasFullAccess(s.Role) {
 		return true
 	}
 	// Stage 73.D.17: a role named after a shipped role template gets the

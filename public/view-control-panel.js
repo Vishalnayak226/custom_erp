@@ -50,6 +50,7 @@ function lifecycleActions(c, i, own) {
   // A second line under Modules / Data, so five buttons do not push the
   // column off the page.
   return '<div style="margin-top:4px;">'
+    + (s === 'active' && c.url ? `<button class="action-btn" type="button" data-cp-signin="${i}" title="Open this client as its Super Admin in a new tab">Open</button>` : '')
     + (s === 'active' ? `<button class="action-btn" type="button" data-cp-status="pause" data-cp-i="${i}">Pause</button>` : '')
     + (s === 'suspended' ? `<button class="action-btn" type="button" data-cp-status="resume" data-cp-i="${i}">Resume</button>` : '')
     + (open && !c.is_sandbox ? `<button class="action-btn" type="button" data-cp-trial="${i}">${c.trial_ends_at ? 'Extend trial' : 'Trial'}</button>` : '')
@@ -217,6 +218,24 @@ async function renderControlPanelView(container) {
     if (!r.ok) { await showApiError(r, failMsg); return; }
     renderView('control-panel');
   };
+  // Stage 125.2: Open signs the operator in to the client on its own address,
+  // as the client's hidden support user - no password or authenticator there.
+  // The tab is opened before the request, while the click still counts as the
+  // user's own, so a pop-up blocker lets it through.
+  panel.querySelectorAll('[data-cp-signin]').forEach(btn => btn.addEventListener('click', async () => {
+    const c = clients[Number(btn.getAttribute('data-cp-signin'))];
+    const tab = window.open('', '_blank');
+    const r = await apiFetch(`/api/v1/platform/tenants/${encodeURIComponent(c.tenant_id)}/open`, { method: 'POST', body: '{}' });
+    if (!r || !r.ok) {
+      if (tab) tab.close();
+      if (r) await showApiError(r, `Failed to open ${c.name || c.tenant_id}.`);
+      return;
+    }
+    const { url } = await r.json();
+    if (!tab) { await showCustomAlert('Your browser blocked the new tab. Allow pop-ups for this site, then click Open again.', 'Open client'); return; }
+    tab.opener = null;
+    tab.location.href = url;
+  }));
   panel.querySelectorAll('[data-cp-status]').forEach(btn => btn.addEventListener('click', async () => {
     const c = clients[Number(btn.getAttribute('data-cp-i'))];
     const action = btn.getAttribute('data-cp-status');

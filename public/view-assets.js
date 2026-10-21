@@ -370,7 +370,7 @@ function assetMoney(v) {
 // CanManagePeriodClose.
 function canRunAssetDepreciation() {
   const role = String(localStorage.getItem('erp_role') || '').toLowerCase().replace(/\s+/g, '');
-  return ['superadmin', 'hr/admin', 'hradmin', 'accountant', 'financehead'].includes(role);
+  return ['superadmin', 'hr/admin', 'hradmin', 'admin', 'accountant', 'financehead'].includes(role);
 }
 
 async function runAssetDepreciation() {

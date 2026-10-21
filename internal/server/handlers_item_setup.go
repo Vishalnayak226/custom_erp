@@ -35,14 +35,14 @@ func handleGetItemSetup(w http.ResponseWriter, r *http.Request) {
 		*engines.ItemSetup
 		IsAdmin      bool `json:"is_admin"`
 		ItemHasStock bool `json:"item_has_stock"`
-	}{setup, engines.IsSuperAdmin(r.Header.Get("Resolved-Role")), hasStock})
+	}{setup, engines.HasFullAccess(r.Header.Get("Resolved-Role")), hasStock})
 }
 
 // handleSaveItemFieldRules - PUT /api/v1/inventory/item-setup/fields
 // {fields:[...]}: where each field is asked. Admins only - it is the org's
 // configuration, like the rest of Configuration.
 func handleSaveItemFieldRules(w http.ResponseWriter, r *http.Request) {
-	if !engines.IsSuperAdmin(r.Header.Get("Resolved-Role")) {
+	if !engines.HasFullAccess(r.Header.Get("Resolved-Role")) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only an administrator can change where item fields are asked")
 		return
 	}
@@ -139,7 +139,7 @@ func handleAddItemAttributeValue(w http.ResponseWriter, r *http.Request) {
 // {field}: make a free-text Item field a dropdown of its own new Item
 // Attribute, seeded with the values items already carry. Admins only.
 func handleCreateItemFieldList(w http.ResponseWriter, r *http.Request) {
-	if !engines.IsSuperAdmin(r.Header.Get("Resolved-Role")) {
+	if !engines.HasFullAccess(r.Header.Get("Resolved-Role")) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only an administrator can change where item fields are asked")
 		return
 	}
@@ -161,7 +161,7 @@ func handleCreateItemFieldList(w http.ResponseWriter, r *http.Request) {
 // requireTreatmentAdmin: once an item has stock, only an admin corrects its
 // treatment; anyone else is told to tell their admin (MASTER-0892).
 func requireTreatmentAdmin(w http.ResponseWriter, r *http.Request) bool {
-	if engines.IsSuperAdmin(r.Header.Get("Resolved-Role")) {
+	if engines.HasFullAccess(r.Header.Get("Resolved-Role")) {
 		return true
 	}
 	writeAPIError(w, r, "MASTER-0892", "")

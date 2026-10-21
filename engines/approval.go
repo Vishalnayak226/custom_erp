@@ -303,7 +303,7 @@ func SubmitterMayDecideOwn(tenantID, doctype, role string) bool {
 	case SelfApprovalAnyone:
 		return true
 	case SelfApprovalAdmins:
-		return IsSuperAdmin(role)
+		return HasFullAccess(role)
 	}
 	return false
 }
@@ -387,10 +387,10 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 	if err != nil {
 		return err
 	}
-	if !IsSuperAdmin(actorRole) && actorRole != requiredRole {
+	if !HasFullAccess(actorRole) && actorRole != requiredRole {
 		return fmt.Errorf("%w: this amount requires approval from role '%s'", ErrApprovalRoleMismatch, requiredRole)
 	}
-	if !IsSuperAdmin(actorRole) {
+	if !HasFullAccess(actorRole) {
 		if docLoc, ok := data["location"].(string); ok && docLoc != "" && docLoc != actorLocation {
 			return fmt.Errorf("this document belongs to a different location")
 		}
@@ -617,7 +617,7 @@ func ListPendingApprovals(tenantID, role, location string) ([]map[string]interfa
 		SELECT id, doctype, data FROM %s.documents
 		WHERE status = 'Pending Approval'`, schema)
 	var args []interface{}
-	if !IsSuperAdmin(role) {
+	if !HasFullAccess(role) {
 		query += " AND (COALESCE(data->>'location', data->>'location_code') = $1 OR COALESCE(data->>'location', data->>'location_code') IS NULL)"
 		args = append(args, location)
 	}

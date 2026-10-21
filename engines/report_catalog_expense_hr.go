@@ -175,7 +175,7 @@ func employeeUser(r *catRow) map[string]interface{} {
 	m, ok := r.lk.extra["users"].(map[string]map[string]interface{})
 	if !ok {
 		m = map[string]map[string]interface{}{}
-		rows, err := dbQuery(fmt.Sprintf(`SELECT id, username, COALESCE(role, ''), COALESCE(status, '') FROM %s.users`, r.lk.schema))
+		rows, err := dbQuery(fmt.Sprintf(`SELECT id, username, COALESCE(role, ''), COALESCE(status, '') FROM %s.users WHERE %s`, r.lk.schema, NotSupportUserSQL("users")))
 		if err == nil {
 			for rows.Next() {
 				var id, name, role, status string
