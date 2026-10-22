@@ -1572,32 +1572,64 @@ let configSearch = '';      // Stage 55.21: filters every module at once
 
 // Stage 55.3: the core masters in dependency order (GET /api/v1/setup/path),
 // recomputed from live data each visit, so it resumes wherever the client is.
+// Stage 91.3 (decided 2026-10-21): the guided setup - company and legal
+// entity, stores, tax, number series, users and roles, items, approval rules,
+// print formats, in that order. Each step says what it asks and opens its
+// plain form (codes are given on save); the Next one is lit; optional steps
+// never hold the setup open.
 async function renderSetupPathPanel(host) {
   const res = await apiFetch('/api/v1/setup/path');
   if (!res || !res.ok) return; // the settings below still work without it
   const { steps = [] } = await res.json();
-  const remaining = steps.filter(s => !s.done).length;
+  const remaining = steps.filter(s => !s.done && !s.optional).length;
   const label = Object.fromEntries(steps.map(s => [s.id, s.label]));
   const details = document.createElement('details');
-  details.className = 'table-panel';
+  details.className = 'table-panel setup-guide';
+  details.id = 'setup-guide';
   details.style.cssText = 'padding:16px 24px;margin-bottom:24px;';
   details.open = remaining > 0;
+  const badge = s => s.done ? ['badge-success', 'Done'] : s.next ? ['badge-warning', 'Next']
+    : s.optional ? ['', 'Optional'] : s.waiting_for.length ? ['', 'Waiting'] : ['', 'To do'];
   details.innerHTML = `
-    <summary style="cursor:pointer;font-weight:600;">Setup path - ${remaining === 0 ? 'all core masters are in place' : `${remaining} of ${steps.length} steps to go`}</summary>
-    <ol style="margin:12px 0 0;padding-left:20px;display:grid;gap:8px;">${steps.map(s => `
-      <li>
-        <span class="badge ${s.done ? 'badge-success' : s.next ? 'badge-warning' : ''}">${s.done ? 'Done' : s.next ? 'Next' : s.waiting_for.length ? 'Waiting' : 'To do'}</span>
+    <summary style="cursor:pointer;font-weight:600;">Guided setup - ${remaining === 0 ? 'everything a client needs is in place' : `${remaining} step${remaining === 1 ? '' : 's'} to go`}</summary>
+    <p class="text-muted" style="margin:8px 0 0;">Work down the list: each step opens a plain form, and every code is given for you on save. Come back here any time - it picks up where you are.</p>
+    <ol style="margin:12px 0 0;padding-left:20px;display:grid;gap:10px;">${steps.map(s => {
+      const [cls, text] = badge(s);
+      return `<li${s.next ? ' style="font-weight:500;"' : ''}>
+        <span class="badge ${cls}">${text}</span>
         <strong>${escapeHTMLText(s.label)}</strong>
         <span class="text-muted">${s.count ? `(${escapeHTMLText(String(s.count))})` : ''}${!s.done && s.waiting_for.length ? ` - after ${escapeHTMLText(s.waiting_for.map(w => label[w] || w).join(', '))}` : ''}</span>
         ${s.view
-          ? `<button class="action-btn" data-setup-view="${escapeHTMLText(s.view)}">Open</button>`
-          : (s.doctypes || []).map(dt => `<a class="action-btn" href="#/setup/${encodeURIComponent(dt)}">${escapeHTMLText(getDoctypeLabel(dt))}</a>`).join(' ')}
-      </li>`).join('')}</ol>`;
-  host.appendChild(details);
+          ? `<button class="${s.next ? 'btn btn-primary btn-sm' : 'action-btn'}" data-setup-view="${escapeHTMLText(s.view)}">${s.next ? 'Start here' : 'Open'}</button>`
+          : (s.doctypes || []).map(dt => `<button class="${s.next ? 'btn btn-primary btn-sm' : 'action-btn'}" data-setup-doctype="${escapeHTMLText(dt)}">${escapeHTMLText(getDoctypeLabel(dt))}</button>`).join(' ')}
+        ${s.note ? `<div class="text-muted" style="font-size:12.5px;margin-top:2px;">${escapeHTMLText(s.note)}</div>` : ''}
+      </li>`;
+    }).join('')}</ol>`;
+  host.replaceChildren(details);
   details.querySelectorAll('[data-setup-view]').forEach(btn => btn.addEventListener('click', () => {
     setActiveMenu(`menu-${btn.dataset.setupView}`);
     renderView(btn.dataset.setupView);
   }));
+  // The master's list, with a way back here (the Stage 57.2 detour).
+  details.querySelectorAll('[data-setup-doctype]').forEach(btn => btn.addEventListener('click', () => window.openSetupDoctype(btn.dataset.setupDoctype)));
+}
+
+// mountSetupGuideCard (91.3) puts "finish setting up" on an admin's Home
+// while a step is left - after a reset and for every new client.
+async function mountSetupGuideCard(host) {
+  const res = await apiFetch('/api/v1/setup/path').catch(() => null);
+  if (!res || !res.ok) return;
+  const { steps = [] } = await res.json();
+  const left = steps.filter(s => !s.done && !s.optional);
+  if (!left.length) return;
+  const next = left.find(s => s.next) || left[0];
+  host.innerHTML = `<div class="table-panel" style="padding:16px 20px;margin-bottom:20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+    <div style="flex:1;min-width:220px;"><strong>Finish setting up</strong> <span class="text-muted">- ${left.length} step${left.length === 1 ? '' : 's'} to go. Next: ${escapeHTMLText(next.label)}.</span></div>
+    <button type="button" class="btn btn-primary btn-sm" id="setup-guide-go">Continue setup</button></div>`;
+  host.querySelector('#setup-guide-go').addEventListener('click', () => {
+    setActiveMenu('menu-configuration');
+    renderView('configuration');
+  });
 }
 
 async function renderConfigurationView(container) {
@@ -2762,4 +2794,4 @@ function openConsoleEditor(results, row) {
   });
 }
 
-export { renderPrefixConfigsView, renderApprovalRulesView, renderDynamicLabelsView, renderExtensionHooksView, renderExtensionHookLogView, showOneTimeSecretDialog, renderLogHubView, renderConfigurationView, renderConfigModuleRail, configInputId, renderConfigIntegrations, configIntegrationSectionHtml, wireConfigIntegrationSection, renderConfigFields, configFieldHtml, updateConfigDirtyState, saveConfiguration, renderSystemStatusView, renderTenantEntitlementsView, renderTenantUsageView, renderPlatformConsoleView };
+export { mountSetupGuideCard, renderPrefixConfigsView, renderApprovalRulesView, renderDynamicLabelsView, renderExtensionHooksView, renderExtensionHookLogView, showOneTimeSecretDialog, renderLogHubView, renderConfigurationView, renderConfigModuleRail, configInputId, renderConfigIntegrations, configIntegrationSectionHtml, wireConfigIntegrationSection, renderConfigFields, configFieldHtml, updateConfigDirtyState, saveConfiguration, renderSystemStatusView, renderTenantEntitlementsView, renderTenantUsageView, renderPlatformConsoleView };

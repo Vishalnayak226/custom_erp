@@ -547,7 +547,7 @@ func PostPurchaseReturn(tenantID, returnID, userID, storeCode string) (*Purchase
 	var postedLines []PostedStockLine
 	if len(accepted) > 0 {
 		// Stage 106.4: accepted stock leaves the chosen "From" location first.
-		if err = drawFromDefaultFromTx(tx, schema, "Purchase Return", ctx.Location, accepted); err != nil {
+		if err = drawFromDefaultFromTx(tx, schema, "Purchase Return", ctx.Location, accepted, docStockField(tx, schema, returnID, "stock_from")); err != nil {
 			return nil, err
 		}
 		if _, postedLines, err = PostInventoryLedgerWithVoucherTx(tx, schema, ctx.Location, accepted, false); err != nil {

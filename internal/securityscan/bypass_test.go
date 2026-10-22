@@ -57,6 +57,10 @@ var reviewedBypassFindings = map[string]map[string]struct {
 		"engines/pim_import_schedule.go": {1, `PIMImportScheduleRunAs refuses a schedule whose owner
 			would be the "system" actor (Stage 55.11) - the comparison takes a privilege away rather
 			than granting one. The imports then run as the named owner, through that owner's own role.`},
+		"engines/dashboard_digest_html.go": {1, `deliverCustomDashboardDigest never sends a digest as the
+			"system" actor (Stage 100.3.4): a digest created by system runs as the dashboard's own owner
+			instead, through that owner's role and stores - the comparison takes a privilege away.
+			Approved by the user 2026-10-22 (release 0.12.0).`},
 	},
 	// Stage 72.8's gift cards. A gift card number is a closed-loop stored-value
 	// instrument the ERP itself registers and funds - not a payment card: no

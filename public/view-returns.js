@@ -32,7 +32,7 @@ const RETURN_ACTIONS_BY_STATUS = {
 const RETURN_DISPOSITIONS = ['Sellable', 'Damaged', 'Repairable', 'Missing', 'Wrong-Item', 'Rejected'];
 
 // Stage 68: the transaction-screen bar's shared pieces, same version.
-const { txnContext } = await import('./txn-screen.js' + new URL(import.meta.url).search);
+const { txnContext, txnStockFromTo, mountStockFromTo, readStockFromTo } = await import('./txn-screen.js' + new URL(import.meta.url).search);
 
 let returnsViewRows = [];
 let returnsViewFilter = 'open';
@@ -233,12 +233,19 @@ async function openReturnQCDialog(row) {
       <select id="qc-disposition-${i}" class="form-input" data-qc-sku="${cfgEsc(it.sku)}">${RETURN_DISPOSITIONS.map(d => `<option value="${d}">${d}</option>`).join('')}</select>
       <input type="text" class="form-input" style="margin-top:6px;" data-qc-exchange="${cfgEsc(it.sku)}" aria-label="Exchange ${cfgEsc(names[i])} for (item code, optional)" placeholder="Exchange for item code (optional - blank refunds it)">
     </div>`).join('');
-  const picked = await posFormDialog(`Inspect ${row.number}`,
+  // Stage 106.5: where the goods checked Sellable land, for this return only.
+  let stockTo = {};
+  const dialog = posFormDialog(`Inspect ${row.number}`,
     'Record the condition of each item. Sellable goes back to stock; an exchange applies only to Sellable, Repairable or Damaged items.',
-    html, (el) => [...el.querySelectorAll('[data-qc-sku]')].map(s => ({
-      sku: s.dataset.qcSku, disposition: s.value,
-      exchange: (el.querySelector(`[data-qc-exchange="${CSS.escape(s.dataset.qcSku)}"]`) || {}).value || ''
-    })));
+    txnStockFromTo('Sales Return') + html, (el) => {
+      stockTo = readStockFromTo(el);
+      return [...el.querySelectorAll('[data-qc-sku]')].map(s => ({
+        sku: s.dataset.qcSku, disposition: s.value,
+        exchange: (el.querySelector(`[data-qc-exchange="${CSS.escape(s.dataset.qcSku)}"]`) || {}).value || ''
+      }));
+    });
+  mountStockFromTo(document.body, row.returnLocation || '');
+  const picked = await dialog;
   if (!picked) return;
   const dispositions = {};
   const exchanges = {};
@@ -246,7 +253,7 @@ async function openReturnQCDialog(row) {
     dispositions[p.sku] = p.disposition;
     if (p.exchange.trim() && ['Sellable', 'Repairable', 'Damaged'].includes(p.disposition)) exchanges[p.sku] = p.exchange.trim();
   });
-  const payload = { dispositions };
+  const payload = { dispositions, ...stockTo };
   if (Object.keys(exchanges).length) payload.exchange_for = exchanges;
   const result = await postReturnAction(`/api/v1/returns/${encodeURIComponent(row.id)}/qc`, payload);
   if (!result) return;

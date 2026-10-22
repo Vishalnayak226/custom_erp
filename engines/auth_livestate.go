@@ -72,6 +72,9 @@ type LiveUserState struct {
 	// Access (Stage 85.A) is the stores this user may work at; the token's
 	// "loc" claim is honoured only while Access allows it (WorkingStore).
 	Access StoreAccess
+	// StoreView (Stage 106.6) is the top bar's list choice: "" All stores,
+	// StoreViewStore the working store (ListsFollowWorkingStore).
+	StoreView string
 }
 
 type authStateEntry struct {
@@ -134,16 +137,18 @@ func ResolveLiveUserState(tenantID, userID string) (LiveUserState, error) {
 	// keeps working on a schema the Stage 57 migration has not reached yet -
 	// a missing column here would otherwise fail every session, not just one
 	// feature.
-	// store_access / stores (Stage 85.A) are read the same tolerant way.
+	// store_access / stores (Stage 85.A) and store_view (106.6) are read the
+	// same tolerant way.
 	var state LiveUserState
 	var storeMode, storesJSON string
 	err = db.DB.QueryRow(fmt.Sprintf(
 		`SELECT role, location_code, credential_version,
 		        COALESCE((to_jsonb(u)->>'must_change_password')::boolean, FALSE),
 		        COALESCE(to_jsonb(u)->>'store_access', 'Inherit'),
-		        COALESCE((to_jsonb(u)->'stores')::text, '[]')
+		        COALESCE((to_jsonb(u)->'stores')::text, '[]'),
+		        COALESCE(to_jsonb(u)->>'store_view', '')
 		   FROM %s.users u WHERE id = $1 AND status = 'Active'`, schema),
-		userID).Scan(&state.Role, &state.LocationCode, &state.CredentialVersion, &state.MustChangePassword, &storeMode, &storesJSON)
+		userID).Scan(&state.Role, &state.LocationCode, &state.CredentialVersion, &state.MustChangePassword, &storeMode, &storesJSON, &state.StoreView)
 
 	switch {
 	case err == sql.ErrNoRows:

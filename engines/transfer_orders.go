@@ -224,7 +224,7 @@ func DispatchTransferOrderWith(tenantID, transferOrderID, userID string, picks [
 			return err
 		}
 		// Stage 106.4: dispatch takes the chosen "From" location first.
-		if err := drawFromDefaultFromTx(tx, schema, "Transfer Out", fromWarehouse, []interface{}{map[string]interface{}{"sku": line.Sku, "qty": -line.Qty}}); err != nil {
+		if err := drawFromDefaultFromTx(tx, schema, "Transfer Out", fromWarehouse, []interface{}{map[string]interface{}{"sku": line.Sku, "qty": -line.Qty}}, docStockField(tx, schema, transferOrderID, "stock_from")); err != nil {
 			return err
 		}
 		var available int

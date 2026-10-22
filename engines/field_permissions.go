@@ -74,6 +74,11 @@ func HiddenFieldsForRole(tenantID, role, doctype string) ([]string, error) {
 			hidden = append(hidden, field)
 		}
 	}
+	// Stage 101.1.4: masked contacts are not searchable either, or a search
+	// for digits would reveal whose number it is.
+	if doctype == "Customer" && !RoleSeesContacts(tenantID, role) {
+		hidden = append(hidden, "phone", "email")
+	}
 	return hidden, nil
 }
 
@@ -86,6 +91,11 @@ func FilterFieldsForRole(tenantID, role, doctype string, data map[string]interfa
 		if !permission.AllowRead {
 			delete(data, field)
 		}
+	}
+	// Stage 101.1.4: a role without contact access sees a customer's phone
+	// and email masked - here, so every Customer read agrees.
+	if doctype == "Customer" {
+		MaskCustomerContacts(tenantID, role, data)
 	}
 	return data, nil
 }

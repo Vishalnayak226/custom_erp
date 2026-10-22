@@ -239,6 +239,17 @@ func SignToken(userID, username, role, tenantID, locationCode string, credential
 	return signClaims(claims)
 }
 
+// SignStoreDeviceToken (Stage 102.1.4) is SignToken for a PIN sign-in on a
+// registered store phone: the same session plus the phone's id (dev), which
+// apiMiddleware checks on every call so removing the phone ends the session at
+// once, and a shift-length life instead of the tenant's usual one.
+func SignStoreDeviceToken(userID, username, role, tenantID, locationCode string, credentialVersion int, deviceID string, ttl time.Duration) string {
+	now := time.Now()
+	exp := now.Add(ttl).Unix()
+	claims := fmt.Sprintf("id=%s&user=%s&role=%s&tenant=%s&loc=%s&cv=%d&dev=%s&iat=%d&jti=%s%s&exp=%d", claimVal(userID), claimVal(username), claimVal(role), claimVal(tenantID), claimVal(locationCode), credentialVersion, claimVal(deviceID), now.Unix(), newJTI(), kidSuffix(), exp)
+	return signClaims(claims)
+}
+
 // SignPurposeToken issues a short-lived, narrowly-scoped token for a single
 // step of a multi-step flow (MFA enrollment/challenge). Deliberately excludes
 // role/loc so it can never be mistaken for - or misused as - a full session

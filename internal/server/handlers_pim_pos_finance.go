@@ -373,6 +373,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		// number, which is precisely what public/app.js used to do.
 		IdempotencyKey string  `json:"idempotency_key"`
 		Location       string  `json:"location"`
+		StockFrom      string  `json:"stock_from"` // Stage 106.5: stored on the cart
 		PaymentMode    string  `json:"payment_mode"`
 		CustomerID     string  `json:"customer_id"`
 		Interstate     bool    `json:"interstate"`

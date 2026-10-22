@@ -1215,7 +1215,50 @@ async function wireNewLocationDefaults(body) {
   }
 }
 
+// Stage 123.3 (user, 2026-10-19: "I want to edit user's code of store";
+// decided 2026-10-21): an admin types a store's own code on its Edit form.
+// Saving with a new code first renames the store everywhere it is used
+// (engines/location_code_change.go), after a confirm that says how much
+// points at it; the rest of the form then saves under the new code.
+function wireLocationCodeEdit(body, record) {
+  const input = body.querySelector('input[name="code"]');
+  if (!input || !record?.id || !isAdminRoleName(localStorage.getItem('erp_role'))) return;
+  input.readOnly = false;
+  input.autocomplete = 'off';
+  input.dataset.codeWas = String(record.id);
+  input.addEventListener('input', () => {
+    const at = input.selectionStart;
+    input.value = input.value.toUpperCase();
+    input.setSelectionRange(at, at);
+  });
+  input.closest('.form-group')?.insertAdjacentHTML('beforeend',
+    '<div class="empty-state-hint">Type a new code to rename this store everywhere it is used - stock, documents, users\' stores. Printed documents keep the old code.</div>');
+}
+
+// The id to save under: unchanged, the new code once renamed, or null when
+// the rename was refused or cancelled (nothing saved).
+async function changeLocationCodeBeforeSave(form, id) {
+  const input = form.querySelector('input[name="code"][data-code-was]');
+  const code = String(input?.value || '').trim().toUpperCase();
+  if (!input || !code || code === String(id).toUpperCase()) return id;
+  const res = await apiFetch(`/api/v1/master-codes/Location/code?id=${encodeURIComponent(id)}&code=${encodeURIComponent(code)}`);
+  if (!res || !res.ok) {
+    await showApiError(res, 'This store code cannot be used.');
+    return null;
+  }
+  const plan = await res.json();
+  const refs = plan.references === 1 ? '1 record points' : `${plan.references} records point`;
+  if (!await showCustomConfirm(`Change ${plan.name || id} from ${id} to ${plan.new}? ${refs} at it and change with it, in one go. A till or a channel still sending ${id} keeps finding this store.`, 'Change store code')) return null;
+  const done = await apiFetch('/api/v1/master-codes/Location/code', { method: 'POST', body: JSON.stringify({ id, code: plan.new }) });
+  if (!done || !done.ok) {
+    await showApiError(done, 'The store code was not changed.');
+    return null;
+  }
+  input.dataset.codeWas = plan.new;
+  return plan.new;
+}
+
 export { openDatePicker, closeDatePicker, openQuickCreateDialog, attachSmartHSNPicker, wireAttributeDefForm,
   isStateFieldName, isStateCodeFieldName, buildStateSelect, fieldChecksumOK, fillStateFromTaxId, taxIdLabel,
   loadMasterCodeSeries, masterCodeSetupRow, readMasterCodeFormat, groupFormSections, attachVariantOptionsEditor, openLineUpload,
-  wireLocationCostCenter, wireNewLocationDefaults };
+  wireLocationCostCenter, wireNewLocationDefaults, wireLocationCodeEdit, changeLocationCodeBeforeSave };

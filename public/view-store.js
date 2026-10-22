@@ -13,6 +13,10 @@ const STORE_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" 
 
 let stores = [];
 let myStores = null;
+// Stage 106.6: "All stores" in the picker (canViewAll) and whether the lists
+// show every store now (viewAll) - picking a store narrows them to it.
+let canViewAll = false;
+let viewAll = false;
 
 // loadMyStores is the server's answer to "which stores, and which one now",
 // one request shared by the top bar and any screen that needs the store
@@ -22,6 +26,8 @@ function loadMyStores(fresh) {
     myStores = apiFetch('/api/v1/me/stores').then(r => (r && r.ok ? r.json() : null)).catch(() => null).then(data => {
       if (!data) { myStores = null; return null; }
       stores = Array.isArray(data.stores) ? data.stores : [];
+      canViewAll = !!data.can_view_all;
+      viewAll = !!data.view_all;
       window.erpWorkingStore = stores.find(s => s.code === data.working) || { code: data.working || '', name: data.working || '' };
       return data;
     });
@@ -43,13 +49,13 @@ export async function mountStoreSwitch(fresh) {
   const [data] = await Promise.all([loadMyStores(fresh), loadViewStyles('store.css')]);
   if (!data) return;
   const working = window.erpWorkingStore;
-  const name = esc(working.name || working.code);
+  const name = viewAll ? 'All stores' : esc(working.name || working.code);
   // A chip drawn before the name arrived shows the code; give it the name.
   document.querySelectorAll('.txn-ctx-store').forEach(el => { el.textContent = working.name || working.code; });
   // A screen drawn before the server's answer (the till) re-checks its store.
   document.dispatchEvent(new CustomEvent('erp:working-store', { detail: working }));
-  if (stores.length > 1) {
-    host.innerHTML = `<button type="button" class="btn btn-outline store-switch-btn" id="store-switch-btn" aria-haspopup="dialog" aria-expanded="false" title="The store you are working at - click to switch">${STORE_ICON}<span class="store-switch-label">${name}</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></button>`;
+  if (stores.length > 1 || canViewAll) {
+    host.innerHTML = `<button type="button" class="btn btn-outline store-switch-btn" id="store-switch-btn" aria-haspopup="dialog" aria-expanded="false" title="${viewAll ? `Lists show every store; new documents are made at ${esc(working.name || working.code)}` : 'The store you are working at - click to switch'}">${STORE_ICON}<span class="store-switch-label">${name}</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></button>`;
     host.querySelector('button').addEventListener('click', toggleStorePicker);
   } else {
     host.innerHTML = `<span class="store-switch-name" title="The store you are working at">${STORE_ICON}<span class="store-switch-label">${name}</span></span>`;
@@ -87,7 +93,9 @@ function toggleStorePicker() {
   pop.innerHTML = `
     ${stores.length > 6 ? '<input type="search" class="form-input store-switch-search" placeholder="Find a store" aria-label="Find a store" autocomplete="off">' : ''}
     <div class="store-switch-list" role="listbox">
-      ${stores.map(s => `<button type="button" role="option" class="store-switch-opt${s.code === current ? ' active' : ''}" aria-selected="${s.code === current}" data-store="${esc(s.code)}">
+      ${canViewAll ? `<button type="button" role="option" class="store-switch-opt${viewAll ? ' active' : ''}" aria-selected="${viewAll}" data-store="*">
+        <span>All stores</span><span class="store-switch-meta">every store's documents</span></button>` : ''}
+      ${stores.map(s => `<button type="button" role="option" class="store-switch-opt${!viewAll && s.code === current ? ' active' : ''}" aria-selected="${!viewAll && s.code === current}" data-store="${esc(s.code)}">
         <span>${esc(s.name || s.code)}</span><span class="store-switch-meta">${esc(s.type || '')}${s.sellable ? ' · sells' : ''}</span></button>`).join('')}
     </div>`;
   host.appendChild(pop);
@@ -110,11 +118,12 @@ function toggleStorePicker() {
 async function switchStore(code) {
   closeStorePicker();
   const current = (window.erpWorkingStore || {}).code;
-  if (!code || code === current) return;
-  const target = stores.find(s => s.code === code) || { code, name: code };
+  // 106.6: picking the working store again leaves "All stores" for it.
+  if (!code || (code === '*' ? viewAll : code === current && !viewAll)) return;
+  const target = code === '*' ? { code, name: 'All stores' } : stores.find(s => s.code === code) || { code, name: code };
   // A half-built bill belongs to the store it was priced at.
   const lines = typeof posCart !== 'undefined' && Array.isArray(posCart) ? posCart.length : 0;
-  if (lines > 0 && !(await showCustomConfirm(`The till has ${lines} line(s) in the cart. Switching to ${target.name} clears them - the cart is not saved.\n\nSwitch store?`, 'Switch Store'))) return;
+  if (code !== '*' && code !== current && lines > 0 && !(await showCustomConfirm(`The till has ${lines} line(s) in the cart. Switching to ${target.name} clears them - the cart is not saved.\n\nSwitch store?`, 'Switch Store'))) return;
 
   const res = await apiFetch('/api/v1/me/working-store', { method: 'POST', body: JSON.stringify({ store: code }) });
   if (!res) return;
@@ -137,7 +146,7 @@ async function switchStore(code) {
 
   await mountStoreSwitch(true);
   renderView(currentView);
-  showToast(`Working at ${target.name || code}.`, { variant: 'success', title: 'Store Switched' });
+  showToast(code === '*' ? 'Lists show every store again.' : `Working at ${target.name || code}; lists show its documents.`, { variant: 'success', title: 'Store Switched' });
 }
 
 // --- Stage 85.A1/85.A2: the Stores editor (Users and Roles screens) ----------

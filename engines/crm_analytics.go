@@ -99,6 +99,11 @@ func MergeCustomers(tenantID, primaryID, duplicateID, userID string) error {
 	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.loyalty_point_ledger SET customer_id = $1 WHERE customer_id = $2`, schema), primaryID, duplicateID); err != nil {
 		return fmt.Errorf("failed reassigning loyalty ledger: %v", err)
 	}
+	// Stage 101.1.3: the CRM's consent, messages, journeys, notes and tasks
+	// move too, with no second copy of a waiting message.
+	if err := crmMergeRowsTx(tx, schema, primaryID, duplicateID); err != nil {
+		return fmt.Errorf("failed moving CRM records: %v", err)
+	}
 
 	var dupDataStr string
 	if err := tx.QueryRow(fmt.Sprintf(`SELECT data FROM %s.documents WHERE doctype = 'Customer' AND id = $1`, schema), duplicateID).Scan(&dupDataStr); err != nil {

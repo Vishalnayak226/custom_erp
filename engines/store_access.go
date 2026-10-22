@@ -438,6 +438,14 @@ func SwitchWorkingStore(tenantID, userID, cashier, current, target string) (stri
 	if err != nil {
 		return "", err
 	}
+	// Stage 106.6: "All stores" changes what lists show, not where the user
+	// works - numbering and the till stay at the current store.
+	if target == StoreViewAll {
+		if !live.CanViewAllStores() {
+			return "", &ValidationError{Code: "STORE-0850", Message: "Only a user who works at every store can list all stores."}
+		}
+		return live.WorkingStore(current), setStoreView(tenantID, userID, "")
+	}
 	if err := ValidateUserMayWorkAt(live.Access, target); err != nil {
 		return "", err
 	}
@@ -457,6 +465,10 @@ func SwitchWorkingStore(tenantID, userID, cashier, current, target string) (stri
 	}
 	if target != current {
 		LogAuditEvent(tenantID, cashier, "USER_MANAGEMENT", "WORKING_STORE_SWITCHED", fmt.Sprintf("Switched working store from %s to %s", current, target))
+	}
+	// 106.6: picking a store narrows the lists to it.
+	if live.CanViewAllStores() && live.StoreView != StoreViewStore {
+		return target, setStoreView(tenantID, userID, StoreViewStore)
 	}
 	return target, nil
 }

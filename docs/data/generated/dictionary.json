@@ -17552,6 +17552,964 @@
       "has_control_totals": false
     },
     {
+      "id": "crm-customer-summary",
+      "label": "CRM Customer Summary",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "lifecycle",
+          "label": "Lifecycle",
+          "sensitive": false
+        },
+        {
+          "key": "customers",
+          "label": "Customers",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "spend",
+          "label": "Spend (net of returns)",
+          "sensitive": true,
+          "total": true
+        },
+        {
+          "key": "avg_spend",
+          "label": "Average spend",
+          "sensitive": true
+        },
+        {
+          "key": "reachable_sms",
+          "label": "Offers by SMS",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "reachable_whatsapp",
+          "label": "Offers by WhatsApp",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "reachable_email",
+          "label": "Offers by email",
+          "sensitive": false,
+          "total": true
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "description": "How many customers are in each lifecycle state, what they spend and how many can be reached. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: each customer's bills to date. Computed when the report runs - not a stored snapshot."
+    },
+    {
+      "id": "crm-consent-audit",
+      "label": "Consent Audit",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "recorded_at",
+          "label": "Recorded",
+          "sensitive": false
+        },
+        {
+          "key": "customer_id",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "customer",
+          "label": "Name",
+          "sensitive": false
+        },
+        {
+          "key": "channel",
+          "label": "Channel",
+          "sensitive": false
+        },
+        {
+          "key": "purpose",
+          "label": "Purpose",
+          "sensitive": false
+        },
+        {
+          "key": "action",
+          "label": "Action",
+          "sensitive": false
+        },
+        {
+          "key": "source",
+          "label": "Source",
+          "sensitive": false
+        },
+        {
+          "key": "recorded_by",
+          "label": "Recorded by",
+          "sensitive": false
+        },
+        {
+          "key": "notice_version",
+          "label": "Notice",
+          "sensitive": false
+        },
+        {
+          "key": "evidence",
+          "label": "Evidence",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from_date",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to_date",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "description": "Every consent given, refused or withdrawn, with who recorded it, how and under which notice. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the consent was recorded. Computed when the report runs - not a stored snapshot."
+    },
+    {
+      "id": "crm-segment-members",
+      "label": "Segment Members",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "customer_id",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "sensitive": false
+        },
+        {
+          "key": "phone",
+          "label": "Phone",
+          "sensitive": false
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "sensitive": false
+        },
+        {
+          "key": "lifecycle",
+          "label": "Lifecycle",
+          "sensitive": false
+        },
+        {
+          "key": "rfm",
+          "label": "RFM",
+          "sensitive": false
+        },
+        {
+          "key": "visits",
+          "label": "Bills",
+          "sensitive": false
+        },
+        {
+          "key": "spend",
+          "label": "Spend",
+          "sensitive": true
+        },
+        {
+          "key": "last_bill",
+          "label": "Last bill",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "segment_id",
+          "label": "Segment (id from CRM \u003e Segments)",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "description": "Who is in a segment now (its current version). Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: each customer's bills to date. Computed when the report runs - not a stored snapshot."
+    },
+    {
+      "id": "crm-campaign-summary",
+      "label": "Campaign Summary",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "campaign",
+          "label": "Campaign",
+          "sensitive": false
+        },
+        {
+          "key": "run_id",
+          "label": "Run",
+          "sensitive": false
+        },
+        {
+          "key": "channel",
+          "label": "Channel",
+          "sensitive": false
+        },
+        {
+          "key": "started",
+          "label": "Started",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        },
+        {
+          "key": "matched",
+          "label": "Matched",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "held_out",
+          "label": "Hold-out",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "suppressed",
+          "label": "Not sent",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "sent",
+          "label": "Sent",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "delivered",
+          "label": "Delivered",
+          "sensitive": false
+        },
+        {
+          "key": "failed",
+          "label": "Failed",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "bills_credited",
+          "label": "Bills credited",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "sales_credited",
+          "label": "Sales credited",
+          "sensitive": true,
+          "total": true
+        },
+        {
+          "key": "cost",
+          "label": "Cost",
+          "sensitive": true,
+          "total": true
+        }
+      ],
+      "params": [
+        {
+          "key": "from_date",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to_date",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "description": "Each campaign run: reached, held out, suppressed, delivered, credited sales and cost. Delivery is blank where the channel does not report it. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: the run's start; a bill is credited to the last offer within the attribution days before it. Computed when the report runs - not a stored snapshot."
+    },
+    {
+      "id": "crm-message-detail",
+      "label": "Message Detail",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "queued_at",
+          "label": "Queued",
+          "sensitive": false
+        },
+        {
+          "key": "kind",
+          "label": "From",
+          "sensitive": false
+        },
+        {
+          "key": "customer_id",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "customer",
+          "label": "Name",
+          "sensitive": false
+        },
+        {
+          "key": "channel",
+          "label": "Channel",
+          "sensitive": false
+        },
+        {
+          "key": "purpose",
+          "label": "Purpose",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        },
+        {
+          "key": "reason",
+          "label": "Reason",
+          "sensitive": false
+        },
+        {
+          "key": "contact",
+          "label": "To",
+          "sensitive": false
+        },
+        {
+          "key": "parts",
+          "label": "SMS parts",
+          "sensitive": false
+        },
+        {
+          "key": "cost",
+          "label": "Cost",
+          "sensitive": true
+        }
+      ],
+      "params": [
+        {
+          "key": "from_date",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to_date",
+          "label": "To",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "select",
+          "options": ",Queued,Sending,Accepted,Delivered,Read,Failed,Unknown,Suppressed,Expired,Cancelled,HeldOut,Simulated",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "description": "Every CRM message and its decision: sent, delivered, or why not (the reason code). Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the message was queued. Computed when the report runs - not a stored snapshot."
+    },
+    {
+      "id": "crm-journey-performance",
+      "label": "Journey Performance",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "journey",
+          "label": "Journey",
+          "sensitive": false
+        },
+        {
+          "key": "enabled",
+          "label": "On",
+          "sensitive": false
+        },
+        {
+          "key": "entered",
+          "label": "Entered",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "live",
+          "label": "In it now",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "completed",
+          "label": "Finished",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "goal",
+          "label": "Reached the goal",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "messages",
+          "label": "Messages sent",
+          "sensitive": false,
+          "total": true
+        }
+      ],
+      "params": [
+        {
+          "key": "from_date",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to_date",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "description": "Per journey: customers who entered, are in it now, finished, left on reaching the goal, and messages sent. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the customer entered. Computed when the report runs - not a stored snapshot."
+    },
+    {
+      "id": "crm-credited-sales",
+      "label": "Credited Sales",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "bill_date",
+          "label": "Bill date",
+          "sensitive": false
+        },
+        {
+          "key": "bill",
+          "label": "Bill",
+          "sensitive": false
+        },
+        {
+          "key": "store",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "customer",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "credited_to",
+          "label": "Credited to",
+          "sensitive": false
+        },
+        {
+          "key": "message_at",
+          "label": "Message sent",
+          "sensitive": false
+        },
+        {
+          "key": "amount",
+          "label": "Amount",
+          "sensitive": true,
+          "total": true
+        }
+      ],
+      "params": [
+        {
+          "key": "from_date",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to_date",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "description": "Bills credited to a CRM message: the last marketing message the customer got within the attribution days before the bill, once per bill. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: the bill date. Computed when the report runs - not a stored snapshot."
+    },
+    {
+      "id": "crm-rfm-lifecycle",
+      "label": "RFM and Lifecycle",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "customer_id",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "sensitive": false
+        },
+        {
+          "key": "lifecycle",
+          "label": "Lifecycle",
+          "sensitive": false
+        },
+        {
+          "key": "rfm",
+          "label": "RFM",
+          "sensitive": false
+        },
+        {
+          "key": "visits",
+          "label": "Bills",
+          "sensitive": false
+        },
+        {
+          "key": "spend",
+          "label": "Spend",
+          "sensitive": true
+        },
+        {
+          "key": "days_since",
+          "label": "Days since last bill",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "lifecycle",
+          "label": "Lifecycle",
+          "type": "select",
+          "options": ",New,Active repeat,Reactivated,At risk,Lapsed,Never bought",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "description": "Every customer's RFM segment (scored against the whole customer base, as the RFM report does) and lifecycle state. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: each customer's bills to date. Computed when the report runs - not a stored snapshot."
+    },
+    {
+      "id": "crm-coupon-use",
+      "label": "Coupon Use",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "issued",
+          "label": "Issued",
+          "sensitive": false
+        },
+        {
+          "key": "code",
+          "label": "Code",
+          "sensitive": false
+        },
+        {
+          "key": "customer",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "offer",
+          "label": "Offer",
+          "sensitive": false
+        },
+        {
+          "key": "from",
+          "label": "From",
+          "sensitive": false
+        },
+        {
+          "key": "expiry",
+          "label": "Expires",
+          "sensitive": false
+        },
+        {
+          "key": "used",
+          "label": "Used",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from_date",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to_date",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "description": "Vouchers the CRM issued (campaigns, journeys) and whether they were used. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the voucher was issued. Computed when the report runs - not a stored snapshot."
+    },
+    {
+      "id": "crm-service-sla",
+      "label": "Service SLA",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "ticket",
+          "label": "Ticket",
+          "sensitive": false
+        },
+        {
+          "key": "opened",
+          "label": "Opened",
+          "sensitive": false
+        },
+        {
+          "key": "customer",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "store",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "state",
+          "label": "State",
+          "sensitive": false
+        },
+        {
+          "key": "first_response_due",
+          "label": "Respond by",
+          "sensitive": false
+        },
+        {
+          "key": "first_response_late",
+          "label": "Response late",
+          "sensitive": false
+        },
+        {
+          "key": "resolve_due",
+          "label": "Resolve by",
+          "sensitive": false
+        },
+        {
+          "key": "resolve_late",
+          "label": "Resolution late",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from_date",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to_date",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "description": "Customer tickets against their first-response and resolution times (working hours only). Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the ticket was opened. Computed when the report runs - not a stored snapshot."
+    },
+    {
+      "id": "crm-clienteling",
+      "label": "Clienteling Tasks",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "store",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "owner",
+          "label": "Owner",
+          "sensitive": false
+        },
+        {
+          "key": "kind",
+          "label": "Kind",
+          "sensitive": false
+        },
+        {
+          "key": "open",
+          "label": "Open",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "overdue",
+          "label": "Overdue",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "done",
+          "label": "Done",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "appointments",
+          "label": "Appointments",
+          "sensitive": false,
+          "total": true
+        }
+      ],
+      "params": [
+        {
+          "key": "from_date",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to_date",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "description": "The store worklist: tasks by store and owner, done and open, with how many were late. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the task was created. Computed when the report runs - not a stored snapshot."
+    },
+    {
+      "id": "crm-feedback",
+      "label": "Feedback and NPS",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "store",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "asked",
+          "label": "Asked",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "answers",
+          "label": "Answers",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "promoters",
+          "label": "Promoters",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "detractors",
+          "label": "Detractors",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "nps",
+          "label": "NPS",
+          "sensitive": false
+        },
+        {
+          "key": "tickets",
+          "label": "Tickets opened",
+          "sensitive": false,
+          "total": true
+        }
+      ],
+      "params": [
+        {
+          "key": "from_date",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to_date",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "description": "Feedback by store: answers, promoters, detractors and NPS (promoters minus detractors, % of answers). Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the feedback was asked. Computed when the report runs - not a stored snapshot."
+    },
+    {
+      "id": "crm-message-cost",
+      "label": "Message Cost",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "month",
+          "label": "Month",
+          "sensitive": false
+        },
+        {
+          "key": "channel",
+          "label": "Channel",
+          "sensitive": false
+        },
+        {
+          "key": "messages",
+          "label": "Messages",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "sms_parts",
+          "label": "SMS parts",
+          "sensitive": false,
+          "total": true
+        },
+        {
+          "key": "estimate",
+          "label": "Estimated",
+          "sensitive": true,
+          "total": true
+        },
+        {
+          "key": "actual",
+          "label": "Charged (reported)",
+          "sensitive": true,
+          "total": true
+        }
+      ],
+      "params": [
+        {
+          "key": "from_date",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to_date",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "description": "What CRM messages cost by month and channel: the estimate reserved and the provider's actual charge where it reported one. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the message was sent. Computed when the report runs - not a stored snapshot."
+    },
+    {
+      "id": "crm-pipeline",
+      "label": "Sales Pipeline",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "opportunity",
+          "label": "Deal",
+          "sensitive": false
+        },
+        {
+          "key": "customer",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "owner",
+          "label": "Owner",
+          "sensitive": false
+        },
+        {
+          "key": "stage",
+          "label": "Stage",
+          "sensitive": false
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "sensitive": true,
+          "total": true
+        },
+        {
+          "key": "probability",
+          "label": "Chance %",
+          "sensitive": false
+        },
+        {
+          "key": "weighted",
+          "label": "Weighted",
+          "sensitive": true,
+          "total": true
+        },
+        {
+          "key": "expected_close",
+          "label": "Expected close",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        },
+        {
+          "key": "sales_order",
+          "label": "Sales order",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "status",
+          "label": "Deals",
+          "type": "select",
+          "options": "Open,Won,Lost,All",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "description": "Open business deals by stage: value, chance and weighted value; won and lost in the period. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: the expected close date. Computed when the report runs - not a stored snapshot."
+    },
+    {
       "id": "rfm-segmentation",
       "label": "RFM Customer Segmentation",
       "category": "CRM",

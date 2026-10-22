@@ -503,13 +503,14 @@ func handleReceiveTransferOrder(w http.ResponseWriter, r *http.Request) {
 		ReceivedItems   []engines.TransferReceiptLine `json:"received_items"`
 		KeepOpen        bool                          `json:"keep_open"`
 		ReceiptKey      string                        `json:"receipt_key"`
+		StockTo         string                        `json:"stock_to"` // Stage 106.5
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TransferOrderID == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'transfer_order_id' is required")
 		return
 	}
 	res, err := engines.ReceiveTransferOrderLines(tenantID, req.TransferOrderID, userID, engines.TransferReceiptRequest{
-		Lines: req.ReceivedItems, KeepOpen: req.KeepOpen, ReceiptKey: req.ReceiptKey})
+		Lines: req.ReceivedItems, KeepOpen: req.KeepOpen, ReceiptKey: req.ReceiptKey, StockTo: req.StockTo})
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return

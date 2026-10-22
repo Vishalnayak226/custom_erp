@@ -78,6 +78,38 @@ func handleMasterCodeClean(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(plan)
 }
 
+// handleLocationCodeChange (Stage 123.3) gives a store the code typed on its
+// Edit form: GET previews ?id=&code= (references, the backup check; &detail=1
+// each column it rewrites), POST {id, code} renames the store and every
+// reference in one transaction. Admin only, as the clean-up above.
+func handleLocationCodeChange(w http.ResponseWriter, r *http.Request) {
+	if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	var req struct {
+		ID   string `json:"id"`
+		Code string `json:"code"`
+	}
+	var ch engines.LocationCodeChange
+	var err error
+	if r.Method == http.MethodPost {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
+			return
+		}
+		ch, err = engines.ApplyLocationCodeChange(tenantID, req.ID, req.Code, r.Header.Get("Resolved-Username"))
+	} else {
+		q := r.URL.Query()
+		ch, err = engines.PlanLocationCodeChange(tenantID, q.Get("id"), q.Get("code"), q.Get("detail") == "1")
+	}
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(ch)
+}
+
 func handleMasterCodeSeries(w http.ResponseWriter, r *http.Request) {
 	series, err := engines.GetMasterCodeSeries(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("doctype"))
 	if err != nil {

@@ -5,6 +5,7 @@ let currentReportTab = 'exec-dashboard';
 
 const REPORT_TABS = [
   { id: 'exec-dashboard', label: 'Dashboard' },
+  { id: 'dashboards', label: 'Custom dashboards' }, // Stage 100 (view-dashboards.js)
   { id: 'current-stock', label: 'Current Stock' },
   { id: 'sales-register', label: 'Sales Register' },
   { id: 'vendor-ledger', label: 'Vendor Ledger' },
@@ -41,6 +42,8 @@ async function fillReportsMenu(flyout) {
     `<li class="has-subflyout"><a class="menu-item submenu-parent">${escapeHTMLText(area)}</a><ul class="menu-subflyout">${areas[area].map(r =>
       `<li><a class="menu-item" id="menu-report-${escapeHTMLText(r.id)}" data-go="reports:${escapeHTMLText(r.id)}" data-like="menu-reports"><span>${escapeHTMLText(r.label)}</span></a></li>`).join('')}</ul></li>`).join('');
   flyout.lastElementChild.insertAdjacentHTML('beforebegin', rows);
+  // Stage 100: custom dashboards sit under the Dashboard.
+  flyout.firstElementChild.insertAdjacentHTML('afterend', '<li><a class="menu-item" id="menu-report-dashboards" data-go="reports:dashboards" data-like="menu-reports"><span>Custom dashboards</span></a></li>');
 }
 
 async function renderReportsView(container) {
@@ -61,6 +64,10 @@ async function renderReportsView(container) {
 
   if (currentReportTab === 'exec-dashboard') {
     await renderExecDashboard(panel);
+  } else if (currentReportTab === 'dashboards') {
+    const open = sessionStorage.getItem('erp_open_dashboard') || '';
+    sessionStorage.removeItem('erp_open_dashboard');
+    await (await import('./view-dashboards.js' + new URL(import.meta.url).search)).renderDashboardsTab(panel, open);
   } else if (currentReportTab === 'current-stock') {
     await renderCurrentStockReport(panel);
   } else if (currentReportTab === 'sales-register') {

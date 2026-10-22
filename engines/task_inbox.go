@@ -43,7 +43,7 @@ type TaskInboxItem struct {
 // it from the same RBAC and entitlement checks the source screens use.
 type TaskInboxScope struct {
 	UserID, Username, Role, Location string
-	OMS, PIM                         bool
+	OMS, PIM, CRM                    bool
 }
 
 // TaskInbox is the whole inbox plus per-source counts and any source that
@@ -170,6 +170,18 @@ func ListTaskInbox(tenantID string, scope TaskInboxScope) (*TaskInbox, error) {
 		add(PIMTaskFilter{Assignee: who, OnlyOpen: true, Limit: 200}, false)
 		add(PIMTaskFilter{OnlyOpen: true, Limit: 200}, true)
 		inbox.addImportWork(schema, who, scope.UserID)
+	}
+
+	// 4. Stage 101.12 / 101.6.3: the CRM worklist - tasks for this user, or
+	// for nobody yet at their store.
+	if scope.CRM {
+		who := firstNonEmpty(scope.Username, scope.UserID)
+		if items, err := CRMTaskInboxItems(tenantID, who, scope.Location); err != nil {
+			inbox.Errors["crm"] = err.Error()
+		} else {
+			inbox.Items = append(inbox.Items, items...)
+			inbox.Counts["crm"] += len(items)
+		}
 	}
 
 	sort.SliceStable(inbox.Items, func(i, j int) bool {

@@ -332,7 +332,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '59';
+const VIEW_MODULE_VERSION = '60';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -358,6 +358,7 @@ const LAZY_VIEW_MODULES = {
   'rf-traceability': ['view-rf-traceability.js', 'renderRFTraceabilityView', 'RF Traceability'],
   returns: ['view-returns.js', 'renderReturnsView', 'Returns', 'txn-screen.css'],
   loyalty: ['view-loyalty.js', 'renderLoyaltyView', 'Loyalty'],
+  crm: ['view-crm.js', 'renderCRMView', 'CRM', 'crm.css'],
   finance: ['view-finance.js', 'renderFinanceView', 'Finance'],
   'vendor-invoices': ['view-finance.js', 'renderVendorInvoicesView', 'Vendor Invoices', 'txn-screen.css'],
   'payment-proposals': ['view-finance.js', 'renderPaymentProposalsView', 'Payment Proposals'],
@@ -3836,7 +3837,8 @@ const MENU_MODULE_MAP = {
   "menu-loyalty": {
     "module": "crm_loyalty",
     "views": [
-      "loyalty"
+      "loyalty",
+      "crm"
     ]
   },
   "menu-rf-traceability": {
@@ -4718,15 +4720,6 @@ function setupEventListeners() {
     renderView('sales-invoices');
   });
 
-  document.getElementById('menu-customers').addEventListener('click', (e) => {
-    e.preventDefault();
-    setActiveMenu('menu-customers');
-    closeSubmenus();
-    currentDoctype = 'Customer';
-    currentSearchQuery = '';
-    currentTablePage = 1;
-    renderView('doctype-table');
-  });
 
   // Stage 88.1: an entry declared data-go="<view>[:tab]" (data-doctype for a list) needs no listener of its own.
   document.querySelector('.sidebar-menu').addEventListener('click', (e) => {
@@ -6607,6 +6600,9 @@ async function renderHomeView(container) {
     </div>
   `;
   container.appendChild(header);
+  // 91.3 / 100.3.2: an admin's "finish setting up" card, the role's home dashboard.
+  const guide = container.appendChild(document.createElement('div'));
+  loadViewModule('/view-dashboards.js').then(m => m.mountHomeExtras(guide)).catch(() => {});
 
   if (visible.length === 0) {
     const empty = document.createElement('div');

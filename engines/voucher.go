@@ -223,6 +223,16 @@ func redeemVoucherTx(tx *sql.Tx, schema, code, customerID, referenceID string, c
 	if err := check(v); err != nil {
 		return v, err
 	}
+	// Stage 101.11.2: another checkout's live hold on a single-use code wins;
+	// this sale's own hold is captured below.
+	if held, err := crmVoucherHeldElsewhereTx(tx, schema, v, referenceID); err != nil {
+		return v, err
+	} else if held {
+		return v, crmErr(CRMCodeVoucher, "this code is being used at another checkout right now - it can be used once")
+	}
+	if err := crmCaptureVoucherTx(tx, schema, v.Code, referenceID); err != nil {
+		return v, err
+	}
 	v.UsedCount++
 	data["used_count"] = v.UsedCount
 	if v.MaxUses > 0 && v.UsedCount >= v.MaxUses {

@@ -15,11 +15,12 @@ import (
 // the home store and the one they are working at now.
 func handleMyStores(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
-	access, err := engines.UserStoreAccess(tenantID, r.Header.Get("Resolved-User-ID"))
+	live, err := engines.ResolveLiveUserState(tenantID, r.Header.Get("Resolved-User-ID"))
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusServiceUnavailable, "Unable to read your stores - please retry shortly")
 		return
 	}
+	access := live.Access
 	stores, err := engines.StoresFor(tenantID, access)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to list stores")
@@ -30,6 +31,9 @@ func handleMyStores(w http.ResponseWriter, r *http.Request) {
 		"working": r.Header.Get("Resolved-Location"),
 		"all":     access.All,
 		"stores":  stores,
+		// Stage 106.6: "All stores" is offered, and whether lists show all.
+		"can_view_all": live.CanViewAllStores(),
+		"view_all":     !live.ListsFollowWorkingStore(),
 	})
 }
 
@@ -39,6 +43,12 @@ func handleMyStores(w http.ResponseWriter, r *http.Request) {
 func handleSwitchWorkingStore(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Resolved-Purpose") != "" {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only a signed-in session can switch store")
+		return
+	}
+	// Stage 102.1.4: a shared phone is registered to one store and a PIN
+	// session works there only (a new token here would also drop its phone).
+	if r.Header.Get("Resolved-Store-Device") != "" {
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "This phone is registered to one store, so it works there only. Sign in with your password to work at another store.")
 		return
 	}
 	var req struct {

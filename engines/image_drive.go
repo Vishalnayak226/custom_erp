@@ -10,10 +10,14 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"custom_erp/db"
 )
 
 // Stage 95.1: each client's own image drive - an S3-compatible bucket that
@@ -327,6 +331,60 @@ func (c *s3Client) folderFor(ownerDoctype string) string {
 // folder change does not lose photos already written.
 func (c *s3Client) ownerKey(ownerDoctype, code, name string) string {
 	return c.folderFor(ownerDoctype) + "/" + safeMediaPathPart(code) + "/" + name
+}
+
+// ownerPhotoKey names a new photo after its Design or Combination ID (Stage
+// 129.9, the user: "rename 1.jpg to D00001.jpg"): <folder>/<ID>/<ID>.jpg, then
+// <ID>-2.jpg, <ID>-3.jpg... - one past every name this owner's photos have
+// used, so a photo is never written over another and the first one always
+// has the same address. Photos stored before keep their own keys.
+func (c *s3Client) ownerPhotoKey(tenantID, ownerDoctype, code, ext string) (string, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return "", err
+	}
+	base := safeMediaPathPart(code)
+	dir := c.folderFor(ownerDoctype) + "/" + base + "/"
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT COALESCE(data->>'object_key', '') FROM %s.documents
+		WHERE doctype = 'ProductMedia' AND data->>'item' = $1`, schema), code)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	next := 1
+	for rows.Next() {
+		var key string
+		if rows.Scan(&key) != nil || !strings.HasPrefix(key, dir) {
+			continue
+		}
+		name, n := strings.TrimSuffix(strings.TrimPrefix(key, dir), path.Ext(key)), 0
+		if name == base {
+			n = 1
+		} else if v, err := strconv.Atoi(strings.TrimPrefix(name, base+"-")); err == nil && strings.HasPrefix(name, base+"-") {
+			n = v
+		}
+		if n >= next {
+			next = n + 1
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+	if next > 1 {
+		base = fmt.Sprintf("%s-%d", base, next)
+	}
+	return dir + base + ext, nil
+}
+
+// ownerPhotoLocks: two uploads to one Design or Combination ID at the same
+// time must not pick the same name.
+var ownerPhotoLocks sync.Map
+
+func lockOwnerPhotos(tenantID, code string) func() {
+	m, _ := ownerPhotoLocks.LoadOrStore(tenantID+"|"+code, &sync.Mutex{})
+	mu := m.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
 }
 
 func (c *s3Client) do(method, key string, body []byte, contentType string) (*http.Response, error) {

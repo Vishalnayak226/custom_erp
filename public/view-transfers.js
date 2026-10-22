@@ -22,7 +22,7 @@
 let transferLineItems = [];
 
 // Stage 68: the transaction-screen bar's shared pieces, same version.
-const { txnContext, txnRestorePane, txnPageTitle, txnNewButton, txnDone } = await import('./txn-screen.js' + new URL(import.meta.url).search);
+const { txnContext, txnRestorePane, txnPageTitle, txnNewButton, txnDone, txnStockFromTo, mountStockFromTo, readStockFromTo } = await import('./txn-screen.js' + new URL(import.meta.url).search);
 
 const TRANSFER_STATUS_BADGE = {
   Draft: 'badge-secondary', 'Pending Approval': 'badge-warning', Approved: 'badge-success', Packed: 'badge-success',
@@ -48,7 +48,7 @@ async function renderTransfersView(container) {
   screen.innerHTML = `
     <div class="txn-bar">
       ${txnPageTitle({ screen: 'transfer-screen', title: 'Stock Movement', page: 'New transfer', count: transfers.length })}
-      ${txnContext()}
+      ${txnContext()}${txnStockFromTo('Transfer Out', 'txn-main-only')}
       ${txnNewButton({ screen: 'transfer-screen', label: 'New Transfer' })}
       <div id="transfer-sum" class="txn-sum txn-main-only"></div>
       <div class="txn-actions txn-main-only">
@@ -131,6 +131,9 @@ async function renderTransfersView(container) {
   document.getElementById('transfer-create-btn').addEventListener('click', createTransferOrder);
   attachLinkTypeahead(document.getElementById('transfer-from'), 'Location');
   attachLinkTypeahead(document.getElementById('transfer-to'), 'Location');
+  // Stage 106.5: the From follows the sending store.
+  const syncFrom = () => mountStockFromTo(screen, document.getElementById('transfer-from').value.trim());
+  document.getElementById('transfer-from').addEventListener('change', syncFrom);
   // Stage 57: the line's item was a bare text box - people had to type the
   // exact code. It picks by name now and still stores the code.
   attachLinkTypeahead(document.getElementById('transfer-line-sku'), 'Item');
@@ -143,6 +146,7 @@ async function renderTransfersView(container) {
       document.getElementById('transfer-line-sku').value = String(context.sku || '');
     } catch (error) { /* Ignore a stale navigation hint; the form remains usable. */ }
   }
+  syncFrom();
 }
 
 function renderTransferLinesList() {
@@ -213,7 +217,8 @@ async function createTransferOrderInner() {
     method: 'POST',
     body: JSON.stringify({
       from_warehouse: fromWarehouse, to_warehouse: toWarehouse,
-      items: JSON.stringify(transferLineItems), status: 'Draft'
+      items: JSON.stringify(transferLineItems), status: 'Draft',
+      ...readStockFromTo(document.getElementById('transfer-screen'))
     })
   });
   if (!res) return;
@@ -294,7 +299,7 @@ function renderTransferStageActions(t) {
 // One small dialog for every step below - built on demand (nothing in the
 // shell), removed on close, so a stale form never lingers in the DOM.
 // ---------------------------------------------------------------------------
-function openTransferDialog({ title, body, submitLabel, wide, onSubmit, onOpen }) {
+function openTransferDialog({ title, body, submitLabel, wide, onSubmit, onOpen, stockStore }) {
   document.getElementById('transfer-dialog')?.remove();
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -319,6 +324,7 @@ function openTransferDialog({ title, body, submitLabel, wide, onSubmit, onOpen }
       </form>
     </div>`;
   document.body.appendChild(overlay);
+  if (stockStore) mountStockFromTo(overlay, stockStore); // Stage 106.5
   const close = () => overlay.remove();
   overlay.querySelectorAll('[data-transfer-close]').forEach(b => b.addEventListener('click', close));
   // "Add a reason code" leaves for the master list - the dialog goes with it.
@@ -618,10 +624,11 @@ async function receiveTransferOrder(id) {
     </tr>`;
   }).join('');
   openTransferDialog({
-    title: `Receive ${row.transfer_number || row.id}`, wide: true, submitLabel: 'Record Receipt',
+    title: `Receive ${row.transfer_number || row.id}`, wide: true, submitLabel: 'Record Receipt', stockStore: row.to_warehouse,
     body: `<div class="table-panel" style="overflow-x: auto;"><table>
         <thead><tr><th>Item</th><th>Good</th><th>Damaged</th><th>Lost</th><th>Extra</th><th>Lot</th></tr></thead>
         <tbody>${lineRows}</tbody></table></div>
+      ${txnStockFromTo('Transfer In')}
       ${reasonField}
       <label style="display: flex; gap: 8px; align-items: center;"><input type="checkbox" id="trcv-keep-open" checked>
         Units not entered here stay in transit for a later delivery</label>
@@ -648,7 +655,8 @@ async function receiveTransferOrder(id) {
       if (lines.some(l => (l.damaged_qty || l.lost_qty || l.excess_qty || (l.damaged_serials || []).length || (l.lost_serials || []).length)) && !reason) return 'Choose a reason for the damaged, lost or extra units.';
       // Closing short needs the reason too; the server says which item.
       if (!keepOpen) for (const b of balance) if (!lines.some(l => l.sku === b.sku)) lines.push({ sku: b.sku, qty: 0, reason_code: reason });
-      const msg = await postTransfer('/api/v1/transfer/receive', { transfer_order_id: id, received_items: lines, keep_open: keepOpen, receipt_key: key });
+      const msg = await postTransfer('/api/v1/transfer/receive', { transfer_order_id: id, received_items: lines, keep_open: keepOpen, receipt_key: key,
+        ...readStockFromTo(form) });
       if (!msg) renderView('transfers');
       return msg;
     }
@@ -665,8 +673,9 @@ async function returnTransferOrder(id) {
   if (balance.length === 0) { await showCustomAlert('Nothing is still in transit on this transfer.', 'Return to Source'); return; }
   const names = await transferItemNames(id);
   const reasonField = await reasonCodeField('Transfer Discrepancy', 'tret-reason', 'Reason');
+  const from = (await linkNameMap('Location')).get(String(row.from_warehouse || '')) || row.from_warehouse;
   openTransferDialog({
-    title: `Return to ${row.from_warehouse || 'source'}`, submitLabel: 'Return to Source',
+    title: `Return to ${from || 'source'}`, submitLabel: 'Return to Source',
     body: `<p style="margin: 0; color: var(--text-muted);">The units go back into the sending store's stock; put tracked lots away again there.</p>
       ${balance.map((b, i) => {
         const serials = inTransitSerials(b);
@@ -731,6 +740,8 @@ async function showTransferDetails(id) {
   if (!row) return;
   const balance = transferBalance(row);
   const names = await transferItemNames(id);
+  const stores = await linkNameMap('Location'); // 118.4: names, not codes
+  const store = code => stores.get(String(code || '')) || code || '';
   let events = [];
   try { events = JSON.parse(row.transfer_events || '[]'); } catch (e) { events = []; }
   const cell = n => `<td class="num">${n || 0}</td>`;
@@ -742,7 +753,7 @@ async function showTransferDetails(id) {
       </tbody></table></div>`
     : '<p style="color: var(--text-muted);">Not dispatched yet.</p>';
   const eventList = events.length ? `<ul style="margin: 0; padding-left: 18px;">${events.map(ev => `<li>${escapeHTMLText(ev.kind)} ${ev.no} - ${escapeHTMLText(new Date(ev.at).toLocaleString())} by ${escapeHTMLText(ev.by || '')}:
-      ${ev.lines.map(l => escapeHTMLText([l.sku, l.batch_no && `lot ${l.batch_no}`, l.received && `${l.received} good`, l.damaged && `${l.damaged} damaged`, l.lost && `${l.lost} lost`, l.excess && `${l.excess} extra`, l.returned && `${l.returned} returned`, l.reason_code && `(${l.reason_code})`, l.reason].filter(Boolean).join(' '))).join('; ')}</li>`).join('')}</ul>`
+      ${ev.lines.map(l => escapeHTMLText([names[l.sku] || l.sku, l.batch_no && `lot ${l.batch_no}`, l.received && `${l.received} good`, l.damaged && `${l.damaged} damaged`, l.lost && `${l.lost} lost`, l.excess && `${l.excess} extra`, l.returned && `${l.returned} returned`, l.reason_code && `(${l.reason_code})`, l.reason].filter(Boolean).join(' '))).join('; ')}</li>`).join('')}</ul>`
     : '';
   const facts = [
     row.total_amount !== undefined && row.total_amount !== null && row.total_amount !== '' ? `Value at cost: ₹${formatMoney(row.total_amount)}` : '',
@@ -751,7 +762,7 @@ async function showTransferDetails(id) {
   ].filter(Boolean).join(' · ');
   openTransferDialog({
     title: `${row.transfer_number || row.id} - ${row.status}`, wide: true,
-    body: `<p style="margin: 0;">${escapeHTMLText(row.from_warehouse || '')} → ${escapeHTMLText(row.to_warehouse || '')}${facts ? ` · ${facts}` : ''}</p>
+    body: `<p style="margin: 0;">${escapeHTMLText(store(row.from_warehouse))} → ${escapeHTMLText(store(row.to_warehouse))}${facts ? ` · ${facts}` : ''}</p>
       ${balanceTable}${eventList ? `<h4 style="margin: 4px 0 0;">Receipts and returns</h4>${eventList}` : ''}`
   });
 }

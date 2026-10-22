@@ -132,6 +132,25 @@ func handleStockLocationBalance(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"sku": sku, "store": store, "locations": rows})
 }
 
+// handleStockTxnHeader (Stage 106.5) is a transaction's From / To at the top
+// of its screen: ?txn= (Goods Receipt, POS Sale...) at ?store= or the
+// working store.
+func handleStockTxnHeader(w http.ResponseWriter, r *http.Request) {
+	store := strings.TrimSpace(r.URL.Query().Get("store"))
+	if store == "" {
+		store = r.Header.Get("Resolved-Location")
+	}
+	if !requireStoreAccess(w, r, store) {
+		return
+	}
+	h, err := engines.StockTxnHeaderFor(r.Header.Get("Resolved-Tenant-ID"), r.URL.Query().Get("txn"), store)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(h)
+}
+
 // handleMoveStock moves stock between two locations of one store.
 func handleMoveStock(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")

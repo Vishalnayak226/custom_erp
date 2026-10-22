@@ -798,6 +798,11 @@ func CancelOrder(tenantID, orderID, reasonCode string, actor ...string) error {
 	}
 
 	DispatchNotification(tenantID, "Order Cancelled", orderID, map[string]string{"reason_code": reasonCode})
+	// Stage 99.6.2: a cancellation made here reaches Shopify (one Shopify made
+	// is not sent back).
+	if userID != shopifyActor {
+		queueShopifyStatus(tenantID, schema, orderID, "Cancelled", "", "", nil, "cancel")
+	}
 	return nil
 }
 

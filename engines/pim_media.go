@@ -315,7 +315,13 @@ func saveOwnedMediaFile(tenantID, ownerDoctype string, fileBytes []byte, filenam
 	hasThumbnail := false
 	storedPath, objectKey := "", ""
 	if drive != nil {
-		objectKey = drive.ownerKey(ownerDoctype, itemCode, checksum[:16]+ext)
+		// Named after its Design / Combination ID (129.9); held until the
+		// record is written, so a second upload to it picks the next name.
+		unlock := lockOwnerPhotos(tenantID, itemCode)
+		defer unlock()
+		if objectKey, err = drive.ownerPhotoKey(tenantID, ownerDoctype, itemCode, ext); err != nil {
+			return nil, err
+		}
 		if err := drive.put(objectKey, fileBytes, fileType); err != nil {
 			return nil, err
 		}

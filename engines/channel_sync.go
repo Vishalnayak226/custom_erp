@@ -440,6 +440,12 @@ func RunScheduledChannelSyncs(ctx context.Context, tenantID string) {
 		if lastRun.Valid && time.Since(lastRun.Time) < time.Duration(cfg.SyncIntervalMinutes)*time.Minute {
 			continue
 		}
+		// Stage 99: Shopify runs its own turn - the whole order, changed prices,
+		// stock per location, payouts (shopify_sync.go).
+		if strings.EqualFold(cfg.Platform, "Shopify") {
+			RunShopifyScheduled(ctx, tenantID, channel)
+			continue
+		}
 		capabilities := connector.Descriptor()
 		if capabilities.PullOrders {
 			_, _, _ = PullChannelOrders(ctx, tenantID, channel)

@@ -213,7 +213,7 @@ func PostInventoryLedgerWithVoucher(tenantID string, locationCode string, items 
 	// Stage 85.B4: a goods receipt lands in its default location (Inward,
 	// say) rather than Main, in the same transaction.
 	if voucherType == "GRN" {
-		if err := applyReceiptDefaultTx(tx, schema, "Goods Receipt", locationCode, ledgerLines); err != nil {
+		if err := applyReceiptDefaultTx(tx, schema, "Goods Receipt", locationCode, ledgerLines, docStockField(tx, schema, voucherID, "stock_to")); err != nil {
 			return nil, err
 		}
 	}

@@ -340,6 +340,22 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				args = append(args, location)
 				argIndex++
 			}
+			// Stage 106.6: a transaction list follows the store picked in the
+			// top bar ("All stores" sends no Resolved-Store-View).
+			if r.Header.Get("Resolved-Store-View") == engines.StoreViewStore && location != "" {
+				if fields, allowMissing := engines.StoreViewListFields(tenantID, doctype); len(fields) > 0 {
+					match := make([]string, len(fields))
+					for i, f := range fields {
+						match[i] = fmt.Sprintf("data->>'%s' = $%d", f, argIndex) // fields from code, never input
+					}
+					if allowMissing {
+						match = append(match, scopeValueExpr(fields)+" IS NULL")
+					}
+					whereClause += " AND (" + strings.Join(match, " OR ") + ")"
+					args = append(args, location)
+					argIndex++
+				}
+			}
 
 			// 26.4.10: the list half of supplier scoping, same shape and same
 			// IS NULL reasoning as the location filter directly above - a
@@ -911,6 +927,14 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				// Stage 94.15: the PO total is to the whole rupee, with its
 				// round-off line beside it.
 				payload["grand_total"], payload["round_off"] = engines.RoundToRupee(breakdown.TotalAmount)
+				// Stage 129: the base amounts the approval bands read were
+				// stamped by ValidateDocument from the total the caller sent
+				// (0 from an upload, or a stale preview); they follow the
+				// recomputed total, or a PO is routed to the wrong approver.
+				if err := engines.ApplyDocumentCurrency(tenantID, doctype, payload); err != nil {
+					writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+					return
+				}
 			}
 		}
 
@@ -1032,6 +1056,15 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// Stage 55.17a: a Customer's marketing consent changed on this save is
 		// stamped with when and by whom (consent_updated_at / consent_source).
 		engines.StampMarketingConsent(doctype, priorData, payload, userID)
+		// Stage 101: a Customer whose phone or email was erased is not
+		// re-created, masked contacts are kept, profile fields record their
+		// source, and changed consent ticks become ledger rows after the write.
+		crmSave, crmSaveErr := engines.PrepareCRMCustomerSave(tenantID, doctype, role, id == "", priorData, payload,
+			crmFirst(r.Header.Get("Resolved-Username"), userID), "form")
+		if crmSaveErr != nil {
+			writeEngineError(w, r, crmSaveErr, http.StatusUnprocessableEntity)
+			return
+		}
 		// Stage 93.1 / 93.6: a location saved with no cost center gets one -
 		// a same-name one linked, else CC00001 named after it - in place
 		// before the single write below. Creates and edits alike: a
@@ -1131,6 +1164,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		docWritten = true
+		crmSave.Commit(docID, id == "")
 
 		// Extension after_save hooks (Stage 14.17-14.20): fired async - the
 		// save already committed, so a notification/sync hook's failure

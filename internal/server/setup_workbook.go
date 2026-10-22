@@ -304,6 +304,8 @@ type swInRow struct {
 type swTable struct {
 	cols map[string]int
 	rows []swInRow
+	// heads: each column's header as typed, by its normalised name.
+	heads map[string]string
 }
 
 func (t *swTable) has(names ...string) bool {
@@ -351,7 +353,7 @@ func swParse(file []byte, headerWords map[string][]string) (map[string]*swTable,
 		if !known {
 			continue
 		}
-		t := &swTable{cols: map[string]int{}}
+		t := &swTable{cols: map[string]int{}, heads: map[string]string{}}
 		header := -1
 		for i := 0; i < len(s.Rows) && i < 6 && header < 0; i++ {
 			for _, cell := range s.Rows[i] {
@@ -370,6 +372,7 @@ func swParse(file []byte, headerWords map[string][]string) (map[string]*swTable,
 			if h := swHeaderNorm(cell); h != "" {
 				if _, dup := t.cols[h]; !dup {
 					t.cols[h] = c
+					t.heads[h] = strings.TrimSpace(cell)
 				}
 			}
 		}

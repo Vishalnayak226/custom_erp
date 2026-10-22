@@ -25,18 +25,42 @@ type SetupPathStep struct {
 	Done      bool     `json:"done"`
 	Next      bool     `json:"next"`
 	Waiting   []string `json:"waiting_for"`
+	// Stage 91.3: what the step asks, in a line, and whether a client may
+	// leave it (approval rules, print formats) - an optional step never
+	// holds the setup open.
+	Note     string `json:"note"`
+	Optional bool   `json:"optional,omitempty"`
 }
 
+// Stage 91.3 (decided 2026-10-21): the guided setup walks these in the
+// listed order - company and legal entity, stores, tax, number series, users
+// and roles, items, approval rules, print formats - each a plain form whose
+// code is given on save.
 var setupPathPlan = []SetupPathStep{
-	{ID: "entity", Label: "Legal entity", Doctypes: []string{"LegalEntity"}},
-	{ID: "locations", Label: "Stores and warehouses", Doctypes: []string{"Location"}, DependsOn: []string{"entity"}},
-	{ID: "org", Label: "Departments and cost centres", Doctypes: []string{"Department", "CostCenter"}, DependsOn: []string{"entity"}},
-	{ID: "units", Label: "Units and HSN codes", Doctypes: []string{"UOM", "HSNCode"}},
-	{ID: "item-types", Label: "Item types and categories", Doctypes: []string{"ItemType", "Category"}, DependsOn: []string{"units"}},
-	{ID: "items", Label: "Items", Doctypes: []string{"Item"}, DependsOn: []string{"item-types"}},
-	{ID: "parties", Label: "Vendors and customers", Doctypes: []string{"Vendor", "Customer"}, DependsOn: []string{"entity"}},
-	{ID: "numbering", Label: "Document numbering", View: "prefix-configs", DependsOn: []string{"locations"}},
-	{ID: "users", Label: "Users and their roles", View: "users", DependsOn: []string{"locations"}},
+	{ID: "entity", Label: "Company and legal entity", Doctypes: []string{"LegalEntity"},
+		Note: "Your company's registered name, GSTIN, address and bank details - printed on every invoice."},
+	{ID: "locations", Label: "Stores and warehouses", Doctypes: []string{"Location"}, DependsOn: []string{"entity"},
+		Note: "Each shop and warehouse: its name, type, state and short code. A cost centre is made for each."},
+	{ID: "org", Label: "Departments and cost centres", Doctypes: []string{"Department", "CostCenter"}, DependsOn: []string{"entity"},
+		Note: "How the business is split for people and costs."},
+	{ID: "tax", Label: "Tax: GSTIN and HSN codes", Doctypes: []string{"HSNCode"}, DependsOn: []string{"entity"},
+		Note: "Every legal entity's GSTIN, and the HSN codes your items use with their GST rate."},
+	{ID: "numbering", Label: "Document numbering", View: "prefix-configs", DependsOn: []string{"locations"},
+		Note: "How bills, purchase orders and receipts are numbered - prefix, store code, year."},
+	{ID: "users", Label: "Users and their roles", View: "users", DependsOn: []string{"locations"},
+		Note: "Everyone who signs in: their role and the stores they work at."},
+	{ID: "units", Label: "Units", Doctypes: []string{"UOM"},
+		Note: "Pieces, metres, kilograms... how items are counted."},
+	{ID: "item-types", Label: "Item types and categories", Doctypes: []string{"ItemType", "Category"}, DependsOn: []string{"units"},
+		Note: "Which kinds of goods you keep, and the categories you sell them under."},
+	{ID: "items", Label: "Items", Doctypes: []string{"Item"}, DependsOn: []string{"item-types"},
+		Note: "What you buy and sell - or add them on your first purchase order."},
+	{ID: "parties", Label: "Vendors and customers", Doctypes: []string{"Vendor", "Customer"}, DependsOn: []string{"entity"},
+		Note: "Who you buy from; customers are also added at the till."},
+	{ID: "approvals", Label: "Approval rules", View: "approval-rules", Optional: true,
+		Note: "Which documents need a second person's OK, and above what amount. Leave it if nothing does."},
+	{ID: "printing", Label: "Print formats", Doctypes: []string{"PrintTemplate"}, Optional: true,
+		Note: "Your own invoice and label layouts. The standard ones print until you change them."},
 }
 
 // GetSetupPath returns the steps with live counts. A multi-doctype step is
@@ -55,8 +79,11 @@ func GetSetupPath(tenantID string) ([]SetupPathStep, error) {
 		return nil, err
 	}
 	series, _ := ListNumberSeries(tenantID)
-	var users int
+	var users, rules, noGSTIN int
 	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.users WHERE COALESCE(status, 'Active') = 'Active' AND %s`, schema, NotSupportUserSQL("users"))).Scan(&users)
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.approval_rules`, schema)).Scan(&rules)
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.documents WHERE doctype = 'LegalEntity' AND deleted_at IS NULL
+		AND COALESCE(status, 'Active') = 'Active' AND COALESCE(data->>'gstin', '') = ''`, schema)).Scan(&noGSTIN)
 
 	steps := make([]SetupPathStep, len(setupPathPlan))
 	done := map[string]bool{}
@@ -75,6 +102,13 @@ func GetSetupPath(tenantID string) ([]SetupPathStep, error) {
 			// active user is what "people can work" means.
 			step.Count = users
 			step.Done = users > 1
+		case "approvals":
+			step.Count = rules
+			step.Done = rules > 0
+		case "tax":
+			// 91.3: HSN codes in use, and no active legal entity without its GSTIN.
+			step.Count = active["HSNCode"]
+			step.Done = step.Count > 0 && active["LegalEntity"] > 0 && noGSTIN == 0
 		default:
 			step.Done = true
 			for _, dt := range step.Doctypes {
@@ -94,7 +128,7 @@ func GetSetupPath(tenantID string) ([]SetupPathStep, error) {
 				steps[i].Waiting = append(steps[i].Waiting, dep)
 			}
 		}
-		if !nextMarked && !steps[i].Done && len(steps[i].Waiting) == 0 {
+		if !nextMarked && !steps[i].Done && !steps[i].Optional && len(steps[i].Waiting) == 0 {
 			steps[i].Next = true
 			nextMarked = true
 		}

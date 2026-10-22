@@ -1,0 +1,29 @@
+/* Stage 101.8.2 / 101.5.1: the customer's own pages (preferences, feedback).
+   Standalone - no ERP shell - with its own light and dark colours. */
+:root { --bg: #f6f7f9; --card: #fff; --text: #1d2433; --muted: #5d6677; --line: #dde1e8; --accent: #1f6feb; --ok: #1a7f37; --bad: #b42318; }
+@media (prefers-color-scheme: dark) { :root { --bg: #11151c; --card: #1a1f29; --text: #e6e9ef; --muted: #9aa3b2; --line: #2c3442; --accent: #5aa0ff; --ok: #56d364; --bad: #ff7b72; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 520px; margin: 0 auto; padding: 24px 16px 48px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: grid; gap: 14px; }
+h1 { font-size: 20px; margin: 0; }
+p { margin: 0; }
+.muted { color: var(--muted); font-size: 14px; }
+.row { display: grid; grid-template-columns: minmax(0, 9rem) 1fr; align-items: start; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.row > :last-child { display: grid; gap: 6px; }
+.row:first-of-type { border-top: none; }
+.row small { display: block; color: var(--muted); }
+label.switch { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+input[type=checkbox] { width: 20px; height: 20px; flex: none; }
+button { font: inherit; border-radius: 8px; padding: 10px 16px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
+button.secondary { background: transparent; color: var(--accent); }
+button:disabled { opacity: .6; cursor: default; }
+.msg { padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); }
+.msg.ok { border-color: var(--ok); color: var(--ok); }
+.msg.bad { border-color: var(--bad); color: var(--bad); }
+.scale { display: grid; grid-template-columns: repeat(11, 1fr); gap: 4px; }
+.scale.rating { grid-template-columns: repeat(5, 1fr); }
+.scale button { padding: 10px 0; background: transparent; color: var(--text); border-color: var(--line); }
+.scale button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+.ends { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+textarea { width: 100%; font: inherit; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); }

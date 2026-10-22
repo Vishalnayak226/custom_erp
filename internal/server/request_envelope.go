@@ -115,6 +115,9 @@ var envelopeRoutes = []envelopeRoute{
 	// Stage 128: a Setup Workbook of at most 8 MB plus its multipart framing.
 	{pattern: "/api/v1/admin/setup-workbook/preview", maxBody: 9 << 20},
 	{pattern: "/api/v1/admin/setup-workbook/apply", maxBody: 9 << 20},
+	// Stage 129: a Bulk Purchase Upload workbook, the same size.
+	{pattern: "/api/v1/procurement/bulk-upload/preview", maxBody: 9 << 20},
+	{pattern: "/api/v1/procurement/bulk-upload/apply", maxBody: 9 << 20},
 	// The import hook takes a raw CSV body from a scheduled external sender,
 	// limited to 5 MiB by the handler itself.
 	{pattern: "/api/v1/pim/import/hook", maxBody: 5 << 20, extraTypes: []string{"text/csv", "text/plain", "application/octet-stream"}},

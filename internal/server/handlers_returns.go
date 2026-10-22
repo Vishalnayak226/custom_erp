@@ -217,6 +217,7 @@ func handleApplyReturnQC(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Dispositions map[string]string `json:"dispositions"`
 		QCBy         string            `json:"qc_by"`
+		StockTo      string            `json:"stock_to"` // Stage 106.5: where Sellable lands
 		// ExchangeFor (Stage 35.9.2) is an optional originalSKU ->
 		// exchangeSKU map - see engines.ApplyReturnQC's own doc comment.
 		ExchangeFor map[string]string `json:"exchange_for"`
@@ -230,6 +231,12 @@ func handleApplyReturnQC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.StockTo != "" {
+		if err := engines.SetDocumentStockField(tenantID, returnID, "stock_to", req.StockTo); err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+	}
 	totalRefund, refundRequestID, err := engines.ApplyReturnQC(tenantID, returnID, req.Dispositions, req.QCBy, req.ExchangeFor)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())

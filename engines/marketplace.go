@@ -579,6 +579,7 @@ func evaluateOrderShipmentClosure(tenantID, schema, orderID, userID string) erro
 	if err != nil {
 		return err
 	}
+	queueShopifyShipments(tenantID, schema, orderID) // Stage 99.6.1: each dispatched task once, with its tracking
 	if newStatus == "Shipped" {
 		if _, err := CreateSalesInvoiceFromOrder(tenantID, orderID, userID); err != nil {
 			return fmt.Errorf("create draft invoice: %v", err)
@@ -671,6 +672,7 @@ func RecordRTO(tenantID, bookingID, reason, userID string) error {
 		return err
 	}
 	LogAuditEvent(tenantID, userID, "SHIPMENT_RTO", "SUCCESS", fmt.Sprintf("Booking %s marked RTO: %s", bookingID, reason))
+	queueShopifyRTO(tenantID, schema, bookingID) // Stage 99.6.2
 	return nil
 }
 

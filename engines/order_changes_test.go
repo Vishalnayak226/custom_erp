@@ -223,7 +223,9 @@ func TestOrderChangesAfterReleaseAndExceptionQueues(t *testing.T) {
 	doc("RF-CHG", "RefundRequest", "Pending", map[string]interface{}{"original_order_id": shipped, "refund_mode": "Cash"})
 	doc("MSL-CHG", "MarketplaceSettlementLine", "Active", map[string]interface{}{"order_id": shipped, "match_status": "Variance", "variance_amount": 12.5})
 	exec("UPDATE " + schema + ".documents SET updated_at = CURRENT_TIMESTAMP - INTERVAL '3 days' WHERE id IN ('LB-CHG', 'RR-CHG', 'RF-CHG')")
-	want := map[string]string{"payment": held, "carrier": shipped, "return": shipped, "settlement": shipped}
+	// Stage 99.5.2: a Shopify edit after picking started waits in Channel changes.
+	exec("UPDATE " + schema + ".documents SET data = data || '{\"channel_change_pending\":\"Edited in Shopify after picking started\"}'::jsonb WHERE id = '" + held + "'")
+	want := map[string]string{"payment": held, "carrier": shipped, "return": shipped, "settlement": shipped, "channel": held}
 	for queue, orderID := range want {
 		rows, err := OMSExceptionQueue(tenantID, queue)
 		if err != nil {
@@ -243,8 +245,8 @@ func TestOrderChangesAfterReleaseAndExceptionQueues(t *testing.T) {
 		t.Fatalf("unknown queue: %v", err)
 	}
 	counts := OMSExceptionQueueCounts(tenantID)
-	if len(counts) != 4 {
-		t.Fatalf("want 4 queues, got %v", counts)
+	if len(counts) != 5 {
+		t.Fatalf("want 5 queues, got %v", counts)
 	}
 	for _, c := range counts {
 		if c["error"] != nil || c["count"].(int) < 1 {

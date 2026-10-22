@@ -185,6 +185,8 @@ Create these in this order. Each one uses the one before it.
 
 **Items themselves are optional before the first PO.** A buyer can type an item name on the PO, enter a design number, pick the colours and sizes, and the PO creates the design and every combination. Create items in advance (*Setup → Item*, or **Bulk Import**) only for what you already stock. Every item needs an **HSN Code** and **GST Rate** (or a **Tax Treatment** of Exempt / Nil-Rated / Zero-Rated).
 
+**Many POs at once:** *Purchase Orders → Upload from Excel* makes the vendors, item names, designs and POs from one Excel file — and the goods receipts of the bills in it (User Guide §6.12). Only the stores must be set up first.
+
 ---
 
 ## Step 10 — Vendors

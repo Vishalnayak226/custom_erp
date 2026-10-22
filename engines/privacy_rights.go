@@ -299,10 +299,20 @@ func AnonymizeCustomer(tenantID, customerID, actor, reason string) error {
 		return fmt.Errorf("%s", refusal)
 	}
 
-	patch, err := json.Marshal(map[string]interface{}{
+	// Stage 101.8.3: queued messages and live journeys are stopped first,
+	// then the CRM's own rows go and the contacts stay only as hashes, so a
+	// later import or web-shop sync cannot bring the person back.
+	if err := crmEraseCustomerIfReady(schema, customerID, data); err != nil {
+		return fmt.Errorf("could not stop this customer's messages before erasing: %v", err)
+	}
+	fields := map[string]interface{}{
 		"name": "Redacted Customer", "phone": "", "email": "", "date_of_birth": nil,
 		"anonymized_at": time.Now().UTC().Format(time.RFC3339), "anonymized_by": actor,
-	})
+	}
+	for _, f := range crmErasedProfileFields {
+		fields[f] = nil
+	}
+	patch, err := json.Marshal(fields)
 	if err != nil {
 		return err
 	}

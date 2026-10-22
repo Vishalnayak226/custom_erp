@@ -357,8 +357,9 @@ func TestStage95POImagesOnDriveAndServer(t *testing.T) {
 	_ = db.DB.QueryRow("SELECT data FROM "+schema+".documents WHERE id = $1", res.Image.ID).Scan(&raw)
 	_ = json.Unmarshal([]byte(raw), &stored)
 	key := strField(stored, "object_key")
-	if strField(stored, "storage") != "drive" || !strings.HasPrefix(key, "Image/Combination Image/S95TEST-D-000001-Red-S/") {
-		t.Fatalf("want the image under the combination folder on the drive, got %v", stored)
+	// Stage 129.9: named after its Combination ID, not the uploaded file.
+	if strField(stored, "storage") != "drive" || key != "Image/Combination Image/S95TEST-D-000001-Red-S/S95TEST-D-000001-Red-S.jpg" {
+		t.Fatalf("want the image at <folder>/<ID>/<ID>.jpg on the drive, got %v", stored)
 	}
 	if strField(stored, "file_path") != "" {
 		t.Fatal("a drive image must not also be written to the ERP server")
@@ -383,6 +384,11 @@ func TestStage95POImagesOnDriveAndServer(t *testing.T) {
 	if err != nil || res2.Image.MediaRole != extraImageRole {
 		t.Fatalf("second image: %+v %v", res2, err)
 	}
+	var key2 string
+	_ = db.DB.QueryRow("SELECT COALESCE(data->>'object_key','') FROM "+schema+".documents WHERE id = $1", res2.Image.ID).Scan(&key2)
+	if key2 != "Image/Combination Image/S95TEST-D-000001-Red-S/S95TEST-D-000001-Red-S-2.jpg" {
+		t.Fatalf("second photo of a combination: want <ID>-2.jpg, got %q", key2)
+	}
 	again, err := SavePOImage("default", po, "system", img2, "copy.jpg", "Item", red, false)
 	if err != nil || again.Image.ID != res2.Image.ID {
 		t.Fatalf("the same file twice must be kept once: %+v %v", again, err)
@@ -395,8 +401,8 @@ func TestStage95POImagesOnDriveAndServer(t *testing.T) {
 	}
 	var designKey string
 	_ = db.DB.QueryRow("SELECT COALESCE(data->>'object_key','') FROM "+schema+".documents WHERE id = $1", res3.Image.ID).Scan(&designKey)
-	if !strings.HasPrefix(designKey, "Image/Design Image/S95TEST-D-000001/") {
-		t.Fatalf("want the design photo in the design folder, got %q", designKey)
+	if designKey != "Image/Design Image/S95TEST-D-000001/S95TEST-D-000001.jpg" {
+		t.Fatalf("want the design photo at <folder>/<ID>/<ID>.jpg, got %q", designKey)
 	}
 	if b, _, _, err := ReadMediaFile("default", res3.Image.ID); err != nil || len(b) == 0 {
 		t.Fatalf("a photo under a folder with spaces must read back: %v", err)

@@ -1351,6 +1351,11 @@ type GRNStepLineView struct {
 	BatchNo          string `json:"batch_no,omitempty"`
 	Posted           bool   `json:"posted"`
 	GSTWarning       string `json:"gst_warning,omitempty"`
+	// 118.4: the step screens show the design, the Colour / Size... values
+	// and the last vendor by name, as the GRN line table does (118.3).
+	Design         string            `json:"design,omitempty"`
+	Attributes     map[string]string `json:"attributes,omitempty"`
+	PrevVendorName string            `json:"prev_vendor_name,omitempty"`
 }
 
 // GRNStepView is a step GRN as its screens show it.
@@ -1380,6 +1385,7 @@ type GRNStepView struct {
 	QtyDiffTotal       float64           `json:"qty_diff_total"`
 	RoundOff           float64           `json:"round_off"`
 	Lines              []GRNStepLineView `json:"lines"`
+	AttributeColumns   []AttributeColumn `json:"attribute_columns,omitempty"` // 118.4
 	Children           []GRNChild        `json:"children"`
 	ExcessPending      bool              `json:"excess_pending"`
 	ExcessApprovalID   string            `json:"excess_approval_id,omitempty"`
@@ -1509,6 +1515,8 @@ func GetGRNStepView(tenantID, grnID string) (*GRNStepView, error) {
 	}
 	markup := GetSettingFloat(tenantID, SettingGRNMRPMarkup)
 	ending := GetSettingString(tenantID, SettingGRNMRPEnding)
+	designs := map[string]map[string]string{}
+	vendorNames := map[string]string{v.Vendor: v.VendorName}
 	for _, l := range lines {
 		sku := strField(l, "sku")
 		item, _, _ := fetchDocData(tenantID, "Item", sku)
@@ -1529,6 +1537,10 @@ func GetGRNStepView(tenantID, grnID string) (*GRNStepView, error) {
 			CurrentMRP: numFromInterface(item["mrp"]), MRP: numFromInterface(l["mrp"]), BatchNo: strField(l, "batch_no"),
 		}
 		lv.POOpenQty = poOpen(lv.POID, sku)
+		if item != nil {
+			lv.Design = firstNonEmpty(strField(item, "parent_product_code"), strField(item, "family"))
+			lv.Attributes = ItemAttributeValues(tenantID, item, designs)
+		}
 		if lineNumberSet(l, "po_rate") {
 			r := numFromInterface(l["po_rate"])
 			lv.PORate = &r
@@ -1565,7 +1577,22 @@ func GetGRNStepView(tenantID, grnID string) (*GRNStepView, error) {
 		if lv.ExcessStatus == "Pending" {
 			v.ExcessPending = true
 		}
+		if lv.PrevVendor != "" {
+			if _, ok := vendorNames[lv.PrevVendor]; !ok {
+				pv, _, _ := fetchDocData(tenantID, "Vendor", lv.PrevVendor)
+				vendorNames[lv.PrevVendor] = strField(pv, "name")
+			}
+			lv.PrevVendorName = vendorNames[lv.PrevVendor]
+		}
 		v.Lines = append(v.Lines, lv)
+	}
+	attrs := make([]map[string]string, len(v.Lines))
+	for i := range v.Lines {
+		attrs[i] = v.Lines[i].Attributes
+	}
+	v.AttributeColumns = OrderAttributeColumns(tenantID, attrs)
+	for i := range v.Lines {
+		v.Lines[i].Attributes = attrs[i]
 	}
 	v.QtyDiffTotal = round2(v.QtyDiffTotal)
 	v.PriceDiffTotal = round2(v.PriceDiffTotal)
@@ -1707,6 +1734,8 @@ type GRNInboxRow struct {
 	ID            string  `json:"id"`
 	Code          string  `json:"code"`
 	Vendor        string  `json:"vendor"`
+	VendorName    string  `json:"vendor_name,omitempty"` // 118.4
+	Location      string  `json:"location,omitempty"`    // 106.6
 	InvoiceNo     string  `json:"vendor_invoice_no"`
 	InvoiceTotal  float64 `json:"vendor_invoice_amount"`
 	Step          string  `json:"step"`
@@ -1758,6 +1787,7 @@ func ListGRNInbox(tenantID string) ([]GRNInboxRow, error) {
 	}
 	defer rows.Close()
 	out := []GRNInboxRow{}
+	vendorNames := map[string]string{}
 	for rows.Next() {
 		var id, dataStr, status string
 		var at time.Time
@@ -1775,8 +1805,13 @@ func ListGRNInbox(tenantID string) ([]GRNInboxRow, error) {
 				pending = true
 			}
 		}
+		vendor := strField(data, "vendor")
+		if _, ok := vendorNames[vendor]; !ok && vendor != "" {
+			vd, _, _ := fetchDocData(tenantID, "Vendor", vendor)
+			vendorNames[vendor] = strField(vd, "name")
+		}
 		out = append(out, GRNInboxRow{
-			ID: id, Code: firstNonEmpty(strField(data, "code"), id), Vendor: strField(data, "vendor"),
+			ID: id, Code: firstNonEmpty(strField(data, "code"), id), Vendor: vendor, VendorName: vendorNames[vendor], Location: strField(data, "location"),
 			InvoiceNo: strField(data, "vendor_invoice_no"), InvoiceTotal: numFromInterface(data["vendor_invoice_amount"]),
 			Step: strField(data, "grn_step"), Status: status, Tab: GRNInboxTab(data, status),
 			PaymentStatus: strField(data, "payment_status"), ExcessPending: pending,

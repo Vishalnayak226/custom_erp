@@ -352,6 +352,8 @@ function renderStickerSourcePanel(container, printers) {
     sessionStorage.removeItem('grn-child-stickers');
   } catch (_) { /* storage can be disabled */ }
   if (pending && pending.id) {
+    // Stage 129: open the print page itself, not the history behind it.
+    window.txnShowPane('sticker-print:new');
     doctypeSelect.value = 'GRN';
     stickerSourceDoctype = 'GRN';
     attachSourcePicker();

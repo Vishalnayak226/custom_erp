@@ -66,6 +66,16 @@ func handleGRNStepsInbox(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to load goods receipts")
 		return
 	}
+	// Stage 106.6: the inbox follows the store picked in the top bar.
+	if store := r.Header.Get("Resolved-Location"); r.Header.Get("Resolved-Store-View") == engines.StoreViewStore && store != "" {
+		kept := rows[:0]
+		for _, row := range rows {
+			if row.Location == store {
+				kept = append(kept, row)
+			}
+		}
+		rows = kept
+	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"rows": rows, "allowed": grnStepAllowedMap(r),
 		"blind_count": engines.GetSettingBool(r.Header.Get("Resolved-Tenant-ID"), engines.SettingGRNBlindCount),

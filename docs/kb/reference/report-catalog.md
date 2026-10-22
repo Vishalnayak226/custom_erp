@@ -20,7 +20,7 @@ screens: [reports]
 
 # Report catalog
 
-**382** reports across **26** categories, all reachable from
+**396** reports across **26** categories, all reachable from
 **Sales & Marketplace » Reports**.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -42,7 +42,7 @@ open the right page.
 - [Admin](#admin) - 1 reports
 - [Assets](#assets) - 1 reports
 - [BI](#bi) - 1 reports
-- [CRM](#crm) - 19 reports
+- [CRM](#crm) - 33 reports
 - [E-commerce & Integration](#e-commerce-integration) - 12 reports
 - [Exceptions](#exceptions) - 6 reports
 - [Expense Management](#expense-management) - 11 reports
@@ -471,6 +471,16 @@ open the right page.
 
 **Drill-down:** no.
 
+### CRM Customer Summary
+
+**Report id:** `crm-customer-summary`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Lifecycle · Customers · Spend (net of returns) *(sensitive)* · Average spend *(sensitive)* · Offers by SMS · Offers by WhatsApp · Offers by email
+
+**Drill-down:** no.
+
 ### Campaign Performance
 
 **Report id:** `cat-campaign-performance`
@@ -492,6 +502,32 @@ open the right page.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Campaign ID · Campaign · Customers Targeted · Attributed Revenue *(sensitive)* · Cost *(sensitive)* · ROI *(sensitive)*
+
+**Drill-down:** no.
+
+### Campaign Summary
+
+**Report id:** `crm-campaign-summary`
+
+**Parameters:**
+
+- **From** (`from_date`) - date, optional
+- **To** (`to_date`) - date, optional
+
+**Columns:** Campaign · Run · Channel · Started · Status · Matched · Hold-out · Not sent · Sent · Delivered · Failed · Bills credited · Sales credited *(sensitive)* · Cost *(sensitive)*
+
+**Drill-down:** no.
+
+### Clienteling Tasks
+
+**Report id:** `crm-clienteling`
+
+**Parameters:**
+
+- **From** (`from_date`) - date, optional
+- **To** (`to_date`) - date, optional
+
+**Columns:** Store · Owner · Kind · Open · Overdue · Done · Appointments
 
 **Drill-down:** no.
 
@@ -519,6 +555,19 @@ open the right page.
 
 **Drill-down:** no.
 
+### Consent Audit
+
+**Report id:** `crm-consent-audit`
+
+**Parameters:**
+
+- **From** (`from_date`) - date, optional
+- **To** (`to_date`) - date, optional
+
+**Columns:** Recorded · Customer · Name · Channel · Purpose · Action · Source · Recorded by · Notice · Evidence
+
+**Drill-down:** no.
+
 ### Coupon / Voucher Usage Report
 
 **Report id:** `cat-coupon-voucher-usage-report`
@@ -530,6 +579,32 @@ open the right page.
 - **Store** (`location`) - text, optional
 
 **Columns:** Document Date · Customer ID · Customer Name · Coupon Code · Campaign · Sales Invoice No · Discount Amount · Net Amount · Status
+
+**Drill-down:** no.
+
+### Coupon Use
+
+**Report id:** `crm-coupon-use`
+
+**Parameters:**
+
+- **From** (`from_date`) - date, optional
+- **To** (`to_date`) - date, optional
+
+**Columns:** Issued · Code · Customer · Offer · From · Expires · Used · Status
+
+**Drill-down:** no.
+
+### Credited Sales
+
+**Report id:** `crm-credited-sales`
+
+**Parameters:**
+
+- **From** (`from_date`) - date, optional
+- **To** (`to_date`) - date, optional
+
+**Columns:** Bill date · Bill · Store · Customer · Credited to · Message sent · Amount *(sensitive)*
 
 **Drill-down:** no.
 
@@ -613,6 +688,32 @@ open the right page.
 
 **Drill-down:** no.
 
+### Feedback and NPS
+
+**Report id:** `crm-feedback`
+
+**Parameters:**
+
+- **From** (`from_date`) - date, optional
+- **To** (`to_date`) - date, optional
+
+**Columns:** Store · Asked · Answers · Promoters · Detractors · NPS · Tickets opened
+
+**Drill-down:** no.
+
+### Journey Performance
+
+**Report id:** `crm-journey-performance`
+
+**Parameters:**
+
+- **From** (`from_date`) - date, optional
+- **To** (`to_date`) - date, optional
+
+**Columns:** Journey · On · Entered · In it now · Finished · Reached the goal · Messages sent
+
+**Drill-down:** no.
+
 ### Loyalty Ledger Summary
 
 **Report id:** `loyalty-summary`
@@ -660,6 +761,33 @@ open the right page.
 
 **Drill-down:** no.
 
+### Message Cost
+
+**Report id:** `crm-message-cost`
+
+**Parameters:**
+
+- **From** (`from_date`) - date, optional
+- **To** (`to_date`) - date, optional
+
+**Columns:** Month · Channel · Messages · SMS parts · Estimated *(sensitive)* · Charged (reported) *(sensitive)*
+
+**Drill-down:** no.
+
+### Message Detail
+
+**Report id:** `crm-message-detail`
+
+**Parameters:**
+
+- **From** (`from_date`) - date, optional
+- **To** (`to_date`) - date, optional
+- **Status** (`status`) - select, optional, one of: ,Queued,Sending,Accepted,Delivered,Read,Failed,Unknown,Suppressed,Expired,Cancelled,HeldOut,Simulated
+
+**Columns:** Queued · From · Customer · Name · Channel · Purpose · Status · Reason · To · SMS parts · Cost *(sensitive)*
+
+**Drill-down:** no.
+
 ### RFM Customer Segmentation
 
 **Report id:** `rfm-segmentation`
@@ -670,6 +798,18 @@ open the right page.
 
 **Drill-down:** no.
 
+### RFM and Lifecycle
+
+**Report id:** `crm-rfm-lifecycle`
+
+**Parameters:**
+
+- **Lifecycle** (`lifecycle`) - select, optional, one of: ,New,Active repeat,Reactivated,At risk,Lapsed,Never bought
+
+**Columns:** Customer · Name · Lifecycle · RFM · Bills · Spend *(sensitive)* · Days since last bill
+
+**Drill-down:** no.
+
 ### Repeat Purchase Report
 
 **Report id:** `cat-repeat-purchase-report`
@@ -677,6 +817,43 @@ open the right page.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Customer ID · Customer Name · Customer Mobile · Bill Count · Net Sales Amount · Last Sale Date · Segment
+
+**Drill-down:** no.
+
+### Sales Pipeline
+
+**Report id:** `crm-pipeline`
+
+**Parameters:**
+
+- **Deals** (`status`) - select, optional, one of: Open,Won,Lost,All
+
+**Columns:** Deal · Customer · Owner · Stage · Value *(sensitive)* · Chance % · Weighted *(sensitive)* · Expected close · Status · Sales order
+
+**Drill-down:** no.
+
+### Segment Members
+
+**Report id:** `crm-segment-members`
+
+**Parameters:**
+
+- **Segment (id from CRM > Segments)** (`segment_id`) - text, **required**
+
+**Columns:** Customer · Name · Phone · Email · Lifecycle · RFM · Bills · Spend *(sensitive)* · Last bill
+
+**Drill-down:** no.
+
+### Service SLA
+
+**Report id:** `crm-service-sla`
+
+**Parameters:**
+
+- **From** (`from_date`) - date, optional
+- **To** (`to_date`) - date, optional
+
+**Columns:** Ticket · Opened · Customer · Store · State · Respond by · Response late · Resolve by · Resolution late
 
 **Drill-down:** no.
 

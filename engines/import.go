@@ -561,6 +561,15 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 			recordImportError(result, rowNumber, valErr.Error())
 			continue
 		}
+		// Stage 101.8: an erased customer is not imported back, and an import
+		// cannot turn a customer's "no" into a "yes".
+		if doctype == "Customer" {
+			if err := CRMCheckImportedCustomer(tenantID, rowIsCreate, docData); err != nil {
+				recordImportError(result, rowNumber, err.Error())
+				continue
+			}
+			crmImportStampSources(nil, docData, userID)
+		}
 		if needsNumber {
 			delete(docData, "code")
 			if err := PrepareMasterNumber(tenantID, "", doctype, true, docData); err != nil {

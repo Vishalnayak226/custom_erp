@@ -19,7 +19,19 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **76** earlier entries, 2026-07-27 to 2026-09-08.
+This page continues the [release notes](release-notes.md) with **78** earlier entries, 2026-07-27 to 2026-09-08.
+
+## 2026-09-08
+
+**Stage 49.2.2 — Password baseline, and the session revocation it unlocks for 49.2.4** *(code + schema + tests + docs)*
+
+Stage 49 moved into Phase S1 (identity/authorization/data integrity) with 49.2 (identity, authentication, recovery, machine identity) — its first buildable sub-item, 49.2.2, is closed; the rest of 49.2 stays open. `engines/password_policy.go` + an embedded, curated `common_passwords.txt` (~300 entries, including the `Word@123`-shaped patterns this India-first ERP's own corporate password culture produces) is the one choke point `handleChangePassword`, `engines.CompletePasswordReset` and `handleCreateUser` all call now: minimum length (new `security.password_min_length` setting, default 12, following Stage 30.7's registry pattern), a denylist match, username-equality, and a cheap ascending/descending/repeated-character sequence check nothing else would catch.
+
+## 2026-09-10
+
+**Stage 48 — Documentation governance and canonical manuals** *(implementation and review package)*
+
+The documentation portal now leads to owned product, process, architecture, data/API, security/legal, engineering, operations, implementation and QA drafts. User and tenant-administrator manuals are generated from canonical Knowledge Center topics. All 56 registered screens have help mappings across 49 topics; current returns, RF, warehouse-depth, asset and expense instructions replace the previously missing or stale guidance.
 
 ## 2026-09-08
 

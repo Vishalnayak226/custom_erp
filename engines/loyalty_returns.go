@@ -76,10 +76,13 @@ func reverseEarnedPointsTx(tx *sql.Tx, schema, customerID, cartID, refundRequest
 	if reverse <= 0 {
 		return 0, nil
 	}
+	// Stage 101.11.1: a reversal of points still pending waits with them, so
+	// the two count (and cancel out) at the same moment.
 	if _, err := tx.Exec(fmt.Sprintf(`
-		INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id)
-		VALUES ($1, $2, $3, 'RefundRequest', $4)`, schema),
-		customerID, LoyaltyTxnReversal, reverse, refundRequestID); err != nil {
+		INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id, pending_until)
+		VALUES ($1::text, $2, $3, 'RefundRequest', $4, (SELECT MAX(pending_until) FROM %s.loyalty_point_ledger
+		  WHERE customer_id = $1::text AND transaction_type = 'Earn' AND reference_doctype = 'POSCart' AND reference_id = $5 AND pending_until > LOCALTIMESTAMP))`, schema, schema),
+		customerID, LoyaltyTxnReversal, reverse, refundRequestID, cartID); err != nil {
 		return 0, err
 	}
 	return reverse, nil

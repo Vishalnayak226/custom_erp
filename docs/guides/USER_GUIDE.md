@@ -100,10 +100,27 @@ Jump straight to the thing you're trying to do.
 | Approve or reject from my phone | §10A.4 |
 | Scan an item on my phone for its price, stock at other stores or batch age | §10A.5 |
 | Install the Store app on a phone | §10A.1 |
+| Sign in on the store's shared phone with a PIN | §10A.2, §10A.14 |
+| See today's sales for my store on my phone | §10A.7 |
+| Check a delivery or a transfer by scanning it on my phone | §10A.8 |
+| Count stock on my phone, even with no connection | §10A.9 |
+| Print an item's labels from my phone | §10A.10 |
+| Build a basket on my phone for the till | §10A.11 |
+| Order a size from another store for home delivery | §10A.12 |
+| Get an alert on my phone for a new approval or low stock | §10A.13 |
 | Post an accrual, correction or opening balance (journal voucher) | §9B.1 |
 | **Log a customer's service call and work it to closure** | §9C |
 | Record a customer's maintenance contract (AMC) | §9C |
-| **Set up a birthday or lapsed-customer campaign, and see its return** | §9D |
+| **See everything about one customer, and record their consent** | §9D.1, §9D.2 |
+| Build a segment of customers | §9D.3 |
+| **Send a campaign, get it approved, and see what it brought in** | §9D.5 |
+| Switch on birthday, welcome, win-back and other automatic messages | §9D.6 |
+| Find out why a message was not sent | §9D.7 |
+| Answer WhatsApp replies; work a complaint ticket | §9D.8, §9D.9 |
+| Ask customers for feedback after a bill; record a referral | §9D.10 |
+| Book a customer appointment; ask a store to keep an item | §9D.11 |
+| Track business-buyer leads and deals to a Sales Order | §9D.12 |
+| Serve a customer from my phone; see my tasks | §10A.15, §10A.16 |
 | Move or dispose of a fixed asset | §6.7 step 5 |
 | Change my own password or auto-logout | §11 |
 | Find out which version I am on, to report a problem | §11.1 |
@@ -228,6 +245,8 @@ Home is where you land right after signing in (and the "Home" link at the top of
 From your second visit onward you land back on whichever screen you were last using instead of Home, so you can pick up where you left off — click **Home** in the sidebar any time you want to return to it on purpose. Refreshing the browser (F5) works the same way: you stay on the same screen, the menu stays scrolled where it was, and the page comes back at the same scroll position — also after you have read a Help article and moved on.
 
 **The store you are working at is at the top right**, beside Refresh. Everything you do — a sale, a purchase order, a transfer — is done at that store, and the lists you see are its records. If you have been given more than one store, click it and pick another (type to find it in a long list); the screen reloads for that store. With a till session open you cannot switch until you close it. Which stores you can pick is set by an administrator (Users → Stores, Roles → Stores).
+
+**All stores (administrators).** If you may see every store's records, the list starts with **All stores**, and that is where you start: the lists show every store's documents, and new documents are made at your own store. Pick a store and every transaction list - purchase orders, goods receipts, transfers (sent and received), returns, bills, stock moves - shows only that store's documents; the button then names the store. Pick **All stores** again to see everything. Picking your own store while on All stores narrows the lists without moving you. Setup lists (vendors, items, employees) always show everything, and finding a bill by mobile number for a return still searches every store (§4.7). Everyone else always sees the lists of the store they are working at.
 
 > **If you are a supplier**, your account is deliberately narrow: you sign in to the same app as everyone else, but the only screen you can reach is **Supplier Submissions**, and within it you see only the submissions filed under your own company — never another supplier's. Fill in the product details you want to propose (the product, the language, a title, and whatever descriptions, tags or image URL you have), save it, then use **Submit for Approval**. A reviewer at the company approves or rejects it; a rejection always carries a written reason, which you can read on the submission itself. Approved text does **not** go live automatically — it becomes a draft that the company still reviews and publishes on its own schedule. If the app tells you your account is not linked to a vendor yet, that's a setup step your contact at the company needs to finish.
 
@@ -560,6 +579,8 @@ This only applies to locations that keep stock in **bins**. A store with no bins
 Inside every store the stock sits in **locations**: **Main** (the selling floor), **Inward** (received, not yet on sale), **In-Transit** (sent on a transfer), **QC Hold**, **Damage**, **On Hold** (held by a hold code), **Purchase Return** (set aside for the vendor), and any of your own — *Alteration*, *Display only*. This is part of the ERP, not the warehouse module: every client has it.
 
 - **Inventory → Stock Locations** (administrators) — **Locations**: each one's name, whether it **sells**, which kind of store it applies to, and whether new stores get it. **Main** always sells; **QC Hold** and **Damage** sell only if you mark them **Sellable** (for example, to sell damaged stock as it is); Inward, In-Transit, On Hold and Purchase Return never sell. Your own locations hold stock away from sale. A location still holding stock cannot be switched off. **Stores**: which locations each store uses (a store you never saved uses every location marked for new stores). **Transactions**: where each transaction takes stock from and puts it — for example, **Goods Receipt → Inward** if goods are checked before they go on sale (the default is Main). Pick a location in a row's drop-down and click **Save**: **POS Sale From** (a location that sells — a sale takes it first, then Main and the other sellable ones), **Purchase Return From** (accepted goods going back to a vendor come out of it first, then Main; rejected / damaged lines leave their own location), **Transfer Out From** (dispatch takes it first, then Main), **Sales Return To** (where a return checked **Good** lands; Damaged and QC Hold results still go to Damage and QC Hold), **Transfer In To**, **Damage** and **Stock Move**. Two boxes are fixed and say so: Transfer Out **To** is always **In-Transit** (the goods are on the road until the other store receives them), and Goods Receipt / Sales Return have no From. A location that holds none of the item, or one the store does not use, never stops a transaction — the stock simply comes from Main.
+
+  **From / To on each transaction (Stage 106.5).** The New page of a goods receipt, a transfer, a purchase return, the POS till and a return's Inspect step show the transaction's **From** and **To** beside the store at the top, as set here. A side is a drop-down when its row above may be changed and the store uses more than one location that fits (a POS sale's From lists only locations that sell); otherwise it is plain text (hover it to see why - In-Transit, say). Picking another location changes **that document only**: the next one starts at the setting again. A goods receipt follows its **Receiving Location**, a transfer its **From Warehouse**, a purchase return the GRN's store and a transfer's receipt the receiving store. Stock Move and Damage already ask for From and To on their own form.
 - **Inventory → Move Stock** — move an item between two locations of your store: **+ New Move**, pick the item (its stock by location is shown), the quantity, **From** and **To**, and a reason; **Move Stock**. Stock promised to an order cannot be moved. Every move is listed with its number (*SM/…*).
 - The till and the online channels sell only what is in a selling location. **Reports → Inventory → Stock by Location** shows every store's stock location by location, and what can be sold.
 - The warehouse module uses the same locations: a bin's condition **Good / Damaged / QC-Hold / RTV** is the store's Main / Damage / QC Hold / Purchase Return.
@@ -690,6 +711,8 @@ The banner above the items tells you which it chose and why — for example *"In
 Each side's state comes from its GSTIN (the first two digits are the state code), falling back to the **State** field on the record if there's no GSTIN. For the billing address that is the Legal Entity behind the store, then the store's own **State**.
 
 Until both a vendor and a billing address are picked, the banner just asks you to pick them. If either one has **no state**, the banner turns amber and asks for it: *"Bandra Store has no state — choose it, so the PO knows IGST or CGST + SGST"*, with the state list and **Save to store** (or **Save to vendor**). Choose the state and click Save: it is saved on that store or vendor, the banner works the supply type out at once, and every later PO for it gets it right. There is no guessing tick. If you are not allowed to change stores or vendors, the banner says to ask an administrator. If the save is refused because the store record itself is incomplete (for example it has no Legal Entity), the message says what to fill in; use **Edit store** under the billing address.
+
+**Vendor with no GSTIN.** If the vendor you pick has no GSTIN on its record, a line under the header asks for it: *"Sharma Traders has no GSTIN — add it and it is saved on the vendor (optional)"*, with a box, **Save to vendor** and **Not now**. Type the 15-character GSTIN (small letters become capitals) and press Enter or click Save to vendor: it is saved on the vendor and the line goes away. A vendor with a GSTIN is never asked again, on any PO. It is optional: **Not now** hides the line for this PO only, and the next PO for that vendor asks again until it is filled. A GSTIN with a wrong check digit is pointed out under the box before anything is saved; a GSTIN from a different state than the vendor's **State** is refused with both states named, so correct whichever is wrong. If you are not allowed to change vendors, the line is not shown.
 
 You can also **Override** a derived answer when you know something the master records don't — a bill-to/ship-to split, for instance. Once you override, your choice sticks and later saves won't quietly undo it.
 
@@ -910,6 +933,8 @@ A goods receipt (GRN) is worked in five steps, each on its own page with one mai
 
 If your administrator turned on **blind count**, the receiving page does not show the PO quantity: you count what is there.
 
+On every step page each line shows the product's **name**, then its design, Combination ID and batch, then its Colour / Size... values; the vendor (and, on Price check, the vendor of the last purchase) is shown by name.
+
 **② Verify - what is really in hand, at what price**
 
 7. For each line, **GRN Qty** (what is really in hand) starts at the received quantity and **GRN Price** at the invoice price. Change them after checking the goods and calling the vendor. Each line shows its difference from the invoice and from the PO.
@@ -968,6 +993,35 @@ Once a PO is saved, add the product photos for what it orders: images for each *
 **Who can.** Anyone who can create purchase orders can add a PO's photos. On the Design and Item forms, anyone who can edit that record.
 
 **Uploading the same photo twice** keeps it once. A photo that shows *This image could not be loaded* is on the image drive and the drive did not answer — tell your administrator (Admin Guide §B.3.0, **Image drive**).
+
+### 6.12 Ordering and receiving from one Excel file (Upload from Excel)
+
+Many purchase orders — and the goods receipts of the bills that came with them — can be made in one go from one Excel file, instead of typing each PO and each receipt.
+
+1. On **Purchase Orders**, click **Upload from Excel**, then **Download template**. Open it in Excel; its **Start Here** sheet says how to fill it, and the **Example** sheet shows filled rows.
+2. **Vendors** sheet: each vendor you buy from, once — the **Vendor Name** and its **State** (from the list). City, GSTIN, phone and email only if you have them; the state is enough to charge CGST + SGST or IGST. A vendor already in Wholeops is found by its GSTIN or name and left as it is; a new one is made. A vendor that no purchase row uses is left out.
+3. **Purchase** sheet: one row for each design in each colour / size:
+   - **PO Ref** — your name for the order; rows with the same PO Ref and vendor become **one PO**. **Store** — where the goods arrive (it must already be set up).
+   - **Design No** (optional) — your own label to group rows: the same label on several rows is one design in several colours or sizes (`1, 1, 1`, `EI001`… anything). It only groups the rows of this file: Wholeops gives every design its own number (D00010…), and the same label in next month's file is a new design. Blank = the row is a design of its own. To **reorder** a design already in Wholeops, write its Wholeops design number; a colour it already has reuses that Combination ID, a new colour becomes a new combination. **Product Type** and **Category** make its item name; **HSN Code** comes from the list on the **Codes** sheet, and GST fills itself from it (the template's list is jewellery, chapter 71, all 3%).
+   - The attribute columns (**Style, Colour, Polish, Size, Stone Type, Stone Colour**, or any column you add) — fill what applies, the same columns on every row of a design. A new value is added to the attribute.
+   - **Photo** (optional) — the file name of the row's photo, as the client saved it (several: `a.jpg, b.jpg`). The photos themselves are sent with the file (step 5).
+   - **Qty**, **Purchase Rate** (per piece, **including GST**) and **MRP** (the sticker price) are required.
+   - Column **A (Check)** says **OK** or what to fix, and a required box turns red while it is empty.
+4. **When the goods and the bill arrive**: on the Purchase sheet, type the bill's **Vendor Invoice No** on its rows (and **Received Qty** only when it differs from Qty); on the **Bills** sheet, one row per bill with its **date** and **grand total**. The sheet checks the total against the rows (₹1).
+5. Back on **Upload from Excel**: **Choose file**; if the file names photos, also **Choose photos** (or **Choose a photo folder**) — JPG, PNG, WebP or GIF, up to 10 MB each — then **Preview**. Nothing changes yet. A photo the file names but that was not chosen is marked ✗. The preview lists the vendors, the setup records it will make (categories, product types, item names, attribute values), each PO with its rows — *New design*, *New combination* or *Already there* — and each bill. Anything with a **Problem** is left out; fix it in the file and preview again.
+6. Click **Make … POs and receive … bills** and confirm. Each PO is saved (GST included), sent for approval and approved as you where your approval rules allow you to approve it; then each bill is received, verified, price-checked and posted with the MRPs in the file — stock goes up and the barcodes are issued.
+7. The result shows each PO's number and status and each bill's goods receipt. **Print stickers** on a received bill opens Sticker Printing with that receipt loaded.
+8. Then the photos are added — keep the page open until **Photos** shows the count. Each photo goes to its row's **Combination ID**; the first photo of a design also goes to the **design** (the first one is the main photo). They are stored where the PO's **Images** page keeps them (your image drive, or the server — §6.11) — on the image drive each is renamed after its number (`D00010.jpg`, then `D00010-2.jpg`; Admin Guide, **Image drive**) — and show there, on the Design and Item forms and in PIM. Photos forgotten the first time: choose them and upload the **same file** again — the PO and bills are found, and only the photos are added (the same photo twice is kept once).
+
+**Uploading the same file again is safe.** A PO already made from it (same vendor and PO Ref) is found and not made again, and a bill already received is not received twice. So when goods arrive later, fill the bill into the same file and upload it again. New rows for a PO Ref that is already made are refused — give them a new PO Ref.
+
+**Waiting.** A PO you may not approve waits in **Approvals**, and its bills wait with it: approve it, then upload the same file again. A bill that stopped at a step (for example *the bill's total and the items on it do not add up*) stays at that step: fix it in the file and upload again, or finish it on the goods receipt.
+
+**Bigger bills.** One goods receipt holds about 27 lines with the default **Default maximum field length** (10,000 characters, Configuration → Platform). For bigger bills, an administrator raises it (for example to 50,000); the preview says when a bill does not fit.
+
+**Who can.** Anyone who can create purchase orders. Each part is checked as if it were done on its own screen: making vendors, designs and item names, approving, and receiving goods. The preview says when your role may not do one of them.
+
+**Past uploads** lists every upload with its result; **Details** shows it again and **Download file** gives back the file that was uploaded.
 
 ## 7. Moving Stock Between Locations (Stock Movement)
 
@@ -1678,6 +1732,28 @@ Your company's own report catalog — the two report spreadsheets the ERP was se
 
 ![The report catalog](img/reports.png)
 
+### 9.2 Custom dashboards — your own charts and numbers
+
+**Reports → Custom dashboards** lists the dashboards you made (**Yours**), the ones others shared with you (**Shared with you**) and five **Ready-made** ones: **Sales** (sales, bills, average bill, items per bill, by day, store, category, salesman and hour, top items, brand by store), **Stock** (stock value, units, items low or out, by store and category, slowest stock, units sold by category), **Buying** (purchase orders, ordered and received value, open orders by vendor, orders by status), **Customers** (new customers, new and repeat bills, points earned and used, customers by tier) and **Money** (cash and bank, owed by customers, owed to vendors, postings by account type, expenses by category). Click one to open it.
+
+**Reading a dashboard.**
+1. The figures are for the stores you may see, and money only if your role may see it — a store manager opening the same dashboard as the owner sees their own store. A hidden amount reads *hidden*.
+2. Pick the **Dates** (Today, This week, Month to date, Last 30 days, Last month, All dates, or Choose dates), a **Store**, and where the widgets have them a **Brand**, **Category** or **Channel**; every widget follows, except one set to keep its own.
+3. A **number** shows the change on the period before (▲ / ▼). Point at a bar, a slice or a dot to see its value.
+4. **Click a bar, slice, dot or table row** to see the records behind it — the bills, orders or receipts, each a link to the record. Where a figure has no single record behind it (stock on hand), the click opens that list.
+5. The page reloads its figures every few minutes while it is open (an administrator sets how often); **Refresh** reloads now.
+6. **CSV** and **XLSX** on a widget download its rows; **PDF** saves the whole dashboard as a landscape A4 PDF; **Email me this** (on your own dashboard) emails it Daily, Weekly or Monthly — each widget as numbers and bars in the email, every row in an attached CSV — and the schedule appears under **Reports → Schedules**, where you can pause or run it.
+
+**Building one** (if your role may build dashboards — an administrator sets it):
+1. **+ New dashboard**, or open a ready-made or shared one and **Copy** it (the copy is yours to change).
+2. **+ Add widget**: give it a **Title**, choose **Data from** a dataset (sales lines, POS bills, stock on hand, stock movements, purchase orders, goods receipts, transfers, customers, loyalty points, online orders, expenses, ledger postings) or a **report**, then the **Chart** — Number, Bar, Stacked bar, Line, Donut, Table or Pivot — and **By** what (a store, category, salesman, date...; a stacked bar or pivot asks for two). For a date, choose **Per** day, week or month.
+3. **Show**: what to add up — *Total of* a value, an *Average*, *Lowest* / *Highest*, a *Count of* rows, or *How many different* customers, items... Up to three figures side by side.
+4. **Only where** narrows it (store *is* Jayanagar, value *at least* 1000...); **Order** and **Show** set the order and how many rows. A number can show the change on the period before. Tick **Keep its own dates and store** to fix this widget's own dates and store instead of following the dashboard's.
+5. The **Preview** on the right draws it as you choose. **Add** puts it on the dashboard.
+6. On the dashboard, each widget has ◀ ▶ (move earlier / later), − + (narrower / wider), ↕ (height), ✎ (edit) and ✕ (remove). The dates and store you leave set are where the dashboard starts.
+7. **Share and home**: share it with **users** (their sign-in names), **roles** or **stores** (everyone working at them), and make it the **Home screen** for roles — those users then see it on Home under the title. Everyone still sees only their own stores.
+8. **Save.** Only you (or an administrator) can change it later; others use **Copy**. **Delete** removes it for everyone it was shared with.
+
 ## 9A. Orders (OMS) — taking and processing customer orders
 
 **OMS → Orders** is the one screen that follows a customer order all the way through: order → accepted → picked → packed and billed → shipped → invoiced. Each step has a page of its own in the **OMS** menu — **Pending Orders**, **Pick**, **Pack**, **Ship**, **Returns** and **Settlements** (§9A.8–9A.12) — and the Orders page is where you find and change any one order. Orders arrive here from three places, and they all behave identically once they're in:
@@ -1878,6 +1954,16 @@ Then **Print bill** prints the OMS bill and **Print label** the courier label. I
 
 **Setup → OMS → OMS settings** holds OMS's configuration on one page: **Channel connectors** (each channel's last sync, **Pull orders**, **Push ATS**), **Unmapped channel SKUs** (map a channel's SKU to your item here), **Bundles and kits** (with assemble / disassemble for stocked kits) and **OMS lists** — every OMS list your role may open (courier service areas, status rules, return requests, the OMS bills and so on).
 
+### 9A.14 Orders from your Shopify shop (Stage 99)
+
+Once an administrator has connected the shop (Admin Guide B.3.20), web-shop orders arrive by themselves, within moments, and are worked like any channel order — Pending Orders, Pick, Pack, Ship.
+
+- **What you see on the order:** the Shopify order number (#1001), the channel, each line at its price after discount, the shipping charge, the order discount, CGST / SGST / IGST as Shopify charged them, how it was paid (and whether it is **COD**), the customer — found by mobile number, or added if new — and the shipping state for GST. An order not yet paid (and not COD) waits on its payment.
+- **Changed or cancelled in Shopify:** before picking starts the order here changes with it (lines, quantities, a cancellation). After picking starts nothing is changed for you: the order appears in **OMS → Channel changes** with what changed. Do it by hand — edit the lines, cancel, or return it once shipped — then click **Done** on that row.
+- **When you ship:** handing a task to the courier (or dispatching it) sends Shopify the fulfilment with its lines, the carrier and the tracking number, so the customer gets Shopify's shipping email; a part shipment sends only its lines. Cancelling the order here cancels it in Shopify; marking the shipment **RTO** tags the order in Shopify.
+- **Refunded in Shopify:** after the order was invoiced, a **Customer Return** is raised against the invoice for the refunded items — work it in Returns as usual. Before shipping, the refund waits in **Channel changes**.
+- **Prices and stock** on the shop follow the ERP: what you sell, receive or move shows on the shop after the next sync (15 minutes by default). Do not change prices or stock in Shopify admin — the next send overwrites them.
+
 ## 9B. Finance work to review
 
 Open **Financial Accounting → Finance / GL**. **Work to review** starts with direct paths to Payables, Receivables, Payment Proposals, Bank Reconciliation, **Who posted what**, **General journal** and **Period close**. Open the destination and inspect each source document before posting or paying it; this landing page does not show balances, ageing, bank differences or approval counts.
@@ -1985,18 +2071,115 @@ Until it is resolved, **Cancel** is also offered, and asks why. A closed or canc
 
 **A project's cost and revenue.** **Setup → Project** opens with **Project cost and revenue**: pick a project and **Show** — revenue, expense and net from everything posted with that project, and each source document behind the figures (Journal Vouchers and expense claims carry a Project field). An inactive project's history still shows. There is no project budget, timesheet or billing in this ERP.
 
-## 9D. CRM — birthday and lapsed-customer campaigns
+## 9D. CRM — customers, consent, campaigns, journeys, service and the sales pipeline
 
-A campaign is set up once and then sends by itself: every hour the system finds the customers it applies to and sends the message once a day per customer. Messages go out through your CleverTap connection; on a test system delivery is switched off, but each send is still logged.
+**CRM** in the sidebar opens the CRM workspace. Its tabs: **Overview · Customers · Segments · Templates · Campaigns · Journeys · Messages · Inbox · Tickets · Feedback · Worklist · Pipeline · Settings** (Settings only for those who manage CRM). The CRM menu also keeps **Loyalty**, **Vouchers** and **Service Tickets** (the older screens, still working). Browser **Back** and **Forward** move between CRM pages as you would expect.
 
-1. **Birthday campaigns need dates of birth.** On **Setup → Customer**, **Edit** the customer and fill **Date of Birth**. Only the day and month are used, so it repeats every year.
-   **No consent, no message.** A campaign is sent only to customers who agreed to offers on its channel. On the Customer record, tick **Agrees to offers by SMS** and/or **Agrees to offers by WhatsApp** once they agree. **Consent recorded on / by** fill themselves in when you save. A customer with neither ticked gets no campaign.
-2. **Setup → Campaign → + New Campaign**. Give it a **Campaign Name**, choose **Sent by** (**WhatsApp** or **SMS**; it is sent only to customers who agreed to that one), and a **Trigger Type**:
-   - **Birthday** — customers whose birthday is today.
-   - **Lapsed Customer** — customers whose last purchase was more than **Lapsed After (days)** ago. Someone who has never bought is not "lapsed".
-3. **Message Template** — the text sent. `{{customer_name}}` is replaced with each customer's name, for example `Happy birthday {{customer_name}}! Enjoy 10% off in store this week.`
-4. **Campaign Cost** (optional) — what it costs you, so the report can show a return. **Status Active** to run it; **Inactive** pauses it.
-5. **See what it brought in:** **Reports → CRM → Campaign ROI**. Per campaign: the customers it was sent to (handed to CleverTap; delivery is tracked there, not here), what those customers spent at the till since the campaign was created, the cost, and the return. It is a simple measure — every sale to a customer it was sent to counts, whether or not the message caused it. **Loyalty → Vouchers & campaigns** shows the same figures, plus who the campaign would pick today.
+**Overview** shows customers, how many can be reached on each channel, messages this month, running campaigns and journeys, NPS, open tickets and tasks, unread inbox threads and the weighted pipeline. Click a tile to open its tab. **To finish setting up** lists what is still missing (for example no SMS sender), and **Customers by lifecycle** splits customers into *New, Active repeat, Reactivated, At risk, Lapsed* and *Never bought*. Click a bar to open those customers.
+
+### 9D.1 The customer page
+
+1. **Customers**: type a name, code or phone. If your role does not show full phone numbers, type the **whole** number to find someone. Open a customer to see one page with:
+   - the lifecycle, RFM group and tier;
+   - bills, spend net of returns, average bill, last bill, points (and any *pending*), and open tickets and tasks;
+   - **Profile**: phone, email, birthday, anniversary, gender, sizes, preferred store and salesman, tags, city, referral code. A field filled by an import shows where it came from when you hover over it;
+   - **Consent**: for SMS, WhatsApp and email, whether they agreed to **Offers** and to **Service messages**, and the reason when they cannot be reached;
+   - **Notes**, **Wish list** and the **Timeline**: bills, returns, online orders, invoices, points, vouchers, every message with what happened to it, tickets, notes, consent changes, feedback, appointments, tasks and journeys, newest first. **Show** filters it; **Show older** loads more.
+2. **Edit profile** changes the profile fields. **Send a message**, **+ Task** and **+ Appointment** start those for this customer. **Give a referral code** makes their refer-a-friend code.
+3. **Masked contacts.** Roles not listed in Configuration → CRM → *who sees full phone numbers* see phone and email as `91******99` everywhere: page, search, reports, exports. Saving a profile with a masked number keeps the real one.
+4. **Possible duplicates** (Customers tab) lists customers who look like one person (the same email, or the same name and birthday - one phone number is always one customer). Pick a pair, choose **Keep A** or **Keep B**, then **Merge**. The preview shows what moves: bills, points, consent, wish list, active journeys. If your business has an approval rule for *Customer Merge*, the merge waits in Approvals; otherwise it happens at once. A customer who was waiting in a journey gets at most one copy of the next message.
+
+### 9D.2 Consent: who may be messaged
+
+- **No recorded consent, no offer.** An offer goes only to a customer who agreed to **Offers** on that channel. **Service messages** (about their bill, order, appointment or feedback) need no tick, but a customer who stopped them, or stopped everything, gets none.
+- **Record what the customer said** (on their page): the channel (or **Every channel (stop all)**), what for, **Agrees / Withdraws / Says no**, and how you know (for example *"Said yes at the counter"*), then **Record**. Every change is kept, with who recorded it and when. **History** shows them all. The ticks on the Customer record follow the latest answer.
+- **The customer's own link.** Offers carry a short link to the customer's **preferences page**, where they choose per channel (offers / service), **Stop all messages**, or **Start messages again**. Replying **STOP** to an SMS or WhatsApp works too, and so does the unsubscribe link in an email.
+- **An import never gives consent back.** A file or Shopify cannot re-tick someone who said no. Only the customer can, or staff recording what they said.
+- **Erasure.** When a privacy erasure is approved, the customer's queued messages and journeys stop, their details are removed, and their phone and email are kept only in a scrambled form so an import or Shopify cannot bring them back.
+
+### 9D.3 Segments and uploaded lists
+
+**Segments → + New segment.** Give it a **Name**, then build the rules: **All of these** or **Any of these**, **NOT (exclude these)** to turn a group around, **+ Rule** and **+ Group** for nested groups. The rules can use profile fields, spend, visits, last purchase, category or brand bought, store, tier, birthday month, consent, and bought / did-not-buy in the last N days. Days are counted in your business's time zone.
+
+- **Who is in it now** counts as you type. Choose **For a message by** a channel to see how many of them can be reached on it (the count loses those without consent or a contact).
+- **Why is a customer in it?** Pick a customer and **Check** to see each rule ticked or crossed.
+- **Save** keeps a numbered version. Editing saves a new version, and a campaign remembers the version and the exact list of customers it used.
+
+**Uploaded lists** (Segments → **Uploaded lists**): upload a CSV with a phone column, say where the numbers came from and **Use until** a date. A list never gives consent: everyone on it is still checked when a message goes, and an expired list matches nobody.
+
+### 9D.4 Message templates
+
+**Templates → + New template**: **Name**, **Channel** (WhatsApp, SMS, Email), **For** (*Offers*, which need consent, or *Service*), **Language** and the **Message**. Click a chip under the message to insert a value, such as the customer's first name, points, voucher code, item, appointment time or preferences link.
+
+- `{{customer.first_name|there}}` uses *there* when the name is blank. A value with no fallback that is blank stops that one message (reason *A value the template needs was blank*, naming the value) instead of sending a gap.
+- **SMS** needs the **DLT template ID**, and the text must match the template registered with DLT. The counter shows how many SMS parts it takes.
+- **WhatsApp** offers and first messages need a template approved in WhatsApp Manager: type its **WhatsApp template name** and **language code**, then **Check approval with WhatsApp**.
+- **Preview** shows it for a customer you pick, or with sample values. **Save** keeps a new version. Campaigns and journeys keep the version they were approved with.
+
+### 9D.5 Campaigns
+
+1. **Campaigns → + New campaign**: **Name**, **Send by**, **To segment**, **Message** (offer templates for that channel), **Start** (blank = as soon as approved), **Stop sending at**, **Budget** (blank = none), **Count a bill within (days)**, **Hold-out group %** and, if you like, a **voucher for each customer** (% or amount off, valid for N days, store / web shop). Each customer gets their own single-use code (`{{voucher.code}}` in the message). **Save draft**.
+2. **Pre-send check** shows the count step by step (in the segment, minus no consent, minus no contact, minus hold-out), the estimated cost against the budget, and anything that is not ready.
+3. **Send a test** sends it to one customer who is on the test list.
+4. **Submit for approval.** It waits in **Approvals** for a store manager, or for whoever your approval rule names. When the second-approver switch is on, a campaign is never approved by the person who submitted it. **Changing anything after submitting sends it back to Draft**, and it must be approved again.
+5. Once approved, the run starts at its time. Under **Runs**: **Pause**, **Resume**, **Stop**, and **Results**: matched, held out, not sent (with the reason for each), sent, accepted, delivered, read (blank when the channel does not report it), vouchers issued and used, bills and sales credited, and cost. A bill counts for the campaign if the customer bought within the days you set after the last offer they got, once per bill, less returns. With a hold-out, **Results** compares buyers who got it with those held back; with too few customers it says *Not enough data yet*.
+
+Every message goes through the same checks before it leaves: consent, contact limits (by default at most 2 offers a day and 5 a week, 4 hours apart), quiet hours (21:00–09:00 by default; an offer waits until morning), budget, and the test list on a test server.
+
+### 9D.6 Journeys — messages that send themselves
+
+**Journeys → Add the ready-made journeys** adds: *Welcome*, *Thank you for the first bill*, *Birthday*, *Anniversary*, *Points about to expire*, *Win back (not seen for 90 days)*, *Product arrived* and *Cart left on the web shop*. Each comes switched **Off**.
+
+1. Open a journey to see **Starts when** (an event such as a first bill, or a date such as the birthday with **Days before**), **Leave the journey early when** (for example *they buy*), **Do not start again for (days)**, and the steps: **Send a message** (channel, template, offers or service, optional voucher %), **Wait**, **Wait for something to happen**, **Check (yes / no)** with a step for each answer, **Create a task for staff**, or **End**.
+2. A WhatsApp step needs an approved WhatsApp template (*not ready* in the list until then).
+3. **Save draft**, **Publish** (a new version — customers already in it finish the version they started), then **Switch on**.
+
+A customer is in a journey once at a time. **Customers in it** shows who is where and why they left.
+
+### 9D.7 Messages — what was sent and why not
+
+**Messages** lists every message: when it was queued, customer, where it came from (campaign, journey, staff, feedback, reminder, test, automatic reply), channel, status, **Why**, masked contact and cost. Filter by **Status**, **Channel**, **From** and **Reason**.
+
+- **Delivered / Accepted / Read**: it went. **Deferred**: waiting (quiet hours or the gap between offers) — *Why* says when it goes. **Suppressed / Expired / Cancelled / HeldOut**: not sent, with the reason (no consent, stopped, limit reached, budget used, test list...).
+- **Unknown**: the provider did not answer, so the system cannot tell if it went. It is **never resent by itself**. Check with the provider, then **Settle** it as delivered, accepted or failed, with how you know.
+- **+ New message** sends one message to one customer: a template, or your own text (WhatsApp only within 24 hours of the customer's last message; never by SMS).
+
+### 9D.8 Inbox (WhatsApp replies)
+
+Replies to your WhatsApp number arrive in **Inbox**, one thread per number, linked to the customer when the number is known. **Take over** to answer yourself (automatic replies stop), **Hand back** when done, **Make a ticket** to track a problem, **Close** the thread. A reply within 24 hours of their last message can be your own text; after that, choose a template. A customer writing to you is never taken as consent to offers. *STOP* from them stops messages.
+
+### 9D.9 Tickets
+
+**Tickets → + New ticket**: customer, bill (optional), priority and what they need. A ticket moves *New → Open → Waiting (on customer / internally) → Resolved → Closed*. Use **Assign to me**, **Waiting on customer**, **Waiting internally**, **Resolve**, **Close** and **Reopen**. **Respond by** and **Resolve by** count working hours only and show *Late* when passed. Notes can be private. Add a note **As** a private note (never sent) or as a reply by WhatsApp, SMS or email - a reply goes through the same checks as every message. Every ticket shows on the customer's timeline.
+
+### 9D.10 Feedback and referrals
+
+**Feedback → + New survey**: **Question**, **Scale** (0–10 NPS or 1–5 rating), **Send by**, the template (it must contain the feedback link), **Hours after the bill**, **Not again for (days)**, and **A score this low or lower opens a ticket**. Tick **On - ask after every bill**: after a paid bill the customer gets one link; their answer appears here with NPS and the number of answers. A low score opens one ticket. Changing the question starts a new version.
+
+**Referrals** (same tab): when a new customer brings a friend's code, **Record** it with **New customer (the friend)** and **Referral code they gave**. The referrer's points are given once the friend's first bill is past the return window. Self-referrals and the same phone are flagged for you to **Allow** or **Cancel**.
+
+### 9D.11 Worklist: tasks, appointments, holds
+
+**Worklist** has three lists:
+
+- **Tasks.** **+ Task** for custom orders, arrivals, alterations, follow-ups and calls, with a due time and owner. The list shows **Whose** (mine and my store's, or everyone's) and **Status**. Mark one **Done** with the outcome. Tasks also appear in your task inbox and the store app's **My tasks**.
+- **Appointments.** **+ Appointment**: customer, store, kind (visit, trial, fitting), day, then **Show free slots** and **Book**. Slots and capacity per store are set in **Settings → Appointment hours at a store**. Reminders go before the appointment; cancelling stops them. **No-show** marks a missed one.
+- **Hold requests.** **+ Hold request** asks a store to keep an item for a customer. The store **Confirm - kept** or **Decline** (with a reason). **Tell the customer** sends the "ready" message, and only after it is confirmed.
+
+### 9D.12 Pipeline — business buyers
+
+1. **Leads** (Pipeline → Leads, **+ New lead**): name, company, phone, email, source, owner. Leave **Owner** blank to let the assignment rules give it to the matching person with the fewest open leads, or leave it unassigned. Mark it **Contacted** or **Qualified**, **Disqualify** it with a reason, or **Convert** it: that makes the customer and a deal once, even if you click twice.
+2. **Deals** (board): each stage shows its deals, count and value. Open a deal to change value, chance and expected close, add **+ Call, meeting or task**, and **Move** it. A stage can require a value, a close date, a quotation or an owner. **Won** needs an approved quotation: build it on the deal (**+ Line**, terms, valid until), **Save and send for approval**, and when it is approved, move the deal to Won. That raises one Sales Order (**Raise the Sales Order** if it did not). **Lost** needs a reason. Every change is kept in the deal's history.
+3. **Forecast**: weighted pipeline, committed and booked shown apart. **Take a snapshot** keeps today's figures unchanged for comparison later.
+4. **Stages and assignment** (CRM managers): stage names, chance %, what entering each needs, which count as committed, and the lead assignment rules.
+
+### 9D.13 CRM reports and dashboard
+
+**Reports → CRM** adds: CRM Customer Summary, Consent Audit, Segment Members, Campaign Summary, Message Detail, Journey Performance, Credited Sales, RFM and Lifecycle, Coupon Use, Service SLA, Clienteling, Feedback, Message Cost and Sales Pipeline. Each says which time zone and date it counts by. The Dashboards screen can chart CRM messages, consent, feedback and pipeline.
+
+### 9D.14 Campaigns made before this version
+
+Birthday and Lapsed Customer campaigns set up earlier (**Setup → Campaign**, with a Trigger Type) keep working as before and show as *Older trigger campaign* under Campaigns. **Reports → CRM → Campaign ROI** still reports them. The ready-made **Birthday** and **Win back** journeys replace them: when you switch a journey on, set the matching older campaign to **Inactive** so nobody gets both.
 
 ## 9E. People — HR, leave, payroll and expense claims
 
@@ -2098,7 +2281,7 @@ Each row says why it is yours and since when; **Everything / Approvals / Order d
 
 ## 10A. The Store app on your phone
 
-The **Store app** is a small app for the shop floor: decide approvals, and scan any item to see its price, MRP, stock at your store and your other stores, and how old a batch is. It is part of the ERP - your company's ERP address followed by **/store/** (for example `https://yourcompany.wholeops.in/store/`) - and you sign in with your usual username and password.
+The **Store app** is a small app for the shop floor: decide approvals; scan any item to see its price, MRP, stock at your store and your other stores, and how old a batch is; see today's sales (managers); check deliveries and transfers, count stock and ask for labels by scanning; build a basket for the till; and order a size from another store for home delivery. It is part of the ERP - your company's ERP address followed by **/store/** (for example `https://yourcompany.wholeops.in/store/`) - and you sign in with your usual username and password, or with a PIN on the store's shared phone.
 
 ### 10A.1 Install it (once per phone)
 
@@ -2113,6 +2296,7 @@ The **Store app** is a small app for the shop floor: decide approvals, and scan 
 - Setting up two-factor sign-in for the first time, or replacing a password your administrator set: do it once in the full ERP (the app says so), then sign in here.
 - Signing in here also signs you in to the ERP in the same browser, and the other way round. **Sign out** on the app's home screen signs you out of both.
 - The app signs you out after the same time without use as your **Auto Logout** setting (§11).
+- **On the store's shared phone** (one a manager registered to the store, §10A.14) the app opens on **Sign in with your PIN**: type your username (it is offered once you have signed in on that phone) and your PIN. You set your PIN yourself in **Settings** (§10A.14) after signing in once with your password. A PIN session works at that phone's store only, locks after a few minutes without use (5 unless your administrator changed it) so the next person signs in as themselves, and lasts at most one shift (12 hours). After 5 wrong PINs, PIN sign-in stops for you for 15 minutes; your password still works (**Sign in with password instead**). Administrators always sign in with the password and code.
 
 ### 10A.3 Your store
 
@@ -2149,7 +2333,62 @@ Cost is never shown in the app.
 
 ### 10A.6 No connection
 
-The app still opens and says **You are offline**; when the connection returns it carries on by itself. Lookups and approvals need a connection.
+The app still opens and says **You are offline**; when the connection returns it carries on by itself. A **count** works offline (§10A.9); everything else needs a connection.
+
+Under the item's details, **Scan an item** also offers what you can do with it: **Add to basket** (§10A.11), **Print labels** (§10A.10), **Ask for stock** (§10A.9) and, when your store has none free, **Order for home delivery** (§10A.12).
+
+### 10A.7 Today (store managers)
+
+**Today** shows your store's sales so far today: **Sales**, **Bills**, **Average bill**, **Items per bill** and **Returns**, each beside the same day last week up to the same time (there is no sales target in the ERP yet, so last week is the yardstick - the screen says so). Below: the day's **top items** and the **salesmen** by sales. If you run more than one store, **All my stores** adds them up. Only store managers and administrators see Today.
+
+### 10A.8 Receive by scanning
+
+**Receive** lists what is waiting at your store: **goods receipts** at their check (Verify) step and **transfers** on their way here. Open one and scan each piece as you unpack (or tap **−** / **+**, or type the number). Each line turns green when it matches, amber when short, red when extra; a code that is not on the delivery is listed separately and is not saved. Your counting is kept on the phone until you save, even if you leave the screen.
+
+- **Goods receipt:** **Save the check** records what you counted as the receipt's quantity - the same as Verify on the computer (§6.10) - and the receipt moves on to the price check. More than the PO asks for: choose **Keep it** (needs approval) or **Send it back**. Only someone allowed to verify receipts can save; anyone can count.
+- **Transfer:** **Receive into stock** puts what you counted into this store's stock. If some is short, choose **More is coming** (the rest stays in transit) or **Nothing more is coming** (the rest is closed as lost); a shortage you close or an extra piece needs a **reason**. A transfer with serial-numbered items, or with more than one lot of an item, is received on the computer (Stock Movement).
+
+### 10A.9 Count by scanning, and ask for stock
+
+**Count** → **Start a spot count**, then scan every piece on a shelf or in a bin (one scan per piece; fix a number with **−** / **+**). **Finish and send** records it as a cycle count: a count that matches the stock is posted at once; one that differs goes to the store manager for approval before stock changes, as with **WMS → Cycle Count** on the computer. With **no connection**, the count stays on the phone and is sent by itself when you are back online - the home screen says how many are waiting. Sending the same count twice changes nothing.
+
+A **full count** (physical inventory) is started by the warehouse team; while it is open it appears under **Full counts at this store**. Several people can count the same full count on their own phones: each phone's numbers are added together, and a phone that sends again only replaces its own numbers. An item the count did not list gets a line of its own. The warehouse team reconciles and closes it.
+
+**Ask for stock** (from an item): pick where it comes from (a warehouse or another store, with what each has free) and how many. This makes a transfer request and sends it for approval, the same as **Stock Movement** on the computer.
+
+### 10A.10 Print labels from the phone
+
+A phone cannot reach the label printer itself, so it asks the store's computer. From an item: **Print labels**, the number of labels, an optional note → **Send to the store's printer**. On the computer, **Sticker Printing → + Print Stickers → Print from Transaction → Store Label Request**, pick the request, and print as usual - the computer's own printer choice applies. **Labels** on the phone lists the store's requests: **Waiting** until the computer prints it, then **Printed** with the time.
+
+### 10A.11 Basket for the till
+
+Help a customer on the floor, then send them to the till with their basket. **Basket for the till**: scan what they want (**−** / **+** for quantity), add their name or phone if you like, **Send to the till**. The phone shows the basket's number and a barcode. At the till: **More... → Resume a held bill**, then pick it from the list or type or scan its number in **Find a basket**. The till prices it again when it is resumed, so offers and the customer's own prices apply.
+
+### 10A.12 Order for home delivery
+
+When your store does not have a size, scan it and tap **Order for home delivery**: how many, where it ships from (a store you can see that has it, or **Let the order desk choose**), the customer's name, phone and address with its PIN code, and whether they **pay on delivery** or have **already paid**. **Book the order** makes an ordinary order on the order desk (OMS → Pick, Pack, Ship), already accepted. If no store has all of it, the order is made **on hold** and the order desk sources it. Tapping Book twice never makes two orders.
+
+### 10A.13 Alerts
+
+**Settings → Alerts on this phone → Turn on alerts** (allow notifications when the phone asks). The phone then shows an alert when **an approval is waiting for you** or **an item runs low at your store**, even when the app is closed; tap it to open the right screen. The first alert comes for something new - what was already waiting when you turned alerts on is not repeated. Untick what you do not want and tap **Save**, or **Turn off**. On an iPhone, add the app to the Home Screen first and open it from there; alerts work on iOS 16.4 and later. **Low stock** (home screen) lists the store's low items at any time.
+
+### 10A.14 Settings: your PIN and this phone
+
+- **Your PIN:** type your password (to confirm it is you) and a PIN of 4 to 8 digits - not all one digit or a run like 1234 - then **Set PIN**. **Change PIN** and **Remove PIN** are here too.
+- **This phone (store managers):** on a phone the whole team shares, **Register to <store>** with a name for it (e.g. *Counter phone 1*). From then on everyone signs in on it with their own PIN. **Store phones** lists your stores' registered phones; **Remove** one that is lost, stolen or retired and everyone signed in on it is signed out at once.
+
+### 10A.15 Serve a customer
+
+**Serve a customer**: type their phone or name and tap **Find**, then open them. You see their lifecycle, whether they take offers on WhatsApp, sizes, points (and any pending), spend and last bill, their last bills, wish list and notes.
+
+- **Wish list**: scan or type an item and **Add**. **Ask the store to keep it** sends a hold request (§9D.11).
+- **Send a look on WhatsApp**: scan the item, then **Send on WhatsApp**. Your own text reaches them only if they wrote to the store on WhatsApp in the last 24 hours; otherwise choose an approved offer template under **Send as** (the item is filled in). If it cannot go, the screen says why (for example they have not agreed to offers, or stopped all messages).
+- **Notes**: type and **Save the note**; the team sees it on the customer page.
+- **Has <name> agreed to get offers on WhatsApp?** Tap **Yes - they agreed just now** only when they have said so; it is recorded with your name and the time.
+
+### 10A.16 My tasks
+
+**My tasks** lists the CRM tasks for you, and those for anyone at your store (arrivals, alterations, custom orders, follow-up calls), with the customer and when each is due (*overdue* in bold). **Customer** opens the customer; **Take it** makes an anyone-at-the-store task yours; **Done** asks *How did it go?*, then **Save - done**.
 
 ## 11. Your Profile, Password, and Session
 

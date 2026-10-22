@@ -32,6 +32,39 @@ export function txnContext(store) {
   return `<span class="txn-ctx" title="Signed in as ${esc(user)}${role ? ` (${esc(role)})` : ''}"><b>${esc(user)}</b>${where ? ` · <span class="txn-ctx-store">${esc(where)}</span>` : ''}</span>`;
 }
 
+// Stage 106.5 (user, 2026-10-19: "I want a location selection in TOP in all
+// txn like store. It will be frozen where not changable. Else Drop down."):
+// a transaction's From / To beside the store, from Stock Locations >
+// Transactions - fixed text where that row is locked or the store has one
+// location that fits, else a drop-down that changes this document only.
+// txnStockFromTo is the slot; mountStockFromTo fills it for a store (the
+// working store by default) and refills it when the store changes;
+// readStockFromTo is the document's choice for its save.
+export function txnStockFromTo(txn, cls = '') {
+  return `<span class="txn-ctx-stock ${cls}" data-stock-txn="${esc(txn)}"></span>`;
+}
+
+export async function mountStockFromTo(root, store = '') {
+  for (const el of root.querySelectorAll('[data-stock-txn]')) {
+    if (el.dataset.stockStore === store && el.dataset.stockReady) continue;
+    el.dataset.stockStore = store;
+    el.dataset.stockReady = '1';
+    const res = await window.apiFetch(`/api/v1/stock-locations/txn-header?txn=${encodeURIComponent(el.dataset.stockTxn)}${store ? `&store=${encodeURIComponent(store)}` : ''}`).catch(() => null);
+    const h = res && res.ok ? await res.json().catch(() => null) : null;
+    const side = (label, key, s) => !s ? '' : s.editable
+      ? `<label class="txn-ctx-side">${label} <select class="form-select" data-stock-side="${key}" aria-label="${label} stock location">${s.options.map(o =>
+        `<option value="${esc(o.code)}"${o.code === s.code ? ' selected' : ''}>${esc(o.name || o.code)}</option>`).join('')}</select></label>`
+      : `<span class="txn-ctx-side" title="${esc(s.note || 'Set in Stock Locations > Transactions')}">${label} <b>${esc(s.name || s.code)}</b></span>`;
+    el.innerHTML = h ? side('From', 'stock_from', h.from) + side('To', 'stock_to', h.to) : '';
+  }
+}
+
+export function readStockFromTo(root) {
+  const out = {};
+  root.querySelectorAll('select[data-stock-side]').forEach(s => { if (s.value) out[s.dataset.stockSide] = s.value; });
+  return out;
+}
+
 // txnTabs renders New / History style page tabs; fn is the window function
 // the global data-act dispatcher calls with the tab's key.
 export function txnTabs(fn, active, tabs) {

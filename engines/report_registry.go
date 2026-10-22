@@ -259,6 +259,7 @@ func RunReportContext(ctx context.Context, tenantID, reportID, role, userID stri
 	}
 	masked = reportMasked(d.Columns, role)
 	rows = maskSensitiveColumns(d.Columns, rows, role)
+	rows = maskContactColumns(tenantID, d.Columns, rows, role)
 	return &d, rows, masked, nil
 }
 
@@ -361,7 +362,7 @@ func RunReportDrillDownContext(ctx context.Context, tenantID, reportID, role, ro
 			rows = filterReportRowsByStore(rows, key, storeAccess)
 		}
 	}
-	return maskSensitiveColumns(def.Columns, rows, role), nil
+	return maskContactColumns(tenantID, def.Columns, maskSensitiveColumns(def.Columns, rows, role), role), nil
 }
 
 // RunReportDrillDown runs a registered report's drill-down function (Stage
@@ -381,7 +382,7 @@ func RunReportDrillDown(tenantID, reportID, role, rowKey string, params map[stri
 	if err != nil {
 		return nil, err
 	}
-	return maskSensitiveColumns(def.Columns, rows, role), nil
+	return maskContactColumns(tenantID, def.Columns, maskSensitiveColumns(def.Columns, rows, role), role), nil
 }
 
 // structsToRows converts a slice of any JSON-taggable struct (or a single

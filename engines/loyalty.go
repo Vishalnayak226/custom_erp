@@ -112,7 +112,7 @@ func lockedLoyaltyBalanceTx(tx *sql.Tx, schema, customerID string) (int, error) 
 	var balance int
 	err := tx.QueryRow(fmt.Sprintf(`
 		SELECT COALESCE(SUM(CASE WHEN transaction_type = 'Earn' THEN points ELSE -points END), 0)
-		FROM %s.loyalty_point_ledger WHERE customer_id = $1`, schema), customerID).Scan(&balance)
+		FROM %s.loyalty_point_ledger WHERE customer_id = $1 AND `+crmUsablePointsSQL, schema), customerID).Scan(&balance)
 	return balance, err
 }
 
@@ -125,10 +125,12 @@ func GetLoyaltyBalance(tenantID, customerID string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	// Stage 101.11.1: points still waiting for their bill's return window do
+	// not count yet.
 	var balance int
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT COALESCE(SUM(CASE WHEN transaction_type = 'Earn' THEN points ELSE -points END), 0)
-		FROM %s.loyalty_point_ledger WHERE customer_id = $1`, schema), customerID).Scan(&balance)
+		FROM %s.loyalty_point_ledger WHERE customer_id = $1 AND `+crmUsablePointsSQL, schema), customerID).Scan(&balance)
 	return balance, err
 }
 
@@ -254,6 +256,14 @@ func EarnLoyaltyPoints(tenantID, customerID string, netSaleAmount int, reference
 	expiresAt := time.Now().AddDate(0, 0, GetSettingInt(tenantID, "loyalty.point_expiry_days"))
 	if err := insertLoyaltyLedgerEntryInSchema(schema, customerID, "Earn", points, "POSCart", referenceID, &expiresAt); err != nil {
 		return err
+	}
+	// Stage 101.11.1 (D11): with pending points on, they wait out the bill's
+	// return window before they can be used.
+	if until := crmPendingUntil(tenantID); until != nil {
+		if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.loyalty_point_ledger SET pending_until = $3 WHERE id = (SELECT MAX(id) FROM %s.loyalty_point_ledger
+			WHERE customer_id = $1 AND transaction_type = 'Earn' AND reference_doctype = 'POSCart' AND reference_id = $2)`, schema, schema), customerID, referenceID, *until); err != nil {
+			LogSystemError(tenantID, "", "ERROR", "EarnLoyaltyPoints", fmt.Sprintf("points on %s could not be marked pending: %v", referenceID, err), "")
+		}
 	}
 	// Stage 73.2.12: when accruing, the earned points' value is a liability.
 	if err := postLoyaltyValue(tenantID, "POSCart", referenceID, "POSCart:"+referenceID+":LOYALTY_ACCRUE",

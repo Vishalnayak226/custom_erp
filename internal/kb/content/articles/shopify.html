@@ -1,0 +1,32 @@
+<h1 id="shopify">Shopify <a class="kb-anchor" href="#shopify" aria-label="Copy link to this section">#</a></h1>
+<p>The ERP owns <strong>products, prices and stock</strong>; Shopify owns <strong>online orders and their payments</strong>. Prices and stock changed in Shopify admin are overwritten at the next send.</p>
+<h2 id="connect-administrator">Connect (administrator) <a class="kb-anchor" href="#connect-administrator" aria-label="Copy link to this section">#</a></h2>
+<ol><li>In Shopify: **Settings → Apps and sales channels → Develop apps → Create an</li></ol>
+<p>app<strong>. Give it <code>read_products</code>, <code>write_products</code>, <code>read_inventory</code>, <code>write_inventory</code>, <code>read_locations</code>, <code>read_orders</code>, <code>write_orders</code>, <code>read_customers</code>, <code>write_merchant_managed_fulfillment_orders</code> (and <code>read_shopify_payments_payouts</code> for payouts). Install it; copy the </strong>Admin API access token<strong> and the </strong>API secret key**.</p>
+<ol><li>In the ERP: <strong>Setup ▸ PIM ▸ Channel → + New</strong> with Platform <strong>Shopify</strong>,</li></ol>
+<p>save, then the row&#39;s <strong>Shopify</strong> button.</p>
+<ol><li><strong>Connect</strong>: shop address, token, secret → <strong>Save</strong> → <strong>Test connection</strong></li></ol>
+<p>(it names any missing access).</p>
+<ol><li><strong>Stores</strong>: map each Shopify location to a store; set the safety buffer and</li></ol>
+<p>the price list; <strong>Save</strong>.</p>
+<ol><li><strong>Webhooks → Register</strong>.</li><li><strong>Publish designs not on Shopify yet</strong> (or **Link existing Shopify</li></ol>
+<p>products** if the shop already sells them).</p>
+<h2 id="what-happens-by-itself">What happens by itself <a class="kb-anchor" href="#what-happens-by-itself" aria-label="Copy link to this section">#</a></h2>
+<ul><li>Every sync interval (15 minutes by default): new and changed orders, changed</li></ul>
+<p>prices, changed stock per location. Once a day: all stock, payouts.</p>
+<ul><li>An order comes in whole - number, discounts, shipping, GST, payment, COD,</li></ul>
+<p>customer by mobile number - once only.</p>
+<ul><li>Edited or cancelled in Shopify before picking starts: applied. After: it</li></ul>
+<p>waits in <strong>OMS → Channel changes</strong>; do it by hand, then <strong>Done</strong>.</p>
+<ul><li>Dispatched here: Shopify gets the fulfilment with carrier and tracking.</li></ul>
+<p>Cancelled here: cancelled there. RTO here: tagged there.</p>
+<ul><li>Refunded in Shopify after invoicing: a Customer Return is raised here.</li><li>Shopify Payments payouts: settlement lines, reconciled with the orders; fees</li></ul>
+<p>to the fees account.</p>
+<h2 id="if-something-is-wrong">If something is wrong <a class="kb-anchor" href="#if-something-is-wrong" aria-label="Copy link to this section">#</a></h2>
+<ul><li><strong>The Shopify connection is not ready for this</strong> (CONN-0994): save the shop</li></ul>
+<p>address and token, test the connection, map a location.</p>
+<ul><li>Orders missing: <strong>Register again</strong>, then <strong>Pull orders now</strong>.</li><li><strong>Invalid webhook signature</strong> in the log: the webhook secret is not the</li></ul>
+<p>app&#39;s API secret key.</p>
+<ul><li>Shopify shows a different stock: <strong>Stock mismatch report</strong>, tick, **Send</li></ul>
+<p>now**.</p>
+<p>Full steps: Admin Guide B.3.20; working the orders: User Guide §9A.14.</p>

@@ -140,6 +140,7 @@ type TransferReceiptRequest struct {
 	Lines      []TransferReceiptLine `json:"lines"`
 	KeepOpen   bool                  `json:"keep_open"`
 	ReceiptKey string                `json:"receipt_key,omitempty"`
+	StockTo    string                `json:"stock_to,omitempty"` // 106.5: where good stock lands
 }
 
 // TransferReturnLine is one line sent back to the source.
@@ -576,7 +577,7 @@ func ReceiveTransferOrderLines(tenantID, transferOrderID, userID string, req Tra
 			// Stage 85.B4: received good stock lands in Transfer In's
 			// default location (Main unless the client chose otherwise).
 			if p.toAvail > 0 {
-				if err := applyReceiptDefaultTx(tx, schema, "Transfer In", toWarehouse, []PostedStockLine{{SKU: sku, Qty: p.toAvail}}); err != nil {
+				if err := applyReceiptDefaultTx(tx, schema, "Transfer In", toWarehouse, []PostedStockLine{{SKU: sku, Qty: p.toAvail}}, req.StockTo); err != nil {
 					return nil, err
 				}
 			}

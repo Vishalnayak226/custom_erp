@@ -644,7 +644,7 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 			// Stage 106.4: a Good (Sellable) return lands where Sales Return's
 			// "To" says; Main means it stays where it just went.
 			if rule.Bucket == "available" {
-				if err := applyReceiptDefaultTx(tx, schema, "Sales Return", returnLocation, []PostedStockLine{{SKU: items[i].SKU, Qty: items[i].Qty}}); err != nil {
+				if err := applyReceiptDefaultTx(tx, schema, "Sales Return", returnLocation, []PostedStockLine{{SKU: items[i].SKU, Qty: items[i].Qty}}, docStockField(tx, schema, returnRequestID, "stock_to")); err != nil {
 					return 0, "", err
 				}
 			}
@@ -1133,6 +1133,8 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 		return err
 	}
 
+	// Stage 101.11: a returned bill's single-use code and referral reward.
+	RecordCRMBillReturned(tenantID, originalOrderID, refundRequestID)
 	if returnRequestID != "" {
 		DispatchNotification(tenantID, "Refund Processed", originalOrderID, map[string]string{
 			"return_request_id": returnRequestID, "refund_request_id": refundRequestID,

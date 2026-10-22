@@ -24,6 +24,10 @@ func handleTaskInbox(w http.ResponseWriter, r *http.Request) {
 	if engines.RequireModules(tenantID, "pim") == nil {
 		scope.PIM, _ = checkPermission(tenantID, role, "PIMTask", "read")
 	}
+	// Stage 101.12: the CRM worklist, for anyone who may read customers.
+	if engines.RequireModules(tenantID, "crm_loyalty") == nil {
+		scope.CRM, _ = checkPermission(tenantID, role, "Customer", "read")
+	}
 	inbox, err := engines.ListTaskInbox(tenantID, scope)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusInternalServerError)

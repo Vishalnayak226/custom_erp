@@ -442,11 +442,19 @@ var publicRoutes = map[string]bool{
 	"/api/v1/auth/reset-password":  true,
 	// Stage 125.2: the single-use hand-off code is the credential.
 	"/api/v1/auth/operator-handoff": true,
+	// Stage 102.1.4: a shared store phone's sign-in screen has no session.
+	// The phone's registration token (and, for pin/login, the person's PIN)
+	// is the credential, checked in the handler; pin/login ends in /login, so
+	// it shares the password login's 5-a-minute bucket.
+	"/api/v1/store-app/device/check": true,
+	"/api/v1/store-app/pin/login":    true,
 	// Stage 35.5: couriers cannot hold a human ERP bearer token. These two
 	// fixed provider endpoints are public only up to their handler's mandatory
 	// per-tenant HMAC verification; a missing or invalid signature is 401.
 	"/api/v1/integration/courier/delhivery/tracking":  true,
 	"/api/v1/integration/courier/shiprocket/tracking": true,
+	// Stage 99: Shopify's webhooks, proven by the channel's own HMAC secret.
+	"/api/v1/integration/shopify/webhook": true,
 	// Stage 39.6: the Knowledge Center is authenticated by default. These three
 	// serve only articles whose own frontmatter says `public: true` - the
 	// integration/API subset an integrator needs before they have a login. The
@@ -465,6 +473,17 @@ var publicRoutes = map[string]bool{
 	// carried as a query parameter instead of a header because this route
 	// has to be openable from a plain browser click.
 	"/api/v1/pim/catalog-share": true,
+	// Stage 101: a customer's own preference / unsubscribe and feedback pages
+	// (the link's random token, stored only as a hash, is the credential; it
+	// names no customer), and provider callbacks (the sender's callback key,
+	// plus WhatsApp's X-Hub-Signature-256 checked against the app secret).
+	"/api/v1/crm/public/preferences": true,
+	"/api/v1/crm/public/unsubscribe": true,
+	"/api/v1/crm/public/feedback":    true,
+	"/api/v1/crm/hooks/whatsapp":     true,
+	"/api/v1/crm/hooks/sms":          true,
+	"/api/v1/crm/hooks/email":        true,
+	"/api/v1/crm/hooks/webhook":      true,
 	// BLD-031 (2026-09-23): Shopify itself cannot hold a human ERP bearer
 	// token either - the same reasoning as the courier routes above, missed
 	// when these two were added (Stage 14.21-14.24/16). Without this entry
@@ -946,8 +965,10 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		username := ""
 		role := ""
 		locationCode := ""
+		storeView := "" // Stage 106.6: "store" = lists follow the working store
 		purpose := ""
 		scopeDoctype := ""
+		storeDevice := ""
 
 		// Inspect Authorization Header
 		authHeader := r.Header.Get("Authorization")
@@ -962,6 +983,13 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				locationCode = claims["loc"]
 				purpose = claims["purpose"]
 				scopeDoctype = claims["scope_doctype"]
+				// Stage 102.1.4: a PIN sign-in on a registered store phone
+				// names that phone; removing the phone ends the session now.
+				storeDevice = claims["dev"]
+				if storeDevice != "" && !engines.StoreAppDeviceActive(claims["tenant"], storeDevice) {
+					writeAPIError(w, r, "GLOBAL-0009", "")
+					return
+				}
 
 				// Stage 44: a token is authoritative for its own tenant, so
 				// the hostname must agree with it or the request is refused.
@@ -1025,6 +1053,9 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 					// user switched to - kept only while they may still work
 					// there, otherwise their home store.
 					locationCode = live.WorkingStore(locationCode)
+					if live.ListsFollowWorkingStore() {
+						storeView = engines.StoreViewStore
+					}
 
 					// 49.2.2/49.2.4: a full session token (purpose == "",
 					// i.e. never an MFA enrollment/challenge or extension
@@ -1086,6 +1117,7 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// spellings for one role.
 		r.Header.Set("Resolved-Role", engines.CanonicalRole(role))
 		r.Header.Set("Resolved-Location", locationCode)
+		r.Header.Set("Resolved-Store-View", storeView)
 		// Resolved-Purpose is only non-empty for narrowly-scoped MFA
 		// enrollment/challenge tokens (see engines.SignPurposeToken) - a full
 		// session token has no "purpose" claim, so this stays "".
@@ -1094,6 +1126,8 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// (Stage 14.17-14.20, engines.SignExtensionToken) - enforced
 		// explicitly in handleGenericDoc, not a general-purpose claim.
 		r.Header.Set("Resolved-Scope-Doctype", scopeDoctype)
+		// Stage 102.1.4: the registered phone a PIN session runs on, else "".
+		r.Header.Set("Resolved-Store-Device", storeDevice)
 
 		// Stage 47.1.1: route-capability enforcement (route_capabilities.go),
 		// once every Resolved-* header above is set. Skipped only for

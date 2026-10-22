@@ -1641,6 +1641,45 @@
           ]
         },
         {
+          "slug": "shopify",
+          "title": "Shopify",
+          "section": "Module Handbooks",
+          "order": 46,
+          "summary": "Connect a Shopify shop - products with their variants, prices and stock per location go out from the ERP; whole orders, changes, refunds and payouts come in; shipping, cancellations and RTO go back.",
+          "audience": "admin, OMS staff, store manager",
+          "screens": [
+            "oms",
+            "doctype:channel",
+            "doctype:channelsyncrun"
+          ],
+          "last_verified": "2026-10-22",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "channel-connectors",
+          "task": "Shopify",
+          "prerequisites": "An administrator for the setup; a Shopify custom app with the scopes listed below",
+          "applies_to": "source documentation; scoped release acceptance required",
+          "source_path": "module-handbooks/shopify.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Connect (administrator)",
+              "slug": "connect-administrator"
+            },
+            {
+              "level": 2,
+              "text": "What happens by itself",
+              "slug": "what-happens-by-itself"
+            },
+            {
+              "level": 2,
+              "text": "If something is wrong",
+              "slug": "if-something-is-wrong"
+            }
+          ]
+        },
+        {
           "slug": "pim-pxm",
           "title": "Product Information Management",
           "section": "Module Handbooks",
@@ -2441,6 +2480,49 @@
           ]
         },
         {
+          "slug": "custom-dashboards",
+          "title": "Custom dashboards",
+          "section": "Module Handbooks",
+          "order": 95,
+          "summary": "Build your own charts and number tiles from the ERP's data - sales, stock, buying, customers, money - filtered by date and store; share them, make one a role's home screen, export or email them.",
+          "audience": "owner, store manager, admin",
+          "screens": [
+            "reports",
+            "home"
+          ],
+          "last_verified": "2026-10-22",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "reports",
+          "task": "Custom dashboards",
+          "prerequisites": "Signed-in account with the Reports module; building needs Create on Dashboard Layout",
+          "applies_to": "source documentation; scoped release acceptance required",
+          "source_path": "module-handbooks/custom-dashboards.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "What you see",
+              "slug": "what-you-see"
+            },
+            {
+              "level": 2,
+              "text": "Building one",
+              "slug": "building-one"
+            },
+            {
+              "level": 2,
+              "text": "Taking it with you",
+              "slug": "taking-it-with-you"
+            },
+            {
+              "level": 2,
+              "text": "If something is missing",
+              "slug": "if-something-is-missing"
+            }
+          ]
+        },
+        {
           "slug": "manufacturing-mrp",
           "title": "Manufacturing \u0026 MRP",
           "section": "Module Handbooks",
@@ -3007,6 +3089,11 @@
             },
             {
               "level": 3,
+              "text": "CRM Customer Summary",
+              "slug": "crm-customer-summary"
+            },
+            {
+              "level": 3,
               "text": "Campaign Performance",
               "slug": "campaign-performance"
             },
@@ -3014,6 +3101,16 @@
               "level": 3,
               "text": "Campaign ROI",
               "slug": "campaign-roi"
+            },
+            {
+              "level": 3,
+              "text": "Campaign Summary",
+              "slug": "campaign-summary"
+            },
+            {
+              "level": 3,
+              "text": "Clienteling Tasks",
+              "slug": "clienteling-tasks"
             },
             {
               "level": 3,
@@ -3027,8 +3124,23 @@
             },
             {
               "level": 3,
+              "text": "Consent Audit",
+              "slug": "consent-audit"
+            },
+            {
+              "level": 3,
               "text": "Coupon / Voucher Usage Report",
               "slug": "coupon-voucher-usage-report"
+            },
+            {
+              "level": 3,
+              "text": "Coupon Use",
+              "slug": "coupon-use"
+            },
+            {
+              "level": 3,
+              "text": "Credited Sales",
+              "slug": "credited-sales"
             },
             {
               "level": 3,
@@ -3067,6 +3179,16 @@
             },
             {
               "level": 3,
+              "text": "Feedback and NPS",
+              "slug": "feedback-and-nps"
+            },
+            {
+              "level": 3,
+              "text": "Journey Performance",
+              "slug": "journey-performance"
+            },
+            {
+              "level": 3,
               "text": "Loyalty Ledger Summary",
               "slug": "loyalty-ledger-summary"
             },
@@ -3087,13 +3209,43 @@
             },
             {
               "level": 3,
+              "text": "Message Cost",
+              "slug": "message-cost"
+            },
+            {
+              "level": 3,
+              "text": "Message Detail",
+              "slug": "message-detail"
+            },
+            {
+              "level": 3,
               "text": "RFM Customer Segmentation",
               "slug": "rfm-customer-segmentation"
             },
             {
               "level": 3,
+              "text": "RFM and Lifecycle",
+              "slug": "rfm-and-lifecycle"
+            },
+            {
+              "level": 3,
               "text": "Repeat Purchase Report",
               "slug": "repeat-purchase-report"
+            },
+            {
+              "level": 3,
+              "text": "Sales Pipeline",
+              "slug": "sales-pipeline"
+            },
+            {
+              "level": 3,
+              "text": "Segment Members",
+              "slug": "segment-members"
+            },
+            {
+              "level": 3,
+              "text": "Service SLA",
+              "slug": "service-sla"
             },
             {
               "level": 2,
@@ -4945,6 +5097,11 @@
           "headings": [
             {
               "level": 2,
+              "text": "2026-10-22",
+              "slug": "2026-10-22"
+            },
+            {
+              "level": 2,
               "text": "2026-10-21",
               "slug": "2026-10-21"
             },
@@ -5067,16 +5224,6 @@
               "level": 2,
               "text": "2026-09-09",
               "slug": "2026-09-09"
-            },
-            {
-              "level": 2,
-              "text": "2026-09-08",
-              "slug": "2026-09-08"
-            },
-            {
-              "level": 2,
-              "text": "2026-09-10",
-              "slug": "2026-09-10"
             }
           ]
         },
@@ -5101,6 +5248,16 @@
               "level": 2,
               "text": "2026-09-08",
               "slug": "2026-09-08"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-10",
+              "slug": "2026-09-10"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-08",
+              "slug": "2026-09-08-2"
             },
             {
               "level": 2,
@@ -5563,8 +5720,93 @@
             },
             {
               "level": 2,
+              "text": "CRM",
+              "slug": "crm"
+            },
+            {
+              "level": 2,
+              "text": "CRM / Appointments",
+              "slug": "crm-appointments"
+            },
+            {
+              "level": 2,
+              "text": "CRM / Campaigns",
+              "slug": "crm-campaigns"
+            },
+            {
+              "level": 2,
+              "text": "CRM / Clienteling",
+              "slug": "crm-clienteling"
+            },
+            {
+              "level": 2,
+              "text": "CRM / Customer links",
+              "slug": "crm-customer-links"
+            },
+            {
+              "level": 2,
               "text": "CRM / Customers",
               "slug": "crm-customers"
+            },
+            {
+              "level": 2,
+              "text": "CRM / Feedback",
+              "slug": "crm-feedback"
+            },
+            {
+              "level": 2,
+              "text": "CRM / Journeys",
+              "slug": "crm-journeys"
+            },
+            {
+              "level": 2,
+              "text": "CRM / Lists",
+              "slug": "crm-lists"
+            },
+            {
+              "level": 2,
+              "text": "CRM / Messages",
+              "slug": "crm-messages"
+            },
+            {
+              "level": 2,
+              "text": "CRM / Pipeline",
+              "slug": "crm-pipeline"
+            },
+            {
+              "level": 2,
+              "text": "CRM / Privacy",
+              "slug": "crm-privacy"
+            },
+            {
+              "level": 2,
+              "text": "CRM / Referrals",
+              "slug": "crm-referrals"
+            },
+            {
+              "level": 2,
+              "text": "CRM / Segments",
+              "slug": "crm-segments"
+            },
+            {
+              "level": 2,
+              "text": "CRM / Senders",
+              "slug": "crm-senders"
+            },
+            {
+              "level": 2,
+              "text": "CRM / Service",
+              "slug": "crm-service"
+            },
+            {
+              "level": 2,
+              "text": "CRM / Templates",
+              "slug": "crm-templates"
+            },
+            {
+              "level": 2,
+              "text": "CRM / Vouchers",
+              "slug": "crm-vouchers"
             },
             {
               "level": 2,
@@ -5643,6 +5885,11 @@
             },
             {
               "level": 2,
+              "text": "Integrations",
+              "slug": "integrations"
+            },
+            {
+              "level": 2,
               "text": "Inventory",
               "slug": "inventory"
             },
@@ -5655,6 +5902,30 @@
               "level": 2,
               "text": "Manufacturing / Production",
               "slug": "manufacturing-production"
+            }
+          ]
+        },
+        {
+          "slug": "error-code-reference-2",
+          "title": "Error code reference (part 2)",
+          "section": "Troubleshooting",
+          "order": 21,
+          "summary": "Error codes for Master Data to WMS / Logistics, continued from the error code reference.",
+          "audience": "everyone",
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Error code reference (part 2)",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
+          "source_path": "troubleshooting/error-code-reference-2.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Contents",
+              "slug": "contents"
             },
             {
               "level": 2,
@@ -5675,30 +5946,6 @@
               "level": 2,
               "text": "Observability / Incident",
               "slug": "observability-incident"
-            }
-          ]
-        },
-        {
-          "slug": "error-code-reference-2",
-          "title": "Error code reference (part 2)",
-          "section": "Troubleshooting",
-          "order": 21,
-          "summary": "Error codes for Omnichannel / OMS to WMS / Logistics, continued from the error code reference.",
-          "audience": "everyone",
-          "last_verified": "2026-09-10",
-          "owner": "documentation-maintainer",
-          "status": "active",
-          "topic_type": "reference",
-          "module": "platform",
-          "task": "Error code reference (part 2)",
-          "prerequisites": "Authorized access to the relevant ERP task",
-          "applies_to": "source registries; not release acceptance",
-          "source_path": "troubleshooting/error-code-reference-2.md",
-          "headings": [
-            {
-              "level": 2,
-              "text": "Contents",
-              "slug": "contents"
             },
             {
               "level": 2,
@@ -5904,6 +6151,7 @@
       "wms-start-here"
     ],
     "doctype:channel": [
+      "shopify",
       "channel-connectors"
     ],
     "doctype:channelcategorymap": [
@@ -5916,6 +6164,7 @@
       "channel-connectors"
     ],
     "doctype:channelsyncrun": [
+      "shopify",
       "channel-connectors"
     ],
     "doctype:channelvalidationrule": [
@@ -6038,6 +6287,7 @@
       "using-task-help"
     ],
     "home": [
+      "custom-dashboards",
       "finding-your-way-around"
     ],
     "hr": [
@@ -6101,6 +6351,7 @@
     "oms": [
       "courier-integrations",
       "oms-order-management",
+      "shopify",
       "channel-connectors",
       "first-order",
       "journey-store-manager",
@@ -6156,6 +6407,7 @@
       "journey-warehouse-operator"
     ],
     "reports": [
+      "custom-dashboards",
       "crm-loyalty",
       "finance-tax",
       "pim-pxm",
@@ -6252,5 +6504,5 @@
       "wms-start-here"
     ]
   },
-  "article_count": 56
+  "article_count": 58
 }

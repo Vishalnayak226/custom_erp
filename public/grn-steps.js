@@ -240,8 +240,14 @@ function priceShown(l, field) {
   return e[field + '_shown'] !== undefined ? e[field + '_shown'] : shownPrice(l, e[field]);
 }
 
+// 118.4: the product name, then design · Combination ID · batch, then the
+// Colour / Size... values in the client's attribute order - as the GRN line
+// table shows them (118.3).
 function itemCell(l) {
-  return `<div class="gs-item"><b>${esc(l.item_name || l.sku)}</b>${l.item_name ? `<div class="text-muted">${esc(l.sku)}${l.batch_no ? ' &middot; batch ' + esc(l.batch_no) : ''}</div>` : ''}${l.gst_warning ? `<div class="gs-amber">${esc(l.gst_warning)}</div>` : ''}</div>`;
+  const ids = [l.design, l.item_name ? l.sku : '', l.batch_no ? 'batch ' + l.batch_no : ''].filter(Boolean).map(esc).join(' &middot; ');
+  const cols = gs?.view?.attribute_columns || [];
+  const attrs = (l.attributes ? cols.map(c => l.attributes[c.code]) : []).filter(Boolean).map(esc).join(' &middot; ');
+  return `<div class="gs-item"><b>${esc(l.item_name || l.sku)}</b>${ids ? `<div class="text-muted">${ids}</div>` : ''}${attrs ? `<div class="text-muted">${attrs}</div>` : ''}${l.gst_warning ? `<div class="gs-amber">${esc(l.gst_warning)}</div>` : ''}</div>`;
 }
 
 function numInput(lineNo, field, value, step = 'any', extra = '') {
@@ -311,7 +317,7 @@ function priceHTML(v) {
       <input id="gs-name-${c.key}" class="form-input gs-name" data-group="${c.group}" value="${esc(gs.names[c.group] ?? c.name)}"></div>`).join('')}</div>` : '';
   const rows = v.lines.map(l => {
     const prev = l.prev_price == null ? '<span class="gs-amber">never bought</span>'
-      : `${money(l.prev_price)}<div class="text-muted">${esc(l.prev_vendor || '')}${l.prev_date ? ' &middot; ' + esc(l.prev_date) : ''}</div>`;
+      : `${money(l.prev_price)}<div class="text-muted">${esc(l.prev_vendor_name || l.prev_vendor || '')}${l.prev_date ? ' &middot; ' + esc(l.prev_date) : ''}</div>`;
     const pct = l.price_change_pct == null ? '' : `<span class="${l.price_change_pct > 0 ? 'gs-red' : (l.price_change_pct < 0 ? 'gs-ok' : '')}">${l.price_change_pct > 0 ? '&#9650; +' : (l.price_change_pct < 0 ? '&#9660; ' : '')}${l.price_change_pct}%</span>`;
     const group = priced
       ? `<select class="form-select gs-move" data-sku="${esc(l.sku)}" aria-label="Child for ${esc(l.sku)}">${Object.entries(GROUP_LABEL).map(([g, label]) =>
@@ -643,7 +649,7 @@ export function renderGRNInbox(el, rows, onOpen, tab) {
       ${t.label} <span class="txn-count">${counts[t.key].n}</span>${t.key !== 'done' && counts[t.key].n ? `<span class="text-muted"> oldest ${ageText(counts[t.key].oldest)}</span>` : ''}</button>`).join('')}</div>
     <table><thead><tr><th>GRN</th><th>Vendor</th><th>Invoice</th><th class="num">Invoice total</th><th>Waiting</th><th></th></tr></thead>
     <tbody>${list.length ? list.map(r => `<tr>
-      <td style="font-family: monospace;">${esc(r.code)}</td><td>${esc(r.vendor)}</td><td>${esc(r.vendor_invoice_no)}</td>
+      <td style="font-family: monospace;">${esc(r.code)}</td><td>${esc(r.vendor_name || r.vendor)}</td><td>${esc(r.vendor_invoice_no)}</td>
       <td class="num">${money(r.vendor_invoice_amount)}</td>
       <td>${esc(ageText(r.age_hours))}${r.excess_pending ? ' <span class="gs-amber">approval pending</span>' : ''}${r.payment_status ? ` &middot; ${esc(r.payment_status)}` : ''}</td>
       <td><button type="button" class="btn btn-outline btn-sm" data-gs-open="${esc(r.id)}">Open</button></td></tr>`).join('')

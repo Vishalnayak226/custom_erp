@@ -18,6 +18,9 @@ import (
 // SetupWorkbookDoctype is the ImportJob doctype_name a run is filed under.
 const SetupWorkbookDoctype = "SetupWorkbook"
 
+// BulkPurchaseDoctype files a Bulk Purchase Upload run (Stage 129) the same way.
+const BulkPurchaseDoctype = "BulkPurchase"
+
 // setupWorkbookStaleAfter: a run still "Running" this long after its last
 // progress write was cut off (the server restarted mid-run). Re-uploading
 // the same file finishes it, since applying a workbook twice changes nothing
@@ -26,13 +29,19 @@ const setupWorkbookStaleAfter = 10 * time.Minute
 
 // CreateSetupWorkbookRun records a run that is about to start.
 func CreateSetupWorkbookRun(tenantID, createdBy, fileName string, file []byte) (string, error) {
+	return CreateWorkbookRun(tenantID, SetupWorkbookDoctype, createdBy, fileName, file)
+}
+
+// CreateWorkbookRun records a run of an uploaded workbook of the given kind
+// (SetupWorkbookDoctype, BulkPurchaseDoctype) that is about to start.
+func CreateWorkbookRun(tenantID, kind, createdBy, fileName string, file []byte) (string, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return "", err
 	}
 	id := NewDocIDCompact("IMPJOB")
 	data := map[string]interface{}{
-		"id": id, "code": id, "doctype_name": SetupWorkbookDoctype, "status": "Running",
+		"id": id, "code": id, "doctype_name": kind, "status": "Running",
 		"file_name": fileName, "file_b64": base64.StdEncoding.EncodeToString(file),
 		"total_rows": 0, "success_rows": 0, "failed_rows": 0,
 		"started_at": time.Now().UTC().Format(time.RFC3339),
@@ -51,6 +60,11 @@ func CreateSetupWorkbookRun(tenantID, createdBy, fileName string, file []byte) (
 // UpdateSetupWorkbookRun merges fields into a run; a "status" field also
 // moves the document's own status.
 func UpdateSetupWorkbookRun(tenantID, id string, fields map[string]interface{}) error {
+	return UpdateWorkbookRun(tenantID, SetupWorkbookDoctype, id, fields)
+}
+
+// UpdateWorkbookRun is UpdateSetupWorkbookRun for a run of any kind.
+func UpdateWorkbookRun(tenantID, kind, id string, fields map[string]interface{}) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
@@ -63,13 +77,18 @@ func UpdateSetupWorkbookRun(tenantID, id string, fields map[string]interface{}) 
 	_, err = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || $1::jsonb,
 		status = CASE WHEN $2 = '' THEN status ELSE $2 END, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $3 AND doctype = 'ImportJob' AND data->>'doctype_name' = $4`, schema),
-		raw, status, id, SetupWorkbookDoctype)
+		raw, status, id, kind)
 	return err
 }
 
 // ListSetupWorkbookRuns returns the latest runs, newest first, without
 // their files.
 func ListSetupWorkbookRuns(tenantID string, limit int) ([]map[string]interface{}, error) {
+	return ListWorkbookRuns(tenantID, SetupWorkbookDoctype, limit)
+}
+
+// ListWorkbookRuns is ListSetupWorkbookRuns for runs of any kind.
+func ListWorkbookRuns(tenantID, kind string, limit int) ([]map[string]interface{}, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
@@ -79,7 +98,7 @@ func ListSetupWorkbookRuns(tenantID string, limit int) ([]map[string]interface{}
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT (data - 'file_b64')::text, created_by, created_at, COALESCE(updated_at, created_at)
 		FROM %s.documents WHERE doctype = 'ImportJob' AND data->>'doctype_name' = $1 AND deleted_at IS NULL
-		ORDER BY created_at DESC LIMIT $2`, schema), SetupWorkbookDoctype, limit)
+		ORDER BY created_at DESC LIMIT $2`, schema), kind, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -105,6 +124,11 @@ func ListSetupWorkbookRuns(tenantID string, limit int) ([]map[string]interface{}
 
 // GetSetupWorkbookRun returns one run without its file.
 func GetSetupWorkbookRun(tenantID, id string) (map[string]interface{}, error) {
+	return GetWorkbookRun(tenantID, SetupWorkbookDoctype, id)
+}
+
+// GetWorkbookRun is GetSetupWorkbookRun for a run of any kind.
+func GetWorkbookRun(tenantID, kind, id string) (map[string]interface{}, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
@@ -113,9 +137,9 @@ func GetSetupWorkbookRun(tenantID, id string) (map[string]interface{}, error) {
 	var created, updated time.Time
 	err = db.DB.QueryRow(fmt.Sprintf(`SELECT (data - 'file_b64')::text, created_by, created_at, COALESCE(updated_at, created_at)
 		FROM %s.documents WHERE id = $1 AND doctype = 'ImportJob' AND data->>'doctype_name' = $2 AND deleted_at IS NULL`, schema),
-		id, SetupWorkbookDoctype).Scan(&raw, &by, &created, &updated)
+		id, kind).Scan(&raw, &by, &created, &updated)
 	if err != nil {
-		return nil, fmt.Errorf("setup workbook run %s not found", id)
+		return nil, fmt.Errorf("upload run %s not found", id)
 	}
 	run := map[string]interface{}{}
 	if err := json.Unmarshal([]byte(raw), &run); err != nil {
@@ -129,6 +153,11 @@ func GetSetupWorkbookRun(tenantID, id string) (map[string]interface{}, error) {
 
 // GetSetupWorkbookRunFile returns the workbook a run was given.
 func GetSetupWorkbookRunFile(tenantID, id string) (string, []byte, error) {
+	return GetWorkbookRunFile(tenantID, SetupWorkbookDoctype, id)
+}
+
+// GetWorkbookRunFile is GetSetupWorkbookRunFile for a run of any kind.
+func GetWorkbookRunFile(tenantID, kind, id string) (string, []byte, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return "", nil, err
@@ -136,9 +165,9 @@ func GetSetupWorkbookRunFile(tenantID, id string) (string, []byte, error) {
 	var name, b64 string
 	err = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'file_name', ''), COALESCE(data->>'file_b64', '')
 		FROM %s.documents WHERE id = $1 AND doctype = 'ImportJob' AND data->>'doctype_name' = $2 AND deleted_at IS NULL`, schema),
-		id, SetupWorkbookDoctype).Scan(&name, &b64)
+		id, kind).Scan(&name, &b64)
 	if err != nil || b64 == "" {
-		return "", nil, fmt.Errorf("setup workbook run %s has no file", id)
+		return "", nil, fmt.Errorf("upload run %s has no file", id)
 	}
 	file, err := base64.StdEncoding.DecodeString(b64)
 	if err != nil {

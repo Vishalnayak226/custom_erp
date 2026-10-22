@@ -110,6 +110,7 @@ func ListDashboardLayouts(tenantID, userID, role string) ([]map[string]interface
 		SELECT d.id, COALESCE(d.data->>'name', ''), COALESCE(d.data->>'tiles_json', '[]'), COALESCE(d.data->>'owner', ''), COALESCE(d.data->>'role', '')
 		FROM %s.documents d
 		WHERE d.doctype = 'DashboardLayout' AND d.deleted_at IS NULL AND d.status = 'Active'
+		  AND COALESCE(d.data->>'kind', '') <> 'custom' -- Stage 100: custom dashboards list on their own
 		  AND (COALESCE(d.data->>'owner', '') = $1 OR COALESCE(d.data->>'role', '') = $2)
 		ORDER BY d.created_at DESC`, schema), userID, role)
 	if err != nil {
@@ -254,7 +255,10 @@ func runDashboardDigest(ctx context.Context, schema, tenantID, id, runBy string,
 	totalRows := -1
 
 	tiles, terr := getDashboardLayoutTiles(schema, layoutID)
-	if terr != nil {
+	// Stage 100.3.4: a custom dashboard's digest carries its charts.
+	if cd, cerr := getCustomDashboard(schema, layoutID); cerr == nil {
+		runStatus, totalRows = deliverCustomDashboardDigest(schema, tenantID, id, role, cd, data)
+	} else if terr != nil {
 		runStatus = "Failed: " + terr.Error()
 	} else if len(tiles) == 0 {
 		runStatus = "Failed: dashboard layout has no tiles"

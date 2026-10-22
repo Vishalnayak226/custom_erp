@@ -1,7 +1,7 @@
 {
   "name": "Wholeops Store",
   "short_name": "Store",
-  "description": "Approvals and item lookup for store staff.",
+  "description": "Approvals, sales, stock and the selling floor for store staff.",
   "id": "/store/",
   "start_url": "./",
   "scope": "./",

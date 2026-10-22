@@ -219,9 +219,15 @@
             </svg>
           </a>
           <ul class="menu-flyout">
-            <li><a class="menu-item" id="menu-customers" data-doctype="Customer"><span>Customers</span></a></li>
+            <li><a class="menu-item" id="menu-crm" data-go="crm"><span>CRM overview</span></a></li>
+            <li><a class="menu-item" id="menu-customers" data-go="crm:customers"><span>Customers</span></a></li>
+            <li><a class="menu-item" id="menu-crm-segments" data-go="crm:segments"><span>Segments</span></a></li>
+            <li><a class="menu-item" id="menu-campaigns" data-go="crm:campaigns"><span>Campaigns</span></a></li>
+            <li><a class="menu-item" id="menu-crm-journeys" data-go="crm:journeys"><span>Journeys</span></a></li>
+            <li><a class="menu-item" id="menu-crm-inbox" data-go="crm:inbox"><span>Inbox</span></a></li>
+            <li><a class="menu-item" id="menu-crm-worklist" data-go="crm:worklist"><span>Worklist</span></a></li>
+            <li><a class="menu-item" id="menu-crm-pipeline" data-go="crm:pipeline"><span>Pipeline</span></a></li>
             <li><a class="menu-item" id="menu-loyalty"><span>Loyalty</span></a></li>
-            <li><a class="menu-item" id="menu-campaigns" data-go="doctype-table" data-doctype="Campaign"><span>Campaigns</span></a></li>
             <li><a class="menu-item" id="menu-vouchers" data-go="doctype-table" data-doctype="Voucher"><span>Vouchers</span></a></li>
             <li><a class="menu-item" id="menu-service-tickets" data-go="doctype-table" data-doctype="ServiceTicket"><span>Service Tickets</span></a></li>
           </ul>
@@ -786,7 +792,7 @@
   <!-- 21.14: this app's first Web Component - plain <script>, no build
        step, registers <erp-typeahead> globally before app.js runs. -->
   <script src="/components/erp-typeahead.js?v=1"></script>
-  <script src="/app.js?v=59"></script>
+  <script src="/app.js?v=60"></script>
   <!-- 31.1: QZ Tray bridge for silent printing. Loaded after app.js because
        it calls apiFetch() for the certificate and per-request signature. -->
   <script src="/qz-print.js?v=1"></script>

@@ -476,26 +476,9 @@ func InventoryDashboard(tenantID, location string) (map[string]interface{}, erro
 	rows.Close()
 	out["by_location"], out["total_units"], out["total_value"] = byLocation, totalUnits, PaiseToRupees(totalValue)
 
-	// Low: free stock at or under its safety stock (the row's own, or a
-	// reorder-point config's), or none left at all.
-	low, err := queryMaps(fmt.Sprintf(`
-		SELECT ia.sku, ia.location_code, (ia.available - ia.blocked - ia.hold_qty) AS free,
-		       GREATEST(ia.safety_stock, COALESCE((SELECT MAX(COALESCE((r.data->>'safety_stock_qty')::numeric, 0)) FROM %s.documents r
-		         WHERE r.doctype = 'ReorderPointConfig' AND r.deleted_at IS NULL AND r.data->>'item' = ia.sku AND r.data->>'location_code' = ia.location_code), 0))::int AS safety
-		  FROM %s.inventory_availability ia
-		 WHERE ($1 = '' OR ia.location_code = $1)`, schema, schema), location)
+	lowStock, err := inventoryLowStock(schema, location, 20)
 	if err != nil {
 		return nil, err
-	}
-	lowStock := []map[string]interface{}{}
-	for _, r := range low {
-		free, safety := numFromInterface(r["free"]), numFromInterface(r["safety"])
-		if free <= 0 || (safety > 0 && free <= safety) {
-			lowStock = append(lowStock, r)
-		}
-		if len(lowStock) == 20 {
-			break
-		}
 	}
 	out["low_stock"] = lowStock
 
@@ -550,4 +533,42 @@ func queryMaps(query string, arg interface{}) ([]map[string]interface{}, error) 
 		out = append(out, m)
 	}
 	return out, rows.Err()
+}
+
+// inventoryLowStock is the Inventory Dashboard's low-stock rule, shared with
+// the store app's push alerts (Stage 102.1.3) so the two never disagree: free
+// stock at or under its safety stock (the row's own, or a reorder-point
+// config's), or none left at all. location "" = every location; limit 0 =
+// every row.
+func inventoryLowStock(schema, location string, limit int) ([]map[string]interface{}, error) {
+	low, err := queryMaps(fmt.Sprintf(`
+		SELECT ia.sku, ia.location_code, (ia.available - ia.blocked - ia.hold_qty) AS free,
+		       GREATEST(ia.safety_stock, COALESCE((SELECT MAX(COALESCE((r.data->>'safety_stock_qty')::numeric, 0)) FROM %s.documents r
+		         WHERE r.doctype = 'ReorderPointConfig' AND r.deleted_at IS NULL AND r.data->>'item' = ia.sku AND r.data->>'location_code' = ia.location_code), 0))::int AS safety
+		  FROM %s.inventory_availability ia
+		 WHERE ($1 = '' OR ia.location_code = $1)`, schema, schema), location)
+	if err != nil {
+		return nil, err
+	}
+	// The database hands integers back as int64, which numFromInterface reads
+	// as 0 - so before Stage 102 every row with stock passed "free <= 0" and
+	// the dashboard listed in-stock items as low. Read them as numbers here.
+	num := func(v interface{}) float64 {
+		if n, ok := v.(int64); ok {
+			return float64(n)
+		}
+		return numFromInterface(v)
+	}
+	lowStock := []map[string]interface{}{}
+	for _, r := range low {
+		free, safety := num(r["free"]), num(r["safety"])
+		r["free"], r["safety"] = free, safety
+		if free <= 0 || (safety > 0 && free <= safety) {
+			lowStock = append(lowStock, r)
+		}
+		if limit > 0 && len(lowStock) == limit {
+			break
+		}
+	}
+	return lowStock, nil
 }

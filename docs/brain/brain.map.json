@@ -132,11 +132,17 @@
       "id": "store-app",
       "lobe": "cortex",
       "name": "Store App (PWA)",
-      "role": "Installable phone app for store staff at /store/ (Stage 102): ERP sign-in, working store, approvals from the task inbox, and scan-an-item (price, stock per store, batch age) through one read-only lookup.",
+      "role": "Installable phone app for store staff at /store/ (Stage 102): ERP sign-in or a PIN on a registered store phone, working store, approvals, scan-an-item, Today, receive / count / labels by scanning, basket to the till, order from another store, push alerts (Web Push, VAPID), and the CRM tiles Serve a customer and My tasks (Stage 101).",
       "match": [
         "public/store/*",
         "engines/store_app.go",
-        "internal/server/handlers_store_app.go"
+        "engines/store_app_devices.go",
+        "engines/store_app_floor.go",
+        "engines/store_app_stock.go",
+        "engines/store_app_today.go",
+        "engines/web_push.go",
+        "internal/server/handlers_store_app.go",
+        "internal/server/handlers_store_app_more.go"
       ]
     },
     {
@@ -192,6 +198,7 @@
         "engines/number_series.go",
         "engines/master_codes.go",
         "engines/master_recode.go",
+        "engines/location_code_change.go",
         "engines/document_regions.go",
         "engines/master_data_validation.go",
         "engines/reason_codes.go",
@@ -219,6 +226,7 @@
         "engines/auth.go",
         "engines/auth_livestate.go",
         "engines/store_access.go",
+        "engines/store_view.go",
         "internal/server/handlers_store_access.go",
         "engines/mfa.go",
         "engines/mfa_recovery.go",
@@ -375,7 +383,7 @@
       "id": "procurement",
       "lobe": "business",
       "name": "Procurement & Vendors",
-      "role": "Purchase Requisition → RFQ and vendor-quote comparison → Purchase Order → GRN → three-way-matched Vendor Invoice → payment, with the requisition catalog and sourcing rules. Also Purchase Return (Stage 57.15): return to vendor against the original GRN, stock out and an automatic Debit Note. Goods receipt in steps (Stage 94): receive, verify, price check into child GRNs, MRP per batch and posting per child, the invoice-vs-GRN note, the auto vendor bill, optional payment, correct after posting, and the grn_line / grn_line_change reports.",
+      "role": "Purchase Requisition → RFQ and vendor-quote comparison → Purchase Order → GRN → three-way-matched Vendor Invoice → payment, with the requisition catalog and sourcing rules. Also Purchase Return (Stage 57.15): return to vendor against the original GRN, stock out and an automatic Debit Note. Goods receipt in steps (Stage 94): receive, verify, price check into child GRNs, MRP per batch and posting per child, the invoice-vs-GRN note, the auto vendor bill, optional payment, correct after posting, and the grn_line / grn_line_change reports. Bulk Purchase Upload (Stage 129): vendors, designs, POs and the goods receipts of their bills from one Excel file.",
       "match": [
         "engines/procurement.go",
         "engines/rfq.go",
@@ -399,7 +407,8 @@
         "engines/po_auto_cancel.go",
         "internal/server/handlers_po_policy.go",
         "engines/rfq_sourcing.go",
-        "internal/server/handlers_rfq.go"
+        "internal/server/handlers_rfq.go",
+        "internal/server/bulk_purchase*"
       ]
     },
     {
@@ -562,10 +571,15 @@
       "id": "crm",
       "lobe": "business",
       "name": "CRM & Loyalty",
-      "role": "Append-only loyalty points ledger with tiering and expiry, redemption security controls, birthday/lapsed-customer campaigns, and customer analytics/reports.",
+      "role": "Append-only loyalty points ledger with tiering, expiry and pending points, redemption security controls, and the Stage 101 CRM platform: one customer page and timeline, consent ledger and preference page, segments and lifecycle, the send gate every message passes, templates and senders (email, DLT SMS, WhatsApp Cloud), campaigns, journeys, feedback, tickets, WhatsApp inbox, voucher holds, referrals, clienteling, and the business-buyer pipeline; customer analytics and CRM reports.",
       "match": [
         "engines/loyalty*.go",
         "engines/campaign.go",
+        "engines/crm_*.go",
+        "internal/server/handlers_crm_platform.go",
+        "public/crm.css",
+        "public/p/*",
+        "public/f/*",
         "engines/crm_analytics.go",
         "engines/crm_reports_stage26.go",
         "internal/server/handlers_crm_analytics.go",
@@ -651,6 +665,9 @@
         "engines/dashboard*.go",
         "internal/server/handlers_report_engine.go",
         "internal/server/handlers_dashboard.go",
+        "internal/server/handlers_dashboards_custom.go",
+        "public/charts.js",
+        "public/dashboards.css",
         "cmd/gencatalog/*"
       ]
     },
@@ -693,7 +710,9 @@
         "engines/pinelabs.go",
         "engines/webhook_verify.go",
         "internal/server/handlers_integrations_admin.go",
-        "internal/server/handlers_channel_connectors.go"
+        "internal/server/handlers_channel_connectors.go",
+        "engines/shopify_sync.go",
+        "internal/server/handlers_shopify.go"
       ]
     },
     {

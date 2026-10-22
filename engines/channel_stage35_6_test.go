@@ -54,9 +54,13 @@ func TestStage356ConnectorDescriptorCoverage(t *testing.T) {
 	if len(want) != 0 {
 		t.Fatalf("missing connector descriptors: %#v", want)
 	}
-	legacy, err := ResolveOmnichannelConnector("Shopify")
+	legacy, err := ResolveOmnichannelConnector("BigCommerce")
 	if err != nil || legacy.Descriptor().PushInventory {
 		t.Fatalf("legacy capability declaration is inaccurate: %#v %v", legacy, err)
+	}
+	// Stage 99.1: Shopify is a full connector now.
+	if shopify, err := ResolveOmnichannelConnector("Shopify"); err != nil || !shopify.Descriptor().PushInventory || !shopify.Descriptor().PullOrders {
+		t.Fatalf("Shopify should declare stock push and order pull: %v", err)
 	}
 }
 

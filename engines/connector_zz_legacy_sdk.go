@@ -16,7 +16,7 @@ type legacyWebstoreConnector struct {
 }
 
 func init() {
-	registerOmnichannelConnector(legacyWebstoreConnector{code: "Shopify", delegate: shopifyConnector{}})
+	// Stage 99.1: Shopify is a full connector now (connector_shopify_sdk.go).
 	registerOmnichannelConnector(legacyWebstoreConnector{code: "BigCommerce", delegate: bigCommerceConnector{}})
 	registerOmnichannelConnector(legacyWebstoreConnector{code: "Magento", delegate: magentoConnector{}})
 	registerOmnichannelConnector(legacyWebstoreConnector{code: "AdobeCommerce", delegate: magentoConnector{}})

@@ -232,10 +232,16 @@ async function openOMSExceptionQueue(queue, label) {
         <td>${escapeHTMLText(omsWhen(r.since))}</td>
         <td class="num">${escapeHTMLText(String(r.age_hours ?? ''))}</td>
         <td>${escapeHTMLText(r.next_action || '')}</td>
-        <td>${r.ref_id && r.ref_doctype !== 'SalesOrder' ? documentSearchLink(r.ref_doctype, r.ref_id) : ''}</td>
+        <td>${r.ref_id && r.ref_doctype !== 'SalesOrder' ? documentSearchLink(r.ref_doctype, r.ref_id) : ''}${queue === 'channel' ? `<button class="btn btn-outline btn-sm" data-channel-done="${escapeHTMLText(r.order_id)}">Done</button>` : ''}</td>
       </tr>`).join('')}</tbody>
     </table></div>`;
   host.querySelectorAll('[data-open-queue-order]').forEach(btn => btn.addEventListener('click', () => openOMSOrderDetail(btn.dataset.openQueueOrder)));
+  // Stage 99.5.2: a web shop change made by hand is marked done here.
+  host.querySelectorAll('[data-channel-done]').forEach(btn => btn.addEventListener('click', async () => {
+    const res = await apiFetch(`/api/v1/oms/orders/${encodeURIComponent(btn.dataset.channelDone)}/channel-change-done`, { method: 'POST', body: '{}' });
+    if (!res || !res.ok) { await showApiError(res, 'Could not mark it done.'); return; }
+    openOMSExceptionQueue(queue, label);
+  }));
 }
 
 async function loadOMSBundleOperations() {

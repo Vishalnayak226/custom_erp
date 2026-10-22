@@ -32,6 +32,9 @@ var OMSExceptionQueueDefs = []OMSQueueDef{
 	{ID: "carrier", Label: "Carrier exceptions", Hint: "Packed but not booked for 4 hours, bookings with no movement for 48 hours, and RTOs not yet received back."},
 	{ID: "return", Label: "Returns and refunds", Hint: "Return requests open for more than 2 days and refunds waiting more than 1 day."},
 	{ID: "settlement", Label: "Settlement", Hint: "Payout lines in Variance or Disputed, and shipped channel orders with no settled payout after the aging period."},
+	// Stage 99.5.2: a web shop's edit, cancellation or refund that came after
+	// picking started - the ERP did not apply it; a person decides.
+	{ID: "channel", Label: "Channel changes", Hint: "Edits, cancellations and refunds made in the web shop after picking started - change the order by hand, then mark it done."},
 }
 
 const (
@@ -223,6 +226,20 @@ func OMSExceptionQueue(tenantID, queue string) ([]map[string]interface{}, error)
 					time.Now().Add(-time.Duration(days)*24*time.Hour)))
 			}
 		}
+	case "channel":
+		err = scan(fmt.Sprintf(`
+			SELECT id, COALESCE(data->>'channel_change_pending', ''), COALESCE(data->>'channel', ''), updated_at AT TIME ZONE current_setting('TimeZone')
+			FROM %s.documents
+			WHERE doctype = 'SalesOrder' AND deleted_at IS NULL AND COALESCE(data->>'channel_change_pending', '') <> ''`, schema),
+			func(s func(...interface{}) error) (map[string]interface{}, error) {
+				var id, change, channel string
+				var since time.Time
+				if err := s(&id, &change, &channel, &since); err != nil {
+					return nil, err
+				}
+				return omsQueueRow(queue, id, "SalesOrder", id, fmt.Sprintf("%s: %s", channel, change),
+					"Make the change on the order (or return it once shipped), then mark it done", since), nil
+			})
 	default:
 		return nil, &ValidationError{Code: "ORDERM-0464", SubFor: "queue", Message: fmt.Sprintf("unknown OMS queue %q", queue)}
 	}

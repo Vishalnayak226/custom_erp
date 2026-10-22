@@ -44,6 +44,91 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 282. Stage 101 — CRM made best-in-class: one customer page, consent ledger, segments, a send gate, templates and senders, campaigns, journeys, feedback, tickets, WhatsApp inbox, loyalty depth, clienteling, a business-buyer pipeline (2026-10-22, code + docs, NOT COMMITTED)
+
+- **Asked**: *"Stage 101 CRM: about 35. Stage 102 store app: about 10 left. Build all"* (user, 2026-10-22). All 38 open items were built in the plan's order (`docs/product/crm-platform-plan-2026-10-19.md`). D13 was built as recommended (the Stage 92 self-approval setting plus `crm.campaign_second_approver`) and awaits the user's confirmation. A fork built Stage 102 alongside it (§280).
+- **Built**:
+  - **Migration**: `db/migrations_stage101_crm_platform.sql`. It adds about 40 `crm_*` tables per client, `loyalty_point_ledger.pending_until`, new Customer, ServiceTicket and Campaign fields, the CustomerMerge and SalesQuotation record types, and approval rules only where missing.
+  - **Engine**: `engines/crm_*.go`, covering core, consent, events, lifecycle, customer, timeline, merge, segments, templates, providers, send gate, campaigns, journeys (with ready-made ones), feedback, tickets, inbox, loyalty depth, clienteling, worklist, pipeline, reports and datasets.
+  - **Routes**: 60 in `handlers_crm_platform.go`. Seven are public: the preference and feedback pages, and the provider callbacks.
+  - **Front end**: four lazy-loaded modules (`view-crm*.js`) with `crm.css`, the customer pages `/p/` and `/f/`, and the store app's Serve a customer and My tasks.
+  - **Shared code**: hooked in only at existing shared choke points:
+    - the document save (profile sources, masked contacts);
+    - `FilterFieldsForRole` and the report runner (masking);
+    - the approval engine;
+    - `redeemVoucherTx` (voucher holds);
+    - `AnonymizeCustomer` (erasure);
+    - loyalty earn and reverse (pending points);
+    - the till and returns (events);
+    - the task inbox.
+  - **Send gate**: the one path every CRM message takes. One row per run × customer × channel, with ordered checks. `Sending` is committed before the provider is called, and a send whose outcome is unknown is never resent by itself.
+- **With Stage 99 (erp-6c)**: Shopify calls `CRMErasedContactBlocked` and records order and cart events. This stage added two hooks: a Shopify checkout holds an ERP voucher code, and the paid order uses it up. If the till used the code first, the order goes to the Channel changes queue.
+- **Found and fixed**:
+  - The customer page header buttons were never wired (the code looked for them inside the page body).
+  - A points-reversal query typed one parameter two ways and broke Stage 73 till refunds (caught by erp-6c's full test run).
+  - The tenant reset refused to run while about 45 new tables were unclassified.
+  - Going Back across CRM tabs drew the page twice.
+  - A message held back for a missing link gave no hint why.
+  - The two "wait, then send" codes had no label.
+  - Store app looks were free text only, which WhatsApp refuses outside its 24-hour window.
+- **Decisions**:
+  - Uploaded lists are read with the shared CSV reader, not `BulkImportCSV`, because a list row is not a document.
+  - `crm.customer_hold_code` decides whether confirming a customer's hold also holds the stock.
+  - The tenant reset keeps `crm_suppressions` (stopped contacts) and clears consent along with the customers.
+- **Verified**:
+  - **Tests**: 25 engine tests in `engines/stage101_crm_test.go` (the blueprint's acceptance cases and the rest of the stage). The engine regression set (CRM, Stage 73, tenant reset, Shopify, loyalty, vouchers, Stage 100 datasets, store app) passes. `internal/server`, including route classification, passes except `TestAdminResetUserMFA`, which fails because the dev database lacks Stage 125.8's table.
+  - **Live walk on scratch :8161**:
+    - every CRM tab in Chromium, in light and dark themes;
+    - a segment, an SMS template and a campaign built on screen; the campaign was refused without a sender, then approved by manager1 and run by the worker;
+    - a staff SMS to a test number, delivered by the mock sender;
+    - the preference page (Stop all wrote one withdrawal) and the feedback page, both answered on a phone;
+    - the store app: found a customer, saved a note, and showed why a look could not go.
+  - **Not verified**: real email, DLT SMS and WhatsApp accounts (101.3.1, the pilot gate).
+- **Left for release**: regenerating `attack_surface.json` (60 new routes) and the KB, and redrawing the brain. The deploy will ask for YES, because it adds approval rules where a client has none.
+
+## 281. "Build all" (2026-10-22): Stage 100 custom dashboards, Stage 99 Shopify, and 90.3, 91.3, 94.17, 106.5, 106.6, 118.4, 123.3 (code + docs, NOT COMMITTED)
+
+- **Asked**: the user, 2026-10-22, on the pending list: *"Stage 99 Shopify ... Stage 100 dashboards ... 91.3, 94.17, 123.3, 118.4, 106.5 / 106.6, 90.3 - Build all"*. Built in that order: the small items, then 100 (101 / 102 read its datasets), then 99. erp-08 (Stages 101 / 102, same tree) was told the plan; its CRM datasets register on Stage 100's layer.
+- **Small items**: 90.3 - the deploy script backfills 0.1.0 / 840909b (idempotent, stamps no client). 123.3 - a store's code typed on its Edit form renames it everywhere (`location_code_change.go` on the renumber engine; old codes keep resolving, chains followed). 118.4 - GRN step pages show name, design, Combination ID and attribute values; vendor and store names on the GRN inbox, Price check, PO list and transfer Details. 106.6 - "All stores" in the store picker for those who see every store; picking a store narrows every transaction list (`users.store_view`, `Resolved-Store-View`, either side of a transfer / PO). 106.5 - each transaction screen shows its From / To from Stock Locations > Transactions, a drop-down where editable, the choice carried by the document into the stock posting. 91.3 - the setup path became a guided setup in the decided order (company, stores, tax, numbering, users, items, approval rules, print formats) with a Home card for admins. 94.17 - found already delivered by 94.28 + Stages 81 / 89; the category code on the PO entry header became its name.
+- **Stage 100**: twelve datasets built from a registry only (store scope and money cut as reports are, 60 s cache); SVG charts (number, bar, stacked, line, donut, table, pivot) with no library; a widget editor with live preview; dashboards on DashboardLayout (additive), shared with users / roles / stores, as a role's Home; five ready-made (Sales, Stock, Buying, Customers, Money); click-through to the records; CSV / Excel / PDF; a scheduled email with the charts as HTML bars and the rows as CSV.
+- **Stage 99**: Shopify as a full SDK connector (GraphQL) and its orchestration: connect and check (names missing scopes), location ↔ store map with buffer, price list, webhooks (HMAC per channel, public route), publish designs with variants and pictures (never a duplicate), link by SKU / barcode, prices and stock sent when changed (stock grouped, full daily), a mismatch report, whole orders in once with the customer and GST, Shopify changes applied until picking (then a new OMS queue, Channel changes), fulfilment / cancel / RTO back through a job, refunds as returns, payouts as settlement lines; CRM cart events from checkouts.
+- **Found**: CONN-0227 already meant something else (new CONN-0994); `money` / `writeBase64Lines` / `firstNonEmptyStr` name clashes; a widget-editor redraw racing a blur; PDF copies placed off-screen; email bars with no column width; price / timestamp baselines in the Shopify links - each fixed before close.
+- **Verified**: engine tests for each part (`TestStage1233LocationCodeChange`, `TestStage1066StoreView`, `TestStage1065DocumentStockFromTo`, `TestStage913GuidedSetupSteps`, `TestStage1001DashboardDatasets`, `TestStage1003CustomDashboards`, `TestStage991ShopifyConnector`, `TestStage999ShopifySync` against a fake Shopify); Chrome on scratch :8195 over a migrated copy of the local data (each screen walked; store manager vs owner data cut; PDF rendered; an SMTP catcher received the digest; a signed Shopify webhook imported an order, a forged one refused). Not verified: a real Shopify store (99.8, credentials), a posted receipt / dispatch through the From / To screens.
+- **Migrations** (additive): `migrations_stage106_6_store_view.sql`, `migrations_stage99_shopify_links.sql`. Cold core 183,675 / 184,320 at close. attack_surface.json regen left for the release.
+
+## 280. Stage 102 — Store app, the rest: push alerts, shared-phone PIN sign-in, Today, receive / count / labels by scanning, basket to the till, order from another store (2026-10-22, code + docs, NOT COMMITTED)
+
+- **Asked**: *"Stage 102 store app: about 10 left. Build all"* (user, 2026-10-22). D4 (decided 2026-10-21) became its own item, 102.1.4. Built by a forked session beside Stage 101 in the same tree.
+- **Built**: Web Push with the stdlib (RFC 8291 + RFC 8292; per-client VAPID key under a new `WEB_PUSH_KEY` keyring; a worker that diffs each subscriber's task-inbox approvals and the store's low stock and pushes each thing once through the job runner); registered store phones and PIN sign-in (token hash only, bcrypt PIN, store roles only, 5-strike lock, a `dev` claim the middleware checks so removing a phone ends its sessions); Today (a dataset-shaped read, compared with the same weekday last week since no target record exists); receive by scanning against step GRNs and transfers in transit, saved through the desktop's own Verify / transfer-receive endpoints; spot and full counts by scanning that work offline (spot counts become cycle-count lines, full counts add up per phone); labels from the phone as a `StoreLabelRequest` transaction the store PC prints from Print from Transaction (no second print path); a basket that is a held bill the till resumes (new Find a basket box in the lazy `view-pos-extras.js`); a home-delivery order through `CreateSalesOrder`. The store app became a shell plus on-demand modules (`store-today.js`, `store-stock.js`, `store-floor.js`) with a tile / route registry for 102.4.1. One migration (`migrations_stage102_store_app.sql`), 22 routes (2 public).
+- **Found**: the Inventory Dashboard's low-stock list (88.6) read Postgres integers as 0 and listed in-stock items as low - fixed in the now-shared `inventoryLowStock`.
+- **Verified**: engine tests (RFC 8291 vector, a local push service checking the VAPID signature and decrypting, the alert worker, every PIN rule, Today's figures, counts, labels, receive, order), a server test through the real middleware, the route / gate tests, a fresh-DB migration (custom_erp_s102, dropped), and a live Playwright walk at Pixel 7 size on :8174 (30 checks). Left for the user's phones and store PC: push on a real phone, the camera, a label printed at a store PC, the till's Find a basket box. Detail: checklist 102.
+
+## 279. Stage 129 — Bulk Purchase Upload: one Excel file from the client becomes POs and the goods receipts of its bills (2026-10-22, code + docs, NOT COMMITTED)
+
+- **Asked**: an Excel file the client (minn, imitation jewellery) fills, and the system makes the POs in one click, plus a quick GRN. The template should be easy and broad enough for PO and GRN, with colour, polish, size, stone colour, category and product type. Barcodes are done in the system. Later asks: drop-downs where the value is fixed, red boxes for empty required fields, GST fixed by HSN (jewellery HSNs), and vendor GSTIN optional. Answers: PO and GRN in one go, rates include GST, MRP required, create everything except stores.
+- **Built**: a template generator, `scripts/gen_bulk_purchase_template.py`. Its output is embedded as `internal/server/bulk_purchase_template.xlsx`; a MINN copy is in Downloads. Sheets: Start Here, Vendors, Purchase, Bills, Example, Lists, and Codes (protected; HSN chapter 71 at 3%, GST state codes). It has strict lists for vendor, store, HSN and state, red empty required boxes, and a Check column per row that also checks the bill total against its rows.
+  - **Importer** (`internal/server/bulk_purchase.go`): Procurement → Purchase Orders → **Upload from Excel** (`public/view-bulk-purchase.js`), with preview, background apply, and past uploads as ImportJob runs. Each write replays the screen's own handler (Stage 128's `swCaller`):
+    - vendors, categories, product types, HSN codes and item names;
+    - attribute values, through the PO's design-attribute call;
+    - designs and combinations, as the PO's Add design makes them;
+    - the PO (Inclusive, stamped `upload_ref`), then approval submit and decide;
+    - per bill: Receive → Verify → Price check → post each child with the file's MRP.
+  - Re-upload finds POs by vendor + PO Ref and bills by vendor + invoice no, and carries on a stopped bill. The preview checks permissions and a bill's size against `platform.field_max_length`.
+  - Shared changes: Setup Workbook run functions take a kind; `swTable` keeps header text.
+- **Fixed on the way**:
+  - A PO saved with a wrong or zero `total_amount` kept `base_total_amount` 0, so approval routed it to the lowest band. The PO save now re-stamps the base amounts after recomputing the total (`handlers_core_doc_engine.go`).
+  - "Print stickers" from a goods receipt opened the sticker history instead of the print page (`view-printing.js`).
+- **Verified**:
+  - Template: in Excel, 0 formula errors, and every wrong-input case gives its message.
+  - Live on a scratch copy of the dev DB (`custom_erp_s129`): new vendors, item names, designs, 2 POs approved, a bill posted with barcodes and MRP; the same file again made nothing.
+  - Approval: as Store Manager a ₹60,000 PO waits and its bill waits; uploaded again as Super Admin, it is approved and received.
+  - Error file: a clear message per row. Browser walk (Playwright, Chrome): list → upload → preview → apply → Print stickers, no console errors.
+  - Go: 4 new tests, the full `internal/server` package green. The attack-surface manifest has the 6 new routes (regenerated at release).
+- **Design No (129.7)**: on the user's word it is the client's own label, optional. The same label groups the file's rows into one design, and a blank one is a design of its own. Wholeops numbers every design and does not store the label, so a label never matches across files. Only a Wholeops design number (D00010) reorders an existing design. Re-uploading the same file maps an existing PO's rows to its lines in order. Template v1.5; the older copies in Downloads were deleted on the user's ask.
+- **Photos (129.8)**: a Photo column holds the client's own file names. On Upload from Excel the user also picks the photos, and after Apply the screen sends each through the PO Images upload to its row's Combination ID, with a design's first photo going to the design. Re-uploading the same file adds only the photos. Verified in Chrome on scratch.
+- **Clean photo names on the image drive (129.9)**: a photo is now stored as `<folder>/<ID>/<ID>.jpg`, then `<ID>-2.jpg`, instead of a checksum name, so the first photo of any design or combination has an address worked out from its number. Each new photo takes the number after every earlier name, and a per-owner lock prevents two uploads overwriting each other. Covers every drive upload; earlier photos keep their names.
+- **Found, not fixed (needs the user)**: a GST-inclusive bill fails Verify when per-piece rounding adds up past ₹1 (60 lines × 7 pcs × ₹99 = ₹41,580 seen as ₹41,581.51), and small bills raise a 1-paisa credit note. This is the GRN engine's per-unit ex-GST rounding (Stage 110.1) and hits the GRN screen too. Separately, one GRN holds about 27 lines at the default field length. Checklist 129.6.
+
 ## 278. Stage 128 — Setup Workbook: a whole organisation's setup from one Excel file (2026-10-21, code + docs, NOT COMMITTED)
 
 - **Asked**: one bulk mechanism to configure every client for POs from day one: prepared from the user's answers, uploaded on app and minn, re-updatable, flexible, and no DB change that cannot be fixed. Then: *"We have to start doing PO. Some excel or something or some better mechanism."*
@@ -67,6 +152,7 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 - **Asked**: from three New purchase order screenshots: the cursor should skip Design number and Enter should move PP → MRP → the variant cells, with a picked item name held as a value; a missing state should be asked and saved, not guessed with an Inter-state tick; an Edit button on a design once added. Then: go through Prefix Configurations and fix every bug (*"after typing the values it is not showing or not allowing to save"*).
 - **Built**: 126.1 item name locks once picked (Backspace / Clear removes it); Enter path PP → MRP → each variant cell → Add; a list pick moves on. 126.2 the supply banner asks for the vendor's or billing store's missing state and saves it to that record. The place of supply (and the store block) now also reads the store's own State when its Legal Entity has none, as a fallback only. 126.3 **Edit** on each design heading reopens it with this PO's qty / prices; **Update** puts it back in place. On the way: a one-variant design's first combination was made again when a second colour was added, and is now matched. 126.4 nine Number Series bugs: the most likely cause of "values not showing" was that a master's series set on the screen was replaced by its first record (now confirmed on save). Also: master / payslip codes checked against a store and year they never print; shipped series unsavable even unchanged; New Series silently replacing a series; a free-text Transaction box; counters' case; the record form's Numbering link opening the wrong series; barcode counters editable into a broken shape; and a wrong error hint.
 - **Verified**: go vet; new place-of-supply cases and `number_series_stage126_test.go`; series / master / PO engine and server tests (the one other failure, OMSBill scope, is Stage 88's); scratch server + Playwright for both screens (PO on the dev DB with scratch records removed afterwards; Number Series on a fresh migrated DB, since dropped). Open: 126.5, whether to re-seed the 19 shipped document series that print over 16 characters, needs the user's decision. Detail: checklist 126.1-126.5.
+- **126.6 (2026-10-22, NOT COMMITTED)**: the user asked that a PO ask for the vendor's GSTIN when it is missing - optional, never again once filled. A line under the PO header takes it and saves only `gstin` on the vendor (Not now = this PO only). A re-draw that wiped the typed GSTIN when leaving the Vendor box was caught and fixed during the Playwright check. USER_GUIDE updated. Detail: checklist 126.6.
 
 ## 274. Stage 125.8 — remember this device for the authenticator (2026-10-21, code, NOT COMMITTED)
 

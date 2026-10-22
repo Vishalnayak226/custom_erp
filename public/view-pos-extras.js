@@ -824,16 +824,29 @@ async function resumePOSBill() {
     await showCustomAlert('No bills are held at this store.', 'Resume a held bill');
     return;
   }
-  const html = bills.map((b, i) => `<label style="display:block; margin-top:8px;"><input type="radio" name="pos-held" value="${cfgEsc(b.id)}" ${i === 0 ? 'checked' : ''}>
-      ${cfgEsc(b.note || b.customer_id || 'Walk-in')} &middot; ${b.line_count} line(s) &middot; ${Number(b.total).toFixed(2)}
+  // Stage 102.4.2: a basket built on the store app is a held bill here too; its
+  // number (PB-<store>-<code>) can be typed or scanned into Find a basket.
+  const basketCode = (b) => String(b.cart_number || '').split('-').pop();
+  const html = `<div class="form-group"><label class="form-label">Find a basket (type or scan its number)</label><input class="form-input" data-held="find" autocomplete="off"></div>`
+    + bills.map((b, i) => `<label style="display:block; margin-top:8px;"><input type="radio" name="pos-held" value="${cfgEsc(b.id)}" ${i === 0 ? 'checked' : ''}>
+      ${cfgEsc(b.note || b.customer_id || 'Walk-in')} &middot; ${cfgEsc(basketCode(b))} &middot; ${b.line_count} line(s) &middot; ${Number(b.total).toFixed(2)}
       <span style="color:var(--text-muted);">&middot; ${cfgEsc(b.cashier)}, ${cfgEsc(b.held_at || '')}</span></label>`).join('')
     + `<div class="form-group" style="margin-top:12px;"><label class="form-label">Do</label><select class="form-select" data-held="act"><option value="resume">Resume it on this till</option><option value="discard">Discard it (the customer is not coming back)</option></select></div>
        <input class="form-input" data-held="reason" placeholder="Reason (needed to discard)">`;
-  const picked = await posFormDialog('Resume a held bill', 'Bills held at this store, oldest first.', html, extra => ({
-    id: (extra.querySelector('input[name="pos-held"]:checked') || {}).value,
-    act: extra.querySelector('[data-held="act"]').value,
-    reason: extra.querySelector('[data-held="reason"]').value.trim()
-  }));
+  const picked = await posFormDialog('Resume a held bill', 'Bills held at this store, oldest first.', html, extra => {
+    const find = extra.querySelector('[data-held="find"]').value.trim().toUpperCase();
+    const match = find ? bills.find(b => String(b.cart_number).toUpperCase() === find || basketCode(b).toUpperCase() === find) : null;
+    return {
+      id: find ? (match || {}).id : (extra.querySelector('input[name="pos-held"]:checked') || {}).value,
+      find,
+      act: extra.querySelector('[data-held="act"]').value,
+      reason: extra.querySelector('[data-held="reason"]').value.trim()
+    };
+  });
+  if (picked && picked.find && !picked.id) {
+    await showCustomAlert(`No bill held at this store has the number ${picked.find}.`, 'Resume a held bill');
+    return;
+  }
   if (!picked || !picked.id) return;
   const res = await apiFetch(`/api/v1/pos/held-bills/${encodeURIComponent(picked.id)}/${picked.act}`, {
     method: 'POST', body: JSON.stringify({ location: till.location, reason: picked.reason })

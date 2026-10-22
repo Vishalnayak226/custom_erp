@@ -7,7 +7,8 @@ import { documentSearchLink } from './view-document-links.js';
 const TRADE_DOCS_QUERY = new URL(import.meta.url).search;
 const tradeDocsReady = import('./trade-docs.js' + TRADE_DOCS_QUERY);
 // Stage 68: the transaction-screen bar's shared pieces, same version.
-const { txnContext, txnMoney, txnRestorePane, txnPageTitle, txnNewButton, txnDone, txnPageOf, txnOnPage, txnPagedSection } = await import('./txn-screen.js' + TRADE_DOCS_QUERY);
+const { txnContext, txnMoney, txnRestorePane, txnPageTitle, txnNewButton, txnDone, txnPageOf, txnOnPage, txnPagedSection,
+  txnStockFromTo, mountStockFromTo, readStockFromTo } = await import('./txn-screen.js' + TRADE_DOCS_QUERY);
 // Stage 94: goods receipt in steps - the page a receipt is worked on, loaded
 // when first opened, same version.
 const grnStepsModule = () => import('./grn-steps.js' + TRADE_DOCS_QUERY);
@@ -223,6 +224,10 @@ async function renderPurchaseOrdersView(container) {
     await renderPOImagesPage(screen);
     return;
   }
+  if (poPage === 'upload') {
+    await renderPOUploadPage(screen);
+    return;
+  }
 
   const res = await apiFetch('/api/v1/doc/PurchaseOrder');
   if (!res) return;
@@ -230,7 +235,9 @@ async function renderPurchaseOrdersView(container) {
   const orders = res.ok ? await res.json() : [];
 
   screen.innerHTML = `<div class="txn-bar">${poPageHead(orders.length)}${txnContext()}
-    <button type="button" class="btn btn-primary txn-landing-only" ${actionAttrs('newPurchaseOrder', [])}>+ New Purchase Order</button></div>`;
+    <div class="txn-actions txn-landing-only">
+      ${canCreateDoctype('PurchaseOrder') ? `<button type="button" class="btn btn-outline" ${actionAttrs('txnShowPane', ['po-composer:upload'])}>Upload from Excel</button>` : ''}
+      <button type="button" class="btn btn-primary" ${actionAttrs('newPurchaseOrder', [])}>+ New Purchase Order</button></div></div>`;
   const panel = document.createElement('div');
   panel.className = 'txn-grid';
   // BLD-036: the New tab still works even if this list failed to load, so
@@ -280,7 +287,7 @@ async function renderPurchaseOrdersView(container) {
         <td style="font-family: monospace;">${copyableCell(poNumber, poNumber)}</td>
         <td>${documentSearchLink('PurchaseRequisition', po.source_requisition_id)}</td>
         <td>${escapeHTMLText(po.vendor || '')}</td>
-        <td>${escapeHTMLText(po.location || '')}</td>
+        <td data-link-doctype="Location" data-link-ref="${escapeHTMLText(po.location || '')}">${escapeHTMLText(po.location || '')}</td>
         <td>${lineCount === 0 ? '<span class="po-no-lines" title="This PO was raised before line items existed, or was created through the API without them.">No lines</span>' : `${lineCount} item${lineCount === 1 ? '' : 's'}`}</td>
         <td class="num">${formatMoney(po.total_amount)}</td>
         <td class="num">${po.grand_total != null ? formatMoney(po.grand_total) : '<span class="text-muted">&mdash;</span>'}</td>
@@ -322,6 +329,14 @@ async function renderPOImagesPage(screen) {
   }
   const m = await loadViewModule('/view-images.js');
   await m.renderPOImages(screen, poId, { head });
+}
+
+// Stage 129: Upload from Excel - POs, and the goods receipts of the bills in
+// the file, from the client's Bulk Purchase workbook (view-bulk-purchase.js).
+async function renderPOUploadPage(screen) {
+  const head = txnPageTitle({ screen: 'po-composer', title: 'Purchase Orders', page: 'Upload from Excel' });
+  const m = await loadViewModule('/view-bulk-purchase.js');
+  await m.renderBulkPurchase(screen, { head });
 }
 
 // Stage 65.2: Delete for roles with Delete on Purchase Order (Settings -> Roles).
@@ -475,6 +490,7 @@ function renderPOComposer(panel) {
       </div>
     </div>
 
+    <form id="po-vendor-taxid" class="po-supply-banner po-supply-idle hidden"></form>
     <div id="po-supply-banner" class="po-supply-banner"></div>
 
     <div class="txn-entry" id="po-entry">
@@ -542,11 +558,12 @@ function renderPOComposer(panel) {
     }
   };
   freezeVendor();
-  vendorEl.addEventListener('change', () => { d.vendor = vendorEl.value.trim(); schedulePOPreview(); freezeVendor(); });
+  renderPOVendorTaxIdAsk();
+  vendorEl.addEventListener('change', () => { d.vendor = vendorEl.value.trim(); schedulePOPreview(); freezeVendor(); renderPOVendorTaxIdAsk(); });
   // A pick fires `change`, but a typed-and-blurred value has to be caught
   // too, or a vendor typed by hand never reaches the preview and the supply
   // type silently stays underived.
-  vendorEl.addEventListener('blur', () => { if (vendorEl.value.trim() !== d.vendor) { d.vendor = vendorEl.value.trim(); schedulePOPreview(); } freezeVendor(); });
+  vendorEl.addEventListener('blur', () => { if (vendorEl.value.trim() !== d.vendor) { d.vendor = vendorEl.value.trim(); schedulePOPreview(); renderPOVendorTaxIdAsk(); } freezeVendor(); });
 
   const locEl = document.getElementById('po-location');
   const whEl = document.getElementById('po-warehouse');
@@ -1216,7 +1233,7 @@ function renderPOEntryAttrs() {
   const num = (i, field, step) => `<td><input type="number" class="form-input num" min="0" step="${step}" data-pod-vrow="${i}" data-pod-field="${field}" value="${escapeHTMLText(vrowValue(d, d.vrows[i], field))}"></td>`;
   box.innerHTML = `
     <div class="po-entry-attrs-head">
-      <span><strong>${escapeHTMLText(inm.name)}</strong>${inm.category ? ` &middot; ${escapeHTMLText(inm.category)}` : ''} &middot; HSN <strong>${escapeHTMLText(inm.hsn_code || '—')}</strong> &middot; GST <strong>${escapeHTMLText(String(inm.gst_rate ?? '—'))}%</strong></span>
+      <span><strong>${escapeHTMLText(inm.name)}</strong>${inm.category ? ` &middot; <span data-link-doctype="Category" data-link-ref="${escapeHTMLText(inm.category)}">${escapeHTMLText(inm.category)}</span>` : ''} &middot; HSN <strong>${escapeHTMLText(inm.hsn_code || '—')}</strong> &middot; GST <strong>${escapeHTMLText(String(inm.gst_rate ?? '—'))}%</strong></span>
       <span class="po-design-mode">${d.editing
         ? `Editing design <strong>${escapeHTMLText(poDesignLabel(d.loaded || { code: d.editing.design }))}</strong> on this PO &mdash; <b>Update</b> puts it back in place of its lines; a row with qty 0 comes off.`
         : d.loaded
@@ -1769,6 +1786,54 @@ function renderPOStateAsks(el, pos) {
   }));
 }
 
+// renderPOVendorTaxIdAsk: Stage 126.6 (the user: "while po we should ask gst
+// to fill if not present ... not mandatory but fill it. once filled not ask
+// again"). A vendor with no GSTIN gets an optional line to type it and save it
+// on the vendor, the same save as the state ask above (a GSTIN also fills a
+// blank state). Not now hides it for this PO only; a vendor with one is never
+// asked, and neither is a user who cannot edit vendors.
+async function renderPOVendorTaxIdAsk() {
+  const el = document.getElementById('po-vendor-taxid');
+  if (!el) return;
+  const d = poDraft;
+  const vendor = d.vendor;
+  const hide = () => { el.classList.add('hidden'); el.innerHTML = ''; el.onsubmit = null; delete el.dataset.vendor; };
+  if (!vendor || d.taxIdSkipped === vendor || !canUpdateDoctype('Vendor')) { hide(); return; }
+  const [doc, p] = await Promise.all([lookupLinkDoc('Vendor', vendor), loadPickers().catch(() => null)]);
+  if (poDraft !== d || d.vendor !== vendor) return; // the vendor changed while this looked it up
+  if (!doc || String(doc.gstin || '').trim()) { hide(); return; }
+  // Already asking about this vendor: leaving the Vendor box for this one
+  // fires its change again, and a re-draw would wipe what is being typed.
+  if (!el.classList.contains('hidden') && el.dataset.vendor === vendor) return;
+  el.dataset.vendor = vendor;
+  const label = p && p.taxIdLabel ? p.taxIdLabel('gstin', 'GSTIN') : 'GSTIN';
+  const name = linkDisplayName(doc) || vendor;
+  el.innerHTML = `<span class="po-state-ask"><span><strong>${escapeHTMLText(name)}</strong> has no ${escapeHTMLText(label)} &mdash; add it and it is saved on the vendor (optional):</span>
+      <input type="text" name="gstin" class="form-input po-state-pick" autocomplete="off" aria-label="${escapeHTMLText(`${label} of ${name}`)}">
+      <button type="submit" class="btn btn-primary btn-sm">Save to vendor</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-po-taxid-skip>Not now</button></span>`;
+  el.classList.remove('hidden');
+  decorateFieldFormats(el);
+  const box = el.querySelector('input[name="gstin"]');
+  el.querySelector('[data-po-taxid-skip]').addEventListener('click', () => { d.taxIdSkipped = vendor; hide(); });
+  el.onsubmit = (e) => {
+    e.preventDefault();
+    const gstin = box.value.trim().toUpperCase();
+    const spec = fieldFormatFor(box);
+    if (!gstin) { box.focus(); return; }
+    if (spec && !fieldFormatValueIsValid(spec, gstin)) { showFieldFormatMessage(box, spec.hint); box.focus(); return; }
+    guardAgainstDoubleSubmit(el.querySelector('button[type="submit"]'), 'Saving...', async () => {
+      const res = await apiFetch(`/api/v1/doc/Vendor/${encodeURIComponent(doc.id || vendor)}`, { method: 'POST', body: JSON.stringify({ gstin }) });
+      if (!res) return;
+      if (!res.ok) { await showApiError(res, `Could not save the ${label} on ${name}.`); return; }
+      rememberLinkDoc('Vendor', { ...doc, gstin });
+      showToast(`${name}: ${label} saved.`, { variant: 'success' });
+      hide();
+      runPOPreview();
+    });
+  };
+}
+
 function renderPOTotals() {
   const el = document.getElementById('po-totals');
   if (!el) return;
@@ -2131,7 +2196,7 @@ async function renderGRNWorkbenchView(container) {
   screen.innerHTML = `
     <div class="txn-bar">
       ${txnPageTitle({ screen: 'grn-screen', title: 'Goods Receipt', page: 'New goods receipt', count: grns.length })}
-      ${txnContext()}
+      ${txnContext()}${txnStockFromTo('Goods Receipt', 'txn-main-only')}
       ${txnNewButton({ screen: 'grn-screen', label: 'New Goods Receipt' })}
       <div id="grn-totals" class="txn-sum txn-main-only"></div>
       <div class="txn-actions txn-main-only">
@@ -2308,6 +2373,9 @@ async function renderGRNWorkbenchView(container) {
   document.getElementById('grn-vendor').addEventListener('change', loadGRNOpenPOs);
   attachLinkTypeahead(document.getElementById('grn-po'), 'PurchaseOrder', { valueFields: ['po_number', 'code', 'id'] });
   attachLinkTypeahead(document.getElementById('grn-location'), 'Location');
+  // Stage 106.5: where the goods land, for the receiving store.
+  document.getElementById('grn-location').addEventListener('change', syncGRNStockTo);
+  syncGRNStockTo();
   attachLinkTypeahead(document.getElementById('grn-asn'), 'ASN');
   attachLinkTypeahead(document.getElementById('grn-line-sku'), 'Item');
 
@@ -3189,6 +3257,7 @@ async function loadGRNItemsFromPOInner() {
   const locationEl = document.getElementById('grn-location');
   if (!locationEl.value && (po.location || po.target_warehouse)) {
     locationEl.value = po.target_warehouse || po.location;
+    syncGRNStockTo();
   }
 
   let items = [];
@@ -3369,7 +3438,8 @@ async function createGRNInner() {
       vendor_invoice_no: invNo,
       vendor_invoice_date: invDate,
       vendor_invoice_amount: Number(invAmountRaw),
-      received_items: JSON.stringify(grnLineItems.map(l => ({ ...l, po_id: l.po_id || poIds[0] })))
+      received_items: JSON.stringify(grnLineItems.map(l => ({ ...l, po_id: l.po_id || poIds[0] }))),
+      ...readStockFromTo(document.getElementById('grn-screen'))
     })
   });
   if (!res) return;
@@ -3641,7 +3711,7 @@ async function renderPurchaseReturnsView(container) {
   screen.innerHTML = `
     <div class="txn-bar">
       ${txnPageTitle({ screen: 'prt-screen', title: 'Purchase Return', page: 'New purchase return', count: returns.length })}
-      ${txnContext()}
+      ${txnContext()}${txnStockFromTo('Purchase Return', 'txn-main-only')}
       ${txnNewButton({ screen: 'prt-screen', label: 'New Purchase Return' })}
       <div id="prt-sum" class="txn-sum txn-main-only"><span>Choose a GRN to see what can be returned.</span></div>
       <div class="txn-actions txn-main-only">
@@ -3744,6 +3814,9 @@ async function loadPurchaseReturnLines(grnID) {
     return;
   }
   prtContext = (await res.json()).returnable;
+  // Stage 106.5: the From for the store the goods leave.
+  const prtScreen = document.getElementById('prt-screen');
+  if (prtScreen) mountStockFromTo(prtScreen, prtContext.location || '');
   const lines = prtContext.lines || [];
   if (!lines.some(l => l.returnable > 0)) {
     linesEl.textContent = `Nothing left to return on ${grnID} - everything it received is already on a purchase return.`;
@@ -3774,6 +3847,12 @@ async function loadPurchaseReturnLines(grnID) {
   renderPurchaseReturnSum();
 }
 
+// Stage 106.5: the GRN's To follows its receiving store.
+function syncGRNStockTo() {
+  const screen = document.getElementById('grn-screen');
+  if (screen) mountStockFromTo(screen, document.getElementById('grn-location')?.value.trim() || '');
+}
+
 async function savePurchaseReturn() {
   const errorEl = document.getElementById('prt-form-error');
   errorEl.classList.add('hidden');
@@ -3794,7 +3873,8 @@ async function savePurchaseReturn() {
 
   const res = await apiFetch('/api/v1/doc/PurchaseReturn', {
     method: 'POST',
-    body: JSON.stringify({ grn_id: prtContext.grn_id, reason, reason_code: reasonCode || undefined, return_items: JSON.stringify(items), status: 'Draft' })
+    body: JSON.stringify({ grn_id: prtContext.grn_id, reason, reason_code: reasonCode || undefined, return_items: JSON.stringify(items), status: 'Draft',
+      ...readStockFromTo(document.getElementById('prt-screen')) })
   });
   if (!res) return;
   if (!res.ok) { showError(await getErrorMessage(res, 'Failed to save the purchase return.')); return; }

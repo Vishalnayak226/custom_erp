@@ -3,7 +3,7 @@
 // Shared app services and offline-queue boot helpers remain in the shell.
 
 // Stage 68: the transaction-screen bar's shared pieces, same version.
-const { txnContext, txnTabs, txnRestorePane, sessionStore } = await import('./txn-screen.js' + new URL(import.meta.url).search);
+const { txnContext, txnTabs, txnRestorePane, sessionStore, txnStockFromTo, mountStockFromTo, readStockFromTo } = await import('./txn-screen.js' + new URL(import.meta.url).search);
 
 // ---------------------------------------------------------------------------
 // Stage 53: this screen rebuilt as a standard retail till.
@@ -77,7 +77,7 @@ function renderPOSView(container) {
     <div class="txn-bar">
       <h1 class="page-title txn-title">POS / Billing</h1>
       ${txnTabs('txnShowPane', 'pos-screen:sale', [['pos-screen:sale', 'Sale'], ['pos-screen:return', 'Return'], ['pos-screen:advance', 'Advance']])}
-      ${txnContext()}
+      ${txnContext()}${txnStockFromTo('POS Sale', 'txn-main-only')}
       <div class="txn-sum txn-main-only">
         <span id="pos-tax-row" class="hidden"></span>
         <span id="pos-loyalty-discount-row" class="hidden"></span>
@@ -212,6 +212,7 @@ function renderPOSView(container) {
     </div>
   `;
   container.appendChild(panel);
+  mountStockFromTo(panel);
 
   // Stage 85.C6: the box's "+ Create" opens the phone-first form, never the
   // generic quick-create (name + status, no mobile). The form attaches the
@@ -1209,6 +1210,7 @@ async function submitPOSCheckoutInner() {
     const checkoutPayload = {
       cart_number: cartNumber,
       location: posLocation,
+      ...readStockFromTo(document),
       payment_mode: paymentMode,
       customer_id: customerId,
       discount_pct: discount.manual_discount_pct,

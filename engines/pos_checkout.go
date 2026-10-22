@@ -56,6 +56,7 @@ func FinalizePOSCheckout(tenantID, cartNumber, correlationID string) (saleTotal 
 // posCart is the stored cart shape every finalization path reads.
 type posCart struct {
 	Location    string `json:"location"`
+	StockFrom   string `json:"stock_from,omitempty"` // 106.5: the till's From for this bill
 	PaymentMode string `json:"payment_mode"`
 	CustomerID  string `json:"customer_id"`
 	// Stage 47.2: sale_price on a stored cart is the SERVER's own resolved
@@ -241,7 +242,7 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	}
 
 	// Stage 106.4: the sale takes the store's chosen "From" location first.
-	if err := drawFromDefaultFromTx(tx, schema, "POS Sale", cart.Location, itemsInterface); err != nil {
+	if err := drawFromDefaultFromTx(tx, schema, "POS Sale", cart.Location, itemsInterface, cart.StockFrom); err != nil {
 		return nil, fmt.Errorf("inventory decrement failed: %w", err)
 	}
 	negativeEvents, ledgerLines, err := PostInventoryLedgerWithVoucherTx(tx, schema, cart.Location, itemsInterface, cart.OfflineSynced)
@@ -475,6 +476,10 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 
 	// --- everything below is post-commit and must never undo the sale -----
 
+	// Stage 101.4: journeys, feedback and referrals react to the bill.
+	if cart.CustomerID != "" && !IsWalkInCustomer(tenantID, cart.CustomerID) {
+		RecordCRMEventForTenant(tenantID, cart.CustomerID, CRMEventBillPaid, cartNumber, map[string]interface{}{"store": cart.Location, "amount": outcome.SaleTotal})
+	}
 	WriteStockLedgerLines(tenantID, cart.Location, "POSInvoice", cartNumber, cashier, ledgerLines)
 	WriteStockLedgerLines(tenantID, cart.Location, "POSConsumption", cartNumber, cashier, consumptionLedger)
 	for _, ev := range consumptionNegative {

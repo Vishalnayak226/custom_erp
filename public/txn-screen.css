@@ -75,6 +75,13 @@
 
 .txn-ctx b { color: var(--text-main); font-weight: 600; }
 
+/* Stage 106.5: the transaction's From / To stock location beside the store. */
+.txn-ctx-stock:empty { display: none; }
+.txn-ctx-stock { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.txn-ctx-side { display: inline-flex; align-items: center; gap: 4px; margin: 0; }
+.txn-ctx-side b { color: var(--text-main); font-weight: 600; }
+.txn-ctx-side .form-select { height: 28px; padding: 2px 26px 2px 8px; font-size: 12px; width: auto; min-width: 0; }
+
 /* The summary: every total and the tax split, in one place. */
 .txn-sum {
   flex: 1 1 auto;

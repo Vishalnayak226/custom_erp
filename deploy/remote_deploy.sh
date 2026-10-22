@@ -178,6 +178,12 @@ if wait_healthy "$DEPLOY_COMMIT"; then
   if ! "$REMOTE_DIR/erp-server" -record-release -by "${DEPLOY_BY:-deploy}" -notes "${DEPLOY_NOTES:-}"; then
     echo "[WARN] $DEPLOY_COMMIT is live but was not recorded in the release ledger" >&2
   fi
+  # Stage 90.3: 840909b ran as 0.1.0 before the ledger existed. A backfill
+  # stamps no client, and the same commit + version is never added twice, so
+  # every deploy after the first is a no-op here.
+  "$REMOTE_DIR/erp-server" -record-release -version 0.1.0 -commit 840909b -at 2026-10-18T04:45:51Z \
+    -by backfill -notes "Stage 90.3: deployed before the release ledger" >/dev/null \
+    || echo "[WARN] the 0.1.0 (840909b) backfill row was not recorded" >&2
   # Stage 109.3: keep the daily cleanup schedule current and run one pass now
   # (it prunes the rollback copies beyond the newest three). Not fatal - the
   # deploy itself already succeeded.

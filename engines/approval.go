@@ -299,6 +299,11 @@ func SubmitterMayDecideOwn(tenantID, doctype, role string) bool {
 	if secondAdminDoctypes[doctype] || isDualControlDoctype(doctype) {
 		return false
 	}
+	// Stage 101 D13: a client can make every campaign need a second person,
+	// whatever the general setting below says.
+	if doctype == "Campaign" && GetSettingBool(tenantID, "crm.campaign_second_approver") {
+		return false
+	}
 	switch GetSettingString(tenantID, SettingSelfApproval) {
 	case SelfApprovalAnyone:
 		return true

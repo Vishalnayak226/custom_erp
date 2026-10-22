@@ -1,9 +1,16 @@
 // Stage 102: the store app - an installable web app (PWA) for store staff.
-// Plain JavaScript with no build step, like the rest of public/. It signs in,
-// switches the working store and decides approvals through the ERP's own
-// endpoints, and adds one read-only call, GET /api/v1/store-app/item (scan an
-// item). The session is the ERP's own: same origin, same localStorage keys, so
-// signing in here signs in the ERP in this browser too, and the reverse.
+// Plain JavaScript with no build step, like the rest of public/. The session is
+// the ERP's own: same origin, same localStorage keys, so signing in here signs
+// in the ERP in this browser too, and the reverse.
+//
+// This file is the shell: sign-in (password + two-factor code, or a PIN on a
+// phone registered to the store, 102.1.4), the top bar and working store, the
+// home tiles, approvals, scan an item, the camera, settings (alerts, PIN, this
+// phone) and routing. Each further task is an ES module in this folder, loaded
+// the first time it is opened (MODULES below): it exports `routes`, a map of
+// route name -> { title, render(ctx, params) }. To add a task: add its tile to
+// TILES, its routes to MODULES, and the module file to sw.js's SHELL if it must
+// open offline.
 (() => {
   'use strict';
 
@@ -16,12 +23,21 @@
   const offlineEl = $('#offline');
   const toastEl = $('#toast');
 
-  const state = { profile: null, stores: null, mfaToken: '', idleMinutes: 0, idleTimer: 0 };
+  const state = { profile: null, stores: null, mfaToken: '', idleMinutes: 0, idleTimer: 0, approvals: 0 };
 
   const ICON = {
     scan: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 9v6M10 9v6M13 9v6M17 9v6"/></svg>',
     check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>',
     camera: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+    today: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+    box: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8"/></svg>',
+    count: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5h11M9 12h11M9 19h11M4 5h1M4 12h1M4 19h1"/></svg>',
+    basket: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9h14l-1.5 10a2 2 0 0 1-2 1.7h-7a2 2 0 0 1-2-1.7L5 9zM9 9l3-5 3 5"/></svg>',
+    label: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12l9-9h8v8l-9 9-8-8z"/><circle cx="16" cy="8" r="1.5"/></svg>',
+    low: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 16H3L12 3zM12 10v4M12 17v.5"/></svg>',
+    gear: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+    person: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/></svg>',
+    tasks: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>',
   };
 
   // ---------- storage (shared with the ERP) ----------
@@ -29,9 +45,17 @@
     get(k) { try { return localStorage.getItem(k) || ''; } catch (_) { return ''; } },
     set(k, v) { try { localStorage.setItem(k, v); } catch (_) { /* private mode */ } },
     del(k) { try { localStorage.removeItem(k); } catch (_) { /* private mode */ } },
+    json(k, fallback) { try { return JSON.parse(localStorage.getItem(k) || 'null') ?? fallback; } catch (_) { return fallback; } },
+    setJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) { /* private mode */ } },
   };
   const tenantID = () => ls.get('erp_tenant_id') || 'default';
   const LAST_ACTIVE = 'store_app_last_active';
+  // 102.1.4: this phone's registration (kept across sign-outs) and the PIN
+  // session's lock-after minutes (cleared with the session).
+  const DEVICE_KEY = 'store_app_device';
+  const PIN_IDLE_KEY = 'store_app_pin_idle';
+  const RECENT_NAMES = 'store_app_recent_names';
+  const device = () => ls.json(DEVICE_KEY, null);
 
   // ---------- small helpers ----------
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -64,6 +88,8 @@
     return `${Math.round(hours / 24)} days ago`;
   }
 
+  const newKey = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
+
   let toastTimer = 0;
   function toast(text, isError) {
     toastEl.textContent = text;
@@ -74,7 +100,7 @@
   }
 
   class AppError extends Error {
-    constructor(message, quiet) { super(message); this.quiet = !!quiet; }
+    constructor(message, quiet, status) { super(message); this.quiet = !!quiet; this.status = status || 0; }
   }
 
   const PASSWORD_MSG = 'An administrator set your password. Open the full ERP, choose your own password, then sign in here.';
@@ -104,20 +130,25 @@
     }
     if (res.status === 401 && auth && !bearer && ls.get('erp_token')) {
       signOut('Your session ended. Please sign in again.');
-      throw new AppError('', true);
+      throw new AppError('', true, 401);
     }
     if (res.status === 403 && res.headers.get('X-Password-Change-Required') === '1') {
       signOut(PASSWORD_MSG);
-      throw new AppError('', true);
+      throw new AppError('', true, 403);
     }
     let data = null;
     try { data = await res.json(); } catch (_) { /* no body */ }
-    if (res.status === 429) throw new AppError('Too many requests just now. Wait a few seconds and try again.');
+    if (res.status === 429) throw new AppError('Too many requests just now. Wait a few seconds and try again.', false, 429);
     if (!res.ok) {
       // A 4xx message is already specific; the catalog's generic next step
-      // is added only when the server could not say what went wrong.
-      const parts = [data && data.error, res.status >= 500 && data && data.user_action].filter(Boolean);
-      throw new AppError(parts.join(' ') || `Something went wrong (${res.status}).`);
+      // is added only when the server could not say what went wrong. A
+      // validation answer carries the catalog's generic line in error and the
+      // real reason in detail - the reason is what the person needs.
+      const detail = data && typeof data.detail === 'string' && data.detail.trim();
+      const parts = detail && res.status < 500
+        ? [detail.charAt(0).toUpperCase() + detail.slice(1) + (/[.!?]$/.test(detail) ? '' : '.')]
+        : [data && data.error, res.status >= 500 && data && data.user_action].filter(Boolean);
+      throw new AppError(parts.join(' ') || `Something went wrong (${res.status}).`, false, res.status);
     }
     return data;
   }
@@ -158,35 +189,46 @@
   });
 
   function signOut(message) {
-    ['erp_token', 'erp_username', 'erp_role', LAST_ACTIVE].forEach(k => ls.del(k));
+    ['erp_token', 'erp_username', 'erp_role', LAST_ACTIVE, PIN_IDLE_KEY].forEach(k => ls.del(k));
     state.profile = null;
     state.stores = null;
     stopIdle();
     showSignIn(message || '');
   }
 
+  const pinSession = () => !!ls.get(PIN_IDLE_KEY);
+  const isManager = () => {
+    const role = String((state.profile && state.profile.role) || ls.get('erp_role') || '').toLowerCase();
+    return role === 'store manager' || role === 'admin' || role === 'super admin' || role === 'hr/admin';
+  };
+
   // ---------- top bar ----------
   function setBar(title, back) {
     bar.hidden = false;
     barTitle.textContent = title;
     barBack.hidden = !back;
+    barBack.dataset.to = typeof back === 'string' ? back : '';
     renderStoreChip();
   }
   function storeName(code) {
     const found = ((state.stores && state.stores.stores) || []).find(s => s.code === code);
     return found ? found.name : code;
   }
+  const workingStore = () => (state.stores && state.stores.working) || (state.profile && state.profile.location_code) || '';
   function renderStoreChip() {
     const s = state.stores;
     if (!s) { storeChip.hidden = true; return; }
-    const working = s.working || (state.profile && state.profile.location_code) || '';
-    const canSwitch = !!s.all || (s.stores || []).length > 1;
+    const working = workingStore();
+    // A PIN session runs at its phone's store only (102.1.4).
+    const canSwitch = !pinSession() && (!!s.all || (s.stores || []).length > 1);
     storeChip.textContent = working ? storeName(working) : 'Choose store';
     storeChip.disabled = !canSwitch;
     storeChip.setAttribute('aria-label', `Working store: ${storeChip.textContent}${canSwitch ? '. Change store' : ''}`);
     storeChip.hidden = false;
   }
-  barBack.addEventListener('click', () => { location.hash = '#/home'; });
+  // A module's own page may name where Back goes (e.g. a delivery back to its
+  // list); otherwise Back is home.
+  barBack.addEventListener('click', () => { location.hash = barBack.dataset.to || '#/home'; });
   storeChip.addEventListener('click', () => { if (!storeChip.disabled) location.hash = '#/stores'; });
 
   function panelError(message, retry) {
@@ -197,9 +239,11 @@
   }
 
   // ---------- sign in ----------
-  function showSignIn(message) {
+  function showSignIn(message, forcePassword) {
     closeCamera();
     bar.hidden = true;
+    const dev = device();
+    if (dev && !forcePassword) { showPINSignIn(message, dev); return; }
     main.innerHTML = `
       <form class="signin" id="signin-form">
         <img class="signin-mark" src="icon.svg" alt="">
@@ -211,9 +255,75 @@
         <label class="field"><span>Password</span>
           <input class="input" id="si-pass" name="password" type="password" autocomplete="current-password" required></label>
         <button class="btn btn-primary btn-block" id="si-submit" type="submit">Sign in</button>
-        <div class="links"><a class="link" href="/">Open the full ERP</a></div>
+        <div class="links">
+          ${dev ? '<button type="button" class="link" id="si-pin">Sign in with a PIN</button>' : ''}
+          <a class="link" href="/">Open the full ERP</a>
+        </div>
       </form>`;
     $('#signin-form').addEventListener('submit', onSignIn);
+    const pinLink = $('#si-pin');
+    if (pinLink) pinLink.addEventListener('click', () => showSignIn(''));
+  }
+
+  // 102.1.4: on a phone registered to the store, each person signs in with
+  // their own name and PIN.
+  function showPINSignIn(message, dev) {
+    const names = ls.json(RECENT_NAMES, []);
+    main.innerHTML = `
+      <form class="signin" id="pin-form" autocomplete="off">
+        <img class="signin-mark" src="icon.svg" alt="">
+        <h1>${esc(dev.store_name || dev.store)}</h1>
+        <p class="hint">This phone belongs to the store. Sign in with your own name and PIN.</p>
+        ${message ? `<div class="msg msg-info" role="alert">${esc(message)}</div>` : ''}
+        <div class="msg msg-error" id="pin-error" role="alert" hidden></div>
+        <label class="field"><span>Your username</span>
+          <input class="input" id="pin-user" list="pin-names" autocapitalize="none" spellcheck="false" required></label>
+        <datalist id="pin-names">${names.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+        <label class="field"><span>PIN</span>
+          <input class="input pin-input" id="pin-code" type="password" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" autocomplete="off" required></label>
+        <button class="btn btn-primary btn-block" id="pin-submit" type="submit">Sign in</button>
+        <p class="hint">First time on this phone? Sign in with your password once, then set your PIN in Settings.</p>
+        <div class="links"><button type="button" class="link" id="pin-password">Sign in with password instead</button></div>
+      </form>`;
+    $('#pin-password').addEventListener('click', () => showSignIn('', true));
+    const user = $('#pin-user');
+    if (names.length === 1) user.value = names[0];
+    (user.value ? $('#pin-code') : user).focus();
+    $('#pin-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = $('#pin-error');
+      const btn = $('#pin-submit');
+      errEl.hidden = true;
+      btn.disabled = true;
+      try {
+        const s = await api('/api/v1/store-app/pin/login', {
+          method: 'POST', auth: false,
+          body: { device_token: dev.token, username: user.value.trim(), pin: $('#pin-code').value.trim() },
+        });
+        ls.set(PIN_IDLE_KEY, String(s.idle_minutes || 5));
+        ls.setJSON(RECENT_NAMES, [s.user, ...names.filter(n => n !== s.user)].slice(0, 10));
+        await finishSignIn({ token: s.token, user: s.user, role: s.role });
+      } catch (ex) {
+        if (ex.status === 401 && /no longer registered/i.test(ex.message)) {
+          ls.del(DEVICE_KEY);
+          showSignIn(ex.message, true);
+          return;
+        }
+        if (!ex.quiet) formError(errEl, ex.message);
+        $('#pin-code').value = '';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+    // A removed phone says so before anyone types.
+    api('/api/v1/store-app/device/check', { method: 'POST', auth: false, body: { device_token: dev.token } })
+      .then(d => { if (d && d.store_name && d.store_name !== dev.store_name) ls.setJSON(DEVICE_KEY, { ...dev, store_name: d.store_name }); })
+      .catch(ex => {
+        if (ex.status === 404) {
+          ls.del(DEVICE_KEY);
+          showSignIn(ex.message, true);
+        }
+      });
   }
 
   function formError(el, message) {
@@ -274,7 +384,7 @@
       ev.currentTarget.hidden = true;
       input.focus();
     });
-    $('#mfa-back').addEventListener('click', () => { state.mfaToken = ''; showSignIn(''); });
+    $('#mfa-back').addEventListener('click', () => { state.mfaToken = ''; showSignIn('', true); });
     $('#mfa-form').addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const errEl = $('#mfa-error');
@@ -297,7 +407,7 @@
   async function finishSignIn(data) {
     state.mfaToken = '';
     if (data.password_change_required === 'true') {
-      showSignIn(PASSWORD_MSG);
+      showSignIn(PASSWORD_MSG, true);
       return;
     }
     ls.set('erp_token', data.token);
@@ -307,23 +417,39 @@
     if (data.used_recovery_code) {
       toast(`Signed in with a recovery code - ${Number(data.recovery_codes_remaining || 0)} left. Set up a new authenticator in the full ERP (Profile).`);
     }
-    if (!/^#\/(scan|approvals|stores)/.test(location.hash)) history.replaceState(null, '', '#/home');
+    if (!/^#\/[a-z]/.test(location.hash) || /^#\/(home)?$/.test(location.hash)) history.replaceState(null, '', '#/home');
     await boot();
   }
 
   // ---------- home ----------
+  // Each tile is a task; show() decides who sees it. Feature tiles open a
+  // module from MODULES.
+  const TILES = [
+    { route: 'scan', label: 'Scan an item', icon: 'scan' },
+    { route: 'approvals', label: 'Approvals', icon: 'check', badge: true },
+    { route: 'today', label: 'Today', icon: 'today', show: isManager },
+    { route: 'receive', label: 'Receive', icon: 'box' },
+    { route: 'count', label: 'Count', icon: 'count' },
+    { route: 'customer', label: 'Serve a customer', icon: 'person' },
+    { route: 'tasks', label: 'My tasks', icon: 'tasks' },
+    { route: 'basket', label: 'Basket for the till', icon: 'basket' },
+    { route: 'labels', label: 'Labels', icon: 'label' },
+    { route: 'low-stock', label: 'Low stock', icon: 'low' },
+  ];
+
   async function renderHome() {
     setBar('Store', false);
     main.innerHTML = `
-      <div class="tiles">
-        <a class="tile" href="#/scan">${ICON.scan}<span>Scan an item</span></a>
-        <a class="tile" href="#/approvals">${ICON.check}<span>Approvals</span><span class="badge" id="appr-badge" hidden></span></a>
+      <div class="tiles">${TILES.filter(t => !t.show || t.show()).map(t => `
+        <a class="tile" href="#/${t.route}">${ICON[t.icon] || ''}<span>${esc(t.label)}</span>${t.badge ? '<span class="badge" id="appr-badge" hidden></span>' : ''}</a>`).join('')}
       </div>
       <div class="links">
+        <a class="link" href="#/settings">Settings</a>
         <a class="link" href="/">Open the full ERP</a>
         <button type="button" class="link" id="signout">Sign out</button>
       </div>`;
     $('#signout').addEventListener('click', () => signOut('You are signed out.'));
+    syncQueuedCounts();
     try {
       const inbox = await api('/api/v1/inbox');
       const n = (inbox.items || []).filter(i => i.source === 'Approval').length;
@@ -347,7 +473,7 @@
       if (!e.quiet) panelError(e.message, renderApprovals);
       return;
     }
-    if (location.hash !== '#/approvals') return;
+    if (routeName() !== 'approvals') return;
     const items = (inbox.items || []).filter(i => i.source === 'Approval');
     const failed = inbox.errors && inbox.errors.approvals;
     main.innerHTML = `
@@ -503,6 +629,10 @@
   // ---------- working store ----------
   async function renderStores() {
     setBar('Working store', true);
+    if (pinSession()) {
+      main.innerHTML = '<p class="empty">This phone is registered to one store, so it works there only. Sign in with your password to work at another store.</p>';
+      return;
+    }
     main.innerHTML = '<p class="loading">Loading…</p>';
     let s;
     try {
@@ -511,7 +641,7 @@
       if (!e.quiet) panelError(e.message, renderStores);
       return;
     }
-    if (location.hash !== '#/stores') return;
+    if (routeName() !== 'stores') return;
     state.stores = s;
     renderStoreChip();
     const stores = s.stores || [];
@@ -543,6 +673,7 @@
       ls.set('erp_token', data.token);
       state.stores.working = data.store;
       toast(`Working at ${storeName(data.store)}.`);
+      refreshPushStore();
       location.hash = '#/home';
     } catch (e) {
       button.disabled = false;
@@ -550,28 +681,32 @@
     }
   }
 
-  // ---------- scan an item ----------
+  // ---------- scanning, shared by every screen that scans ----------
   const cameraSupported = () => 'BarcodeDetector' in window && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-  let lookingUp = '';
 
-  function renderScan() {
-    setBar('Scan an item', true);
-    main.innerHTML = `
-      <form class="scan-form" id="scan-form" autocomplete="off">
-        <input class="input" id="scan-code" aria-label="Barcode, item code or batch number" placeholder="Scan or type a code"
-          autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="search">
-        <button class="btn btn-primary" type="submit">Look up</button>
+  // scanBox draws the code box (and the camera button where the browser can
+  // read barcodes) and calls onCode for each code: Enter, a scanner burst
+  // without Enter (Stage 77's rule), or the camera.
+  function scanBox(container, onCode, { placeholder = 'Scan or type a code', button = 'Add' } = {}) {
+    container.innerHTML = `
+      <form class="scan-form" autocomplete="off">
+        <input class="input" aria-label="Barcode, item code or batch number" placeholder="${esc(placeholder)}"
+          autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="go">
+        <button class="btn btn-primary" type="submit">${esc(button)}</button>
       </form>
       ${cameraSupported()
-        ? `<button type="button" class="btn btn-block scan-cam" id="scan-camera">${ICON.camera}Scan with camera</button>`
-        : '<p class="hint">This browser cannot read barcodes with the camera. Use a Bluetooth scanner, or type the code.</p>'}
-      <div id="scan-result"></div>`;
-    const input = $('#scan-code');
-    $('#scan-form').addEventListener('submit', (e) => { e.preventDefault(); lookup(input.value); });
-    const cam = $('#scan-camera');
-    if (cam) cam.addEventListener('click', () => openCamera(code => { input.value = code; lookup(code); }));
-    // A Bluetooth scanner is a keyboard; some send no Enter. A burst of fast
-    // keystrokes is a scan, so look it up once the burst stops (Stage 77).
+        ? `<button type="button" class="btn btn-block scan-cam">${ICON.camera}Scan with camera</button>`
+        : '<p class="hint">This browser cannot read barcodes with the camera. Use a Bluetooth scanner, or type the code.</p>'}`;
+    const input = $('input', container);
+    const fire = () => {
+      const code = input.value.trim();
+      if (!code) return;
+      input.value = '';
+      onCode(code);
+    };
+    $('form', container).addEventListener('submit', (e) => { e.preventDefault(); fire(); });
+    const cam = $('.scan-cam', container);
+    if (cam) cam.addEventListener('click', () => openCamera(code => onCode(code)));
     let lastKey = 0;
     let burst = 0;
     let burstTimer = 0;
@@ -580,9 +715,22 @@
       burst = now - lastKey < 35 ? burst + 1 : 1;
       lastKey = now;
       clearTimeout(burstTimer);
-      if (burst >= 6) burstTimer = setTimeout(() => lookup(input.value), 150);
+      if (burst >= 6) burstTimer = setTimeout(fire, 150);
     });
     if (!matchMedia('(pointer: coarse)').matches) input.focus();
+    return input;
+  }
+
+  // ---------- scan an item ----------
+  let lookingUp = '';
+
+  function renderScan(params) {
+    setBar('Scan an item', true);
+    main.innerHTML = '<div id="scan-box"></div><div id="scan-result"></div>';
+    const input = scanBox($('#scan-box'), lookup, { button: 'Look up' });
+    input.setAttribute('id', 'scan-code');
+    const code = params.get('code');
+    if (code) lookup(code);
   }
 
   async function lookup(raw) {
@@ -593,13 +741,14 @@
     out.innerHTML = '<p class="loading">Looking up…</p>';
     try {
       const item = await api(`/api/v1/store-app/item?code=${encodeURIComponent(code)}`);
-      if ($('#scan-result') === out) out.innerHTML = itemHTML(item);
+      if ($('#scan-result') === out) {
+        out.innerHTML = itemHTML(item);
+        wireItemActions(out, item);
+      }
     } catch (e) {
       if (!e.quiet && $('#scan-result') === out) out.innerHTML = `<div class="msg msg-error" role="alert">${esc(e.message)}</div>`;
     } finally {
       lookingUp = '';
-      const input = $('#scan-code');
-      if (input) { input.value = code; input.select(); }
     }
   }
 
@@ -608,6 +757,7 @@
     const tags = [it.brand, it.category, it.status && it.status !== 'Active' ? it.status : '']
       .filter(Boolean).map(t => `<span class="tag">${esc(t)}</span>`).join(' ');
     const showMRP = it.mrp > 0 && Math.abs(it.mrp - it.price) > 0.004;
+    const here = (it.stock || []).find(s => s.working);
     return `
       <article class="card">
         <div class="item-head">
@@ -624,6 +774,12 @@
           ${showMRP ? `<span class="mrp">MRP <s>${esc(money(it.mrp, cur))}</s></span>` : (it.mrp > 0 && it.price > 0 ? '<span class="mrp">MRP</span>' : '')}
         </div>
         ${it.batch ? batchHTML(it.batch) : ''}
+        <div class="item-actions">
+          <button type="button" class="btn" data-act="basket">Add to basket</button>
+          <button type="button" class="btn" data-act="labels">Print labels</button>
+          ${!here || here.available <= 0 ? '<button type="button" class="btn" data-act="order">Order for home delivery</button>' : ''}
+          <button type="button" class="btn" data-act="ask">Ask for stock</button>
+        </div>
       </article>
       <h3 class="section-title">Stock</h3>
       ${stockHTML(it)}
@@ -632,6 +788,15 @@
         <ul class="rows">${it.batches.map(b => `
           <li><span>${esc(b.batch_no)}<small>Received ${esc(fmtDate(b.received_on))} · ${b.age_days} days</small></span>
           <span class="qty">${qty(b.est_qty_left)} left</span></li>`).join('')}</ul>` : ''}`;
+  }
+
+  // The item card's actions hand the item to the task that does it.
+  function wireItemActions(out, it) {
+    const code = it.batch ? it.batch.batch_no : it.code;
+    out.querySelectorAll('.item-actions [data-act]').forEach(b => b.addEventListener('click', () => {
+      state.lastItem = it;
+      location.hash = `#/${b.dataset.act}?code=${encodeURIComponent(code)}`;
+    }));
   }
 
   function batchHTML(b) {
@@ -717,15 +882,252 @@
   }
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeCamera(); });
 
+  // ---------- push alerts (102.1.3) ----------
+  const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+
+  function keyBytes(b64) {
+    const pad = '='.repeat((4 - (b64.length % 4)) % 4);
+    const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+    return Uint8Array.from(raw, c => c.charCodeAt(0));
+  }
+
+  async function currentPush() {
+    if (!pushSupported()) return null;
+    const reg = await navigator.serviceWorker.ready;
+    return reg.pushManager.getSubscription();
+  }
+
+  async function pushOn(prefs) {
+    if (Notification.permission === 'denied') throw new AppError('Alerts are blocked for this site. Allow notifications in the browser settings, then try again.');
+    if (Notification.permission !== 'granted' && (await Notification.requestPermission()) !== 'granted') {
+      throw new AppError('Alerts need permission to show notifications.');
+    }
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      const { public_key: key } = await api('/api/v1/store-app/push/key');
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(key) });
+    }
+    return api('/api/v1/store-app/push', { method: 'POST', body: { ...sub.toJSON(), ...prefs } });
+  }
+
+  async function pushOff() {
+    const sub = await currentPush();
+    if (!sub) return;
+    try { await api('/api/v1/store-app/push/off', { method: 'POST', body: { endpoint: sub.endpoint } }); } finally { await sub.unsubscribe(); }
+  }
+
+  // After a store switch, alerts follow the new working store.
+  async function refreshPushStore() {
+    try {
+      const sub = await currentPush();
+      if (sub) await api('/api/v1/store-app/push', { method: 'POST', body: sub.toJSON() });
+    } catch (_) { /* alerts stay on the old store until Settings is opened */ }
+  }
+
+  // ---------- settings ----------
+  async function renderSettings() {
+    setBar('Settings', true);
+    main.innerHTML = `
+      <section class="card" id="set-alerts"><h2>Alerts on this phone</h2><p class="sub">Loading…</p></section>
+      <section class="card" id="set-pin"><h2>Your PIN</h2><p class="sub">Loading…</p></section>
+      <section class="card" id="set-phone"><h2>This phone</h2></section>
+      ${isManager() && !pinSession() ? '<section class="card" id="set-phones"><h2>Store phones</h2><p class="sub">Loading…</p></section>' : ''}`;
+    settingsAlerts($('#set-alerts'));
+    settingsPIN($('#set-pin'));
+    settingsPhone($('#set-phone'));
+    if ($('#set-phones')) settingsPhones($('#set-phones'));
+  }
+
+  async function settingsAlerts(box) {
+    if (!pushSupported()) {
+      box.innerHTML = `<h2>Alerts on this phone</h2><p class="sub">This browser cannot show alerts from the app. On an iPhone, add the app to the Home Screen first (Share > Add to Home Screen), then open it from there.</p>`;
+      return;
+    }
+    let status = { subscribed: false, approvals: true, low_stock: true };
+    try {
+      const sub = await currentPush();
+      if (sub) status = await api(`/api/v1/store-app/push?endpoint=${encodeURIComponent(sub.endpoint)}`);
+    } catch (e) {
+      if (e.quiet) return;
+    }
+    box.innerHTML = `
+      <h2>Alerts on this phone</h2>
+      <p class="sub">${status.subscribed ? `On for ${esc(storeName(status.store || workingStore()))}.` : 'Off.'} An alert comes when something new needs you, even when the app is closed.</p>
+      <label class="check"><input type="checkbox" id="al-appr" ${status.approvals !== false ? 'checked' : ''}> Approvals waiting for me</label>
+      <label class="check"><input type="checkbox" id="al-low" ${status.low_stock !== false ? 'checked' : ''}> Items running low at my store</label>
+      ${status.last_error ? `<p class="hint">Last alert: ${esc(status.last_error)}</p>` : ''}
+      <div class="actions">
+        ${status.subscribed ? '<button type="button" class="btn" id="al-off">Turn off</button>' : ''}
+        <button type="button" class="btn btn-primary" id="al-on">${status.subscribed ? 'Save' : 'Turn on alerts'}</button>
+      </div>`;
+    $('#al-on', box).addEventListener('click', async (e) => {
+      e.currentTarget.disabled = true;
+      try {
+        await pushOn({ approvals: $('#al-appr', box).checked, low_stock: $('#al-low', box).checked });
+        toast('Alerts are on for this phone.');
+        settingsAlerts(box);
+      } catch (ex) {
+        if (!ex.quiet) toast(ex.message || 'Alerts could not be turned on.', true);
+        e.currentTarget.disabled = false;
+      }
+    });
+    const off = $('#al-off', box);
+    if (off) off.addEventListener('click', async () => {
+      off.disabled = true;
+      try { await pushOff(); toast('Alerts are off for this phone.'); } catch (ex) { if (!ex.quiet) toast(ex.message, true); }
+      settingsAlerts(box);
+    });
+  }
+
+  async function settingsPIN(box) {
+    let st;
+    try { st = await api('/api/v1/store-app/pin'); } catch (e) {
+      box.innerHTML = e.quiet ? '' : `<h2>Your PIN</h2><p class="sub">${esc(e.message)}</p>`;
+      return;
+    }
+    if (!st.allowed) {
+      box.innerHTML = '<h2>Your PIN</h2><p class="sub">PIN sign-in is for store roles. An administrator signs in with the password and the two-factor code.</p>';
+      return;
+    }
+    box.innerHTML = `
+      <h2>Your PIN</h2>
+      <p class="sub">${st.set ? 'You have a PIN.' : 'No PIN yet.'} On a phone registered to your store, you sign in with your username and PIN. After 5 wrong PINs, PIN sign-in stops for 15 minutes.</p>
+      <form id="pin-set" autocomplete="off">
+        <label class="field"><span>Your password (to confirm it is you)</span><input class="input" id="ps-pass" type="password" autocomplete="current-password" required></label>
+        <label class="field"><span>New PIN (4 to 8 digits)</span><input class="input pin-input" id="ps-pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" autocomplete="off" required></label>
+        <div class="actions">
+          ${st.set ? '<button type="button" class="btn" id="ps-remove">Remove PIN</button>' : ''}
+          <button type="submit" class="btn btn-primary">${st.set ? 'Change PIN' : 'Set PIN'}</button>
+        </div>
+      </form>`;
+    $('#pin-set', box).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        await api('/api/v1/store-app/pin', { method: 'POST', body: { password: $('#ps-pass', box).value, pin: $('#ps-pin', box).value.trim() } });
+        toast('Your PIN is set.');
+        settingsPIN(box);
+      } catch (ex) { if (!ex.quiet) toast(ex.message, true); }
+    });
+    const rm = $('#ps-remove', box);
+    if (rm) rm.addEventListener('click', async () => {
+      try { await api('/api/v1/store-app/pin/remove', { method: 'POST', body: {} }); toast('Your PIN is removed.'); settingsPIN(box); } catch (ex) { if (!ex.quiet) toast(ex.message, true); }
+    });
+  }
+
+  function settingsPhone(box) {
+    const dev = device();
+    if (dev) {
+      box.innerHTML = `<h2>This phone</h2><p class="sub">Registered to ${esc(dev.store_name || dev.store)} as "${esc(dev.label)}". Everyone signs in on it with their own PIN.</p>
+        ${pinSession() ? '' : '<div class="actions"><button type="button" class="btn" id="ph-forget">Forget the registration on this phone</button></div>'}`;
+      const forget = $('#ph-forget', box);
+      if (forget) forget.addEventListener('click', () => {
+        ls.del(DEVICE_KEY);
+        toast('This phone no longer offers PIN sign-in. A manager can remove it from Store phones too.');
+        settingsPhone(box);
+      });
+      return;
+    }
+    if (!isManager() || pinSession()) {
+      box.innerHTML = '<h2>This phone</h2><p class="sub">This is a personal phone: sign in with your password. A store manager can register a shared store phone so staff sign in with a PIN.</p>';
+      return;
+    }
+    box.innerHTML = `<h2>This phone</h2>
+      <p class="sub">Register it as a shared phone for ${esc(storeName(workingStore()))}. After that, staff sign in on it with their own PIN, it locks after a few minutes without use, and it works at this store only.</p>
+      <form id="ph-reg"><label class="field"><span>Name for this phone</span><input class="input" id="ph-label" maxlength="160" placeholder="e.g. Counter phone 1" required></label>
+      <div class="actions"><button type="submit" class="btn btn-primary">Register to ${esc(storeName(workingStore()))}</button></div></form>`;
+    $('#ph-reg', box).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const res = await api('/api/v1/store-app/devices', { method: 'POST', body: { label: $('#ph-label', box).value.trim() } });
+        ls.setJSON(DEVICE_KEY, { id: res.device.id, token: res.device_token, store: res.device.store, store_name: res.device.store_name, label: res.device.label });
+        toast('This phone is registered. Staff now sign in on it with their PIN.');
+        settingsPhone(box);
+        const list = $('#set-phones');
+        if (list) settingsPhones(list);
+      } catch (ex) { if (!ex.quiet) toast(ex.message, true); }
+    });
+  }
+
+  async function settingsPhones(box) {
+    let res;
+    try { res = await api('/api/v1/store-app/devices'); } catch (e) {
+      box.innerHTML = e.quiet ? '' : `<h2>Store phones</h2><p class="sub">${esc(e.message)}</p>`;
+      return;
+    }
+    const devices = res.devices || [];
+    box.innerHTML = `<h2>Store phones</h2>
+      ${devices.length ? `<ul class="rows">${devices.map(d => `<li><span>${esc(d.label)}<small>${esc(d.store_name || d.store)} · registered by ${esc(d.registered_by)}${d.last_user ? ` · last used by ${esc(d.last_user)}` : ''}</small></span>
+        <button type="button" class="btn btn-danger btn-small" data-remove="${esc(d.id)}">Remove</button></li>`).join('')}</ul>
+        <p class="hint">Remove a phone that is lost, stolen or no longer used: everyone signed in on it is signed out at once.</p>` : '<p class="sub">No shared phones are registered at your stores.</p>'}`;
+    box.querySelectorAll('[data-remove]').forEach(b => b.addEventListener('click', async () => {
+      if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Tap again to remove'; return; }
+      try {
+        await api(`/api/v1/store-app/devices/${encodeURIComponent(b.dataset.remove)}/remove`, { method: 'POST', body: {} });
+        const dev = device();
+        if (dev && dev.id === b.dataset.remove) ls.del(DEVICE_KEY);
+        toast('Phone removed.');
+        settingsPhones(box);
+      } catch (ex) { if (!ex.quiet) toast(ex.message, true); }
+    }));
+  }
+
+  // ---------- feature modules ----------
+  const MODULES = {
+    today: 'store-today.js', 'low-stock': 'store-today.js',
+    receive: 'store-stock.js', count: 'store-stock.js', labels: 'store-stock.js', ask: 'store-stock.js',
+    basket: 'store-floor.js', order: 'store-floor.js',
+    customer: 'store-crm.js', tasks: 'store-crm.js',
+  };
+  const loadedModules = {};
+  const loadModule = (file) => loadedModules[file] || (loadedModules[file] = import(`./${file}?v=2`).catch((e) => { delete loadedModules[file]; throw e; }));
+
+  // ctx is what a module may use of the shell.
+  const ctx = {
+    api, esc, words, money, qty, fmtDate, ago, toast, setBar, panelError, main, ls, newKey, ICON,
+    scanBox, openCamera, closeCamera, AppError, routeName,
+    state, workingStore, storeName, isManager, pinSession,
+    lookupItem: (code) => api(`/api/v1/store-app/item?code=${encodeURIComponent(code)}`),
+  };
+
+  async function renderModule(name, params) {
+    let mod;
+    try {
+      mod = await loadModule(MODULES[name]);
+    } catch (_) {
+      setBar(words(name), true);
+      panelError(navigator.onLine ? 'This part of the app could not be loaded.' : 'This part of the app has not been opened on this phone yet, so it needs a connection the first time.', () => route());
+      return;
+    }
+    const r = mod.routes && mod.routes[name];
+    if (!r) { renderHome(); return; }
+    setBar(r.title, true);
+    await r.render(ctx, params);
+  }
+
+  // Counts made offline are sent when the connection is back (102.3.3).
+  async function syncQueuedCounts() {
+    if (!navigator.onLine || !ls.get('erp_token') || !(ls.json('store_app_count_queue', []) || []).length) return;
+    try {
+      const mod = await loadModule('store-stock.js');
+      if (mod.syncQueuedCounts) await mod.syncQueuedCounts(ctx);
+    } catch (_) { /* tried again on the next open */ }
+  }
+
   // ---------- routing and start ----------
-  const routes = { home: renderHome, scan: renderScan, approvals: renderApprovals, stores: renderStores };
+  const routes = { home: renderHome, scan: renderScan, approvals: renderApprovals, stores: renderStores, settings: renderSettings };
+
+  function routeName() { return (location.hash.replace(/^#\/?/, '').split('?')[0]) || 'home'; }
 
   function route() {
     if (!ls.get('erp_token')) { showSignIn(''); return; }
     if (!state.profile) { boot(); return; }
     closeCamera();
-    const name = location.hash.replace(/^#\/?/, '') || 'home';
-    (routes[name] || renderHome)();
+    const name = routeName();
+    const params = new URLSearchParams(location.hash.split('?')[1] || '');
+    if (routes[name]) { routes[name](params); return; }
+    if (MODULES[name]) { renderModule(name, params); return; }
+    renderHome();
   }
   window.addEventListener('hashchange', route);
 
@@ -734,6 +1136,7 @@
     updateOnline();
     // Opened offline: carry on by itself once the connection is back.
     if (!state.profile && ls.get('erp_token')) boot();
+    else syncQueuedCounts();
   });
   window.addEventListener('offline', updateOnline);
 
@@ -747,11 +1150,21 @@
     } catch (e) {
       if (!e.quiet) {
         bar.hidden = true;
+        // Offline with work saved on the phone: the count can still be done.
+        if (!navigator.onLine && /^count/.test(routeName())) {
+          state.profile = { role: ls.get('erp_role'), offline: true };
+          route();
+          return;
+        }
         panelError(e.message, boot);
       }
       return;
     }
-    state.idleMinutes = Number(state.profile.idle_timeout_minutes) || 0;
+    // A PIN session locks after the client's few minutes, or the person's own
+    // shorter Auto Logout (102.1.4).
+    const own = Number(state.profile.idle_timeout_minutes) || 0;
+    const pin = Number(ls.get(PIN_IDLE_KEY)) || 0;
+    state.idleMinutes = pin ? (own ? Math.min(own, pin) : pin) : own;
     if (idleExpired()) { idleSignOut(); return; }
     armIdle(state.idleMinutes);
     route();

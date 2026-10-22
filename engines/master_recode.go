@@ -391,6 +391,17 @@ func recodeInSchemaTx(tx *sql.Tx, schema, doctype string, rows []MasterRecodeRow
 		}
 	}
 
+	// 123.3: a code changed again - its earlier codes follow it to the new
+	// one, and a code in use again keeps no old mapping of its own.
+	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.master_code_changes c SET new_code = m.new
+		FROM unnest($1::text[], $2::text[]) AS m(old, new) WHERE c.doc_type = $3 AND c.new_code = m.old`, sch),
+		pq.Array(olds), pq.Array(news), doctype); err != nil {
+		return fmt.Errorf("follow earlier changes: %v", err)
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`DELETE FROM %s.master_code_changes WHERE doc_type = $1 AND old_code = ANY($2::text[])`, sch),
+		doctype, pq.Array(news)); err != nil {
+		return fmt.Errorf("follow earlier changes: %v", err)
+	}
 	for _, r := range rows {
 		if _, err := tx.Exec(fmt.Sprintf(`INSERT INTO %s.master_code_changes (doc_type, old_code, new_code, changed_by) VALUES ($1, $2, $3, $4)
 			ON CONFLICT (doc_type, old_code) DO UPDATE SET new_code = EXCLUDED.new_code, changed_by = EXCLUDED.changed_by, changed_at = NOW()`, sch),

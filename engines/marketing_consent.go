@@ -82,6 +82,14 @@ func WithdrawMarketingConsent(tenantID, customerID, source string) error {
 	if err != nil {
 		return err
 	}
+	// Stage 101.8.1: the withdrawal is a ledger row like any other, and it
+	// cancels what is still queued; the ticks below follow from it.
+	if crmReady(schema) {
+		if _, err := RecordCRMConsent(tenantID, CRMConsentInput{CustomerID: customerID, Channel: crmChannelAll, Purpose: CRMPurposeMarketing,
+			Action: CRMConsentWithdrawn, Source: "privacy_request", Evidence: source, RecordedBy: "privacy request"}); err != nil {
+			return err
+		}
+	}
 	res, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents
 		SET data = data || jsonb_build_object('consent_sms', false, 'consent_whatsapp', false, 'consent_updated_at', $2::text, 'consent_source', $3::text),
 		    updated_at = CURRENT_TIMESTAMP

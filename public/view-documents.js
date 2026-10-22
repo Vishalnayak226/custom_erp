@@ -388,6 +388,9 @@ function renderDocTable() {
         // Stage 36.4.4: mint/rotate this catalog's share link and show it
         // once - the same one-time-reveal posture Stage 36.3.4's import
         // hook token and Stage 38.2a's API keys both already take.
+        // Stage 99.2.1: a Shopify channel's own setup page.
+        : currentDoctype === 'Channel' && String(row.platform || '').toLowerCase() === 'shopify'
+        ? `<button class="btn btn-outline btn-sm" style="margin-right:4px;" data-doc-action="shopify-setup" data-doc-id="${escapeHTMLText(row.id)}">Shopify</button>`
         : currentDoctype === 'PIMCatalog'
         ? `<button class="action-btn" title="Share Link" aria-label="Get share link for catalog ${escapeHTMLText(row.id)}" style="margin-right:4px;" data-doc-action="share-pim-catalog" data-doc-id="${escapeHTMLText(row.id)}" data-doc-name="${escapeHTMLText(row.name || row.id)}">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
@@ -447,6 +450,7 @@ function renderDocTable() {
         case 'run-pim-import': loadViewModule('/view-pim.js?v=1').then(() => window.openPIMImportTemplateRun?.(id)).catch(() => showToast('Import tools could not load. Refresh and try again.', { variant: 'error' })); break;
         case 'run-pim-export': window.runPIMExportTemplateRow?.(id); break;
         case 'share-pim-catalog': window.openPIMCatalogShareModal?.(id, button.dataset.docName); break;
+        case 'shopify-setup': loadViewModule('./view-shopify.js').then(m => m.renderShopifyPage(document.getElementById('view-root'), id)).catch(() => showToast('The Shopify page could not load. Refresh and try again.', { variant: 'error' })); break;
         case 'taxonomy-history': window.viewTaxonomyHistory?.(id); break;
         case 'edit': window.editDocRecord?.(id); break;
         case 'delete': window.deleteDocRecord?.(id); break;
@@ -1505,6 +1509,8 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
   if (currentDoctype === 'Location') wireLocationCostCenter(body);
   // Stage 108: a new location's boxes filled in (Short Code, Facility Code, Type-led Level / Sellable, HO parent).
   if (currentDoctype === 'Location' && !isEdit) wireNewLocationDefaults(body);
+  // Stage 123.3: an admin types the store's own code here.
+  if (currentDoctype === 'Location' && isEdit) wireLocationCodeEdit(body, existingRecord);
 
   // Stage 80: variant options as option + value rows, then the fields in
   // named sections (both no-ops on a form without them).
@@ -1721,6 +1727,12 @@ async function handleDynamicFormSubmitInner(form) {
   }
 
   const isEdit = !!editingDocID;
+  // Stage 123.3: a typed store code renames the store first; the save follows under it.
+  if (isEdit && currentDoctype === 'Location' && typeof changeLocationCodeBeforeSave === 'function') {
+    const id = await changeLocationCodeBeforeSave(form, editingDocID);
+    if (id === null) return;
+    editingDocID = id;
+  }
   if (isEdit && editingDocVersion !== null) {
     payload.expected_version = editingDocVersion;
   }

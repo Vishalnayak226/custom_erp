@@ -808,8 +808,11 @@ func MoveStock(tenantID string, req StockMoveRequest, userID, username string) (
 // transaction. It runs after the receipt has posted to Main, so Main - or a
 // location the store does not use - means nothing to do: a receipt is never
 // refused over this.
-func applyReceiptDefaultTx(tx *sql.Tx, schema, txn, store string, lines []PostedStockLine) error {
+func applyReceiptDefaultTx(tx *sql.Tx, schema, txn, store string, lines []PostedStockLine, override ...string) error {
 	to := stockDefaultTo(schema, txn)
+	if o := stockOverride(txn, false, override); o != "" { // 106.5: the document's own To
+		to = o
+	}
 	if to == "" || to == "MAIN" {
 		return nil
 	}

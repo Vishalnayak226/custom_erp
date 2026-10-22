@@ -19,11 +19,19 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **176** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **179** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
 - [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-08
+
+## 2026-10-22
+
+**Stage 101 — CRM made best-in-class: one customer page, consent ledger, segments, a send gate, templates and senders, campaigns, journeys, feedback, tickets, WhatsApp inbox, loyalty depth, clienteling, a business-buyer pipeline** *(code + docs, NOT COMMITTED)*
+
+**Stage 102 — Store app, the rest: push alerts, shared-phone PIN sign-in, Today, receive / count / labels by scanning, basket to the till, order from another store** *(code + docs, NOT COMMITTED)*
+
+**Stage 129 — Bulk Purchase Upload: one Excel file from the client becomes POs and the goods receipts of its bills** *(code + docs, NOT COMMITTED)*
 
 ## 2026-10-21
 
@@ -444,16 +452,4 @@ Both items had sat open on a *decision* rather than on effort, and both decision
 **Stage 49.2.4 — Closed: recovery-destination reauthentication, and dual-control helpdesk password reset** *(code + schema + tests + docs)*
 
 49.2.4 (recovery cannot bypass authentication) is now fully closed — the two clauses 49.2.2's session left open. Full detail is in `docs/micro_checklist.md`'s own 49.2.4 entry; this is the index.
-
-## 2026-09-08
-
-**Stage 49.2.2 — Password baseline, and the session revocation it unlocks for 49.2.4** *(code + schema + tests + docs)*
-
-Stage 49 moved into Phase S1 (identity/authorization/data integrity) with 49.2 (identity, authentication, recovery, machine identity) — its first buildable sub-item, 49.2.2, is closed; the rest of 49.2 stays open. `engines/password_policy.go` + an embedded, curated `common_passwords.txt` (~300 entries, including the `Word@123`-shaped patterns this India-first ERP's own corporate password culture produces) is the one choke point `handleChangePassword`, `engines.CompletePasswordReset` and `handleCreateUser` all call now: minimum length (new `security.password_min_length` setting, default 12, following Stage 30.7's registry pattern), a denylist match, username-equality, and a cheap ascending/descending/repeated-character sequence check nothing else would catch.
-
-## 2026-09-10
-
-**Stage 48 — Documentation governance and canonical manuals** *(implementation and review package)*
-
-The documentation portal now leads to owned product, process, architecture, data/API, security/legal, engineering, operations, implementation and QA drafts. User and tenant-administrator manuals are generated from canonical Knowledge Center topics. All 56 registered screens have help mappings across 49 topics; current returns, RF, warehouse-depth, asset and expense instructions replace the previously missing or stale guidance.
 

@@ -9,7 +9,7 @@
 
 Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.
 
-There are **512** codes. Each row says what the user is shown, what to do about
+There are **539** codes. Each row says what the user is shown, what to do about
 it, and how serious it is.
 
 **How to read an error dialog** - it has up to three lines: the *headline* (the
@@ -24,7 +24,24 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 - [Approvals / Workflow](#approvals--workflow) - 4 codes
 - [Audit & Compliance](#audit--compliance) - 2 codes
 - [Backup / DR](#backup--dr) - 4 codes
-- [CRM / Customers](#crm--customers) - 2 codes
+- [CRM](#crm) - 1 codes
+- [CRM / Appointments](#crm--appointments) - 1 codes
+- [CRM / Campaigns](#crm--campaigns) - 1 codes
+- [CRM / Clienteling](#crm--clienteling) - 2 codes
+- [CRM / Customer links](#crm--customer-links) - 1 codes
+- [CRM / Customers](#crm--customers) - 5 codes
+- [CRM / Feedback](#crm--feedback) - 1 codes
+- [CRM / Journeys](#crm--journeys) - 1 codes
+- [CRM / Lists](#crm--lists) - 1 codes
+- [CRM / Messages](#crm--messages) - 1 codes
+- [CRM / Pipeline](#crm--pipeline) - 2 codes
+- [CRM / Privacy](#crm--privacy) - 1 codes
+- [CRM / Referrals](#crm--referrals) - 1 codes
+- [CRM / Segments](#crm--segments) - 1 codes
+- [CRM / Senders](#crm--senders) - 1 codes
+- [CRM / Service](#crm--service) - 1 codes
+- [CRM / Templates](#crm--templates) - 1 codes
+- [CRM / Vouchers](#crm--vouchers) - 1 codes
 - [Channel Connectors](#channel-connectors) - 5 codes
 - [Customer / CRM](#customer--crm) - 8 codes
 - [Data Import / Excel Upload](#data-import--excel-upload) - 8 codes
@@ -40,10 +57,11 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 - [Goods Receipt / GRN](#goods-receipt--grn) - 8 codes
 - [HR / Payroll](#hr--payroll) - 14 codes
 - [Integration / API](#integration--api) - 9 codes
+- [Integrations](#integrations) - 1 codes
 - [Inventory](#inventory) - 6 codes
 - [Inventory / Warehouse](#inventory--warehouse) - 29 codes
 - [Manufacturing / Production](#manufacturing--production) - 13 codes
-- [Master Data](#master-data) - 40 codes
+- [Master Data](#master-data) - 42 codes
 - [Mobile App / Device](#mobile-app--device) - 7 codes
 - [Notifications](#notifications) - 6 codes
 - [Observability / Incident](#observability--incident) - 3 codes
@@ -62,7 +80,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 - [Purchase Return / RTV](#purchase-return--rtv) - 5 codes
 - [Quality & Maintenance](#quality--maintenance) - 6 codes
 - [RFQ](#rfq) - 6 codes
-- [Reports](#reports) - 1 codes
+- [Reports](#reports) - 3 codes
 - [Reports & Exports](#reports--exports) - 8 codes
 - [SaaS / Multi-Tenant](#saas--multi-tenant) - 8 codes
 - [Sales / POS](#sales--pos) - 9 codes
@@ -124,12 +142,119 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `DR-0213` | Restore drill overdue | Restore drill is overdue. Please complete and record a recovery test. | Schedule and complete restore drill. | High | 200 |
 | `DR-0214` | RPO breach detected | Recovery-point target is breached. Recent backup coverage is insufficient. | Run backup and investigate missed schedule. | Critical | 422 |
 
+## CRM
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `CRMPLT-1119` | CRM record not found | That record was not found. | Refresh the list; it may have been removed or merged. | Low | 404 |
+
+## CRM / Appointments
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `CRMPLT-1109` | Appointment slot full, closed or not valid | That appointment slot can't be booked. | Choose another slot from the list. | Low | 409 |
+
+## CRM / Campaigns
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `CRMPLT-1106` | Campaign not ready for this action (no segment, template or sender; not a draft; already sending) | The campaign can't do that yet. | Fix what the detail lists, then submit it for approval again. | Medium | 422 |
+
+## CRM / Clienteling
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `CRMPLT-1116` | Wish list or hold request not valid (unknown item, no store, not confirmed) | This hold can't be done. | Scan or type the item, choose the store, and tell the customer only after the store confirms the hold. | Low | 422 |
+| `CRMPLT-1120` | Task action not valid (no title, already done, no outcome) | The task can't be saved. | Give the task a title; to finish it, say how it went. | Low | 422 |
+
+## CRM / Customer links
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `CRMPLT-1108` | Preference, feedback or callback link not valid or expired | This link is not valid or has expired. | Use the link in your latest message from us. | Low | 404 |
+
 ## CRM / Customers
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
 |---|---|---|---|---|---|
+| `CRMPLT-1101` | Customer page action not valid | This can't be saved on the customer. | Check the detail below, correct it and save again. | Low | 422 |
+| `CRMPLT-1102` | Consent action not valid (channel, purpose, source, or an import re-granting a withdrawal) | This consent can't be recorded. | Choose the channel and purpose and say where the consent came from. Only the customer can opt back in after saying no. | Medium | 422 |
+| `CRMPLT-1112` | Customer merge not valid (same customer, already merged, erased, already waiting) | These customers can't be merged. | Choose two different, active customers. A merge already waiting is under Approvals. | Medium | 422 |
 | `CUSTOM-0869` | Customer GSTIN malformed or failing its check digit | The GSTIN is not valid. | Type the 15-character GSTIN exactly as it is on the customer's GST certificate. | Medium | 422 |
 | `CUSTOM-0870` | Customer PAN malformed | The PAN is not valid. | Type the 10-character PAN (5 letters, 4 digits, 1 letter) as it is on the PAN card. | Medium | 422 |
+
+## CRM / Feedback
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `CRMPLT-1121` | Survey or feedback answer not valid | The feedback can't be saved. | Choose a score in the range shown. | Low | 422 |
+
+## CRM / Journeys
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `CRMPLT-1107` | Journey not valid (trigger, steps, branches or not published) | The journey isn't complete. | Fix the step the detail names, then publish it. | Low | 422 |
+
+## CRM / Lists
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `CRMPLT-1115` | Static list upload not valid (no phone column, no source, bad expiry) | The list can't be uploaded. | Upload a CSV with a phone column, say where the numbers came from, and give the expiry as YYYY-MM-DD. | Low | 422 |
+
+## CRM / Messages
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `CRMPLT-1113` | Message not sent or not valid (no text, no template, refused by the send rules) | This message can't be sent. | Read the reason in the detail. Outside WhatsApp's 24-hour reply window, choose a template. | Low | 422 |
+
+## CRM / Pipeline
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `CRMPLT-1111` | Lead or opportunity rule not met (stage requirement, approved quotation to win, reason to lose) | The deal can't move there yet. | Do what the detail says the stage needs (for example, have the quotation approved), then try again. | Low | 422 |
+| `CRMPLT-1122` | Sales quotation not valid (no lines, unknown item, not a draft) | The quotation can't be saved. | Add at least one line with an item, a quantity and a rate. | Low | 422 |
+
+## CRM / Privacy
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `CRMPLT-1118` | Phone or email belonged to an erased customer | This customer asked to be erased. | Their phone number and email cannot be added again. If they come back and ask to be a customer again, ask an administrator. | High | 409 |
+
+## CRM / Referrals
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `CRMPLT-1117` | Referral not valid (unknown code, existing customer, already referred) | This referral can't be recorded. | Check the referral code. A referral is for a new customer, recorded once. | Low | 422 |
+
+## CRM / Segments
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `CRMPLT-1103` | Segment rule or lifecycle thresholds not valid | The segment's rules are not complete. | Finish the rule the detail names (a field, a comparison and a value) and count again. | Low | 422 |
+
+## CRM / Senders
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `CRMPLT-1105` | Sender settings not valid or the provider could not be asked | The sender isn't set up correctly. | Fill in what the detail names under CRM > Settings > Senders (URLs must be https and public). | Medium | 422 |
+
+## CRM / Service
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `CRMPLT-1114` | Ticket action not valid in its state | The ticket can't do that in its current state. | Check the ticket's state; resolve needs a note of what was done. | Low | 422 |
+
+## CRM / Templates
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `CRMPLT-1104` | Message template not valid (unknown placeholder, missing text or subject, channel change) | The template can't be saved. | Use only the placeholders listed beside the text, and give an email a subject. | Low | 422 |
+
+## CRM / Vouchers
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `CRMPLT-1110` | Single-use voucher held by another checkout, or not usable | This voucher code can't be used here right now. | A single-use code can be taken by one checkout at a time. Finish or cancel the other checkout, or use another code. | Medium | 409 |
 
 ## Channel Connectors
 
@@ -386,6 +511,12 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `INTEGR-0168` | Integration authentication failed | External service authentication failed. Please contact administrator. | Correct details or retry. Contact admin if repeated. | High | 401 |
 | `INTEGR-0169` | Invalid API response | Invalid response received from external service. Please retry or contact support. | Correct details or retry. Contact admin if repeated. | High | 422 |
 
+## Integrations
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `CONN-0994` | Shopify channel set-up incomplete or not valid | The Shopify connection is not ready for this. | Open the channel's Shopify page: save the shop address (yourstore.myshopify.com), the admin API token and the webhook secret, test the connection, and map each Shopify location to a store. | Medium | 422 |
+
 ## Inventory
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
@@ -493,6 +624,8 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `MASTER-0975` | A reason code missing, inactive, of another action or outside its dates | Choose a reason from the list. | Pick one of the reasons offered. If none fits, ask an administrator to add one under Setup > Reason Codes for this action. | Low | 422 |
 | `MASTER-0990` | Old master codes renumbered without a backup from the last 24 hours | Renumbering old codes needs a backup from the last 24 hours. | Wait for the nightly backup (02:00) or ask the operator to run one now, then renumber again. Nothing was changed. | Medium | 422 |
 | `MASTER-0991` | Item codes renumbered without acknowledging that stickers and channel SKUs keep the old code | Confirm you have read the warning about stickers and sales channels first. | Tick the box under the warning, then renumber. Nothing was changed. | Low | 422 |
+| `MASTER-0992` | Store code typed on the Edit form is not valid, or the store was not found | This store code cannot be used. | Use 1 to 30 capital letters or digits, with - or _ between them - no spaces or /. Nothing was changed. | Low | 422 |
+| `MASTER-0993` | Store code typed on the Edit form is already another record's code | Another record already has this code. | Choose a code no other store or record uses. Nothing was changed. | Medium | 422 |
 
 ## Mobile App / Device
 
@@ -726,6 +859,8 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | Code | When it happens | What you see | What to do | Severity | HTTP |
 |---|---|---|---|---|---|
 | `REPORT-0987` | Report filter names a store outside the user's store access | You can only see reports for your own stores. | Choose one of your stores in the store filter, or leave it blank to see all of yours. An administrator widens store access on the User or Role screen. | Medium | 403 |
+| `REPORT-0988` | Dashboard widget asks a dataset for a field, total or filter it does not have, or one the role may not read | This widget's data cannot be shown. | Edit the widget and pick its fields again from the lists - group by a name or a date, total a number. If your role may not read the record type, ask an administrator. | Low | 422 |
+| `REPORT-0989` | Dashboard not valid, not found, or changed by someone other than its maker | This dashboard cannot be saved. | Give it a name and at least one widget. To change a dashboard someone else made, use Copy and change your copy. | Low | 422 |
 
 ## Reports & Exports
 

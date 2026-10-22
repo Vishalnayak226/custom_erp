@@ -214,6 +214,9 @@ func Run() {
 	// Active campaigns whose birthday/lapsed-customer trigger newly
 	// matches a customer.
 	engines.StartCampaignWorker(workerCtx, 1*time.Hour)
+	// Stage 101: the CRM worker - events into journeys, due campaign runs,
+	// the send gate, unknown-outcome sweeps, alerts and the daily jobs.
+	engines.StartCRMWorker(workerCtx, 20*time.Second)
 
 	// Start Competitor Undercut Worker (Stage 34.3) - hourly scan for SKUs
 	// where a newly-recorded CompetitorPrice observation sits more than
@@ -235,6 +238,10 @@ func Run() {
 	// Skips any tenant whose database has not had the Stage 38.3 migration
 	// applied yet, so it is safe to ship ahead of the migration.
 	engines.StartPublicAPIRuntimeSweeper(workerCtx, 1*time.Hour)
+
+	// Stage 102.1.3: store app push alerts - new approvals and low stock,
+	// looked for every minute, sent through the job runner.
+	engines.StartWebPushAlertWorker(workerCtx, 1*time.Minute)
 
 	registerRoutes()
 	runHTTPServer(cancelWorkers)
@@ -350,6 +357,7 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/stock-locations/stores", apiMiddleware(handleStoreStockLocations))
 	http.HandleFunc("POST /api/v1/stock-locations/defaults", apiMiddleware(handleStockLocationDefault))
 	http.HandleFunc("GET /api/v1/stock-locations/balance", apiMiddleware(handleStockLocationBalance))
+	http.HandleFunc("GET /api/v1/stock-locations/txn-header", apiMiddleware(handleStockTxnHeader)) // Stage 106.5
 	http.HandleFunc("POST /api/v1/stock-locations/move", apiMiddleware(handleMoveStock))
 	// Stage 88.5: Inventory ▸ Dashboard, MRP Change and Stock Adjustment (handlers_inventory_erp.go).
 	http.HandleFunc("GET /api/v1/inventory/dashboard", apiMiddleware(moduleGate("inventory", handleInventoryDashboard)))
@@ -414,6 +422,29 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/availability", apiMiddleware(handleGetAvailability))
 	// Stage 102.3.1: the store app's scan-an-item lookup (public/store/).
 	http.HandleFunc("GET /api/v1/store-app/item", apiMiddleware(handleStoreAppItem))
+	// Stage 102 (2026-10-22): the rest of the store app (handlers_store_app_more.go).
+	http.HandleFunc("GET /api/v1/store-app/push/key", apiMiddleware(handleStoreAppPushKey))
+	http.HandleFunc("GET /api/v1/store-app/push", apiMiddleware(handleStoreAppPush))
+	http.HandleFunc("POST /api/v1/store-app/push", apiMiddleware(handleStoreAppPush))
+	http.HandleFunc("POST /api/v1/store-app/push/off", apiMiddleware(handleStoreAppPushOff))
+	http.HandleFunc("GET /api/v1/store-app/devices", apiMiddleware(handleStoreAppDevices))
+	http.HandleFunc("POST /api/v1/store-app/devices", apiMiddleware(handleStoreAppDevices))
+	http.HandleFunc("POST /api/v1/store-app/devices/{id}/remove", apiMiddleware(handleStoreAppDeviceRemove))
+	http.HandleFunc("POST /api/v1/store-app/device/check", apiMiddleware(handleStoreAppDeviceCheck))
+	http.HandleFunc("POST /api/v1/store-app/pin/login", apiMiddleware(handleStoreAppPINLogin))
+	http.HandleFunc("GET /api/v1/store-app/pin", apiMiddleware(handleStoreAppPIN))
+	http.HandleFunc("POST /api/v1/store-app/pin", apiMiddleware(handleStoreAppPIN))
+	http.HandleFunc("POST /api/v1/store-app/pin/remove", apiMiddleware(handleStoreAppPINRemove))
+	http.HandleFunc("GET /api/v1/store-app/today", apiMiddleware(moduleGate("sales", handleStoreAppToday)))
+	http.HandleFunc("GET /api/v1/store-app/low-stock", apiMiddleware(moduleGate("inventory", handleStoreAppLowStock)))
+	http.HandleFunc("GET /api/v1/store-app/receive", apiMiddleware(handleStoreAppReceiveList))
+	http.HandleFunc("GET /api/v1/store-app/receive/{kind}/{id}", apiMiddleware(handleStoreAppReceiveDocument))
+	http.HandleFunc("GET /api/v1/store-app/counts", apiMiddleware(moduleGate("wms", handleStoreAppCounts)))
+	http.HandleFunc("POST /api/v1/store-app/counts", apiMiddleware(moduleGate("wms", handleStoreAppCounts)))
+	http.HandleFunc("GET /api/v1/store-app/sources", apiMiddleware(moduleGate("inventory", handleStoreAppSources)))
+	http.HandleFunc("GET /api/v1/store-app/labels", apiMiddleware(moduleGate("stickers", handleStoreAppLabels)))
+	http.HandleFunc("POST /api/v1/store-app/labels", apiMiddleware(moduleGate("stickers", handleStoreAppLabels)))
+	http.HandleFunc("POST /api/v1/store-app/orders", apiMiddleware(moduleGate("oms", handleStoreAppOrder)))
 	http.HandleFunc("POST /api/v1/reserve", apiMiddleware(handleCreateReservation))
 
 	// Stage 26.12.1: Order Engine - create (validate/reserve chain), the
@@ -868,6 +899,17 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/dashboards/layouts", apiMiddleware(moduleGate("reports", handleDashboardLayouts)))
 	http.HandleFunc("POST /api/v1/dashboards/layouts", apiMiddleware(moduleGate("reports", handleDashboardLayouts)))
 	http.HandleFunc("DELETE /api/v1/dashboards/layouts/{id}", apiMiddleware(moduleGate("reports", handleDeleteDashboardLayout)))
+	// Stage 100: custom dashboards - datasets, queries, saved dashboards.
+	http.HandleFunc("GET /api/v1/dashboards/datasets", apiMiddleware(moduleGate("reports", handleDashboardDatasets)))
+	http.HandleFunc("POST /api/v1/dashboards/query", apiMiddleware(moduleGate("reports", handleDashboardQuery)))
+	http.HandleFunc("POST /api/v1/dashboards/export", apiMiddleware(moduleGate("reports", handleDashboardExport)))
+	http.HandleFunc("GET /api/v1/dashboards/custom", apiMiddleware(moduleGate("reports", handleCustomDashboards)))
+	http.HandleFunc("POST /api/v1/dashboards/custom", apiMiddleware(moduleGate("reports", handleCustomDashboards)))
+	http.HandleFunc("GET /api/v1/dashboards/custom/{id}", apiMiddleware(moduleGate("reports", handleCustomDashboard)))
+	http.HandleFunc("DELETE /api/v1/dashboards/custom/{id}", apiMiddleware(moduleGate("reports", handleCustomDashboard)))
+	http.HandleFunc("POST /api/v1/dashboards/custom/{id}/copy", apiMiddleware(moduleGate("reports", handleCopyCustomDashboard)))
+	http.HandleFunc("POST /api/v1/dashboards/custom/{id}/digest", apiMiddleware(moduleGate("reports", handleScheduleDashboardDigest)))
+	http.HandleFunc("GET /api/v1/dashboards/home", apiMiddleware(moduleGate("reports", handleHomeDashboard)))
 
 	// RFQ / Vendor Quote / Quote Comparison (Stage 14.1: module-gated - "rfq")
 	http.HandleFunc("GET /api/v1/rfq/quotes", apiMiddleware(moduleGate("rfq", handleGetVendorQuotesForRFQ)))
@@ -950,6 +992,71 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/crm/loyalty-redemption/verify", apiMiddleware(moduleGate("crm_loyalty", handleVerifySecureLoyaltyRedemption)))
 	// 26.7.9/26.7.11 (P2, go-ahead 2026-07-27): householding/merge + inbound CleverTap segment sync
 	http.HandleFunc("POST /api/v1/crm/customer/merge", apiMiddleware(moduleGate("crm_loyalty", handleMergeCustomers)))
+	// Stage 101: the CRM platform (handlers_crm_platform.go). Method-less
+	// patterns dispatch on the method inside the handler.
+	http.HandleFunc("GET /api/v1/crm/meta", apiMiddleware(moduleGate("crm_loyalty", handleCRMMeta)))
+	http.HandleFunc("GET /api/v1/crm/dashboard", apiMiddleware(moduleGate("crm_loyalty", handleCRMDashboard)))
+	http.HandleFunc("GET /api/v1/crm/customers", apiMiddleware(moduleGate("crm_loyalty", handleCRMCustomers)))
+	http.HandleFunc("/api/v1/crm/customers/{id}", apiMiddleware(moduleGate("crm_loyalty", handleCRMCustomer)))
+	http.HandleFunc("/api/v1/crm/customers/{id}/{part}", apiMiddleware(moduleGate("crm_loyalty", handleCRMCustomer)))
+	http.HandleFunc("GET /api/v1/crm/duplicates", apiMiddleware(moduleGate("crm_loyalty", handleCRMDuplicates)))
+	http.HandleFunc("POST /api/v1/crm/merges", apiMiddleware(moduleGate("crm_loyalty", handleCRMMerge)))
+	http.HandleFunc("/api/v1/crm/segments", apiMiddleware(moduleGate("crm_loyalty", handleCRMSegments)))
+	http.HandleFunc("/api/v1/crm/segments/{id}", apiMiddleware(moduleGate("crm_loyalty", handleCRMSegments)))
+	http.HandleFunc("/api/v1/crm/lists", apiMiddleware(moduleGate("crm_loyalty", handleCRMLists)))
+	http.HandleFunc("/api/v1/crm/lifecycle", apiMiddleware(moduleGate("crm_loyalty", handleCRMLifecycle)))
+	http.HandleFunc("/api/v1/crm/templates", apiMiddleware(moduleGate("crm_loyalty", handleCRMTemplates)))
+	http.HandleFunc("/api/v1/crm/templates/{id}", apiMiddleware(moduleGate("crm_loyalty", handleCRMTemplates)))
+	http.HandleFunc("/api/v1/crm/templates/{id}/{part}", apiMiddleware(moduleGate("crm_loyalty", handleCRMTemplates)))
+	http.HandleFunc("/api/v1/crm/senders", apiMiddleware(moduleGate("crm_loyalty", handleCRMSenders)))
+	http.HandleFunc("/api/v1/crm/senders/{id}", apiMiddleware(moduleGate("crm_loyalty", handleCRMSenders)))
+	http.HandleFunc("/api/v1/crm/campaigns", apiMiddleware(moduleGate("crm_loyalty", handleCRMCampaigns)))
+	http.HandleFunc("/api/v1/crm/campaigns/{id}", apiMiddleware(moduleGate("crm_loyalty", handleCRMCampaigns)))
+	http.HandleFunc("/api/v1/crm/campaigns/{id}/{part}", apiMiddleware(moduleGate("crm_loyalty", handleCRMCampaigns)))
+	http.HandleFunc("/api/v1/crm/campaign-runs/{id}/{action}", apiMiddleware(moduleGate("crm_loyalty", handleCRMCampaignRun)))
+	http.HandleFunc("/api/v1/crm/messages", apiMiddleware(moduleGate("crm_loyalty", handleCRMMessages)))
+	http.HandleFunc("/api/v1/crm/messages/{id}/{part}", apiMiddleware(moduleGate("crm_loyalty", handleCRMMessages)))
+	http.HandleFunc("/api/v1/crm/journeys", apiMiddleware(moduleGate("crm_loyalty", handleCRMJourneys)))
+	http.HandleFunc("/api/v1/crm/journeys/{id}", apiMiddleware(moduleGate("crm_loyalty", handleCRMJourneys)))
+	http.HandleFunc("/api/v1/crm/journeys/{id}/{part}", apiMiddleware(moduleGate("crm_loyalty", handleCRMJourneys)))
+	http.HandleFunc("/api/v1/crm/surveys", apiMiddleware(moduleGate("crm_loyalty", handleCRMSurveys)))
+	http.HandleFunc("/api/v1/crm/surveys/{id}", apiMiddleware(moduleGate("crm_loyalty", handleCRMSurveys)))
+	http.HandleFunc("/api/v1/crm/surveys/{id}/{part}", apiMiddleware(moduleGate("crm_loyalty", handleCRMSurveys)))
+	http.HandleFunc("/api/v1/crm/tickets", apiMiddleware(moduleGate("crm_loyalty", handleCRMTickets)))
+	http.HandleFunc("/api/v1/crm/tickets/{id}", apiMiddleware(moduleGate("crm_loyalty", handleCRMTickets)))
+	http.HandleFunc("/api/v1/crm/tickets/{id}/{part}", apiMiddleware(moduleGate("crm_loyalty", handleCRMTickets)))
+	http.HandleFunc("/api/v1/crm/conversations", apiMiddleware(moduleGate("crm_loyalty", handleCRMConversations)))
+	http.HandleFunc("/api/v1/crm/conversations/{id}", apiMiddleware(moduleGate("crm_loyalty", handleCRMConversations)))
+	http.HandleFunc("/api/v1/crm/conversations/{id}/{part}", apiMiddleware(moduleGate("crm_loyalty", handleCRMConversations)))
+	http.HandleFunc("POST /api/v1/crm/voucher-holds/{action}", apiMiddleware(moduleGate("crm_loyalty", handleCRMVoucherHold)))
+	http.HandleFunc("/api/v1/crm/referrals", apiMiddleware(moduleGate("crm_loyalty", handleCRMReferrals)))
+	http.HandleFunc("/api/v1/crm/referrals/{id}/{part}", apiMiddleware(moduleGate("crm_loyalty", handleCRMReferrals)))
+	http.HandleFunc("/api/v1/crm/tasks", apiMiddleware(moduleGate("crm_loyalty", handleCRMTasks)))
+	http.HandleFunc("/api/v1/crm/tasks/{id}", apiMiddleware(moduleGate("crm_loyalty", handleCRMTasks)))
+	http.HandleFunc("/api/v1/crm/tasks/{id}/{action}", apiMiddleware(moduleGate("crm_loyalty", handleCRMTasks)))
+	http.HandleFunc("/api/v1/crm/stores/{store}/slots", apiMiddleware(moduleGate("crm_loyalty", handleCRMStoreSlots)))
+	http.HandleFunc("GET /api/v1/crm/stores/{store}/slots/{day}", apiMiddleware(moduleGate("crm_loyalty", handleCRMStoreSlots)))
+	http.HandleFunc("/api/v1/crm/appointments", apiMiddleware(moduleGate("crm_loyalty", handleCRMAppointments)))
+	http.HandleFunc("/api/v1/crm/appointments/{id}/{action}", apiMiddleware(moduleGate("crm_loyalty", handleCRMAppointments)))
+	http.HandleFunc("/api/v1/crm/holds", apiMiddleware(moduleGate("crm_loyalty", handleCRMHolds)))
+	http.HandleFunc("/api/v1/crm/holds/{id}/{action}", apiMiddleware(moduleGate("crm_loyalty", handleCRMHolds)))
+	http.HandleFunc("/api/v1/crm/pipeline/{part}", apiMiddleware(moduleGate("crm_loyalty", handleCRMPipelineConfig)))
+	http.HandleFunc("/api/v1/crm/leads", apiMiddleware(moduleGate("crm_loyalty", handleCRMLeads)))
+	http.HandleFunc("/api/v1/crm/leads/{id}", apiMiddleware(moduleGate("crm_loyalty", handleCRMLeads)))
+	http.HandleFunc("/api/v1/crm/leads/{id}/{part}", apiMiddleware(moduleGate("crm_loyalty", handleCRMLeads)))
+	http.HandleFunc("/api/v1/crm/opportunities", apiMiddleware(moduleGate("crm_loyalty", handleCRMOpportunities)))
+	http.HandleFunc("/api/v1/crm/opportunities/{id}", apiMiddleware(moduleGate("crm_loyalty", handleCRMOpportunities)))
+	http.HandleFunc("/api/v1/crm/opportunities/{id}/{part}", apiMiddleware(moduleGate("crm_loyalty", handleCRMOpportunities)))
+	// Public (middleware.go publicRoutes): the customer's own pages, guarded
+	// by their link token, and provider callbacks, guarded by the sender's
+	// callback key (and WhatsApp's signature).
+	http.HandleFunc("/api/v1/crm/public/preferences", apiMiddleware(moduleGate("crm_loyalty", handleCRMPublicPreferences)))
+	http.HandleFunc("POST /api/v1/crm/public/unsubscribe", apiMiddleware(moduleGate("crm_loyalty", handleCRMPublicUnsubscribe)))
+	http.HandleFunc("/api/v1/crm/public/feedback", apiMiddleware(moduleGate("crm_loyalty", handleCRMPublicFeedback)))
+	http.HandleFunc("/api/v1/crm/hooks/whatsapp", apiMiddleware(moduleGate("crm_loyalty", handleCRMHookWhatsApp)))
+	http.HandleFunc("/api/v1/crm/hooks/sms", apiMiddleware(moduleGate("crm_loyalty", handleCRMHook)))
+	http.HandleFunc("/api/v1/crm/hooks/email", apiMiddleware(moduleGate("crm_loyalty", handleCRMHook)))
+	http.HandleFunc("/api/v1/crm/hooks/webhook", apiMiddleware(moduleGate("crm_loyalty", handleCRMHook)))
 	http.HandleFunc("POST /api/v1/integrations/clevertap/segment-sync", apiMiddleware(moduleGate("crm_loyalty", handleCleverTapSegmentSync)))
 
 	// Manufacturing (Stage 14.1: module-gated - "manufacturing")
@@ -1081,6 +1188,15 @@ func registerRoutes() {
 	// featureGate doc comments for why both stay).
 	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleShopifyProductMap))))
 	http.HandleFunc("POST /api/v1/integration/shopify/order", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleShopifyOrderWebhook))))
+	// Stage 99: Shopify - the setup page, its actions, and the public webhook.
+	http.HandleFunc("POST /api/v1/integration/shopify/webhook", apiMiddleware(moduleGate("oms", handleShopifyWebhook)))
+	http.HandleFunc("GET /api/v1/shopify/{channel}", apiMiddleware(moduleGate("oms", handleShopifyOverview)))
+	http.HandleFunc("GET /api/v1/shopify/{channel}/links", apiMiddleware(moduleGate("oms", handleShopifyLinks)))
+	http.HandleFunc("GET /api/v1/shopify/{channel}/mismatch", apiMiddleware(moduleGate("oms", handleShopifyMismatch)))
+	http.HandleFunc("POST /api/v1/shopify/{channel}/credentials", apiMiddleware(moduleGate("oms", handleShopifyCredentials)))
+	http.HandleFunc("POST /api/v1/shopify/{channel}/settings", apiMiddleware(moduleGate("oms", handleShopifySettings)))
+	http.HandleFunc("POST /api/v1/shopify/{channel}/do/{action}", apiMiddleware(moduleGate("oms", handleShopifyAction)))
+	http.HandleFunc("POST /api/v1/oms/orders/{id}/channel-change-done", apiMiddleware(moduleGate("oms", handleChannelChangeDone)))
 
 	// Store Fulfillment & Returns APIs. moduleGate("wms",...) (Stage 27) now
 	// stacks alongside the pre-existing featureGate("wms_integration",...),
@@ -1136,6 +1252,13 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/grn-steps/{id}/correct", apiMiddleware(moduleGate("procurement", handleGRNStepsCorrect)))
 	// Stage 65.4: add a value (or a new attribute) to the PIM attributes from the PO.
 	http.HandleFunc("POST /api/v1/procurement/design-attribute", apiMiddleware(moduleGate("procurement", handleAddDesignAttributeValue)))
+	// Stage 129: Bulk Purchase Upload - POs and goods receipts from one Excel file (bulk_purchase.go).
+	http.HandleFunc("GET /api/v1/procurement/bulk-upload/template", apiMiddleware(moduleGate("procurement", handleBulkPurchaseTemplate)))
+	http.HandleFunc("POST /api/v1/procurement/bulk-upload/preview", apiMiddleware(moduleGate("procurement", handleBulkPurchasePreview)))
+	http.HandleFunc("POST /api/v1/procurement/bulk-upload/apply", apiMiddleware(moduleGate("procurement", handleBulkPurchaseApply)))
+	http.HandleFunc("GET /api/v1/procurement/bulk-upload/runs", apiMiddleware(moduleGate("procurement", handleBulkPurchaseRuns)))
+	http.HandleFunc("GET /api/v1/procurement/bulk-upload/runs/{id}", apiMiddleware(moduleGate("procurement", handleBulkPurchaseRun)))
+	http.HandleFunc("GET /api/v1/procurement/bulk-upload/runs/{id}/file", apiMiddleware(moduleGate("procurement", handleBulkPurchaseRunFile)))
 	// Stage 95: Design and Combination ID images - the PO's Images page, the
 	// Design / Item screens' image strip, the image read routes (any module),
 	// and the client's own image drive (Configuration -> Integrations).
@@ -1360,6 +1483,9 @@ func registerRoutes() {
 	// Stage 93.11: the guided clean-up of a master's old long codes (admin).
 	http.HandleFunc("GET /api/v1/master-codes/{doctype}/clean", apiMiddleware(handleMasterCodeClean))
 	http.HandleFunc("POST /api/v1/master-codes/{doctype}/clean", apiMiddleware(handleMasterCodeClean))
+	// Stage 123.3: a store's own code, typed on its Edit form (admin).
+	http.HandleFunc("GET /api/v1/master-codes/Location/code", apiMiddleware(handleLocationCodeChange))
+	http.HandleFunc("POST /api/v1/master-codes/Location/code", apiMiddleware(handleLocationCodeChange))
 	http.HandleFunc("GET /api/v1/meta/doctypes", apiMiddleware(handleGetDocTypes))
 	http.HandleFunc("POST /api/v1/meta/doctypes", apiMiddleware(handleSaveDocType))
 	http.HandleFunc("POST /api/v1/meta/{doctype}/fields", apiMiddleware(handleSaveFieldDefinition))
