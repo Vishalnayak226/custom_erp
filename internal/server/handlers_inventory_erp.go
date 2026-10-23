@@ -108,9 +108,217 @@ func handlePostInventoryAdjustment(w http.ResponseWriter, r *http.Request) {
 	if !requireCreate(w, r, engines.InventoryAdjustmentDoctype) {
 		return
 	}
-	if err := engines.PostInventoryAdjustment(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("id"), r.Header.Get("Resolved-User-ID")); err != nil {
+	tenantID, userID, role := r.Header.Get("Resolved-Tenant-ID"), r.Header.Get("Resolved-User-ID"), r.Header.Get("Resolved-Role")
+	// Stage 130.14: "post with the current stock" - a store manager takes the
+	// before quantities again when the stock moved while it waited.
+	var req struct {
+		AcceptCurrentStock bool `json:"accept_current_stock"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	if req.AcceptCurrentStock {
+		if !engines.StoreAppManagerRole(role) {
+			writeAPIError(w, r, "GLOBAL-0011", "")
+			return
+		}
+		if err := engines.RefreshAdjustmentSnapshot(tenantID, r.PathValue("id"), userID); err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+	}
+	if err := engines.PostInventoryAdjustment(tenantID, r.PathValue("id"), userID); err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "Posted"})
+}
+
+// handlePreviewInventoryAdjustment (Stage 130.14) - what an adjustment would
+// do, before it is saved: before / after quantities, values and GL legs.
+func handlePreviewInventoryAdjustment(w http.ResponseWriter, r *http.Request) {
+	if !requireCreate(w, r, engines.InventoryAdjustmentDoctype) {
+		return
+	}
+	var req engines.InventoryAdjustmentInput
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
+		return
+	}
+	out, err := engines.PreviewInventoryAdjustment(r.Header.Get("Resolved-Tenant-ID"), req)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+// handleReverseInventoryAdjustment (Stage 130.14) raises the linked reversal.
+func handleReverseInventoryAdjustment(w http.ResponseWriter, r *http.Request) {
+	if !requireCreate(w, r, engines.InventoryAdjustmentDoctype) {
+		return
+	}
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	id, status, err := engines.ReverseInventoryAdjustment(tenantID, r.PathValue("id"), req.Reason, r.Header.Get("Resolved-User-ID"), r.Header.Get("Resolved-Role"))
+	if err != nil && id == "" {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	out := map[string]interface{}{"id": id, "number": engines.DocumentNumber(tenantID, engines.InventoryAdjustmentDoctype, id), "status": status}
+	if err != nil {
+		out["warning"] = err.Error()
+	}
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+// Stage 130.15 (74.2.4): the internal Material Issue - a department's
+// request, the store's issue, and the return of what was not used.
+func handleCreateMaterialRequest(w http.ResponseWriter, r *http.Request) {
+	if !requireCreate(w, r, engines.MaterialIssueDoctype) {
+		return
+	}
+	var req engines.MaterialRequestInput
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	id, status, err := engines.CreateMaterialRequest(tenantID, req, r.Header.Get("Resolved-User-ID"), r.Header.Get("Resolved-Role"))
+	if err != nil && id == "" {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	out := map[string]interface{}{"id": id, "number": engines.DocumentNumber(tenantID, engines.MaterialIssueDoctype, id), "status": status}
+	if err != nil {
+		out["warning"] = err.Error()
+	}
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+func handleIssueMaterial(w http.ResponseWriter, r *http.Request) {
+	if !requireCreate(w, r, engines.MaterialIssueDoctype) {
+		return
+	}
+	if err := engines.IssueMaterial(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("id"), r.Header.Get("Resolved-User-ID")); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "Issued"})
+}
+
+func handleReturnMaterial(w http.ResponseWriter, r *http.Request) {
+	if !requireCreate(w, r, engines.MaterialReturnDoctype) {
+		return
+	}
+	var req struct {
+		Lines []engines.MaterialReturnLine `json:"lines"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	id, err := engines.ReturnMaterial(tenantID, r.PathValue("id"), req.Lines, r.Header.Get("Resolved-User-ID"))
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"id": id, "number": engines.DocumentNumber(tenantID, engines.MaterialReturnDoctype, id)})
+}
+
+// Stage 130.16 (74.3.1): the Delivery Challan - create, dispatch, receive a
+// return, cancel before dispatch, and ask to write off what will not return.
+func handleCreateDeliveryChallan(w http.ResponseWriter, r *http.Request) {
+	if !requireCreate(w, r, engines.DeliveryChallanDoctype) {
+		return
+	}
+	var req engines.ChallanInput
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	id, status, err := engines.CreateDeliveryChallan(tenantID, req, r.Header.Get("Resolved-User-ID"), r.Header.Get("Resolved-Role"))
+	if err != nil && id == "" {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	out := map[string]interface{}{"id": id, "number": engines.DocumentNumber(tenantID, engines.DeliveryChallanDoctype, id), "status": status}
+	if err != nil {
+		out["warning"] = err.Error()
+	}
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+func handleDispatchDeliveryChallan(w http.ResponseWriter, r *http.Request) {
+	if !requireDocPermission(w, r, engines.DeliveryChallanDoctype, "update", "You do not have permission to dispatch delivery challans") {
+		return
+	}
+	var req engines.ChallanDispatch
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
+		return
+	}
+	if err := engines.DispatchDeliveryChallan(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("id"), r.Header.Get("Resolved-User-ID"), req); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "Dispatched"})
+}
+
+func handleReturnDeliveryChallan(w http.ResponseWriter, r *http.Request) {
+	if !requireDocPermission(w, r, engines.DeliveryChallanDoctype, "update", "You do not have permission to receive challan returns") {
+		return
+	}
+	var req struct {
+		ReturnKey string                      `json:"return_key"`
+		Lines     []engines.ChallanReturnLine `json:"lines"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
+		return
+	}
+	status, err := engines.ReceiveChallanReturn(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("id"), r.Header.Get("Resolved-User-ID"), req.ReturnKey, req.Lines)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": status})
+}
+
+func handleCancelDeliveryChallan(w http.ResponseWriter, r *http.Request) {
+	if !requireDocPermission(w, r, engines.DeliveryChallanDoctype, "update", "You do not have permission to cancel delivery challans") {
+		return
+	}
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
+		return
+	}
+	if err := engines.CancelDeliveryChallan(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("id"), r.Header.Get("Resolved-User-ID"), req.Reason); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "Cancelled"})
+}
+
+func handleRequestChallanWriteOff(w http.ResponseWriter, r *http.Request) {
+	if !requireCreate(w, r, engines.ChallanWriteOffDoctype) {
+		return
+	}
+	var req engines.ChallanWriteOffInput
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
+		return
+	}
+	id, err := engines.RequestChallanWriteOff(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("id"), r.Header.Get("Resolved-User-ID"), r.Header.Get("Resolved-Role"), req)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"id": id, "status": "Pending Approval"})
 }

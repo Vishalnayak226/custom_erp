@@ -5,7 +5,7 @@ order: 80
 summary: Earn and burn loyalty points on real sales, issue vouchers and run birthday/lapsed-customer campaigns, and read customer behaviour back through seven CRM reports.
 audience: store manager, marketing, admin
 last_verified: 2026-09-03
-screens: [module:crm, doctype:customer, loyalty, reports, configuration]
+screens: [crm, module:crm, doctype:customer, loyalty, reports, configuration]
 doc_id: DOC-F07FAE98C4
 type: procedure
 status: draft
@@ -99,14 +99,16 @@ This is a **separate mechanism from the Offer engine** documented in
 automatically as a cart qualifies; a Voucher is a specific code someone was
 given, checked and applied on request.
 
-> [!WARNING]
-> **Voucher validation and redemption have no caller anywhere in the app.**
-> `POST /api/v1/crm/voucher/validate` and `.../redeem` are real, working
-> endpoints (`engines/voucher.go`) — confirmed by grep, zero matches for
-> "voucher" in any checkout-related code in `public/app.js`. A Voucher
-> record can be created and listed like any other master, but there is no
-> screen anywhere to actually enter a customer's voucher code and apply its
-> discount. Today this needs a direct API call.
+**Using a voucher at the till.** The cashier types the voucher code into the
+POS **Coupon code** box, like any coupon. It is applied after the offers and
+shows in the offers panel as *Voucher WELCOME100 — issued voucher −100.00*;
+one voucher per bill. If it cannot be used, the panel says why (used up,
+expired, restricted to a different customer, online only, not yet valid). The
+voucher is spent only when the sale completes. **CRM → Loyalty → Vouchers &
+campaigns** lists every voucher, where it works, how often it has been used
+and whether it can be used now. (The standalone `POST /api/v1/crm/voucher/validate`
+and `.../redeem` endpoints remain for integrations; the till uses its own
+quote and checkout path.)
 
 ## Campaigns
 
@@ -145,15 +147,15 @@ controls layer on top of the plain path:
   [Security, Roles & Approvals](security-approvals.md)), and only actually
   burns the points once that request is Approved.
 
-> [!WARNING]
-> **The OTP-gated redemption path has no caller anywhere in the app either.**
-> `POST /api/v1/crm/loyalty-redemption/initiate` and `.../verify`
-> (`engines/loyalty_redemption_security.go`) are real, tested endpoints with
-> zero matches in `public/app.js` for either path. Today, a store that wants
-> ID-verified or approval-gated redemption on top of the plain "Redeem
-> Points" flow needs to call these directly; the plain, immediate path
-> documented in [Point of Sale](pos-operations.md) is the only one reachable
-> from the till.
+**At the till.** **Redeem Points** applies these controls itself. If the
+shop asks customers to confirm, a one-time code is sent to the customer and
+the cashier types the code they read back; a wrong code redeems nothing.
+Above the approval value (₹500 as shipped), the till asks for a reason and
+raises a request for a Store Manager under **Approvals**; **Complete Sale**
+refuses until it is approved, and the approval is for that one bill and that
+number of points. (The till calls `/api/v1/pos/loyalty/redemption/start` and
+`.../verify`; `POST /api/v1/crm/loyalty-redemption/initiate` and `.../verify`
+remain for integrations.)
 
 ## Merging duplicate customers
 
@@ -215,18 +217,16 @@ Birthday campaign needs `date_of_birth` set on the Customer record; a
 Lapsed Customer campaign needs at least one prior Paid sale to have
 "lapsed" from. The worker runs hourly, so also allow for that delay.
 
-**A voucher or the OTP redemption path is needed but there's no button for
-it.** Both are real, working server actions with no UI screen yet — see the
-warnings above. They need a direct API call today.
+**A voucher code is refused at the till.** The offers panel says why — used
+up, expired, restricted to another customer (put that customer on the sale
+first), online only, or not valid yet. Check it on **CRM → Loyalty →
+Vouchers & campaigns**.
 
-## What is not here yet
+## Where the CRM screens are
 
-**Voucher redemption** and **the OTP-gated secure loyalty redemption path**
-are both real, tested server actions with zero UI callers — see the two
-warnings above. Creating/listing Voucher and Campaign records themselves
-works fine through the generic Setup screens; it's specifically the
-redemption-time actions that have no button anywhere.
-
-**No dedicated CRM dashboard or customer-facing screen** — every capability
-here is reached through either a generic master-data list, a POS action
-documented in [Point of Sale](pos-operations.md), or a report.
+The **CRM** menu holds the customer page, consent, segments, templates,
+campaigns, journeys, messages, the WhatsApp inbox, tickets, feedback, the
+worklist and the business-buyer pipeline (User Guide §9D), plus **CRM →
+Loyalty** (customer points, tiers, points movement, vouchers and campaigns).
+At the till, points, vouchers and the one-time code are part of the sale
+(see [Point of Sale](pos-operations.md)).

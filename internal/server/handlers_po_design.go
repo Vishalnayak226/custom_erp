@@ -134,6 +134,10 @@ func handlePrintDocument(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write(body)
 		return
 	}
+	// Stage 130.16 (74.1.4): once issued, the frozen copy, marked a reprint.
+	if issued, err := engines.IssuedPrint(tenantID, doc, firstNonBlank(r.Header.Get("Resolved-Username"), r.Header.Get("Resolved-User-ID"))); err == nil {
+		doc = issued
+	}
 	templates, err := engines.PrintTemplatesFor(tenantID, doc)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to load print templates")

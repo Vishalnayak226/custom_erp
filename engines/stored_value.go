@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // Gift cards and vouchers as stored value (Stage 72.8, the user's blueprint
@@ -205,12 +207,25 @@ func RegisterStoredValueCards(tenantID, user string, req RegisterCardsRequest) (
 	out := &RegisterCardsResult{}
 	for i := 0; i < len(numbers); i++ {
 		n := numbers[i]
-		res, err := tx.Exec(fmt.Sprintf(`INSERT INTO %s.stored_value_instruments (instrument_id, card_number, profile, status, created_by)
-			VALUES ($1, $2, $3, 'Inactive', $4) ON CONFLICT (card_number) DO NOTHING`, schema), NewDocIDCompact("SVI"), n, p.ID, user)
+		// Stage 130.8: stored sealed - a hash to find it, the number encrypted.
+		key, last4, enc, err := svSealCard(n)
 		if err != nil {
 			return nil, err
 		}
-		if affected, _ := res.RowsAffected(); affected == 0 {
+		var known bool
+		if err := tx.QueryRow(fmt.Sprintf(`SELECT EXISTS (SELECT 1 FROM %s.stored_value_instruments WHERE %s)`, schema, svByNumber), pq.Array(svLookupKeys(n))).Scan(&known); err != nil {
+			return nil, err
+		}
+		var affected int64
+		if !known {
+			res, err := tx.Exec(fmt.Sprintf(`INSERT INTO %s.stored_value_instruments (instrument_id, card_number, profile, status, created_by, card_last4, card_enc)
+				VALUES ($1, $2, $3, 'Inactive', $4, $5, $6) ON CONFLICT (card_number) DO NOTHING`, schema), NewDocIDCompact("SVI"), key, p.ID, user, last4, enc)
+			if err != nil {
+				return nil, err
+			}
+			affected, _ = res.RowsAffected()
+		}
+		if affected == 0 {
 			if generated { // a random collision: draw again
 				numbers[i] = generateCardNumber(p)
 				i--
@@ -278,18 +293,24 @@ type svCard struct {
 	ExpiresOn                   string
 	Seq                         int
 	IssuePaymentMode            string
+	// Last4 (Stage 130.8): what the card prints as; Number is then a hash.
+	Last4 string
 }
 
-const svCardColumns = `instrument_id, card_number, profile, status, balance_paise, funded_paise, COALESCE(to_char(expires_on, 'YYYY-MM-DD'), ''), last_event_seq, COALESCE(issue_payment_mode, '')`
+const svCardColumns = `instrument_id, card_number, profile, status, balance_paise, funded_paise, COALESCE(to_char(expires_on, 'YYYY-MM-DD'), ''), last_event_seq, COALESCE(issue_payment_mode, ''), COALESCE(card_last4, '')`
 
 func scanSVCard(row *sql.Row) (svCard, error) {
 	var c svCard
-	err := row.Scan(&c.ID, &c.Number, &c.Profile, &c.Status, &c.Balance, &c.Funded, &c.ExpiresOn, &c.Seq, &c.IssuePaymentMode)
+	err := row.Scan(&c.ID, &c.Number, &c.Profile, &c.Status, &c.Balance, &c.Funded, &c.ExpiresOn, &c.Seq, &c.IssuePaymentMode, &c.Last4)
 	return c, err
 }
 
+// svByNumber is the WHERE that finds a typed number (Stage 130.8: under any
+// key's hash, or as typed before the boot backfill).
+const svByNumber = `card_number = ANY($1)`
+
 func lockSVCardByNumber(tx *sql.Tx, schema, number string) (svCard, error) {
-	c, err := scanSVCard(tx.QueryRow(fmt.Sprintf(`SELECT %s FROM %s.stored_value_instruments WHERE card_number = $1 FOR UPDATE`, svCardColumns, schema), number))
+	c, err := scanSVCard(tx.QueryRow(fmt.Sprintf(`SELECT %s FROM %s.stored_value_instruments WHERE %s FOR UPDATE`, svCardColumns, schema, svByNumber), pq.Array(svLookupKeys(number))))
 	if err == sql.ErrNoRows {
 		return c, &ValidationError{Code: "POSOFF-0431", SubFor: MaskCardNumber(number), Message: fmt.Sprintf("card %s is not a registered gift card", MaskCardNumber(number))}
 	}
@@ -355,7 +376,7 @@ func appendSVEvent(tx *sql.Tx, schema string, c *svCard, event string, amount in
 	}
 	newBalance := c.Balance + amount
 	if newBalance < 0 {
-		return 0, &ValidationError{Code: "POSOFF-0433", SubFor: MaskCardNumber(c.Number), Message: fmt.Sprintf("card %s has %.2f, not %.2f", MaskCardNumber(c.Number), PaiseToRupees(c.Balance), PaiseToRupees(-amount))}
+		return 0, &ValidationError{Code: "POSOFF-0433", SubFor: c.masked(), Message: fmt.Sprintf("card %s has %.2f, not %.2f", MaskCardNumber(c.Number), PaiseToRupees(c.Balance), PaiseToRupees(-amount))}
 	}
 	c.Seq++
 	var key interface{}
@@ -530,11 +551,15 @@ func svReceiptByKey(tenantID, schema, idem, number string) (*StoredValueReceipt,
 	if err != nil {
 		return nil, err
 	}
-	if card != number {
+	sameCard := false
+	for _, k := range svLookupKeys(number) {
+		sameCard = sameCard || card == k
+	}
+	if !sameCard {
 		return nil, &ValidationError{Code: "POSOFF-0436", Message: "this request was already used for another card - start a new issue"}
 	}
 	r.Masked, r.Profile, r.Amount, r.Balance, r.ExpiresOn, r.Location, r.PaymentMode, r.At, r.Replayed =
-		MaskCardNumber(card), profile, PaiseToRupees(amount), PaiseToRupees(balance), expires, location, mode, at, true
+		MaskCardNumber(number), profile, PaiseToRupees(amount), PaiseToRupees(balance), expires, location, mode, at, true
 	return &r, nil
 }
 
@@ -559,7 +584,7 @@ func StoredValueBalance(tenantID, number string) (*StoredValueCardView, error) {
 		return nil, err
 	}
 	number = NormalizeCardNumber(number)
-	c, err := scanSVCard(db.DB.QueryRow(fmt.Sprintf(`SELECT %s FROM %s.stored_value_instruments WHERE card_number = $1`, svCardColumns, schema), number))
+	c, err := scanSVCard(db.DB.QueryRow(fmt.Sprintf(`SELECT %s FROM %s.stored_value_instruments WHERE %s`, svCardColumns, schema, svByNumber), pq.Array(svLookupKeys(number))))
 	if err == sql.ErrNoRows {
 		return nil, &ValidationError{Code: "POSOFF-0431", SubFor: MaskCardNumber(number), Message: fmt.Sprintf("card %s is not a registered gift card", MaskCardNumber(number))}
 	}
@@ -589,7 +614,7 @@ type GiftCardTender struct {
 }
 
 func checkRedeemable(c svCard, p StoredValueProfile, amount int64, today string) error {
-	masked := MaskCardNumber(c.Number)
+	masked := c.masked()
 	switch st := c.effectiveStatus(today); st {
 	case SVStatusActive, SVStatusPartial:
 	case SVStatusInactive:
@@ -632,7 +657,7 @@ func PrepareGiftCardTenders(tenantID string, reqs []GiftCardTenderRequest, duePa
 			return nil, &ValidationError{Code: "POSOFF-0435", SubFor: MaskCardNumber(number), Message: fmt.Sprintf("card %s is on the bill twice", MaskCardNumber(number))}
 		}
 		seen[number] = true
-		c, err := scanSVCard(db.DB.QueryRow(fmt.Sprintf(`SELECT %s FROM %s.stored_value_instruments WHERE card_number = $1`, svCardColumns, schema), number))
+		c, err := scanSVCard(db.DB.QueryRow(fmt.Sprintf(`SELECT %s FROM %s.stored_value_instruments WHERE %s`, svCardColumns, schema, svByNumber), pq.Array(svLookupKeys(number))))
 		if err == sql.ErrNoRows {
 			return nil, &ValidationError{Code: "POSOFF-0431", SubFor: MaskCardNumber(number), Message: fmt.Sprintf("card %s is not a registered gift card", MaskCardNumber(number))}
 		}
@@ -802,7 +827,7 @@ func init() {
 	RegisterReport(ReportDefinition{
 		ID: "stored-value-liability", Label: "Gift Card Liability", Category: "Finance",
 		Columns: []ReportColumn{
-			{Key: "card", Label: "Card"}, {Key: "profile", Label: "Profile"}, {Key: "status", Label: "Status"},
+			{Key: "card", Label: "Card"}, {Key: "card_id", Label: "Card ID"}, {Key: "profile", Label: "Profile"}, {Key: "status", Label: "Status"},
 			{Key: "loaded", Label: "Loaded"}, {Key: "redeemed", Label: "Used / cancelled"}, {Key: "balance", Label: "Outstanding"},
 			{Key: "expires_on", Label: "Expires"}, {Key: "issued_at", Label: "Store issued"},
 		},
@@ -827,8 +852,8 @@ func storedValueLiabilityReport(tenantID string, params map[string]string) ([]ma
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT card_number, profile, status, balance_paise, funded_paise,
-		COALESCE(to_char(expires_on, 'YYYY-MM-DD'), ''), COALESCE(issued_location, '')
-		FROM %s.stored_value_instruments ORDER BY created_at, card_number`, schema))
+		COALESCE(to_char(expires_on, 'YYYY-MM-DD'), ''), COALESCE(issued_location, ''), COALESCE(card_last4, ''), instrument_id
+		FROM %s.stored_value_instruments ORDER BY created_at, instrument_id`, schema))
 	if err != nil {
 		return nil, err
 	}
@@ -839,7 +864,7 @@ func storedValueLiabilityReport(tenantID string, params map[string]string) ([]ma
 	for rows.Next() {
 		var c svCard
 		var loc string
-		if err := rows.Scan(&c.Number, &c.Profile, &c.Status, &c.Balance, &c.Funded, &c.ExpiresOn, &loc); err != nil {
+		if err := rows.Scan(&c.Number, &c.Profile, &c.Status, &c.Balance, &c.Funded, &c.ExpiresOn, &loc, &c.Last4, &c.ID); err != nil {
 			return nil, err
 		}
 		st := c.effectiveStatus(today)
@@ -847,7 +872,7 @@ func storedValueLiabilityReport(tenantID string, params map[string]string) ([]ma
 			continue
 		}
 		out = append(out, map[string]interface{}{
-			"card": MaskCardNumber(c.Number), "profile": c.Profile, "status": st,
+			"card": c.masked(), "card_id": c.ID, "profile": c.Profile, "status": st,
 			"loaded": PaiseToRupees(c.Funded), "redeemed": PaiseToRupees(c.Funded - c.Balance), "balance": PaiseToRupees(c.Balance),
 			"expires_on": c.ExpiresOn, "issued_at": loc,
 		})
@@ -860,11 +885,11 @@ func storedValueLedgerReport(tenantID string, params map[string]string) ([]map[s
 	if err != nil {
 		return nil, err
 	}
-	rows, err := db.DB.Query(fmt.Sprintf(`SELECT l.created_at, i.card_number, l.event_seq, l.event_type, l.amount_paise, l.balance_after_paise,
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT l.created_at, CASE WHEN i.card_last4 IS NOT NULL THEN '**** ' || i.card_last4 ELSE i.card_number END, l.event_seq, l.event_type, l.amount_paise, l.balance_after_paise,
 		COALESCE(l.source_doctype, '') || CASE WHEN l.source_id IS NULL THEN '' ELSE ' ' || l.source_id END,
 		COALESCE(l.location, ''), COALESCE(l.user_name, ''), COALESCE(l.reason, '')
 		FROM %[1]s.stored_value_ledger l JOIN %[1]s.stored_value_instruments i ON i.instrument_id = l.instrument_id
-		WHERE ($1 = '' OR right(i.card_number, 4) = $1)
+		WHERE ($1 = '' OR COALESCE(i.card_last4, right(i.card_number, 4)) = $1)
 		  AND ($2 = '' OR l.created_at >= $2::date) AND ($3 = '' OR l.created_at < $3::date + 1)
 		ORDER BY l.created_at DESC, l.entry_id DESC LIMIT 5000`, schema),
 		strings.TrimSpace(params["card"]), strings.TrimSpace(params["from"]), strings.TrimSpace(params["to"]))
@@ -882,7 +907,7 @@ func storedValueLedgerReport(tenantID string, params map[string]string) ([]map[s
 			return nil, err
 		}
 		out = append(out, map[string]interface{}{
-			"at": at.Format("2006-01-02 15:04"), "card": MaskCardNumber(card), "seq": seq, "event": event,
+			"at": at.Format("2006-01-02 15:04"), "card": svShown(card), "seq": seq, "event": event,
 			"amount": PaiseToRupees(amount), "balance_after": PaiseToRupees(balance), "source": source,
 			"location": location, "user": user, "reason": reason,
 		})

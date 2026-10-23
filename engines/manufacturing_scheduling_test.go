@@ -92,8 +92,19 @@ func TestManufacturingSchedulingAndSubcontract(t *testing.T) {
 		rawSku := "SKU-SC-RAW"
 		finishedSku := "SKU-SC-FINISHED"
 		location := "HO"
-		_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", scID)
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE id IN ($1, $2, $3)", scID, rawSku, finishedSku)
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'DeliveryChallan' AND data->>'reference' = $1", scID)
 		_, _ = db.DB.Exec("DELETE FROM "+schema+".inventory_availability WHERE sku IN ($1, $2)", rawSku, finishedSku)
+		// A rerun on the same DB would otherwise count the last run's legs.
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'StockLedgerEntry' AND data->>'item_id' IN ($1, $2)", rawSku, finishedSku)
+		// Stage 130.16: job work goes out on a delivery challan, which needs
+		// the items to exist.
+		for _, sku := range []string{rawSku, finishedSku} {
+			if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'Item', $2, 'Active', 'system')",
+				sku, `{"code":"`+sku+`","name":"`+sku+`"}`); err != nil {
+				t.Fatalf("seed item %s: %v", sku, err)
+			}
+		}
 
 		// Seed enough raw material to send.
 		if _, err := PostInventoryLedgerWithVoucher(tenantID, location, []interface{}{map[string]interface{}{"sku": rawSku, "qty": 50.0}}, false, "StockAdjustment", "SC-SEED", "tester"); err != nil {
@@ -109,7 +120,7 @@ func TestManufacturingSchedulingAndSubcontract(t *testing.T) {
 			t.Fatalf("failed to seed SubcontractOrder: %v", err)
 		}
 
-		if err := SendToSubcontractor(tenantID, scID, "tester"); err != nil {
+		if err := SendToSubcontractor(tenantID, scID, "admin"); err != nil {
 			t.Fatalf("SendToSubcontractor failed: %v", err)
 		}
 		var rawAvailable float64
@@ -121,11 +132,11 @@ func TestManufacturingSchedulingAndSubcontract(t *testing.T) {
 		}
 
 		// Sending twice must be rejected (no longer Draft).
-		if err := SendToSubcontractor(tenantID, scID, "tester"); err == nil {
+		if err := SendToSubcontractor(tenantID, scID, "admin"); err == nil {
 			t.Error("expected a second Send on an already-Sent subcontract order to fail")
 		}
 
-		if err := ReceiveFromSubcontractor(tenantID, scID, "tester", 17); err != nil {
+		if err := ReceiveFromSubcontractor(tenantID, scID, "admin", 17); err != nil {
 			t.Fatalf("ReceiveFromSubcontractor failed: %v", err)
 		}
 		var finishedAvailable float64

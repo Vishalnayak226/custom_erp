@@ -754,13 +754,13 @@ func resolveConfiguredAllocationStrategy(tenantID, sku string) string {
 	var strategy string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT data->>'strategy' FROM %s.documents
-		WHERE doctype = 'AllocationStrategy' AND COALESCE(status, '') = 'Active'
+		WHERE doctype = 'AllocationStrategy' AND COALESCE(status, '') = 'Active' AND deleted_at IS NULL
 		  AND data->>'item' = $1
 		LIMIT 1`, schema), sku).Scan(&strategy)
 	if err == sql.ErrNoRows {
 		err = db.DB.QueryRow(fmt.Sprintf(`
 			SELECT data->>'strategy' FROM %s.documents
-			WHERE doctype = 'AllocationStrategy' AND COALESCE(status, '') = 'Active'
+			WHERE doctype = 'AllocationStrategy' AND COALESCE(status, '') = 'Active' AND deleted_at IS NULL
 			  AND COALESCE(data->>'item', '') = ''
 			LIMIT 1`, schema)).Scan(&strategy)
 	}
@@ -806,7 +806,48 @@ func AllocateFromStock(tenantID, sku, locationCode string, needed int) (allocate
 // allocateFromStockQ is AllocateFromStock against a caller's querier, so a
 // reservation made inside a transaction (reserveTaskSKUTx) allocates from the
 // same snapshot it then inserts into.
+//
+// Stage 130.13 (80.7 a): stock under a Hold is not picked. A hold is on the
+// SKU at the location (wms_holds.go), so the bins together keep at least the
+// held quantity: what can be allocated is their free stock less the hold.
 func allocateFromStockQ(q stockQuerier, tenantID, sku, locationCode string, needed int) (allocated []AllocationCandidate, shortfall int, err error) {
+	if needed <= 0 {
+		return nil, 0, nil
+	}
+	if pickable, held := pickableAfterHolds(q, tenantID, sku, locationCode); held && pickable < needed {
+		if pickable <= 0 {
+			return nil, needed, nil
+		}
+		got, short, err := allocateFromStockByStrategy(q, tenantID, sku, locationCode, pickable)
+		return got, short + needed - pickable, err
+	}
+	return allocateFromStockByStrategy(q, tenantID, sku, locationCode, needed)
+}
+
+// pickableAfterHolds is the bins' free stock of sku at the location less its
+// held quantity; held=false when nothing is held.
+func pickableAfterHolds(q stockQuerier, tenantID, sku, locationCode string) (int, bool) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return 0, false
+	}
+	var hold int
+	if err := q.QueryRow(fmt.Sprintf(`SELECT COALESCE(hold_qty, 0) FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2`, schema), sku, locationCode).Scan(&hold); err != nil || hold <= 0 {
+		return 0, false
+	}
+	var free int
+	_ = q.QueryRow(fmt.Sprintf(`
+		SELECT COALESCE(SUM(bs.qty - COALESCE(ra.reserved, 0)), 0)
+		FROM %s.bin_stock bs
+		LEFT JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
+		LEFT JOIN (%s) ra ON ra.bin_code = bs.bin_code
+		WHERE bs.sku = $1 AND bs.location_code = $2 AND bs.condition = 'Good' AND bs.qty - COALESCE(ra.reserved, 0) > 0
+		  AND COALESCE(b.data->>'bin_status', '') NOT IN ('Blocked', 'Full', 'Counting')`, schema, schema, openBinReservationsSQL(schema, false)), sku, locationCode).Scan(&free)
+	return free - hold, true
+}
+
+// allocateFromStockByStrategy is the strategy dispatch (42.2.8).
+func allocateFromStockByStrategy(q stockQuerier, tenantID, sku, locationCode string, needed int) (allocated []AllocationCandidate, shortfall int, err error) {
 	if needed <= 0 {
 		return nil, 0, nil
 	}
@@ -842,7 +883,7 @@ func allocateByOrder(q stockQuerier, tenantID, sku, locationCode string, needed 
 		       COALESCE(NULLIF(z.data->>'pick_sequence', '')::int, 999999) AS zone_pick_seq
 		FROM %s.bin_stock bs
 		LEFT JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
-		LEFT JOIN %s.documents z ON z.doctype = 'Zone' AND z.status = 'Active' AND z.data->>'code' = b.data->>'zone'
+		LEFT JOIN %s.documents z ON z.doctype = 'Zone' AND z.status = 'Active' AND z.deleted_at IS NULL AND z.data->>'code' = b.data->>'zone'
 		LEFT JOIN (%s) ra ON ra.bin_code = bs.bin_code
 		WHERE bs.sku = $1 AND bs.location_code = $2 AND bs.condition = 'Good' AND bs.qty - COALESCE(ra.reserved, 0) > 0
 		  AND COALESCE(b.data->>'bin_status', '') NOT IN ('Blocked', 'Full', 'Counting')
@@ -914,7 +955,7 @@ func allocateFEFO(q stockQuerier, tenantID, sku, locationCode string, needed int
 		LEFT JOIN %s.documents bn ON bn.doctype = 'Bin' AND bn.data->>'bin_code' = bsb.bin_code
 		LEFT JOIN (%s) ra ON ra.bin_code = bsb.bin_code AND ra.batch_no = bsb.batch_no
 		WHERE bsb.sku = $1 AND bsb.location_code = $2 AND bsb.condition = 'Good' AND bsb.qty - COALESCE(ra.reserved, 0) > 0
-		  AND COALESCE(b.status, '') = 'Active'
+		  AND COALESCE(b.status, '') = 'Active' AND b.deleted_at IS NULL
 		  AND (NULLIF(b.data->>'expiry_date', '') IS NULL OR b.data->>'expiry_date' >= $3)
 		  AND COALESCE(bn.data->>'bin_status', '') NOT IN ('Blocked', 'Full', 'Counting')
 		ORDER BY NULLIF(b.data->>'expiry_date', '') ASC NULLS LAST, bsb.batch_no, bsb.bin_code`,
@@ -1121,7 +1162,7 @@ func SweepExpiredBatches(tenantID, userID string) (ExpirySweepResult, error) {
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT data->>'item', data->>'batch_no', data->>'expiry_date'
 		FROM %s.documents
-		WHERE doctype = 'Batch' AND COALESCE(status, '') = 'Active'
+		WHERE doctype = 'Batch' AND COALESCE(status, '') = 'Active' AND deleted_at IS NULL
 		  AND NULLIF(data->>'expiry_date', '') IS NOT NULL
 		  AND data->>'expiry_date' < $1
 		ORDER BY data->>'expiry_date'`, schema), cutoff)
@@ -1419,7 +1460,7 @@ func fetchLottableConstraints(tenantID, customer, sku string) ([]lottableConstra
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT data->>'attribute_key', COALESCE(data->>'allowed_values', '')
 		FROM %s.documents
-		WHERE doctype = 'LottableConstraint' AND COALESCE(status, '') = 'Active'
+		WHERE doctype = 'LottableConstraint' AND COALESCE(status, '') = 'Active' AND deleted_at IS NULL
 		  AND data->>'customer' = $1
 		  AND (COALESCE(data->>'item', '') = '' OR data->>'item' = $2)`, schema), customer, sku)
 	if err != nil {

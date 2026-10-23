@@ -21,13 +21,13 @@ screens: [reports]
 # Report catalog (part 3)
 
 This page continues the [report catalog](report-catalog.md), which lists
-every category and explains how to run a report. It holds **117** reports, from
+every category and explains how to run a report. It holds **118** reports, from
 Procurement & GRN to WMS.
 
 ## Contents
 
 - [Procurement & GRN](#procurement-grn) - 27 reports
-- [Sales](#sales) - 9 reports
+- [Sales](#sales) - 10 reports
 - [Sales & POS](#sales-pos) - 22 reports
 - [Service](#service) - 1 reports
 - [Stock Transfer](#stock-transfer) - 9 reports
@@ -468,6 +468,16 @@ Procurement & GRN to WMS.
 - **Customer (optional)** (`customer`) - text, optional
 
 **Columns:** Invoice ID · Customer · Invoice Number · Total Amount *(sensitive)* · Status · Date
+
+**Drill-down:** no.
+
+### Customer advances outstanding (ageing)
+
+**Report id:** `advance-outstanding-ageing`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Receipt voucher · Customer · Store · Taken · Expected · Balance · Age (days) · Age
 
 **Drill-down:** no.
 

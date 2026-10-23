@@ -39,6 +39,9 @@ func ResolvePrintProfile(tenantID, txn, doctype, store string) *PrintProfile {
 	defer rows.Close()
 	var best *PrintProfile
 	bestScore := -1
+	// Stage 130.16 (74.3.4): a profile may also name a legal entity and a
+	// channel; profileScore ranks document, store, entity, channel.
+	entity, channel := locationLegalEntity(tenantID, store), printChannel(txn)
 	for rows.Next() {
 		var id, raw string
 		if rows.Scan(&id, &raw) != nil {
@@ -48,19 +51,8 @@ func ResolvePrintProfile(tenantID, txn, doctype, store string) *PrintProfile {
 		if json.Unmarshal([]byte(raw), &data) != nil {
 			continue
 		}
-		score := 0
-		switch t := strings.TrimSpace(strField(data, "transaction")); {
-		case t == "" || strings.EqualFold(t, "All"):
-		case t == txn || t == doctype:
-			score += 2
-		default:
-			continue
-		}
-		switch s := strings.TrimSpace(strField(data, "store")); {
-		case s == "":
-		case s == store:
-			score++
-		default:
+		score := profileScore(data, txn, doctype, store, entity, channel)
+		if score < 0 {
 			continue
 		}
 		if score > bestScore {
@@ -86,12 +78,32 @@ func splitCopyLabels(s string) []string {
 // applyPrintProfile puts the resolved profile on the print data, where the
 // page (trade-docs.js) reads it: fields.print_profile.
 func (d *PrintDocument) applyPrintProfile(tenantID, txn string) {
-	if p := ResolvePrintProfile(tenantID, txn, d.Doctype, d.Store.Code); p != nil {
+	p := ResolvePrintProfile(tenantID, txn, d.Doctype, d.Store.Code)
+	// Stage 130.16 (74.3.1): with no profile of its own, a delivery challan
+	// prints Rule 55's three copies as one set.
+	if p == nil && txn == PrintTxnDeliveryChallan {
+		p = &PrintProfile{Code: "RULE55", Name: "Delivery challan copies", CopyLabels: []string{"Original for Consignee", "Duplicate for Transporter", "Triplicate for Consignor"}}
+	}
+	if p != nil {
 		d.Fields["print_profile"] = p
 		if p.FooterText != "" {
 			d.Fields["profile_footer"] = p.FooterText
 		}
 	}
+}
+
+// printBrandLogo (Stage 130.16, 74.3.4) is the store's legal entity's
+// approved logo - an image link or data URL - for {brand.logo}.
+func printBrandLogo(tenantID, store string) string {
+	entity := locationLegalEntity(tenantID, store)
+	if entity == "" {
+		return ""
+	}
+	data, _, err := fetchDocData(tenantID, "LegalEntity", entity)
+	if err != nil || data == nil {
+		return ""
+	}
+	return strings.TrimSpace(strField(data, "logo"))
 }
 
 // entityBankLine is the bank line an invoice prints: name, account, IFSC.

@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"custom_erp/db"
@@ -168,7 +169,15 @@ func readCSVRecords(tenantID string, r io.Reader) ([][]string, error) {
 // a fine granularity for abandoning a parse.
 func readCSVRecordsContext(ctx context.Context, tenantID string, r io.Reader) ([][]string, error) {
 	maxRows := GetSettingInt(tenantID, "platform.max_import_rows")
-	reader := csv.NewReader(r)
+	// 134.4: the upload rule on what every CSV import reads - plain text,
+	// judged from its first 64 KB (an empty file keeps DATAIM-0163 below).
+	br := bufio.NewReaderSize(r, 64<<10)
+	if head, _ := br.Peek(64 << 10); len(head) > 0 {
+		if err := CheckUpload(UploadCSV, head); err != nil {
+			return nil, err
+		}
+	}
+	reader := csv.NewReader(br)
 	var records [][]string
 	for {
 		if len(records)%csvCancelCheckRows == 0 {

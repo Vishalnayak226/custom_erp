@@ -303,9 +303,11 @@ async function loadOMSConnectorOperations() {
     const { channels = [] } = await healthRes.json();
     healthHost.innerHTML = channels.length === 0 ? '<div class="text-muted">No active channels configured.</div>' : `
       <table><thead><tr><th>Channel</th><th>Platform</th><th>Last sync</th><th>Lag</th><th>24h failures</th><th>Exceptions</th><th>Actions</th></tr></thead><tbody>${channels.map(h => `
-        <tr><td>${escapeHTMLText(h.channel)}</td><td>${escapeHTMLText(h.platform)}</td><td><span class="badge ${h.last_status === 'Failed' ? 'badge-danger' : h.last_status ? 'badge-success' : 'badge-warning'}">${escapeHTMLText(h.last_status || (h.credentials_set ? 'Never synced' : 'Not connected'))}</span><div class="oms-channel-ref">${escapeHTMLText(h.last_sync_at || (h.credentials_set ? '—' : 'Credentials not set'))}</div>${h.last_status === 'Failed' && h.last_error ? `<div class="oms-channel-ref" style="color:var(--danger-strong);">${escapeHTMLText(h.last_error)}</div>` : ''}</td><td>${formatOMSLag(h.lag_seconds)}</td><td>${Number(h.failures_24h || 0)} / ${Number(h.runs_24h || 0)}</td><td>${Number(h.open_exceptions || 0)}</td><td>${h.can_pull_orders ? `<button class="btn btn-outline btn-sm" data-channel-sync="pull-orders" data-channel="${escapeHTMLText(h.channel)}">Pull orders</button>` : ''} ${h.can_push_ats ? `<button class="btn btn-outline btn-sm" data-channel-sync="sync-inventory" data-channel="${escapeHTMLText(h.channel)}">Push ATS</button>` : ''}${!h.can_pull_orders && !h.can_push_ats ? '<span class="text-muted">Catalogue only</span>' : ''}</td></tr>`).join('')}
+        <tr><td>${escapeHTMLText(h.channel)}</td><td>${escapeHTMLText(h.platform)}</td><td><span class="badge ${h.last_status === 'Failed' ? 'badge-danger' : h.last_status ? 'badge-success' : 'badge-warning'}">${escapeHTMLText(h.last_status || (h.credentials_set ? 'Never synced' : 'Not connected'))}</span><div class="oms-channel-ref">${escapeHTMLText(h.last_sync_at || (h.credentials_set ? '—' : 'Credentials not set'))}</div>${h.last_status === 'Failed' && h.last_error ? `<div class="oms-channel-ref" style="color:var(--danger-strong);">${escapeHTMLText(h.last_error)}</div>` : ''}</td><td>${formatOMSLag(h.lag_seconds)}</td><td>${Number(h.failures_24h || 0)} / ${Number(h.runs_24h || 0)}</td><td>${Number(h.open_exceptions || 0)}</td><td>${h.can_pull_orders ? `<button class="btn btn-outline btn-sm" data-channel-sync="pull-orders" data-channel="${escapeHTMLText(h.channel)}">Pull orders</button>` : ''} ${h.can_push_ats ? `<button class="btn btn-outline btn-sm" data-channel-sync="sync-inventory" data-channel="${escapeHTMLText(h.channel)}">Push ATS</button>` : ''}${!h.can_pull_orders && !h.can_push_ats ? '<span class="text-muted">Catalogue only</span>' : ''} <button class="btn btn-outline btn-sm" data-channel-setup="${escapeHTMLText(h.channel)}">Check setup</button></td></tr>`).join('')}
       </tbody></table>`;
     healthHost.querySelectorAll('[data-channel-sync]').forEach(button => button.addEventListener('click', () => runOMSChannelSync(button)));
+    // Stage 130.19 (55.21): what a channel needs to connect, and where to find it.
+    healthHost.querySelectorAll('[data-channel-setup]').forEach(button => button.addEventListener('click', () => showOMSChannelSetup(button, healthHost)));
   }
   if (!exceptionRes || !exceptionRes.ok) {
     exceptionHost.innerHTML = '<div class="text-muted">SKU exceptions are unavailable.</div>';
@@ -325,6 +327,25 @@ function formatOMSLag(seconds) {
   if (value < 3600) return `${Math.floor(value / 60)}m`;
   if (value < 86400) return `${Math.floor(value / 3600)}h`;
   return `${Math.floor(value / 86400)}d`;
+}
+
+async function showOMSChannelSetup(button, host) {
+  const channel = button.getAttribute('data-channel-setup');
+  const res = await apiFetch(`/api/v1/marketplace/channels/${encodeURIComponent(channel)}/setup-check`);
+  if (!res || !res.ok) { if (res) await showApiError(res, 'Could not check the setup.'); return; }
+  const c = await res.json();
+  host.querySelector('[data-channel-setup-panel]')?.remove();
+  const panel = document.createElement('div');
+  panel.dataset.channelSetupPanel = '1';
+  panel.className = 'table-panel';
+  panel.style.cssText = 'padding:12px 16px;margin-top:10px;';
+  panel.innerHTML = `<strong>${escapeHTMLText(c.channel)} (${escapeHTMLText(c.platform)})</strong>
+    <span class="badge ${c.ready ? 'badge-success' : 'badge-warning'}" style="margin-left:6px;">${c.ready ? 'Ready to connect' : 'Not ready'}</span>
+    ${c.problem ? `<div style="color:var(--danger-strong);margin-top:6px;">${escapeHTMLText(c.problem)}</div>` : ''}
+    ${(c.fields || []).length ? `<table style="margin-top:8px;"><thead><tr><th>Needs</th><th>Saved</th><th>Where to find it</th></tr></thead><tbody>${c.fields.map(f => `<tr><td>${escapeHTMLText(f.label)}</td><td>${f.set ? '✓' : '—'}</td><td>${escapeHTMLText(f.where)}</td></tr>`).join('')}</tbody></table>` : ''}
+    ${(c.steps || []).length ? `<ol style="margin:8px 0 0 18px;">${c.steps.map(s => `<li>${escapeHTMLText(s)}</li>`).join('')}</ol>` : ''}
+    ${c.last_status ? `<div class="text-muted" style="margin-top:6px;">Last sync: ${escapeHTMLText(c.last_status)} ${escapeHTMLText(c.last_sync_at || '')}${c.last_error ? ' - ' + escapeHTMLText(c.last_error) : ''}</div>` : ''}`;
+  host.appendChild(panel);
 }
 
 async function runOMSChannelSync(button) {
@@ -1457,15 +1478,15 @@ async function loadSettlementVarianceQueue() {
   }
   body.innerHTML = list.map(r => `
     <tr>
-      <td style="font-family: monospace;">${r.line_id || ''}</td>
-      <td>${r.channel || ''}</td>
-      <td style="font-family: monospace;">${r.channel_order_id || ''}</td>
-      <td style="font-family: monospace;">${r.order_id || ''}</td>
-      <td>${r.settlement_batch_id || ''}</td>
+      <td style="font-family: monospace;">${escapeHTMLText(r.line_id || '')}</td>
+      <td>${escapeHTMLText(r.channel || '')}</td>
+      <td style="font-family: monospace;">${escapeHTMLText(r.channel_order_id || '')}</td>
+      <td style="font-family: monospace;">${escapeHTMLText(r.order_id || '')}</td>
+      <td>${escapeHTMLText(r.settlement_batch_id || '')}</td>
       <td>${(r.gross_amount ?? 0).toLocaleString()}</td>
       <td>${(r.expected_amount ?? 0).toLocaleString()}</td>
       <td>${(r.variance_amount ?? 0).toLocaleString()}</td>
-      <td><span class="badge ${r.match_status === 'Disputed' ? 'badge-warning' : 'badge-danger'}">${r.match_status || ''}</span></td>
+      <td><span class="badge ${r.match_status === 'Disputed' ? 'badge-warning' : 'badge-danger'}">${escapeHTMLText(r.match_status || '')}</span></td>
       <td style="white-space:nowrap;">
         ${r.match_status === 'Variance' ? `<button class="action-btn" ${actionAttrs('raiseSettlementDisputeUI', [r.line_id])}>Dispute</button>` : ''}
         ${r.match_status === 'Disputed' ? `<button class="action-btn" ${actionAttrs('resolveSettlementDisputeUI', [r.line_id])}>Resolve</button>` : ''}
@@ -1480,7 +1501,7 @@ async function runSettlementReconcile() {
   const res = await apiFetch('/api/v1/oms/settlements/reconcile', { method: 'POST' });
   if (!res) return;
   if (!res.ok) {
-    if (summaryEl) summaryEl.innerHTML = `<p class="login-error">${await getErrorMessage(res, 'Reconciliation pass failed.')}</p>`;
+    if (summaryEl) summaryEl.innerHTML = `<p class="login-error">${escapeHTMLText(await getErrorMessage(res, 'Reconciliation pass failed.'))}</p>`;
     return;
   }
   const result = await res.json();
@@ -1626,8 +1647,8 @@ window.viewShippingLabel = async function(bookingId) {
   overlay.id = 'shipping-label-modal';
   overlay.innerHTML = `
     <div class="modal-container">
-      <div class="modal-header"><h3 class="modal-title">Shipping Label: ${bookingId}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
-      <div class="modal-body"><pre style="white-space: pre-wrap; font-family: monospace; font-size: 13px;">${label}</pre></div>
+      <div class="modal-header"><h3 class="modal-title">Shipping Label: ${escapeHTMLText(bookingId)}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
+      <div class="modal-body"><pre style="white-space: pre-wrap; font-family: monospace; font-size: 13px;">${escapeHTMLText(label)}</pre></div>
       <div class="modal-footer"><button type="button" class="btn btn-secondary">Close</button></div>
     </div>`;
   document.body.appendChild(overlay);

@@ -106,6 +106,7 @@
       "role": "The whole frontend: one hand-written vanilla-JS single-page app, no framework and no build step. Owns routing (renderView), every screen's markup, the two dialog systems, and the shared apiFetch/showApiError error path.",
       "match": [
         "public/app.js",
+        "public/shell-identity.js",
         "public/index.html",
         "public/favicon.svg",
         "public/favicon*.png",
@@ -276,12 +277,14 @@
         "engines/modules.go",
         "engines/tenant_limits.go",
         "engines/settings_registry.go",
+        "engines/branding.go",
         "engines/settings_definitions.go",
         "engines/setup_advisor.go",
         "engines/setup_path.go",
         "internal/server/handlers_setup_path.go",
         "engines/labels.go",
         "internal/server/handlers_settings.go",
+        "internal/server/handlers_branding.go",
         "internal/server/handlers_setup_advisor.go",
         "internal/server/handlers_sandbox.go"
       ]
@@ -376,7 +379,9 @@
         "engines/tax_ids.go",
         "engines/amount_words.go",
         "engines/einvoice*.go",
-        "internal/server/handlers_einvoice.go"
+        "internal/server/handlers_einvoice.go",
+        "engines/ewaybill.go",
+        "internal/server/handlers_ewaybill.go"
       ]
     },
     {
@@ -408,7 +413,9 @@
         "internal/server/handlers_po_policy.go",
         "engines/rfq_sourcing.go",
         "internal/server/handlers_rfq.go",
-        "internal/server/bulk_purchase*"
+        "internal/server/bulk_purchase*",
+        "engines/po_terms.go",
+        "engines/day_limits.go"
       ]
     },
     {
@@ -447,7 +454,14 @@
         "internal/server/handlers_transfers.go",
         "engines/stock_book_ledger.go",
         "engines/supply_proposals.go",
-        "internal/server/handlers_supply_proposals.go"
+        "internal/server/handlers_supply_proposals.go",
+        "engines/delivery_challan.go",
+        "engines/material_issue.go",
+        "engines/inventory_adjustment_ext.go",
+        "engines/negative_stock_policy.go",
+        "engines/store_item_rules.go",
+        "engines/item_release.go",
+        "engines/item_tax_change.go"
       ]
     },
     {
@@ -516,6 +530,7 @@
         "engines/pos_batch_mrp.go",
         "engines/pos_item_policy.go",
         "engines/stored_value.go",
+        "engines/stored_value_crypto.go",
         "engines/pos_payment.go",
         "engines/pos_sale_reconciliation.go",
         "engines/command_idempotency.go",
@@ -537,7 +552,9 @@
         "engines/pos_customer_context.go",
         "internal/server/handlers_pos_loyalty.go",
         "internal/server/handlers_pos_cash.go",
-        "internal/server/handlers_pos_held.go"
+        "internal/server/handlers_pos_held.go",
+        "engines/store_credit.go",
+        "engines/pos_bill_cancel.go"
       ]
     },
     {
@@ -613,7 +630,8 @@
       "match": [
         "engines/manufacturing*.go",
         "internal/server/handlers_manufacturing_stage26.go",
-        "internal/server/handlers_material_plan.go"
+        "internal/server/handlers_material_plan.go",
+        "engines/job_work.go"
       ]
     },
     {
@@ -668,7 +686,8 @@
         "internal/server/handlers_dashboards_custom.go",
         "public/charts.js",
         "public/dashboards.css",
-        "cmd/gencatalog/*"
+        "cmd/gencatalog/*",
+        "engines/transaction_controls.go"
       ]
     },
     {
@@ -744,7 +763,10 @@
         "engines/printer_choice.go",
         "engines/document_mail.go",
         "engines/xlsx_writer.go",
-        "cmd/qzcert/**"
+        "cmd/qzcert/**",
+        "engines/print_issue.go",
+        "engines/print_profiles_rest.go",
+        "engines/print_shapes_more.go"
       ]
     },
     {
@@ -776,6 +798,7 @@
       "match": [
         "engines/outbox.go",
         "engines/jobrunner.go",
+        "engines/scheduler_leader.go",
         "engines/webhook.go",
         "internal/server/handlers_jobrunner.go",
         "engines/environment.go",
@@ -846,6 +869,7 @@
         "cmd/gendocs/*",
         ".github/*",
         "Dockerfile",
+        "railway.json",
         ".dockerignore",
         "docker-compose.yml",
         "package.json",
@@ -867,6 +891,10 @@
       "role": "Stage 49's security program spine. security_baseline.go is the fail-fast startup validator (findings SB-001..SB-022) called from Run() next to the 20.6 UTF-8 and 24.27 seed-admin gates: it logs every configuration finding at every ENV and refuses to start on a blocking one when ENV=production, and its findings never echo the value they complain about. internal/securityscan derives the attack-surface inventory (49.1.1) and the no-bypass scan (49.1.4) from source rather than from a runtime registry, so it is imported only by its own tests and by cmd/surfacescan and adds nothing to the production binary; docs/security/attack_surface.json is the approved profile the 49.1.6 drift gate compares against. static_fileserver.go wraps the static root so a directory with no index.html 404s instead of returning a generated file listing, and (49.1.7) refuses any HTTP method but GET/HEAD so the file server itself can't be the one route in the app that answers TRACE/PUT/DELETE. cmd/edgecheck is the 49.1.7 outside-in verification tool - read-only HTTP/TCP probes run from a real external network against a deployed instance, reusable for every future release rather than a one-off manual pass.",
       "match": [
         "engines/security_baseline.go",
+        "engines/outbound_guard.go",
+        "engines/inbound_webhook.go",
+        "engines/upload_policy.go",
+        "internal/server/login_abuse.go",
         "engines/data_classification.go",
         "engines/privacy_rights.go",
         "engines/secret_keyring.go",

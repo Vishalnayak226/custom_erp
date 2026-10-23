@@ -19,6 +19,13 @@ import (
 // directory there. Production never sets this; the deployed server's
 // working directory is not under Documents\.
 func TestMain(m *testing.M) {
+	// 134.2: tests point outbound calls at local httptest servers (loopback),
+	// which the outbound guard refuses; TestStage134OutboundGuard turns the
+	// guard back on for itself.
+	outboundAllowPrivate = true
+	// 134.7: a dev server on the same database may hold the scheduler lock;
+	// tests drive sweeps themselves. TestStage134SchedulerLeader elects.
+	schedulerElection = false
 	dir, err := os.MkdirTemp("", "erp_pim_dam_test_media_store")
 	if err == nil {
 		mediaStoreDir = dir

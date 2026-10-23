@@ -650,6 +650,13 @@ func defaultHiddenItemFields() map[string]bool {
 	return map[string]bool{"type": true}
 }
 
+// libraryReplacedItemFields (81.6, user decision 2026-10-22) are a jewellery
+// profile's free-text variant fields. Once the org's attribute library has
+// the same attribute, the field starts hidden and the attribute is asked on
+// its own - one key for the value, not two. Data is kept, and a rule the org
+// saved for the field always wins.
+var libraryReplacedItemFields = map[string]bool{"color": true, "polish": true, "size": true, "stone_type": true}
+
 type savedItemFieldRule struct {
 	Item   *bool  `json:"item,omitempty"`
 	PO     *bool  `json:"po,omitempty"`
@@ -746,6 +753,9 @@ func ItemFieldRules(tenantID string) ([]ItemFieldRule, error) {
 				r.List = matchAttributeForField(r.Key, r.Label, attrs)
 			}
 		}
+		if !hasSaved && libraryReplacedItemFields[r.Key] && r.List != "" {
+			r.Hidden, r.Item, r.GRN = true, false, GRNAskOff
+		}
 		if r.Type == "Select" {
 			for _, o := range strings.Split(options, ",") {
 				if o = strings.TrimSpace(o); o != "" {
@@ -768,7 +778,9 @@ func ItemFieldRules(tenantID string) ([]ItemFieldRule, error) {
 	}
 	linked := map[string]string{}
 	for _, r := range out {
-		if r.List != "" {
+		// A hidden field no longer carries its attribute, so the attribute
+		// is asked on its own rather than not at all.
+		if r.List != "" && !r.Hidden {
 			linked[strings.ToUpper(r.List)] = r.Key
 		}
 	}

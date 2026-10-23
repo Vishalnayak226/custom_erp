@@ -201,18 +201,68 @@ func handleSendSubcontractOrder(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
+	// Stage 130.16 (74.3.3): sent through a delivery challan, with its transport.
 	var req struct {
 		ID string `json:"id"`
+		engines.ChallanDispatch
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'id' is required")
 		return
 	}
-	if err := engines.SendToSubcontractor(tenantID, req.ID, userID); err != nil {
+	if !requireDocPermission(w, r, "SubcontractOrder", "update", "You do not have permission to send job work") {
+		return
+	}
+	orderStatus, err := engines.SendJobWork(tenantID, req.ID, userID, r.Header.Get("Resolved-Role"), req.ChallanDispatch)
+	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "sent_to_subcontractor"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "sent_to_subcontractor", "order_status": orderStatus})
+}
+
+// handleReceiveJobWorkLines (Stage 130.16, 74.3.3) takes a partial return
+// against the order's lines.
+func handleReceiveJobWorkLines(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ID    string                       `json:"id"`
+		Key   string                       `json:"key"`
+		Lines []engines.JobWorkReceiveLine `json:"lines"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'id' is required")
+		return
+	}
+	if !requireDocPermission(w, r, "SubcontractOrder", "update", "You do not have permission to receive job work") {
+		return
+	}
+	status, err := engines.ReceiveJobWork(r.Header.Get("Resolved-Tenant-ID"), req.ID, r.Header.Get("Resolved-User-ID"), r.Header.Get("Resolved-Role"), req.Key, req.Lines)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": status})
+}
+
+// handleJobWorkCharge (Stage 130.16, 74.3.3) books the job worker's bill.
+func handleJobWorkCharge(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ID     string  `json:"id"`
+		BillNo string  `json:"bill_no"`
+		Amount float64 `json:"amount"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'id' is required")
+		return
+	}
+	if !requireDocPermission(w, r, "SubcontractOrder", "update", "You do not have permission to book job work charges") {
+		return
+	}
+	if err := engines.PostJobWorkCharge(r.Header.Get("Resolved-Tenant-ID"), req.ID, r.Header.Get("Resolved-User-ID"), req.BillNo, req.Amount); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "booked"})
 }
 
 func handleReceiveSubcontractOrder(w http.ResponseWriter, r *http.Request) {

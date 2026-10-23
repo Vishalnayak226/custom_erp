@@ -70,6 +70,12 @@ files: change their source or manifest instead.
 | Runbooks and deployment | Operations owner | SRE, engineering, support | Quarterly; after incidents |
 | Help and manuals | Documentation maintainer + module owner | Users, support, QA | Each affected release |
 
+**Review cadence enforced by `doclint` (decided 2026-10-22, Stage 130.18):** a document's
+review falls due at the later of its `review_by` and `last_verified` plus 90 days for
+normative, procedure and `docs/security/` documents (and capability claims), or 180 days for
+reference documents and templates. Records and generated files are not reviewed this way.
+CI stays `-strict`: a review past that date fails it.
+
 The owner is responsible for scheduling review and selecting qualified reviewers.
 Authors implement changes; consulted roles verify their domain; affected readers are
 informed through release notes. Developers and AI may draft and report test observations.

@@ -348,11 +348,23 @@ function stockTableHTML(rows, showTasks = false, searched = false) {
 async function renderInventoryView(container) {
   // Stage 88.5: Inventory's Dashboard, Ledger and MRP Change are pages of their own (inventory:<page>).
   if (currentViewTab && await (await import('./view-inventory-erp.js' + new URL(import.meta.url).search)).renderInventoryPage(currentViewTab, container)) return;
-  const res = await apiFetch('/api/v1/reports/current-stock');
-  if (!res) return;
-  if (!res.ok) { renderErrorPanel(container, 'Failed to load inventory.', () => renderView('inventory')); return; }
-  const rows = await res.json();
+  // 134.6 (47.10.3): one page at a time, searched on the server - the whole
+  // stock table no longer comes to the browser.
+  const pageSize = 100;
+  let offset = 0;
+  let rows = [];
+  let total = 0;
+  const load = async () => {
+    const res = await apiFetch(`/api/v1/reports/current-stock?limit=${pageSize}&offset=${offset}&q=${encodeURIComponent(inventorySearchQuery)}`);
+    if (!res || !res.ok) return res;
+    rows = await res.json();
+    total = Number(res.headers.get('X-Total-Count')) || rows.length;
+    return res;
+  };
   inventorySearchQuery = '';
+  const first = await load();
+  if (!first) return;
+  if (!first.ok) { renderErrorPanel(container, 'Failed to load inventory.', () => renderView('inventory')); return; }
 
   const header = document.createElement('div');
   header.className = 'page-header';
@@ -388,6 +400,7 @@ async function renderInventoryView(container) {
       </div>
     </div>
     <div class="table-wrapper" id="inventory-table-wrapper"></div>
+    <div class="table-controls" id="inventory-pager" style="justify-content: flex-end; gap: 8px;"></div>
   `;
   container.appendChild(panel);
   panel.querySelector('#inventory-table-wrapper').addEventListener('click', event => {
@@ -411,24 +424,38 @@ async function renderInventoryView(container) {
   // (matches renderDocTable()'s existing #doc-table-wrapper pattern).
   function draw() {
     const wrapper = document.getElementById('inventory-table-wrapper');
-    const filtered = inventorySearchQuery
-      ? rows.filter(r => `${r.sku} ${r.location_code}`.toLowerCase().includes(inventorySearchQuery))
-      : rows;
-    wrapper.innerHTML = stockTableHTML(filtered, true, !!inventorySearchQuery);
+    if (!wrapper) return;
+    wrapper.innerHTML = stockTableHTML(rows, true, !!inventorySearchQuery);
     sweepLinkNames(wrapper);
+    const pager = document.getElementById('inventory-pager');
+    pager.innerHTML = total > rows.length || offset > 0
+      ? `<span class="text-muted" style="font-size: 13px;">${(offset + 1).toLocaleString()}-${(offset + rows.length).toLocaleString()} of ${total.toLocaleString()}</span>
+         <button type="button" class="btn btn-outline btn-sm" data-page="-1" ${offset === 0 ? 'disabled' : ''}>Previous</button>
+         <button type="button" class="btn btn-outline btn-sm" data-page="1" ${offset + rows.length >= total ? 'disabled' : ''}>Next</button>`
+      : '';
   }
   draw();
+  document.getElementById('inventory-pager').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-page]');
+    if (!b || b.disabled) return;
+    offset = Math.max(0, offset + Number(b.dataset.page) * pageSize);
+    if (await load()) draw();
+  });
+  let searchTimer = null;
   document.getElementById('inventory-search-input').addEventListener('input', (e) => {
-    inventorySearchQuery = e.target.value.toLowerCase();
-    draw();
+    inventorySearchQuery = e.target.value.trim().toLowerCase();
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(async () => { offset = 0; if (await load()) draw(); }, 250);
   });
 }
 
 async function renderCurrentStockReport(panel) {
-  const res = await apiFetch('/api/v1/reports/current-stock');
+  const res = await apiFetch('/api/v1/reports/current-stock?limit=200');
   if (!res) return;
   const rows = res.ok ? await res.json() : [];
-  panel.innerHTML = stockTableHTML(rows);
+  const total = Number(res.headers.get('X-Total-Count')) || rows.length;
+  panel.innerHTML = stockTableHTML(rows) + (total > rows.length
+    ? `<p class="text-muted" style="padding: 12px 16px; font-size: 13px;">The first ${rows.length} of ${total.toLocaleString()} rows. Search any item or location in <a href="#/view/inventory">Inventory → Stock on Hand</a>.</p>` : '');
   sweepLinkNames(panel);
 }
 
@@ -445,10 +472,10 @@ async function renderSalesRegisterReport(panel) {
     ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No completed sales yet. Sales appear here as soon as a cart is checked out at <b>Point of Sale</b>.</td></tr>`
     : rows.map(r => `
         <tr>
-          <td style="font-family: monospace;">${r.cart_number}</td>
-          <td>${r.location}</td>
-          <td>${r.payment_mode}</td>
-          <td><span class="badge badge-success">${r.status}</span></td>
+          <td style="font-family: monospace;">${escapeHTMLText(r.cart_number)}</td>
+          <td>${escapeHTMLText(r.location)}</td>
+          <td>${escapeHTMLText(r.payment_mode)}</td>
+          <td><span class="badge badge-success">${escapeHTMLText(r.status)}</span></td>
           <td>${r.sale_total.toLocaleString()}</td>
           <td>${new Date(r.created_at).toLocaleString()}</td>
         </tr>
@@ -470,10 +497,10 @@ async function renderVendorLedgerReport(panel) {
     ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No purchase orders yet. Raise one under <b>Procurement &raquo; Purchase Order</b>; this ledger follows each one through receipt and payment.</td></tr>`
     : rows.map(r => `
         <tr>
-          <td>${r.vendor || ''}</td>
-          <td style="font-family: monospace;">${r.po_number || r.id}</td>
+          <td>${escapeHTMLText(r.vendor || '')}</td>
+          <td style="font-family: monospace;">${escapeHTMLText(r.po_number || r.id)}</td>
           <td>${(r.total_amount ?? 0).toLocaleString()}</td>
-          <td>${r.status}</td>
+          <td>${escapeHTMLText(r.status)}</td>
           <td>${new Date(r.created_at).toLocaleString()}</td>
         </tr>
       `).join('');
@@ -558,7 +585,7 @@ async function renderGSTReturnSummaryReport(panel) {
     const res = await apiFetch(`/api/v1/reports/gst-return-summary?start=${startDate}&end=${endDate}`);
     if (!res) return;
     if (!res.ok) {
-      resultEl.innerHTML = `<p class="login-error">${await getErrorMessage(res, 'Failed to load GST return summary.')}</p>`;
+      resultEl.innerHTML = `<p class="login-error">${escapeHTMLText(await getErrorMessage(res, 'Failed to load GST return summary.'))}</p>`;
       return;
     }
     const s = await res.json();
@@ -1324,7 +1351,7 @@ async function exportReportCatalogReport() {
   });
   if (!res) return;
   if (!res.ok) {
-    statusEl.innerHTML = `<p class="login-error">${await getErrorMessage(res, 'Failed to queue export.')}</p>`;
+    statusEl.innerHTML = `<p class="login-error">${escapeHTMLText(await getErrorMessage(res, 'Failed to queue export.'))}</p>`;
     return;
   }
   const job = await res.json();
@@ -1340,7 +1367,7 @@ async function pollReportExportJob(jobId, statusEl) {
   const res = await apiFetch(`/api/v1/reports/export/${jobId}`);
   if (!res) return;
   if (!res.ok) {
-    statusEl.innerHTML = `<p class="login-error">${await getErrorMessage(res, 'Export job lookup failed.')}</p>`;
+    statusEl.innerHTML = `<p class="login-error">${escapeHTMLText(await getErrorMessage(res, 'Export job lookup failed.'))}</p>`;
     return;
   }
   const job = await res.json();

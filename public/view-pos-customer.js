@@ -6,9 +6,9 @@
 //   * the box takes a mobile number (a name still searches); Enter looks the
 //     number up - one number is one customer (engines/pos_customers.go);
 //   * a number on file attaches that customer; a new one opens the customer
-//     form with the number filled in: name first, the rest under More
-//     details (address lines, city, state, PIN, PAN, GSTIN, DOB, anniversary,
-//     gender) - a GSTIN makes it a GST (B2B) bill;
+//     form with the number filled in, every detail asked in sections
+//     (131.1: contact, address, tax, personal, preferences, offers) - a
+//     GSTIN makes it a GST (B2B) bill;
 //   * Complete Sale asks for the number when none was taken; Walk-in is the
 //     answer when the customer will not give one (the store's default
 //     customer, whose placeholder number is never printed);
@@ -99,123 +99,29 @@ export async function posAttachWalkIn() {
   return true;
 }
 
-function field(id, label, value, attrs = '') {
-  return `<div class="form-group" style="margin-bottom:0;"><label class="form-label" for="${id}">${label}</label>
-    <input id="${id}" class="form-input" value="${esc(value)}" autocomplete="off" ${attrs}></div>`;
-}
-
 // openPOSCustomerForm: new (phone given) or edit (id given). need names what
-// the bill is waiting for, so the dialog opens on More details when the
-// address or PAN is what is missing. Resolves true when saved and attached.
+// the bill is waiting for (the address or PAN). Stage 131.1: the form is the
+// shared customer form (view-pickers.js openCustomerForm) - every detail
+// asked, the mobile required. Resolves true when saved (and attached).
 let lastSaved = null; // the customer the form saved last ({id, name, phone})
 
 // name: what was typed in the customer box (85.C6) - the mobile is still asked.
 export async function openPOSCustomerForm({ id = '', phone = '', name = '', title = '', need = '', attach = true } = {}) {
-  let doc = {};
-  if (id) {
-    const res = await apiFetch(`/api/v1/doc/Customer/${encodeURIComponent(id)}`);
-    if (!res || !res.ok) { await showApiError(res, 'The customer could not be opened.'); return false; }
-    doc = await res.json();
-  }
   const p = await pickers();
-  const country = (window.FIELD_META && window.FIELD_META.country) || 'IN';
-  const gstLabel = p.taxIdLabel ? p.taxIdLabel('gstin', 'GSTIN') : 'GSTIN';
-  const isNew = !id;
-  document.getElementById('pos-customer-dialog')?.remove();
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay open';
-  overlay.id = 'pos-customer-dialog';
-  overlay.innerHTML = `
-    <div class="modal-container" style="max-width: 720px;" role="dialog" aria-modal="true" aria-labelledby="pos-cust-title">
-      <div class="modal-header"><h3 class="modal-title" id="pos-cust-title">${esc(title || (isNew ? 'New customer' : `Customer - ${doc.name || id}`))}</h3>
-        <button type="button" class="modal-close" aria-label="Close dialog" data-pc-close>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-        </button></div>
-      <form class="modal-body" id="pos-cust-form" novalidate style="display:flex; flex-direction:column; gap:12px;">
-        ${need ? `<div class="login-error">${esc(need)}</div>` : ''}
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
-          ${field('pc-phone', 'Mobile number<span class="required">*</span>', doc.walk_in === 'Yes' ? '' : (doc.phone || phone), 'type="tel" inputmode="tel" required')}
-          ${field('pc-name', 'Name<span class="required">*</span>', doc.name || name, 'required')}
-          ${field('pc-email', 'Email', doc.email || '', 'type="email"')}
-        </div>
-        <details id="pc-more" ${need ? 'open' : ''}>
-          <summary style="cursor:pointer; font-weight:600;">More details - address, PAN, ${esc(gstLabel)}, birthday</summary>
-          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-top:12px;">
-            ${field('pc-address', 'Address Line 1', doc.address || '')}
-            ${field('pc-address2', 'Address Line 2', doc.address_line2 || '')}
-            ${field('pc-city', 'City', doc.city || '')}
-            <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="pc-state">State</label><span id="pc-state-slot"></span></div>
-            ${field('pc-pincode', country === 'IN' ? 'PIN Code' : 'Postal code', doc.pincode || '', 'inputmode="numeric"')}
-            ${field('pc-gstin', esc(gstLabel) + ' <span class="txn-hint">(makes it a GST bill)</span>', doc.gstin || '', 'maxlength="20" style="text-transform:uppercase"')}
-            ${country === 'IN' ? field('pc-pan', 'PAN', doc.pan || '', 'maxlength="10" style="text-transform:uppercase"') : ''}
-            ${field('pc-dob', 'Date of birth', doc.date_of_birth || '', 'type="date"')}
-            ${field('pc-doa', 'Anniversary', doc.date_of_anniversary || '', 'type="date"')}
-            <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="pc-gender">Gender</label>
-              <select id="pc-gender" class="form-select"><option value="">-</option>${['Female', 'Male', 'Other'].map(g => `<option ${doc.gender === g ? 'selected' : ''}>${g}</option>`).join('')}</select></div>
-          </div>
-        </details>
-        ${isNew ? `<div><div class="form-label">Agrees to offers (tick only what they agreed to)</div>
-          <label style="display:inline-flex; gap:8px; align-items:center; margin-right:16px;"><input type="checkbox" id="pc-sms"> SMS</label>
-          <label style="display:inline-flex; gap:8px; align-items:center;"><input type="checkbox" id="pc-wa"> WhatsApp</label></div>` : ''}
-        <div id="pc-error" class="login-error hidden"></div>
-      </form>
-      <div class="modal-footer"><button type="button" class="btn btn-outline" data-pc-close>Cancel</button>
-        <button type="button" class="btn btn-primary" data-pc-save>${isNew ? 'Add to bill' : 'Save'}</button></div>
-    </div>`;
-  document.body.appendChild(overlay);
-  const slot = overlay.querySelector('#pc-state-slot');
-  if (p.buildStateSelect && (window.FIELD_META?.regions || []).length) {
-    slot.replaceWith(p.buildStateSelect({ id: 'pc-state', name: 'state', value: doc.state || '' }));
-  } else {
-    slot.outerHTML = `<input id="pc-state" name="state" class="form-input" value="${esc(doc.state || '')}" autocomplete="off">`;
+  const fresh = !id || !!(attached && attached.id === id && attached.walk_in); // the walk-in becomes a new customer
+  const r = await p.openCustomerForm({ id, phone, name, title, need, till: true, saveLabel: fresh && attach ? 'Add to bill' : '' });
+  if (!r) return false;
+  const code = r.doc.id || r.doc.code || '';
+  lastSaved = { id: code, name: r.doc.name, phone: r.doc.phone };
+  // attach = false: the Advance tab's customer, not the sale's.
+  if (attach) {
+    attached = null;
+    posAttachCustomer({ id: code, name: r.doc.name });
+    await refreshAttached();
+    if (typeof renderPOSCustomerNote === 'function') renderPOSCustomerNote();
   }
-  const gst = overlay.querySelector('#pc-gstin');
-  if (gst && p.fillStateFromTaxId) gst.addEventListener('input', () => p.fillStateFromTaxId(gst));
-
-  return new Promise(resolve => {
-    const close = (v) => { overlay.remove(); resolve(v); };
-    overlay.querySelectorAll('[data-pc-close]').forEach(b => b.addEventListener('click', () => close(false)));
-    overlay.addEventListener('keydown', e => { if (e.key === 'Escape') close(false); });
-    const save = overlay.querySelector('[data-pc-save]');
-    save.addEventListener('click', () => guardAgainstDoubleSubmit(save, 'Saving...', async () => {
-      const v = (sel) => (overlay.querySelector(sel) || {}).value?.trim() || '';
-      const err = overlay.querySelector('#pc-error');
-      err.classList.add('hidden');
-      if (!v('#pc-phone') || !v('#pc-name')) {
-        err.textContent = 'The mobile number and the name are needed.';
-        err.classList.remove('hidden');
-        return;
-      }
-      const body = {
-        ...(isNew ? {} : doc), name: v('#pc-name'), phone: v('#pc-phone'), email: v('#pc-email'),
-        address: v('#pc-address'), address_line2: v('#pc-address2'), city: v('#pc-city'), state: v('#pc-state'),
-        pincode: v('#pc-pincode'), gstin: v('#pc-gstin').toUpperCase(), date_of_birth: v('#pc-dob'),
-        date_of_anniversary: v('#pc-doa'), gender: v('#pc-gender'), status: doc.status || 'Active',
-      };
-      if (overlay.querySelector('#pc-pan')) body.pan = v('#pc-pan').toUpperCase();
-      if (isNew) { body.consent_sms = !!overlay.querySelector('#pc-sms')?.checked; body.consent_whatsapp = !!overlay.querySelector('#pc-wa')?.checked; }
-      if (doc.walk_in === 'Yes') { delete body.walk_in; delete body.walk_in_store; delete body.id; delete body.code; }
-      const editing = !isNew && doc.walk_in !== 'Yes';
-      const res = await apiFetch(editing ? `/api/v1/doc/Customer/${encodeURIComponent(id)}` : '/api/v1/doc/Customer', {
-        method: 'POST', body: JSON.stringify(body),
-      });
-      if (!res) return;
-      if (!res.ok) { await showApiError(res, 'The customer was not saved.'); return; }
-      const saved = await res.json().catch(() => ({}));
-      const code = editing ? id : (saved.id || saved.code || '');
-      lastSaved = { id: code, name: body.name, phone: body.phone };
-      // attach = false: the Advance tab's customer, not the sale's.
-      if (attach) {
-        attached = null;
-        posAttachCustomer({ id: code, name: body.name });
-        await refreshAttached();
-        if (typeof renderPOSCustomerNote === 'function') renderPOSCustomerNote();
-      }
-      showToast(`${body.name} ${editing ? 'saved' : 'added to this bill'}.`, { variant: 'success' });
-      close(true);
-    }));
-    (overlay.querySelector(phone ? '#pc-name' : '#pc-phone'))?.focus();
-  });
+  showToast(`${r.doc.name} ${r.editing ? 'saved' : attach ? 'added to this bill' : 'added'}.`, { variant: 'success' });
+  return true;
 }
 
 // posAskMobile is Complete Sale with no customer: ask for the number, with
@@ -334,7 +240,8 @@ export async function posLoadOpenAdvances() {
   const btn = document.getElementById('pos-advance-use-btn');
   if (btn) btn.classList.add('hidden');
   if (!code || (attached && attached.id === code && attached.walk_in)) return;
-  const res = await apiFetch(`/api/v1/pos/advances?customer_id=${encodeURIComponent(code)}&open=1`).catch(() => null);
+  // Stage 130.12: with the customer's store credit, offered behind the same button.
+  const res = await apiFetch(`/api/v1/pos/advances?customer_id=${encodeURIComponent(code)}&open=1&with_store_credit=1`).catch(() => null);
   if (!res || !res.ok || ((hiddenEl() || {}).value || '') !== code) return;
   openAdvances = (await res.json().catch(() => [])) || [];
   posRenderAdvanceButton();
@@ -345,7 +252,9 @@ function posRenderAdvanceButton() {
   if (!btn) return;
   const total = openAdvances.reduce((s, a) => s + a.balance, 0);
   btn.classList.toggle('hidden', !(total > 0));
-  btn.textContent = useAdvance ? `Not using advance` : `Use advance ${money2(total)}`;
+  const credit = openAdvances.some(a => a.number === 'STORE-CREDIT');
+  const what = credit && openAdvances.length > 1 ? 'advance + store credit' : (credit ? 'store credit' : 'advance');
+  btn.textContent = useAdvance ? `Not using ${what}` : `Use ${what} ${money2(total)}`;
   btn.classList.toggle('btn-primary', useAdvance);
   btn.classList.toggle('btn-outline', !useAdvance);
 }

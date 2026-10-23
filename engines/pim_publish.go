@@ -14,16 +14,15 @@ import (
 	"time"
 )
 
-// Channel Publishing (Stage 15.2, PIM Blueprint V2 §7/§11/§14). No real
-// external channel credentials exist in this environment, so the
-// "connector" here is an explicit stub: it marks a queued job Published
-// with a fabricated STUB-<item>-<channel> external id rather than actually
-// calling any Shopify/Amazon/OMS API. The queue/idempotency/retry/logging
-// machinery around it is real and ready for a genuine connector to be
-// dropped in later - stated as a real limitation, not hidden, matching
-// this codebase's own existing scope-note conventions (e.g. sticker
-// symbology, expense attachments). Events reuse the existing outbox
-// (engines.PublishEvent, engines/outbox.go) rather than a new system.
+// Channel Publishing (Stage 15.2, PIM Blueprint V2 §7/§11/§14). The queue
+// worker resolves the channel's platform to a registered connector
+// (engines/connector.go: Shopify, BigCommerce, Magento / AdobeCommerce) and
+// calls its PublishProduct with the channel's stored credential. A channel
+// with no platform, "Generic" or an unrecognised one falls back to the stub
+// connector, which makes no outbound call and returns a fabricated
+// STUB-<item> external id - a stated fallback, not a real publish. Events
+// reuse the existing outbox (engines.PublishEvent, engines/outbox.go)
+// rather than a new system.
 
 type PublishReadiness struct {
 	Ready         bool     `json:"ready"`
@@ -96,7 +95,7 @@ func fetchChannelValidationRules(tenantID, channelCode string) ([]channelValidat
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT COALESCE(data->>'rule_type', ''), COALESCE(data->>'rule_value', ''), COALESCE(data->>'message', '')
-		FROM %s.documents WHERE doctype = 'ChannelValidationRule' AND data->>'channel' = $1 AND status = 'Active'`, schema), channelCode)
+		FROM %s.documents WHERE doctype = 'ChannelValidationRule' AND data->>'channel' = $1 AND status = 'Active' AND deleted_at IS NULL`, schema), channelCode)
 	if err != nil {
 		return nil, err
 	}
@@ -359,6 +358,9 @@ func StartPublishQueueWorker(ctx context.Context, interval time.Duration) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				if !IsSchedulerLeader() { // 134.7: one server runs each sweep
+					continue
+				}
 				if db.DB == nil {
 					continue
 				}
@@ -489,9 +491,8 @@ func fetchChannelPlatform(tenantID, channelCode string) (string, error) {
 }
 
 // publishOneJob builds the outbound payload, loads the channel's credential
-// (best-effort - the stub connector ignores it entirely, so a missing
-// credential is only a real problem once a real connector needs one, and
-// that connector's own PublishProduct will report it as such), and calls
+// (best-effort - the stub connector ignores it, and a real connector's own
+// PublishProduct reports a missing credential as its error), and calls
 // the resolved connector with a bounded context. Separated from
 // processPublishQueue so each attempt's panic/timeout safety (already
 // handled one level down inside doConnectorRequest) has a clean boundary.

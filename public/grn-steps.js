@@ -31,7 +31,12 @@ const num = (v) => (v === '' || v == null || isNaN(Number(v)) ? null : Number(v)
 // was shown keeps its exact ex-GST value, so no paisa of difference appears.
 const PRICE_FIELDS = ['invoice_price', 'grn_price'];
 const gstK = (l) => 1 + (Number(l.gst_rate) || 0) / 100;
-const shownPrice = (l, ex) => (l.gst_inclusive && num(ex) !== null ? Math.round(num(ex) * gstK(l) * 100) / 100 : ex);
+const shownPrice = (l, ex) => {
+  if (!l.gst_inclusive || num(ex) === null) return ex;
+  // Stage 130.1: the incl. GST price exactly as keyed, while ex is still that price.
+  for (const [p, inc] of [[l.grn_price, l.grn_price_incl], [l.invoice_price, l.invoice_price_incl]]) if (inc && Math.abs(num(ex) - p) < 0.005) return inc;
+  return Math.round(num(ex) * gstK(l) * 100) / 100;
+};
 const inclTag = (l) => (l.gst_inclusive ? '<div class="text-muted">incl. GST</div>' : '');
 
 // The page a receipt opens on: the step it is waiting for.
@@ -106,6 +111,7 @@ function render() {
         <span>PO ${(v.po_ids || []).map(esc).join(', ') || '&mdash;'}</span>
         <span class="gs-status">${esc(v.status)}${v.payment_status ? ' &middot; ' + esc(v.payment_status) : ''}</span>
         <button type="button" class="btn btn-outline btn-sm" data-gs="print">Print</button>
+        ${(v.children || []).some(c => c.status === 'Posted') ? '<button type="button" class="btn btn-outline btn-sm" data-gs="stickers" title="Stickers for every posted line of this receipt">Print stickers</button>' : ''}
       </div>
       <div id="gs-totals" class="gs-totals">${totalsHTML(v)}</div>
       ${(v.warnings || []).length ? `<div class="txn-hint">${v.warnings.map(esc).join(' ')}</div>` : ''}
@@ -128,8 +134,9 @@ function stepperHTML(v) {
   return `<ol class="gs-stepper" aria-label="Goods receipt steps">${STEPS.map((s, i) => {
     const state = i < done ? 'done' : (i === done ? 'now' : 'next');
     // Before posting every step can be gone back to; once a child has
-    // posted, only Correct changes the receipt.
-    const reachable = i >= 1 && i <= done && !(started && i < 3) && !(v.step === 'Posted' && i < 4);
+    // posted, only Correct changes the receipt. A posted receipt still opens
+    // MRP and post, read-only, for its Print stickers / Put away (134.1d).
+    const reachable = i >= 1 && i <= done && !(started && i < 3);
     return `<li class="gs-step gs-${state}${i === current ? ' gs-viewing' : ''}">${reachable && i !== current
       ? `<button type="button" class="link-btn" data-gs="goto" data-page="${s.key}">${i + 1}. ${s.label}</button>`
       : `<span>${i + 1}. ${s.label}</span>`}${i < done ? ' <span aria-label="done">&#10003;</span>' : ''}</li>`;
@@ -144,7 +151,8 @@ function totalsHTML(v) {
     ours = 0;
     (v.lines || []).forEach(l => {
       const e = gs.edit[l.line_no] || {};
-      ours += keptQty(l, e) * (num(e.grn_price) ?? 0) * (1 + (Number(l.gst_rate) || 0) / 100);
+      const inc = inclOf(l, 'grn_price');
+      ours += inc !== null ? Math.round(keptQty(l, e) * inc * 100) / 100 : keptQty(l, e) * (num(e.grn_price) ?? 0) * (1 + (Number(l.gst_rate) || 0) / 100);
     });
     ours = Math.round(ours * 100) / 100;
   }
@@ -198,6 +206,15 @@ function actionsHTML(back, main, extra = '') {
 const canDo = (k) => !!(gs.view.allowed && gs.view.allowed[k]);
 const notAllowed = (k) => canDo(k) ? '' : `<span class="text-muted">Your role does not do this step.</span>`;
 
+// logisticsHTML (Stage 130.16, 74.3.2): the vendor's challan and the
+// transport, editable until the receipt posts.
+function logisticsHTML(g) {
+  const f = (key, label, type = 'text') => `<div class="form-group"><label class="form-label" for="gs-log-${key}">${label}</label><input id="gs-log-${key}" data-gs-log="${key}" type="${type}" class="form-input" value="${esc(type === 'number' && !g[key] ? '' : g[key])}"></div>`;
+  return `<details class="grn-logistics"${Object.values(g).some(Boolean) ? ' open' : ''}><summary style="cursor:pointer;font-weight:600;margin:6px 0;">Supplier documents and transport</summary>
+    <div class="gs-form-row">${f('vendor_challan_no', 'Vendor challan no')}${f('vendor_challan_date', 'Challan date', 'date')}${f('lr_awb_no', 'LR / AWB no')}
+      ${f('vehicle_no', 'Vehicle no')}${f('transporter', 'Transporter')}${f('package_count', 'Packages', 'number')}</div></details>`;
+}
+
 // ① Receive, edited after saving (Back).
 function receiveHTML(v) {
   const posted = (v.children || []).some(c => c.status === 'Posted');
@@ -210,6 +227,7 @@ function receiveHTML(v) {
       <div class="form-group"><label class="form-label" for="gs-inv-date">Invoice date</label><input id="gs-inv-date" type="date" class="form-input" value="${esc(v.vendor_invoice_date)}"></div>
       <div class="form-group"><label class="form-label" for="gs-inv-total">Invoice total (incl. GST)</label><input id="gs-inv-total" type="number" step="0.01" min="0" class="form-input num${c ? ' gs-fix' : ''}" value="${esc(v.vendor_invoice_amount)}"></div>
     </div>
+    ${logisticsHTML(v.logistics || {})}
     <div class="txn-grid"><table>
       <thead><tr><th>#</th><th>Item</th><th class="num">Received</th><th class="num">Invoice qty</th><th class="num" title="Price per unit from the vendor's invoice - before GST, or incl. GST where the line says so">Invoice price</th><th class="num">GST %</th></tr></thead>
       <tbody>${v.lines.map(l => `<tr>
@@ -239,6 +257,9 @@ function priceShown(l, field) {
   const e = gs.edit[l.line_no];
   return e[field + '_shown'] !== undefined ? e[field + '_shown'] : shownPrice(l, e[field]);
 }
+// Stage 130.1: a GST-inclusive line's price incl. GST, sent with the ex-GST one
+// so the server works the line from it (null for a line priced before GST).
+const inclOf = (l, field) => (l.gst_inclusive ? num(priceShown(l, field)) : null);
 
 // 118.4: the product name, then design · Combination ID · batch, then the
 // Colour / Size... values in the client's attribute order - as the GRN line
@@ -358,7 +379,7 @@ function postHTML(v) {
     }).join('');
     return `<section class="gs-child">
       <div class="gs-child-head"><h3>${esc(v.code)}/${c.key} &middot; ${esc(c.name)}</h3><span class="text-muted">${lines.length} line${lines.length === 1 ? '' : 's'}</span>
-        ${posted ? `<span class="badge badge-success">Posted</span><button type="button" class="btn btn-outline btn-sm" data-gs="stickers" data-child="${c.key}">Print stickers</button>`
+        ${posted ? `<span class="badge badge-success">Posted</span><button type="button" class="btn btn-outline btn-sm" data-gs="stickers" data-child="${c.key}">Print stickers</button><button type="button" class="btn btn-outline btn-sm" data-gs="putaway" data-child="${c.key}" title="Put these items into bins">Put away</button>`
           : `<button type="button" class="btn btn-outline btn-sm" data-gs="suggested" data-child="${c.key}">Use suggested</button>`}</div>
       <div class="txn-grid"><table>
         <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Cost</th><th class="num">Current MRP</th><th class="num">MRP${posted ? '' : '<span class="required">*</span>'}</th><th class="num">Suggested</th><th class="num">Margin</th><th></th></tr></thead>
@@ -514,11 +535,12 @@ async function onClick(e) {
       case 'print': window.printTransactionDocument && window.printTransactionDocument('GRN', gs.id); break;
       case 'print-note': window.printTransactionDocument && window.printTransactionDocument(b.dataset.doctype, b.dataset.id); break;
       case 'save-receive': {
-        const lines = v.lines.map(l => ({ line_no: l.line_no, received_qty: num(gs.edit[l.line_no].received_qty), invoice_qty: num(gs.edit[l.line_no].invoice_qty), invoice_price: num(gs.edit[l.line_no].invoice_price) }));
+        const lines = v.lines.map(l => ({ line_no: l.line_no, received_qty: num(gs.edit[l.line_no].received_qty), invoice_qty: num(gs.edit[l.line_no].invoice_qty), invoice_price: num(gs.edit[l.line_no].invoice_price), invoice_price_incl: inclOf(l, 'invoice_price') }));
         const data = await send('receive', {
           vendor_invoice_no: document.getElementById('gs-inv-no').value,
           vendor_invoice_date: document.getElementById('gs-inv-date').value,
           vendor_invoice_amount: num(document.getElementById('gs-inv-total').value) ?? 0,
+          logistics: Object.fromEntries([...document.querySelectorAll('[data-gs-log]')].map(el => [el.dataset.gsLog, el.value.trim()])),
           lines, reason: 'Receive corrected'
         }, 'Receive saved - verify it again.');
         if (data) setView(data, 'verify');
@@ -527,7 +549,7 @@ async function onClick(e) {
       case 'verify': {
         const lines = v.lines.map(l => {
           const x = gs.edit[l.line_no];
-          return { line_no: l.line_no, grn_qty: num(x.grn_qty), grn_price: num(x.grn_price), rejected_qty: num(x.rejected_qty) ?? 0, rejection_reason: x.rejection_reason || '',
+          return { line_no: l.line_no, grn_qty: num(x.grn_qty), grn_price: num(x.grn_price), grn_price_incl: inclOf(l, 'grn_price'), rejected_qty: num(x.rejected_qty) ?? 0, rejection_reason: x.rejection_reason || '',
             damaged_qty: num(x.damaged_qty) ?? 0, damage_reason: x.damage_reason || '', excess_action: x.excess_action || '',
             rejection_reason_code: x.rejection_reason_code || '', damage_reason_code: x.damage_reason_code || '' };
         });
@@ -563,9 +585,18 @@ async function onClick(e) {
         break;
       }
       case 'stickers': {
-        const skus = v.lines.filter(l => l.child === b.dataset.child).map(l => l.sku);
+        // A child's button prints that child; the header's, every posted child.
+        const posted = new Set((v.children || []).filter(c => c.status === 'Posted').map(c => c.key));
+        const skus = v.lines.filter(l => (b.dataset.child ? l.child === b.dataset.child : posted.has(l.child))).map(l => l.sku);
         try { sessionStorage.setItem('grn-child-stickers', JSON.stringify({ id: gs.id, skus })); } catch (_) { /* storage can be disabled */ }
         renderView('stickers');
+        break;
+      }
+      // Stage 130.13 (80.7 e): the posted receipt's items, waiting for a bin.
+      case 'putaway': {
+        const skus = v.lines.filter(l => l.child === b.dataset.child).map(l => l.sku);
+        try { sessionStorage.setItem('grn-putaway', JSON.stringify({ grn: v.code || gs.id, location: v.location || '', skus })); } catch (_) { /* storage can be disabled */ }
+        renderView('putaway');
         break;
       }
       case 'pay': {

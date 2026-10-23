@@ -381,6 +381,9 @@ type itemRow struct {
 	Status string
 }
 
+// 134.6 (47.10.1): most Items the Product Workbench scores per request (each is scored one by one).
+const pimWorkbenchItemCap = 2000
+
 func listItemsForWorkbench(tenantID, familyFilter string) ([]itemRow, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -392,7 +395,7 @@ func listItemsForWorkbench(tenantID, familyFilter string) ([]itemRow, error) {
 		query += " AND data->>'family' = $1"
 		args = append(args, familyFilter)
 	}
-	query += " ORDER BY id"
+	query += fmt.Sprintf(" ORDER BY id LIMIT %d", pimWorkbenchItemCap)
 
 	rows, err := db.DB.Query(query, args...)
 	if err != nil {

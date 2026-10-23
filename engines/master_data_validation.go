@@ -191,10 +191,10 @@ func validateBatchMasterRules(tenantID, docID string, payload map[string]interfa
 	var existingID string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
-		WHERE doctype = 'Batch' AND data->>'item' = $1 AND data->>'batch_no' = $2 AND id != $3
+		WHERE doctype = 'Batch' AND data->>'item' = $1 AND data->>'batch_no' = $2 AND id != $3 AND deleted_at IS NULL
 		LIMIT 1`, schema), item, batchNo, docID).Scan(&existingID)
 	if err == nil {
-		return &ValidationError{Code: "MASTER-0053", Message: fmt.Sprintf(
+		return &ValidationError{Code: "MASTER-1321", Message: fmt.Sprintf(
 			"batch %q already exists for item %s (%s) - a lot number must be unique within its item", batchNo, item, existingID)}
 	}
 
@@ -266,10 +266,10 @@ func validateSerialMasterRules(tenantID, docID string, payload map[string]interf
 	var existingID string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
-		WHERE doctype = 'SerialNumber' AND data->>'item' = $1 AND data->>'serial_no' = $2 AND id != $3
+		WHERE doctype = 'SerialNumber' AND data->>'item' = $1 AND data->>'serial_no' = $2 AND id != $3 AND deleted_at IS NULL
 		LIMIT 1`, schema), item, serialNo, docID).Scan(&existingID)
 	if err == nil {
-		return &ValidationError{Code: "MASTER-0053", Message: fmt.Sprintf(
+		return &ValidationError{Code: "MASTER-1321", Message: fmt.Sprintf(
 			"serial %q already exists for item %s (%s) - a serial number must be unique within its item", serialNo, item, existingID)}
 	}
 	return nil
@@ -311,14 +311,14 @@ func validateLottableConstraintMasterRules(tenantID, docID string, payload map[s
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
 		WHERE doctype = 'LottableConstraint' AND data->>'customer' = $1
-		  AND COALESCE(data->>'item', '') = $2 AND data->>'attribute_key' = $3 AND id != $4
+		  AND COALESCE(data->>'item', '') = $2 AND data->>'attribute_key' = $3 AND id != $4 AND deleted_at IS NULL
 		LIMIT 1`, schema), customer, item, attributeKey, docID).Scan(&existingID)
 	if err == nil {
 		scope := "every item"
 		if item != "" {
 			scope = "item " + item
 		}
-		return &ValidationError{Code: "MASTER-0053", Message: fmt.Sprintf(
+		return &ValidationError{Code: "MASTER-1321", Message: fmt.Sprintf(
 			"a lottable constraint on %q already exists for customer %s / %s (%s)", attributeKey, customer, scope, existingID)}
 	}
 	return nil
@@ -351,6 +351,11 @@ func validateItemMasterRules(tenantID, docID string, payload map[string]interfac
 	if code := strField(payload, "code"); code != "" && !itemCodePattern.MatchString(code) {
 		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Item Code (SKU)", Message: fmt.Sprintf(
 			"Item Code (SKU) %q may only contain letters, numbers, spaces, and . _ - / - no HTML or script characters", code)}
+	}
+
+	// Stage 130.9 (72.D b): a scheduled tax change is complete and well-formed.
+	if err := validateScheduledTaxChange(payload); err != nil {
+		return err
 	}
 
 	hsn := strField(payload, "hsn_code")
@@ -634,10 +639,10 @@ func validateZoneMasterRules(tenantID, docID string, payload map[string]interfac
 	var existingID string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
-		WHERE doctype = 'Zone' AND status = 'Active' AND data->>'code' = $1 AND id != $2
+		WHERE doctype = 'Zone' AND status = 'Active' AND deleted_at IS NULL AND data->>'code' = $1 AND id != $2
 		LIMIT 1`, schema), code, docID).Scan(&existingID)
 	if err == nil {
-		return &ValidationError{Code: "MASTER-0053", Message: fmt.Sprintf(
+		return &ValidationError{Code: "MASTER-1321", Message: fmt.Sprintf(
 			"an Active zone %q already exists (%s) - zone codes must be unique", code, existingID)}
 	}
 	return nil
@@ -667,7 +672,7 @@ func validateBinMasterRules(tenantID, docID string, payload map[string]interface
 	}
 	var zoneExists bool
 	if err := db.DB.QueryRow(fmt.Sprintf(
-		`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'Zone' AND data->>'code' = $1 AND status = 'Active')`, schema),
+		`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'Zone' AND data->>'code' = $1 AND status = 'Active' AND deleted_at IS NULL)`, schema),
 		zone).Scan(&zoneExists); err != nil {
 		return err
 	}
@@ -707,7 +712,7 @@ func validatePutawayStrategyMasterRules(tenantID, docID string, payload map[stri
 	var existingID string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
-		WHERE doctype = 'PutawayStrategy' AND status = 'Active'
+		WHERE doctype = 'PutawayStrategy' AND status = 'Active' AND deleted_at IS NULL
 		  AND COALESCE(data->>'location_code', '') = $1 AND id != $2
 		LIMIT 1`, schema), locationCode, docID).Scan(&existingID)
 	if err == nil {
@@ -715,7 +720,7 @@ func validatePutawayStrategyMasterRules(tenantID, docID string, payload map[stri
 		if locationCode != "" {
 			scope = "location " + locationCode
 		}
-		return &ValidationError{Code: "MASTER-0053", Message: fmt.Sprintf(
+		return &ValidationError{Code: "MASTER-1321", Message: fmt.Sprintf(
 			"an Active putaway strategy already applies to %s (%s) - deactivate it first", scope, existingID)}
 	}
 	return nil
@@ -745,7 +750,7 @@ func validateAllocationStrategyMasterRules(tenantID, docID string, payload map[s
 	var existingID string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
-		WHERE doctype = 'AllocationStrategy' AND status = 'Active'
+		WHERE doctype = 'AllocationStrategy' AND status = 'Active' AND deleted_at IS NULL
 		  AND COALESCE(data->>'item', '') = $1 AND id != $2
 		LIMIT 1`, schema), item, docID).Scan(&existingID)
 	if err == nil {
@@ -753,7 +758,7 @@ func validateAllocationStrategyMasterRules(tenantID, docID string, payload map[s
 		if item != "" {
 			scope = "item " + item
 		}
-		return &ValidationError{Code: "MASTER-0053", Message: fmt.Sprintf(
+		return &ValidationError{Code: "MASTER-1321", Message: fmt.Sprintf(
 			"an Active allocation strategy already applies to %s (%s) - deactivate it first", scope, existingID)}
 	}
 	return nil
@@ -763,7 +768,7 @@ func validateAllocationStrategyMasterRules(tenantID, docID string, payload map[s
 // well-formed HH:MM pair (start before end - a door open midnight-to-06:00
 // isn't representable this way, an acceptable gap for a first pass, see
 // docs/micro_checklist.md 42.3.1) and that an Active door's code is unique,
-// the same MASTER-0053 shape Zone/PutawayStrategy/AllocationStrategy use.
+// the same MASTER-1321 shape Zone/PutawayStrategy/AllocationStrategy use.
 func validateDockDoorMasterRules(tenantID, docID string, payload map[string]interface{}) error {
 	start := strField(payload, "service_window_start")
 	end := strField(payload, "service_window_end")
@@ -791,10 +796,10 @@ func validateDockDoorMasterRules(tenantID, docID string, payload map[string]inte
 	var existingID string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
-		WHERE doctype = 'DockDoor' AND status = 'Active' AND data->>'code' = $1 AND id != $2
+		WHERE doctype = 'DockDoor' AND status = 'Active' AND deleted_at IS NULL AND data->>'code' = $1 AND id != $2
 		LIMIT 1`, schema), code, docID).Scan(&existingID)
 	if err == nil {
-		return &ValidationError{Code: "MASTER-0053", Message: fmt.Sprintf(
+		return &ValidationError{Code: "MASTER-1321", Message: fmt.Sprintf(
 			"an Active dock door %q already exists (%s) - door codes must be unique", code, existingID)}
 	}
 	return nil
@@ -841,7 +846,7 @@ func validateAppointmentMasterRules(tenantID, docID string, payload map[string]i
 	var maxConcurrent sql.NullInt64
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT data->>'door_type', NULLIF(data->>'max_concurrent_appointments', '')::int
-		FROM %s.documents WHERE doctype = 'DockDoor' AND data->>'code' = $1 AND status = 'Active'`, schema),
+		FROM %s.documents WHERE doctype = 'DockDoor' AND data->>'code' = $1 AND status = 'Active' AND deleted_at IS NULL`, schema),
 		dockDoor).Scan(&doorType, &maxConcurrent)
 	if err == sql.ErrNoRows {
 		return &ValidationError{Code: "META-0198", SubFor: "Dock Door",
@@ -979,7 +984,7 @@ func validateReceiptValidationRuleMasterRules(tenantID, docID string, payload ma
 	var existingID string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
-		WHERE doctype = 'ReceiptValidationRule' AND status = 'Active'
+		WHERE doctype = 'ReceiptValidationRule' AND status = 'Active' AND deleted_at IS NULL
 		  AND COALESCE(data->>'vendor', '') = $1 AND id != $2
 		LIMIT 1`, schema), vendor, docID).Scan(&existingID)
 	if err == nil {
@@ -987,7 +992,7 @@ func validateReceiptValidationRuleMasterRules(tenantID, docID string, payload ma
 		if vendor != "" {
 			scope = "vendor " + vendor
 		}
-		return &ValidationError{Code: "MASTER-0053", Message: fmt.Sprintf(
+		return &ValidationError{Code: "MASTER-1321", Message: fmt.Sprintf(
 			"an Active receipt validation rule already applies to %s (%s) - deactivate it first", scope, existingID)}
 	}
 	return nil
@@ -1022,7 +1027,7 @@ func validateWaveTemplateMasterRules(tenantID, docID string, payload map[string]
 	var existingID string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
-		WHERE doctype = 'WaveTemplate' AND status = 'Active'
+		WHERE doctype = 'WaveTemplate' AND status = 'Active' AND deleted_at IS NULL
 		  AND COALESCE(data->>'location_code', '') = $1 AND id != $2
 		LIMIT 1`, schema), locationCode, docID).Scan(&existingID)
 	if err == nil {
@@ -1030,7 +1035,7 @@ func validateWaveTemplateMasterRules(tenantID, docID string, payload map[string]
 		if locationCode != "" {
 			scope = "location " + locationCode
 		}
-		return &ValidationError{Code: "MASTER-0053", Message: fmt.Sprintf(
+		return &ValidationError{Code: "MASTER-1321", Message: fmt.Sprintf(
 			"an Active wave template already applies to %s (%s) - deactivate it first", scope, existingID)}
 	}
 	return nil
@@ -1112,7 +1117,7 @@ func validateSortSlotMasterRules(tenantID, docID string, payload map[string]inte
 	}
 	var numSlots int
 	err = db.DB.QueryRow(fmt.Sprintf(
-		`SELECT COALESCE(NULLIF(data->>'num_slots', '')::int, 0) FROM %s.documents WHERE doctype = 'SortStation' AND data->>'code' = $1 AND status = 'Active'`, schema),
+		`SELECT COALESCE(NULLIF(data->>'num_slots', '')::int, 0) FROM %s.documents WHERE doctype = 'SortStation' AND data->>'code' = $1 AND status = 'Active' AND deleted_at IS NULL`, schema),
 		station).Scan(&numSlots)
 	if err == sql.ErrNoRows {
 		return &ValidationError{Code: "META-0198", SubFor: "Sort Station", Message: fmt.Sprintf("no Active sort station %q exists", station)}
@@ -1143,7 +1148,7 @@ func validatePackTemplateMasterRules(tenantID, docID string, payload map[string]
 	}
 	var exists bool
 	if err := db.DB.QueryRow(fmt.Sprintf(
-		`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'CartonType' AND data->>'code' = $1 AND status = 'Active')`, schema), cartonType).Scan(&exists); err != nil {
+		`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'CartonType' AND data->>'code' = $1 AND status = 'Active' AND deleted_at IS NULL)`, schema), cartonType).Scan(&exists); err != nil {
 		return err
 	}
 	if !exists {
@@ -1182,7 +1187,7 @@ func validateLoadingTaskMasterRules(tenantID, docID string, payload map[string]i
 	if dockDoor := strField(payload, "dock_door"); dockDoor != "" {
 		var exists bool
 		if err := db.DB.QueryRow(fmt.Sprintf(
-			`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'DockDoor' AND data->>'code' = $1 AND status = 'Active')`, schema), dockDoor).Scan(&exists); err != nil {
+			`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'DockDoor' AND data->>'code' = $1 AND status = 'Active' AND deleted_at IS NULL)`, schema), dockDoor).Scan(&exists); err != nil {
 			return err
 		}
 		if !exists {
@@ -1192,7 +1197,7 @@ func validateLoadingTaskMasterRules(tenantID, docID string, payload map[string]i
 	if trailer := strField(payload, "trailer_no"); trailer != "" {
 		var exists bool
 		if err := db.DB.QueryRow(fmt.Sprintf(
-			`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'Trailer' AND data->>'code' = $1 AND status = 'Active')`, schema), trailer).Scan(&exists); err != nil {
+			`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'Trailer' AND data->>'code' = $1 AND status = 'Active' AND deleted_at IS NULL)`, schema), trailer).Scan(&exists); err != nil {
 			return err
 		}
 		if !exists {
@@ -1218,7 +1223,7 @@ func validatePreShipValidationRuleMasterRules(tenantID, docID string, payload ma
 	var existingID string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
-		WHERE doctype = 'PreShipValidationRule' AND status = 'Active'
+		WHERE doctype = 'PreShipValidationRule' AND status = 'Active' AND deleted_at IS NULL
 		  AND COALESCE(data->>'location_code', '') = $1 AND id != $2
 		LIMIT 1`, schema), locationCode, docID).Scan(&existingID)
 	if err == nil {
@@ -1226,7 +1231,7 @@ func validatePreShipValidationRuleMasterRules(tenantID, docID string, payload ma
 		if locationCode != "" {
 			scope = "location " + locationCode
 		}
-		return &ValidationError{Code: "MASTER-0053", Message: fmt.Sprintf(
+		return &ValidationError{Code: "MASTER-1321", Message: fmt.Sprintf(
 			"an Active pre-ship validation rule already applies to %s (%s) - deactivate it first", scope, existingID)}
 	}
 	return nil

@@ -309,7 +309,18 @@ func ValidateSetting(key, value string) error {
 	return validateSettingValue(def, value)
 }
 
+// settingValidators check a value's meaning beyond its type (134.10: a brand
+// colour dark enough for white text). They run wherever the type is checked -
+// the settings screen's whole-batch check before anything is written, and
+// SetSetting - so a refusal is the caller's 422, never half a batch.
+var settingValidators = map[string]func(value string) error{}
+
 func validateSettingValue(def SettingDefinition, value string) error {
+	if check := settingValidators[def.Key]; check != nil {
+		if err := check(value); err != nil {
+			return err
+		}
+	}
 	if def.Optional && strings.TrimSpace(value) == "" && (def.Type == SettingTypeInt || def.Type == SettingTypeFloat) {
 		return nil
 	}

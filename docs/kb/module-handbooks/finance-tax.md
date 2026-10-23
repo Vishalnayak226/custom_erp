@@ -45,9 +45,12 @@ Reached from the sidebar, three tabs: **Trial Balance**, **Chart of
 Accounts**, **Accounting Periods**. This is deliberately a small screen —
 most of what a controller actually reads regularly lives in **Reports →
 Finance** instead (25 registered reports as of this writing; see
-[Reports](#reports) below), and several real, working finance actions have
-**no screen at all yet** — see the warning further down before assuming
-something doesn't exist just because it isn't here.
+[Reports](#reports) below). Manual entries have their own screen,
+**Financial Accounting → Journal Vouchers** (see
+[Manual journal entries](#manual-journal-entries-journal-vouchers)). A few
+real, working finance actions still have **no screen at all yet** — see
+[What is not here yet](#what-is-not-here-yet) before assuming something
+doesn't exist just because it isn't here.
 
 ## Chart of Accounts
 
@@ -250,15 +253,33 @@ close if left unresolved.
 button.** See the warning under Accounts Payable above — both are real
 endpoints reachable only via a direct API call today.
 
+## Manual journal entries (Journal Vouchers)
+
+For an entry no other screen makes — an accrual, a correction, an opening
+balance — use **Financial Accounting → Journal Vouchers**:
+
+1. Click **+ New Journal Voucher**. Enter the **Date** (the voucher books on
+   that date, even if it is approved later) and a **Narration**; **Cost
+   Center** and **Department** are optional.
+2. Add one row per account with **+ Add line** — an **Account** and either a
+   **Debit** or a **Credit**. The bar shows **Balanced** when the totals match;
+   only then can you **Save as Draft**.
+3. On the list, click **Submit for Approval** on its row. Another user
+   approves it on **Approvals**; approval is what posts it.
+4. A posted voucher is never edited: **Reverse** makes a new voucher with every
+   line swapped, which goes through approval the same way. An approved voucher
+   whose posting failed shows **Retry Post**.
+
+The full steps are in the User Guide (§9B, Journal Vouchers).
+
 ## What is not here yet
 
-**Several real, tested, GL-posting actions have no UI screen at all**,
-confirmed by grep against `public/app.js` (zero matches for each):
+**These real, tested, GL-posting actions still have no screen**, confirmed by
+a search of `public/` (2026-10-24):
 
-- **Manual Journal Vouchers** — `POST /api/v1/finance/journal-voucher` (plus
-  reverse/retry-post/recurring-template variants) is a complete, working
-  manual-GL-entry feature with its own reversal and recurring-template
-  support. There is no "new journal entry" button anywhere in the app.
+- **Recurring journal templates** — the journal-voucher API can save a
+  voucher as a recurring template; the Journal Vouchers screen lists only
+  ordinary vouchers and has no button to make or run a template.
 - **Intercompany Transactions** — cross-entity mirrored postings
   (`POST /api/v1/finance/intercompany-transaction`), used by the entity/
   consolidated trial balance reports, are API-only.

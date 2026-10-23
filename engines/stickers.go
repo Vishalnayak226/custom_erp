@@ -399,6 +399,21 @@ func stickerItemFields(item map[string]interface{}) map[string]string {
 		}
 		out[k] = s
 	}
+	// 81.6: an attribute value (COLOR:Red) also answers its field's name
+	// (color) when the item has no value there - the field a library
+	// attribute replaced still prints.
+	if raw, _ := item["variant_option_values"].(string); raw != "" {
+		for _, p := range strings.Split(raw, ";") {
+			kv := strings.SplitN(p, ":", 2)
+			if len(kv) != 2 {
+				continue
+			}
+			key, val := strings.ToLower(strings.TrimSpace(kv[0])), strings.TrimSpace(kv[1])
+			if key != "" && val != "" && out[key] == "" && len(val) <= 500 {
+				out[key] = val
+			}
+		}
+	}
 	return out
 }
 
@@ -446,8 +461,11 @@ func checkPrinterActive(schema, printerCode string) error {
 // StickerPrintOptions carries a print request's idempotency key (Stage 55.19):
 // a retried request with the same key returns the labels again but writes its
 // history rows only once.
+// Preview (Stage 133.3) returns the labels without writing any history: the
+// sticker screen's Preview draws them, and Print sends the request again.
 type StickerPrintOptions struct {
 	RequestKey string
+	Preview    bool
 }
 
 func stickerRequestKey(opts []StickerPrintOptions) string {
@@ -457,7 +475,39 @@ func stickerRequestKey(opts []StickerPrintOptions) string {
 	return strings.TrimSpace(opts[0].RequestKey)
 }
 
+func stickerPreview(opts []StickerPrintOptions) bool {
+	return len(opts) > 0 && opts[0].Preview
+}
+
+// stickerLabel is one line's label for a print, logged unless it is a preview.
+func stickerLabel(opts []StickerPrintOptions, tenantID, schema, sku string, copies int, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate string, requestLine int) (StickerLabel, error) {
+	if stickerPreview(opts) {
+		return resolveStickerLabel(tenantID, schema, sku, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate)
+	}
+	return resolveAndLogSticker(tenantID, schema, sku, copies, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate, stickerRequestKey(opts), requestLine)
+}
+
 func resolveAndLogSticker(tenantID, schema, sku string, copies int, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate, requestKey string, requestLine int) (StickerLabel, error) {
+	label, err := resolveStickerLabel(tenantID, schema, sku, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate)
+	if err != nil {
+		return label, err
+	}
+	if _, err := db.DB.Exec(fmt.Sprintf(`
+		INSERT INTO %s.sticker_print_log (sku, barcode, printer_code, printed_by, copies, reprint_reason, source_doctype, source_doc_id, template_id, batch_no, request_key, request_line)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		ON CONFLICT DO NOTHING`, schema),
+		sku, label.Barcode, printerCode, printedBy, copies, reprintReason,
+		nullableString(sourceDoctype), nullableString(sourceDocID), nullableString(label.TemplateID),
+		// Stage 52.9: the lot, so two runs of one SKU on one GRN can be told apart.
+		nullableString(batchNo), nullableString(requestKey), requestLine); err != nil {
+		return label, fmt.Errorf("failed to log print for %s: %v", sku, err)
+	}
+	return label, nil
+}
+
+// resolveStickerLabel assembles one SKU's label - Item data, the lot's own
+// values, the template - and writes nothing.
+func resolveStickerLabel(tenantID, schema, sku, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate string) (StickerLabel, error) {
 	// Stage 30.1.1: resolved through the shared ResolveItemBySKU (code ->
 	// barcode -> id) rather than the internal id alone - a sticker run
 	// keyed off item Codes used to print every label with a blank
@@ -536,17 +586,6 @@ func resolveAndLogSticker(tenantID, schema, sku string, copies int, printerCode,
 		label.LabelWidthMM = tmpl.LabelWidthMM
 		label.LabelHeightMM = tmpl.LabelHeightMM
 	}
-
-	if _, err := db.DB.Exec(fmt.Sprintf(`
-		INSERT INTO %s.sticker_print_log (sku, barcode, printer_code, printed_by, copies, reprint_reason, source_doctype, source_doc_id, template_id, batch_no, request_key, request_line)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-		ON CONFLICT DO NOTHING`, schema),
-		sku, label.Barcode, printerCode, printedBy, copies, reprintReason,
-		nullableString(sourceDoctype), nullableString(sourceDocID), nullableString(label.TemplateID),
-		// Stage 52.9: the lot, so two runs of one SKU on one GRN can be told apart.
-		nullableString(batchNo), nullableString(requestKey), requestLine); err != nil {
-		return label, fmt.Errorf("failed to log print for %s: %v", sku, err)
-	}
 	return label, nil
 }
 
@@ -594,7 +633,7 @@ func PrintStickers(tenantID string, skus []string, printerCode, printedBy, repri
 
 	var labels []StickerLabel
 	for i, sku := range skus {
-		label, err := resolveAndLogSticker(tenantID, schema, sku, copies, printerCode, printedBy, reprintReason, "", "", "", "", "", stickerRequestKey(opts), i)
+		label, err := stickerLabel(opts, tenantID, schema, sku, copies, printerCode, printedBy, reprintReason, "", "", "", "", "", i)
 		if err != nil {
 			return nil, err
 		}

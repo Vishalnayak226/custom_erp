@@ -4,6 +4,7 @@ import (
 	"custom_erp/db"
 	"encoding/json"
 	"fmt"
+	"math"
 )
 
 // Manufacturing (Stage 13.13e, scoped MVP per the Manufacturing add-on
@@ -140,7 +141,7 @@ func IssueProductionMaterial(tenantID, orderID string) error {
 		return err
 	}
 	for _, c := range components {
-		required := c.Qty * orderQty
+		required := wholeUnitsUp(c.Qty * orderQty)
 		var available float64
 		if errQ := db.DB.QueryRow(fmt.Sprintf(`SELECT available FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2`, schema), c.Sku, location).Scan(&available); errQ != nil {
 			available = 0
@@ -154,7 +155,7 @@ func IssueProductionMaterial(tenantID, orderID string) error {
 	for i, c := range components {
 		items[i] = map[string]interface{}{
 			"sku": c.Sku,
-			"qty": -(c.Qty * orderQty), // negative to decrement, matching checkout's convention
+			"qty": -wholeUnitsUp(c.Qty * orderQty), // negative to decrement, matching checkout's convention
 		}
 	}
 	if len(items) > 0 {
@@ -203,6 +204,11 @@ func CompleteProductionOrder(tenantID, orderID string) error {
 	return finishProductionQty(tenantID, orderID, remaining)
 }
 
+// wholeUnitsUp is a component requirement in the whole units stock moves in:
+// a fractional total (2.2 x 4 = 8.8) issues the next whole unit, 9 - never
+// short (73.B.1, user decision 2026-10-22: round up).
+func wholeUnitsUp(q float64) float64 { return math.Ceil(q - 1e-9) }
+
 // splitBackflushComponents separates the components issued at Material Issue
 // from those whose item type is Backflush (Stage 60.4), which are consumed at
 // completion instead. Stage 72: "is it backflushed" is the item's resolved
@@ -233,8 +239,14 @@ func backflushLines(tenantID, schema, location string, data map[string]interface
 		return nil, fmt.Errorf("production order's backflush components are not valid JSON: %v", err)
 	}
 	lines := make([]interface{}, 0, len(components))
+	// 73.B.1: whole units, rounded up on the running total, so a partial
+	// completion never consumes more in all than the whole order would.
+	before := numFromInterface(data["completed_qty"])
 	for _, c := range components {
-		required := c.Qty * qty
+		required := wholeUnitsUp(c.Qty*(before+qty)) - wholeUnitsUp(c.Qty*before)
+		if required <= 0 {
+			continue
+		}
 		var available float64
 		if errQ := db.DB.QueryRow(fmt.Sprintf(`SELECT available FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2`, schema), c.Sku, location).Scan(&available); errQ != nil {
 			available = 0

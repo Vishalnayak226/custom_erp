@@ -55,6 +55,10 @@ func SaveChannelCredential(tenantID, channelCode string, fields map[string]strin
 	if err != nil {
 		return err
 	}
+	// 134.3: a changed webhook secret keeps the old one for a week.
+	if old, err := getChannelCredential(tenantID, channelCode); err == nil {
+		keepWebhookSecretOverlap(old, fields)
+	}
 	encrypted, err := encryptChannelCredential(fields)
 	if err != nil {
 		return err

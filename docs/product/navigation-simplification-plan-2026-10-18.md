@@ -1,3 +1,20 @@
+---
+doc_id: DOC-PRODUCT-NAVIGATION-SIMPLIFICATION-PLAN
+title: Navigation and module plan - OMS, CRM, Inventory and WMS apart (2026-10-18)
+type: reference
+status: draft
+owner: product-owner
+approvers: [product-owner]
+audience: [product, engineering]
+applies_to: docs/micro_checklist.md navigation stages
+authority: proposed-design
+confidentiality: internal
+last_verified: 2026-10-18
+review_by: 2026-11-18
+supersedes: none
+superseded_by: none
+---
+
 # Navigation and module plan - OMS, CRM, Inventory and WMS apart; one page per step; menus instead of tab strips; one Templates page (2026-10-18)
 
 Source: the user's messages of 2026-10-18 with screenshots of **Customer**, **Marketplace**, the **Setup** flyout,

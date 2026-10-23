@@ -200,7 +200,7 @@ func GetStockLedgerReport(tenantID, sku, locationCode, voucherType, start, end s
 		WHERE ($3 = '' OR voucher_type = $3)
 		  AND ($4 = '' OR created_at >= $4::date)
 		  AND ($5 = '' OR created_at < ($5::date + interval '1 day'))
-		ORDER BY created_at ASC, id ASC`, schema),
+		ORDER BY created_at ASC, id ASC LIMIT %d`, schema, reportSQLLimit(tenantID)),
 		sku, locationCode, voucherType, start, end)
 	if err != nil {
 		return nil, err

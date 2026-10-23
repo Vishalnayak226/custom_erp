@@ -7,7 +7,7 @@
 > **Generated 2026-09-10.** This page is produced from `engines`' report registry (`report_definitions.go`), for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-Every report reachable from **Sales & Marketplace -> Reports**. There are **396**
+Every report reachable from **Sales & Marketplace -> Reports**. There are **421**
 across **26** categories.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -22,27 +22,27 @@ table has the same shape whoever runs it.
 ## Contents
 
 - [Accounting](#accounting) - 26 reports
-- [Admin](#admin) - 1 reports
+- [Admin](#admin) - 5 reports
 - [Assets](#assets) - 1 reports
 - [BI](#bi) - 1 reports
 - [CRM](#crm) - 33 reports
 - [E-commerce & Integration](#e-commerce--integration) - 12 reports
 - [Exceptions](#exceptions) - 6 reports
 - [Expense Management](#expense-management) - 11 reports
-- [Finance](#finance) - 33 reports
+- [Finance](#finance) - 36 reports
 - [GST & Compliance](#gst--compliance) - 8 reports
 - [HR](#hr) - 2 reports
 - [HRMS](#hrms) - 15 reports
-- [Inventory](#inventory) - 33 reports
+- [Inventory](#inventory) - 42 reports
 - [MIS & Management](#mis--management) - 10 reports
-- [Manufacturing](#manufacturing) - 19 reports
+- [Manufacturing](#manufacturing) - 21 reports
 - [Master Data & Audit](#master-data--audit) - 11 reports
 - [OMS](#oms) - 25 reports
 - [PIM](#pim) - 4 reports
 - [PIM / PIMS](#pim--pims) - 16 reports
-- [Procurement](#procurement) - 12 reports
+- [Procurement](#procurement) - 18 reports
 - [Procurement & GRN](#procurement--grn) - 27 reports
-- [Sales](#sales) - 9 reports
+- [Sales](#sales) - 10 reports
 - [Sales & POS](#sales--pos) - 22 reports
 - [Service](#service) - 1 reports
 - [Stock Transfer](#stock-transfer) - 9 reports
@@ -408,6 +408,19 @@ table has the same shape whoever runs it.
 
 ## Admin
 
+### Failed prints and fallbacks
+
+**Report id:** `print-failures`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** When · Print · Document · Printer · Outcome · Detail · By
+
+**Drill-down:** no.
+
 ### Knowledge Center Feedback
 
 **Report id:** `help-article-feedback`
@@ -415,6 +428,39 @@ table has the same shape whoever runs it.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Article Slug · Marked Helpful · Marked Not Helpful · Total Responses · Helpful % · Last Feedback
+
+**Drill-down:** no.
+
+### Missing regulatory print data
+
+**Report id:** `missing-regulatory-print-data`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Record · Code · Name · Missing · Why it matters
+
+**Drill-down:** no.
+
+### Print and reprint audit
+
+**Report id:** `print-reprint-audit`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Document · Record · Prints · Reprints · Last reprint reason · Last by · Approved reprints · Anomaly
+
+**Drill-down:** no.
+
+### Print template coverage
+
+**Report id:** `print-template-coverage`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Print · Record · Templates · Default template · Profiles · Copies · Printed (30 days) · Changes awaiting approval
 
 **Drill-down:** no.
 
@@ -1510,7 +1556,7 @@ table has the same shape whoever runs it.
 
 - **Status** (`status`) - select, optional, one of: ,Inactive,Active,Partially redeemed,Fully redeemed,Blocked,Cancelled
 
-**Columns:** Card · Profile · Status · Loaded · Used / cancelled · Outstanding · Expires · Store issued
+**Columns:** Card · Card ID · Profile · Status · Loaded · Used / cancelled · Outstanding · Expires · Store issued
 
 **Drill-down:** no.
 
@@ -1525,6 +1571,16 @@ table has the same shape whoever runs it.
 - **GSTIN** (`gstin`) - text, optional
 
 **Columns:** Date · Type · Number · Seller GSTIN · IRN state · Why · IRN (when entered)
+
+**Drill-down:** no.
+
+### Input credit past its deadline
+
+**Report id:** `itc-past-deadline`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Document · Type · Vendor · Invoice date · Deadline
 
 **Drill-down:** no.
 
@@ -1625,6 +1681,19 @@ table has the same shape whoever runs it.
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
+### Refunds by method
+
+**Report id:** `refund-methods`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Refund method · Refunds · Amount
+
+**Drill-down:** no.
+
 ### Statutory Audit Export (Full GL)
 
 **Report id:** `statutory-gl-export`
@@ -1635,6 +1704,16 @@ table has the same shape whoever runs it.
 - **Period End** (`end`) - date, **required**
 
 **Columns:** Posting ID · Account Code · Account Name · Type · Document Type · Document ID · Debit *(sensitive)* · Credit *(sensitive)* · Date · Posted by · Source command
+
+**Drill-down:** no.
+
+### Store credit by customer
+
+**Report id:** `store-credit-liability`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Customer · Credited · Used · Balance · Store Credit Liability (GL)
 
 **Drill-down:** no.
 
@@ -2080,6 +2159,19 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Consumption by cost centre
+
+**Report id:** `consumption-by-cost-centre`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Cost centre · Department · Issued · Returned · Net consumption
+
+**Drill-down:** no.
+
 ### Current Stock
 
 **Report id:** `current-stock`
@@ -2138,6 +2230,19 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Delivery challan register
+
+**Report id:** `delivery-challan-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Date · Challan · Purpose · Store · Party · Item · Lot · Issued · Back good · Back damaged · Back rejected · Written off · Still out · Expected back · Status · E-way bill
+
+**Drill-down:** no.
+
 ### Demand Forecast (Trend)
 
 **Report id:** `demand-forecast`
@@ -2152,6 +2257,19 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### E-way bill register
+
+**Report id:** `ewaybill-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Date · Document · Type · From · To · Value · E-way bill · EWB no · Valid until · Vehicle · Why
+
+**Drill-down:** no.
+
 ### Goods In Receiving
 
 **Report id:** `grn-in-receiving`
@@ -2161,6 +2279,16 @@ table has the same shape whoever runs it.
 - **Store code (blank = all)** (`store`) - text, optional
 
 **Columns:** Store · SKU · In receiving · Receipts · Received since
+
+**Drill-down:** no.
+
+### Goods out on challan, by party
+
+**Report id:** `challan-outstanding-returnables`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Party · Challans · Still out · Value · Not due · Overdue up to 30 days · 31-60 days · Over 60 days
 
 **Drill-down:** no.
 
@@ -2221,6 +2349,19 @@ table has the same shape whoever runs it.
 - **To** (`to`) - date, optional
 
 **Columns:** Document Date · Document No · Store Code · Store Name · Design No · Combination ID · Barcode · MRP · New Value · Reason · Status · Created By · Approved By
+
+**Drill-down:** no.
+
+### Material issue and return register
+
+**Report id:** `material-issue-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Date · Document · Type · Store · Department · Cost centre · Item · Qty · Value · Status
 
 **Drill-down:** no.
 
@@ -2356,6 +2497,20 @@ table has the same shape whoever runs it.
 
 ### Stock Ledger
 
+**Report id:** `cat-stock-ledger`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Movement Date · Store Code · Store Name · Location Code · Location Name · Item Code · Item Name · SKU · Barcode · Design No · Combination ID · Category Name · Movement Type · Qty · Source Document Type · Source Document No · Stock Status · Created By
+
+**Drill-down:** no.
+
+### Stock Ledger
+
 **Report id:** `stock-ledger`
 
 **Parameters:**
@@ -2367,20 +2522,6 @@ table has the same shape whoever runs it.
 - **To (optional)** (`end`) - date, optional
 
 **Columns:** Date · SKU · Location · Qty Delta · Running Balance · Voucher Type · Voucher ID · From Location/Bin · To Location/Bin · From Condition · To Condition · User
-
-**Drill-down:** no.
-
-### Stock Ledger
-
-**Report id:** `cat-stock-ledger`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-- **Store** (`location`) - text, optional
-
-**Columns:** Movement Date · Store Code · Store Name · Location Code · Location Name · Item Code · Item Name · SKU · Barcode · Design No · Combination ID · Category Name · Movement Type · Qty · Source Document Type · Source Document No · Stock Status · Created By
 
 **Drill-down:** no.
 
@@ -2424,6 +2565,19 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Stock adjustment register
+
+**Report id:** `inventory-adjustment-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Date · Adjustment · Store · Item · Qty · Before · After · Reason · Value · Status · Flag
+
+**Drill-down:** no.
+
 ### Stock by Location
 
 **Report id:** `stock-by-location`
@@ -2433,6 +2587,42 @@ table has the same shape whoever runs it.
 - **Store code (blank = all)** (`store`) - text, optional
 
 **Columns:** Store · SKU · Main · Inward · In-Transit · QC Hold · Damage · On Hold · Purchase Return · Own locations · Sellable
+
+**Drill-down:** no.
+
+### Stock losses by reason and store
+
+**Report id:** `inventory-loss-by-reason`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Store · Reason · Lines · Units lost · Value
+
+**Drill-down:** no.
+
+### Transfer shortages by reason
+
+**Report id:** `transfer-shortage-by-reason`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Reason · Transfers · Damaged · Lost · Returned to source · Excess
+
+**Drill-down:** no.
+
+### Transfers in transit too long
+
+**Report id:** `transfers-in-transit-long`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Transfer · From · To · Dispatched · Days in transit
 
 **Drill-down:** no.
 
@@ -2631,6 +2821,26 @@ table has the same shape whoever runs it.
 - **Store** (`location`) - text, optional
 
 **Columns:** Document Date · Production Order No · Parent Item · Component Item · Barcode · Source Document No · Movement Type · Qty · Status
+
+**Drill-down:** no.
+
+### Job work cost, yield and wastage
+
+**Report id:** `job-work-yield`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Order · Job worker · Sent · Came back as · Consumed · Output accepted · Output rejected · Yield % (of expected) · Scrap / loss % · Material value · Processing charge · Cost per output
+
+**Drill-down:** no.
+
+### Job work outstanding (qty and weight)
+
+**Report id:** `job-work-outstanding`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Order · Job worker · Line · Item · Sent · Accepted · Rejected · Scrap / loss · Loss awaiting approval · Still out · Net weight out · Fine weight out · Sent · Due back · Days overdue · Statutory return by
 
 **Drill-down:** no.
 
@@ -3617,6 +3827,42 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Goods receipt discrepancies by vendor
+
+**Report id:** `grn-discrepancy-by-vendor`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Vendor · Receipts · Received · Accepted · Rejected · Damaged · Short of the invoice · Invoice difference · Rejected %
+
+**Drill-down:** no.
+
+### Goods receipts not billed
+
+**Report id:** `grn-not-billed`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Goods receipt · Vendor · Posted · Days · Vendor invoice no.
+
+**Drill-down:** no.
+
+### Goods received not invoiced (GRNI)
+
+**Report id:** `grni`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Goods receipt · Date · Vendor · Store · Accepted value · Invoiced · Not invoiced · Price difference · Vendor invoices · AP hold
+
+**Drill-down:** no.
+
 ### Invoice vs GRN Differences
 
 **Report id:** `grn-invoice-differences`
@@ -3631,6 +3877,16 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Late and early receipts
+
+**Report id:** `grn-receipt-timing`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Goods receipt · PO · Vendor · Expected · Received · Timing
+
+**Drill-down:** no.
+
 ### Open Purchase Commitments
 
 **Report id:** `po-commitments`
@@ -3640,6 +3896,19 @@ table has the same shape whoever runs it.
 **Columns:** Age Bucket · PO Count · Committed Amount *(sensitive)*
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
+
+### PO expected delivery and terms
+
+**Report id:** `po-delivery-and-terms`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** PO · Vendor · Store · Status · Expected delivery · Days late · Payment term · Delivery terms · Freight paid by · Quote valid until · Amendments · Value
+
+**Drill-down:** no.
 
 ### PO vs GRN Price Variance
 
@@ -3704,6 +3973,19 @@ table has the same shape whoever runs it.
 - **Vendor (optional)** (`vendor_id`) - text, optional
 
 **Columns:** PO ID · Vendor · PO Number · Total Amount *(sensitive)* · Status · Date
+
+**Drill-down:** no.
+
+### Vendor document and transport register
+
+**Report id:** `vendor-document-transport-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Goods receipt · Received · Vendor · Store · Invoice no · Invoice date · Challan no · Challan date · LR / AWB · Vehicle · Transporter · Packages
 
 **Drill-down:** no.
 
@@ -4144,6 +4426,16 @@ table has the same shape whoever runs it.
 - **Customer (optional)** (`customer`) - text, optional
 
 **Columns:** Invoice ID · Customer · Invoice Number · Total Amount *(sensitive)* · Status · Date
+
+**Drill-down:** no.
+
+### Customer advances outstanding (ageing)
+
+**Report id:** `advance-outstanding-ageing`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Receipt voucher · Customer · Store · Taken · Expected · Balance · Age (days) · Age
 
 **Drill-down:** no.
 

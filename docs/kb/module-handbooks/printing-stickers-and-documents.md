@@ -16,7 +16,7 @@ superseded_by: none
 section: Module Handbooks
 order: 64
 summary: The difference between a sticker template and a document print template, where each is made, which one prints, and how a document is printed, saved as PDF or Excel, sent, and routed to each computer's own printer.
-screens: [stickers, doctype:printtemplate, doctype:stickertemplate, doctype:printer, doctype:printerassignment]
+screens: [stickers, reprint, doctype:printtemplate, doctype:stickertemplate, doctype:printer, doctype:printerassignment]
 topic_type: how-to
 module: inventory
 task: Print item stickers and set up how documents print
@@ -64,6 +64,10 @@ The system prints two different things, and each has its own kind of template.
 - **PDF** - the pages exactly as previewed, as a file named after the document.
 - **CSV** and **Excel** - the lines: design, combination / SKU, barcode, item, each attribute, brand, quantities and MRP, with cost on a PO or GRN and the selling price on a sales invoice (transfers, returns and notes carry MRP only).
 - **Send** - emails the PDF to the vendor, the receiving store or the customer. **Download PDF** there saves it to send yourself.
+
+## Print a document again
+
+**Setup → Printing → Reprint** lists every document printed - when, which document and number, the store, how it went out, who, and a reprint's reason - only for the modules your company has and the documents your role may open. **Reprint** on a row prints it again after you say why; **Print this number** prints a document that was never printed. Once a document has been issued and printed, every later print is that same copy marked *REPRINT*, even if a price or an address has changed since. If your company controls reprints, a reprint also needs the *Document Reprint* permission, and after the allowed number of reprints a manager approves a **Reprint Request** first.
 
 ## The right printer on every computer
 

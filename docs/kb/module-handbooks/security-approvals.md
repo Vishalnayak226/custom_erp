@@ -173,15 +173,18 @@ already goes through (`internal/server/handlers_core_doc_engine.go`):
 
 > [!WARNING]
 > **There is no admin screen or API endpoint to manage field permissions.**
-> Confirmed by grep: `field_permissions` is read by the four enforcement
-> points above and referenced in the tenant-provisioning seed list
-> (`engines/saas.go`), but no handler in `internal/server/routes.go` exposes
-> it for create/update/delete, and no view in `public/app.js` references it
-> at all. The only rows that exist today are whatever a migration inserted —
-> in the base install that is exactly two: `('Cashier', 'Item', 'cost_price', ...)`
-> and `('Cashier', 'Item', 'gst_rate', ...)`, both read- and write-denied
-> (`db/migrations_stage16_field_permissions.sql`). Setting up any other
-> field-level restriction today means writing directly to the
+> Confirmed by a search of `public/` and `internal/server/routes.go`
+> (2026-10-24): `field_permissions` is read by the enforcement points above
+> and referenced in the tenant-provisioning seed list (`engines/saas.go`),
+> but no route exposes it for create/update/delete and no screen references
+> it. The table holds only what a migration inserted — in the base install
+> exactly two rows: `('Cashier', 'Item', 'cost_price', ...)` and
+> `('Cashier', 'Item', 'gst_rate', ...)`, both read- and write-denied
+> (`db/migrations_stage16_field_permissions.sql`). On top of those, a fixed
+> list of sensitive fields declared in code (payroll figures, bank details,
+> connector secrets — `engines/sensitive_fields.go`) is hidden by default for
+> every client; table rows can only tighten that, never loosen it. Setting up
+> any other field-level restriction today means writing directly to the
 > `field_permissions` table — there is no self-service path from the app.
 
 ## The maker-checker approval engine
@@ -379,9 +382,10 @@ rather than expecting a row to be removable.
 
 **A role has read access to a record type but a screen still shows fields
 missing or a save is rejected as not writable.** Check `field_permissions`
-directly — no UI exists for it (see the warning above), and the base
-install ships exactly one restriction: Cashier is denied both read and
-write on Item's `cost_price` and `gst_rate`.
+directly — no UI exists for it (see the warning above). The base install
+ships one table restriction (Cashier is denied both read and write on
+Item's `cost_price` and `gst_rate`), plus the code-declared sensitive fields
+(`engines/sensitive_fields.go`) that are hidden by default.
 
 **A document sits in `Pending Approval` and nobody with the right role can
 act on it.** Check `required_role` on the matching approval rule

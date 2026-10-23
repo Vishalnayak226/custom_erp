@@ -23,6 +23,10 @@ import (
 // live production traffic yet per this stage's own scoping note; revisit
 // granularity once one does). Deliberately not gobreaker or any other
 // dependency, matching this repo's lightweight-first principle.
+// connectorMaxResponseBytes caps one platform answer (134.2) - a page of
+// products or orders is far smaller; anything larger is refused, not read.
+const connectorMaxResponseBytes = 32 << 20
+
 func doConnectorRequest(ctx context.Context, timeout time.Duration, method, url string, headers map[string]string, body []byte, breakerKey string) (status int, respBody []byte, err error) {
 	if !circuitBreakerAllow(breakerKey) {
 		// CONN-0225 (Stage 25.6): "Channel API rate limited" - the closest
@@ -49,7 +53,7 @@ func doConnectorRequest(ctx context.Context, timeout time.Duration, method, url 
 			}
 		}()
 
-		client := &http.Client{Timeout: timeout}
+		client := newOutboundClient(timeout, true) // 134.2: a shop's address is client-typed
 		var reader io.Reader
 		if body != nil {
 			reader = bytes.NewReader(body)
@@ -69,7 +73,7 @@ func doConnectorRequest(ctx context.Context, timeout time.Duration, method, url 
 			return
 		}
 		defer resp.Body.Close()
-		respBytes, readErr := io.ReadAll(resp.Body)
+		respBytes, readErr := readOutboundBody(resp.Body, connectorMaxResponseBytes)
 		if readErr != nil {
 			resultCh <- result{resp.StatusCode, nil, readErr}
 			return

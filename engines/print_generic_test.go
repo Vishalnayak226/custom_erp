@@ -32,22 +32,23 @@ func TestStage127_3GenericPrint(t *testing.T) {
 		t.Errorf("a format keeps its doctype; a transaction prints as itself")
 	}
 
-	// Item lines: the item's name comes in, qty x rate is the amount.
-	insert("RFQ-G1", "RFQ", "Draft", map[string]interface{}{"code": "RFQ-G1", "title": "Shirts for summer",
+	// Item lines: the item's name comes in, qty x rate is the amount. (A vendor
+	// quote: the RFQ has its own standard layout since Stage 130.17.)
+	insert("RFQ-G1", "VendorQuote", "Draft", map[string]interface{}{"code": "RFQ-G1", "title": "Shirts for summer",
 		"lines": `[{"sku":"SKU-G","qty":3,"rate":100.5}]`})
-	d, err := BuildPrintDocument(tenantID, "RFQ", "RFQ-G1", "", false)
+	d, err := BuildPrintDocument(tenantID, "VendorQuote", "RFQ-G1", "", false)
 	if err != nil {
-		t.Fatalf("RFQ print: %v", err)
+		t.Fatalf("vendor quote print: %v", err)
 	}
-	if d.Title != "RFQ" || d.Number != "RFQ-G1" || len(d.Lines) != 1 || d.Lines[0]["item_name"] != "Generic Shirt" || d.Lines[0]["amount"] != 301.5 {
-		t.Errorf("RFQ print: title %q number %q lines %v", d.Title, d.Number, d.Lines)
+	if d.Title != "Vendor Quote" || d.Number != "RFQ-G1" || len(d.Lines) != 1 || d.Lines[0]["item_name"] != "Generic Shirt" || d.Lines[0]["amount"] != 301.5 {
+		t.Errorf("vendor quote print: title %q number %q lines %v", d.Title, d.Number, d.Lines)
 	}
 	if _, ok := d.Fields["generic_print"]; !ok {
 		t.Errorf("the generic layout's rows, columns and totals are sent")
 	}
 	// Stage 127.5: the same lines load in Print stickers; a Master does not.
-	if st, err := ResolveDocumentStickerLines(tenantID, "RFQ", "RFQ-G1"); err != nil || len(st) != 1 || st[0].SKU != "SKU-G" || st[0].Qty != 3 {
-		t.Errorf("RFQ sticker lines: %v %+v", err, st)
+	if st, err := ResolveDocumentStickerLines(tenantID, "VendorQuote", "RFQ-G1"); err != nil || len(st) != 1 || st[0].SKU != "SKU-G" || st[0].Qty != 3 {
+		t.Errorf("vendor quote sticker lines: %v %+v", err, st)
 	}
 	if _, err := ResolveDocumentStickerLines(tenantID, "Item", "SKU-G"); !errors.Is(err, ErrUnsupportedStickerSource) {
 		t.Errorf("a Master is not a sticker source: %v", err)

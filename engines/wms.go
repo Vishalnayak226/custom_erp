@@ -196,7 +196,7 @@ func checkHazmatCompatibility(tx *sql.Tx, schema, sku, binZone, binCode string) 
 	}
 	var hazmatAllowed string
 	if err := tx.QueryRow(fmt.Sprintf(
-		`SELECT COALESCE(data->>'hazmat_allowed', 'Yes') FROM %s.documents WHERE doctype = 'Zone' AND data->>'code' = $1 AND status = 'Active'`, schema),
+		`SELECT COALESCE(data->>'hazmat_allowed', 'Yes') FROM %s.documents WHERE doctype = 'Zone' AND data->>'code' = $1 AND status = 'Active' AND deleted_at IS NULL`, schema),
 		binZone).Scan(&hazmatAllowed); err != nil {
 		if err == sql.ErrNoRows {
 			return nil // no matching Zone master - validateBinMasterRules already covers that gap
@@ -622,8 +622,9 @@ func ReconcileCycleCountDetailed(tenantID, countSession, actorUserID, actorRole 
 		countedQty := numFromInterface(line.data["counted_qty"])
 
 		var systemQty int
+		// Stage 130.16: goods out on a delivery challan are owned but not here.
 		_ = db.DB.QueryRow(fmt.Sprintf(
-			`SELECT on_hand FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2`, schema),
+			`SELECT on_hand - COALESCE(with_party, 0) FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2`, schema),
 			sku, location).Scan(&systemQty)
 		// Stage 107: stock in a location marked not physically in the store
 		// is in on_hand but not on the shelf, so the count does not expect it.
@@ -767,6 +768,12 @@ func PostCycleCountAdjustment(tenantID, lineID, userID string) error {
 			available = GREATEST(0, %s.inventory_availability.available + $3),
 			updated_at = CURRENT_TIMESTAMP`, schema, schema, schema),
 		sku, location, variance); err != nil {
+		return err
+	}
+
+	// Stage 130.13 (80.7 f): a count of one bin sets that bin to what was
+	// counted, so bins and the location agree after the count.
+	if err := applyCycleCountToBinTx(tx, schema, strField(data, "bin"), sku, location, int(numFromInterface(data["counted_qty"]))); err != nil {
 		return err
 	}
 

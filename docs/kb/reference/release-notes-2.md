@@ -2,7 +2,7 @@
 title: Release notes (part 2)
 section: Reference
 order: 26
-summary: Earlier releases, 2026-07-27 to 2026-09-08, continued from the release notes.
+summary: Earlier releases, 2026-07-27 to 2026-09-11, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,7 +19,31 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **78** earlier entries, 2026-07-27 to 2026-09-08.
+This page continues the [release notes](release-notes.md) with **83** earlier entries, 2026-07-27 to 2026-09-11.
+
+## 2026-09-11
+
+**Stage 49.9 — Secure development lifecycle, dependency and release-artifact supply chain** *(CI tooling + tests + docs)*
+
+Built the CI-only assurance layer 49.9 asks for, with zero mandatory runtime dependency: a hand-maintained, test-cross-checked dependency ledger (`docs/security/dependency-ledger.json`, package `internal/supplychain`) covering direct/transitive Go modules, CI actions, CI tools and OS/runner images with owner/purpose/license/provenance/version/checksum; a release manifest generator and verifier (`cmd/releasemanifest`) producing an SBOM, artifact checksums and a provenance record, with a `-verify` mode a deployment step can run to refuse a tampered binary; every third-party GitHub Action in every workflow pinned to a full commit SHA and enforced by a generic test (`TestNoWorkflowActionIsUnpinned`) rather than a one-time fix; a new `release-artifact` CI job building hermetically from a clean, already-tested checkout; and `.github/CODEOWNERS` plus an expanded PR template giving review ownership and the 49.9.1 change-trigger a reviewable shape. Signing-key provisioning, DAST-against-a-release-candidate, and wiring `deploy.ps1` to consume the new manifest are named explicitly as `[needs decision]`/follow-on work rather than left implicit. Full accounting in `docs/security/secure-development-lifecycle.md`; new risk R-13 (no enforced branch protection) recorded in `docs/security/risk_register.md`.
+
+**Stage 49.7 — Database, host, network and deployment hardening** *(code + schema + tests + docs)*
+
+Built the least-privilege split `engines/tenant_lifecycle.go`'s own `db-privilege` reporter had only been able to name, not fix: `deploy/postgres_harden.sql` splits the shared `erp` role into `erp_app`(DML)/`erp_migrate`(schema owner)/`erp_backup`(SELECT), verified end-to-end against an isolated scratch database and fully cleaned up afterward. Added a SHA-256 migration-ledger checksum system (`db/migrate.go`, SB-024) and a static scanner proving every migration in the tree is additive-only. Hardened `deploy/erp.service` (capability/namespace/kernel isolation, explicit `ReadWritePaths` instead of all of `/opt`).
+
+**Stage 49.6 — Data classification, privacy, cryptography, keys and secrets** *(code + schema + tests + docs)*
+
+Built a data-flow classification registry extending 47.1.3's sensitive-field policy (`engines/data_classification.go`); a reusable rotation-capable AES-256-GCM keyring (`engines/secret_keyring.go`, generalizing Stage 29.8's JWT-rotation pattern) applied to connector credentials, closing risk register R-03's missing rotation path with an operator command (`tenantctl reencrypt-channel-credentials`); a telemetry redaction choke point (`engines/telemetry_redaction.go`) for Stage 49.11's future event pipeline; and a Customer-scoped data-subject request lifecycle (`engines/privacy_rights.go`, new `data_subject_requests` table, new admin API) with maker-checker approval and legal-hold refusal mirroring `PurgeTenant`'s shape.
+
+## 2026-09-09
+
+**Stage 47.5 + 47.7 — the two decision-blocked audit findings, closed** *(code + schema + tests)*
+
+Both items had sat open on a *decision* rather than on effort, and both decisions were taken by the user this session from measured evidence rather than in the abstract.
+
+**Stage 49.2.4 — Closed: recovery-destination reauthentication, and dual-control helpdesk password reset** *(code + schema + tests + docs)*
+
+49.2.4 (recovery cannot bypass authentication) is now fully closed — the two clauses 49.2.2's session left open. Full detail is in `docs/micro_checklist.md`'s own 49.2.4 entry; this is the index.
 
 ## 2026-09-08
 

@@ -108,6 +108,18 @@ func CreateReturnRequestCommand(tenantID, requestType, returnLocation, originalO
 	if err := validateReturnException(exception); err != nil {
 		return nil, err
 	}
+	// Stage 130.9 (72.D f): the free gift comes back with the whole purchase.
+	if exception == nil || exception.Type == "" {
+		if elig, err := ResolveReturnEligibility(tenantID, originalOrderID); err == nil && elig.Found {
+			claimed := map[string]int{}
+			for _, l := range elig.Lines {
+				claimed[l.SKU] = l.AlreadyReturned
+			}
+			if err := checkGiftComesBack(tenantID, originalOrderID, items, claimed); err != nil {
+				return nil, err
+			}
+		}
+	}
 	if strings.TrimSpace(idempotencyKey) == "" {
 		// Without a key there is nothing to deduplicate on, and silently
 		// proceeding would reintroduce exactly the replay A-04 describes.

@@ -217,6 +217,9 @@ type BulkMediaUploadOutcome struct {
 // dedup, Main Image demotion) applies here too, because it is the same
 // function, not a parallel bulk-only path.
 func BulkUploadMediaZip(tenantID string, zipBytes []byte, uploadedBy string) ([]BulkMediaUploadOutcome, error) {
+	if err := CheckUpload(UploadImageZip, zipBytes); err != nil { // 134.4
+		return nil, err
+	}
 	reader, err := zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))
 	if err != nil {
 		return nil, fmt.Errorf("not a valid zip file: %v", err)
@@ -332,6 +335,9 @@ type PIMMediaSearchFilters struct {
 	FileType  string
 }
 
+// 134.6 (47.10.1): most media assets one browse/search request returns.
+const mediaSearchResultCap = 500
+
 // SearchMedia is the catalog-wide counterpart to ListMediaForItem (which is
 // scoped to one item for the Workbench gallery) - the browse UI's one read,
 // Active-only like every other media read in this file.
@@ -345,7 +351,7 @@ func SearchMedia(tenantID string, filters PIMMediaSearchFilters) ([]ProductMedia
 			COALESCE(data->>'checksum',''), status, COALESCE(NULLIF(data->>'version_no','')::int, 1),
 			COALESCE(data->>'alt_text',''), COALESCE(data->>'expiry_date',''), COALESCE(data->>'has_thumbnail','') = 'Yes',
 			COALESCE(data->>'tags','')
-		FROM %s.documents WHERE doctype = 'ProductMedia' AND status = 'Active'`, schema)
+		FROM %s.documents WHERE doctype = 'ProductMedia' AND status = 'Active' AND deleted_at IS NULL`, schema)
 	var args []interface{}
 	if filters.Item != "" {
 		args = append(args, filters.Item)
@@ -363,7 +369,7 @@ func SearchMedia(tenantID string, filters PIMMediaSearchFilters) ([]ProductMedia
 		args = append(args, "%"+strings.ToLower(filters.Tag)+"%")
 		query += fmt.Sprintf(" AND LOWER(COALESCE(data->>'tags','')) LIKE $%d", len(args))
 	}
-	query += " ORDER BY id"
+	query += fmt.Sprintf(" ORDER BY id LIMIT %d", mediaSearchResultCap)
 
 	rows, err := db.DB.Query(query, args...)
 	if err != nil {

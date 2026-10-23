@@ -117,7 +117,7 @@ func getCartonCapacity(tenantID, cartonTypeCode string) (int, error) {
 	}
 	var dataStr string
 	err = db.DB.QueryRow(fmt.Sprintf(
-		`SELECT data FROM %s.documents WHERE doctype = 'CartonType' AND (id = $1 OR data->>'code' = $1) AND status = 'Active'`, schema),
+		`SELECT data FROM %s.documents WHERE doctype = 'CartonType' AND (id = $1 OR data->>'code' = $1) AND status = 'Active' AND deleted_at IS NULL`, schema),
 		cartonTypeCode).Scan(&dataStr)
 	if err == sql.ErrNoRows {
 		return 0, fmt.Errorf("no Active CartonType %q found", cartonTypeCode)
@@ -429,7 +429,7 @@ func loadActiveCycleClasses(tenantID string) ([]cycleClassDef, error) {
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT data FROM %s.documents WHERE doctype = 'CycleClass' AND status = 'Active' ORDER BY (data->>'sequence')::numeric ASC`, schema))
+		`SELECT data FROM %s.documents WHERE doctype = 'CycleClass' AND status = 'Active' AND deleted_at IS NULL ORDER BY (data->>'sequence')::numeric ASC`, schema))
 	if err != nil {
 		return nil, err
 	}

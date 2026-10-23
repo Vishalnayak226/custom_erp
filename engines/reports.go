@@ -5,35 +5,88 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 )
 
 // GetCurrentStockReport lists the same available-to-sell figure used by
 // reservation admission, alongside its component restrictions. Raw
 // inventory_availability.available alone is NOT sellable after holds etc.
+// 134.6 (47.10.3): the report framework's caller - read with a SQL limit one
+// past the on-screen report cap, so an oversized result is still refused
+// (REPORT-0161) without every row being loaded first.
 func GetCurrentStockReport(tenantID string) ([]map[string]interface{}, error) {
+	rows, _, err := GetCurrentStockPage(tenantID, CurrentStockFilter{Limit: reportSQLLimit(tenantID)})
+	return rows, err
+}
+
+// reportSQLLimit (134.6, 47.10.1) is the LIMIT a report's own query takes:
+// one past the on-screen cap (platform.max_sync_report_rows), so the report
+// framework still refuses an oversized result (REPORT-0161) - and a direct
+// report endpoint still stops - without every row being loaded first.
+func reportSQLLimit(tenantID string) int {
+	n := GetSettingInt(tenantID, "platform.max_sync_report_rows")
+	if n <= 0 {
+		n = 5000
+	}
+	return n + 1
+}
+
+// CurrentStockFilter is one page of current stock (134.6): Q matches part of
+// the SKU or the location code, Location narrows to one location; the filter,
+// the count and the page are all done in SQL.
+type CurrentStockFilter struct {
+	Q        string
+	Location string
+	Limit    int
+	Offset   int
+}
+
+// GetCurrentStockPage returns one page of current stock and how many rows match.
+func GetCurrentStockPage(tenantID string, f CurrentStockFilter) ([]map[string]interface{}, int, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
+	where, args := "TRUE", []interface{}{}
+	if q := strings.ToLower(strings.TrimSpace(f.Q)); q != "" {
+		args = append(args, "%"+q+"%")
+		where += fmt.Sprintf(" AND (LOWER(sku) LIKE $%d OR LOWER(location_code) LIKE $%[1]d)", len(args))
+	}
+	if loc := strings.TrimSpace(f.Location); loc != "" {
+		args = append(args, loc)
+		where += fmt.Sprintf(" AND location_code = $%d", len(args))
+	}
+	var total int
+	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.inventory_availability WHERE %s`, schema, where), args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	if f.Limit <= 0 {
+		f.Limit = 100
+	}
+	if f.Offset < 0 {
+		f.Offset = 0
+	}
+	args = append(args, f.Limit, f.Offset)
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT sku, location_code, on_hand, available, committed, reserved, safety_stock,
 		       blocked, qc_hold, damaged, channel_buffer, hold_qty
-		FROM %s.inventory_availability ORDER BY location_code, sku`, schema))
+		FROM %s.inventory_availability WHERE %s ORDER BY location_code, sku LIMIT $%d OFFSET $%d`, schema, where, len(args)-1, len(args)), args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
-	var results []map[string]interface{}
+	results := []map[string]interface{}{}
+	policy := atsPolicyFor(schema)
 	for rows.Next() {
 		var sku, location string
 		var onHand, available, committed, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held int
 		if err := rows.Scan(&sku, &location, &onHand, &available, &committed, &reserved, &safetyStock,
 			&blocked, &qcHold, &damaged, &channelBuffer, &held); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
-		sellable := computeATS(atsPolicyFor(schema), available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
+		sellable := computeATS(policy, available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
 		results = append(results, map[string]interface{}{
 			"sku": sku, "location_code": location, "on_hand": onHand,
 			"available": available, "available_to_sell": sellable, "committed": committed,
@@ -42,7 +95,7 @@ func GetCurrentStockReport(tenantID string) ([]map[string]interface{}, error) {
 			"hold_qty": held,
 		})
 	}
-	return results, nil
+	return results, total, rows.Err()
 }
 
 // SalesRegisterEntry is one completed sale. DataIssue (Stage 30.2.3) is
@@ -72,7 +125,7 @@ func GetSalesRegisterReport(tenantID string) ([]SalesRegisterEntry, error) {
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, data, status, created_at FROM %s.documents
 		WHERE doctype = 'POSCart' AND status IN ('Paid', 'Settled')
-		ORDER BY created_at DESC`, schema))
+		ORDER BY created_at DESC LIMIT %d`, schema, reportSQLLimit(tenantID)))
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +201,7 @@ func GetVendorLedgerReport(tenantID, vendorFilter string) ([]map[string]interfac
 		query += " AND data->>'vendor' = $1"
 		args = append(args, vendorFilter)
 	}
-	query += " ORDER BY data->>'vendor', created_at DESC"
+	query += fmt.Sprintf(" ORDER BY data->>'vendor', created_at DESC LIMIT %d", reportSQLLimit(tenantID))
 
 	rows, err := db.DB.Query(query, args...)
 	if err != nil {

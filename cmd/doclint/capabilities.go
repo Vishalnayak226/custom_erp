@@ -172,7 +172,9 @@ func validateCapabilities(root string, register CapabilityRegister, now time.Tim
 				add(c.ID, "invalid "+label)
 			}
 		}
-		if c.ReviewBy < now.Format("2006-01-02") {
+		// Stage 130.18 (84.8): a capability claim is normative - reviewed on
+		// the 90-day cadence from its last verification.
+		if reviewBy, err := time.Parse("2006-01-02", c.ReviewBy); err == nil && reviewDue(reviewBy, c.LastVerified, "normative", "").Format("2006-01-02") < now.Format("2006-01-02") {
 			add(c.ID, "review expired")
 		}
 		if c.Maturity == "Production" || c.Maturity == "Certified" {

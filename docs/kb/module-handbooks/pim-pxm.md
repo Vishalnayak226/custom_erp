@@ -2,7 +2,7 @@
 title: Product Information Management
 section: Module Handbooks
 order: 50
-summary: Items, categories and attributes with locale/channel-aware values, a 0-100 completeness score every publish gate reads, and an effective-dated price list that exists in full but has no screen yet.
+summary: Items, categories and attributes with locale/channel-aware values, a 0-100 completeness score every publish gate reads, and effective-dated, approval-gated price lists that the POS, the Store app and Shopify price from.
 audience: category manager, admin
 last_verified: 2026-09-03
 screens: [pim, doctype:item, doctype:itemname, module:pim, reports, configuration]
@@ -173,18 +173,34 @@ considers a **Superseded** version, not just the current Approved one —
 never valid," which matters for correctly pricing a backdated document
 against whatever was really in force on its date.
 
-> [!WARNING]
-> **Price lists are built end-to-end but reachable from nowhere.** There is
-> no "Price List" tab anywhere in the PIM screen's tab list, no menu entry,
-> and `ResolvePriceForSKU` — the function that actually looks up a price —
-> is called from nowhere in this codebase except its own test file
-> (confirmed by grep across every `.go` file). The versioning/supersession
-> logic and the effective-dated resolution query are both real and correct;
-> nothing in the running application creates a Price List Version, reads
-> one back, or prices anything against one. Today, pricing a sale or a
-> purchase order runs entirely through the mechanisms documented in
-> [Point of Sale](pos-operations.md) and [Procurement](procurement.md) — a
-> per-item Sale Price / Purchase Price, not this price list.
+### Make a price list version
+
+Price List Version is a **Setup → Sales** list (the generic list and form;
+there is no tab for it on the PIM screen).
+
+1. Open **Setup → Sales → Price List Version** and click **+ New**.
+2. Fill in **Version Code**, **Price List** (the price-list code, e.g.
+   `RETAIL`), **Currency**, **Effective From**, and **Effective To** (blank =
+   open-ended). Add one row per SKU to **Prices** (**SKU**, **Price**).
+3. Set **Status** to **Pending Approval** and save. The form does not offer
+   **Approved** — only the approval flow sets it.
+4. A different user with the approving role (HR/Admin by default) approves
+   it in **Approvals**. Approving it supersedes the older open-ended version
+   of the same price list.
+
+### Where a price list is used
+
+`ResolvePriceForSKU` reads the approved version in force on the date:
+
+- **POS** — a customer's **Contract price list** (on the customer's form)
+  first, then **Settings → Configuration → Point of Sale → Default price
+  list**, then the item's own Sale Price, then its MRP.
+- **Store app** — the price shown for an item uses the default price list.
+- **Shopify** — **Price list Shopify sells at** on the channel's Shopify
+  page (Admin Guide §B.3.20).
+
+Purchase orders do not use price lists; they price from the item's Purchase
+Price (see [Procurement](procurement.md)).
 
 ## Channels: category and field mapping
 
@@ -259,16 +275,22 @@ validated independently, so check the per-item result rather than assuming
 the whole batch either fully succeeded or fully failed.
 
 **Need to price something from a Price List and can't find the screen.**
-See the warning above — Price Lists have no UI today; POS and Procurement
-each price from the item's own Sale/Purchase Price instead.
+It is under **Setup → Sales → Price List Version**, not on the PIM screen —
+see "Make a price list version" above.
+
+**A price list version saved but the till still shows the item's own
+price.** Only an **Approved** (or, for an older date, **Superseded**) version
+prices anything. Check it was approved in **Approvals**, that **Effective
+From** is not in the future, and that the code matches the customer's
+**Contract price list** or the POS **Default price list** setting.
 
 ## What is not here yet
 
-**Price Lists have zero UI and zero real callers** — see the warning above.
-The versioning logic is complete and correct; nothing in the running
-application uses it yet.
+**Price lists have no screen of their own** — they are kept on the generic
+**Setup → Sales → Price List Version** list and form, with no Submit for
+Approval button (set **Status** to **Pending Approval** instead). Purchase
+orders do not price from them.
 
 **Bulk media/asset operations for a Price List's supporting documents** and
 similar cross-cutting DAM features are covered in the Media Library tab,
-not this article — that tab is a real, wired screen, unlike the price list
-gap above.
+not this article — that tab is a real, wired screen.

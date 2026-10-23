@@ -133,6 +133,11 @@ func PostConsumptionEntry(tenantID, userName string, req ConsumptionEntryRequest
 		if err := RefuseNonStockItems(tenantID, []string{sku}, "consumed from a store"); err != nil {
 			return nil, err
 		}
+		// Stage 130.15 (74.2.4, UAT-MAT-05): one source per consumption - an
+		// item consumed by auto backflush is never entered by hand as well.
+		if ItemPolicyFor(tenantID, resolved.Data).Consumption == ConsumeAutoBackflush {
+			return nil, fail(sku, fmt.Sprintf("%s is consumed by auto backflush with what uses it - it is not entered here as well", sku))
+		}
 		book, err := BookStockAt(tenantID, sku, req.Location)
 		if err != nil {
 			return nil, err

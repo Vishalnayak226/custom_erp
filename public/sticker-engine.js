@@ -1350,9 +1350,12 @@ function printerDPI(printer, t) {
   return Number(printer && printer.dpi) || t.settings.dpi || 203;
 }
 
-// Silent thermal print through QZ Tray. Returns true when sent, false when
-// the caller should fall back to the browser sheet.
-async function printThermal(segments, printer, jobRef) {
+// Silent thermal print through QZ Tray. Returns true when sent (or handled),
+// false when the caller should fall back to the browser sheet. A failed send
+// (printer off, out of labels) asks Retry / browser print (134.1a) - Retry
+// resumes at the item that failed, so the labels already out are not repeated;
+// with ask false it throws instead, for printNoDialog to ask.
+async function printThermal(segments, printer, jobRef, { ask = true } = {}) {
   const lang = String((printer && printer.printer_language) || '').toUpperCase();
   if (lang !== 'ZPL' && lang !== 'TSPL') return false;
   if (!printer.qz_printer_name || typeof window.qzTryConnect !== 'function' || !window.QZPrint) return false;
@@ -1363,12 +1366,18 @@ async function printThermal(segments, printer, jobRef) {
     job_type: 'Sticker', document_ref: jobRef || '', printer_code: printer.code || printer.id || '',
     qz_printer_name: printer.qz_printer_name, print_format: lang, copies: 1
   };
-  try {
-    for (const item of items) await window.QZPrint.printItems(printer.qz_printer_name, [item], 1);
-  } catch (err) {
-    if (window.qzLogJob) await window.qzLogJob(Object.assign({ status: 'Failed', error_detail: err.message || String(err) }, entry));
-    if (window.showCustomAlert) await window.showCustomAlert(err.message || String(err), 'Print Failed');
-    return true; // reported; do not also pop the browser dialog
+  for (let next = 0; next < items.length;) {
+    try {
+      for (; next < items.length; next++) await window.QZPrint.printItems(printer.qz_printer_name, [items[next]], 1);
+    } catch (err) {
+      if (window.qzLogJob) await window.qzLogJob(Object.assign({ status: 'Failed', error_detail: err.message || String(err) }, entry));
+      if (!ask || !window.loadViewModule) throw err;
+      const r = await window.loadViewModule('./print-routing.js');
+      const choice = await r.explainFailure('Sticker', err.message || String(err));
+      if (choice === 'retry') continue;
+      if (choice === 'browser') await printSheet(segments, Number(printer.dpi) || 0);
+      return true;
+    }
   }
   if (window.qzLogJob) await window.qzLogJob(Object.assign({ status: 'Submitted', error_detail: '' }, entry));
   if (window.showToast) window.showToast(`Sent to ${printer.qz_printer_name}.`, { variant: 'success' });
@@ -1455,23 +1464,125 @@ async function stickerPDFs(segments, dpi) {
   const out = [];
   let run = null;
   for (const pg of sheetPages(segments)) {
-    let perT = cache.get(pg.t);
-    if (!perT) { perT = new Map(); cache.set(pg.t, perT); }
-    const dpm = printDPI(pg.t, dpi) / MM_PER_INCH;
-    const page = newCanvas(Math.round(pg.w * dpm), Math.round(pg.h * dpm));
-    const g = page.getContext('2d');
-    g.imageSmoothingEnabled = false;
-    g.fillStyle = '#fff'; g.fillRect(0, 0, page.width, page.height);
-    if (pg.flip) { g.translate(page.width, page.height); g.rotate(Math.PI); }
-    for (const c of pg.cells) {
-      let dots = perT.get(c.label);
-      if (!dots) { dots = labelDots(pg.t, c.label, dpi); perT.set(c.label, dots); }
-      g.drawImage(dots.canvas, Math.round(c.x * dpm), Math.round(c.y * dpm));
-    }
+    const page = pageCanvas(pg, dpi, cache, pg.flip);
     if (!run || run.w !== pg.w || run.h !== pg.h) { run = { w: pg.w, h: pg.h, canvases: [] }; out.push(run); }
     run.canvases.push(page);
   }
   return Promise.all(out.map(async r => pdf.blobToBase64(pdf.canvasesToPDF(r.canvases, r.w, r.h))));
+}
+
+// pageCanvas draws one page of a print at the printer's dots, its labels
+// copied in pixel for pixel - the silent PDF's page and the preview's.
+function pageCanvas(pg, dpi, cache, flip) {
+  let perT = cache.get(pg.t);
+  if (!perT) { perT = new Map(); cache.set(pg.t, perT); }
+  const dpm = printDPI(pg.t, dpi) / MM_PER_INCH;
+  const page = newCanvas(Math.round(pg.w * dpm), Math.round(pg.h * dpm));
+  const g = page.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  g.fillStyle = '#fff'; g.fillRect(0, 0, page.width, page.height);
+  if (flip) { g.translate(page.width, page.height); g.rotate(Math.PI); }
+  for (const c of pg.cells) {
+    let dots = perT.get(c.label);
+    if (!dots) { dots = labelDots(pg.t, c.label, dpi); perT.set(c.label, dots); }
+    g.drawImage(dots.canvas, Math.round(c.x * dpm), Math.round(c.y * dpm));
+  }
+  return page;
+}
+
+// previewStickerLabels (Stage 133.3, user 2026-10-22: "Need a preview option
+// aswell to how it will come") shows a print before it is sent: each print
+// drawn at the printer's own dots by the same code the print uses, the way
+// the tag reads, with the label edges dashed in grey (not ink). Identical
+// prints in a row show once with their count. Resolves true when the user
+// presses Print.
+export async function previewStickerLabels(labels, { printer, copies = 1, apiFetch } = {}) {
+  if (!labels || labels.length === 0) return false;
+  defaultTemplate();
+  const templates = await loadTemplates(labels, apiFetch || window.apiFetch);
+  const segments = expandRuns(labels, templates, copies);
+  const dpi = Number(printer && printer.dpi) || 0;
+  const same = (a, b) => a.t === b.t && a.cells.length === b.cells.length &&
+    a.cells.every((c, k) => c.label === b.cells[k].label && c.x === b.cells[k].x && c.y === b.cells[k].y);
+  const prints = [];
+  for (const pg of sheetPages(segments)) {
+    const last = prints[prints.length - 1];
+    if (last && same(last.pg, pg)) last.n++;
+    else prints.push({ pg, n: 1 });
+  }
+  const stickers = segments.reduce((n, s) => n + s.items.length, 0);
+  const esc = window.escapeHTMLText || (s => String(s));
+  const cache = new Map();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-container" style="max-width: 920px;" role="dialog" aria-modal="true" aria-labelledby="stk-preview-title">
+      <div class="modal-header">
+        <h3 class="modal-title" id="stk-preview-title">Sticker preview</h3>
+        <button type="button" class="modal-close" aria-label="Close dialog" data-stk-preview="close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p style="margin: 0 0 12px; color: var(--text-muted);">${stickers} sticker${stickers === 1 ? '' : 's'}${printer && printer.name ? ` on ${esc(printer.name)}` : ''}. Grey dashes mark each label's edge; they do not print.</p>
+        <div data-stk-preview="pages" style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-stk-preview="close">Close</button>
+        <button type="button" class="btn btn-primary" data-stk-preview="print">Print</button>
+      </div>
+    </div>`;
+  const pagesEl = overlay.querySelector('[data-stk-preview="pages"]');
+  for (const { pg, n } of prints) {
+    const page = pageCanvas(pg, dpi, cache, false);
+    const dpm = page.width / pg.w;
+    const g = page.getContext('2d');
+    g.save();
+    g.strokeStyle = '#9ca3af';
+    g.lineWidth = Math.max(1, Math.round(dpm / 4));
+    g.setLineDash([Math.round(dpm), Math.round(dpm)]);
+    const cell = cellSize(pg.t);
+    if (pg.a4) {
+      pg.cells.forEach(c => g.strokeRect(c.x * dpm, c.y * dpm, cell.w * dpm, cell.h * dpm));
+    } else {
+      const s = pg.t.settings;
+      for (let k = 0; k < s.per_row * s.per_col; k++) {
+        const o = cellOrigin(pg.t, k);
+        g.strokeRect((s.offset_x_mm + o.x) * dpm, (s.offset_y_mm + o.y) * dpm, cell.w * dpm, cell.h * dpm);
+      }
+    }
+    g.restore();
+    const scale = Math.min(6, 520 / pg.h); // screen px per mm
+    page.style.cssText = `width: ${Math.round(pg.w * scale)}px; max-width: 100%; height: auto; background: #fff; image-rendering: pixelated; box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,.2));`;
+    const fig = document.createElement('figure');
+    fig.style.cssText = 'margin: 0; display: flex; flex-direction: column; gap: 6px; max-width: 100%;';
+    fig.appendChild(page);
+    const cap = document.createElement('figcaption');
+    cap.style.cssText = 'font-size: 12px; color: var(--text-muted);';
+    const filled = pg.cells.length, slots = pg.a4 ? filled : pg.t.settings.per_row * pg.t.settings.per_col;
+    cap.textContent = [
+      pg.t.name || 'Standard label',
+      `${Math.round(pg.w * 10) / 10} × ${Math.round(pg.h * 10) / 10} mm`,
+      n > 1 ? `printed ${n} times` : '',
+      slots > filled ? `${slots - filled} of ${slots} labels left blank` : '',
+      pg.flip ? 'comes out turned 180°' : ''
+    ].filter(Boolean).join(' · ');
+    fig.appendChild(cap);
+    pagesEl.appendChild(fig);
+  }
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('open'));
+  return new Promise(resolve => {
+    const done = (v) => { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
+    const onKey = (e) => { if (e.key === 'Escape') done(false); };
+    document.addEventListener('keydown', onKey);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) done(false); });
+    overlay.querySelectorAll('[data-stk-preview="close"]').forEach(b => b.addEventListener('click', () => done(false)));
+    const print = overlay.querySelector('[data-stk-preview="print"]');
+    print.addEventListener('click', () => done(true));
+    print.focus();
+  });
 }
 
 // printStickersSilently (Stage 127.2) sends the print to this computer's
@@ -1482,8 +1593,8 @@ async function printStickersSilently(segments, formPrinter, jobRef, why) {
   const r = await window.loadViewModule('./print-routing.js');
   const location = (window.erpWorkingStore || {}).code || '';
   const printer = await r.chosenPrinter('Sticker', location) || await r.choosePrinter('Sticker', location);
-  if (!printer) { why.reason = 'No sticker printer is chosen for this computer.'; return false; }
-  if (await printThermal(segments, printer, jobRef)) return true;
+  if (!printer) { Object.assign(why, { setup: true, reason: 'No sticker printer is chosen for this computer. Retry to choose one.' }); return false; }
+  if (await printThermal(segments, printer, jobRef, { ask: false })) return true;
   const dpi = Number(printer.dpi) || Number(formPrinter && formPrinter.dpi) || 0;
   for (const dataBase64 of await stickerPDFs(segments, dpi)) {
     if (!await window.qzTryPrint('Document', { documentRef: jobRef || 'Stickers', dataBase64, docFormat: 'pdf',

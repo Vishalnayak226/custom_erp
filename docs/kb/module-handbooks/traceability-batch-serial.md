@@ -115,7 +115,11 @@ A serial number is allocated to a specific order when a pick is confirmed
 against it, and the system can reject packing that unit against a
 **different** order (`INVENT-0104`) than the one it's reserved for. This
 check exists and is tested, but it is only reachable
-via a direct API call today, not from the app's own Pack screen. If it's
+via a direct API call today (`POST /api/v1/wms/serial/status` with a
+`voucher_id`), not from the app's own Pack screen. **WMS → RF Lot & Serial →
+Change a serial** can set a serial to **Shipped**, but it sends no order, so
+the check does not run from it (confirmed by a search of `public/`,
+2026-10-24). If it's
 been run for a serial and rejected, that means the scanned serial belongs to
 a different order; look it up in Serial Number Inquiry to see what it's
 actually reserved for.

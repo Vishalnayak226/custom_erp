@@ -264,6 +264,12 @@ func registerStage282Settings() {
 		},
 		Description: "Whether the Purchase Price entered on a PO line already includes GST. Each PO can override this.",
 	})
+	// Stage 130.7 (120.5): the company the app header and tab title name.
+	RegisterSetting(SettingDefinition{
+		Key: "platform.company_name", Module: "Platform",
+		Label: "Company name in the header", Type: SettingTypeString, Default: "",
+		Description: "Shown beside the Wholeops logo and in the browser tab's title, so everyone sees whose ERP this is. Blank uses the brand name on prints; with neither, nothing is shown.",
+	})
 	// Stage 63 (engines/print_documents.go): the brand every designed print carries.
 	RegisterSetting(SettingDefinition{
 		Key: "print.brand_name", Module: "Printing",

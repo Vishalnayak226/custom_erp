@@ -38,7 +38,9 @@ func TestStage55EmbeddedRecordTabsUseRetryableLazyLoader(t *testing.T) {
 		if strings.Contains(body, "await renderDocTableView(container)") {
 			t.Errorf("%s assumes the records chunk has already loaded", file)
 		}
-		if !strings.Contains(body, "container, LAZY_VIEW_MODULES['doctype-table']") {
+		// Stage 130.16: Manufacturing's Subcontracting tab became the Job Work
+		// workbench (view-jobwork.js), so only HR still embeds a record table.
+		if file == "view-hr.js" && !strings.Contains(body, "container, LAZY_VIEW_MODULES['doctype-table']") {
 			t.Errorf("%s must use the shared retryable records loader", file)
 		}
 	}

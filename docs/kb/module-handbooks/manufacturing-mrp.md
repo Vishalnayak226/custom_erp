@@ -260,7 +260,7 @@ shortfall list only ever lists what's actually short, not every component.
 
 **`GET /api/v1/manufacturing/active-bom`** (resolves which BOM a new order
 for an item should default to) is a real, working endpoint with no caller
-anywhere in `public/app.js`, confirmed by grep — the Orders tab's quick BOM
+in the app, confirmed by a search of `public/` (2026-10-24) — the Orders tab's quick BOM
 form has you name a BOM directly rather than looking one up this way.
 
 **Rework has no re-issue loop.** Sending a quantity to rework logs the event

@@ -26,7 +26,7 @@ export const crmMoney = (n) => (n == null || n === '' ? '' : formatMoney(n));
 export function crmDate(v, withTime) {
   if (!v || String(v).startsWith('0001-')) return '';
   const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return String(v);
+  if (Number.isNaN(d.getTime())) return crmEsc(v);
   return withTime ? d.toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
     : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }

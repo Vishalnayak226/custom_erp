@@ -63,10 +63,11 @@ func TestProductionMaterialPlanStage5512(t *testing.T) {
 		t.Fatalf("box: %+v", b)
 	}
 
-	// Short material: the check and Issue Material agree on 12.5 vs 10.
+	// Short material: the check and Issue Material agree on 13 vs 10 - 12.5
+	// rounds up to whole units (73.B.1).
 	insert("PRO-55-SHORT", "ProductionOrder", "Draft", map[string]interface{}{"bom_id": "BOM-55", "quantity": 5, "location": loc, "status": "Draft"})
 	_, _, _, plan, err = ProductionOrderMaterialPlan(tenantID, "PRO-55-SHORT")
-	if w := need(plan, "RAW"); err != nil || w.Required != 12.5 || w.Short != 2.5 {
+	if w := need(plan, "RAW"); err != nil || w.Required != 13 || w.Short != 3 {
 		t.Fatalf("short plan: %v %+v", err, w)
 	}
 	if err := IssueProductionMaterial(tenantID, "PRO-55-SHORT"); err == nil {

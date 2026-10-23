@@ -73,6 +73,8 @@ func handleGetProfile(w http.ResponseWriter, r *http.Request) {
 		// 24.1: read-only here, same as role - admin-managed via the Users
 		// screen (handleSetUserLocation), not self-service editable.
 		"location_code": locationCode,
+		// Stage 130.7: the header and tab title name the company.
+		"company_name": engines.CompanyDisplayName(tenantID),
 	})
 }
 
@@ -97,16 +99,20 @@ func handleMyPermissions(w http.ResponseWriter, r *http.Request) {
 			"role":           role,
 			"is_admin":       true,
 			"is_super_admin": engines.IsSuperAdmin(role),
-			"doctypes":       []string{},
-			"create":         []string{},
-			"update":         []string{},
-			"delete":         []string{},
+			// 132.10 (l): the server's operator allowlist - a client's own Super
+			// Admin is not one, so the operator-only screens stay out of its menu.
+			"is_platform_operator": engines.IsPlatformOperator(tenantID, r.Header.Get("Resolved-Username"), role),
+			"doctypes":             []string{},
+			"create":               []string{},
+			"update":               []string{},
+			"delete":               []string{},
 			// Stage 47.2.3: the capabilities this session holds, so a screen
 			// can offer a capability-gated action (the POS price override) from
 			// the same source of truth checkRouteCapability enforces with,
 			// instead of hardcoding a role name a template edit would
 			// invalidate. Advisory only - the route check still decides.
 			"capabilities": engines.CapabilitiesForRole(role),
+			"own_screen":   madeOnOwnScreen,
 		})
 		return
 	}
@@ -165,6 +171,7 @@ func handleMyPermissions(w http.ResponseWriter, r *http.Request) {
 		"update":       updatable,
 		"delete":       deletable,
 		"capabilities": engines.CapabilitiesForRole(role),
+		"own_screen":   madeOnOwnScreen,
 	})
 }
 

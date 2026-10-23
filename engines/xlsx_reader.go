@@ -34,6 +34,9 @@ const xlsxPartLimit = 64 << 20
 
 // ReadXLSX returns every worksheet of an .xlsx file, in workbook order.
 func ReadXLSX(data []byte) ([]XLSXReadSheet, error) {
+	if err := CheckUpload(UploadWorkbook, data); err != nil { // 134.4: zip limits before any part is read
+		return nil, err
+	}
 	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return nil, fmt.Errorf("this is not an Excel workbook (.xlsx): %v", err)

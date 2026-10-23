@@ -66,7 +66,7 @@ func FindRelatedProducts(tenantID, itemCode string, limit int) ([]RelatedProduct
 			ON other.doctype = 'Item'
 			AND other.data->>'code' = other_attr.data->>'item'
 			AND other.data->>'family' = $2
-			AND other.status = 'Active'
+			AND other.status = 'Active' AND other.deleted_at IS NULL
 		WHERE self_attr.doctype = 'ProductAttributeValue'
 			AND self_attr.data->>'item' = $1
 			AND COALESCE(self_attr.data->>'locale', '') = ''

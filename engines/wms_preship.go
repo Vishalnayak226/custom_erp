@@ -21,11 +21,11 @@ import (
 func resolvePreShipRule(schema, locationCode string) (map[string]interface{}, error) {
 	var dataStr string
 	err := db.DB.QueryRow(fmt.Sprintf(`
-		SELECT data FROM %s.documents WHERE doctype = 'PreShipValidationRule' AND status = 'Active'
+		SELECT data FROM %s.documents WHERE doctype = 'PreShipValidationRule' AND status = 'Active' AND deleted_at IS NULL
 		  AND data->>'location_code' = $1 LIMIT 1`, schema), locationCode).Scan(&dataStr)
 	if err == sql.ErrNoRows {
 		err = db.DB.QueryRow(fmt.Sprintf(`
-			SELECT data FROM %s.documents WHERE doctype = 'PreShipValidationRule' AND status = 'Active'
+			SELECT data FROM %s.documents WHERE doctype = 'PreShipValidationRule' AND status = 'Active' AND deleted_at IS NULL
 			  AND COALESCE(data->>'location_code', '') = '' LIMIT 1`, schema)).Scan(&dataStr)
 	}
 	if err == sql.ErrNoRows {
@@ -74,7 +74,7 @@ func EvaluatePreShipGate(tenantID string, task *LoadingTaskInfo) error {
 		for _, sku := range skus {
 			var held bool
 			if err := db.DB.QueryRow(fmt.Sprintf(
-				`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'Hold' AND status = 'Active' AND data->>'sku' = $1 AND data->>'location_code' = $2)`, schema),
+				`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'Hold' AND status = 'Active' AND deleted_at IS NULL AND data->>'sku' = $1 AND data->>'location_code' = $2)`, schema),
 				sku, locationCode).Scan(&held); err != nil {
 				return err
 			}

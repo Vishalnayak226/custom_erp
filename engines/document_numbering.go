@@ -83,6 +83,14 @@ var documentNumberSeriesByDoctype = map[string]documentNumberSeries{
 	"InventoryAdjustment": {SeriesKey: "ADJ", NumberFields: []string{"code"}, StoreFields: []string{"location"}, KeepID: true},
 	"MRPChange":           {SeriesKey: "MRP", NumberFields: []string{"code"}, KeepID: true},
 	"LandedCostVoucher":   {SeriesKey: "LCV", NumberFields: []string{"code"}, KeepID: true},
+
+	// Stage 130.15 (74.2.4): on 76.12's planned MI / MR series.
+	"MaterialIssue":  {SeriesKey: "MI", NumberFields: []string{"code"}, StoreFields: []string{"location"}, KeepID: true},
+	"MaterialReturn": {SeriesKey: "MR", NumberFields: []string{"code"}, StoreFields: []string{"location"}, KeepID: true},
+	// Stage 130.16 (74.3.1): on 76.12's planned DC series.
+	"DeliveryChallan": {SeriesKey: "DC", NumberFields: []string{"code"}, StoreFields: []string{"location"}, KeepID: true},
+	// Stage 130.16 (74.3.3): job work orders on the planned JO series.
+	"SubcontractOrder": {SeriesKey: "JO", NumberFields: []string{"code"}, StoreFields: []string{"location"}, KeepID: true},
 }
 
 // DocumentNumber (Stage 76.11) is the number a person reads for a document

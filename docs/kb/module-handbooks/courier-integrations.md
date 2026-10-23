@@ -173,21 +173,28 @@ today:
 - **`POST /api/v1/returns/{id}/reverse-pickup`** — `ScheduleReturnReversePickup`
   books a real reverse-pickup AWB and schedules the pickup for an Approved
   Customer Return, reusing the exact same `AllocateCourierAWB`/
-  `ScheduleCourierPickup` calls a forward shipment uses.
+  `ScheduleCourierPickup` calls a forward shipment uses. This one does have
+  a button: OMS ▸ **Returns** → **Book Pickup** on an Approved return, which
+  asks for the pickup PIN code. But the screen sends only the PIN code, and
+  the server also requires the courier `provider`, so today the click is
+  refused with "Fields 'provider' and 'pickup_pincode' are required"
+  (checked 2026-10-24). Until the screen sends a provider, book a reverse
+  pickup with a direct API call that includes `provider`.
 
 > [!WARNING]
 > **Known gap, current as of this writing.** The entire Stage 35.5 courier
 > adapter engine — credential storage, real Delhivery/Shiprocket AWB
 > allocation, pickup scheduling, cancellation, rate shopping, the NDR case
 > workflow, the vector Code128 PDF label, and the return reverse-pickup
-> endpoint — is real and tested, but **no screen in the app calls any of
-> it**. Confirmed by checking every one of its endpoints against `app.js`:
+> endpoint — is real and tested, but **no working screen in the app calls
+> it**. Confirmed by a search of `public/` (2026-10-24):
 > `POST/GET /api/v1/marketplace/couriers/{provider}/credentials`, `/awb`,
 > `/pickup`, `/cancel`, `GET /api/v1/marketplace/couriers/rates`,
-> `POST /api/v1/marketplace/ndr/{id}/resolve`,
-> `GET /api/v1/marketplace/logistics/label.pdf`, and
-> `POST /api/v1/returns/{id}/reverse-pickup` have zero callers in the
-> frontend. `NDRCase` also has no Setup-menu entry the way `CourierServiceArea`
+> `POST /api/v1/marketplace/ndr/{id}/resolve` and
+> `GET /api/v1/marketplace/logistics/label.pdf` have zero callers in the
+> frontend. `POST /api/v1/returns/{id}/reverse-pickup` has a **Book Pickup**
+> button on OMS ▸ **Returns**, but it is refused today because the screen
+> sends no courier provider (see above). `NDRCase` also has no Setup-menu entry the way `CourierServiceArea`
 > does, so an open NDR case can't currently be browsed from the app either.
 > Until a screen is built, every one of these needs a direct authenticated
 > API call by an admin or integrator. This is the courier-side counterpart
@@ -249,7 +256,8 @@ today — but it never calls a real courier account, so its AWB numbers,
 rates and carrier selection are all local approximations. The real
 Delhivery/Shiprocket integration (live AWB, live rate shopping, NDR
 workflow, reverse pickup, the proper barcode label) is built and tested but
-has no screen — see the warning above. Bringing the two together — the
+has no working screen — the one button, **Book Pickup** on OMS ▸ **Returns**,
+is refused until the screen sends a courier provider. See the warning above. Bringing the two together — the
 Pack / Ship booking calling the real adapter instead of generating a
 placeholder AWB, once credentials exist — is the natural next step and is
 flagged in `docs/micro_checklist.md`.

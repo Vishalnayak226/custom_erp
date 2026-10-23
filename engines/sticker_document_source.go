@@ -289,7 +289,7 @@ func PrintStickersForDocument(tenantID, sourceDoctype, sourceDocID, printerCode,
 		if copies <= 0 {
 			copies = 1
 		}
-		label, err := resolveAndLogSticker(tenantID, schema, line.SKU, copies, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, line.BatchNo, line.ExpiryDate, line.TemplateID, stickerRequestKey(opts), lineIndex)
+		label, err := stickerLabel(opts, tenantID, schema, line.SKU, copies, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, line.BatchNo, line.ExpiryDate, line.TemplateID, lineIndex)
 		if err != nil {
 			return nil, err
 		}
@@ -355,4 +355,76 @@ func PreviewDocumentStickerLines(tenantID, sourceDoctype, sourceDocID string) ([
 		preview = append(preview, p)
 	}
 	return preview, nil
+}
+
+// StickerSourceDoc is one row of the sticker screen's Document list (134.1b):
+// number, date, store and status - enough to pick what to label, and nothing
+// a role printing stickers without the receipt's own read permission should
+// not see.
+type StickerSourceDoc struct {
+	ID       string `json:"id"`
+	Date     string `json:"posting_date,omitempty"`
+	Location string `json:"location,omitempty"`
+	Status   string `json:"status"`
+}
+
+// SearchStickerSourceDocs lists a sticker source's documents whose number
+// contains q, newest first, within the session's scope (a store's staff see
+// their store's receipts). Cancelled documents print nothing and are left out.
+func SearchStickerSourceDocs(tenantID, doctype, q string, limit int, session SessionScope) ([]StickerSourceDoc, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 || limit > 50 {
+		limit = 50
+	}
+	where := "doctype = $1 AND deleted_at IS NULL AND COALESCE(status, '') <> 'Cancelled'"
+	args := []interface{}{doctype}
+	if q = strings.TrimSpace(q); q != "" {
+		args = append(args, "%"+strings.ToLower(q)+"%")
+		where += fmt.Sprintf(" AND (LOWER(id) LIKE $%d OR LOWER(COALESCE(data->>'code', '')) LIKE $%[1]d)", len(args))
+	}
+	// The document API's own list scope, so this list never shows a row the
+	// session's store could not see there.
+	if constraints, known := ScopeConstraints(doctype, session); known {
+		for _, c := range constraints {
+			parts := make([]string, 0, len(c.Fields))
+			for _, f := range c.Fields {
+				parts = append(parts, fmt.Sprintf("NULLIF(data->>'%s','')", f))
+			}
+			expr := "COALESCE(" + strings.Join(parts, ", ") + ", NULL)"
+			if c.Value == "" && !c.AllowMissing {
+				where += " AND FALSE"
+				continue
+			}
+			args = append(args, c.Value)
+			if c.AllowMissing {
+				where += fmt.Sprintf(" AND (%s = $%d OR %[1]s IS NULL)", expr, len(args))
+			} else {
+				where += fmt.Sprintf(" AND %s = $%d", expr, len(args))
+			}
+		}
+	} else if !HasFullAccess(session.Role) {
+		args = append(args, session.LocationCode)
+		where += fmt.Sprintf(" AND (COALESCE(data->>'location', data->>'location_code') = $%d OR COALESCE(data->>'location', data->>'location_code') IS NULL)", len(args))
+	}
+	args = append(args, limit)
+	rows, err := db.DB.Query(fmt.Sprintf(`
+		SELECT id, COALESCE(data->>'posting_date', data->>'date', ''), COALESCE(data->>'location', data->>'location_code', ''), COALESCE(status, '')
+		  FROM %s.documents WHERE %s
+		 ORDER BY updated_at DESC NULLS LAST, id DESC LIMIT $%d`, schema, where, len(args)), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []StickerSourceDoc{}
+	for rows.Next() {
+		var d StickerSourceDoc
+		if err := rows.Scan(&d.ID, &d.Date, &d.Location, &d.Status); err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
 }

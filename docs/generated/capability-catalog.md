@@ -2,7 +2,7 @@
 
 # Capability catalog
 
-Source status: **draft**. Owner: **product-owner**. Version label: **0.1.0 development tree; not released support**.
+Source status: **draft**. Owner: **product-owner**. Version label: **none accepted yet (draft register; product releases are listed under Control Panel > Releases)**.
 
 Maturity is scoped to the configurations below. Source and test-file links are implementation evidence, not proof that a deployed release passed. No Production or Certified claim is authorized without the signed evidence and approver required by the registry validator.
 

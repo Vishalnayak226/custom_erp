@@ -257,6 +257,9 @@ func SubmitForApproval(tenantID, doctype, docID, requesterUserID, requesterRole 
 	if status != "Draft" {
 		return fmt.Errorf("only a Draft document can be submitted for approval (current status: %s)", status)
 	}
+	if err := runApprovalSubmitChecks(tenantID, doctype, docID, data); err != nil {
+		return err
+	}
 
 	// Stage 37.1.2: the BASE amount, so an approval slab written in the tenant's
 	// own currency is never compared against a foreign-currency figure. Falls
@@ -618,6 +621,8 @@ func ResetToPendingOnEdit(tenantID, doctype, docID, editorUserID, editorRole str
 	return logApprovalAction(tenantID, doctype, docID, "Modified", editorUserID, editorRole, amount, "Reset to Pending Approval after edit")
 }
 
+const pendingApprovalsCap = 500
+
 // ListPendingApprovals returns every Pending Approval document across all
 // approval-gated doctypes, scoped the same way the generic doc list is:
 // HR/Admin sees everything, everyone else only their own location's queue.
@@ -635,7 +640,9 @@ func ListPendingApprovals(tenantID, role, location string) ([]map[string]interfa
 		query += " AND (COALESCE(data->>'location', data->>'location_code') = $1 OR COALESCE(data->>'location', data->>'location_code') IS NULL)"
 		args = append(args, location)
 	}
-	query += " ORDER BY updated_at DESC"
+	// 134.6 (47.10.1): the newest pendingApprovalsCap - a queue longer than
+	// that is worked from the top, not loaded whole.
+	query += fmt.Sprintf(" ORDER BY updated_at DESC LIMIT %d", pendingApprovalsCap)
 
 	rows, err := db.DB.Query(query, args...)
 	if err != nil {

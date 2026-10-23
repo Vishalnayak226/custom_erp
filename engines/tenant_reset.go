@@ -60,6 +60,7 @@ var tenantResetKeep = map[string]string{
 	"irp_attempts":             "evidence: e-invoice (IRN) history, kept by law",
 	"irp_documents":            "evidence: e-invoice (IRN) history, kept by law",
 	"irp_profiles":             "evidence: e-invoice (IRN) history, kept by law",
+	"ewb_documents":            "evidence: e-way bill history, kept by law", // Stage 130.16
 	"system_error_logs":        "the server's error log",
 	"crm_suppressions":         "evidence: numbers and addresses that asked for no messages (by contact, so a re-imported one stays stopped)",
 	"store_app_pins":           "the logins' store app PINs",
@@ -94,6 +95,10 @@ var tenantResetClear = map[string]string{
 	"pos_offline_heartbeats":            "till heartbeats",
 	"payment_utr_log":                   "payment references",
 	"print_job_log":                     "print history",
+	"print_snapshots":                   "the issued copy of each printed document", // Stage 130.16
+	"print_template_versions":           "print template versions",                  // Stage 130.16
+	"reconciliation_results":            "reconciliation check results",             // Stage 130.16
+	"wave_pick_confirmations":           "wave pick confirmations",                  // Stage 130.13
 	"sticker_print_log":                 "sticker print history",
 	"pim_publish_log":                   "product publishing history",
 	"pim_publish_queue":                 "product publishing queue",
@@ -123,6 +128,7 @@ var tenantResetClear = map[string]string{
 	"api_oauth_tokens":                  "API tokens",
 	"api_idempotency_keys":              "API replay guards",
 	"api_request_log":                   "API request history",
+	"inbound_webhook_receipts":          "inbound webhook replay guards", // Stage 134.3
 	"system_settings":                   "settings (every one back to its default)",
 	"dynamic_labels":                    "renamed labels",
 	"industry_lock":                     "the chosen industry (asked again)",
@@ -178,7 +184,7 @@ var tenantResetClear = map[string]string{
 // client's documents; the shipped rows (created by 'system') stay, anything a
 // person added to them goes with the rest of the documents.
 var tenantResetSeedDoctypes = []string{"StatusTransitionRule", "ItemType", "TDSSection", "StoredValueProfile",
-	"Currency", "POSTender", "HSNCode", "ItemAttribute", "ReasonCode"}
+	"Currency", "POSTender", "HSNCode", "ItemAttribute", "ReasonCode", "PaymentTerm"}
 
 // TenantResetTable is one table's part of the plan.
 type TenantResetTable struct {

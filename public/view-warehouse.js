@@ -42,11 +42,11 @@ window.viewPickList = async function(taskId) {
         const short = l.shortfall > 0
           ? `<span class="badge badge-danger">Short ${l.shortfall}</span>`
           : '';
-        return `<tr><td>${l.sku || ''}</td>${hasBatches ? `<td>${batchCellHTML(l)}</td>` : ''}<td>${l.bin_code || ''}</td><td>${l.zone || ''}</td><td>${l.aisle || ''}</td><td>${l.rack || ''}</td><td>${l.pick_qty || 0} ${short}</td></tr>`;
+        return `<tr><td>${escapeHTMLText(l.sku || '')}</td>${hasBatches ? `<td>${batchCellHTML(l)}</td>` : ''}<td>${escapeHTMLText(l.bin_code || '')}</td><td>${escapeHTMLText(l.zone || '')}</td><td>${escapeHTMLText(l.aisle || '')}</td><td>${escapeHTMLText(l.rack || '')}</td><td>${l.pick_qty || 0} ${short}</td></tr>`;
       }).join('');
   overlay.innerHTML = `
     <div class="modal-container">
-      <div class="modal-header"><h3 class="modal-title">Pick List: ${taskId}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
+      <div class="modal-header"><h3 class="modal-title">Pick List: ${escapeHTMLText(taskId)}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
       <div class="modal-body"><div class="table-wrapper"><table><thead><tr><th>SKU</th>${hasBatches ? '<th>Batch / Expiry</th>' : ''}<th>Bin</th><th>Zone</th><th>Aisle</th><th>Rack</th><th>Pick Qty</th></tr></thead><tbody>${rows}</tbody></table></div></div>
       <div class="modal-footer"><button type="button" class="btn btn-secondary">Close</button></div>
     </div>`;
@@ -133,6 +133,14 @@ async function renderPutawayView(container) {
   document.getElementById('putaway-qty').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitPutaway(); } });
   const waitLoc = document.getElementById('putaway-wait-location');
   attachLinkTypeahead(waitLoc, 'Location');
+  // Stage 130.13 (80.7 e): opened from a posted goods receipt - its store,
+  // and its items first in the waiting list.
+  putawayFromGRN = null;
+  try {
+    putawayFromGRN = JSON.parse(sessionStorage.getItem('grn-putaway') || 'null');
+    sessionStorage.removeItem('grn-putaway');
+  } catch (_) { putawayFromGRN = null; }
+  if (putawayFromGRN && putawayFromGRN.location) inboundLocation = putawayFromGRN.location;
   if (inboundLocation) waitLoc.value = inboundLocation;
   waitLoc.addEventListener('change', () => { inboundLocation = waitLoc.value.trim(); loadPutawayWaiting(); });
   loadPutawayWaiting();
@@ -298,7 +306,7 @@ async function suggestPutawayBin() {
   const data = await res.json();
   if (data.bin_code) {
     document.getElementById('putaway-bin').value = data.bin_code;
-    resultEl.innerHTML = `<span class="badge badge-success">Suggested bin ${data.bin_code}</span> - ${data.reason}`;
+    resultEl.innerHTML = `<span class="badge badge-success">Suggested bin ${escapeHTMLText(data.bin_code)}</span> - ${escapeHTMLText(data.reason)}`;
   } else {
     resultEl.textContent = data.reason || 'No suggestion available - enter a bin manually.';
   }
@@ -347,16 +355,22 @@ async function loadPutawayWaiting() {
   if (!res) return;
   if (!res.ok) { await showApiError(res, 'Could not load what is waiting for putaway.', 'Putaway'); return; }
   const work = await res.json();
-  const rows = work.putaway || [];
+  let rows = work.putaway || [];
+  let fromGRN = '';
+  if (putawayFromGRN && (putawayFromGRN.skus || []).length) {
+    const mine = new Set(putawayFromGRN.skus);
+    rows = [...rows.filter(p => mine.has(p.sku)), ...rows.filter(p => !mine.has(p.sku))];
+    fromGRN = `<p style="margin: 0 0 8px;">From goods receipt <b>${escapeHTMLText(putawayFromGRN.grn)}</b>: its items are listed first.</p>`;
+  }
   if (!work.has_bins) {
     el.innerHTML = `<p style="margin: 0; color: var(--text-muted);">No bins are set up${loc ? ' at ' + escapeHTMLText(loc) : ''} yet - putaway places stock into bins. <button type="button" class="action-btn" ${actionAttrs('openSetupDoctype', ['Bin'])}>Set up bins</button></p>`;
     return;
   }
-  el.innerHTML = rows.length === 0 ? `<p style="margin: 0; color: var(--text-muted);">Nothing waiting${loc ? ' at ' + escapeHTMLText(loc) : ''} - every received unit is in a bin.</p>` : `<div style="overflow-x: auto;"><table>
+  el.innerHTML = fromGRN + (rows.length === 0 ? `<p style="margin: 0; color: var(--text-muted);">Nothing waiting${loc ? ' at ' + escapeHTMLText(loc) : ''} - every received unit is in a bin.</p>` : `<div style="overflow-x: auto;"><table>
     <thead><tr><th>Item</th><th>Location</th><th class="num">On hand</th><th class="num">In bins</th><th class="num">Waiting</th><th></th></tr></thead>
     <tbody>${rows.map(p => `<tr><td>${escapeHTMLText(p.name || p.sku)}<div style="font-size: 11px; color: var(--text-muted);">${escapeHTMLText(p.sku)}</div></td>
       <td>${escapeHTMLText(p.location)}</td><td class="num">${p.on_hand}</td><td class="num">${p.binned}</td><td class="num"><b>${p.waiting}</b></td>
-      <td><button type="button" class="btn btn-outline btn-sm" data-putaway-sku="${escapeHTMLText(p.sku)}" data-putaway-loc="${escapeHTMLText(p.location)}" data-putaway-qty="${p.waiting}">Put away</button></td></tr>`).join('')}</tbody></table></div>`;
+      <td><button type="button" class="btn btn-outline btn-sm" data-putaway-sku="${escapeHTMLText(p.sku)}" data-putaway-loc="${escapeHTMLText(p.location)}" data-putaway-qty="${p.waiting}">Put away</button></td></tr>`).join('')}</tbody></table></div>`);
   el.querySelectorAll('[data-putaway-sku]').forEach(btn => btn.addEventListener('click', async () => {
     document.getElementById('putaway-sku').value = btn.dataset.putawaySku;
     document.getElementById('putaway-location').value = btn.dataset.putawayLoc;
@@ -967,6 +981,8 @@ let rfReceivingPOId = '';
 // location RF Receiving and Putaway share, so one hands over to the other.
 let rfPendingLine = null;
 let inboundLocation = '';
+// Stage 130.13: the goods receipt Putaway was opened from, if any.
+let putawayFromGRN = null;
 
 async function renderRFReceivingView(container) {
   const header = document.createElement('div');
@@ -1281,6 +1297,18 @@ async function renderSortationView(container) {
         <input type="text" id="sort-station" class="form-input" style="width:160px;" autocomplete="off">
       </div>
       <button class="btn btn-primary" id="sort-load-btn" type="button">Load Slots</button>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="sort-num-slots">Slots</label>
+        <input type="number" id="sort-num-slots" class="form-input" style="width:90px;" min="1" max="500" placeholder="24">
+      </div>
+      <button class="btn btn-outline" id="sort-provision-btn" type="button" title="Create this station's slots (an existing slot is kept)">Set up slots</button>
+    </div>
+    <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-top:12px;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="sort-wave-id">Wave</label>
+        <input type="text" id="sort-wave-id" class="form-input" style="width:180px;" autocomplete="off" placeholder="Wave to sort">
+      </div>
+      <button class="btn btn-secondary" id="sort-wave-btn" type="button">Assign the whole wave</button>
     </div>
     <div id="sort-setup-error" class="login-error hidden" style="margin-top:12px;"></div>
   `;
@@ -1315,6 +1343,26 @@ async function renderSortationView(container) {
 
   document.getElementById('sort-load-btn').addEventListener('click', loadSortationSlots);
   document.getElementById('sort-assign-btn').addEventListener('click', sortationAssignSlot);
+  // Stage 130.13 (80.7 d): slots set up here, and a whole wave sorted at once.
+  document.getElementById('sort-provision-btn').addEventListener('click', async () => {
+    const station = document.getElementById('sort-station').value.trim();
+    const n = parseInt(document.getElementById('sort-num-slots').value, 10) || 0;
+    if (!station || n <= 0) { await showCustomAlert('Type the station and how many slots it has.', 'Set up slots'); return; }
+    const res = await apiFetch('/api/v1/wms/sortation/provision-slots', { method: 'POST', body: JSON.stringify({ station, num_slots: n }) });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'The slots were not set up.', 'Set up slots'); return; }
+    loadSortationSlots();
+  });
+  document.getElementById('sort-wave-btn').addEventListener('click', async () => {
+    const station = document.getElementById('sort-station').value.trim();
+    const wave = document.getElementById('sort-wave-id').value.trim();
+    const res = await apiFetch('/api/v1/wms/sortation/assign-wave', { method: 'POST', body: JSON.stringify({ station, wave_id: wave }) });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'The wave was not assigned.', 'Sortation'); return; }
+    const out = await res.json();
+    showToast(`${(out.slots || []).length} order(s) of wave ${wave} have a slot.`, { variant: 'success' });
+    loadSortationSlots();
+  });
 }
 
 async function loadSortationSlots() {
@@ -1329,7 +1377,7 @@ async function loadSortationSlots() {
   const data = await res.json();
   const slots = data.slots || [];
   if (slots.length === 0) {
-    body.innerHTML = `<div class="table-panel" style="padding:24px; color:var(--text-muted);">No slots provisioned for station ${escapeHTMLText(station)} yet - provision them from the SortStation master record.</div>`;
+    body.innerHTML = `<div class="table-panel" style="padding:24px; color:var(--text-muted);">No slots set up for station ${escapeHTMLText(station)} yet - type how many slots it has above and press Set up slots.</div>`;
     return;
   }
   body.innerHTML = `
@@ -1344,6 +1392,7 @@ async function loadSortationSlots() {
                 <input type="number" min="1" value="1" class="form-input sort-confirm-qty" data-slot="${s.doc_id}" style="width:70px; display:inline-block;">
                 <button class="btn btn-sm btn-secondary sort-confirm-btn" data-slot="${s.doc_id}" type="button">Confirm</button>` : ''}
               ${s.status === 'Filled' ? `<button class="btn btn-sm btn-secondary sort-clear-btn" data-slot="${s.doc_id}" type="button">Clear</button>` : ''}
+              ${s.status === 'Filled' && s.fulfillment_task_id ? `<a class="btn btn-sm btn-outline" href="#/view/oms:pack" title="All of this order is in its slot">Pack</a>` : ''}
             </td>
           </tr>`).join('')}</tbody>
       </table></div>
@@ -1512,7 +1561,7 @@ async function loadLoadingDock() {
     <div class="table-panel" style="padding:20px; margin-bottom:16px;">
       <div class="text-muted" style="font-size:13px; margin-bottom:10px;">
         Load ${escapeHTMLText(task.doc_id)} &mdash; door ${escapeHTMLText(task.dock_door)}, trailer ${escapeHTMLText(task.trailer_no)} &mdash;
-        <span class="badge">${task.status}</span> &mdash; ${task.scanned_carton_count} scanned${task.expected_carton_count ? ' / ' + task.expected_carton_count + ' expected' : ''}
+        <span class="badge">${escapeHTMLText(task.status)}</span> &mdash; ${task.scanned_carton_count} scanned${task.expected_carton_count ? ' / ' + task.expected_carton_count + ' expected' : ''}
       </div>
       ${(task.status === 'Planned' || task.status === 'Loading') ? `
         <div class="form-group" style="margin-bottom:0;">
@@ -1691,7 +1740,7 @@ async function loadWarehouseCockpit(liveBody = null) {
     <table>
       <thead><tr><th>Task Type</th><th>Status</th><th>Count</th><th>Oldest (mins)</th></tr></thead>
       <tbody>
-        ${c.open_tasks.map(t => `<tr><td>${t.task_type}</td><td>${t.status}</td><td>${t.count}</td><td>${t.oldest_age_mins}</td></tr>`).join('')}
+        ${c.open_tasks.map(t => `<tr><td>${escapeHTMLText(t.task_type)}</td><td>${escapeHTMLText(t.status)}</td><td>${t.count}</td><td>${t.oldest_age_mins}</td></tr>`).join('')}
       </tbody>
     </table>`;
 
@@ -1700,8 +1749,8 @@ async function loadWarehouseCockpit(liveBody = null) {
       <thead><tr><th>Task</th><th>Type</th><th>Item</th><th>Bin</th><th>Process Step</th><th>Follow-On</th><th>Age (mins)</th></tr></thead>
       <tbody>
         ${c.exception_queue.map(e => `<tr>
-          <td>${e.task_id}</td><td>${e.task_type}</td><td>${e.item || '&mdash;'}</td><td>${e.bin_code || '&mdash;'}</td>
-          <td>${e.process_step || '&mdash;'}</td><td><span class="badge badge-warning">${e.follow_on_action || '&mdash;'}</span></td>
+          <td>${escapeHTMLText(e.task_id)}</td><td>${escapeHTMLText(e.task_type)}</td><td>${e.item ? escapeHTMLText(e.item) : '&mdash;'}</td><td>${e.bin_code ? escapeHTMLText(e.bin_code) : '&mdash;'}</td>
+          <td>${e.process_step ? escapeHTMLText(e.process_step) : '&mdash;'}</td><td><span class="badge badge-warning">${e.follow_on_action ? escapeHTMLText(e.follow_on_action) : '&mdash;'}</span></td>
           <td>${e.age_mins}</td>
         </tr>`).join('')}
       </tbody>
@@ -1710,7 +1759,7 @@ async function loadWarehouseCockpit(liveBody = null) {
   const waveHtml = (c.wave_status || []).length === 0 ? empty : `
     <table>
       <thead><tr><th>Wave</th><th>Status</th><th>Count</th></tr></thead>
-      <tbody>${c.wave_status.map(w => `<tr><td>${w.wave_id}</td><td>${w.status}</td><td>${w.count}</td></tr>`).join('')}</tbody>
+      <tbody>${c.wave_status.map(w => `<tr><td>${escapeHTMLText(w.wave_id)}</td><td>${escapeHTMLText(w.status)}</td><td>${w.count}</td></tr>`).join('')}</tbody>
     </table>`;
 
   // Stage 42.4.2: the registered-Wave lifecycle view, separate from the
@@ -1722,8 +1771,8 @@ async function loadWarehouseCockpit(liveBody = null) {
     <table>
       <thead><tr><th>Wave</th><th>Status</th><th>Via</th><th>Tasks</th><th>Open</th><th>Age (mins)</th><th></th></tr></thead>
       <tbody>${c.wave_monitor.map(w => `<tr>
-          <td>${w.wave_id}</td><td>${w.status}</td><td>${w.created_via}</td><td>${w.task_count}</td><td>${w.open_tasks}</td><td>${w.age_mins}</td>
-          <td>${waveNextStatus[w.status] ? `<button class="btn btn-sm btn-secondary wave-advance-btn" data-wave="${w.wave_id}" data-next="${waveNextStatus[w.status]}" type="button">${waveNextStatus[w.status]}</button>` : ''}</td>
+          <td>${escapeHTMLText(w.wave_id)}</td><td>${escapeHTMLText(w.status)}</td><td>${escapeHTMLText(w.created_via)}</td><td>${w.task_count}</td><td>${w.open_tasks}</td><td>${w.age_mins}</td>
+          <td>${waveNextStatus[w.status] ? `<button class="btn btn-sm btn-secondary wave-advance-btn" data-wave="${escapeHTMLText(w.wave_id)}" data-next="${waveNextStatus[w.status]}" type="button">${waveNextStatus[w.status]}</button>` : ''}</td>
         </tr>`).join('')}</tbody>
     </table>
     <div style="display:flex; gap:8px; align-items:flex-end; margin-top:16px; flex-wrap:wrap;">
@@ -1737,19 +1786,19 @@ async function loadWarehouseCockpit(liveBody = null) {
   const inboundHtml = (c.inbound_due_today || []).length === 0 ? empty : `
     <table>
       <thead><tr><th>ASN</th><th>Vendor</th><th>Expected Date</th><th>Status</th></tr></thead>
-      <tbody>${c.inbound_due_today.map(a => `<tr><td>${a.asn_number}</td><td>${a.vendor || '&mdash;'}</td><td>${a.expected_date}</td><td>${a.status}</td></tr>`).join('')}</tbody>
+      <tbody>${c.inbound_due_today.map(a => `<tr><td>${escapeHTMLText(a.asn_number)}</td><td>${a.vendor ? escapeHTMLText(a.vendor) : '&mdash;'}</td><td>${escapeHTMLText(a.expected_date)}</td><td>${escapeHTMLText(a.status)}</td></tr>`).join('')}</tbody>
     </table>`;
 
   const throughputHtml = (c.throughput_today || []).length === 0 ? empty : `
     <table>
       <thead><tr><th>User</th><th>Task Type</th><th>Count</th><th>Tasks/Hour</th></tr></thead>
-      <tbody>${c.throughput_today.map(p => `<tr><td>${p.user_id}</td><td>${p.task_type}</td><td>${p.task_count}</td><td>${p.tasks_per_hour}</td></tr>`).join('')}</tbody>
+      <tbody>${c.throughput_today.map(p => `<tr><td>${escapeHTMLText(p.user_id)}</td><td>${escapeHTMLText(p.task_type)}</td><td>${p.task_count}</td><td>${p.tasks_per_hour}</td></tr>`).join('')}</tbody>
     </table>`;
 
   const binUtilHtml = (c.bin_utilization || []).length === 0 ? `${empty} (no bin at this location has a capacity configured yet.)` : `
     <table>
       <thead><tr><th>Bin</th><th>Used</th><th>Capacity</th><th>% Used</th></tr></thead>
-      <tbody>${c.bin_utilization.map(u => `<tr><td>${u.bin_code}</td><td>${u.used_qty}</td><td>${u.max_qty}</td>
+      <tbody>${c.bin_utilization.map(u => `<tr><td>${escapeHTMLText(u.bin_code)}</td><td>${u.used_qty}</td><td>${u.max_qty}</td>
         <td><span class="badge ${u.pct_used >= 90 ? 'badge-danger' : (u.pct_used >= 70 ? 'badge-warning' : 'badge-success')}">${u.pct_used}%</span></td></tr>`).join('')}</tbody>
     </table>`;
 
@@ -1975,7 +2024,7 @@ async function lookupLPNContents() {
   if (!res.ok) { await showApiError(res, 'Failed to look up LPN contents.', 'Lookup Failed'); return; }
   const lines = await res.json();
   if (lines.length === 0) {
-    resultEl.innerHTML = `<p style="color: var(--text-muted);">No contents found for LPN ${lpnCode}.</p>`;
+    resultEl.innerHTML = `<p style="color: var(--text-muted);">No contents found for LPN ${escapeHTMLText(lpnCode)}.</p>`;
     return;
   }
   resultEl.innerHTML = `
@@ -2028,7 +2077,7 @@ async function fetchBinReplenishmentSuggestions() {
   if (!res.ok) { await showApiError(res, 'Failed to fetch replenishment suggestions.', 'Fetch Failed'); return; }
   const suggestions = await res.json();
   if (suggestions.length === 0) {
-    resultEl.innerHTML = `<p style="color: var(--text-muted);">No bins are below their min qty at ${location}.</p>`;
+    resultEl.innerHTML = `<p style="color: var(--text-muted);">No bins are below their min qty at ${escapeHTMLText(location)}.</p>`;
     return;
   }
   resultEl.innerHTML = `
@@ -2392,13 +2441,13 @@ async function submitWavePickList(waveId) {
   html += `<table><thead><tr><th>Zone</th><th>Aisle</th><th>Rack</th><th>Bin</th><th>SKU</th>${waveHasBatches ? '<th>Batch / Expiry</th>' : ''}<th>Pick Qty</th></tr></thead><tbody>`;
   html += data.pick_lines.length === 0
     ? `<tr><td colspan="${waveHasBatches ? 7 : 6}" style="text-align:center; color:var(--text-muted);">No pick lines &mdash; nothing in this wave is currently stored in a bin.</td></tr>`
-    : data.pick_lines.map(l => `<tr><td>${l.zone || ''}</td><td>${l.aisle || ''}</td><td>${l.rack || ''}</td><td>${l.bin_code}</td><td>${l.sku}</td>${waveHasBatches ? `<td>${batchCellHTML(l)}</td>` : ''}<td>${l.pick_qty}</td></tr>`).join('');
+    : data.pick_lines.map(l => `<tr><td>${escapeHTMLText(l.zone || '')}</td><td>${escapeHTMLText(l.aisle || '')}</td><td>${escapeHTMLText(l.rack || '')}</td><td>${escapeHTMLText(l.bin_code)}</td><td>${escapeHTMLText(l.sku)}</td>${waveHasBatches ? `<td>${batchCellHTML(l)}</td>` : ''}<td>${l.pick_qty}</td></tr>`).join('');
   html += `</tbody></table>`;
   html += `<h3 style="font-size: 14px; font-weight: 700; margin: 20px 0 8px;">Per-order allocation</h3>`;
   html += `<table><thead><tr><th>Task ID</th><th>SKU</th><th>Allocated Qty</th><th>Shortfall</th></tr></thead><tbody>`;
   html += data.allocations.length === 0
     ? `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No allocations &mdash; no stock could be reserved for these orders. Check on-hand quantities under <b>Inventory</b>.</td></tr>`
-    : data.allocations.map(a => `<tr><td>${a.task_id}</td><td>${a.sku}</td><td>${a.allocated_qty}</td><td>${a.shortfall ? `<span class="badge badge-warning">${a.shortfall}</span>` : '0'}</td></tr>`).join('');
+    : data.allocations.map(a => `<tr><td>${escapeHTMLText(a.task_id)}</td><td>${escapeHTMLText(a.sku)}</td><td>${a.allocated_qty}</td><td>${a.shortfall ? `<span class="badge badge-warning">${a.shortfall}</span>` : '0'}</td></tr>`).join('');
   html += `</tbody></table></div>`;
   resultEl.innerHTML = html;
   resultEl.scrollIntoView({ block: 'nearest' });
@@ -2497,11 +2546,21 @@ async function loadMobilePickList() {
   mobilePickLines = data.pick_lines || [];
   mobilePickAllocations = data.allocations || [];
   mobilePickIndex = 0;
-  mobilePickConfirmed = new Set();
+  // Stage 130.13 (80.7 b): lines already confirmed - on this device or
+  // another - come back confirmed, and the card opens on the first one left.
+  const done = data.confirmed || {};
+  mobilePickConfirmed = new Set(mobilePickLines.map((l, i) => (done[mobilePickLineKey(l)] ? i : -1)).filter(i => i >= 0));
+  if (mobilePickLines.length && mobilePickConfirmed.size >= mobilePickLines.length) { renderMobilePickSummary(); return; }
+  while (mobilePickConfirmed.has(mobilePickIndex)) mobilePickIndex++;
   renderMobilePickCard();
 }
 
+const mobilePickLineKey = (l) => `${l.sku}|${l.bin_code}|${l.batch_no || ''}`;
+
 function confirmMobilePickLine() {
+  // Stage 130.13 (80.7 b): kept on the server, with who picked it.
+  const line = mobilePickLines[mobilePickIndex];
+  if (line) apiFetch('/api/v1/wms/wave/pick-confirm', { method: 'POST', body: JSON.stringify({ wave_id: mobilePickWave, line_key: mobilePickLineKey(line), qty: line.pick_qty }) }).catch(() => {});
   mobilePickConfirmed.add(mobilePickIndex);
   if (mobilePickConfirmed.size >= mobilePickLines.length) { renderMobilePickSummary(); return; }
   for (let i = 1; i <= mobilePickLines.length; i++) {
@@ -2863,7 +2922,7 @@ async function fetchABCCycleCountPlan() {
   if (!res.ok) { await showApiError(res, 'Failed to fetch the ABC cycle-count plan.', 'Fetch Failed'); return; }
   const plan = await res.json();
   if (plan.length === 0) {
-    resultEl.innerHTML = `<p style="color: var(--text-muted);">No SKUs on hand at ${location}.</p>`;
+    resultEl.innerHTML = `<p style="color: var(--text-muted);">No SKUs on hand at ${escapeHTMLText(location)}.</p>`;
     return;
   }
   resultEl.innerHTML = `

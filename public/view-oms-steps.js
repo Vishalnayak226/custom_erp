@@ -493,11 +493,13 @@ async function finishPack(task, orders, opts, out, say) {
   openTask('pack', '');
   show(`<div class="oms-step-actions">
     <button type="button" class="btn btn-primary btn-sm" data-print-bill>Print bill</button>
-    ${booking ? '<button type="button" class="btn btn-primary btn-sm" data-print-label>Print label</button>' : ''}
+    ${booking ? '<button type="button" class="btn btn-primary btn-sm" data-print-label>Print label</button><button type="button" class="btn btn-outline btn-sm" data-view-label>View label</button>' : ''}
     <button type="button" class="btn btn-outline btn-sm" data-to-ship>Go to Ship</button>
     <button type="button" class="btn btn-outline btn-sm" data-pack-more>Pack the next one</button></div>${bookingNote}`);
   out.querySelector('[data-print-bill]').addEventListener('click', () => printBill(bill));
   out.querySelector('[data-print-label]')?.addEventListener('click', () => window.printShippingLabel(booking.code || booking.id));
+  // Stage 133.3: the label's content before it prints, as the Ship step's list offers.
+  out.querySelector('[data-view-label]')?.addEventListener('click', () => window.viewShippingLabel(booking.code || booking.id));
   out.querySelector('[data-to-ship]').addEventListener('click', () => goStep('ship'));
   out.querySelector('[data-pack-more]').addEventListener('click', () => again('pack'));
 }

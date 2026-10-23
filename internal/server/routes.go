@@ -243,6 +243,18 @@ func Run() {
 	// looked for every minute, sent through the job runner.
 	engines.StartWebPushAlertWorker(workerCtx, 1*time.Minute)
 
+	// Stage 130.10 (78.3 a, e, g): vendor reminders, requisition expiry,
+	// transfers in transit too long.
+	engines.StartDayLimitsWorker(workerCtx, 1*time.Hour)
+
+	// Stage 130.9 (72.D b): items whose scheduled tax change has come due
+	// take the new GST rate / HSN as their own.
+	engines.StartItemTaxChangeWorker(workerCtx, 1*time.Hour)
+
+	// Stage 130.8: gift card numbers still stored as typed are sealed (hash
+	// + encrypted copy) before the first request is served.
+	engines.EncryptStoredValueCardsOnBoot()
+
 	registerRoutes()
 	runHTTPServer(cancelWorkers)
 }
@@ -260,6 +272,11 @@ func registerRoutes() {
 	// Version (Stage 14.6) - public, same tier as /login, so a client/ops
 	// tool can check what build is running without authenticating first.
 	http.HandleFunc("GET /api/v1/version", apiMiddleware(handleVersion))
+	// Stage 134.10: a client's own brand - public for its sign-in page.
+	http.HandleFunc("GET /api/v1/branding", apiMiddleware(handleBranding))
+	http.HandleFunc("GET /api/v1/branding/logo", apiMiddleware(handleBrandingLogo))
+	http.HandleFunc("POST /api/v1/admin/branding/logo", apiMiddleware(handleBrandingLogoAdmin))
+	http.HandleFunc("DELETE /api/v1/admin/branding/logo", apiMiddleware(handleBrandingLogoAdmin))
 	// Health check (24.14) - for a load balancer/process supervisor to poll;
 	// same public tier as /version, no bearer token required.
 	http.HandleFunc("GET /api/v1/health", apiMiddleware(handleHealth))
@@ -365,6 +382,19 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/inventory/mrp-changes/{id}/cancel", apiMiddleware(moduleGate("inventory", handleCancelMRPChange)))
 	http.HandleFunc("POST /api/v1/inventory/adjustments", apiMiddleware(moduleGate("inventory", handleCreateInventoryAdjustment)))
 	http.HandleFunc("POST /api/v1/inventory/adjustments/{id}/post", apiMiddleware(moduleGate("inventory", handlePostInventoryAdjustment)))
+	// Stage 130.14 (74.2.3b): preview before saving; the linked reversal.
+	http.HandleFunc("POST /api/v1/inventory/adjustments/preview", apiMiddleware(moduleGate("inventory", handlePreviewInventoryAdjustment)))
+	http.HandleFunc("POST /api/v1/inventory/adjustments/{id}/reverse", apiMiddleware(moduleGate("inventory", handleReverseInventoryAdjustment)))
+	// Stage 130.15 (74.2.4): internal Material Issue / Return.
+	http.HandleFunc("POST /api/v1/inventory/material-requests", apiMiddleware(moduleGate("inventory", handleCreateMaterialRequest)))
+	http.HandleFunc("POST /api/v1/inventory/material-requests/{id}/issue", apiMiddleware(moduleGate("inventory", handleIssueMaterial)))
+	http.HandleFunc("POST /api/v1/inventory/material-requests/{id}/return", apiMiddleware(moduleGate("inventory", handleReturnMaterial)))
+	// Stage 130.16 (74.3.1): delivery challans.
+	http.HandleFunc("POST /api/v1/inventory/challans", apiMiddleware(moduleGate("inventory", handleCreateDeliveryChallan)))
+	http.HandleFunc("POST /api/v1/inventory/challans/{id}/dispatch", apiMiddleware(moduleGate("inventory", handleDispatchDeliveryChallan)))
+	http.HandleFunc("POST /api/v1/inventory/challans/{id}/return", apiMiddleware(moduleGate("inventory", handleReturnDeliveryChallan)))
+	http.HandleFunc("POST /api/v1/inventory/challans/{id}/cancel", apiMiddleware(moduleGate("inventory", handleCancelDeliveryChallan)))
+	http.HandleFunc("POST /api/v1/inventory/challans/{id}/write-off", apiMiddleware(moduleGate("inventory", handleRequestChallanWriteOff)))
 	// Stage 85.E8: uploaded line codes to items.
 	http.HandleFunc("POST /api/v1/lines/resolve", apiMiddleware(handleResolveLineCodes))
 	// Stage 85.C: the customer at the till (handlers_pos_customers.go).
@@ -578,6 +608,9 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/wms/bin-move", apiMiddleware(moduleGate("wms", handleBinMove)))
 	http.HandleFunc("POST /api/v1/wms/wave/assign", apiMiddleware(moduleGate("wms", handleWaveAssign)))
 	http.HandleFunc("GET /api/v1/wms/wave/pick-list", apiMiddleware(moduleGate("wms", handleWavePickList)))
+	// Stage 130.13 (80.7 b, d): a picked line kept on the server; a wave sorted.
+	http.HandleFunc("POST /api/v1/wms/wave/pick-confirm", apiMiddleware(moduleGate("wms", handleWavePickConfirm)))
+	http.HandleFunc("POST /api/v1/wms/sortation/assign-wave", apiMiddleware(moduleGate("wms", handleSortSlotAssignWave)))
 	// 26.5.16 (P2, go-ahead 2026-07-27): robotics/conveyor/scale inbound integration
 	http.HandleFunc("POST /api/v1/wms/robotics/event", apiMiddleware(moduleGate("wms", handleRoboticsEvent)))
 	http.HandleFunc("POST /api/v1/wms/cartonization/suggest", apiMiddleware(moduleGate("wms", handleCartonizationSuggest)))
@@ -714,6 +747,8 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/pos/held-bills/{id}/{action}", apiMiddleware(handleHeldPOSBillAction))
 	// Stage 73.2.6: exchange at the till (handlers_pos_held.go).
 	http.HandleFunc("POST /api/v1/pos/exchange/start", apiMiddleware(moduleGate("oms", handleStartPOSExchange)))
+	// Stage 130.9: cancel today's posted bill (handlers_pos_held.go).
+	http.HandleFunc("POST /api/v1/pos/bills/{id}/cancel", apiMiddleware(moduleGate("oms", handleCancelPOSBill)))
 	// Stage 73.2.11: manual point adjustments (handlers_loyalty_admin.go).
 	http.HandleFunc("/api/v1/loyalty/adjustments", apiMiddleware(moduleGate("crm_loyalty", handleLoyaltyAdjustments)))
 	// Stage 55.17: vouchers and campaigns in words, for the Loyalty screen.
@@ -928,6 +963,8 @@ func registerRoutes() {
 	// Stage 52: read-only preview of a GRN/Transfer Order's sticker lines
 	// (category + resolved template per line) before a bulk print is run.
 	http.HandleFunc("GET /api/v1/stickers/preview", apiMiddleware(moduleGate("stickers", handlePreviewStickers)))
+	// 134.1b: the Document list for roles that print stickers but cannot read receipts.
+	http.HandleFunc("GET /api/v1/stickers/documents", apiMiddleware(moduleGate("stickers", handleStickerSourceDocs)))
 
 	// QZ Tray silent printing (Stage 31.1). Shares the "stickers" module key
 	// with the routes above because the Printer Master these all resolve
@@ -950,8 +987,8 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/hr/run-payroll", apiMiddleware(moduleGate("hr", handleRunPayroll)))
 	http.HandleFunc("POST /api/v1/hr/post-payslip", apiMiddleware(moduleGate("hr", handlePostPayslip)))
 	http.HandleFunc("POST /api/v1/hr/disburse-loan", apiMiddleware(moduleGate("hr", handleDisburseEmployeeLoan)))
-	http.HandleFunc("GET /api/v1/hr/my-employee", apiMiddleware(moduleGate("hr", handleMyEmployeeRecord)))
-	http.HandleFunc("GET /api/v1/hr/leave-balance", apiMiddleware(moduleGate("hr", handleLeaveBalance))) // Stage 55.14
+	http.HandleFunc("GET /api/v1/hr/my-employee", apiMiddleware(moduleGateAny([]string{"hr", "expenses"}, handleMyEmployeeRecord))) // 132.10 (m): Expenses reads it too
+	http.HandleFunc("GET /api/v1/hr/leave-balance", apiMiddleware(moduleGate("hr", handleLeaveBalance)))                            // Stage 55.14
 	// Stage 55.14 guided HR journeys (handlers_hr_journeys.go).
 	http.HandleFunc("POST /api/v1/hr/onboarding/{id}/steps", apiMiddleware(moduleGate("hr", handleOnboardingStep)))
 	http.HandleFunc("GET /api/v1/hr/grievance-access", apiMiddleware(moduleGate("hr", handleGrievanceAccess)))
@@ -1077,6 +1114,9 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/manufacturing/production-schedule", apiMiddleware(moduleGate("manufacturing", handleGetProductionSchedule)))
 	http.HandleFunc("POST /api/v1/manufacturing/subcontract-order/send", apiMiddleware(moduleGate("manufacturing", handleSendSubcontractOrder)))
 	http.HandleFunc("POST /api/v1/manufacturing/subcontract-order/receive", apiMiddleware(moduleGate("manufacturing", handleReceiveSubcontractOrder)))
+	// Stage 130.16 (74.3.3): job work lines and charges.
+	http.HandleFunc("POST /api/v1/manufacturing/subcontract-order/receive-lines", apiMiddleware(moduleGate("manufacturing", handleReceiveJobWorkLines)))
+	http.HandleFunc("POST /api/v1/manufacturing/subcontract-order/charge", apiMiddleware(moduleGate("manufacturing", handleJobWorkCharge)))
 
 	// PIM Foundation MVP (Stage 15: module-gated - "pim")
 	// Dashboard (Stage 16.5a) reads the existing PIM snapshot/queue state;
@@ -1281,7 +1321,13 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/print/document/{txn}/{id}/send", apiMiddleware(handlePrintDocumentSend))
 	// Stage 127.6: every document print recorded; Setup > Printing > Reprint.
 	http.HandleFunc("POST /api/v1/print/document/{txn}/{id}/log", apiMiddleware(handlePrintDocumentLog))
+	http.HandleFunc("POST /api/v1/print/document/{txn}/{id}/reprint-request", apiMiddleware(handleRequestReprint))           // Stage 130.16
+	http.HandleFunc("GET /api/v1/print/templates/{id}/versions", apiMiddleware(handlePrintTemplateVersions))                 // Stage 130.16
+	http.HandleFunc("POST /api/v1/print/templates/{id}/versions/{version}", apiMiddleware(handlePrintTemplateVersionAction)) // Stage 130.16
 	http.HandleFunc("GET /api/v1/print/history", apiMiddleware(handleDocumentPrintHistory))
+	// Stage 130.16 (74.4): e-way bills.
+	http.HandleFunc("GET /api/v1/gst/ewaybills", apiMiddleware(handleListEWBs))
+	http.HandleFunc("POST /api/v1/gst/ewaybills/{doctype}/{id}/{action}", apiMiddleware(handleEWBAction))
 	http.HandleFunc("GET /api/v1/print/catalog", apiMiddleware(handlePrintCatalog))
 	http.HandleFunc("GET /api/v1/procurement/purchase-order/{id}/excel", apiMiddleware(moduleGate("procurement", handleVendorPOExcel)))
 	// Stage 73.2.4 (D05): PO reconciliation and short-close.
@@ -1333,6 +1379,7 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/marketplace/sku-mappings", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleChannelSKUMappings))))
 	http.HandleFunc("GET /api/v1/marketplace/sku-exceptions", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleChannelSKUExceptions))))
 	http.HandleFunc("GET /api/v1/marketplace/connectors/health", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleConnectorHealth))))
+	http.HandleFunc("GET /api/v1/marketplace/channels/{channel}/setup-check", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleChannelSetupCheck)))) // Stage 130.19
 	// Stage 35.7: virtual-bundle availability and stocked-kit warehouse moves.
 	http.HandleFunc("GET /api/v1/oms/bundles/{sku}/availability", apiMiddleware(moduleGate("oms", handleBundleAvailability)))
 	http.HandleFunc("POST /api/v1/wms/bundles/{operation}", apiMiddleware(moduleGate("wms", handleBundleAssembly)))

@@ -19,8 +19,8 @@ applies_to: source registries; not release acceptance
 
 # Error code reference
 
-Every refusal in this application carries a code. There are **539** of them,
-across **71** areas. This page is produced from the running catalog, so it
+Every refusal in this application carries a code. There are **562** of them,
+across **74** areas. This page is produced from the running catalog, so it
 cannot describe a code the application does not have, or miss one it does.
 
 Search is usually faster than scrolling: type the code into the search box
@@ -67,19 +67,21 @@ open the right page.
 - [DocType / Dynamic Metadata](#doctype-dynamic-metadata) - 8 codes
 - [Expense Management](#expense-management) - 8 codes
 - [Extension Hooks / Customization](#extension-hooks-customization) - 3 codes
-- [Finance & Accounting](#finance-accounting) - 46 codes
+- [Finance & Accounting](#finance-accounting) - 47 codes
 - [Fixed Assets](#fixed-assets) - 9 codes
-- [Global](#global) - 6 codes
+- [GST](#gst) - 1 codes
+- [Global](#global) - 8 codes
 - [Global / Common](#global-common) - 25 codes
-- [Goods Receipt](#goods-receipt) - 16 codes
+- [Goods Receipt](#goods-receipt) - 19 codes
 - [Goods Receipt / GRN](#goods-receipt-grn) - 8 codes
 - [HR / Payroll](#hr-payroll) - 14 codes
 - [Integration / API](#integration-api) - 9 codes
 - [Integrations](#integrations) - 1 codes
-- [Inventory](#inventory) - 6 codes
+- [Inventory](#inventory) - 10 codes
 - [Inventory / Warehouse](#inventory-warehouse) - 29 codes
+- [Item Master](#item-master) - 2 codes
 - [Manufacturing / Production](#manufacturing-production) - 13 codes
-- [Master Data](error-code-reference-2.md#master-data) - 42 codes
+- [Master Data](error-code-reference-2.md#master-data) - 43 codes
 - [Mobile App / Device](error-code-reference-2.md#mobile-app-device) - 7 codes
 - [Notifications](error-code-reference-2.md#notifications) - 6 codes
 - [Observability / Incident](error-code-reference-2.md#observability-incident) - 3 codes
@@ -87,13 +89,13 @@ open the right page.
 - [Order Management](error-code-reference-2.md#order-management) - 9 codes
 - [PIM](error-code-reference-2.md#pim) - 6 codes
 - [PIM / Product Publishing](error-code-reference-2.md#pim-product-publishing) - 8 codes
-- [POS / Billing](error-code-reference-2.md#pos-billing) - 35 codes
+- [POS / Billing](error-code-reference-2.md#pos-billing) - 39 codes
 - [POS / Offline & Cash Drawer](error-code-reference-2.md#pos-offline-cash-drawer) - 8 codes
 - [Patch / Bug Governance](error-code-reference-2.md#patch-bug-governance) - 3 codes
 - [Payments](error-code-reference-2.md#payments) - 7 codes
 - [Planning](error-code-reference-2.md#planning) - 1 codes
 - [Procurement / RFQ](error-code-reference-2.md#procurement-rfq) - 6 codes
-- [Purchase Order](error-code-reference-2.md#purchase-order) - 15 codes
+- [Purchase Order](error-code-reference-2.md#purchase-order) - 17 codes
 - [Purchase Return](error-code-reference-2.md#purchase-return) - 1 codes
 - [Purchase Return / RTV](error-code-reference-2.md#purchase-return-rtv) - 5 codes
 - [Quality & Maintenance](error-code-reference-2.md#quality-maintenance) - 6 codes
@@ -102,12 +104,13 @@ open the right page.
 - [Reports & Exports](error-code-reference-2.md#reports-exports) - 8 codes
 - [SaaS / Multi-Tenant](error-code-reference-2.md#saas-multi-tenant) - 8 codes
 - [Sales / POS](error-code-reference-2.md#sales-pos) - 9 codes
-- [Sales Return](error-code-reference-2.md#sales-return) - 5 codes
+- [Sales Return](error-code-reference-2.md#sales-return) - 7 codes
 - [Security / Rate Limit](error-code-reference-2.md#security-rate-limit) - 5 codes
 - [Stock Transfer](error-code-reference-2.md#stock-transfer) - 10 codes
 - [Tax / GST / E-Invoice](error-code-reference-2.md#tax-gst-e-invoice) - 15 codes
 - [User Access & Security](error-code-reference-2.md#user-access-security) - 9 codes
 - [Vendor Invoice / AP](error-code-reference-2.md#vendor-invoice-ap) - 4 codes
+- [WMS](error-code-reference-2.md#wms) - 1 codes
 - [WMS / Logistics](error-code-reference-2.md#wms-logistics) - 3 codes
 
 ## Admin / Configuration
@@ -365,6 +368,7 @@ open the right page.
 | `EINV-0984` | IRN cancellation not allowed | This IRN cannot be cancelled this way. | Only the tax role (Accountant) cancels an acknowledged IRN, with a reason code and a reason, within 24 hours; after that issue a credit note. | Medium | 422 |
 | `EINV-0985` | Portal IRN entry not valid | This portal IRN cannot be entered. | The tax role enters the 64-character IRN, Ack No, Ack Date, the signed QR text and the reason, for a document that has no IRN yet. | Medium | 422 |
 | `EINV-0986` | E-invoiced sale sent to silent printing | This invoice carries its IRN and QR, so it prints from the browser. | No action: the browser print opens with the IRN, Ack and the IRP's signed QR. | Low | 422 |
+| `FIN-0021` | Exchange rate not usable (same currency on both sides, zero or negative, or none on file for the date) | The exchange rate can't be used. | Pick two different currencies and a rate greater than zero; if the rate is missing, add it under Setup -> Exchange Rate for that date, or type the rate on the document. | Medium | 422 |
 | `FIN-0260` | Financial period locked | Financial period is locked. Posting is not allowed. | Select open period or request reopening. | Critical | 409 |
 | `FIN-0261` | Bank statement mismatch | Bank statement amount/reference does not match system payment. Please reconcile manually. | Review and manually match/unmatch. | High | 200 |
 | `FIN-0501` | Period close attempted with close tasks not signed off | This period cannot close yet - some close tasks are not signed off. | Open the period's close tasks; each owner signs theirs off with evidence, then close. | High | 409 |
@@ -419,6 +423,12 @@ open the right page.
 | `ASSET-0539` | Depreciation due before a disposal could not be posted | The depreciation due on this asset could not be posted, so it was not disposed. | Check System Errors for the reason (for example a missing GL account), fix it, and dispose again. | High | 422 |
 | `ASSET-0843` | Asset set to Capitalised or Disposed on the record form | An asset is capitalised or disposed with its own button. | Use Capitalise or Dispose on HRM → Fixed Assets - they post the ledger entry; the record form cannot. | High | 422 |
 
+## GST
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `TAXGST-1320` | E-way bill refused (not needed, missing GSTIN / PIN / state / HSN / distance / vehicle, no provider, outside the extend or cancel window, already generated) | This e-way bill can't go ahead. | Fix what the message names; until a provider is connected, make the bill on the e-way bill portal and use Record from portal. | Medium | 422 |
+
 ## Global
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
@@ -429,6 +439,8 @@ open the right page.
 | `GLOBAL-0306` | Request headers too large | The request carries too many or too large headers. | Sign out and back in; if this persists, contact support - a browser extension or proxy may be adding headers. | Low | 431 |
 | `GLOBAL-0307` | Malformed, ambiguous or over-nested JSON request | The request data could not be accepted. | Check the request is one valid JSON value, with no field repeated in the same object. | Low | 400 |
 | `GLOBAL-0308` | Request exceeded its time limit | This took longer than the time a single request is allowed, so it was stopped. | Send less at once - split a large import file into smaller files, or narrow a report's filters and use background export. | Medium | 504 |
+| `GLOBAL-1315` | Reprint refused (no Document Reprint permission, no reason, approval needed or already used, no approver set) | This document can't be printed again yet. | Give the reason; ask a manager for the Document Reprint permission or send a Reprint Request and print once it is approved. | Medium | 422 |
+| `GLOBAL-1319` | Print refused: a tax document from a store with no GSTIN, or a template version that cannot be decided (not waiting, own change, not found) | This can't be printed or changed yet. | Add the GSTIN to the store's legal entity (Setup > Legal Entities); a template change is approved by someone other than the person who saved it. | Medium | 422 |
 
 ## Global / Common
 
@@ -464,6 +476,7 @@ open the right page.
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
 |---|---|---|---|---|---|
+| `ASN-0271` | ASN line names an item that is not on its purchase order | An item on this ASN is not on its purchase order. | Remove the line, or correct the item code to one the purchase order has; amend the PO first if the vendor is sending something new. | Medium | 422 |
 | `GOODSR-0096` | Damaged quantity requires a reason | Enter a damage reason for each damaged receipt line. | Record the observed damage and submit the receipt again. | High | 422 |
 | `GOODSR-0097` | Rejected and damaged quantities exceed received quantity | Rejected plus damaged quantity cannot exceed received quantity. | Check the received, rejected and damaged counts; correct the line before submitting. | High | 422 |
 | `GOODSR-0318` | One goods receipt given POs of different vendors | A goods receipt can only take purchase orders of the same vendor. | Remove the PO of the other vendor and receive it on its own goods receipt. | High | 422 |
@@ -480,6 +493,8 @@ open the right page.
 | `GOODSR-0950` | Paying the vendor from a goods receipt with a wrong amount, mode or reference, or nothing due | The payment cannot be made as entered. | Pick Cash, Bank, UPI or Cheque, enter the UTR or cheque number, and pay no more than is due. | Low | 422 |
 | `GOODSR-0951` | Post all used when the receipt does not match everywhere | Post all needs everything to match. | Go through the steps one by one: the message lists what differs. | Low | 422 |
 | `GOODSR-0952` | A negative or invalid quantity or price on a goods receipt step | Quantities and prices must be zero or more. | Correct the number on the line named. | Low | 422 |
+| `GOODSR-1305` | Item listed under the receiving store's Items not stocked here | This store does not stock this item. | Receive it at a store that stocks it, or ask an administrator to change the store's Items not stocked here. | Medium | 422 |
+| `GOODSR-1317` | One goods receipt for POs in different currencies | These purchase orders can't be received together. | Receive the POs of each currency on their own goods receipt. | Medium | 422 |
 
 ## Goods Receipt / GRN
 
@@ -537,6 +552,10 @@ open the right page.
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
 |---|---|---|---|---|---|
+| `INVENT-1312` | Stock adjustment's snapshot is stale - on-hand changed since it was made | The stock changed since this adjustment was made. | Check the count again. A store manager can post it with the current stock (Post with current stock), or make a new adjustment. | Medium | 409 |
+| `INVENT-1313` | Stock adjustment cannot be reversed (not posted, already reversed, itself a reversal, or no reason) | This adjustment can't be reversed. | Only a posted adjustment that is not a reversal and not already reversed can be reversed, with a reason. | Low | 422 |
+| `INVENT-1314` | Material issue / return refused (no store, department or purpose; non-stock or backflush item; not approved; short stock; more back than issued) | This material request can't go ahead. | Name the store, department and purpose; issue stock items only (not backflushed ones); issue once approved; return no more than was issued. | Medium | 422 |
+| `INVENT-1318` | Delivery challan refused (no store, purpose or party; non-stock item; no return date; short stock; not approved; more back than out; serial not out; write-off with no approver) | This delivery challan can't go ahead. | Name the store, purpose, party and return date; send stock items only; dispatch once approved; take back no more than is out, by the serials that went. | Medium | 422 |
 | `STKLOC-0860` | Stock location name or code missing, duplicate or badly formed | The stock location's name or code is not right. | Give it a name no other location uses, and a code of 2-30 capital letters, digits, '-' or '_'. | Medium | 422 |
 | `STKLOC-0861` | Stock location switched off or taken from a store while it still holds stock | This location still holds stock. | Move the stock out with Stock -> Move Stock first, then switch the location off. | High | 422 |
 | `STKLOC-0862` | Transaction default location not allowed for that transaction | That location cannot be this transaction's default. | Pick Main, Inward, QC Hold, Damage, Purchase Return or one of your own locations, and two different ones for from and to. | Medium | 422 |
@@ -577,6 +596,13 @@ open the right page.
 | `INVENT-0499` | Tasks cannot go into that wave | These tasks cannot go into a wave. | Choose tasks at the wave's location that are still Pending or Picking and in no other wave, and a wave that is Planned, Released or In Progress. | Medium | 422 |
 | `INVENT-0500` | Billing review without an owner or a valid period | Choose whose charges and which period to review. | Pick the owner (client), a start date and an end date on or after it. | Low | 422 |
 | `INVENT-0971` | Putaway refused: bin missing, inactive, blocked or full, over capacity, hazmat zone, or not enough unbinned stock | This putaway cannot be made. | Read the reason: scan a bin that exists and is Active and Available, put away no more than the location's unbinned stock, or choose a bin with room (or a hazmat zone for a hazmat item). | Medium | 422 |
+
+## Item Master
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `MASTER-1302` | Item release approval: no Item approval rule, or an item waiting for release edited to another status | This item waits for its approval. | Add an Item rule under Settings > Approval Rules if there is none; an item in Draft, Pending Approval or Blocked is released only by its approval. | Medium | 422 |
+| `MASTER-1306` | Scheduled tax change incomplete or malformed (no date, no rate or HSN, rate 0, HSN not 4/6/8 digits) | The scheduled tax change is not complete. | Give the date it applies from and the new GST rate (more than 0), the new HSN code (4, 6 or 8 digits), or both - or clear all three. | Low | 422 |
 
 ## Manufacturing / Production
 

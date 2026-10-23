@@ -56,6 +56,10 @@ func omsQueueRow(queue, orderID, refDoctype, refID, reason, nextAction string, s
 	}
 }
 
+// omsQueueRowCap bounds each query behind a queue (134.6, 47.10.1): a queue
+// of more than this is a backlog to work from the top, not a page to load.
+const omsQueueRowCap = 1000
+
 // OMSExceptionQueue returns one queue's rows, oldest first.
 func OMSExceptionQueue(tenantID, queue string) ([]map[string]interface{}, error) {
 	schema, err := db.GetTenantSchema(tenantID)
@@ -64,7 +68,7 @@ func OMSExceptionQueue(tenantID, queue string) ([]map[string]interface{}, error)
 	}
 	var out []map[string]interface{}
 	scan := func(query string, build func(scan func(...interface{}) error) (map[string]interface{}, error)) error {
-		rows, err := db.DB.Query(query)
+		rows, err := db.DB.Query(fmt.Sprintf("%s LIMIT %d", query, omsQueueRowCap))
 		if err != nil {
 			return err
 		}
@@ -268,6 +272,7 @@ func OMSExceptionQueueCounts(tenantID string) []map[string]interface{} {
 			entry["count"] = 0
 		} else {
 			entry["count"] = len(rows)
+			entry["more"] = len(rows) >= omsQueueRowCap // the count stops at the cap
 		}
 		out = append(out, entry)
 	}

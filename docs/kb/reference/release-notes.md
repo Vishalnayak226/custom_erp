@@ -19,13 +19,35 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **179** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **185** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
-- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-08
+- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-11
+
+## 2026-10-24
+
+**"Build all" run, first slice** *(session erp-f9; paused for a release)*
+
+The user asked to build everything open that needs no decision. The run was recorded at the top of the checklist and stopped after its first four items when the user asked to release what was done. **132.10** fixed the eight bugs Guide found. Two error codes reached users as "Unexpected error occurred"; a new test now fails on any engine or handler code without a catalog row. Soft-deleted masters still counted as Active, which blocked new setup and let deleted credentials, offers and campaigns keep working; 82 queries now exclude them, and restoring a record re-runs its rules. Other fixes: a wrong "barcode" headline on every other duplicate (new MASTER-1321), a crash on an empty integration log, operator-only screens in a client's menu, and New offered on record types the generic save refuses. **135.2-135.4** brought thirteen KB handbooks in line with the screens that exist now (one subagent swept nine of them), put a dated-baseline note on the 2026-10-04 plan, and gave the capability register a label with no version number. **135.3** corrected the publish worker's "stub" comment. The sweep found a real bug (Book Pickup always fails) and two doc gaps, recorded as 135.11-135.13. Details: checklist 132.10, 135.2-135.4.
+
+## 2026-10-23
+
+**Stage 90.5 — The Control Panel's Releases table says what changed** *(deploy script + Control Panel, NOT COMMITTED)*
+
+From the user's Releases screenshot: the note said only "Release.cmd 1356183 from 0.11.0 (d5d7668)". `deploy/deploy.ps1` now builds the note from the commits since the live build (`Get-ReleaseSummary`: Release.cmd's "- " title lines, hand feature/fix subjects, stage numbers dropped, one line each) and sends it base64-encoded, because the old sanitiser stripped every comma, colon and dash; `remote_deploy.sh` decodes it; `Invoke-Deploy.ps1` no longer passes its own note. The column is **What changed**, one line per change. Verified against all ten past release ranges; first live row at the next deploy. Detail: micro_checklist 90.5.
+
+**Stage 134 — The five open decisions taken and built: security groups, sticker bugs, client branding, Railway staging** *(code + docs, NOT COMMITTED)*
+
+**Stage 136 — Transaction tables audit** *(audit + one-line fix)*
+
+The user asked whether every transaction's table is built and working, whether the pending checklist missed a table, and which upcoming items need one. Every migration in the working tree was applied to an empty scratch database, and the result was compared with every table and record type the Go code and screens use. Nothing is missing. The local client schemas match `tenant_default`, and both halves of the open checklist were swept by two subagents. The full suite on copies of that database turned up one real miss: Stage 134.3's `inbound_webhook_receipts` was never classified for the Stage 91 data reset (fixed, 136.2). The storage that the 73.4.x and other open items will need is listed in 136.1. A read-only production check was handed to the user, because the classifier keeps production reads with the user. Detail: **micro_checklist.md Stage 136**.
 
 ## 2026-10-22
+
+**Stage 130 — Build all that needs no approval, plus the 2026-10-22 decisions** *(code + docs, NOT COMMITTED)*
+
+**Stage 133 — Sticker printing remembers its setup, reprints from the history, and every print can be previewed** *(code + docs, not released)*
 
 **Stage 101 — CRM made best-in-class: one customer page, consent ledger, segments, a send gate, templates and senders, campaigns, journeys, feedback, tickets, WhatsApp inbox, loyalty depth, clienteling, a business-buyer pipeline** *(code + docs, NOT COMMITTED)*
 
@@ -428,28 +450,4 @@ Closes Stage 40 (`docs/micro_checklist.md`) completely: the three items left ope
 **Stage 47.7.6 — the audit archive, and the incident it caused while being built** *(code + schema + tests)*
 
 Closes the one piece §142 left open: 47.7 (A-07/A-30) now reads **fully done**. `engines/audit_archive.go` adds the archive itself on top of §142's signed-events-plus-checkpoints model — AES-256-GCM-encrypted, gzip-compressed archive files (same key-management pattern as `channel_credentials.go`), one archive per checkpoint window (never partial — a single held row under legal hold blocks the whole window), manifest-then-delete taken literally (the file is written and self-verified by re-decrypting and re-checking its digest *before* the archive row is recorded and the source rows deleted, all inside one transaction). The subtler half: checkpoint verification is now archive-aware, redirecting to the archive file instead of the (now-empty) live table for an archived window, so a legitimate archive is never mistaken for the deletion attack checkpoints exist to catch — while still catching the archive file itself being deleted, corrupted or swapped. Five new HTTP endpoints and a daily scheduler entry round it out. Full mechanics in `micro_checklist.md`'s 47.7.6 entry.
-
-## 2026-09-11
-
-**Stage 49.9 — Secure development lifecycle, dependency and release-artifact supply chain** *(CI tooling + tests + docs)*
-
-Built the CI-only assurance layer 49.9 asks for, with zero mandatory runtime dependency: a hand-maintained, test-cross-checked dependency ledger (`docs/security/dependency-ledger.json`, package `internal/supplychain`) covering direct/transitive Go modules, CI actions, CI tools and OS/runner images with owner/purpose/license/provenance/version/checksum; a release manifest generator and verifier (`cmd/releasemanifest`) producing an SBOM, artifact checksums and a provenance record, with a `-verify` mode a deployment step can run to refuse a tampered binary; every third-party GitHub Action in every workflow pinned to a full commit SHA and enforced by a generic test (`TestNoWorkflowActionIsUnpinned`) rather than a one-time fix; a new `release-artifact` CI job building hermetically from a clean, already-tested checkout; and `.github/CODEOWNERS` plus an expanded PR template giving review ownership and the 49.9.1 change-trigger a reviewable shape. Signing-key provisioning, DAST-against-a-release-candidate, and wiring `deploy.ps1` to consume the new manifest are named explicitly as `[needs decision]`/follow-on work rather than left implicit. Full accounting in `docs/security/secure-development-lifecycle.md`; new risk R-13 (no enforced branch protection) recorded in `docs/security/risk_register.md`.
-
-**Stage 49.7 — Database, host, network and deployment hardening** *(code + schema + tests + docs)*
-
-Built the least-privilege split `engines/tenant_lifecycle.go`'s own `db-privilege` reporter had only been able to name, not fix: `deploy/postgres_harden.sql` splits the shared `erp` role into `erp_app`(DML)/`erp_migrate`(schema owner)/`erp_backup`(SELECT), verified end-to-end against an isolated scratch database and fully cleaned up afterward. Added a SHA-256 migration-ledger checksum system (`db/migrate.go`, SB-024) and a static scanner proving every migration in the tree is additive-only. Hardened `deploy/erp.service` (capability/namespace/kernel isolation, explicit `ReadWritePaths` instead of all of `/opt`).
-
-**Stage 49.6 — Data classification, privacy, cryptography, keys and secrets** *(code + schema + tests + docs)*
-
-Built a data-flow classification registry extending 47.1.3's sensitive-field policy (`engines/data_classification.go`); a reusable rotation-capable AES-256-GCM keyring (`engines/secret_keyring.go`, generalizing Stage 29.8's JWT-rotation pattern) applied to connector credentials, closing risk register R-03's missing rotation path with an operator command (`tenantctl reencrypt-channel-credentials`); a telemetry redaction choke point (`engines/telemetry_redaction.go`) for Stage 49.11's future event pipeline; and a Customer-scoped data-subject request lifecycle (`engines/privacy_rights.go`, new `data_subject_requests` table, new admin API) with maker-checker approval and legal-hold refusal mirroring `PurgeTenant`'s shape.
-
-## 2026-09-09
-
-**Stage 47.5 + 47.7 — the two decision-blocked audit findings, closed** *(code + schema + tests)*
-
-Both items had sat open on a *decision* rather than on effort, and both decisions were taken by the user this session from measured evidence rather than in the abstract.
-
-**Stage 49.2.4 — Closed: recovery-destination reauthentication, and dual-control helpdesk password reset** *(code + schema + tests + docs)*
-
-49.2.4 (recovery cannot bypass authentication) is now fully closed — the two clauses 49.2.2's session left open. Full detail is in `docs/micro_checklist.md`'s own 49.2.4 entry; this is the index.
 

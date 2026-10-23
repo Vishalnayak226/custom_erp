@@ -241,6 +241,8 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 		totalCostPaise += resolvedCostPaise * int64(item.Qty)
 	}
 
+	// Stage 130.9 (72.D f): lines whose product type allows negative stock.
+	markNegativeStockAllowed(tenantID, itemsInterface)
 	// Stage 106.4: the sale takes the store's chosen "From" location first.
 	if err := drawFromDefaultFromTx(tx, schema, "POS Sale", cart.Location, itemsInterface, cart.StockFrom); err != nil {
 		return nil, fmt.Errorf("inventory decrement failed: %w", err)

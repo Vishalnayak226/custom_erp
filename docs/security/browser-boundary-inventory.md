@@ -9,8 +9,8 @@ audience: [security, engineering, QA]
 applies_to: native browser shell and lazy view modules
 authority: source
 confidentiality: internal
-last_verified: 2026-10-04
-review_by: 2026-10-18
+last_verified: 2026-10-23
+review_by: 2027-01-21
 supersedes: none
 superseded_by: none
 ---
@@ -21,9 +21,9 @@ Scope is the ERP-owned native browser shell (`public/app.js`, `public/index.html
 view modules (`public/view-*.js`). The vendored `qrcode.min.js` is excluded from application-owned
 counts; it remains subject to the existing supply-chain controls.
 
-This revision records a **completed inline-handler migration and an enforced strict `script-src`**,
-and an **incomplete HTML-sink classification**. The two are reported separately because only the
-first is finished.
+This revision records a **completed inline-handler migration**, an **enforced strict `script-src`**
+and (Stage 134.8, 2026-10-23) a **completed HTML-sink classification**: every interpolation the
+scanner cannot prove escaped was judged by hand, and the unsafe ones were fixed.
 
 Reproduce every count in this page from the repository root:
 
@@ -147,64 +147,42 @@ codebase publishes a function to `window` (`app.js` top-level declarations, `win
 module export lists, which `loadViewModule` publishes). All resolve except the four dangling names
 above. Zero cross-module references remain.
 
-## 3. Dynamic HTML sinks — classification incomplete
+## 3. Dynamic HTML sinks — classified (Stage 134.8, 2026-10-23)
 
-**461** insertion sinks contain **637** interpolated expressions. Mechanical classification:
+`node docs/qa/xss-sink-scan.cjs` (in the repository, reproducible) lists every `${...}` inside an HTML
+template literal in `public/*.js` - all modules, not only the 18 view files of the first revision - and
+classifies it mechanically: **escaped** (an escaping helper: `escapeHTMLText`, any `*esc*` /
+`*Escape*` helper such as `crmEsc` / `hrEsc` / `cfgEsc`, `encodeURIComponent`, `actionAttrs`),
+**number** (counts, amounts, money / date formatters), **literal** (every branch a literal),
+**markup** (a nested template or a helper that returns markup, judged where it is built) and
+**candidate** (none of these).
 
-| Class | Count | Meaning |
+On 2026-10-23 the scan found **4,010** interpolations, **993** of them candidates. Every candidate was
+judged by hand against its source (four reviewers, one file group each):
+
+| Judgement | Count | Meaning |
 |---|---:|---|
-| `safe-text` | 192 | Escaped at the sink (`escapeHTMLText`, its alias `cfgEsc`, `encodeURIComponent`, `actionAttrs`) |
-| `no-interpolation` | 115 | Literal application-owned markup; nothing interpolated |
-| `trusted` | 74 | Numbers, aggregates, fixed enum/class maps, markup-returning helpers |
-| `markup-loop` | 43 | `.map(...).join('')` building rows from parts classified where they are built |
-| `trusted-config` | 17 | Tab/column/param descriptors defined as literals in this repository |
-| `assembled-markup` | 11 | A local holding markup concatenated earlier in the same renderer |
-| **`data` (candidates)** | **300** | **Flagged for review — see the accuracy note below** |
+| `SAFE-number` | 309 | A count, amount, date or boolean |
+| `SAFE-fixed` | 289 | A literal, enum or class/width written in the source, or a label defined in Go (`RegisterReport`) |
+| `SAFE-escaped` | 243 | Escaped where it was built, or assembled from escaped parts |
+| **`UNSAFE` - fixed** | **152** | Server / user data written raw; now escaped at the source |
+| `UNSURE` | 0 | |
 
-### Accuracy of the 300
+The fixes include shared choke points, which cover callers the scanner could not see:
+`renderErrorPanel` (every server error message shown in a panel), the typeahead's empty row and the
+setup hints (admin-typed custom labels), the profile page, the dynamic form's labels and Select
+options (admin-typed field definitions), the receipt's `money()` label (a typed gift-card number),
+the print-template renderer (`trade-docs.js` style values from stored layout JSON), the warehouse
+cockpit sections, finance account / period / TDS rows, HR records and the OMS settlement rows.
+The judgements, with a reason for each, are in
+`docs/security/browser-boundary-sink-classification.json` (`review.items`); line numbers are as
+reviewed and drift with later edits.
 
-**The 300 figure is a candidate list, not a defect count.** A systematic 16-item sample (every
-~19th finding) was judged by hand against the source: **6** were genuine unescaped data
-interpolations or needed a human call, **10** were false positives — fixed colour values
-(`data.balanced ? '#10b981' : '#ef4444'`), fixed labels (`rule ? 'Edit' : 'New'`), counts
-(`atCapCount`), markup helpers (`autoNumberField(...)`), assembled-markup locals (`smallBtn`), and
-nested templates whose inner interpolation *is* escaped. On that sample the real population is on
-the order of **110**, but the sample is small and the per-expression judgement is what matters.
-
-Sound separation of trusted configuration (`t.label`) from untrusted data (`line.sku`) needs data-
-flow analysis the classifier does not do, and a wrong classification is worse than an acknowledged
-unknown — which is why this section is reported as incomplete rather than resolved.
-
-Per-file candidate distribution, for whoever works the list:
-
-| File | Sinks | `safe-text` | `data` candidates |
-|---|---:|---:|---:|
-| `view-warehouse.js` | 80 | 7 | 49 |
-| `view-oms.js` | 36 | 29 | 46 |
-| `view-pim.js` | 47 | 41 | 34 |
-| `view-procurement.js` | 25 | 14 | 26 |
-| `view-reports.js` | 37 | 4 | 24 |
-| `view-pos.js` | 18 | 15 | 21 |
-| `view-admin.js` | 42 | 12 | 20 |
-| `app.js` | 52 | 16 | 19 |
-| `view-printing.js` | 17 | 14 | 17 |
-| `view-documents.js` | 23 | 13 | 16 |
-| `view-finance.js` | 24 | 5 | 14 |
-| `view-help.js` | 12 | 9 | 6 |
-| `view-hr.js` | 17 | 0 | 4 |
-| `view-manufacturing.js` | 14 | 0 | 1 |
-| `view-returns.js` | 3 | 5 | 1 |
-| `view-rf-traceability.js` | 3 | 7 | 1 |
-| `view-transfers.js` | 5 | 1 | 1 |
-| `view-assets.js` | 3 | 0 | 0 |
-| `view-expenses.js` | 3 | 0 | 0 |
-
-### One escaping choke point, not two
-
-`cfgEsc` was a second, byte-for-byte identical copy of `escapeHTMLText` with 55 call sites across
-five view modules. A change to the escape rules would have had to be made twice. It is now a thin
-alias delegating to `escapeHTMLText`, so there is one implementation; renaming the 55 callers is a
-purely mechanical follow-up with no behavioural content.
+A re-scan after the fixes reports 858 candidates: the 841 judged safe plus helpers the fixes now
+route through. The scanner is mechanical by design - it is the list a reviewer works, not a verdict.
+Known scanner gaps (found by the review): a template with no `<` in it that is still assigned to
+`innerHTML` (typeahead rows), and markup assembled in a variable built elsewhere (`inner`,
+`tableHead`) - both were fixed at the source.
 
 ## 4. Sink classes and their disposition
 
@@ -233,14 +211,14 @@ Two committed harnesses, both driving real Chromium:
 
 ## 6. Remaining acceptance work
 
-This revision closes the inline-handler migration and the CSP enforcement step. It does **not**
-close 47.8.1 or 47.8.4 in full:
+This revision closes the inline-handler migration, the CSP enforcement step and the 47.8.1
+classification. Still open:
 
-- **47.8.1** — adjudicate the 300 candidate interpolations in §3 per expression, and consider an
-  escape-by-default tagged-template sink helper so new renderers cannot reintroduce the class.
-- **47.8.4** — payload coverage exists for the named surfaces but not for *every* shared renderer;
-  the "stolen/revoked session is unusable" proof remains separate and unstarted here.
-- **style-src** — 629 inline-style violations are reported, not enforced; retiring them is the next
+- **New code** - run `node docs/qa/xss-sink-scan.cjs --candidates` on a change to `public/` and
+  judge any new candidate; an escape-by-default tagged-template helper would retire the class.
+- **47.8.4** - payload coverage exists for the named surfaces but not for *every* shared renderer;
+  the revoked-session proof is `internal/server/stage49_2_2_session_revocation_test.go`.
+- **style-src** - 629 inline-style violations are reported, not enforced; retiring them is the next
   step this mechanism is set up for.
 - **47.8.3** (session cookie-versus-token topology) and **47.8.5** (vendor assessment, tracked as
   26.11.1) stay excluded under their own existing gates.

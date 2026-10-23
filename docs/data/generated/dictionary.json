@@ -18959,6 +18959,155 @@
       "has_control_totals": false
     },
     {
+      "id": "grn-receipt-timing",
+      "label": "Late and early receipts",
+      "category": "Procurement",
+      "module_key": "procurement",
+      "columns": [
+        {
+          "key": "grn",
+          "label": "Goods receipt",
+          "sensitive": false
+        },
+        {
+          "key": "po",
+          "label": "PO",
+          "sensitive": false
+        },
+        {
+          "key": "vendor",
+          "label": "Vendor",
+          "sensitive": false
+        },
+        {
+          "key": "expected",
+          "label": "Expected",
+          "sensitive": false
+        },
+        {
+          "key": "received",
+          "label": "Received",
+          "sensitive": false
+        },
+        {
+          "key": "timing",
+          "label": "Timing",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "grn-not-billed",
+      "label": "Goods receipts not billed",
+      "category": "Procurement",
+      "module_key": "procurement",
+      "columns": [
+        {
+          "key": "grn",
+          "label": "Goods receipt",
+          "sensitive": false
+        },
+        {
+          "key": "vendor",
+          "label": "Vendor",
+          "sensitive": false
+        },
+        {
+          "key": "posted",
+          "label": "Posted",
+          "sensitive": false
+        },
+        {
+          "key": "days",
+          "label": "Days",
+          "sensitive": false
+        },
+        {
+          "key": "vendor_invoice_no",
+          "label": "Vendor invoice no.",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "transfers-in-transit-long",
+      "label": "Transfers in transit too long",
+      "category": "Inventory",
+      "module_key": "inventory",
+      "columns": [
+        {
+          "key": "transfer",
+          "label": "Transfer",
+          "sensitive": false
+        },
+        {
+          "key": "from",
+          "label": "From",
+          "sensitive": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "sensitive": false
+        },
+        {
+          "key": "dispatched",
+          "label": "Dispatched",
+          "sensitive": false
+        },
+        {
+          "key": "days",
+          "label": "Days in transit",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "itc-past-deadline",
+      "label": "Input credit past its deadline",
+      "category": "Finance",
+      "module_key": "finance",
+      "columns": [
+        {
+          "key": "document",
+          "label": "Document",
+          "sensitive": false
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "sensitive": false
+        },
+        {
+          "key": "vendor",
+          "label": "Vendor",
+          "sensitive": false
+        },
+        {
+          "key": "invoice_date",
+          "label": "Invoice date",
+          "sensitive": false
+        },
+        {
+          "key": "deadline",
+          "label": "Deadline",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
       "id": "deferred-revenue-roll-forward",
       "label": "Deferred Revenue Roll-Forward",
       "category": "Finance",
@@ -19057,6 +19206,161 @@
         }
       ],
       "params": [],
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "delivery-challan-register",
+      "label": "Delivery challan register",
+      "category": "Inventory",
+      "module_key": "inventory",
+      "columns": [
+        {
+          "key": "date",
+          "label": "Date",
+          "sensitive": false
+        },
+        {
+          "key": "number",
+          "label": "Challan",
+          "sensitive": false
+        },
+        {
+          "key": "purpose",
+          "label": "Purpose",
+          "sensitive": false
+        },
+        {
+          "key": "location",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "party",
+          "label": "Party",
+          "sensitive": false
+        },
+        {
+          "key": "sku",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "batch_no",
+          "label": "Lot",
+          "sensitive": false
+        },
+        {
+          "key": "issued",
+          "label": "Issued",
+          "sensitive": false
+        },
+        {
+          "key": "returned",
+          "label": "Back good",
+          "sensitive": false
+        },
+        {
+          "key": "damaged",
+          "label": "Back damaged",
+          "sensitive": false
+        },
+        {
+          "key": "rejected",
+          "label": "Back rejected",
+          "sensitive": false
+        },
+        {
+          "key": "written_off",
+          "label": "Written off",
+          "sensitive": false
+        },
+        {
+          "key": "open",
+          "label": "Still out",
+          "sensitive": false
+        },
+        {
+          "key": "expected_return",
+          "label": "Expected back",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        },
+        {
+          "key": "ewb_required",
+          "label": "E-way bill",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "challan-outstanding-returnables",
+      "label": "Goods out on challan, by party",
+      "category": "Inventory",
+      "module_key": "inventory",
+      "columns": [
+        {
+          "key": "party",
+          "label": "Party",
+          "sensitive": false
+        },
+        {
+          "key": "challans",
+          "label": "Challans",
+          "sensitive": false
+        },
+        {
+          "key": "open_qty",
+          "label": "Still out",
+          "sensitive": false
+        },
+        {
+          "key": "open_value",
+          "label": "Value",
+          "sensitive": false
+        },
+        {
+          "key": "not_due",
+          "label": "Not due",
+          "sensitive": false
+        },
+        {
+          "key": "overdue_30",
+          "label": "Overdue up to 30 days",
+          "sensitive": false
+        },
+        {
+          "key": "overdue_60",
+          "label": "31-60 days",
+          "sensitive": false
+        },
+        {
+          "key": "overdue_more",
+          "label": "Over 60 days",
+          "sensitive": false
+        }
+      ],
+      "params": null,
       "has_drill_down": false,
       "has_control_totals": false
     },
@@ -19284,6 +19588,85 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "description": "Documents to report on the IRP's portal by hand (the outage path), and the IRNs entered from the portal."
+    },
+    {
+      "id": "ewaybill-register",
+      "label": "E-way bill register",
+      "category": "Inventory",
+      "module_key": "inventory",
+      "columns": [
+        {
+          "key": "date",
+          "label": "Date",
+          "sensitive": false
+        },
+        {
+          "key": "document",
+          "label": "Document",
+          "sensitive": false
+        },
+        {
+          "key": "doctype",
+          "label": "Type",
+          "sensitive": false
+        },
+        {
+          "key": "from",
+          "label": "From",
+          "sensitive": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "sensitive": false
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "E-way bill",
+          "sensitive": false
+        },
+        {
+          "key": "ewb_no",
+          "label": "EWB no",
+          "sensitive": false
+        },
+        {
+          "key": "valid_upto",
+          "label": "Valid until",
+          "sensitive": false
+        },
+        {
+          "key": "vehicle_no",
+          "label": "Vehicle",
+          "sensitive": false
+        },
+        {
+          "key": "reason",
+          "label": "Why",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "profit-and-loss",
@@ -20780,6 +21163,134 @@
       "has_control_totals": false
     },
     {
+      "id": "inventory-adjustment-register",
+      "label": "Stock adjustment register",
+      "category": "Inventory",
+      "module_key": "inventory",
+      "columns": [
+        {
+          "key": "date",
+          "label": "Date",
+          "sensitive": false
+        },
+        {
+          "key": "number",
+          "label": "Adjustment",
+          "sensitive": false
+        },
+        {
+          "key": "location",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "sku",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "qty",
+          "label": "Qty",
+          "sensitive": false
+        },
+        {
+          "key": "before",
+          "label": "Before",
+          "sensitive": false
+        },
+        {
+          "key": "after",
+          "label": "After",
+          "sensitive": false
+        },
+        {
+          "key": "reason",
+          "label": "Reason",
+          "sensitive": false
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        },
+        {
+          "key": "flag",
+          "label": "Flag",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "inventory-loss-by-reason",
+      "label": "Stock losses by reason and store",
+      "category": "Inventory",
+      "module_key": "inventory",
+      "columns": [
+        {
+          "key": "location",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "reason",
+          "label": "Reason",
+          "sensitive": false
+        },
+        {
+          "key": "lines",
+          "label": "Lines",
+          "sensitive": false
+        },
+        {
+          "key": "qty",
+          "label": "Units lost",
+          "sensitive": false
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
       "id": "item-classification-register",
       "label": "Item Classification Register",
       "category": "Inventory",
@@ -21188,6 +21699,168 @@
       "has_control_totals": false
     },
     {
+      "id": "job-work-outstanding",
+      "label": "Job work outstanding (qty and weight)",
+      "category": "Manufacturing",
+      "module_key": "manufacturing",
+      "columns": [
+        {
+          "key": "order",
+          "label": "Order",
+          "sensitive": false
+        },
+        {
+          "key": "vendor",
+          "label": "Job worker",
+          "sensitive": false
+        },
+        {
+          "key": "line_no",
+          "label": "Line",
+          "sensitive": false
+        },
+        {
+          "key": "sku",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "outward",
+          "label": "Sent",
+          "sensitive": false
+        },
+        {
+          "key": "accepted",
+          "label": "Accepted",
+          "sensitive": false
+        },
+        {
+          "key": "rejected",
+          "label": "Rejected",
+          "sensitive": false
+        },
+        {
+          "key": "loss",
+          "label": "Scrap / loss",
+          "sensitive": false
+        },
+        {
+          "key": "pending_loss",
+          "label": "Loss awaiting approval",
+          "sensitive": false
+        },
+        {
+          "key": "open",
+          "label": "Still out",
+          "sensitive": false
+        },
+        {
+          "key": "open_net_weight",
+          "label": "Net weight out",
+          "sensitive": false
+        },
+        {
+          "key": "open_fine_weight",
+          "label": "Fine weight out",
+          "sensitive": false
+        },
+        {
+          "key": "sent_date",
+          "label": "Sent",
+          "sensitive": false
+        },
+        {
+          "key": "due_date",
+          "label": "Due back",
+          "sensitive": false
+        },
+        {
+          "key": "days_overdue",
+          "label": "Days overdue",
+          "sensitive": false
+        },
+        {
+          "key": "statutory_due",
+          "label": "Statutory return by",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "job-work-yield",
+      "label": "Job work cost, yield and wastage",
+      "category": "Manufacturing",
+      "module_key": "manufacturing",
+      "columns": [
+        {
+          "key": "order",
+          "label": "Order",
+          "sensitive": false
+        },
+        {
+          "key": "vendor",
+          "label": "Job worker",
+          "sensitive": false
+        },
+        {
+          "key": "sku",
+          "label": "Sent",
+          "sensitive": false
+        },
+        {
+          "key": "output_sku",
+          "label": "Came back as",
+          "sensitive": false
+        },
+        {
+          "key": "consumed",
+          "label": "Consumed",
+          "sensitive": false
+        },
+        {
+          "key": "output_qty",
+          "label": "Output accepted",
+          "sensitive": false
+        },
+        {
+          "key": "output_rejected",
+          "label": "Output rejected",
+          "sensitive": false
+        },
+        {
+          "key": "yield_pct",
+          "label": "Yield % (of expected)",
+          "sensitive": false
+        },
+        {
+          "key": "wastage_pct",
+          "label": "Scrap / loss %",
+          "sensitive": false
+        },
+        {
+          "key": "material_value",
+          "label": "Material value",
+          "sensitive": false
+        },
+        {
+          "key": "charges",
+          "label": "Processing charge",
+          "sensitive": false
+        },
+        {
+          "key": "cost_per_output",
+          "label": "Cost per output",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
       "id": "loyalty-points-movement",
       "label": "Loyalty Points Movement",
       "category": "CRM",
@@ -21369,6 +22042,129 @@
           "label": "We are (optional)",
           "type": "select",
           "options": "Above,At,Below,No price on file",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "consumption-by-cost-centre",
+      "label": "Consumption by cost centre",
+      "category": "Inventory",
+      "module_key": "inventory",
+      "columns": [
+        {
+          "key": "cost_center",
+          "label": "Cost centre",
+          "sensitive": false
+        },
+        {
+          "key": "department",
+          "label": "Department",
+          "sensitive": false
+        },
+        {
+          "key": "issued",
+          "label": "Issued",
+          "sensitive": false
+        },
+        {
+          "key": "returned",
+          "label": "Returned",
+          "sensitive": false
+        },
+        {
+          "key": "net",
+          "label": "Net consumption",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "material-issue-register",
+      "label": "Material issue and return register",
+      "category": "Inventory",
+      "module_key": "inventory",
+      "columns": [
+        {
+          "key": "date",
+          "label": "Date",
+          "sensitive": false
+        },
+        {
+          "key": "number",
+          "label": "Document",
+          "sensitive": false
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "sensitive": false
+        },
+        {
+          "key": "location",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "department",
+          "label": "Department",
+          "sensitive": false
+        },
+        {
+          "key": "cost_center",
+          "label": "Cost centre",
+          "sensitive": false
+        },
+        {
+          "key": "sku",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "qty",
+          "label": "Qty",
+          "sensitive": false
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
           "required": false
         }
       ],
@@ -22250,6 +23046,317 @@
       "has_control_totals": false
     },
     {
+      "id": "po-delivery-and-terms",
+      "label": "PO expected delivery and terms",
+      "category": "Procurement",
+      "module_key": "procurement",
+      "columns": [
+        {
+          "key": "po",
+          "label": "PO",
+          "sensitive": false
+        },
+        {
+          "key": "vendor",
+          "label": "Vendor",
+          "sensitive": false
+        },
+        {
+          "key": "location",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        },
+        {
+          "key": "expected_delivery_date",
+          "label": "Expected delivery",
+          "sensitive": false
+        },
+        {
+          "key": "days_late",
+          "label": "Days late",
+          "sensitive": false
+        },
+        {
+          "key": "payment_term",
+          "label": "Payment term",
+          "sensitive": false
+        },
+        {
+          "key": "delivery_terms",
+          "label": "Delivery terms",
+          "sensitive": false
+        },
+        {
+          "key": "freight_by",
+          "label": "Freight paid by",
+          "sensitive": false
+        },
+        {
+          "key": "quote_valid_until",
+          "label": "Quote valid until",
+          "sensitive": false
+        },
+        {
+          "key": "amendments",
+          "label": "Amendments",
+          "sensitive": false
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "grn-discrepancy-by-vendor",
+      "label": "Goods receipt discrepancies by vendor",
+      "category": "Procurement",
+      "module_key": "procurement",
+      "columns": [
+        {
+          "key": "vendor",
+          "label": "Vendor",
+          "sensitive": false
+        },
+        {
+          "key": "receipts",
+          "label": "Receipts",
+          "sensitive": false
+        },
+        {
+          "key": "received",
+          "label": "Received",
+          "sensitive": false
+        },
+        {
+          "key": "accepted",
+          "label": "Accepted",
+          "sensitive": false
+        },
+        {
+          "key": "rejected",
+          "label": "Rejected",
+          "sensitive": false
+        },
+        {
+          "key": "damaged",
+          "label": "Damaged",
+          "sensitive": false
+        },
+        {
+          "key": "short_vs_invoice",
+          "label": "Short of the invoice",
+          "sensitive": false
+        },
+        {
+          "key": "invoice_difference",
+          "label": "Invoice difference",
+          "sensitive": false
+        },
+        {
+          "key": "rejected_pct",
+          "label": "Rejected %",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "vendor-document-transport-register",
+      "label": "Vendor document and transport register",
+      "category": "Procurement",
+      "module_key": "procurement",
+      "columns": [
+        {
+          "key": "grn",
+          "label": "Goods receipt",
+          "sensitive": false
+        },
+        {
+          "key": "received_at",
+          "label": "Received",
+          "sensitive": false
+        },
+        {
+          "key": "vendor",
+          "label": "Vendor",
+          "sensitive": false
+        },
+        {
+          "key": "location",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "vendor_invoice_no",
+          "label": "Invoice no",
+          "sensitive": false
+        },
+        {
+          "key": "vendor_invoice_date",
+          "label": "Invoice date",
+          "sensitive": false
+        },
+        {
+          "key": "vendor_challan_no",
+          "label": "Challan no",
+          "sensitive": false
+        },
+        {
+          "key": "vendor_challan_date",
+          "label": "Challan date",
+          "sensitive": false
+        },
+        {
+          "key": "lr_awb_no",
+          "label": "LR / AWB",
+          "sensitive": false
+        },
+        {
+          "key": "vehicle_no",
+          "label": "Vehicle",
+          "sensitive": false
+        },
+        {
+          "key": "transporter",
+          "label": "Transporter",
+          "sensitive": false
+        },
+        {
+          "key": "package_count",
+          "label": "Packages",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "grni",
+      "label": "Goods received not invoiced (GRNI)",
+      "category": "Procurement",
+      "module_key": "procurement",
+      "columns": [
+        {
+          "key": "grn",
+          "label": "Goods receipt",
+          "sensitive": false
+        },
+        {
+          "key": "date",
+          "label": "Date",
+          "sensitive": false
+        },
+        {
+          "key": "vendor",
+          "label": "Vendor",
+          "sensitive": false
+        },
+        {
+          "key": "location",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "accepted_value",
+          "label": "Accepted value",
+          "sensitive": false
+        },
+        {
+          "key": "invoiced_value",
+          "label": "Invoiced",
+          "sensitive": false
+        },
+        {
+          "key": "open_value",
+          "label": "Not invoiced",
+          "sensitive": false
+        },
+        {
+          "key": "price_difference",
+          "label": "Price difference",
+          "sensitive": false
+        },
+        {
+          "key": "invoices",
+          "label": "Vendor invoices",
+          "sensitive": false
+        },
+        {
+          "key": "ap_hold",
+          "label": "AP hold",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
       "id": "pos-sale-reconciliation",
       "label": "POS Sale Reconciliation",
       "category": "Finance",
@@ -22344,6 +23451,152 @@
       "has_control_totals": false,
       "question": "Did every till sale post correctly?",
       "description": "Each POS sale against the tender, revenue, tax and stock it posted."
+    },
+    {
+      "id": "print-template-coverage",
+      "label": "Print template coverage",
+      "category": "Admin",
+      "module_key": "reports",
+      "columns": [
+        {
+          "key": "transaction",
+          "label": "Print",
+          "sensitive": false
+        },
+        {
+          "key": "doctype",
+          "label": "Record",
+          "sensitive": false
+        },
+        {
+          "key": "templates",
+          "label": "Templates",
+          "sensitive": false
+        },
+        {
+          "key": "default_template",
+          "label": "Default template",
+          "sensitive": false
+        },
+        {
+          "key": "profiles",
+          "label": "Profiles",
+          "sensitive": false
+        },
+        {
+          "key": "copy_labels",
+          "label": "Copies",
+          "sensitive": false
+        },
+        {
+          "key": "prints_30d",
+          "label": "Printed (30 days)",
+          "sensitive": false
+        },
+        {
+          "key": "pending_versions",
+          "label": "Changes awaiting approval",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "print-failures",
+      "label": "Failed prints and fallbacks",
+      "category": "Admin",
+      "module_key": "reports",
+      "columns": [
+        {
+          "key": "printed_at",
+          "label": "When",
+          "sensitive": false
+        },
+        {
+          "key": "job",
+          "label": "Print",
+          "sensitive": false
+        },
+        {
+          "key": "document",
+          "label": "Document",
+          "sensitive": false
+        },
+        {
+          "key": "printer",
+          "label": "Printer",
+          "sensitive": false
+        },
+        {
+          "key": "outcome",
+          "label": "Outcome",
+          "sensitive": false
+        },
+        {
+          "key": "detail",
+          "label": "Detail",
+          "sensitive": false
+        },
+        {
+          "key": "printed_by",
+          "label": "By",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "missing-regulatory-print-data",
+      "label": "Missing regulatory print data",
+      "category": "Admin",
+      "module_key": "reports",
+      "columns": [
+        {
+          "key": "record",
+          "label": "Record",
+          "sensitive": false
+        },
+        {
+          "key": "code",
+          "label": "Code",
+          "sensitive": false
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "sensitive": false
+        },
+        {
+          "key": "missing",
+          "label": "Missing",
+          "sensitive": false
+        },
+        {
+          "key": "why",
+          "label": "Why it matters",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "project-pl",
@@ -45334,6 +46587,81 @@
       "has_control_totals": false
     },
     {
+      "id": "store-credit-liability",
+      "label": "Store credit by customer",
+      "category": "Finance",
+      "module_key": "finance",
+      "columns": [
+        {
+          "key": "customer",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "issued",
+          "label": "Credited",
+          "sensitive": false
+        },
+        {
+          "key": "used",
+          "label": "Used",
+          "sensitive": false
+        },
+        {
+          "key": "balance",
+          "label": "Balance",
+          "sensitive": false
+        },
+        {
+          "key": "gl_2650",
+          "label": "Store Credit Liability (GL)",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": true
+    },
+    {
+      "id": "refund-methods",
+      "label": "Refunds by method",
+      "category": "Finance",
+      "module_key": "finance",
+      "columns": [
+        {
+          "key": "method",
+          "label": "Refund method",
+          "sensitive": false
+        },
+        {
+          "key": "refunds",
+          "label": "Refunds",
+          "sensitive": false
+        },
+        {
+          "key": "amount",
+          "label": "Amount",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
       "id": "stored-value-liability",
       "label": "Gift Card Liability",
       "category": "Finance",
@@ -45342,6 +46670,11 @@
         {
           "key": "card",
           "label": "Card",
+          "sensitive": false
+        },
+        {
+          "key": "card_id",
+          "label": "Card ID",
           "sensitive": false
         },
         {
@@ -45833,6 +47166,175 @@
       "has_control_totals": false,
       "question": "How old is the stock on the shelf?",
       "description": "Stock by receipt batch and age."
+    },
+    {
+      "id": "advance-outstanding-ageing",
+      "label": "Customer advances outstanding (ageing)",
+      "category": "Sales",
+      "module_key": "sales",
+      "columns": [
+        {
+          "key": "number",
+          "label": "Receipt voucher",
+          "sensitive": false
+        },
+        {
+          "key": "customer_name",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "location",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "taken_at",
+          "label": "Taken",
+          "sensitive": false
+        },
+        {
+          "key": "expected_date",
+          "label": "Expected",
+          "sensitive": false
+        },
+        {
+          "key": "balance",
+          "label": "Balance",
+          "sensitive": false
+        },
+        {
+          "key": "age_days",
+          "label": "Age (days)",
+          "sensitive": false
+        },
+        {
+          "key": "bucket",
+          "label": "Age",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": true
+    },
+    {
+      "id": "transfer-shortage-by-reason",
+      "label": "Transfer shortages by reason",
+      "category": "Inventory",
+      "module_key": "inventory",
+      "columns": [
+        {
+          "key": "reason",
+          "label": "Reason",
+          "sensitive": false
+        },
+        {
+          "key": "transfers",
+          "label": "Transfers",
+          "sensitive": false
+        },
+        {
+          "key": "damaged",
+          "label": "Damaged",
+          "sensitive": false
+        },
+        {
+          "key": "lost",
+          "label": "Lost",
+          "sensitive": false
+        },
+        {
+          "key": "returned",
+          "label": "Returned to source",
+          "sensitive": false
+        },
+        {
+          "key": "excess",
+          "label": "Excess",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
+    },
+    {
+      "id": "print-reprint-audit",
+      "label": "Print and reprint audit",
+      "category": "Admin",
+      "module_key": "reports",
+      "columns": [
+        {
+          "key": "document",
+          "label": "Document",
+          "sensitive": false
+        },
+        {
+          "key": "doctype",
+          "label": "Record",
+          "sensitive": false
+        },
+        {
+          "key": "prints",
+          "label": "Prints",
+          "sensitive": false
+        },
+        {
+          "key": "reprints",
+          "label": "Reprints",
+          "sensitive": false
+        },
+        {
+          "key": "last_reason",
+          "label": "Last reprint reason",
+          "sensitive": false
+        },
+        {
+          "key": "last_by",
+          "label": "Last by",
+          "sensitive": false
+        },
+        {
+          "key": "approved",
+          "label": "Approved reprints",
+          "sensitive": false
+        },
+        {
+          "key": "anomaly",
+          "label": "Anomaly",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false
     },
     {
       "id": "3pl-storage-billing",

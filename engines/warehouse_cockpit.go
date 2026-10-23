@@ -212,7 +212,7 @@ func cockpitBinUtilization(schema, locationCode string) []CockpitBinUtilization 
 		SELECT b.data->>'bin_code', COALESCE(NULLIF(b.data->>'capacity', '')::numeric, 0),
 		       COALESCE((SELECT SUM(bs.qty) FROM %s.bin_stock bs WHERE bs.bin_code = b.data->>'bin_code'), 0)
 		FROM %s.documents b
-		WHERE b.doctype = 'Bin' AND b.status = 'Active' AND b.data->>'location' = $1
+		WHERE b.doctype = 'Bin' AND b.status = 'Active' AND b.deleted_at IS NULL AND b.data->>'location' = $1
 		  AND COALESCE(NULLIF(b.data->>'capacity', '')::numeric, 0) > 0
 		ORDER BY b.data->>'bin_code'`, schema, schema), locationCode)
 	if err != nil {

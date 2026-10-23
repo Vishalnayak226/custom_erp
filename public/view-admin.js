@@ -802,7 +802,7 @@ function renderApprovalRoutingPanel(container, rules) {
 window.openApprovalRuleModal = function(ruleId) {
   const rule = ruleId != null ? state.approvalRules.find(r => r.id === ruleId) : null;
   const roleOptions = (state.approvalRuleRoles || []).length > 0
-    ? state.approvalRuleRoles.map(role => `<option value="${role}" ${rule && rule.required_role === role ? 'selected' : ''}>${role}</option>`).join('')
+    ? state.approvalRuleRoles.map(role => `<option value="${escapeHTMLText(role)}" ${rule && rule.required_role === role ? 'selected' : ''}>${escapeHTMLText(role)}</option>`).join('')
     : `<option value="Store Manager">Store Manager</option><option value="Super Admin">Super Admin</option>`;
 
   document.getElementById('approval-rule-modal')?.remove();
@@ -814,7 +814,7 @@ window.openApprovalRuleModal = function(ruleId) {
       <div class="modal-header"><h3 class="modal-title">${rule ? 'Edit' : 'New'} Approval Rule</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
       <form>
         <div class="modal-body">
-          <div class="form-group"><label class="form-label">Doctype</label><input type="text" class="form-input" id="ar-doctype" value="${rule ? rule.doctype : ''}" placeholder="e.g. PurchaseOrder" required></div>
+          <div class="form-group"><label class="form-label">Doctype</label><input type="text" class="form-input" id="ar-doctype" value="${rule ? escapeHTMLText(rule.doctype) : ''}" placeholder="e.g. PurchaseOrder" required></div>
           <div class="form-group"><label class="form-label">Min Amount</label><input type="number" step="0.01" class="form-input" id="ar-min" value="${rule ? rule.min_amount : '0'}" required></div>
           <div class="form-group"><label class="form-label">Max Amount (blank = no upper bound)</label><input type="number" step="0.01" class="form-input" id="ar-max" value="${rule && rule.max_amount != null ? rule.max_amount : ''}"></div>
           <div class="form-group"><label class="form-label">Required Role</label><select class="form-select" id="ar-role">${roleOptions}</select></div>
@@ -894,8 +894,8 @@ function renderDynamicLabelsView(container) {
   for (const [orig, custom] of Object.entries(state.labels)) {
     html += `
       <tr>
-        <td>${orig}</td>
-        <td style="font-weight:600; color:var(--primary-color);">${custom}</td>
+        <td>${escapeHTMLText(orig)}</td>
+        <td style="font-weight:600; color:var(--primary-color);">${escapeHTMLText(custom)}</td>
         <td>
           <button class="action-btn action-btn-danger" ${actionAttrs('deleteLabelReplacement', [orig])}>Remove</button>
         </td>
@@ -1258,7 +1258,7 @@ async function renderLogHubView(container) {
   // that was previously unreachable from the UI.
   const intRes = await apiFetch('/api/v1/integration/logs');
   const intLoadFailed = !!intRes && !intRes.ok;
-  const intLogs = intRes && intRes.ok ? await intRes.json() : [];
+  const intLogs = (intRes && intRes.ok ? await intRes.json() : null) || [];
 
   // Stage 38.6: the async job runner's visibility screen, same pane pattern.
   const jobsRes = await apiFetch('/api/v1/jobs');
@@ -1988,6 +1988,8 @@ function renderConfigFields() {
     ? configSettings.filter(s => `${s.label} ${s.description || ''} ${s.key} ${s.module}`.toLowerCase().includes(configSearch))
     : configSettings.filter(s => s.module === configSelectedModule);
   host.innerHTML = items.length ? items.map(configFieldHtml).join('') : `<p class="text-muted">No setting matches "${cfgEsc(configSearch)}".</p>`;
+  // Stage 134.10: App branding adds the logo and the operator's switch below its setting.
+  if (!configSearch && configSelectedModule === 'App branding') loadViewModule('/view-branding.js').then(m => m.renderBrandingPanel(host)).catch(() => {});
   items.forEach(s => {
     const input = document.getElementById(configInputId(s.key));
     if (!input) return;
@@ -2146,7 +2148,7 @@ async function renderSystemStatusView(container) {
     banner.style.cssText = 'display:flex; flex-direction:column; gap:8px; margin-bottom:20px;';
     banner.innerHTML = warnings.map(w => `
       <div class="badge ${w.code === 'DR-0214' ? 'badge-danger' : 'badge-warning'}" style="display:flex; padding:10px 14px; font-size:13px; font-weight:500; white-space:normal;">
-        <span style="font-weight:700; margin-right:8px;">${w.code}</span> ${w.message}
+        <span style="font-weight:700; margin-right:8px;">${escapeHTMLText(w.code)}</span> ${escapeHTMLText(w.message)}
       </div>
     `).join('');
     container.appendChild(banner);

@@ -167,8 +167,10 @@ func applyLineReason(tenantID string, l map[string]interface{}, qtyKey, textKey,
 }
 
 // normalizeReprintReason is the reprint reason both sticker print paths
-// share (74.1.1): a Reprint reason code becomes "CODE: label"; a typed reason
-// is refused only when the client requires codes; no reason is a first print.
+// share (74.1.1): a Reprint reason code becomes "CODE: label", and "CODE:
+// note" (the sticker screen's code plus a note, 134.1c) "CODE: label - note";
+// a typed reason is refused only when the client requires codes; no reason
+// is a first print.
 func normalizeReprintReason(tenantID, reason string) (string, error) {
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
@@ -176,6 +178,14 @@ func normalizeReprintReason(tenantID, reason string) (string, error) {
 	}
 	if snap, err := ResolveReasonCode(tenantID, reason, ReasonReprint); err == nil {
 		return snap.Code + ": " + snap.Label, nil
+	}
+	if code, note, ok := strings.Cut(reason, ":"); ok && strings.TrimSpace(code) != "" {
+		if snap, err := ResolveReasonCode(tenantID, strings.TrimSpace(code), ReasonReprint); err == nil {
+			if note = strings.TrimSpace(note); note == "" || note == snap.Label {
+				return snap.Code + ": " + snap.Label, nil
+			}
+			return snap.Code + ": " + snap.Label + " - " + note, nil
+		}
 	}
 	if ReasonCodesRequired(tenantID) {
 		return "", &ValidationError{Code: "MASTER-0975", SubFor: ReasonReprint, Message: "choose why it is printed again from the list"}

@@ -81,6 +81,13 @@ func handlePOSAdvances(w http.ResponseWriter, r *http.Request) {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to list advances")
 			return
 		}
+		// Stage 130.12: the till's Use button also offers the customer's
+		// store credit, as one more row it can pay from.
+		if q.Get("with_store_credit") == "1" && strings.TrimSpace(q.Get("customer_id")) != "" {
+			if bal, errSC := engines.StoreCreditBalance(tenantID, q.Get("customer_id")); errSC == nil && bal > 0 {
+				list = append(list, engines.CustomerAdvance{Number: engines.StoreCreditTenderRef, CustomerID: q.Get("customer_id"), Balance: bal, Status: "Store credit"})
+			}
+		}
 		_ = json.NewEncoder(w).Encode(list)
 		return
 	}

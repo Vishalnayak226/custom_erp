@@ -290,6 +290,8 @@
             <li><a class="menu-item" id="menu-transfers"><span>Stock Movement</span></a></li>
             <li><a class="menu-item" id="menu-inventory-adjustments" data-go="inventory:adjustments" data-doctype="InventoryAdjustment"><span>Stock Adjustment</span></a></li>
             <li><a class="menu-item" id="menu-inventory-mrp" data-go="inventory:mrp" data-doctype="MRPChange"><span>MRP Change</span></a></li>
+            <li><a class="menu-item" id="menu-inventory-materials" data-go="inventory:materials" data-doctype="MaterialIssue"><span>Material Issue</span></a></li>
+            <li><a class="menu-item" id="menu-inventory-challans" data-go="inventory:challans" data-doctype="DeliveryChallan"><span>Delivery Challans</span></a></li>
             <!-- Stage 85.B: the store's own stock locations (ERP, not WMS). -->
             <li><a class="menu-item" id="menu-stock-moves"><span>Move Stock</span></a></li>
             <li><a class="menu-item" id="menu-stock-locations"><span>Stock Locations</span></a></li>
@@ -368,7 +370,7 @@
             <li class="submenu-group-label" role="presentation">Production</li>
             <li><a class="menu-item" id="menu-manufacturing" data-go="manufacturing:orders"><span>Production Orders</span></a></li>
             <li><a class="menu-item" id="menu-mfg-schedule" data-go="manufacturing:schedule" data-like="menu-manufacturing"><span>Production Schedule</span></a></li>
-            <li><a class="menu-item" id="menu-mfg-subcontracting" data-go="manufacturing:subcontracting" data-like="menu-manufacturing"><span>Subcontracting</span></a></li>
+            <li><a class="menu-item" id="menu-mfg-subcontracting" data-go="manufacturing:subcontracting" data-like="menu-manufacturing"><span>Job Work</span></a></li>
             <li class="submenu-group-label" role="presentation">Planning</li>
             <li><a class="menu-item" id="menu-mfg-mrp" data-go="manufacturing:mrp" data-like="menu-manufacturing"><span>MRP Suggestions</span></a></li>
             <li><a class="menu-item" id="menu-mfg-proposals" data-go="manufacturing:proposals" data-like="menu-manufacturing"><span>Supply Proposals</span></a></li>
@@ -792,7 +794,7 @@
   <!-- 21.14: this app's first Web Component - plain <script>, no build
        step, registers <erp-typeahead> globally before app.js runs. -->
   <script src="/components/erp-typeahead.js?v=1"></script>
-  <script src="/app.js?v=60"></script>
+  <script src="/app.js?v=61"></script>
   <!-- 31.1: QZ Tray bridge for silent printing. Loaded after app.js because
        it calls apiFetch() for the certificate and per-request signature. -->
   <script src="/qz-print.js?v=1"></script>

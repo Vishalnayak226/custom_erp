@@ -53,7 +53,7 @@ func CalculateSalaryComponents(tenantID, employeeID string) (*SalaryComponents, 
 	var dataStr string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT data FROM %s.documents
-		WHERE doctype = 'SalaryStructure' AND data->>'employee_id' = $1 AND status = 'Active'
+		WHERE doctype = 'SalaryStructure' AND data->>'employee_id' = $1 AND status = 'Active' AND deleted_at IS NULL
 		ORDER BY data->>'effective_from' DESC LIMIT 1`, schema), employeeID).Scan(&dataStr)
 	if err == sql.ErrNoRows {
 		return nil, &ValidationError{Code: "HRPAYR-0154", Message: fmt.Sprintf("no active salary structure is configured for employee %s", employeeID)}
@@ -308,7 +308,7 @@ func activeLoanDeductionForEmployee(tenantID, employeeID string) (float64, error
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT data FROM %s.documents
-		WHERE doctype = 'EmployeeLoan' AND data->>'employee_id' = $1 AND status = 'Active'`, schema), employeeID)
+		WHERE doctype = 'EmployeeLoan' AND data->>'employee_id' = $1 AND status = 'Active' AND deleted_at IS NULL`, schema), employeeID)
 	if err != nil {
 		return 0, err
 	}
@@ -341,7 +341,7 @@ func activeLoanDeductionForEmployee(tenantID, employeeID string) (float64, error
 func applyLoanDeduction(tx *sql.Tx, schema, employeeID string) error {
 	rows, err := tx.Query(fmt.Sprintf(`
 		SELECT id, data FROM %s.documents
-		WHERE doctype = 'EmployeeLoan' AND data->>'employee_id' = $1 AND status = 'Active' FOR UPDATE`, schema), employeeID)
+		WHERE doctype = 'EmployeeLoan' AND data->>'employee_id' = $1 AND status = 'Active' AND deleted_at IS NULL FOR UPDATE`, schema), employeeID)
 	if err != nil {
 		return err
 	}

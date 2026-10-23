@@ -576,6 +576,9 @@ func SetOrderPriority(tenantID, orderID, priority, userID string) error {
 	return nil
 }
 
+// 134.6 (47.10.1): most open fulfilment tasks the pick queue returns (the head of the priority order).
+const pickQueueTaskCap = 1000
+
 // PickTasksInPriorityOrder lists open fulfillment tasks with expedited orders
 // first, then oldest-first within each band. This is the ordering a picker's
 // worklist should follow, and it is the only thing that makes 35.3.4's flag
@@ -598,8 +601,9 @@ func PickTasksInPriorityOrder(tenantID, locationCode string) ([]map[string]inter
 		LEFT JOIN %s.documents o ON o.doctype = 'SalesOrder' AND o.id = t.data->>'order_id' AND o.deleted_at IS NULL
 		WHERE t.doctype = 'FulfillmentTask' AND t.deleted_at IS NULL
 		  AND t.status NOT IN ('Dispatched', 'Rejected', 'Cancelled')%s
-		ORDER BY (COALESCE(o.data->>'priority', 'Normal') = 'Expedite') DESC, t.created_at`,
-		schema, schema, locationClause), args...)
+		ORDER BY (COALESCE(o.data->>'priority', 'Normal') = 'Expedite') DESC, t.created_at
+		LIMIT %d`,
+		schema, schema, locationClause, pickQueueTaskCap), args...)
 	if err != nil {
 		return nil, err
 	}

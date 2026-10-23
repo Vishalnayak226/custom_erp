@@ -20,7 +20,7 @@ screens: [reports]
 
 # Report catalog
 
-**396** reports across **26** categories, all reachable from
+**421** reports across **26** categories, all reachable from
 **Sales & Marketplace » Reports**.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -39,27 +39,27 @@ open the right page.
 ## Contents
 
 - [Accounting](#accounting) - 26 reports
-- [Admin](#admin) - 1 reports
+- [Admin](#admin) - 5 reports
 - [Assets](#assets) - 1 reports
 - [BI](#bi) - 1 reports
 - [CRM](#crm) - 33 reports
 - [E-commerce & Integration](#e-commerce-integration) - 12 reports
 - [Exceptions](#exceptions) - 6 reports
 - [Expense Management](#expense-management) - 11 reports
-- [Finance](#finance) - 33 reports
+- [Finance](#finance) - 36 reports
 - [GST & Compliance](#gst-compliance) - 8 reports
 - [HR](#hr) - 2 reports
 - [HRMS](#hrms) - 15 reports
-- [Inventory](report-catalog-2.md#inventory) - 33 reports
+- [Inventory](report-catalog-2.md#inventory) - 42 reports
 - [MIS & Management](report-catalog-2.md#mis-management) - 10 reports
-- [Manufacturing](report-catalog-2.md#manufacturing) - 19 reports
+- [Manufacturing](report-catalog-2.md#manufacturing) - 21 reports
 - [Master Data & Audit](report-catalog-2.md#master-data-audit) - 11 reports
 - [OMS](report-catalog-2.md#oms) - 25 reports
 - [PIM](report-catalog-2.md#pim) - 4 reports
 - [PIM / PIMS](report-catalog-2.md#pim-pims) - 16 reports
-- [Procurement](report-catalog-2.md#procurement) - 12 reports
+- [Procurement](report-catalog-2.md#procurement) - 18 reports
 - [Procurement & GRN](report-catalog-3.md#procurement-grn) - 27 reports
-- [Sales](report-catalog-3.md#sales) - 9 reports
+- [Sales](report-catalog-3.md#sales) - 10 reports
 - [Sales & POS](report-catalog-3.md#sales-pos) - 22 reports
 - [Service](report-catalog-3.md#service) - 1 reports
 - [Stock Transfer](report-catalog-3.md#stock-transfer) - 9 reports
@@ -422,6 +422,19 @@ open the right page.
 
 ## Admin
 
+### Failed prints and fallbacks
+
+**Report id:** `print-failures`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** When · Print · Document · Printer · Outcome · Detail · By
+
+**Drill-down:** no.
+
 ### Knowledge Center Feedback
 
 **Report id:** `help-article-feedback`
@@ -429,6 +442,39 @@ open the right page.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Article Slug · Marked Helpful · Marked Not Helpful · Total Responses · Helpful % · Last Feedback
+
+**Drill-down:** no.
+
+### Missing regulatory print data
+
+**Report id:** `missing-regulatory-print-data`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Record · Code · Name · Missing · Why it matters
+
+**Drill-down:** no.
+
+### Print and reprint audit
+
+**Report id:** `print-reprint-audit`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Document · Record · Prints · Reprints · Last reprint reason · Last by · Approved reprints · Anomaly
+
+**Drill-down:** no.
+
+### Print template coverage
+
+**Report id:** `print-template-coverage`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Print · Record · Templates · Default template · Profiles · Copies · Printed (30 days) · Changes awaiting approval
 
 **Drill-down:** no.
 
@@ -1517,7 +1563,7 @@ open the right page.
 
 - **Status** (`status`) - select, optional, one of: ,Inactive,Active,Partially redeemed,Fully redeemed,Blocked,Cancelled
 
-**Columns:** Card · Profile · Status · Loaded · Used / cancelled · Outstanding · Expires · Store issued
+**Columns:** Card · Card ID · Profile · Status · Loaded · Used / cancelled · Outstanding · Expires · Store issued
 
 **Drill-down:** no.
 
@@ -1532,6 +1578,16 @@ open the right page.
 - **GSTIN** (`gstin`) - text, optional
 
 **Columns:** Date · Type · Number · Seller GSTIN · IRN state · Why · IRN (when entered)
+
+**Drill-down:** no.
+
+### Input credit past its deadline
+
+**Report id:** `itc-past-deadline`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Document · Type · Vendor · Invoice date · Deadline
 
 **Drill-down:** no.
 
@@ -1632,6 +1688,19 @@ open the right page.
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
+### Refunds by method
+
+**Report id:** `refund-methods`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Refund method · Refunds · Amount
+
+**Drill-down:** no.
+
 ### Statutory Audit Export (Full GL)
 
 **Report id:** `statutory-gl-export`
@@ -1642,6 +1711,16 @@ open the right page.
 - **Period End** (`end`) - date, **required**
 
 **Columns:** Posting ID · Account Code · Account Name · Type · Document Type · Document ID · Debit *(sensitive)* · Credit *(sensitive)* · Date · Posted by · Source command
+
+**Drill-down:** no.
+
+### Store credit by customer
+
+**Report id:** `store-credit-liability`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Customer · Credited · Used · Balance · Store Credit Liability (GL)
 
 **Drill-down:** no.
 

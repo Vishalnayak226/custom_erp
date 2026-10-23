@@ -277,26 +277,9 @@ var imageDriveAllowPrivate = os.Getenv("IMAGE_DRIVE_ALLOW_PRIVATE") == "1"
 
 // imageDriveDial re-checks the address when each connection is made, so a
 // DNS change after the settings were saved cannot get round the rule.
+// Since 134.2 that is the shared outboundDial.
 func imageDriveDial(ctx context.Context, network, addr string) (net.Conn, error) {
-	dialer := &net.Dialer{Timeout: 10 * time.Second}
-	if imageDriveAllowPrivate {
-		return dialer.DialContext(ctx, network, addr)
-	}
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		return nil, err
-	}
-	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
-	if err != nil || len(ips) == 0 {
-		return nil, fmt.Errorf("host %q does not resolve", host)
-	}
-	for _, a := range ips {
-		ip := a.IP
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() || ip.IsMulticast() {
-			return nil, fmt.Errorf("host %q resolves to a non-public address (%s) - refused", host, ip)
-		}
-	}
-	return dialer.DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
+	return guardedDial(ctx, network, addr, imageDriveAllowPrivate)
 }
 
 // imageDriveHTTP talks to image drives only: no proxy (a proxy would dial

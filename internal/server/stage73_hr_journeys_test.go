@@ -49,9 +49,10 @@ func TestPendingApprovalsAreScopedLikeTheDocumentAPI(t *testing.T) {
 	if got := visible(engines.RoleCashier, "t5514p-nobody"); len(got) != 0 {
 		t.Fatalf("an unlinked login saw the grievance: %v", got)
 	}
+	// 73.D.2 (user decision 2026-10-22): an employee reads their own back.
 	own := visible("Employee Self-Service", "t5514p-a")
-	if len(own) != 1 || own[0]["description"] != nil {
-		t.Fatalf("own grievance should show, without its content: %v", own)
+	if len(own) != 1 || own[0]["description"] != "secret A" {
+		t.Fatalf("own grievance should show, with its content: %v", own)
 	}
 	manager := visible(engines.RoleStoreManager, "manager1")
 	if len(manager) != 1 || manager[0]["description"] != nil {

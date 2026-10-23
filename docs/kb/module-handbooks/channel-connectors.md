@@ -110,21 +110,31 @@ Both routes read back through the same `getChannelCredential`/
 `LoadConnectorCredential` accessor a connector call uses, so there is one
 credential store behind either save path, not two.
 
+**Shopify has a screen.** To connect a Shopify channel:
+
+1. Open Setup ▸ PIM ▸ **Channel** and click **+ New** (Platform **Shopify**,
+   Channel Type **Website**, Status **Active**), then save.
+2. Click the **Shopify** button on the channel's row. The channel's Shopify
+   page opens.
+3. Under **1. Connect**, enter the shop address, the admin API access token
+   and the webhook secret, then click **Save**. Click **Test connection** to
+   check them.
+
+That page saves into the same credential store as the two routes above. See
+the [Shopify](shopify.md) handbook and Admin Guide §B.3.20 for the whole
+page.
+
 > [!WARNING]
-> **Known gap, current as of this writing.** Credential storage, validation
-> and every connector call are real, tested code — but no screen in the app
-> calls either credentials endpoint. The only credential-configuration
-> screen that exists today is **Settings → Configuration → Integrations**, and it
-> covers exactly two unrelated integrations (Pine Labs terminals,
-> Unicommerce middleware) — it has no entry for Shopify, BigCommerce,
-> Magento, Amazon, Flipkart, WooCommerce or any private-contract channel.
-> Until that screen (or an equivalent) is added, a channel's `access_token`/
-> `shop_domain`/`store_hash`/etc. have to be set with a direct authenticated
-> API call by an admin or integrator — see `docs/operations/connector_live_verification.md`
-> for the exact procedure this codebase already uses to do that for its own
-> verification passes. The same gap applies to `POST /api/v1/pim/channels/{code}/pull-state`
-> (reads a product's live state back from the platform to detect drift) —
-> real and tested, but nothing in the app triggers it either.
+> **Every other channel still has no credentials screen** (checked by a
+> search of `public/`, 2026-10-24). No screen calls either credentials
+> endpoint. **Settings → Configuration → Integrations** covers only Pine Labs
+> terminals and Unicommerce. So BigCommerce, Magento, Amazon, Flipkart,
+> WooCommerce and every private-contract channel still need an admin or
+> integrator to set the `access_token`/`store_hash`/etc. with a direct
+> authenticated API call — see `docs/operations/connector_live_verification.md`
+> for the procedure. The same applies to `POST /api/v1/pim/channels/{code}/pull-state`
+> (reads a product's live state back from the platform to detect drift):
+> real and tested, but nothing in the app triggers it.
 
 ## Shopify
 
@@ -302,8 +312,10 @@ cooldown). Check `pim_publish_log` for the most recent attempt's
 stuck worker.
 
 **`CONN-0224` — "Channel credentials are missing."** The channel has no
-credentials saved, or a required field is blank. Per the known gap above,
-this has to be set with a direct API call today — see
+credentials saved, or a required field is blank. For Shopify, fill in
+**1. Connect** on the channel's Shopify page (Setup ▸ PIM ▸ **Channel** →
+**Shopify** button) and click **Test connection**. For any other channel this
+still has to be set with a direct API call — see
 `docs/operations/connector_live_verification.md` for field names per
 platform.
 
@@ -330,12 +342,13 @@ Map it from the exceptions panel; the next pull or sync resolves it.
 
 ## What is not here yet
 
-**Configuring a connector's credentials, and reading back a product's live
-drift state, are both real, tested server actions with no app screen.**
+**Configuring a non-Shopify connector's credentials, and reading back a
+product's live drift state, are both real, tested server actions with no app
+screen.** Shopify's credentials are set on its own page (see above).
 Everything downstream of "credentials already exist" — readiness, queue,
 worker, connector call, retry, the OMS health/exceptions panels — is fully
-wired and usable from the app. Getting a channel from zero to its first real
-publish still needs an admin or integrator to call
+wired and usable from the app. Getting any other channel from zero to its
+first real publish still needs an admin or integrator to call
 `POST /api/v1/pim/channels/{code}/credentials` (or the `/marketplace/`
 equivalent) directly. Building a screen for this — even reusing the
 existing **Settings → Configuration → Integrations** pattern already used for Pine

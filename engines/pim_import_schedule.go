@@ -234,6 +234,9 @@ func StartPIMImportScheduleWorker(ctx context.Context, interval time.Duration) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				if !IsSchedulerLeader() { // 134.7: one server runs each sweep
+					continue
+				}
 				if db.DB == nil {
 					continue
 				}
@@ -252,7 +255,7 @@ func StartPIMImportScheduleWorker(ctx context.Context, interval time.Duration) {
 
 func processPIMImportSchedules(schema string) {
 	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT id, data FROM %s.documents WHERE doctype = 'PIMImportSchedule' AND status = 'Active'
+		`SELECT id, data FROM %s.documents WHERE doctype = 'PIMImportSchedule' AND status = 'Active' AND deleted_at IS NULL
 		 AND data->>'source_type' = 'Drop Directory'`, schema))
 	if err != nil {
 		LogBackgroundJobError("PIM_IMPORT_SCHEDULE", "query", schema, err)

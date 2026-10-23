@@ -159,6 +159,9 @@ func handleGiftCardAction(w http.ResponseWriter, r *http.Request) {
 		Action     string `json:"action"`
 		Reason     string `json:"reason"`
 		Location   string `json:"location"`
+		// Stage 130.8: "reveal" names the card by its id (the Gift Card
+		// Liability report's Card ID) - its number is what was lost.
+		InstrumentID string `json:"instrument_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request")
@@ -174,8 +177,10 @@ func handleGiftCardAction(w http.ResponseWriter, r *http.Request) {
 		out, err = engines.SetStoredValueBlocked(tenantID, user, req.CardNumber, req.Reason, false)
 	case "cancel":
 		out, err = engines.CancelStoredValueIssue(tenantID, user, req.CardNumber, req.Reason, req.Location)
+	case "reveal":
+		out, err = engines.RevealStoredValueCard(tenantID, r.Header.Get("Resolved-Role"), user, req.InstrumentID)
 	default:
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "action must be block, unblock or cancel")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "action must be block, unblock, cancel or reveal")
 		return
 	}
 	if err != nil {

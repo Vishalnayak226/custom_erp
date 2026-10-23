@@ -27,7 +27,7 @@ func VerifyRoboticsAPIKey(tenantID, provided string) bool {
 	}
 	var count int
 	_ = db.DB.QueryRow(fmt.Sprintf(
-		`SELECT COUNT(*) FROM %s.documents WHERE doctype = 'RoboticsIntegrationCredential' AND status = 'Active' AND data->>'api_key' = $1`, schema),
+		`SELECT COUNT(*) FROM %s.documents WHERE doctype = 'RoboticsIntegrationCredential' AND status = 'Active' AND deleted_at IS NULL AND data->>'api_key' = $1`, schema),
 		provided).Scan(&count)
 	return count > 0
 }

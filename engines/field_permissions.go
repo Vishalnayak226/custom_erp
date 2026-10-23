@@ -100,6 +100,57 @@ func FilterFieldsForRole(tenantID, role, doctype string, data map[string]interfa
 	return data, nil
 }
 
+// ownRecordReadable (73.D.2, user decision 2026-10-22) lists the sensitive
+// fields a record's own subject reads back whatever their role: an employee
+// their own grievance's description and how it was resolved.
+var ownRecordReadable = map[string][]string{"Grievance": {"description", "resolution_notes"}}
+
+// OwnRecordReadableFields is ownRecordReadable for one doctype.
+func OwnRecordReadableFields(doctype string) []string { return ownRecordReadable[doctype] }
+
+// OwnRecordScope is the self-scope test that makes a record the session's
+// own, for a doctype with ownRecordReadable fields - nil otherwise, or for a
+// session that sees every record anyway. A session with no Employee record
+// matches nothing.
+func OwnRecordScope(tenantID, doctype string, s SessionScope) []ScopeConstraint {
+	if len(ownRecordReadable[doctype]) == 0 {
+		return nil
+	}
+	session, err := ResolveSessionScope(tenantID, doctype, s)
+	if err != nil || session.EmployeeCode == "" {
+		return nil
+	}
+	constraints, _ := ScopeConstraints(doctype, session)
+	var self []ScopeConstraint
+	for _, c := range constraints {
+		if c.Dimension == ScopeSelf {
+			self = append(self, c)
+		}
+	}
+	return self
+}
+
+// FilterFieldsForSession is FilterFieldsForRole, except that a record own
+// matches (OwnRecordScope) keeps its ownRecordReadable fields.
+func FilterFieldsForSession(tenantID, role, doctype string, data map[string]interface{}, own []ScopeConstraint) (map[string]interface{}, error) {
+	keep := map[string]interface{}{}
+	if len(own) > 0 && DocumentMatchesScope(own, data) == "" {
+		for _, f := range ownRecordReadable[doctype] {
+			if v, ok := data[f]; ok {
+				keep[f] = v
+			}
+		}
+	}
+	out, err := FilterFieldsForRole(tenantID, role, doctype, data)
+	if err != nil {
+		return nil, err
+	}
+	for f, v := range keep {
+		out[f] = v
+	}
+	return out, nil
+}
+
 func RejectRestrictedFieldWrites(tenantID, role, doctype string, data map[string]interface{}) error {
 	permissions, err := fieldPermissions(tenantID, role, doctype)
 	if err != nil {

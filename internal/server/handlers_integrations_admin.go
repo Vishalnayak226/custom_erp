@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"custom_erp/db"
@@ -847,12 +848,22 @@ func handleVersion(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]string{
+	out := map[string]string{
 		"version":      currentAppVersion(),
 		"git_commit":   gitCommit,
 		"build_time":   buildTime,
 		"release_date": releaseDate(),
-	})
+	}
+	// Stage 130.7 (120.5): off production the sign-in page and the tab title
+	// name the environment, so nobody works on the wrong one. Production
+	// says nothing.
+	if env := os.Getenv("ENV"); env != "production" {
+		if env == "" {
+			env = "development"
+		}
+		out["env"] = env
+	}
+	_ = json.NewEncoder(w).Encode(out)
 }
 
 // handleHealth (24.14) is a liveness/readiness probe for a load balancer or

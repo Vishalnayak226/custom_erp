@@ -97,6 +97,8 @@ func handlePrintStickers(w http.ResponseWriter, r *http.Request) {
 		Lines          []engines.StickerLineSelection `json:"lines"`
 		// Stage 55.19: the same key on a retry writes the history once.
 		RequestKey string `json:"request_key"`
+		// Stage 133.3: the labels for an on-screen preview, nothing logged.
+		Preview bool `json:"preview"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
@@ -115,15 +117,17 @@ func handlePrintStickers(w http.ResponseWriter, r *http.Request) {
 		// Stage 52: the browser-print-fallback path for bulk printing from a
 		// GRN/Transfer Order - mirrors the QZ silent-print branch in
 		// handleQZPrintPayload so both paths accept the same request shape.
-		labels, err = engines.PrintStickersForDocument(tenantID, req.SourceDoctype, req.SourceDocID, req.PrinterCode, userID, req.ReprintReason, stickerSelections(req.Lines, req.Skus, req.CopiesOverride), engines.StickerPrintOptions{RequestKey: req.RequestKey})
+		labels, err = engines.PrintStickersForDocument(tenantID, req.SourceDoctype, req.SourceDocID, req.PrinterCode, userID, req.ReprintReason, stickerSelections(req.Lines, req.Skus, req.CopiesOverride), engines.StickerPrintOptions{RequestKey: req.RequestKey, Preview: req.Preview})
 	} else {
-		labels, err = engines.PrintStickers(tenantID, req.Skus, req.PrinterCode, userID, req.ReprintReason, req.Copies, engines.StickerPrintOptions{RequestKey: req.RequestKey})
+		labels, err = engines.PrintStickers(tenantID, req.Skus, req.PrinterCode, userID, req.ReprintReason, req.Copies, engines.StickerPrintOptions{RequestKey: req.RequestKey, Preview: req.Preview})
 	}
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	engines.LogAuditEvent(tenantID, userID, "PRINT_STICKERS", "SUCCESS", fmt.Sprintf("Printed %d sticker(s) on %s", len(labels), req.PrinterCode))
+	if !req.Preview {
+		engines.LogAuditEvent(tenantID, userID, "PRINT_STICKERS", "SUCCESS", fmt.Sprintf("Printed %d sticker(s) on %s", len(labels), req.PrinterCode))
+	}
 	_ = json.NewEncoder(w).Encode(labels)
 }
 
@@ -687,4 +691,33 @@ func stickerSourceReadable(w http.ResponseWriter, r *http.Request, doctype strin
 		return true
 	}
 	return requireDocPermission(w, r, doctype, "read", "You do not have permission to view this document")
+}
+
+// handleStickerSourceDocs (134.1b) is the sticker screen's Document list: a
+// role that may print stickers but not read goods receipts (Store Manager,
+// Cashier) still finds the GRN to label - number, date, store and status
+// only, within the session's store scope, the same as the preview it opens.
+func handleStickerSourceDocs(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	doctype := r.URL.Query().Get("source_doctype")
+	if doctype != "GRN" && doctype != "TransferOrder" && !engines.DoctypeIsTransaction(tenantID, doctype) {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Pick a module whose documents print stickers")
+		return
+	}
+	if !stickerSourceReadable(w, r, doctype) {
+		return
+	}
+	session := engines.SessionScope{Role: r.Header.Get("Resolved-Role"), UserID: r.Header.Get("Resolved-User-ID"), LocationCode: r.Header.Get("Resolved-Location")}
+	session, err := engines.ResolveSessionScope(tenantID, doctype, session)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to resolve the access scope for this session")
+		return
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	docs, err := engines.SearchStickerSourceDocs(tenantID, doctype, r.URL.Query().Get("q"), limit, session)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Could not list the documents")
+		return
+	}
+	_ = json.NewEncoder(w).Encode(docs)
 }

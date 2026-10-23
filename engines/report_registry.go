@@ -362,6 +362,10 @@ func RunReportDrillDownContext(ctx context.Context, tenantID, reportID, role, ro
 			rows = filterReportRowsByStore(rows, key, storeAccess)
 		}
 	}
+	// 134.6 (47.10.1): a drill-down is held to the same row cap as the report.
+	if maxRows := GetSettingInt(tenantID, "platform.max_sync_report_rows"); maxRows > 0 && len(rows) > maxRows {
+		return nil, &ValidationError{Code: "REPORT-0161", Message: fmt.Sprintf("this detail matched %d rows, over the %d-row synchronous limit - narrow the filters or use Export instead", len(rows), maxRows)}
+	}
 	return maskContactColumns(tenantID, def.Columns, maskSensitiveColumns(def.Columns, rows, role), role), nil
 }
 

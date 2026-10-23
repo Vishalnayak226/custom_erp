@@ -90,8 +90,18 @@ func scopePendingApprovals(r *http.Request, docs []map[string]interface{}) ([]ma
 		if len(rule.self) > 0 && engines.DocumentMatchesScope(rule.self, doc) != "" {
 			continue
 		}
+		// 73.D.2: a record that passed the self check is the session's own,
+		// and its own fields (a grievance's content) stay readable.
+		ownFields := map[string]bool{}
+		if len(rule.self) > 0 {
+			for _, f := range engines.OwnRecordReadableFields(doctype) {
+				ownFields[f] = true
+			}
+		}
 		for _, field := range rule.hidden {
-			delete(doc, field)
+			if !ownFields[field] {
+				delete(doc, field)
+			}
 		}
 		out = append(out, doc)
 	}

@@ -135,7 +135,7 @@ Invoke-Native -Exe 'git' -Arguments @('-C', $repo, '-c', 'core.autocrlf=false', 
 $relVer = ((& git -C $repo show "$($target):internal/server/VERSION") -join '').Trim()
 if ($relVer -notmatch '^\d+\.\d+\.\d+$') { Stop-Deploy "internal/server/VERSION at $short is '$relVer', not a release number" }
 Note "release $relVer"
-$out = @(& (Join-Path $wt 'deploy\deploy.ps1') -Target $cfg.target -Version $relVer -ReleaseNote "Release.cmd $short from $($live.version) ($liveCommit)" *>&1 | ForEach-Object { $s = "$_"; Write-Host "   $s"; $s })
+$out = @(& (Join-Path $wt 'deploy\deploy.ps1') -Target $cfg.target -Version $relVer *>&1 | ForEach-Object { $s = "$_"; Write-Host "   $s"; $s })
 $out | Where-Object { $_ -match 'Release |\[apply\]|Applied|\[sync|\[cost-center\]|WARN|DEPLOY-|recorded|actions=' } | ForEach-Object { $report.Add("- $_") }
 if (-not ($out | Where-Object { $_.Trim() -eq 'DEPLOY-OK' })) { Stop-Deploy "deploy.ps1 did not report DEPLOY-OK (production stays on the previous build, or rolled back):`n$(($out | Select-Object -Last 15) -join "`n")" }
 

@@ -128,7 +128,7 @@ func GetActiveBOMForItem(tenantID, parentItem, asOfDate string) (string, error) 
 	var id string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
-		WHERE doctype = 'BOM' AND status = 'Active' AND data->>'parent_item' = $1
+		WHERE doctype = 'BOM' AND status = 'Active' AND deleted_at IS NULL AND data->>'parent_item' = $1
 		  AND COALESCE(data->>'is_default', '') = 'Yes'
 		  AND (COALESCE(data->>'effective_from', '') = '' OR data->>'effective_from' <= $2)
 		  AND (COALESCE(data->>'effective_to', '') = '' OR data->>'effective_to' >= $2)
@@ -142,7 +142,7 @@ func GetActiveBOMForItem(tenantID, parentItem, asOfDate string) (string, error) 
 
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
-		WHERE doctype = 'BOM' AND status = 'Active' AND data->>'parent_item' = $1
+		WHERE doctype = 'BOM' AND status = 'Active' AND deleted_at IS NULL AND data->>'parent_item' = $1
 		ORDER BY created_at DESC LIMIT 1`, schema), parentItem).Scan(&id)
 	if err == sql.ErrNoRows {
 		return "", &ValidationError{Code: "MANUFA-0140", Message: fmt.Sprintf("no active BOM is maintained for finished good %s", parentItem)}
@@ -570,7 +570,7 @@ func GetMRPSuggestions(tenantID, locationCode string, leadTimeDays, safetyStock 
 		return nil, err
 	}
 
-	rows, err := db.DB.Query(fmt.Sprintf(`SELECT DISTINCT data->>'parent_item' FROM %s.documents WHERE doctype = 'BOM' AND status = 'Active'`, schema))
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT DISTINCT data->>'parent_item' FROM %s.documents WHERE doctype = 'BOM' AND status = 'Active' AND deleted_at IS NULL`, schema))
 	if err != nil {
 		return nil, err
 	}
@@ -756,7 +756,7 @@ func ProductionMaterialPlan(tenantID, bomID string, qty float64, location string
 	}
 	out := make([]MaterialNeed, 0, len(components))
 	for _, c := range components {
-		n := MaterialNeed{Sku: c.Sku, PerUnit: c.Qty, Required: round2(c.Qty * qty), Backflush: isBackflush[c.Sku]}
+		n := MaterialNeed{Sku: c.Sku, PerUnit: c.Qty, Required: wholeUnitsUp(c.Qty * qty), Backflush: isBackflush[c.Sku]}
 		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT available FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2`, schema), c.Sku, location).Scan(&n.Available)
 		if n.Available < n.Required {
 			n.Short = round2(n.Required - n.Available)

@@ -805,6 +805,11 @@
               "slug": "returns"
             },
             {
+              "level": 3,
+              "text": "Exchange at the till",
+              "slug": "exchange-at-the-till"
+            },
+            {
               "level": 2,
               "text": "Offline mode",
               "slug": "offline-mode"
@@ -888,7 +893,7 @@
           "title": "Warehouse (WMS) - what each screen is for",
           "section": "Module Handbooks",
           "order": 19,
-          "summary": "Start here for the WMS. What to set up once and in which order, how goods come in, sit in bins and go out, what every WMS menu entry does, and what the system does not do for you yet.",
+          "summary": "Start here for the WMS. What to set up once and in which order, how goods come in, sit in bins and go out, what every WMS menu entry does, and what the system now does for you.",
           "audience": "warehouse operator, warehouse manager, store manager, admin",
           "screens": [
             "doctype:bin",
@@ -969,8 +974,8 @@
             },
             {
               "level": 2,
-              "text": "What the system does not do for you yet",
-              "slug": "what-the-system-does-not-do-for-you-yet"
+              "text": "What the system does for you (Stage 130.13)",
+              "slug": "what-the-system-does-for-you-stage-130-13"
             }
           ]
         },
@@ -1079,6 +1084,11 @@
               "level": 3,
               "text": "What actually posts to inventory",
               "slug": "what-actually-posts-to-inventory"
+            },
+            {
+              "level": 3,
+              "text": "Full counts (Physical Inventory)",
+              "slug": "full-counts-physical-inventory"
             },
             {
               "level": 2,
@@ -1684,7 +1694,7 @@
           "title": "Product Information Management",
           "section": "Module Handbooks",
           "order": 50,
-          "summary": "Items, categories and attributes with locale/channel-aware values, a 0-100 completeness score every publish gate reads, and an effective-dated price list that exists in full but has no screen yet.",
+          "summary": "Items, categories and attributes with locale/channel-aware values, a 0-100 completeness score every publish gate reads, and effective-dated, approval-gated price lists that the POS, the Store app and Shopify price from.",
           "audience": "category manager, admin",
           "screens": [
             "pim",
@@ -1733,6 +1743,16 @@
               "level": 2,
               "text": "Price lists",
               "slug": "price-lists"
+            },
+            {
+              "level": 3,
+              "text": "Make a price list version",
+              "slug": "make-a-price-list-version"
+            },
+            {
+              "level": 3,
+              "text": "Where a price list is used",
+              "slug": "where-a-price-list-is-used"
             },
             {
               "level": 2,
@@ -1996,6 +2016,7 @@
           "audience": "store manager, warehouse operator, category manager, admin",
           "screens": [
             "stickers",
+            "reprint",
             "doctype:printtemplate",
             "doctype:stickertemplate",
             "doctype:printer",
@@ -2030,6 +2051,11 @@
               "level": 2,
               "text": "Print, save or send a document",
               "slug": "print-save-or-send-a-document"
+            },
+            {
+              "level": 2,
+              "text": "Print a document again",
+              "slug": "print-a-document-again"
             },
             {
               "level": 2,
@@ -2253,6 +2279,11 @@
             },
             {
               "level": 2,
+              "text": "Manual journal entries (Journal Vouchers)",
+              "slug": "manual-journal-entries-journal-vouchers"
+            },
+            {
+              "level": 2,
               "text": "What is not here yet",
               "slug": "what-is-not-here-yet"
             }
@@ -2266,6 +2297,7 @@
           "summary": "Earn and burn loyalty points on real sales, issue vouchers and run birthday/lapsed-customer campaigns, and read customer behaviour back through seven CRM reports.",
           "audience": "store manager, marketing, admin",
           "screens": [
+            "crm",
             "module:crm",
             "doctype:customer",
             "loyalty",
@@ -2339,8 +2371,8 @@
             },
             {
               "level": 2,
-              "text": "What is not here yet",
-              "slug": "what-is-not-here-yet"
+              "text": "Where the CRM screens are",
+              "slug": "where-the-crm-screens-are"
             }
           ]
         },
@@ -3054,8 +3086,28 @@
             },
             {
               "level": 3,
+              "text": "Failed prints and fallbacks",
+              "slug": "failed-prints-and-fallbacks"
+            },
+            {
+              "level": 3,
               "text": "Knowledge Center Feedback",
               "slug": "knowledge-center-feedback"
+            },
+            {
+              "level": 3,
+              "text": "Missing regulatory print data",
+              "slug": "missing-regulatory-print-data"
+            },
+            {
+              "level": 3,
+              "text": "Print and reprint audit",
+              "slug": "print-and-reprint-audit"
+            },
+            {
+              "level": 3,
+              "text": "Print template coverage",
+              "slug": "print-template-coverage"
             },
             {
               "level": 2,
@@ -3524,6 +3576,11 @@
             },
             {
               "level": 3,
+              "text": "Input credit past its deadline",
+              "slug": "input-credit-past-its-deadline"
+            },
+            {
+              "level": 3,
               "text": "Intercompany Reconciliation",
               "slug": "intercompany-reconciliation-2"
             },
@@ -3564,8 +3621,18 @@
             },
             {
               "level": 3,
+              "text": "Refunds by method",
+              "slug": "refunds-by-method"
+            },
+            {
+              "level": 3,
               "text": "Statutory Audit Export (Full GL)",
               "slug": "statutory-audit-export-full-gl"
+            },
+            {
+              "level": 3,
+              "text": "Store credit by customer",
+              "slug": "store-credit-by-customer"
             },
             {
               "level": 3,
@@ -3771,6 +3838,11 @@
             },
             {
               "level": 3,
+              "text": "Consumption by cost centre",
+              "slug": "consumption-by-cost-centre"
+            },
+            {
+              "level": 3,
               "text": "Current Stock",
               "slug": "current-stock"
             },
@@ -3796,13 +3868,28 @@
             },
             {
               "level": 3,
+              "text": "Delivery challan register",
+              "slug": "delivery-challan-register"
+            },
+            {
+              "level": 3,
               "text": "Demand Forecast (Trend)",
               "slug": "demand-forecast-trend"
             },
             {
               "level": 3,
+              "text": "E-way bill register",
+              "slug": "e-way-bill-register"
+            },
+            {
+              "level": 3,
               "text": "Goods In Receiving",
               "slug": "goods-in-receiving"
+            },
+            {
+              "level": 3,
+              "text": "Goods out on challan, by party",
+              "slug": "goods-out-on-challan-by-party"
             },
             {
               "level": 3,
@@ -3828,6 +3915,11 @@
               "level": 3,
               "text": "MRP Change Register",
               "slug": "mrp-change-register"
+            },
+            {
+              "level": 3,
+              "text": "Material issue and return register",
+              "slug": "material-issue-and-return-register"
             },
             {
               "level": 3,
@@ -3906,8 +3998,28 @@
             },
             {
               "level": 3,
+              "text": "Stock adjustment register",
+              "slug": "stock-adjustment-register"
+            },
+            {
+              "level": 3,
               "text": "Stock by Location",
               "slug": "stock-by-location"
+            },
+            {
+              "level": 3,
+              "text": "Stock losses by reason and store",
+              "slug": "stock-losses-by-reason-and-store"
+            },
+            {
+              "level": 3,
+              "text": "Transfer shortages by reason",
+              "slug": "transfer-shortages-by-reason"
+            },
+            {
+              "level": 3,
+              "text": "Transfers in transit too long",
+              "slug": "transfers-in-transit-too-long"
             },
             {
               "level": 3,
@@ -3988,6 +4100,16 @@
               "level": 3,
               "text": "Batch / Lot Traceability",
               "slug": "batch-lot-traceability"
+            },
+            {
+              "level": 3,
+              "text": "Job work cost, yield and wastage",
+              "slug": "job-work-cost-yield-and-wastage"
+            },
+            {
+              "level": 3,
+              "text": "Job work outstanding (qty and weight)",
+              "slug": "job-work-outstanding-qty-and-weight"
             },
             {
               "level": 3,
@@ -4401,13 +4523,38 @@
             },
             {
               "level": 3,
+              "text": "Goods receipt discrepancies by vendor",
+              "slug": "goods-receipt-discrepancies-by-vendor"
+            },
+            {
+              "level": 3,
+              "text": "Goods receipts not billed",
+              "slug": "goods-receipts-not-billed"
+            },
+            {
+              "level": 3,
+              "text": "Goods received not invoiced (GRNI)",
+              "slug": "goods-received-not-invoiced-grni"
+            },
+            {
+              "level": 3,
               "text": "Invoice vs GRN Differences",
               "slug": "invoice-vs-grn-differences"
             },
             {
               "level": 3,
+              "text": "Late and early receipts",
+              "slug": "late-and-early-receipts"
+            },
+            {
+              "level": 3,
               "text": "Open Purchase Commitments",
               "slug": "open-purchase-commitments"
+            },
+            {
+              "level": 3,
+              "text": "PO expected delivery and terms",
+              "slug": "po-expected-delivery-and-terms"
             },
             {
               "level": 3,
@@ -4433,6 +4580,11 @@
               "level": 3,
               "text": "Vendor Ledger",
               "slug": "vendor-ledger"
+            },
+            {
+              "level": 3,
+              "text": "Vendor document and transport register",
+              "slug": "vendor-document-and-transport-register"
             }
           ]
         },
@@ -4620,6 +4772,11 @@
               "level": 3,
               "text": "Customer Ledger",
               "slug": "customer-ledger"
+            },
+            {
+              "level": 3,
+              "text": "Customer advances outstanding (ageing)",
+              "slug": "customer-advances-outstanding-ageing"
             },
             {
               "level": 3,
@@ -5097,6 +5254,16 @@
           "headings": [
             {
               "level": 2,
+              "text": "2026-10-24",
+              "slug": "2026-10-24"
+            },
+            {
+              "level": 2,
+              "text": "2026-10-23",
+              "slug": "2026-10-23"
+            },
+            {
+              "level": 2,
               "text": "2026-10-22",
               "slug": "2026-10-22"
             },
@@ -5214,16 +5381,6 @@
               "level": 2,
               "text": "2026-09-12",
               "slug": "2026-09-12"
-            },
-            {
-              "level": 2,
-              "text": "2026-09-11",
-              "slug": "2026-09-11"
-            },
-            {
-              "level": 2,
-              "text": "2026-09-09",
-              "slug": "2026-09-09"
             }
           ]
         },
@@ -5232,7 +5389,7 @@
           "title": "Release notes (part 2)",
           "section": "Reference",
           "order": 26,
-          "summary": "Earlier releases, 2026-07-27 to 2026-09-08, continued from the release notes.",
+          "summary": "Earlier releases, 2026-07-27 to 2026-09-11, continued from the release notes.",
           "audience": "everyone",
           "last_verified": "2026-09-10",
           "owner": "documentation-maintainer",
@@ -5244,6 +5401,16 @@
           "applies_to": "source registries; not release acceptance",
           "source_path": "reference/release-notes-2.md",
           "headings": [
+            {
+              "level": 2,
+              "text": "2026-09-11",
+              "slug": "2026-09-11"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-09",
+              "slug": "2026-09-09"
+            },
             {
               "level": 2,
               "text": "2026-09-08",
@@ -5855,6 +6022,11 @@
             },
             {
               "level": 2,
+              "text": "GST",
+              "slug": "gst"
+            },
+            {
+              "level": 2,
               "text": "Global",
               "slug": "global"
             },
@@ -5897,6 +6069,11 @@
               "level": 2,
               "text": "Inventory / Warehouse",
               "slug": "inventory-warehouse"
+            },
+            {
+              "level": 2,
+              "text": "Item Master",
+              "slug": "item-master"
             },
             {
               "level": 2,
@@ -6074,6 +6251,11 @@
             },
             {
               "level": 2,
+              "text": "WMS",
+              "slug": "wms"
+            },
+            {
+              "level": 2,
               "text": "WMS / Logistics",
               "slug": "wms-logistics"
             }
@@ -6121,8 +6303,8 @@
       "journey-warehouse-operator"
     ],
     "configuration": [
-      "crm-loyalty",
       "finance-tax",
+      "crm-loyalty",
       "pim-pxm",
       "pos-operations",
       "procurement",
@@ -6132,6 +6314,9 @@
     ],
     "control-panel": [
       "platform-control-panel"
+    ],
+    "crm": [
+      "crm-loyalty"
     ],
     "cycle-count": [
       "inventory-wms-operations",
@@ -6408,8 +6593,8 @@
     ],
     "reports": [
       "custom-dashboards",
-      "crm-loyalty",
       "finance-tax",
+      "crm-loyalty",
       "pim-pxm",
       "pos-operations",
       "traceability-batch-serial",
@@ -6424,6 +6609,9 @@
       "journey-category-manager",
       "open-a-shop-and-make-your-first-sale",
       "journey-finance"
+    ],
+    "reprint": [
+      "printing-stickers-and-documents"
     ],
     "returns": [
       "returns-and-refunds"

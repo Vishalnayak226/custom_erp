@@ -132,12 +132,12 @@ async function renderFinanceView(container) {
       <span class="stat-label">Ledger Status</span>
       <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
         <span class="pulse-dot" style="background: ${data.balanced ? '#10b981' : '#ef4444'};"></span>
-        <span style="font-size: 16px; font-weight: 700; color: ${data.balanced ? '#10b981' : '#ef4444'};">${data.status || ''}</span>
+        <span style="font-size: 16px; font-weight: 700; color: ${data.balanced ? '#10b981' : '#ef4444'};">${escapeHTMLText(data.status || '')}</span>
       </div>
     </div>
     <div class="stat-card">
       <span class="stat-label">As Of</span>
-      <span class="stat-val">${data.as_of || financeTrialBalanceAsOf}</span>
+      <span class="stat-val">${escapeHTMLText(data.as_of || financeTrialBalanceAsOf)}</span>
     </div>
   `;
   container.appendChild(summaryRow);
@@ -163,9 +163,9 @@ async function renderFinanceView(container) {
   balances.forEach(b => {
     html += `
       <tr>
-        <td style="font-family: monospace;">${b.account_code}</td>
-        <td style="font-weight:600;">${b.account_name}</td>
-        <td>${b.account_type}</td>
+        <td style="font-family: monospace;">${escapeHTMLText(b.account_code)}</td>
+        <td style="font-weight:600;">${escapeHTMLText(b.account_name)}</td>
+        <td>${escapeHTMLText(b.account_type)}</td>
         <td>${b.debit.toLocaleString()}</td>
         <td>${b.credit.toLocaleString()}</td>
       </tr>
@@ -283,9 +283,9 @@ async function renderChartOfAccountsPanel(container) {
   accounts.forEach(a => {
     html += `
       <tr>
-        <td style="font-family: monospace;">${a.account_code}</td>
-        <td style="font-weight:600;">${a.account_name}</td>
-        <td>${a.account_type}</td>
+        <td style="font-family: monospace;">${escapeHTMLText(a.account_code)}</td>
+        <td style="font-weight:600;">${escapeHTMLText(a.account_name)}</td>
+        <td>${escapeHTMLText(a.account_type)}</td>
       </tr>
     `;
   });
@@ -445,8 +445,8 @@ async function renderPeriodCloseBoard(container, periodId) {
   const signedCount = b.tasks.filter(t => t.status !== 'Open' && t.status !== '').length;
   panel.innerHTML = `
     <p><a href="#/view/finance" id="close-board-back">&larr; All accounting periods</a></p>
-    <h2 style="font-size:18px;font-weight:700;margin:8px 0;">${escapeHTMLText(b.period_name)} <span class="badge ${isOpen ? 'badge-success' : 'badge-secondary'}">${b.status}</span> ${b.close_round > 1 ? `<span class="badge badge-warning">close round ${b.close_round}</span>` : ''}</h2>
-    <p style="color:var(--text-muted);margin:0 0 12px;">${b.start_date} to ${b.end_date}.
+    <h2 style="font-size:18px;font-weight:700;margin:8px 0;">${escapeHTMLText(b.period_name)} <span class="badge ${isOpen ? 'badge-success' : 'badge-secondary'}">${escapeHTMLText(b.status)}</span> ${b.close_round > 1 ? `<span class="badge badge-warning">close round ${b.close_round}</span>` : ''}</h2>
+    <p style="color:var(--text-muted);margin:0 0 12px;">${escapeHTMLText(b.start_date)} to ${escapeHTMLText(b.end_date)}.
       ${b.closed_by ? `Closed by ${escapeHTMLText(b.closed_by)} at ${escapeHTMLText(b.closed_at)}.` : ''}
       ${b.reopened_by ? `Last reopened by ${escapeHTMLText(b.reopened_by)} at ${escapeHTMLText(b.reopened_at)}.` : ''}
       ${isOpen ? `${signedCount} of ${b.tasks.length} close tasks signed.` : ''}</p>
@@ -629,13 +629,14 @@ async function renderVendorInvoicesView(container) {
               <td class="num">${v.status === 'Draft' || v.status === 'Cancelled' ? '&mdash;' : formatMoney(openBalance(v, 'invoice_amount', ['Matched', 'MismatchHold', 'Pending Approval', 'Approved']))}</td>
               <td><span class="badge ${partPaid ? 'badge-warning' : (STATUS_BADGE[v.status] || 'badge-secondary')}">${partPaid ? 'Part paid' : escapeHTMLText(v.status)}</span></td>
               <td>${renderVendorInvoiceActions(v)}${history.length > 0 ? ` <button class="action-btn" data-pay-hist-toggle="${escapeHTMLText(v.id)}">Payments (${history.length})</button>` : ''}</td>
-            </tr>${history.length > 0 ? paymentHistoryRow(v.id, history, 8) : ''}`;
+            </tr>${history.length > 0 ? paymentHistoryRow(v.id, history, 8, 'PaymentVoucher') : ''}`;
           }).join('')}
       </tbody>
     </table>`
   });
   container.querySelectorAll('[data-vi-pay]').forEach(btn => btn.addEventListener('click', () => payVendorInvoicePlain(btn.getAttribute('data-vi-pay'))));
   wirePaymentHistory(container);
+  addStatementButton('vi-new-btn', 'VendorStatement', 'Vendor', 'vendor');
   document.getElementById('vi-new-btn').addEventListener('click', async () => {
     const defaults = {};
     if (fromGRN) {
@@ -667,7 +668,7 @@ function renderVendorInvoiceActions(v) {
   }
   if (v.status === 'Matched') {
     const sections = window.__tdsSections || [];
-    const tdsOptions = sections.map(s => `<option value="${s.section_code || s.id}">${s.section_code || s.id} (${s.rate_percent}%)</option>`).join('');
+    const tdsOptions = sections.map(s => `<option value="${escapeHTMLText(s.section_code || s.id)}">${escapeHTMLText(s.section_code || s.id)} (${escapeHTMLText(s.rate_percent)}%)</option>`).join('');
     // Stage 73 / 55.10: TDS is withheld on a whole bill, so once a bill is
     // part-paid only plain Pay (of what is left) is offered.
     return `
@@ -920,8 +921,8 @@ async function renderBankReconciliationView(container) {
           ${accounts.map(a => `<option value="${escapeHTMLText(a.id)}" ${a.id === bankRecon.account ? 'selected' : ''}>${escapeHTMLText(a.bank_name || '')} - ${escapeHTMLText(a.account_number || a.id)}</option>`).join('')}
         </select>
       </div>
-      <div class="form-group" style="margin:0;"><label class="form-label" for="bank-recon-from">From</label><input type="date" id="bank-recon-from" class="form-input" value="${bankRecon.from}"></div>
-      <div class="form-group" style="margin:0;"><label class="form-label" for="bank-recon-to">To</label><input type="date" id="bank-recon-to" class="form-input" value="${bankRecon.to}"></div>
+      <div class="form-group" style="margin:0;"><label class="form-label" for="bank-recon-from">From</label><input type="date" id="bank-recon-from" class="form-input" value="${escapeHTMLText(bankRecon.from)}"></div>
+      <div class="form-group" style="margin:0;"><label class="form-label" for="bank-recon-to">To</label><input type="date" id="bank-recon-to" class="form-input" value="${escapeHTMLText(bankRecon.to)}"></div>
       <div class="form-group" style="margin:0;"><label class="form-label" for="bank-recon-filter">Show</label>
         <select id="bank-recon-filter" class="form-select">
           ${[['open', 'Open (unmatched + exceptions)'], ['Exception', 'Exception queue'], ['Matched', 'Matched'], ['Explained', 'Explained'], ['all', 'All lines']]
@@ -1322,24 +1323,28 @@ async function renderSalesInvoicesView(container) {
                 ${history.length > 0 ? `<button class="action-btn" data-pay-hist-toggle="${escapeHTMLText(v.id)}">Payments (${history.length})</button>` : ''}
                 <button class="action-btn" ${actionAttrs('printSalesInvoice', [v.id])}>Print</button>
               </td>
-            </tr>${history.length > 0 ? paymentHistoryRow(v.id, history, 6) : ''}`;
+            </tr>${history.length > 0 ? paymentHistoryRow(v.id, history, 6, 'ReceiptVoucher') : ''}`;
           }).join('')}
       </tbody>
     </table>`
   });
   container.querySelectorAll('[data-si-settle]').forEach(btn => btn.addEventListener('click', () => settleSalesInvoiceAction(btn.getAttribute('data-si-settle'))));
+  addStatementButton('si-new-btn', 'CustomerStatement', 'Customer', 'customer');
   wirePaymentHistory(container);
   // Stage 75.2.9: each invoice's IRN state, from one call.
   const einvCells = [...container.querySelectorAll('[data-einv-id]')];
   einvoiceModule().then(m => m.einvoiceBadgesInto(einvCells, 'SalesInvoice')).catch(() => {});
-  document.getElementById('si-new-btn').addEventListener('click', () => {
-    currentDoctype = 'SalesInvoice'; currentSearchQuery = ''; currentTablePage = 1;
-    renderView('doctype-table');
+  // Stage 130.16 (74.3.4): its own entry screen - buyer GSTIN, place of supply, GST lines.
+  document.getElementById('si-new-btn').addEventListener('click', async (e) => {
+    // The live page element: the container handed to a view may be staged.
+    const host = e.currentTarget.closest('.txn-screen').parentElement;
+    const mod = await import('./view-sales-invoice.js' + new URL(import.meta.url).search);
+    await mod.renderSalesInvoiceEntry(host, () => renderView(currentView));
   });
 }
 
 async function postSalesInvoiceAction(id) {
-  const res = await apiFetch(`/api/v1/finance/sales-invoice/${id}/post`, { method: 'POST' });
+  const res = await apiFetch(`/api/v1/finance/sales-invoice/${encodeURIComponent(id)}/post`, { method: 'POST' });
   if (!res) return;
   if (!res.ok) {
     await showApiError(res, 'Failed to post invoice.');
@@ -1370,7 +1375,7 @@ async function renderInvoicePrintSheet(invoice, irn, einv) {
     ? `<tr><td class="invoice-key">${label}</td><td>${value}</td></tr>`
     : '';
   const draft = (status !== 'Approved' && status !== 'Paid')
-    ? `<div class="invoice-draft">${status.toUpperCase()}</div>`
+    ? `<div class="invoice-draft">${escapeHTMLText(status.toUpperCase())}</div>`
     : '';
   area.innerHTML = `
     <div class="invoice-sheet">
@@ -1378,11 +1383,11 @@ async function renderInvoicePrintSheet(invoice, irn, einv) {
       ${draft}
       <hr>
       <table>
-        ${row('Invoice', invoice.invoice_number || invoice.id)}
-        ${row('Customer', invoice.customer)}
+        ${row('Invoice', escapeHTMLText(invoice.invoice_number || invoice.id))}
+        ${row('Customer', escapeHTMLText(invoice.customer || ''))}
         ${row('Customer PO / Ref', escapeHTMLText(invoice.customer_reference || ''))}
-        ${row('Location', invoice.location)}
-        ${row('Status', status)}
+        ${row('Location', escapeHTMLText(invoice.location || ''))}
+        ${row('Status', escapeHTMLText(status))}
       </table>
       <div class="invoice-total">Total: ${Number(invoice.total_amount || 0).toFixed(2)}</div>
       ${einv ? einv.einvoicePrintBlock(irn) : ''}
@@ -1460,7 +1465,8 @@ async function askSettlementAmount(message, outstanding, title) {
 
 // paymentHistoryRow is the Payments expansion under an invoice row: every
 // receipt, payment and applied credit note, oldest first.
-function paymentHistoryRow(id, entries, colspan) {
+function paymentHistoryRow(id, entries, colspan, voucher = '') {
+  // Stage 130.17 (127.3.2): each receipt / payment prints as its own voucher.
   const lines = entries.map(e => `
     <tr>
       <td>${escapeHTMLText(e.date || '')}</td>
@@ -1468,13 +1474,39 @@ function paymentHistoryRow(id, entries, colspan) {
       <td style="font-family: monospace;">${escapeHTMLText(e.reference || '-')}</td>
       <td class="num">${formatMoney(e.amount ?? 0)}</td>
       <td>${escapeHTMLText(e.by || '')}</td>
+      <td>${voucher && e.reference ? `<button type="button" class="action-btn" data-pay-print="${escapeHTMLText(voucher)}" data-pay-id="${escapeHTMLText(`${id}~${e.reference}`)}">Voucher</button>` : ''}</td>
     </tr>`).join('');
   return `<tr class="hidden" data-pay-hist-row="${escapeHTMLText(id)}"><td colspan="${colspan}">
-    <table><thead><tr><th>Date</th><th>Type</th><th>Reference</th><th class="num">Amount</th><th>By</th></tr></thead><tbody>${lines}</tbody></table>
+    <table><thead><tr><th>Date</th><th>Type</th><th>Reference</th><th class="num">Amount</th><th>By</th><th></th></tr></thead><tbody>${lines}</tbody></table>
   </td></tr>`;
 }
 
+// printFinanceDocument (Stage 130.17) opens the print window on one
+// voucher or statement.
+async function printFinanceDocument(txn, doctype, id) {
+  const docs = await import('./trade-docs.js' + new URL(import.meta.url).search);
+  docs.printTransactionDocument(doctype, id, { txn, only: true });
+}
+
+// addStatementButton puts "Statement" beside a list's New button.
+function addStatementButton(newBtnId, txn, doctype, who) {
+  const newBtn = document.getElementById(newBtnId);
+  if (!newBtn) return;
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'btn btn-outline';
+  b.textContent = 'Statement';
+  b.style.marginRight = '8px';
+  b.addEventListener('click', async () => {
+    const code = String((await showCustomPrompt(`Which ${who}? (their code)`, '', 'Statement of account')) || '').trim();
+    if (code) printFinanceDocument(txn, doctype, code);
+  });
+  newBtn.parentElement.insertBefore(b, newBtn);
+}
+
 function wirePaymentHistory(root) {
+  root.querySelectorAll('[data-pay-print]').forEach(btn => btn.addEventListener('click', () =>
+    printFinanceDocument(btn.dataset.payPrint, btn.dataset.payPrint === 'ReceiptVoucher' ? 'SalesInvoice' : 'VendorInvoice', btn.dataset.payId)));
   root.querySelectorAll('[data-pay-hist-toggle]').forEach(btn => btn.addEventListener('click', () => {
     const id = btn.getAttribute('data-pay-hist-toggle');
     // Looked up from the button, not root: the shell may move the rendered

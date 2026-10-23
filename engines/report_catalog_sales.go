@@ -273,7 +273,7 @@ func catItemImage(r *catRow) interface{} {
 	if !ok {
 		images = map[string]string{}
 		rows, err := dbQuery(fmt.Sprintf(`SELECT DISTINCT ON (data->>'item') data->>'item', id FROM %s.documents
-			WHERE doctype = 'ProductMedia' AND status = 'Active' AND COALESCE(data->>'file_type', '') LIKE 'image/%%'
+			WHERE doctype = 'ProductMedia' AND status = 'Active' AND deleted_at IS NULL AND COALESCE(data->>'file_type', '') LIKE 'image/%%'
 			ORDER BY data->>'item', (data->>'media_role' = 'Main Image') DESC, created_at`, r.lk.schema))
 		if err == nil {
 			for rows.Next() {
@@ -534,7 +534,7 @@ func storedValueEventRows(kind string) func(tenantID, schema string, p map[strin
 			profileCond = "i.profile <> '" + AdvanceProfileID + "'"
 		}
 		q := fmt.Sprintf(`SELECT l.entry_id, l.event_type, l.amount_paise, l.balance_after_paise, COALESCE(l.source_doctype, ''), COALESCE(l.source_id, ''),
-			COALESCE(l.location, ''), COALESCE(l.payment_mode, ''), COALESCE(l.user_name, ''), l.created_at, i.card_number, COALESCE(i.customer_id, ''), i.status
+			COALESCE(l.location, ''), COALESCE(l.payment_mode, ''), COALESCE(l.user_name, ''), l.created_at, CASE WHEN i.card_last4 IS NOT NULL THEN '**** ' || i.card_last4 ELSE i.card_number END, COALESCE(i.customer_id, ''), i.status
 			FROM %[1]s.stored_value_ledger l JOIN %[1]s.stored_value_instruments i ON i.instrument_id = l.instrument_id
 			WHERE %[2]s`, schema, profileCond)
 		args := []interface{}{}

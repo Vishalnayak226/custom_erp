@@ -40,7 +40,7 @@ func GetChildLocations(tenantID, parentCode string) ([]FacilityNode, error) {
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, COALESCE(data->>'name', ''), COALESCE(data->>'level', '')
-		FROM %s.documents WHERE doctype = 'Location' AND status = 'Active' AND data->>'parent' = $1
+		FROM %s.documents WHERE doctype = 'Location' AND status = 'Active' AND deleted_at IS NULL AND data->>'parent' = $1
 		ORDER BY id`, schema), parentCode)
 	if err != nil {
 		return nil, err
@@ -215,7 +215,7 @@ func CopyFacilityConfig(tenantID, sourceLocation, targetLocation, userID string)
 	}
 
 	zoneRows, err := tx.Query(fmt.Sprintf(
-		`SELECT data FROM %s.documents WHERE doctype = 'Zone' AND status = 'Active' AND data->>'location' = $1`, schema), sourceLocation)
+		`SELECT data FROM %s.documents WHERE doctype = 'Zone' AND status = 'Active' AND deleted_at IS NULL AND data->>'location' = $1`, schema), sourceLocation)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -262,7 +262,7 @@ func CopyFacilityConfig(tenantID, sourceLocation, targetLocation, userID string)
 	}
 
 	binRows, err := tx.Query(fmt.Sprintf(
-		`SELECT data FROM %s.documents WHERE doctype = 'Bin' AND status = 'Active' AND data->>'location' = $1`, schema), sourceLocation)
+		`SELECT data FROM %s.documents WHERE doctype = 'Bin' AND status = 'Active' AND deleted_at IS NULL AND data->>'location' = $1`, schema), sourceLocation)
 	if err != nil {
 		return zonesCopied, 0, err
 	}

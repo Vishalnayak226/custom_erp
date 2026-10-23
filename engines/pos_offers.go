@@ -652,7 +652,7 @@ func loadActiveOffers(tenantID string) ([]offerRule, error) {
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT id, data FROM %s.documents WHERE doctype = 'Offer' AND status = 'Active'`, schema))
+		`SELECT id, data FROM %s.documents WHERE doctype = 'Offer' AND status = 'Active' AND deleted_at IS NULL`, schema))
 	if err != nil {
 		return nil, err
 	}

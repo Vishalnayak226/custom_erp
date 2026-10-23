@@ -1682,12 +1682,12 @@ func (b *bpRun) doBills(bills []*bpBillIn, lines []*bpLine) {
 			fail("every row of this bill has Received Qty 0 - nothing to receive")
 			continue
 		}
-		// One goods receipt keeps its lines in one field, held to the org's
-		// "Default maximum field length"; a received line takes about
-		// bpGRNLineChars of it.
-		if limit := engines.GetSettingInt(b.sw.c.tenantID, "platform.field_max_length"); limit > 0 && out.Lines*bpGRNLineChars > limit {
-			fail(fmt.Sprintf("this bill has %d lines; one goods receipt holds about %d with the current Default maximum field length (%d characters) - raise it under Configuration > Platform (e.g. to %d)",
-				out.Lines, limit/bpGRNLineChars, limit, ((out.Lines*bpGRNLineChars*2)/10000+1)*10000))
+		// One goods receipt keeps its lines in one field (its own limit since
+		// Stage 130.1, else the org's "Default maximum field length"); a
+		// received line takes about bpGRNLineChars of it.
+		if limit := engines.FieldMaxLength(b.sw.c.tenantID, "GRN", "received_items"); limit > 0 && out.Lines*bpGRNLineChars > limit {
+			fail(fmt.Sprintf("this bill has %d lines; one goods receipt holds about %d (%d characters) - split the bill into two goods receipts",
+				out.Lines, limit/bpGRNLineChars, limit))
 			continue
 		}
 		var blocked []string

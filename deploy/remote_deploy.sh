@@ -32,6 +32,11 @@ set -euo pipefail
 
 REMOTE_DIR="${REMOTE_DIR:?set REMOTE_DIR, e.g. /opt/erp}"
 DEPLOY_COMMIT="${DEPLOY_COMMIT:-unknown}"
+# Stage 90.5: deploy.ps1 sends the ledger note base64-encoded, so its commas,
+# colons, dashes and line breaks reach the ledger intact through ssh and bash.
+if [ -n "${DEPLOY_NOTES_B64:-}" ]; then
+  DEPLOY_NOTES="$(printf '%s' "$DEPLOY_NOTES_B64" | base64 -d)"
+fi
 # Stage 50/BLD-006 shipped the two halves of the expected-commit health check
 # out of step, and the 2026-10-05 deploy of 4847ce6 is what surfaced it: this
 # pointed at "/", which http.Dir serves index.html from, so the body

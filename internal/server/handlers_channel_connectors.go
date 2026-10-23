@@ -129,3 +129,18 @@ func handleConnectorHealth(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"channels": health})
 }
+
+// handleChannelSetupCheck (Stage 130.19, 55.21) says whether a channel's saved
+// credentials would connect and how to set it up - never a credential value.
+func handleChannelSetupCheck(w http.ResponseWriter, r *http.Request) {
+	if !engines.HasFullAccess(r.Header.Get("Resolved-Role")) {
+		writeAPIError(w, r, "GLOBAL-0011", "")
+		return
+	}
+	out, err := engines.CheckChannelSetup(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("channel"))
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(out)
+}

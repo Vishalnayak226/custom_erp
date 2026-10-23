@@ -431,7 +431,11 @@ func verifyShopifyWebhookSignature(r *http.Request, body []byte) bool {
 var publicRoutes = map[string]bool{
 	"/api/v1/login":   true,
 	"/api/v1/version": true,
-	"/api/v1/health":  true,
+	// Stage 134.10: the client's brand for its own sign-in page - company
+	// name, colour, logo; nothing when branding is off.
+	"/api/v1/branding":      true,
+	"/api/v1/branding/logo": true,
+	"/api/v1/health":        true,
 	// BLD-052: same tier as /health - a load balancer deciding whether to
 	// send traffic here cannot hold a bearer token. Reports only this
 	// repository's own migration filenames and build identity, never

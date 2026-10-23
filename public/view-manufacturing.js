@@ -65,10 +65,10 @@ async function renderManufacturingView(container) {
   } else if (currentMfgTab === 'schedule') {
     await renderProductionScheduleTab(container);
   } else if (currentMfgTab === 'subcontracting') {
-    currentDoctype = 'SubcontractOrder';
-    currentSearchQuery = '';
-    currentTablePage = 1;
-    await renderLazyView('manufacturing', container, LAZY_VIEW_MODULES['doctype-table']);
+    // Stage 130.16 (74.3.3): the Job Work workbench - its own lazy module.
+    header.remove();
+    const mod = await import('./view-jobwork.js' + new URL(import.meta.url).search);
+    await mod.renderJobWorkTab(container);
   }
 }
 
@@ -475,13 +475,13 @@ async function runMRPSuggestions() {
     `;
     html += suggestions.map(s => `
       <tr>
-        <td>${s.parent_item}</td>
+        <td>${escapeHTMLText(s.parent_item)}</td>
         <td>${s.available}</td>
         <td>${s.reorder_point}</td>
         <td>${s.suggested_production_qty}</td>
-        <td style="font-family: monospace;">${s.bom_id || '-'}</td>
+        <td style="font-family: monospace;">${escapeHTMLText(s.bom_id || '-')}</td>
         <td>${(s.raw_material_shortfalls || []).length === 0 ? 'None' :
-          s.raw_material_shortfalls.map(r => `${r.sku}: need ${r.shortfall_qty.toFixed ? r.shortfall_qty.toFixed(2) : r.shortfall_qty} more`).join('<br>')}</td>
+          s.raw_material_shortfalls.map(r => `${escapeHTMLText(r.sku)}: need ${r.shortfall_qty.toFixed ? r.shortfall_qty.toFixed(2) : r.shortfall_qty} more`).join('<br>')}</td>
       </tr>
     `).join('');
     html += `</tbody></table>`;
@@ -534,7 +534,7 @@ async function loadProductionSchedule() {
     <tr>
       <td>${copyableCell(e.order_id, e.order_id)}</td>
       <td>${e.seq}</td>
-      <td>${e.work_center_id || '-'}</td>
+      <td>${escapeHTMLText(e.work_center_id || '-')}</td>
       <td>${Math.round(e.needed_minutes)}</td>
       <td>${e.finite_date}</td>
       <td>${e.infinite_date}</td>

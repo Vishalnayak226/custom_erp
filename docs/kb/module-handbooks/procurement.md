@@ -155,27 +155,29 @@ same generic `RFQ`/`VendorQuote` doc API Vendor/Customer use, adding the
 comparison view and the winner-selection action the generic endpoint doesn't
 provide on its own.
 
-- **New RFQ** — number auto-issued from the `RFQ` series, plus
-  **description**, **quantity**, **target date**. Status starts `Draft`.
-- **View Quotes** on an RFQ opens its comparison panel. **Submit Quote**
-  records a `VendorQuote` (quote number, vendor, quoted price, lead time
-  days) with status `Submitted`. `GetVendorQuotesForRFQ` returns them sorted
-  by **quoted price ascending**, so the cheapest is always the first row.
-- **Select as Winner** (`POST /api/v1/rfq/select-quote`, `SelectWinningQuote`)
-  is one transaction that marks the chosen quote `Selected`, every other
-  quote against the same RFQ `Rejected`, and the RFQ itself `Closed` — a
-  partial selection (a winner marked but the RFQ left open) can't happen.
+The steps (User Guide §6.4 has every field):
 
-> [!NOTE]
-> **Selecting a winning quote does not create a Purchase Order.** There is no
-> "convert this quote to a PO" action anywhere in the app or the engine layer
-> (confirmed by grep — no caller of `SelectWinningQuote`'s result exists
-> beyond closing the RFQ, and `ConvertRequisitionToOrder` can't run a second
-> time on the same requisition once it already produced the RFQ, per
-> `RFQ-0251` above). After selecting a winner, raise the Purchase Order by
-> hand on the composer, typing the vendor and lines the winning quote already
-> specified. This is a real gap in the day-to-day flow, not a missing button
-> on an otherwise-complete round trip — worth budgeting the extra step for.
+1. **+ New RFQ** — choose **Deliver to**, when quotes are due and when you
+   need the goods, add the items asked for (**Item** or a description,
+   **Unit**, **Qty**, **Add line**), then **Create RFQ**. It starts as
+   **Draft**.
+2. **Invite vendors** under **Vendors** (supplier, **Reply by**, **Invite**),
+   then **Mark as Sent** once the request has actually gone out.
+3. **+ Record Quote** for each quote as it comes in: vendor, validity,
+   freight, payment terms, and per line the vendor's unit, unit price, tax %
+   and lead days (or **Not quoted**). A revised quote replaces the older one.
+4. **Compare** — the quotes sit side by side with each line's landed cost per
+   unit, the landed total, lead time, terms and validity. **Recommended** is
+   the lowest landed total among valid quotes that cover every line.
+5. **Award** under the chosen quote (`POST /api/v1/rfq/{id}/award`). Confirm
+   **Deliver to**, map any free-text line to an item (or **Leave out**), and
+   click **Create Purchase Order**. This makes a **Draft PO** for that vendor
+   with the quote's prices, freight and terms, marks the other quotes
+   Rejected and closes the RFQ, which then shows the PO's number. An RFQ can
+   be awarded once. To buy from nobody, use **Close without award**.
+
+Open the Draft PO on the composer (§3 below) and submit it for approval as
+usual — the same approval table above applies.
 
 ### 3. Purchase Order composer
 
@@ -271,12 +273,9 @@ again in the engine response — because the buying side's expected retail
 price is not the vendor's business, and leaving it in the payload would put
 it one "view source" away from the vendor on any forwarded copy.
 
-> [!NOTE]
-> There is no QZ Tray silent-print builder for a PO — `handlers_qz_print.go`'s
-> `job_type` switch covers Shipping Label / Sticker / Receipt / Invoice, not
-> Purchase Order, so **Print** deliberately goes straight to the browser's
-> print dialog rather than attempting a silent print it already knows will
-> fail. Separate piece of work if silent A4 PO printing is ever wanted.
+**Print** opens the print window (User Guide §7B.1). Silent printing
+through QZ Tray covers a Purchase Order too: each computer keeps its own
+printer for the **Purchase Order** kind of print (User Guide §7B.3).
 
 **Send to Vendor** (`POST /api/v1/procurement/purchase-order/{id}/send`,
 `MarkPurchaseOrderSent`) stamps `sent_to_vendor_at`, fires the
@@ -546,10 +545,10 @@ same PO) is over the ordered amount plus tolerance. If small over-shipments
 are normal for this vendor, set an **Over-Receipt Tolerance %** on a
 `ReceiptValidationRule` rather than splitting the receipt to dodge the check.
 
-**Selected a winning RFQ quote, but there's no Purchase Order.** There isn't
-one yet, and nothing creates it automatically — see the note under §2
-above. Raise the PO by hand on the composer using the winning vendor and
-price.
+**Awarded an RFQ quote, but can't find the Purchase Order.** **Award**
+creates it as a **Draft PO**; the RFQ row shows its number, and **Open
+purchase orders** on the RFQ goes to the list. A second award on the same
+RFQ is refused — it can be awarded only once.
 
 **A Store Manager can't see a "Create Draft" option, or it 403s.** Store
 Manager has `update`, not `create`, on `PurchaseOrder` by default. Raise the
@@ -565,14 +564,6 @@ as you type.
 
 ## What is not here yet
 
-**No automatic RFQ-quote-to-PO conversion.** Selecting a winning vendor
-quote closes the RFQ but creates nothing downstream — see the note under §2.
-This is a real gap in an otherwise complete round trip, not a missing
-button on a workflow nobody uses.
-
-**No silent/QZ printing for a Purchase Order.** Print always opens the
-browser's print dialog on the A4 sheet; there is no silent-print job type for
-it the way there is for a receipt or shipping label.
 
 **Vendor invoice matching, TDS payment and Payment Proposals** exist and
 work (`Match3Way`, `PayVendorInvoiceWithTDS`, the Payment Proposals screen)

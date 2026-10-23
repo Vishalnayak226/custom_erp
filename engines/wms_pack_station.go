@@ -51,7 +51,7 @@ func resolvePackingValidationTemplate(schema string, task *pickPackTask) (*Packi
 	}
 
 	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT id, data FROM %s.documents WHERE doctype = 'PackingValidationTemplate' AND status = 'Active'`, schema))
+		`SELECT id, data FROM %s.documents WHERE doctype = 'PackingValidationTemplate' AND status = 'Active' AND deleted_at IS NULL`, schema))
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +183,7 @@ func ResolvePackTemplate(tenantID, sku, customerName string) (*PackTemplateInfo,
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT id, data FROM %s.documents WHERE doctype = 'PackTemplate' AND status = 'Active'`, schema))
+		`SELECT id, data FROM %s.documents WHERE doctype = 'PackTemplate' AND status = 'Active' AND deleted_at IS NULL`, schema))
 	if err != nil {
 		return nil, err
 	}

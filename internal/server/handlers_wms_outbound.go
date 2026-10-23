@@ -162,6 +162,43 @@ func handleSortSlotAssign(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"slot": slot})
 }
 
+// handleSortSlotAssignWave (Stage 130.13, 80.7 d) gives each open order of a
+// wave its own slot at the station - sortation linked to the wave.
+func handleSortSlotAssignWave(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Station string `json:"station"`
+		WaveID  string `json:"wave_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request")
+		return
+	}
+	slots, err := engines.AssignWaveToSortSlots(r.Header.Get("Resolved-Tenant-ID"), req.Station, req.WaveID, r.Header.Get("Resolved-User-ID"))
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"slots": slots})
+}
+
+// handleWavePickConfirm (Stage 130.13, 80.7 b) records one picked wave line.
+func handleWavePickConfirm(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		WaveID  string `json:"wave_id"`
+		LineKey string `json:"line_key"`
+		Qty     int    `json:"qty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request")
+		return
+	}
+	if err := engines.ConfirmWavePickLine(r.Header.Get("Resolved-Tenant-ID"), req.WaveID, req.LineKey, req.Qty, r.Header.Get("Resolved-Username")); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "confirmed"})
+}
+
 func handleSortSlotConfirm(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	userID := r.Header.Get("Resolved-User-ID")

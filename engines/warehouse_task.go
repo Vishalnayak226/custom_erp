@@ -480,13 +480,13 @@ func resolveDispatchOrder(tenantID, locationCode string) (string, error) {
 	var sortOrder string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT data->>'sort_order' FROM %s.documents
-		WHERE doctype = 'TaskDispatchStrategy' AND COALESCE(status, '') = 'Active'
+		WHERE doctype = 'TaskDispatchStrategy' AND COALESCE(status, '') = 'Active' AND deleted_at IS NULL
 		  AND data->>'location_code' = $1
 		LIMIT 1`, schema), locationCode).Scan(&sortOrder)
 	if err == sql.ErrNoRows {
 		err = db.DB.QueryRow(fmt.Sprintf(`
 			SELECT data->>'sort_order' FROM %s.documents
-			WHERE doctype = 'TaskDispatchStrategy' AND COALESCE(status, '') = 'Active'
+			WHERE doctype = 'TaskDispatchStrategy' AND COALESCE(status, '') = 'Active' AND deleted_at IS NULL
 			  AND COALESCE(data->>'location_code', '') = ''
 			LIMIT 1`, schema)).Scan(&sortOrder)
 	}
@@ -556,7 +556,7 @@ func validateTaskDispatchStrategyMasterRules(tenantID, docID string, payload map
 	var existingID string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
-		WHERE doctype = 'TaskDispatchStrategy' AND status = 'Active'
+		WHERE doctype = 'TaskDispatchStrategy' AND status = 'Active' AND deleted_at IS NULL
 		  AND COALESCE(data->>'location_code', '') = $1 AND id != $2
 		LIMIT 1`, schema), locationCode, docID).Scan(&existingID)
 	if err == nil {
@@ -564,7 +564,7 @@ func validateTaskDispatchStrategyMasterRules(tenantID, docID string, payload map
 		if locationCode != "" {
 			scope = "location " + locationCode
 		}
-		return &ValidationError{Code: "MASTER-0053", Message: fmt.Sprintf(
+		return &ValidationError{Code: "MASTER-1321", Message: fmt.Sprintf(
 			"an Active dispatch strategy already applies to %s (%s) - deactivate it first", scope, existingID)}
 	}
 	return nil

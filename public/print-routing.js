@@ -77,11 +77,21 @@ function autoPick(kind, printers, def) {
   return only(printers.filter(plain));
 }
 
+// Stage 133.4: ZPL only for a printer named as a Zebra. Other label printers
+// (TSC, TVS, Xprinter, Gprinter, the 4-inch Y468BT kind) mostly speak TSPL,
+// and a TSPL printer sent ZPL feeds blank tags. The Printer record shows the
+// pick and is one edit away.
+const ZEBRA_RE = /(zebra|zdesigner|\bz[dt]\d|\bg[kxt]\d|\btlp ?\d|\blp ?28)/i;
 function languageFor(kind, name) {
   if (kind === 'Receipt') return 'ESC-POS';
-  if (kind === 'Sticker') return /(tsc|tte|snbc)/i.test(name) ? 'TSPL' : 'ZPL';
+  if (kind === 'Sticker') return ZEBRA_RE.test(name) ? 'ZPL' : 'TSPL';
   return 'PDF';
 }
+
+// notMapped (Stage 133.5) is what to do about a Printer record with no OS
+// printer name - for qzTryPrint's alert and its silent-print failure alike.
+export const notMapped = (name) => `Printer "${name}" has no OS Printer Name. Open Setup → Printing → Printer, ` +
+  `open "${name}" and enter the exact Windows printer name (Detect Printers, under Printer setup on the Sticker Printing page, lists them).`;
 
 // askPrinter is the one question, in the app's own dialog.
 function askPrinter(kind, printers, preselect, computer) {
@@ -148,7 +158,8 @@ export async function needsChoice(res) {
 export async function chooseAndPrint(jobType, opts) {
   const printer = await choosePrinter(printKindFor(opts.printKind || jobType), opts.location);
   if (!printer) {
-    if (opts.why) opts.why.reason = 'No printer was chosen, or PrintBridge lists none on this computer.';
+    if (opts.why) Object.assign(opts.why, { setup: true,
+      reason: 'No printer is chosen for this print on this computer. Retry to choose one; if the list is empty, install the printer in Windows first.' });
     return false;
   }
   return window.qzTryPrint(jobType, { ...opts, printerCode: printer.code, chosen: true });
@@ -169,8 +180,10 @@ export async function silentSetUp(kind, location) {
 }
 
 // explainFailure is the one question after a silent print failed:
-// 'retry' | 'browser' | 'cancel'.
-function explainFailure(kind, reason) {
+// 'retry' | 'browser' | 'cancel'. Stage 133.5: a setup reason (no printer
+// chosen, no OS printer name, the server refused the print) says itself what
+// to fix; the PrintBridge advice is only for the agent and the printer.
+export function explainFailure(kind, reason, setup = false) {
   return new Promise((resolve) => {
     const backdrop = document.getElementById('custom-dialog-container');
     if (!backdrop) { resolve('cancel'); return; }
@@ -178,7 +191,7 @@ function explainFailure(kind, reason) {
     const ok = document.getElementById('custom-dialog-ok-btn');
     const okText = ok.textContent;
     document.getElementById('custom-dialog-title').textContent = `${kind} did not print`;
-    document.getElementById('custom-dialog-message').textContent =
+    document.getElementById('custom-dialog-message').textContent = setup && reason ? reason :
       `${reason || 'PrintBridge did not answer.'} Check that PrintBridge is running on this computer and the printer is on and loaded, then Retry.`;
     extra.innerHTML = '<button type="button" class="btn btn-outline btn-sm" id="custom-dialog-browser" style="margin-top:12px;">Print with the browser instead</button>';
     extra.classList.remove('hidden');
@@ -210,15 +223,21 @@ function explainFailure(kind, reason) {
 // browserPrint opens the browser's print. Returns false only when the user
 // gave up on a failed silent print.
 export async function printNoDialog(kind, location, trySilent, browserPrint) {
+  lastPrint.channel = '';
   for (;;) {
     const why = {};
     let printed = false;
     try { printed = await trySilent(why); } catch (e) { why.reason = why.reason || (e && e.message) || String(e); }
-    if (printed) return true;
-    if (!await silentSetUp(kind, location)) { await browserPrint(); return true; }
-    const choice = await explainFailure(printKindFor(kind), why.reason || '');
+    if (printed) { lastPrint.channel = 'qz'; return true; }
+    if (!await silentSetUp(kind, location)) { lastPrint.channel = 'browser'; await browserPrint(); return true; }
+    const choice = await explainFailure(printKindFor(kind), why.reason || '', why.setup);
     if (choice === 'retry') continue;
-    if (choice === 'browser') { await browserPrint(); return true; }
+    if (choice === 'browser') { lastPrint.channel = 'browser'; await browserPrint(); return true; }
     return false;
   }
 }
+
+// lastPrint (Stage 130.16, 74.1.4) is how the last print went out - 'qz'
+// (submitted to PrintBridge) or 'browser' (handed to the browser) - for the
+// print log; neither is proof of paper.
+export const lastPrint = { channel: '' };

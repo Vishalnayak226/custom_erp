@@ -181,6 +181,9 @@ func StartQueueSaturationMonitor(ctx context.Context, pollInterval time.Duration
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				if !IsSchedulerLeader() { // 134.7: one server runs each sweep
+					continue
+				}
 				if db.DB == nil {
 					continue
 				}
@@ -257,6 +260,9 @@ func StartAlertMonitor(ctx context.Context, pollInterval, window time.Duration, 
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				if !IsSchedulerLeader() { // 134.7: one server runs each sweep
+					continue
+				}
 				if db.DB == nil {
 					continue
 				}
@@ -399,6 +405,9 @@ func StartBackupFreshnessMonitor(ctx context.Context, pollInterval, maxAge time.
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				if !IsSchedulerLeader() { // 134.7: one server runs each sweep
+					continue
+				}
 				checkBackupAge(maxAge)
 			}
 		}

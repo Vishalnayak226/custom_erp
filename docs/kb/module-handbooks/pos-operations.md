@@ -188,6 +188,25 @@ dispositions, expected evidence and recovery instructions. The old instant
 refund endpoint is retired; earlier instructions to type sale/cost prices and
 immediately restock and refund no longer apply.
 
+### Exchange at the till
+
+For a customer swapping items at the counter:
+
+1. On an empty till (store picked, session open), click **More… → Exchange**,
+   type the **original bill number**, and choose how many of each item are
+   coming back and their condition (**Sellable**, **Damaged** or
+   **Repairable**). The items are received and inspected there and then.
+2. The bar shows the **Exchange credit** — what the customer paid for those
+   items, after the bill's offer.
+3. Ring up what they take instead. The **Total** is what is left to pay. If
+   the new items cost less, the bar says how much goes back to the customer,
+   the Total reads 0.00, and the finished bill says how much cash to hand
+   over from the drawer.
+
+An exchange needs a connection (it cannot be queued offline), and its credit
+is used on one bill only. User Guide §4.7 has the full steps, including how
+points are handled.
+
 ## Offline mode
 
 If the till loses its connection mid-shift, the browser can queue a pending sale.
@@ -341,18 +360,10 @@ Nothing is broken either way; the browser's own print dialog opens instead.
 
 ## What is not here yet
 
-**Exchanges are not a first-class action at POS.** The in-store return
-panel only refunds; the server-side return workflow that does support an
-exchange SKU (`ApplyReturnQC`'s `exchange_for`, part of the broader
-`/api/v1/returns` → QC-disposition → refund-request flow in
-`engines/returns.go` and `internal/server/handlers_returns.go`) has no UI
-screen anywhere in the app — confirmed by grep, `ReturnRequest` and
-`RefundRequest` are never referenced in `public/app.js`. That whole richer
-workflow (courier RTO intake, QC disposition per line, exchange-for-SKU,
-separate refund approval) is real and tested, but reachable only by direct
-API call today, the same shape of gap the
-[Batch, Serial & Expiry Traceability](traceability-batch-serial.md) handbook
-documents for its own post-receipt actions.
+**An exchange cannot be done offline.** **More… → Exchange** (see
+[Exchange at the till](#exchange-at-the-till)) needs a connection; the richer
+return workflow (courier RTO intake, QC disposition per line,
+exchange-for-SKU, separate refund approval) runs on **OMS → Returns**.
 
 **Batch/serial capture does not happen at POS return.** `ProcessReturnAnywhere`
 restocks by SKU and quantity only — see the warning above.

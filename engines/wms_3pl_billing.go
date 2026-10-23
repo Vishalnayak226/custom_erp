@@ -63,7 +63,7 @@ func GetStorageBillingReport(tenantID, ownerID, start, end string) ([]StorageBil
 		       COALESCE((data->>'storage_rate_per_unit_per_day')::numeric, 0),
 		       COALESCE((data->>'handling_rate_per_task')::numeric, 0),
 		       COALESCE(data->>'item', ''), COALESCE(data->>'billing_uom', '')
-		FROM %s.documents WHERE doctype = 'StorageBillingRate' AND status = 'Active'
+		FROM %s.documents WHERE doctype = 'StorageBillingRate' AND status = 'Active' AND deleted_at IS NULL
 		  AND ($1 = '' OR data->>'owner_id' = $1)`, schema), ownerID)
 	if err != nil {
 		return nil, err

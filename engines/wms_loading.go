@@ -63,6 +63,8 @@ func CreateLoadingTask(tenantID, dockDoor, trailerNo, manifestID string, expecte
 		return "", err
 	}
 	LogAuditEvent(tenantID, userID, "WMS_LOADING_TASK_CREATE", "SUCCESS", fmt.Sprintf("Opened loading task %s: door %s, trailer %s", taskID, dockDoor, trailerNo))
+	// Stage 130.13 (80.7 h): the trailer's outbound appointment follows the load.
+	linkOutboundAppointmentToLoad(schema, taskID, trailerNo)
 	return taskID, nil
 }
 
@@ -234,6 +236,10 @@ func DepartLoadingTask(tenantID, loadingTaskID, userID string) error {
 		return err
 	}
 	LogAuditEvent(tenantID, userID, "WMS_LOADING_DEPART", "SUCCESS", fmt.Sprintf("Loading task %s departed", loadingTaskID))
+	// Stage 130.13 (80.7 h): the trailer leaves the yard with the load.
+	if err := checkOutYardForLoad(schema, loadingTaskID, task.TrailerNo); err != nil {
+		LogSystemError(tenantID, "", "ERROR", "DepartLoadingTask", fmt.Sprintf("load %s departed, but the yard check-out did not save: %v", loadingTaskID, err), "")
+	}
 	return nil
 }
 

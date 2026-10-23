@@ -2,9 +2,6 @@ package server
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -233,21 +230,23 @@ func handleShopifyWebhook(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Unreadable body")
 		return
 	}
-	secret, err := engines.GetChannelWebhookSecret(tenantID, channel)
-	if err != nil || secret == "" {
+	// 134.3: the current secret or, for a week after a change, the previous one.
+	if !engines.VerifyWebhookHMACAny(body, r.Header.Get("X-Shopify-Hmac-Sha256"), "", "base64", engines.GetChannelWebhookSecrets(tenantID, channel)...) {
 		writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "Invalid webhook signature")
 		return
 	}
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(body)
-	if !hmac.Equal([]byte(r.Header.Get("X-Shopify-Hmac-Sha256")), []byte(base64.StdEncoding.EncodeToString(mac.Sum(nil)))) {
-		writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "Invalid webhook signature")
+	// A repeat of a delivery already handled (same X-Shopify-Webhook-Id) is
+	// answered OK and not processed again.
+	source, eventID := "shopify:"+channel, r.Header.Get("X-Shopify-Webhook-Id")
+	if dup, err := engines.ClaimInboundWebhook(tenantID, source, eventID, body); err == nil && dup {
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "result": "duplicate"})
 		return
 	}
 	ctx, cancel := shopifyCtx(r)
 	defer cancel()
 	result, err := engines.HandleShopifyWebhook(ctx, tenantID, channel, r.Header.Get("X-Shopify-Topic"), body)
 	if err != nil {
+		engines.ReleaseInboundWebhook(tenantID, source, eventID, body) // Shopify's retry is processed
 		// Shopify retries a failed delivery; the 15-minute pull is the backstop.
 		engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "WARN", r.URL.Path, fmt.Sprintf("shopify %s: %v", r.Header.Get("X-Shopify-Topic"), err), "")
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())

@@ -183,7 +183,7 @@ Once you're in, you'll see a **sidebar** on the left. **It only shows what your 
 
 The sidebar has **fifteen top-level entries**. Most are module groups: hover one and its screens slide out to the right (click it instead if you are on a touchscreen or using a keyboard). Some groups inside a module (WMS's **Inbound**, each **Setup** module, each **Reports** area, each **Settings** group) open a second menu beside them the same way. Two entries — **Home** and **Knowledge Center** — have no flyout and open straight away.
 
-**Hide the menu for more room.** The **☰** button at the top left, beside the search box, hides the whole sidebar — like Gmail — so the screen you are working in gets the full width. Click it again to bring the menu back. Your browser remembers the choice, so the menu stays hidden (or shown) the next time you sign in. On a phone the same button opens the menu as a slide-out drawer instead. The Wholeops logo heads the sidebar; while the menu is hidden it moves beside **☰** (on a phone just the globe symbol shows there), so it is always on screen. The browser tab names the screen you are on, e.g. *Cost Center | Wholeops*.
+**Hide the menu for more room.** The **☰** button at the top left, beside the search box, hides the whole sidebar — like Gmail — so the screen you are working in gets the full width. Click it again to bring the menu back. Your browser remembers the choice, so the menu stays hidden (or shown) the next time you sign in. On a phone the same button opens the menu as a slide-out drawer instead. The Wholeops logo heads the sidebar; while the menu is hidden it moves beside **☰** (on a phone just the globe symbol shows there), so it is always on screen. The browser tab names the screen you are on, e.g. *Cost Center | Wholeops*. Your company's name, when your administrator has set it, shows beside the logo and in the tab (*Cost Center - Minn Jewels | Wholeops*). On a test or development copy of the system the sign-in card says so (*Development environment - not the live system*) and every tab title starts with **[Dev]**, so you never mistake it for the live one.
 
 **Every transaction screen looks the same.** POS, Purchase Order, Goods Receipt, Purchase Return, Stock Transfer, Returns, Vendor and Sales Invoices, Debit / Credit Notes and Journal Vouchers are each **one fixed screen that does not scroll** — like a shop's billing screen. Top to bottom:
 
@@ -213,7 +213,7 @@ The POS till is the exception: it opens ready to sell, and its **Sale** / **Retu
 | **Inventory** | Dashboard (§5.3) · Stock on Hand (§5) · Inventory Ledger (§5.4) · Stock Movement (§7) · Stock Adjustment (§5.5) · MRP Change (§5.6) · Move Stock · Stock Locations · Sticker Printing (§7A) |
 | **WMS** | Warehouse Cockpit, then three groups that each open beside it: **Inbound** (Appointment Calendar · Dock Doors · Yard Board · Trailers · RF Receiving · Putaway · Cross-Dock Plans) · **Storage & Control** (Bin · Bin Conditions · LPN / Cartons / Pallets · Bin Replenishment · Location Movement · Cycle Count · RF Lot & Serial · Holds · Place Hold · Hold Release Requests) · **Outbound** (Waves · Wave / Batch Picking · Mobile Picking · Sortation / Put-Wall · Loading) |
 | **HRM** | HR · Fixed Assets (§6.7) · Expenses |
-| **Manufacturing** | Production: Production Orders · Production Schedule · Subcontracting — Planning: MRP Suggestions · Supply Proposals — Quality: Quality Inspections · Certificates · Non-conformance — Maintenance: Maintenance Orders |
+| **Manufacturing** | Production: Production Orders · Production Schedule · Job Work — Planning: MRP Suggestions · Supply Proposals — Quality: Quality Inspections · Certificates · Non-conformance — Maintenance: Maintenance Orders |
 | **PIM** | Dashboard · Workbench · My Work · Media Library · Supplier Submissions · Catalogs · PIM Reports. PIM's setup lists (families, attributes, workflows, channel maps, import and export templates) are under **Setup → PIM**. |
 | **Setup** | The module names; point at one and its reference lists open beside it (§8) |
 | **Settings** | Admin-only, in four groups that each open beside it: **Users & Access** (Users · Roles · Approval Rules) · **Customize** (Configuration · Prefix Configs · Dynamic Labels · Database Schema Design · Extension Hooks) · **Monitoring** (Activity Log · System Status) · **Platform** (Control Panel · Tenant Entitlements · Tenant Usage · Data Console — platform operator) |
@@ -295,6 +295,8 @@ This is the screen a cashier uses most.
 
 Type the amount, pick a **reason**, and add a reference (the voucher or bag number). You cannot take out more than the drawer should hold. Every movement counts in the expected cash at close, so a drawer that had a ₹1,000 safe drop still balances. Cash refunds paid at this store are allowed for too.
 
+**Switching staff with a PIN on a shared till (Stage 130.11).** A store manager registers the till once: **More… → Register this till for staff PINs**. Each person sets their PIN once (**More… → Set my PIN for this till** - their password, then a 4-8 digit PIN). From then on whoever steps up chooses **More… → Switch staff**, types their name and PIN, and the till is theirs - the bill on screen stays. A supervisor's price override works the same way: the supervisor switches in, makes the override under their own name, and the cashier switches back and takes the payment. No one shares a password. After a few idle minutes the till locks (*Till locked*) until someone enters their name and PIN; reloading the page does not get past the lock. An administrator signs in with their password, not a PIN.
+
 **Handing the till to the next cashier.** The next cashier signs in on the same till, picks the store, and chooses **More… → Take over this till**. They count the cash and type it: that closes the outgoing cashier's session against their count (with the same reason-and-approval step if it is off) and opens theirs with that cash as the float. The two sessions name each other, so who handed over to whom is on record.
 
 You open a session once per shift, not once per sale.
@@ -313,7 +315,7 @@ You open a session once per shift, not once per sale.
 4. **Read the Available column before you promise anything.** It shows the quantity you can actually sell at this store. Stock held in a location that does not sell is listed under it by the store's own names — *"Not sellable here: Damage 2 · Inward 3"* (the locations are set up under **Inventory → Stock Locations**, §5.1). That stock is physically in the shop but must not be sold. If you ask for more than can be sold, the row turns red and says *"Only N can be sold here"*. Clicking **Complete Sale** anyway names the item and how many are available (e.g. *"LAMP … available 0, requested 1"*). Click **Remove** on that line, or lower the quantity, and click **Complete Sale** again. Nothing was charged.
 5. **Ask the customer's mobile number — on every bill.** Type it into **Customer mobile** and press **Enter**. One number is one customer:
    - **A number already on file** puts that customer on the bill. The line under the box reads *"Name · number"*, and *"GST bill (GSTIN)"* when they have a GSTIN.
-   - **A new number** opens the customer form with the number filled in. Type the **name**; open **More details** for the address (Line 1, Line 2, City, State, PIN), **PAN**, **GSTIN**, date of birth, anniversary and gender. A GSTIN fills the State itself and makes this a **GST (B2B) bill** (§4.1a). Click **Add to bill**. Tick the offer consents (SMS / WhatsApp) only if the customer agreed; both start unticked.
+   - **A new number** opens the customer form with the number filled in. Type the **name**; the same form asks everything else about the customer, in sections: **Contact** (mobile, name, email), **Address** (Line 1, Line 2, City, State, PIN), **Tax** (**GSTIN**, **PAN**), **Personal** (date of birth, anniversary, gender, sizes) and **Preferences** (preferred store, preferred salesman, tags). Only the mobile number and the name are required. A GSTIN fills the State itself and makes this a **GST (B2B) bill** (§4.1a). Click **Add to bill**. Tick the offer consents (SMS / WhatsApp) only if the customer agreed; both start unticked.
    - **The customer will not give a number?** Click **Walk-in**. The bill goes to the store's walk-in customer; nothing about them is printed and no points are earned.
    - **Forgot to ask?** **Complete Sale** asks for the number first (with **Walk-in** to skip), so no bill goes out without the question.
    - **With a customer on the bill, + New Customer becomes Edit Customer** — open it to add their address, PAN or GSTIN later.
@@ -365,7 +367,7 @@ You do not apply offers by hand. Whatever your head office has set up in the ERP
 
 ### 4.3 Printing the receipt
 
-Click **Print Receipt** on the finished bill. You can click it more than once — a customer who said no and then changed their mind does not need the sale re-rung.
+Click **Print Receipt** on the finished bill. You can click it more than once — a customer who said no and then changed their mind does not need the sale re-rung. **Preview** beside it shows the bill exactly as it will print (a bill already printed shows as the reprint it would be); **Print** there prints it, **Close** prints nothing.
 
 The receipt is the sale's **tax invoice on 3-inch (80 mm) roll paper**: your brand and store header (address, phone, email), **Tax Invoice**, bill number with date and time, the customer, one row per item with its **barcode** and **HSN / design** under the name, quantity, rate (with the item discount under it), amount, then total quantity, item discount, taxable value, CGST / SGST (or IGST), round off and **NET AMOUNT**, how it was paid, the cashier, the **HSN-wise GST table**, your GSTIN, the amount in words and a thank-you line. The bill is as long as its lines need. To change anything on it — add your **logo**, website, CIN, terms and conditions, a social-media line, move or remove a piece — open any till sale's **Print**, pick **3-inch roll bill (built-in)**, click **Design templates**, change it and **Save** (§7B.2); the till then prints your version. A roll template of your own always wins over the built-in one.
 
@@ -379,6 +381,7 @@ A few things worth knowing:
 - **The receipt shows what was actually collected.** Offers and loyalty points spent both appear as their own lines, so the printed total matches the cash in the drawer.
 - **A sale waiting on manager approval will not print a receipt.** The money hasn't been collected yet. Once the manager approves it from the **Approvals** screen the sale completes and can be printed.
 - **Reprinting later is safe.** The receipt is rebuilt from the recorded sale, not from whatever is on screen, so it always shows what was originally rung up.
+- **What the receipt shows** (Stage 130.16): every way the bill was paid (*Paid: Cash 500.00 · UPI 700.00 · Points 10*), and - for cash - the cash given and the change handed back, the tax breakup and HSN per line, and your return policy at the foot (an administrator sets it: **Return policy on the till receipt**). A store whose print profile says *58 mm roll* gets the same receipt on narrow paper; long numbers wrap instead of being cut off.
 - **If a 58mm till roll prints text too wide**, tell your administrator to set **Label Width (mm)** to `58` on that Printer record.
 
 **If something goes wrong mid-sale** (a barcode doesn't scan, the system shows an error), read the message on screen — it tells you exactly what's wrong (e.g. "this item is already sold" or "not enough stock") rather than just "error."
@@ -443,6 +446,14 @@ What happens to the customer's points, automatically:
 
 Returning a line in pieces works out to the paisa: two identical shirts returned one at a time may refund 809.99 and then 810.01, and together they always give back exactly what was paid.
 
+**Cancelling today's bill (store managers, Stage 130.9).** A bill rung up wrongly today can be cancelled outright: on the till's **Returns**, look up the bill and press **Cancel the whole bill** (shown to a Store Manager or administrator, for today's bills with nothing returned yet), and give the reason. Every item comes back into stock as sellable, the money goes back the way it was paid (cash, card, UPI, gift card), points earned on the bill are reversed and its tax is reversed - all through an ordinary return, which you can open on **Returns**. Pressing it again only shows the first cancellation. An older bill, or one already partly returned, is returned instead.
+
+**Store credit instead of money back (Stage 130.12).** A refund goes back the way the bill was paid. If the customer *asks* for store credit instead, choose it when processing the refund on **Returns** (Cancel the "back the way it was paid" question, then confirm store credit; or type *Store Credit* where the refund method is asked). The amount goes onto the customer's store credit - no card, nothing to carry: it stays on their account, does not expire, cannot be given to someone else and is never paid out as cash. A walk-in bill (no customer) cannot be refunded to store credit (`SALESR-1310`). On their next bill, attach the customer and the **Use** button offers their store credit (with any advance): *Use store credit 1,000.00*. Above the limit your business sets, a store manager switches in to allow it (`POSOFF-1309`). The return also gets its own GST credit note number (CN...), naming the original bill.
+
+**Free gifts on a return (Stage 130.9).** When everything paid for on a bill comes back, its free gift (a Gift With Purchase item) has to come back too - the return is refused until the gift is added (`SALESR-1307`). Keep part of the purchase and the customer keeps the gift. Your administrator can let customers keep gifts altogether.
+
+**Items the till refuses (Stage 130.9).** *This item can't be sold yet* (`POSOFF-1303`) - a new item still waiting for its release approval. *This store does not sell this item* (`POSOFF-1304`) - the store's record lists it under *Items not sold here*. A made-to-order item whose Product Type allows negative stock sells even with none in stock; the shortfall is recorded for the store manager.
+
 ### 4.8 A customer's points — the Loyalty screen (store managers)
 
 **CRM → Loyalty.** Four tabs:
@@ -487,7 +498,7 @@ For a long bill, click **More… → Upload lines (CSV)**. **Download template**
 ## 5. Checking Stock
 
 1. Click **Inventory** in the sidebar.
-2. Use the search box to find an item by name or code.
+2. Use the search box to find an item by its code (SKU) or a location by its code - part of either is enough. The list shows 100 rows at a time, every store's matching rows searched on the server; **Previous** / **Next** under the table move through a longer list (*1-100 of 1,240*). Reports → Current Stock shows the first 200 rows and points here for the rest.
 3. Read **On hand** for physical book stock and **Available to sell** for the
    quantity the system will let an order reserve. The latter subtracts
    reservations, safety stock, active holds, blocked/QC/damaged stock and
@@ -606,6 +617,14 @@ If your business has an **approval rule** for stock adjustments (Settings → Us
 
 The list is the history: each adjustment's number (**ADJ/<store>/2627/0001**), store, lines with their reasons, the value added and taken off, and its status.
 
+**More on a line (Stage 130.14).** A line can name its **Bin** (the bin is changed too) and its **Lot**, and **To Damaged** marks a damaged unit you still own: it leaves sellable stock and moves to *Damaged* without being written off (a **+** change with To Damaged moves it back). **Preview** shows each line's stock before and after and what will be booked (Dr / Cr) - before anything is saved.
+
+**When the stock changed while it waited.** Each adjustment keeps the stock it was worked out from. If that stock moved before it posted (say a sale while it waited for approval), it does not post: the list shows why, and a store manager can **Post with current stock** after checking the count (`INVENT-1312`).
+
+**Undoing an adjustment.** An adjustment is never deleted. **Reverse** on a posted one asks why and raises a new adjustment with every line the other way, through the same approval; both show the link (*Reverses* / *Reversed by*). An adjustment is reversed once.
+
+**Reports → Inventory**: **Stock adjustment register** (every line, its before / after, value, status, and *Repeated gain* when the same item was found three or more times in 90 days) and **Stock losses by reason and store**. Units lost on a transfer are written off the same way as an adjustment's loss.
+
 ### 5.6 MRP Change
 
 **Inventory → MRP Change** changes items' MRP from a date, and its list is every MRP change — old and new MRP — so it is also each item's MRP history (type an item in the box above the list and **Find**).
@@ -615,7 +634,34 @@ The list is the history: each adjustment's number (**ADJ/<store>/2627/0001**), s
 3. Add each item (search by code, barcode or name): its **Current MRP** and **Sale price** are shown. Enter the **New MRP**. *Sale price is above this MRP* warns you when you would be selling above the new MRP — change the sale price too.
 4. **Reason** (optional), then **Save MRP change**.
 
-When the change applies at once and any of the items is in stock, you are asked whether to print new stickers: **OK** opens Sticker Printing with those items added and the reprint reason filled in. **Reprint stickers** on an applied change's row does the same later. A **Scheduled** change can be **Cancel**led before its date; to undo an applied one, make another change. MRP is the item's, not a batch's.
+When the change applies at once and any of the items is in stock, you are asked whether to print new stickers: **OK** opens Sticker Printing with those items added and the reprint reason filled in (the reason **Price (MRP) changed** picked, and the change's number as the note). **Reprint stickers** on an applied change's row does the same later. A **Scheduled** change can be **Cancel**led before its date; to undo an applied one, make another change. MRP is the item's, not a batch's.
+
+### 5.7 Material Issue (store items for a department's own use)
+
+**Inventory → Material Issue** is how a department takes store items it uses itself - cleaning stock, packing material, display props - so the stock and its cost are accounted for, not quietly adjusted away. It is not for production (that issues against a production order) or for items consumed by **auto backflush** (they leave stock with what uses them).
+
+1. **+ New Material Request**: choose the **Store** the items come from, the **Department** (from the Department list), and optionally the **Cost centre**, **Employee** and **Project**; say what it is for (**Purpose**). Add the items and how many are needed, then **Save request**. Only stock items can be asked for; a department or cost centre that is not on its list is refused when you save.
+2. **Approval.** When an approval rule covers *MaterialIssue* (Admin → Approvals), the request waits for approval, and the person who asked cannot approve it. With no rule it is ready to issue at once.
+3. **Issue.** The store presses **Issue** on an approved request: the stock leaves the store and its cost is booked to the department - Dr the item's consumables expense (5180 unless its item type says otherwise) / Cr Inventory 1200, on the request's cost centre and department. Pressing Issue again does nothing.
+4. **Return unused.** On an issued request, **Return unused** lists what can still come back. Enter how many of each and their **Condition**: *Good* goes back into sellable stock; *Damaged* comes back on hand but waits in **QC hold**. Each return is its own Material Return (MR number) and reverses the cost at the issue's price. No more can come back than was issued; once everything is back the request shows *Returned*.
+
+The list's **Show** picks *My requests*, *Ready to issue* (approved, waiting for the store) or *Return remaining* (issued, with something still out). A **Consumption Entry** does not take an item consumed by auto backflush either - each use is recorded once.
+
+**Reports → Inventory**: **Consumption by cost centre** (issued, returned and net, by cost centre and department) and **Material issue and return register** (every line of every issue and return).
+
+### 5.8 Delivery Challans (goods out without a sale)
+
+**Inventory → Delivery Challans** sends goods out of a store when nothing is being sold: to a **job worker**, for **repair**, to an **exhibition**, as a **sample**, or given away (**non-returnable**).
+
+1. **+ New Delivery Challan**: the **From store**, the **Purpose** (job work and repair always come back; *Non-returnable* and *Other* default to not coming back - change **Comes back** if needed), the **Expected back** date (required when the goods come back), and the consignee: **Party type**, **Consignee** name, **GSTIN** if registered, **State**, **Address**. Add the items with their **Qty**, and where it matters the **Lot**, the **Serial numbers** (one per piece, comma separated) and a declared **Value** (blank uses the cost). **Save challan**. Only stock items can go on a challan.
+2. **Approval.** With an approval rule on *DeliveryChallan* it waits for approval; otherwise it is ready to dispatch at once. A challan whose goods are worth the e-way bill threshold or more (₹50,000 unless your administrator changed it) - or job work going to another state - is marked **EWB** ("E-way bill needed"), with the reason kept on the challan.
+3. **Dispatch**: enter the transport (mode, vehicle, LR / AWB, transporter, transporter ID, packages, date) and **Dispatch**. Goods that come back stay yours: they leave the store's *available* stock and are shown as *still out* - they are not sold and do not leave your stock value. Non-returnable goods leave stock now and their cost is booked as an expense.
+4. **Print** prints the challan in three copies as one set - *Original for Consignee*, *Duplicate for Transporter*, *Triplicate for Consignor* - with the consignee, purpose, transport and e-way bill decision.
+5. **Receive return**: enter how many came back **Good** (back to sellable stock), **Damaged** (to the damaged stock) or **Rejected** (to QC hold), with a reason for damaged or rejected. Goods can come back over several receipts; never more than is still out. For an item that went out with serial numbers, list the serials that came back - only serials that went out on this challan are taken.
+6. **Write off** what will not come back: choose the item, how many, **Lost** or **Kept by party**, and the reason, then **Send for approval**. Nothing changes until someone else approves it (an approval rule on *ChallanWriteOff* says who); then a lost item is booked as a loss and an item the party kept as an expense. A challan is never closed on its own while anything is still out.
+7. **Cancel** is only possible before dispatch, with a reason.
+
+The list's **Show** picks *Open returns*, *Due back in 7 days*, *Exceptions* (overdue, or something came back damaged, rejected or was lost) and *E-way bill needed*. **Reports → Inventory**: **Delivery challan register** (every line: issued, back good / damaged / rejected, written off, still out, expected back, status, e-way bill) and **Goods out on challan, by party** (still out by party, with how overdue).
 
 ## 6. Ordering More Stock (Purchase Order)
 
@@ -957,7 +1003,7 @@ On every step page each line shows the product's **name**, then its design, Comb
 
 14. Each child is a card. Every line shows its cost, the **current MRP** (filled in when the item has one), a **suggested MRP** (from the item's product type's **MRP rule**, or the default rule, named under the figure; with no rule, cost plus your markup and GST - always rounded to a price ending such as ₹x99) and the margin. An MRP typed on the PO is already in the **MRP** box - keep it or change it. Type the **MRP** or click **Use suggested**. An MRP below cost shows in red, below the current MRP in amber.
 15. Click **Save and post** on a child. That child's stock goes in **at the GRN price**, its batch carries this MRP, barcodes are issued, and the accounts are posted. Post the *Same price* child first and those goods are on the shelf today while you decide the new prices.
-16. **Print stickers** appears on a posted child: it opens Sticker Printing with this receipt loaded and only that child's lines ticked. Each sticker prints the MRP of its own lot.
+16. **Print stickers** appears on a posted child: it opens Sticker Printing with this receipt loaded and only that child's lines ticked. Each sticker prints the MRP of its own lot. Once the whole receipt is posted it opens on **Pay**; **MRP and post** in the steps still opens (read-only) for each child's **Print stickers** and **Put away**, and **Print stickers** beside **Print** at the top labels every posted line at once.
 17. When the last child posts, the receipt is **Posted**. The debit or credit note (invoice total against what you received and verified) is raised, and the **vendor bill** is made from what you typed at Receive - nothing to key in again.
 
 A child holding goods **kept beyond the PO** waits until the approver decides it (**My work → Approvals**). If it is rejected, the excess becomes *Return to vendor*. Post the other children meanwhile.
@@ -1017,11 +1063,31 @@ Many purchase orders — and the goods receipts of the bills that came with them
 
 **Waiting.** A PO you may not approve waits in **Approvals**, and its bills wait with it: approve it, then upload the same file again. A bill that stopped at a step (for example *the bill's total and the items on it do not add up*) stays at that step: fix it in the file and upload again, or finish it on the goods receipt.
 
-**Bigger bills.** One goods receipt holds about 27 lines with the default **Default maximum field length** (10,000 characters, Configuration → Platform). For bigger bills, an administrator raises it (for example to 50,000); the preview says when a bill does not fit.
+**Bigger bills.** One goods receipt holds about 4,000 lines; the preview says when a bill does not fit, and such a bill goes in as two goods receipts.
 
 **Who can.** Anyone who can create purchase orders. Each part is checked as if it were done on its own screen: making vendors, designs and item names, approving, and receiving goods. The preview says when your role may not do one of them.
 
 **Past uploads** lists every upload with its result; **Details** shows it again and **Download file** gives back the file that was uploaded.
+
+### 6.13 Delivery dates, reminders and day limits
+
+A PO can carry an **Expected delivery** date (beside the GST treatment box on the PO). Your administrator decides what the business does with it; each of these is off until they set it:
+
+- **A reminder before the date** - a set number of days before Expected delivery, the *PO Delivery Reminder* goes out once (to the vendor or your team, by whatever channel the business set up).
+- **Late or early receipts** - a goods receipt made well after (or before) the PO's Expected delivery is marked *Late by N days* / *Early by N days*; **Reports → Procurement → Late and early receipts** lists them.
+- **How far back or ahead a date may go** - a vendor invoice date on a goods receipt or vendor bill, and a PO's Expected delivery, can be refused when outside the window (`PURCHA-1308`). An administrator can enter such a date.
+- **Goods receipts not billed** - **Reports → Procurement → Goods receipts not billed** lists receipts posted that long ago with no vendor bill yet.
+- **Requisitions and quotes** - a purchase requisition that never became a PO closes as *Expired* after the set days; a vendor quote with no *Valid until* is valid for the set days.
+- **Transfers in transit** - a transfer dispatched that long ago and not received is flagged and listed in **Reports → Inventory → Transfers in transit too long**.
+- **Input tax credit deadline** - a vendor invoice of one financial year entered after 30 November of the next is marked *time-barred* (its GST credit cannot be claimed) and listed in **Reports → Finance → Input credit past its deadline**.
+
+### 6.14 A PO's commercial terms, and a receipt's challan and transport
+
+**On the PO** (Stage 130.16): under the header, open **Commercial terms** and fill in the **Payment term** (a list - *Net 30 days*, *Advance before dispatch*... - kept under Setup as Payment Terms), the **Delivery terms** (Door delivery, Ex-works, FOB, CIF...), who pays the **Freight**, the **Vendor contact** and the date the vendor's **Quote** is **valid until**. They print on the PO, and the payment term sets the due date of the vendor bill made from its goods receipt (invoice date + the term's net days). If your company requires them (an administrator's setting), a PO cannot go for approval - or be approved - without the payment term, delivery terms, Expected delivery and freight, nor after its quote's date (`PURCHA-1316`); a draft never needs them. Once approved, the terms are kept as they were approved; changing them on an approved PO asks for the **amendment reason** and records what changed, before and after.
+
+**On the goods receipt**: open **Supplier documents and transport** and type the vendor's **challan no / date** (kept apart from the invoice), the **LR / AWB** number, **vehicle**, **transporter** and how many **packages** came. They can be corrected at **Back to Receive** until the receipt posts, and print on the GRN. A goods receipt refuses POs in two currencies (`GOODSR-1317`) - receive each currency on its own - and an invoice number already booked for that vendor, on another receipt or as a vendor bill of its own (`GOODSR-0941`).
+
+**Reports → Procurement**: **PO expected delivery and terms** (each PO's date, days late, terms and amendments), **Goods receipt discrepancies by vendor** (received, accepted, rejected, damaged, short of the invoice, rejected %), **Vendor document and transport register** (invoice, challan, LR / AWB, vehicle, transporter, packages per receipt) and **Goods received not invoiced (GRNI)** (each receipt's accepted value, what its vendor bills have cleared, what is still not invoiced, the price difference and any bill on AP hold).
 
 ## 7. Moving Stock Between Locations (Stock Movement)
 
@@ -1111,7 +1177,7 @@ Every warehouse screen is under **WMS** (Warehouse Cockpit, then the **Inbound**
 - **Keeping stock right:** **Location Movement** and **Bin Replenishment** move stock between bins; **Bin Conditions** marks stock Damaged / QC-Hold / RTV; **Place Hold** stops a quantity being sold (release it through **Hold Release Requests**); **Cycle Count** corrects it.
 - **Shipping:** releasing a sales order creates its tasks → **Wave / Batch Picking** (or **Mobile Picking** on a phone) → **Loading** → handover on **OMS → Ship** (§9A.11), which dispatches the tasks and takes the stock out.
 
-Moving stock between bins never changes how much you have at the location; a Goods Receipt, a transfer, a sale and an approved cycle count do. The Help article also lists what the system does not do for you yet (for example, a Goods Receipt does not create a putaway task, and a hold does not stop a pick list for an order that was already reserved).
+Moving stock between bins never changes how much you have at the location; a Goods Receipt, a transfer, a sale and an approved cycle count do. A posted Goods Receipt has a **Put away** button that opens Putaway on its own items; held stock is never picked; Mobile Picking keeps each confirmed line on the server, so a reload or another phone carries on; Sortation sets up its slots and takes a whole wave; a bin's cycle count sets the bin; a receipt meets its cross-dock plans; and a departing load checks its trailer out of the yard. The Help article *Warehouse (WMS) - what each screen is for* has the details.
 
 ## 7A. Printing Barcode Stickers and Labels
 
@@ -1125,13 +1191,13 @@ This is the normal way to print. You don't type SKUs — you point at the docume
 
 1. Go to **Sticker Printing**. The **Print** tab opens by default, on the **Print history** — every run, who printed it, from which document, and when.
 2. Click **+ Print Stickers**. In the **Print from Transaction** panel, pick **Goods Receipt (GRN)** or **Transfer Order** in the **Module** dropdown - or any other transaction your company has that carries items (purchase order, purchase return, sales invoice, return, shipping package, ASN, vendor quote, RFQ...; a new one appears in the list by itself). You see only the transactions you may open.
-3. Click **Document** to see the latest ones, or start typing the number — the list narrows as you type; pick the one you want. You can also type just the end of the number (for example `00048`) and click **Load**: when only one document ends that way it loads; when several do, or none, a message says so.
+3. Click **Document** to see the latest ones, or start typing the number — the list narrows as you type; pick the one you want. You can also type just the end of the number (for example `00048`) and click **Load**: when only one document ends that way it loads; when several do, or none, a message says so. The list shows your store's documents (all stores for an Admin), newest first, without cancelled ones - and it works for anyone who may print stickers, including a Store Manager or Cashier who cannot open the receipt itself. Hover a row for its date, store and status.
 4. The line list appears, one row per SKU (or per SKU-and-lot, if a SKU arrived on more than one lot):
    - **Category** — what that item's Item Master says.
    - **Template** — the label layout that line will print with, and in brackets the rule that picked it: *item*, *item type*, *product type*, *category* or *default* (§7A.5), or **Standard label (no rule)** when no rule applies. To print a line on a different layout **this time only**, pick it in that line's dropdown — **Standard label** or any Active template. **Template for every line**, above the table, sets every line at once; choose **As per template rules** to go back. Nothing is saved to the item — the next print follows the rules again. To keep a pick for good, press **Keep for *(product type)*** beside it: that template becomes the product type's rule (the same setting as **Template rules → Product type**, where you can change it later), and every item of that type prints with it from then on — unless the item or its item type names a template of its own.
    - **Batch/Lot** — shown only when at least one line on the document carries a lot number.
    - **Copies** — pre-filled with that line's own quantity. Overtype it if you want a different number.
-5. Choose the **Printer** in the panel just below the line list, and type a **Reprint reason** if this is a re-run of labels already printed once (optional, but it is kept in the print history against the run).
+5. Check the **Printer** in the panel just below the line list, and give a **Reprint reason** if this is a re-run of labels already printed once (optional, but it is kept in the print history against the run): pick one from the list beside the box when your company has reprint reasons (Setup → Reason Codes), and type a note if you like. When your company makes reasons compulsory (**Settings → Reasons must be picked from the reason codes**), a typed note alone is refused - pick from the list. The printer is already chosen for you: the one last used on this computer, or the first time, the printer set as **Default For: Sticker** for your store (Setup → Printing → Printer), or the only printer there is. Pick another for this print if you need to; the one you pick is remembered for the next print. If the label printer is off, out of labels or not answering, a box says the stickers did not print: **Retry** once it is fixed (it carries on from the labels that had not gone out), or **Print with the browser instead**.
 6. Then either:
    - untick any rows you don't want and click **Print Selected** — the whole document in one run; or
    - click **Print** on a single row — just that one line.
@@ -1145,7 +1211,9 @@ Three things it does for you:
 
 If the document loads but says *"That document has no stickerable lines"*, the lines were all rejected/damaged, or (for a transfer) the quantities are zero.
 
-**Where the labels go.** With the print agent — **PrintBridge** (or QZ Tray) — running on this computer and a thermal printer chosen, labels print silently, dot-sharp, at the label's own size. That needs three things once: PrintBridge installed **for the exact address you open the ERP at** (an installer made for `http://localhost:8080` does not answer `https://app.yourerp.com` — the setup panel then says QZ Tray is not reachable); a **Printer** record (**Setup → Printing → Printer**) with **Printer Language** = TSPL (most 4-inch label printers, e.g. Y468BT) or ZPL (Zebra), the Windows printer name in **OS Printer Name** (use **Detect Printers**), and the **Printer DPI** (203 for most); and that printer picked on the print page. Otherwise the browser's print dialog opens — that is your preview, and **Cancel** there prints nothing. The page it sends is the label's own size, but the Windows driver decides the paper: if the tag lands small or turned in the middle of a bigger label, set the driver's paper size to the roll (Printer preferences) or, better, use PrintBridge. An item with no barcode of its own prints its SKU as the barcode. **Printer setup on this computer (QZ Tray) and channel label PDFs**, collapsed at the bottom of the print page, holds the one-time setup — QZ status, **Detect Printers**, **Test Print** — and printing a marketplace label or invoice PDF exactly as the channel issued it.
+**Where the labels go.** With the print agent — **PrintBridge** (or QZ Tray) — running on this computer and a thermal printer chosen, labels print silently, dot-sharp, at the label's own size. That needs three things once: PrintBridge installed **for the exact address you open the ERP at** (an installer made for `http://localhost:8080` does not answer `https://app.yourerp.com` — the setup panel then says QZ Tray is not reachable); a **Printer** record (**Setup → Printing → Printer**) with **Printer Language** = TSPL (most 4-inch label printers, e.g. Y468BT) or ZPL (Zebra), the Windows printer name in **OS Printer Name** (use **Detect Printers**), and the **Printer DPI** (203 for most); and that printer picked on the print page. The wrong language prints nothing: a TSPL printer sent ZPL feeds blank tags. Otherwise the browser's print dialog opens, and **Cancel** there prints nothing.
+
+**See it before it prints.** **Preview**, beside **Print Selected** and beside **Print Stickers**, draws each print exactly as the printer will get it. Labels show the way the tag reads, and grey dashes mark each label's edge (the dashes don't print). The caption names the template and its size. It also says how many labels of a multi-label print (a "× 3" template, say) are left blank, and whether the print comes out turned 180°. **Print** in the preview prints it; **Close** prints nothing and adds nothing to the print history. With **Print on scan** on, **Preview** shows whatever is typed in the scan box, as that scan would print. The page it sends is the label's own size, but the Windows driver decides the paper: if the tag lands small or turned in the middle of a bigger label, set the driver's paper size to the roll (Printer preferences) or, better, use PrintBridge. An item with no barcode of its own prints its SKU as the barcode. **Printer setup on this computer (QZ Tray) and channel label PDFs**, collapsed at the bottom of the print page, holds the one-time setup — QZ status, **Detect Printers**, **Test Print** — and printing a marketplace label or invoice PDF exactly as the channel issued it. **Preview** there opens a PDF in a new browser tab, or shows a ZPL or text label file's contents, before you press **Print**.
 
 ### 7A.2 Design your labels (Templates and the Sticker Studio)
 
@@ -1155,7 +1223,7 @@ Out of the box, every SKU prints the **Standard label** — 50 × 25 mm with the
 
 #### Start a template
 
-1. **Setup → Printing → Templates** → *Stickers and barcodes* → **New template**. The studio opens full-screen.
+1. **Setup → Printing → Templates** → *Stickers and barcodes* → **New template**. The studio opens full-screen. (**New template**, **Duplicate** and **Save** show only for a role allowed to make templates; anyone else can still open a design, preview it and **Test print**.)
 2. **Start a new label** asks for the size of the roll you print on. Pick one of the standard sizes — **Jewellery tags** (tail tags 92 × 12, 95 × 12, 100 × 15, 100 × 14.3, small tag 70 × 10), **Retail** (38 × 25, 50 × 25, 50 × 38, 75 × 50), **Multi-up rolls** (2-up 38 × 25, 3-up 32 × 25), **Shipping** (100 × 50, 4 × 6 in), **Ready designs** (a jewellery **Square 2-up** on a 54.5 mm roll, a **Ring tag 97.6 × 11.9** and four **Seznik** designs for the Seznik 100 × 14.3 jewellery tag, the Ring layout on the taller tag (barcode panel, text panel, then the tail) — pick the one that matches how your roll feeds: **Seznik horizontal × 1** (one tag lying across the roll), **Seznik horizontal × 3** (three lying tags stacked down the roll in one print), **Seznik vertical × 1** (one tag standing along the roll, read top to bottom) and **Seznik vertical × 3** (three standing tags side by side — the Seznik roll with three tags across) — each already laid out with the barcode, name, colour, design, polish, weight, Combination ID, size and MRP; retype the sideways "Brand name" with your shop's name. The same designs are **Built-in** cards on the **Sticker templates** tab. Pick one straight from the template list on **Print** or in a template rule (§7A.5) and it is saved as your own template on the spot; **Duplicate** one to change it first) — or **Use the standard label (50 × 25)** to start from the Standard label (name, variant, the SKU's barcode, SKU and HSN, and the batch barcode) and drag it into your own arrangement, or **Blank 50 × 25**. Any size can be changed later.
 3. Type a name in **Name this template** at the top left (for example `Bridal silver tag`). It is the only thing you must fill in to save.
 
@@ -1219,7 +1287,7 @@ What you see in the studio is what prints — the canvas, Printer view, the prin
 
 For one-offs — a tag that fell off, a single item being re-tagged — click **+ Print Stickers** and use the panel below **Print from Transaction**:
 
-1. Choose the **Printer**, set **Copies per SKU**, and enter a **Reprint Reason** if it's a re-print.
+1. Check the **Printer** and **Copies per SKU**, and enter a **Reprint Reason** if it's a re-print. Both open as you last left them on this computer (the printer as in §7A.1 step 5); change them for any one print and the new values are kept for the next.
 2. Scan or type into **Scan or Enter SKU** and press Enter. With **Print on scan** ticked (the default, remembered on this computer), each scan prints that item's sticker at once - **Copies per SKU** copies - and the box is ready for the next scan. With a goods receipt or transfer loaded above and the item on it, the sticker carries that line's lot.
 3. To collect several items first, untick **Print on scan**: each scan (or **Add**) lists the SKU underneath with an **x** to remove it; then click **Print Stickers**. When it's done you're back on the Print history with the run on top.
 
@@ -1228,6 +1296,13 @@ The template rules (§7A.5) apply here exactly as they do to a document print. P
 ### 7A.4 What was printed, and by whom
 
 The table at the bottom of the **Print** tab is the print history: SKU, barcode, printer, who printed it, how many copies, the **Source** document, the **Lot**, the reprint reason, and when. Every print run — document-driven or manual — lands here, so a queried re-print can always be traced back to a person and a time. A run started from a GRN or Transfer Order also records which document it came from and which template it used. If that line carried a batch/lot, the run records the lot too. So when one SKU arrived on two lots in the same GRN and each lot's stickers were printed separately, the history shows two rows, one per lot (for example `LOT-JUL` ×3 and `LOT-AUG` ×5). A manual SKU scan has no lot, so that column stays blank for it, as it does for runs printed before this column existed.
+
+**To print a row again**, click **Reprint** at the end of it. The print page opens on that row's printer and copies, with the cursor in **Reprint reason**:
+
+- A row printed from a document loads that document with only that SKU and lot ticked. Check the copies and click **Print Selected**. If the line is no longer on the document, a message says so.
+- A row printed by scanning puts the SKU in the scan list (with **Print on scan** off for this print). Click **Print Stickers**.
+
+The template follows today's template rules, so a reprint looks like a fresh print; pick another in the line's dropdown if you need to.
 
 ### 7A.5 Which template each item uses (Template rules)
 
@@ -1261,13 +1336,15 @@ Good to know:
 **Print** on any of these opens the print window: a Purchase Order, Goods Receipt, **Purchase Return** (Procurement → Purchase Return list), Stock Transfer (**Print Transfer Out / In**), a **Sales Invoice** (**Financial Accounting → Sales Invoices**), a debit / credit note — vendor or **customer** (**Financial Accounting → Debit / Credit Notes**, or the GRN's **Price Notes** column), or a **Sales Return** (the Returns workbench).
 If your administrator has set a **print profile** for a document (Stage 127.4), Print gives the whole set in one go - for example three copies of an invoice labelled *Original for Recipient*, *Duplicate for Transporter* and *Triplicate for Supplier* - with the profile's template and footer line. The preview shows every copy.
 
-**Every other transaction prints too** (Stage 127.3). Open any saved transaction from its list - a journal voucher, RFQ, vendor quote, landed cost voucher, warehouse task, production order, ASN and so on - and click **Print** beside its title. A transaction with no print of its own prints in a standard layout: its title and number, date and status, your store and the vendor or customer, every filled field in the order the form shows them (a linked record by its name), its lines, and the total of each quantity and amount column. A transaction added to the ERP later prints the same way, with nothing to set up. Silent printing treats these as the kind **Other Documents** (§7B.3). Some print in their standard form: a **journal voucher** with each account by its name and debit / credit in rupees, a **payslip** as earnings and deductions, a **subcontract order** as the **Job Work Challan (Rule 55)** - goods sent and to come back, a **vendor invoice** as the **Purchase Bill** with its payments, and a **loading task** as the **Bill of Lading** with its cartons (WMS → Loading Dock → **Print Bill of Lading** opens this same print window).
+**Every other transaction prints too** (Stage 127.3). Open any saved transaction from its list - a journal voucher, RFQ, vendor quote, landed cost voucher, warehouse task, production order, ASN and so on - and click **Print** beside its title. A transaction with no print of its own prints in a standard layout: its title and number, date and status, your store and the vendor or customer, every filled field in the order the form shows them (a linked record by its name), its lines, and the total of each quantity and amount column. A transaction added to the ERP later prints the same way, with nothing to set up. Silent printing treats these as the kind **Other Documents** (§7B.3). Some print in their standard form: a **journal voucher** with each account by its name and debit / credit in rupees, a **payslip** as earnings and deductions, a **job work order** as the goods sent and what comes back (its statutory challan is its delivery challan, §5.8), a **vendor invoice** as the **Purchase Bill** with its payments, and a **loading task** as the **Bill of Lading** with its cartons (WMS → Loading Dock → **Print Bill of Lading** opens this same print window).
+
+**More standard prints** (Stage 130.17): a **payment proposal** prints as the **Payment Advice** (each bill it pays), a **production order** as the **Material Issue Slip** (each BOM component for the order quantity, with a column to sign), a **material issue** (§5.7) as its slip (asked / issued / returned), a **physical inventory** as the **Count Sheet** (bins and items with an empty *Counted* box - no system quantity, so the count is blind), a **purchase requisition** and an **RFQ** in their own layouts (the RFQ with a *Your rate* column for the vendor). On **Financial Accounting → Sales Invoice** and **Vendor Invoices**, open an invoice's **Payments** and click **Voucher** beside any receipt or payment for its **Receipt Voucher** / **Payment Voucher**; **Statement** at the top asks for a customer (or vendor) code and prints their **Statement of Account** - every invoice and receipt (bill and payment) in date order with the running and closing balance.
 
 - **Print as** — for a PO: **Purchase Order** or **Vendor PO** (the vendor's copy, with item pictures); for a GRN: **Goods Receipt Note** or **Vendor Copy**; for a transfer: **Transfer Out** or **Transfer In**.
 - **Template** — the best-matching designed template is chosen for you (marked "best match"); pick another, or **Standard layout (built-in)**. A till sale or sales invoice also offers **3-inch roll bill (built-in)**; printing a roll layout goes to the till's receipt printer (§4.3).
 - **Generating store** — the store the print is issued from. It starts as the document's own store; pick another and its name, address, state and GSTIN go in the store block.
 - The **preview** shows every page exactly as it will print.
-- **Print** — on a computer with **QZ Tray**, it goes straight to that computer's printer for this kind of document, with no dialog (§7B.3); the window shows which printer, with **Change**. Without QZ Tray your browser's print dialog opens. Once a computer has a printer for a kind, a print of that kind never opens the browser's dialog by itself: if PrintBridge is not running or the printer does not answer, a box says *<kind> did not print* and why, with **Retry**, **Print with the browser instead** and **Cancel**.
+- **Print** — on a computer with **QZ Tray**, it goes straight to that computer's printer for this kind of document, with no dialog (§7B.3); the window shows which printer, with **Change**. Without QZ Tray your browser's print dialog opens. Once a computer has a printer for a kind, a print of that kind never opens the browser's dialog by itself: if PrintBridge is not running or the printer does not answer, a box says *<kind> did not print* and why, with **Retry**, **Print with the browser instead** and **Cancel**. When the cause is the setup instead (no printer chosen for this computer, or a Printer record with no **OS Printer Name**), the box says exactly what to fix and where; fix it, then **Retry**.
 - **PDF** downloads what the preview shows, page for page, named after the document (for example *Purchase-Order-PO-HO-26-27-00045.pdf*). It is a picture of each page: it looks exactly like the print, but its text cannot be selected or copied.
 - **CSV** and **Excel** download the lines. At the top: the document, number, date, status, store, the vendor or customer, and linked numbers (the PO on a GRN, the order on a sales invoice). Then one row per line: **Design ID**, **Combination ID / SKU**, **Barcode**, item name, variant, one column per attribute — named as your Item Attribute list names it, so a renamed attribute shows its new name (§8) — **Brand**, HSN, UOM, batch, the quantities the document has (ordered, received, accepted, shipped, short…), **MRP**, then prices: a **PO** and a **GRN** show cost (cost price, taxable value, GST, amount); a **sales invoice** its selling price; transfers, returns and notes **MRP only**. A column no line fills is left out, and a **Total** row closes the list.
 - **Excel with pictures** (a PO) — the Vendor PO as a spreadsheet with each item's picture.
@@ -1325,7 +1402,7 @@ Every computer that prints silently needs **QZ Tray** installed once (your admin
 3. **To change it**, open any print of that kind: the print window shows *Purchase Order prints on HP LaserJet · Change*. **Change** asks which printer, and that becomes the new choice.
 4. **To see every computer**, open **Setup → Printing → Printer Assignment**: one row per computer and kind of print, with its printer and store. Set a row to **Inactive** and that computer chooses again at its next print.
 
-A computer with no choice yet for a kind uses its store's default — a **Printer** record (**Setup → Printing → Printer**) at that store whose **Default For** is that kind — before it chooses for itself; one store never prints on another store's printer. A Printer record made by a computer's first choice takes the printer's name as it appears on that computer; check its **Printer Language** if it is a sticker printer (ZPL for Zebra, TSPL for TSC). **Inventory → Sticker Printing** still lets you pick the printer for a print run.
+A computer with no choice yet for a kind uses its store's default — a **Printer** record (**Setup → Printing → Printer**) at that store whose **Default For** is that kind — before it chooses for itself; one store never prints on another store's printer. A Printer record made by a computer's first choice takes the printer's name as it appears on that computer. A sticker printer whose name says Zebra (or a Zebra model such as ZD220 or GK420) is set to **ZPL**; every other label printer (TSC, TVS, Xprinter, Gprinter, 4-inch printers such as the Y468BT) is set to **TSPL**. If the first stickers come out blank, the language is wrong for that printer: change **Printer Language** on the record. **Inventory → Sticker Printing** still lets you pick the printer for a print run.
 
 ### 7B.4 Reprint a document
 
@@ -1335,7 +1412,11 @@ A computer with no choice yet for a kind uses its store's default — a **Printe
 2. Click **Reprint** on a row. The print window opens titled **Reprint**; click **Print**, type **why it is being printed again** (it cannot be left blank), and it prints - silently on a computer set up for it (§7B.3). The page's printed line reads *Printed: <you> - REPRINT*, and the list gains a **Reprint** row with your reason.
 3. A document printed before this list began, or never printed: pick its **Document**, type its number and click **Print this number**.
 
-Barcode labels and stickers are reprinted from **Sticker Printing → Print history** (§7A.4).
+**A reprint is the original again (Stage 130.16).** The first print of an issued document - approved, posted, sent; not a draft or one waiting for approval - is kept exactly as it printed: party, store, GSTIN, prices and tax. Every later print of it, from anywhere (the document's own Print, this list, the till's Print Receipt), prints that kept copy and is marked *REPRINT*, even if a vendor's address or a price has changed since. *Printed by / at* come from the server. An amended document (its amendment reason changes) prints as its next **revision**, an original again. A cancelled document prints as it is now. Each row in the list also shows the revision, the copies of the run (a three-copy set - Original / Duplicate / Triplicate - is one run, not three reprints), how it went out - *Sent to browser* (the browser's print) or *Submitted* (PrintBridge); nothing claims *Printed*, because neither can confirm paper - and who approved a reprint.
+
+**When reprints are controlled** (an administrator's setting - Admin Guide, *Issued output and reprint control*): printing a document again asks **why**, needs the *Document Reprint* permission, and after the free reprints (or for the document types the company names) asks for approval first: give the reason and a **Reprint request** goes to the approver; once it is approved, **Print** again - one approval, one reprint. The till behaves the same; it never falls back to an unchecked receipt.
+
+Barcode labels and stickers are reprinted from **Sticker Printing → Print history**, with the **Reprint** button on the row (§7A.4).
 
 ## 8. Managing Master Data (Vendors, Locations, Brands, and Similar Lists)
 
@@ -1367,7 +1448,7 @@ You should almost never have to work out *which* list you are missing. Three thi
 
 - **Under a search box.** Pick a department on a Purchase Requisition and, if none exist yet, the box says *"No Department has been set up yet. Set up Department"*. If departments *do* exist, the line only appears while you are in the box, and reads *"Can't find the Department you need? Add a Department"* — so it helps when you are stuck and stays out of the way when you are not.
 - **In the search results.** Type a name that does not exist yet and the list shows *"No matching Vendor"* with **+ Create "what you typed"** on its own line below it — the whole name, however long, so you can check it before you click.
-- **Either way, you create it right there (Stage 57).** A small form opens **on top of** the one you are working in, already holding the name you typed, and asking only for what that record needs. Save it and it is filled into your box; your own form never closed, so nothing you typed is lost. This works everywhere a record is picked — a vendor or item on a purchase order, a department on a requisition, a zone on a new Bin, a location on a transfer. Inside the small form, a missing record can itself be created the same way (an Item's HSN code, for example). If your role is not allowed to create that kind of record, it says so and tells you who to ask instead.
+- **Either way, you create it right there (Stage 57).** A small form opens **on top of** the one you are working in, already holding the name you typed, and asking only for what that record needs. Save it and it is filled into your box; your own form never closed, so nothing you typed is lost. This works everywhere a record is picked — a vendor or item on a purchase order, a department on a requisition, a zone on a new Bin, a location on a transfer. A **Customer** is the exception: its form asks every detail about the customer at once - contact, address, tax (GSTIN, PAN), personal details, preferences and account terms (credit limit, contract price list) - with only the name required. The **Add a Customer** hint under a customer box opens the same form. Inside the small form, a missing record can itself be created the same way (an Item's HSN code, for example). If your role is not allowed to create that kind of record, it says so and tells you who to ask instead.
 - **At the top of a screen.** Open a screen that needs something you have not set up and a short panel lists what is missing, each with its own link. Close it with the **×** if you already know; it stays closed for the rest of your visit and comes back next time you sign in — deliberately, so a half-finished setup does not stay half-finished.
 - **The ⧉ icon opens it in a new tab.** Every one of these links has one next to it. Use it when you do not want to lose what you are in the middle of — set the missing thing up in the second tab, come back to the first, and carry on. (The links are ordinary links, so **Ctrl+click** and **middle-click** work too.)
 
@@ -1933,7 +2014,7 @@ To answer many at once, tick them — the header box ticks the page — and use 
 3. makes the **OMS bill** for what is in the box, and
 4. books the courier — the first courier that serves the order's PIN code — with its **AWB**.
 
-Then **Print bill** prints the OMS bill and **Print label** the courier label. If no courier serves the PIN (or the order has none), the parcel is still packed and billed, and waits on **Ship → Book the courier**. A run that stopped part-way shows **Packed - not booked** on Pack; **Finish** runs the rest.
+Then **Print bill** prints the OMS bill (its print dialog shows a preview first) and **Print label** the courier label; **View label** shows what the courier label says without printing it. If no courier serves the PIN (or the order has none), the parcel is still packed and billed, and waits on **Ship → Book the courier**. A run that stopped part-way shows **Packed - not booked** on Pack; **Finish** runs the rest.
 
 **Two bills, one sale.** The **OMS bill** goes to the customer in the box. It is numbered from its own series, **OB/<store>/2627/00001**, and **its number is the GST invoice number**. When the parcel is handed over (§9A.11), the **ERP bill** — an ordinary Sales Invoice — is made from it with the same lines, the same tax and **the OMS bill's number**, and posted. Only the ERP bill posts to the accounts, so GST counts the sale once, under the OMS number. Find either on the order (**Related documents**) or in their lists (Setup → OMS → OMS settings → OMS Bill; Financial Accounting → Sales Invoice). A package billed before this change keeps the Sales Invoice it was billed with.
 
@@ -1952,7 +2033,7 @@ Then **Print bill** prints the OMS bill and **Print label** the courier label. I
 
 ### 9A.13 OMS settings
 
-**Setup → OMS → OMS settings** holds OMS's configuration on one page: **Channel connectors** (each channel's last sync, **Pull orders**, **Push ATS**), **Unmapped channel SKUs** (map a channel's SKU to your item here), **Bundles and kits** (with assemble / disassemble for stocked kits) and **OMS lists** — every OMS list your role may open (courier service areas, status rules, return requests, the OMS bills and so on).
+**Setup → OMS → OMS settings** holds OMS's configuration on one page: **Channel connectors** (each channel's last sync, **Pull orders**, **Push ATS**, and **Check setup** - administrators - which says whether the channel's saved credentials would connect, which ones are missing, where on the platform to find each one and what to set up there, with the last sync's result; it never shows a saved value), **Unmapped channel SKUs** (map a channel's SKU to your item here), **Bundles and kits** (with assemble / disassemble for stocked kits) and **OMS lists** — every OMS list your role may open (courier service areas, status rules, return requests, the OMS bills and so on).
 
 ### 9A.14 Orders from your Shopify shop (Stage 99)
 
@@ -1994,6 +2075,15 @@ For a supplier bill, match it to its PO and GRN in **Vendor Invoice** before a p
 5. **Raise exception** gives a line you cannot match yet an **Owner** and a **Reason**; it shows its age in days. **Explain** (Accountant, Admin or Super Admin only) closes an exception that nothing in the books will ever match, with a note.
 6. **Payout** on a money-in line: choose a **marketplace settlement batch** (its payouts must add up to the line), or the **card** or **UPI** clearing account and the **acquirer fee** deducted. A card / UPI payout posts the money from clearing (1101 / 1102) to the bank, the fee to 5230, and matches it.
 7. **Unmatch** (with a reason) undoes a match. A line dated in a **closed** period cannot be changed — request a reopen first.
+
+### 9B.3a Raising a sales invoice (Stage 130.16)
+
+**Financial Accounting → Sales Invoice → + New Sales Invoice** bills a customer on credit.
+
+1. Choose the **Customer** - their **Buyer GSTIN** and **Place of supply** (state code) fill in from the customer; type them for a registered buyer that is not on file (a GSTIN is checked, including its last character). Choose the **Store** the invoice is issued from, the **Invoice date**, and optionally a **Due date** and the **Customer reference** (their PO number).
+2. Add the items; each line takes its **Qty**, **Rate (before GST)** and **GST %** (from the item). The line shows taxable value, GST and amount.
+3. The screen says how the tax splits: **CGST + SGST** when the place of supply is the store's own state, **IGST** across states (the store's state comes from its legal entity - a store with none splits CGST + SGST and says so).
+4. **Save as draft**, then **Post** it from the list: the receivable, the revenue and the output GST are booked. **Print** prints it as a tax invoice with the buyer's GSTIN and place of supply.
 
 ### 9B.4 Receiving and paying in parts, and credit notes against an invoice
 
@@ -2039,6 +2129,19 @@ For a business whose GSTIN e-invoices (your admin switches it on — ADMIN_GUIDE
 6. **When the IRP is down** — see USER_SOP §11.1 (make it on the portal, then **Enter portal IRN**, verified by a second person).
 
 Reports → Finance: **E-Invoice / IRN Status Register** (everything, with IRN and Ack), **E-Invoice Error / Retry Report** (what was refused or is being retried, with what to fix), **IRN Portal Manual Upload Report** (what to report on the portal by hand).
+
+### 9B.6 E-way bills (Stage 130.16)
+
+**Financial Accounting → E-Invoice (IRN) → E-Way Bills** shows every delivery challan, sales invoice and stock transfer of the last 30 days once it is approved, with whether it needs an e-way bill and why: goods worth the threshold or more (₹50,000 unless your administrator set another), or job work going to another state whatever the value; services and HSN codes your company is exempt for are left out.
+
+- **Required** lists the ones still to make. **Generate** (when your company has an e-way bill provider connected) asks for the transport - **Mode**, **Vehicle no** or the **Transporter ID**, and the **Distance (km)** - checks everything the bill needs first (the store's GSTIN and PIN, the receiver's state, HSN on every line, a document number of at most 16 characters, the distance and the vehicle) and says exactly what to fix. A bill is valid a day per 200 km, until midnight.
+- **Until a provider is connected**, make the bill on the government e-way bill portal and use **Record from portal**: its 12-digit number and valid-until date and time. The register and the expiry watch then know it.
+- **Generated** bills: **Vehicle** changes the vehicle (Part B) on the way; **Extend** works within 8 hours before or after the bill expires, for the distance still to go and a reason; **Cancel** works within 24 hours of making it, with a reason. **Expiring** lists the bills inside that 8-hour window; a bill past its time is marked **Expired**.
+- **Failed** shows a bill the provider refused, with its reason; fix it and **Generate** again. A bill that timed out is looked up before it is ever sent again, so it is never made twice.
+
+**Reports → Inventory → E-way bill register** lists every document's decision, bill, validity and vehicle.
+
+> A document number longer than 16 characters (a long store code makes *DC/STORECODE/2627/00001* too long) cannot carry an e-way bill or a GST invoice number: keep store codes short, or have your administrator shorten the series.
 
 ## 9C. Service — maintenance contracts and service tickets
 
@@ -2191,7 +2294,7 @@ Birthday and Lapsed Customer campaigns set up earlier (**Setup → Campaign**, w
 2. Under the form you see the balance for that type this year — for example "Casual 2026: 12 days a year, 3 approved, 1 awaiting approval, 8 left" — and a warning if the dates overlap leave already on the list. You only ever see your own balance unless you are HR or a store manager.
 3. Save. The server still checks the balance and overlaps, so a request over the limit is refused with the reason.
 
-**Grievances.** Raise your own from My Requests → **+ Grievance**; it goes straight to HR and you follow its status there and under HR administration → Grievances (*With HR*, then *Resolved - actioned* or *Closed - no action*). Who can read it is printed on the form and above the case list, taken from the rules the server enforces: what was raised and how it was resolved — Admin and Super Admin only; a Store Manager sees that a case exists (number, employee, category, status) but not what it says; everyone else sees only their own cases, by status. A Super Admin opens a case, writes the **Resolution Notes** (required) and chooses **Resolve - actioned** or **Close - no action**; **+ Grievance** on the case list raises one on an employee's behalf.
+**Grievances.** Raise your own from My Requests → **+ Grievance**; it goes straight to HR and you follow its status there and under HR administration → Grievances (*With HR*, then *Resolved - actioned* or *Closed - no action*). Who can read it is printed on the form and above the case list, taken from the rules the server enforces: what was raised and how it was resolved — Admin and Super Admin only; a Store Manager sees that a case exists (number, employee, category, status) but not what it says; everyone else sees only their own cases, and reads what their own case says and its resolution (shown under it in My Requests). A Super Admin opens a case, writes the **Resolution Notes** (required) and chooses **Resolve - actioned** or **Close - no action**; **+ Grievance** on the case list raises one on an employee's behalf.
 
 **Onboarding / Offboarding** lists each employee's checklist with its progress (*2 of 4*). **+ New checklist**: choose the type and employee (the code is suggested), type the steps or **Copy steps from** an earlier checklist of the same type, and save. **Open** a checklist to tick steps — each ticked step shows who ticked it and when — and add a step or a document link. When every step is ticked the checklist is *Completed*. Employees see their own checklist, read-only.
 
@@ -2244,9 +2347,22 @@ Birthday and Lapsed Customer campaigns set up earlier (**Setup → Campaign**, w
 | Completed, no actual cost | record the actual cost | Planner | **Record Actual Cost** |
 | Completed | done | — | — |
 
-Material is issued once: issuing again is refused. **Report Partial** receives that many finished units and backflushes their packaging; the order stays open until everything is made, and reporting more than the order quantity is refused. Quality inspections for an order are on **Quality Inspections**; work sent out to a subcontractor (what was sent, what is expected back and what came back) is on **Subcontracting**.
+Material is issued once: issuing again is refused. **Report Partial** receives that many finished units and backflushes their packaging; the order stays open until everything is made, and reporting more than the order quantity is refused. Quality inspections for an order are on **Quality Inspections**; work sent out to a job worker is on **Job Work** (§9F.2a).
 
-> **Whole units.** Stock moves in whole units. If a component's quantity per unit times the order quantity (with scrap) is not a whole number — for example 2.2 × 4 = 8.8 — the check shows 8.8, but Issue Material takes only the whole part (8). Set component quantities and scrap % so that the totals come out whole.
+> **Whole units.** Stock moves in whole units. If a component's quantity per unit times the order quantity (with scrap) is not a whole number — for example 2.2 × 4 = 8.8 — the check and Issue Material round up to the next whole unit (9), so the job is never short. A backflushed component is rounded up on the running total, so partial completions never take more in all than the whole order would.
+
+### 9F.2a Job work (Stage 130.16)
+
+**Manufacturing → Job Work** sends material to a job worker - for polishing or repair (the same item comes back), or to be made into something else (gold into rings) - and tracks every line until it is back.
+
+1. **+ New Job Work Order**: the **Job worker** (a vendor), the **From store**, the **Due back** date and whether the goods are **Capital goods**. Add each line: the item sent, **Qty**, **Lot**, **Gross / Net / Fine weight**, **Purity**, and - when it comes back as something else - **Comes back as** (the output item) and **Output per unit** (how many come out of one unit sent; 0.2 = five units make one). Leave *Comes back as* blank when the same item comes back. **Save order** (it gets a JO number).
+2. **Send** (with the vehicle, LR / AWB and transporter) puts the order on a **delivery challan** (§5.8) and dispatches it: the goods stay yours, in the job worker's custody - out of available stock, not out of your stock value. If delivery challans need approval at your company, the order waits as *Challan Pending*; **Send** again once the challan is approved. **Print challan** prints it.
+3. **Receive** what came back, line by line and as many times as it takes: **Accepted** and **Rejected** (in the units sent), **Scrap** and **Loss**, the weights back, and a reason for anything rejected, scrapped or lost. For the same item, accepted goes back to sellable stock and rejected to QC hold. For an item made into another, the material used leaves stock and the **Output made** comes in at the material's value (it fills itself from *Output per unit*; type the actual count if it differs) - rejected output goes to QC hold, never to sellable stock. Scrap and loss up to your company's allowed share are booked at once as job-work loss; more waits for approval (a write-off approver sees it in Approvals) and shows as *+N* beside the loss until then.
+4. **Book bill** books the job worker's processing bill (bill number and amount) - once per bill number - to job-work conversion cost, spread over the lines by what was accepted.
+
+Each order shows per line *Sent · accepted · rejected · loss · still out* and the net / fine weight still out, its due date (*overdue* when past) and its **statutory** return date (ITC-04: inputs within a year of sending, capital goods within three; ⚠ within 30 days). Overdue orders and orders near the statutory date are flagged once and reminded (*Job Work Overdue*, *Job Work Statutory Return Due* notifications). **Show** picks *To send*, *With job workers* and *Exceptions*. **Reports → Manufacturing**: **Job work outstanding (qty and weight)** and **Job work cost, yield and wastage** (yield against what the material should give, scrap / loss %, processing charge and cost per output).
+
+An order made before this (one item out, one back) works as a one-line order.
 
 ### 9F.3 Quality inspections, certificates, non-conformance and maintenance (Stage 55.13)
 
@@ -2534,7 +2650,7 @@ Back as the first user: **Procurement → Goods Receipt**. Click **+ New Goods R
 
 Scan the item, or type part of its **name** and press Enter and pick it from the list. Choose a payment mode — for **Cash**, type what the customer handed you into **Cash tendered** and read off the **Change due**. Click **Complete Sale**.
 
-The till now **freezes on the finished bill** (§4.1a): the bill number, the lines, the total collected and the change. Click **Print Receipt** to see it — it prints straight to the till printer if one has been set up for that (§4.3), otherwise through the browser's print dialog. Click **New Sale (Reset)** when you are ready for the next customer.
+The till now **freezes on the finished bill** (§4.1a): the bill number, the lines, the total collected and the change. Click **Print Receipt** to see it — it prints straight to the till printer if one has been set up for that (§4.3), otherwise through the browser's print dialog. **Preview** shows it on screen first. Click **New Sale (Reset)** when you are ready for the next customer.
 
 ### Step 9 — Check that everything moved on its own
 

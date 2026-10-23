@@ -61,6 +61,28 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 134.5 (login_abuse.go): inside a backoff wait the password is not even
+	// checked. Keyed by the name as typed, so it says nothing about the name.
+	addr := clientIP(r)
+	if wait := loginBackoffWait(tenantID, req.Username, addr); wait > 0 {
+		w.Header().Set("Retry-After", fmt.Sprint(int(wait.Seconds())+1))
+		writeAPIErrorGeneric(w, r, http.StatusTooManyRequests, "Too many sign-in attempts with this name. Try again in "+loginWaitText(wait)+".")
+		return
+	}
+	loginFailure := func() {
+		name := req.Username
+		if len(name) > 80 {
+			name = name[:80]
+		}
+		spray, distributed := loginFailed(tenantID, req.Username, addr)
+		if spray {
+			engines.LogAuditEvent(tenantID, "system", "LOGIN_ABUSE", "PASSWORD_SPRAY_SUSPECTED", fmt.Sprintf("address %s failed sign-ins for %d or more user names within 15 minutes", addr, loginWatchReport))
+		}
+		if distributed {
+			engines.LogAuditEvent(tenantID, "system", "LOGIN_ABUSE", "DISTRIBUTED_GUESSING_SUSPECTED", fmt.Sprintf("user name %q failed sign-ins from %d or more addresses within 15 minutes", name, loginWatchReport))
+		}
+	}
+
 	var u struct {
 		ID                string
 		Username          string
@@ -86,7 +108,10 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		FROM %s.users
 		WHERE username = $1 AND status = 'Active'`, schema), req.Username).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.LocationCode, &u.FailedLoginCount, &u.IsLocked, &u.CredentialVersion)
 	if err != nil {
-		// Generic security error message
+		// Generic security error message, after the same bcrypt time a real
+		// account costs (134.5).
+		spendLoginHashTime(req.Password)
+		loginFailure()
 		writeAPIError(w, r, "USERAC-0021", "")
 		return
 	}
@@ -99,9 +124,18 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	// account is locked" response would let an attacker confirm the
 	// username is valid, the exact leak this endpoint's error messages
 	// have consistently avoided elsewhere (e.g. a deactivated Employee).
+	//
+	// 134.5: the lock cannot be used to keep the person out - the right
+	// password from a browser they proved with their authenticator (a
+	// remembered device, Stage 125.8) signs in through it and clears it.
+	pwErr := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(req.Password))
 	if u.IsLocked {
-		writeAPIError(w, r, "USERAC-0021", "")
-		return
+		if pwErr != nil || req.DeviceToken == "" || !engines.TrustedMFADevice(tenantID, u.ID, req.DeviceToken, u.CredentialVersion) {
+			loginFailure()
+			writeAPIError(w, r, "USERAC-0021", "")
+			return
+		}
+		engines.LogAuditEvent(tenantID, u.Username, "LOGIN", "LOCK_PASSED_REMEMBERED_DEVICE", "Account was locked by failed sign-ins; correct password from a remembered device signed in and cleared the lock")
 	}
 
 	// 49.2.2: bcrypt only, fails closed. This used to also accept an exact
@@ -113,8 +147,8 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	// SQL fix, test debris), that comparison would authenticate anyone who
 	// typed the literal stored string, via a non-constant-time `!=`. Fail
 	// closed instead - bcrypt is the only accepted credential form.
-	err = bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(req.Password))
-	if err != nil {
+	if err = pwErr; err != nil {
+		loginFailure()
 		newCount := u.FailedLoginCount + 1
 		if newCount >= accountLockoutThresholdFor(tenantID) {
 			// NOW() + make_interval(...) is also computed in Postgres for the
@@ -131,6 +165,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Correct password: clear any accumulated failure count/lock.
+	loginSucceeded(tenantID, req.Username, addr)
 	if u.FailedLoginCount > 0 {
 		_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET failed_login_count = 0, locked_until = NULL WHERE id = $1`, schema), u.ID)
 	}

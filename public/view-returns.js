@@ -294,15 +294,22 @@ async function runReturnRefundFlow(row) {
     if (!await postReturnAction(`/api/v1/refunds/${encodeURIComponent(refund.id)}/approve`, {})) return;
   }
   let method = '';
+  // Stage 130.12 (74.2.2): the customer may choose store credit instead -
+  // kept on their account for a later bill, never paid out as cash.
+  const storeCreditOffer = async () => showCustomConfirm(`Give refund ${refund.code || refund.id} as the customer's store credit instead? It stays on their account for a later bill at the till, does not expire, and is never paid out as cash. Choose this only if the customer asks for it.`, 'Store Credit');
   if (split) {
-    const ok = await showCustomConfirm(`Pay refund ${refund.code || refund.id} back the way the items were paid: ${split}.\n\nReverse any card or UPI part on the terminal or app; cash comes out of the drawer.`, 'Process Refund');
-    if (!ok) return;
+    const ok = await showCustomConfirm(`Pay refund ${refund.code || refund.id} back the way the items were paid: ${split}.\n\nReverse any card or UPI part on the terminal or app; cash comes out of the drawer.\n\n(Cancel to give it as store credit instead.)`, 'Process Refund');
+    if (!ok) {
+      if (!(await storeCreditOffer())) return;
+      method = 'Store Credit';
+    }
   } else {
-    method = await showCustomPrompt('How is the refund being paid (Cash / Card / UPI)?', 'Cash', 'Process Refund');
+    method = await showCustomPrompt('How is the refund being paid (Cash / Card / UPI, or Store Credit if the customer asks for it)?', 'Cash', 'Process Refund');
     if (!method) return;
+    if (/^store\s*credit$/i.test(method.trim())) method = 'Store Credit';
   }
   if (await postReturnAction(`/api/v1/refunds/${encodeURIComponent(refund.id)}/process`, { refund_method: method.trim() })) {
-    await showCustomAlert(`Refund ${refund.code || refund.id} processed. The return is now closed and the tax on the returned goods has been reversed.`, 'Refund Processed');
+    await showCustomAlert(`Refund ${refund.code || refund.id} processed${method === 'Store Credit' ? ' as store credit on the customer\'s account' : ''}. The return is now closed and the tax on the returned goods has been reversed.`, 'Refund Processed');
   }
 }
 

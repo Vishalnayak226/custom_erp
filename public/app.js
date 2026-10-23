@@ -278,8 +278,7 @@ function composeErrorLines(message, detail, userAction, correlationId) {
 }
 
 // Inline centered retry panel for full-page load failures, so a failed GET
-// doesn't just leave the user staring at a blank view after they dismiss a
-// dialog. Mirrors the centered-card layout already used by renderMockModuleView.
+// doesn't leave a blank view. Same card layout as renderMockModuleView.
 function renderErrorPanel(container, message, retryFn) {
   container.innerHTML = '';
   const errPanel = document.createElement('div');
@@ -294,7 +293,7 @@ function renderErrorPanel(container, message, retryFn) {
         <line x1="12" y1="16" x2="12.01" y2="16"></line>
       </svg>
       <h2 style="font-size: 20px; font-weight: 600;">Something Went Wrong</h2>
-      <p class="text-muted" style="font-size: 14px; line-height: 1.6;">${message}</p>
+      <p class="text-muted" style="font-size: 14px; line-height: 1.6;">${escapeHTMLText(message)}</p>
       <button class="btn btn-primary" id="error-panel-retry-btn">Try Again</button>
     </div>
   `;
@@ -332,7 +331,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '60';
+const VIEW_MODULE_VERSION = '61';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -841,7 +840,7 @@ function saveNavState() {
       const screenOf = h => String(h || '').split('?')[0];
       const freshDetour = history.state && history.state.erpSetupDetour &&
         quickCreateReturn && window.location.hash === quickCreateReturn.hash;
-      if (parseDeepLink() && !freshDetour && screenOf(window.location.hash) !== screenOf(target.slice(target.indexOf('#')))) {
+      if ((parseDeepLink() || leavingHelpPath) && !freshDetour && screenOf(window.location.hash) !== screenOf(target.slice(target.indexOf('#')))) {
         history.pushState(null, '', target);
       } else {
         history.replaceState(history.state, '', target); // keeps a setup detour's marker (Stage 57.2)
@@ -1200,17 +1199,16 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
       row.className = 'typeahead-item typeahead-item-empty';
       // Stage 57.2: create it here, seeded with the typed text (fallback: full form).
       const typed = typedTextOf(inputEl).trim();
-      const label = getDoctypeLabel(doctype);
+      const label = getDoctypeLabel(doctype), h = escapeHTMLText(label);
       if (opts.noQuickCreate) {
-        row.innerHTML = `No matching ${label}`;
+        row.innerHTML = `No matching ${h}`;
       } else if (!canCreateDoctype(doctype)) {
-        row.innerHTML = `No matching ${label}. ${SETUP_MSG.missingNoAccess(label).replace(/^No [^.]*\. /, '')}`;
+        row.innerHTML = `No matching ${h}. ${SETUP_MSG.missingNoAccess(h).replace(/^No [^.]*\. /, '')}`;
       } else {
-        row.innerHTML = `No matching ${label}<a href="#" class="empty-state-link typeahead-create"></a>`;
+        row.innerHTML = `No matching ${h}<a href="#" class="empty-state-link typeahead-create"></a>`;
         row.querySelector('a').textContent = typed ? `+ Create “${typed}”` : `+ Create a new ${label}`;
-        // The menu is a child of <body>, not of the input's container, so it
-        // has to be torn down explicitly before the dialog opens or it is left
-        // floating over it.
+        // The menu is a child of <body>: tear it down before the dialog opens
+        // or it is left floating over it.
         row.querySelector('a').addEventListener('mousedown', (e) => {
           e.preventDefault();
           closeMenu();
@@ -1339,8 +1337,10 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
   if (showAllOnFocus) {
     // 66.10: a click is asking for the choices, so a box that already holds
     // one (Edit Item's HSN) opens on the list too - as its <select> did.
+    // 130.2: an empty box already focused (list closed) opens on a click too.
+    let focusedAt = 0;
     inputEl.addEventListener('click', () => {
-      if (menu || !inputEl.value.trim()) return;
+      if (menu || (!inputEl.value.trim() && Date.now() - focusedAt < 500)) return;
       clearTimeout(debounceTimer);
       search('', { browse: true });
     }, { signal: listeners.signal });
@@ -1350,6 +1350,7 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
       // pick() itself performs) must not blow the picked value's menu open
       // again over the top of the next field.
       if (inputEl.value.trim()) return;
+      focusedAt = Date.now();
       clearTimeout(debounceTimer);
       search('', { browse: true });
     }, { signal: listeners.signal });
@@ -1445,13 +1446,11 @@ function attachLinkTypeahead(inputEl, doctype, opts = {}) {
     installNameDisplay(inputEl, doctype);
   }
   attachTypeahead(inputEl, doctype, { ...(TYPEAHEAD_DOCTYPE_OPTS[doctype] || {}), ...opts });
-  // Stage 41: the setup hint rides along here rather than at each of the
-  // ~45 call sites. This function was already the single door every picker
-  // goes through (30.5.8), which is exactly what makes attaching the guidance
-  // once cover every screen - including ones written after this.
-  // opts.noSetupHint opts a picker out; used where the target is not a master
-  // a user "sets up" (a free-text suggestion catalogue, a transaction lookup).
-  if (!opts.noSetupHint) attachSetupHint(inputEl, doctype);
+  // Stage 41: the setup hint rides along here, the one door every picker
+  // goes through (30.5.8), so it covers every screen. opts.noSetupHint opts
+  // out (a free-text catalogue, a transaction lookup). 131.1: its create link
+  // uses the screen's own form (opts.onCreate), as the menu's does.
+  if (!opts.noSetupHint) attachSetupHint(inputEl, doctype, opts.onCreate);
 }
 
 // ---------------------------------------------------------------------------
@@ -2607,11 +2606,10 @@ function emptyHint(next, { asLink = false } = {}) {
   return `<div class="empty-state-hint">${body}</div>`;
 }
 
-// emptyPickerHint is 30.5.1's affordance: the line that appears under a
-// <select> or typeahead whose target list is empty. Rendered by the caller
-// right after the control, so it inherits the form-group's own spacing.
+// emptyPickerHint (30.5.1): the line under a <select> or typeahead whose
+// target list is empty, rendered right after the control.
 function emptyPickerHint(doctype, label) {
-  return `<div class="empty-state-hint">No ${getDoctypeLabel(label || doctype)} records exist yet &mdash; ${setupLink(doctype, 'create one first')}.</div>`;
+  return `<div class="empty-state-hint">No ${escapeHTMLText(getDoctypeLabel(label || doctype))} records exist yet &mdash; ${setupLink(doctype, 'create one first')}.</div>`;
 }
 
 // Setup guidance (Stage 41): one vocabulary (SETUP_MSG), hooked once in
@@ -2780,13 +2778,12 @@ function isDoctypeSetUp(doctype) {
 // setupOpenLinks renders the pair of affordances every hint ends with: an
 // inline link that navigates in place, and an explicit open-in-new-tab button.
 //
-// Both are real <a href> elements pointing at the deep link, which is what
-// makes ctrl-click, middle-click and the browser's own "Open link in new tab"
-// work on the inline one too. The in-place link cancels the default so a
-// normal click doesn't also push a fragment onto the history stack.
+// Both are real <a href>s to the deep link, so ctrl/middle-click and "Open
+// link in new tab" work; the in-place one cancels the default click so no
+// fragment is pushed onto the history stack.
 function setupOpenLinks(doctype, inlineLabel) {
   const href = deepLinkForDoctype(doctype);
-  const label = getDoctypeLabel(doctype);
+  const label = escapeHTMLText(getDoctypeLabel(doctype));
   return `<a href="${href}" class="empty-state-link" ${actionAttrs('openSetupDoctype', [doctype], { prevent: true })}>${inlineLabel}</a>` +
     `<a href="${href}" target="_blank" rel="noopener" class="setup-hint-newtab" title="Open ${label} setup in a new tab" aria-label="Open ${label} setup in a new tab">` +
     `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">` +
@@ -2798,11 +2795,10 @@ function setupOpenLinks(doctype, inlineLabel) {
 // `mode` is 'missing' (nothing exists) or 'addMore' (records exist, this is
 // the quiet nudge).
 function setupHintHTML(doctype, mode) {
-  const label = getDoctypeLabel(doctype);
+  const label = escapeHTMLText(getDoctypeLabel(doctype));
   if (!canCreateDoctype(doctype)) {
-    // The no-access sentence is shown for a missing master (the user needs to
-    // know why they are stuck) but not for addMore - telling someone who
-    // cannot create records that they could create one is pure noise.
+    // The no-access sentence shows for a missing master (why they are stuck),
+    // not for addMore (noise to someone who cannot create one).
     return mode === 'missing'
       ? `<span class="setup-hint-text setup-hint-blocked">${SETUP_MSG.missingNoAccess(label)}</span>`
       : '';
@@ -2819,7 +2815,7 @@ function setupHintHTML(doctype, mode) {
 // it without a single call site changing. Idempotent - re-attaching to the
 // same input (a screen that re-renders) replaces the hint rather than
 // stacking a second one.
-function attachSetupHint(inputEl, doctype) {
+function attachSetupHint(inputEl, doctype, onCreate) {
   if (!inputEl || !doctype || !inputEl.parentElement) return;
 
   let hint = inputEl.parentElement.querySelector(`[data-setup-hint="${doctype}"]`);
@@ -2852,7 +2848,8 @@ function attachSetupHint(inputEl, doctype) {
       primary.addEventListener('mousedown', (e) => e.preventDefault()); // keep focus, so blur does not repaint it away
       primary.addEventListener('click', (e) => {
         e.preventDefault();
-        quickCreateIntoInput(inputEl, doctype, typedTextOf(inputEl).trim());
+        const typed = typedTextOf(inputEl).trim();
+        onCreate ? onCreate(typed) : quickCreateIntoInput(inputEl, doctype, typed);
       });
     }
   };
@@ -3038,6 +3035,7 @@ function showLoginScreen() {
   document.getElementById('login-screen').classList.remove('hidden');
   document.getElementById('app-root').classList.add('hidden');
   document.title = 'Sign in | Wholeops';
+  loadViewModule('/shell-identity.js').catch(() => {}); // 130.7: environment badge
   // Always land back on the username/password step, not a stale MFA screen
   // left over from a previous, unfinished login attempt.
   pendingMFAToken = null;
@@ -3145,6 +3143,7 @@ async function fetchAndApplyProfile() {
   if (!res || !res.ok) return;
   const data = await res.json();
   state.profile = data;
+  loadViewModule('/shell-identity.js').then(m => m.applyCompanyName(data.company_name)).catch(() => {});
   const emailEl = document.getElementById('account-popover-email');
   if (emailEl) emailEl.textContent = data.email || '';
   setupIdleTimeout(data.idle_timeout_minutes);
@@ -3734,12 +3733,12 @@ const MENU_PERMISSION_MAP = {
   // Tenant Entitlements admin screen (Stage 26.1.4) - reads/writes
   // cross-tenant module entitlements, HR/Admin-only same as every other
   // admin/tenant-control endpoint it calls.
-  'menu-tenant-entitlements': { devOnly: true },
+  'menu-tenant-entitlements': { opOnly: true },
   // Tenant Usage/health dashboard (Stage 26.1.5) - same HR/Admin-only gate
   // as handleTenantUsage.
-  'menu-tenant-usage': { devOnly: true },
-  'menu-platform-console': { devOnly: true },
-  'menu-control-panel': { devOnly: true }
+  'menu-tenant-usage': { opOnly: true },
+  'menu-platform-console': { opOnly: true },
+  'menu-control-panel': { opOnly: true }
 };
 
 // Module navigation registry: sidebar entries and direct screen entry share
@@ -4162,7 +4161,7 @@ function canReadDoctype(doctype) {
 
 // 30.5.7: hide what the role cannot do (the server decides).
 const canDo = (verb, doctype) => state.permissions.isAdmin || state.permissions[verb].has(doctype);
-function canCreateDoctype(doctype) { return canDo('create', doctype); }
+function canCreateDoctype(doctype) { return !state.permissions.ownScreen?.has(doctype) && canDo('create', doctype); } // 132.10: made on their own screen
 function canUpdateDoctype(doctype) { return canDo('update', doctype); }
 function canDeleteDoctype(doctype) { return canDo('delete', doctype); }
 
@@ -4170,6 +4169,7 @@ function isMenuRuleVisible(rule) {
   if (!rule || rule.open) return true;
   if (rule.adminOnly) return state.permissions.isAdmin;
   if (rule.devOnly) return state.permissions.isSuperAdmin; // 125.6
+  if (rule.opOnly) return state.permissions.isOperator; // 132.10: the server's operator allowlist
   if (rule.doctypes) return state.permissions.isAdmin || rule.doctypes.some(canReadDoctype);
   // 57.17: a module shows once the role can read anything in it.
   if (rule.modules) {
@@ -4368,6 +4368,8 @@ async function fetchAndApplyPermissions() {
       state.permissions = {
         isAdmin: !!data.is_admin,
         isSuperAdmin: !!data.is_super_admin,
+        isOperator: !!data.is_platform_operator,
+        ownScreen: new Set(data.own_screen || []),
         doctypes: new Set(data.doctypes || []),
         create: new Set(data.create || []),
         update: new Set(data.update || []),
@@ -4416,7 +4418,7 @@ const SETUP_INVENTORY_ERP = ['Item', 'ItemAttribute', 'ItemBarcode', 'ItemExcept
 // Stage 88.1.14: print setup is its own Setup group, whatever module the list is filed under.
 const SETUP_PRINTING = ['PrintTemplate', 'PrintProfile', 'StickerTemplate', 'Printer', 'PrinterAssignment']; // PrintProfile: Stage 127.4
 // Stage 88.2.9 / 88.4: a module's own setup page heads its list; Templates stands for both template lists.
-const SETUP_PAGES = { OMS: '<li><a class="submenu-item" id="menu-oms-settings" data-go="oms:settings" data-like="menu-oms">OMS settings</a></li>', Printing: '<li><a class="submenu-item" id="menu-templates" data-go="doctype-table" data-doctype="PrintTemplate">Templates</a></li><li><a class="submenu-item" id="menu-reprint" data-go="reprint">Reprint</a></li>' };
+const SETUP_PAGES = { OMS: '<li><a class="submenu-item" id="menu-oms-settings" data-go="oms:settings" data-like="menu-oms">OMS settings</a></li>', Printing: '<li><a class="submenu-item" id="menu-templates" data-go="doctype-table" data-doctype="PrintTemplate">Templates</a></li><li><a class="submenu-item" id="menu-reprint" data-go="reprint">Reprint</a></li><li><a class="submenu-item" id="menu-branding" data-go="doctype-table" data-doctype="LegalEntity">Company branding</a></li>' };
 
 function renderSidebarSubmenu() {
   const sub = document.getElementById('submenu-master');
@@ -6178,10 +6180,10 @@ async function renderProfileView(container) {
   infoPanel.innerHTML = `
     <h3 class="card-title" style="margin-bottom: 16px;">Account Info</h3>
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
-      <div><span class="stat-label">Username</span><div style="font-weight:600; margin-top:4px;">${data.username}</div></div>
-      <div><span class="stat-label">Role</span><div style="font-weight:600; margin-top:4px;">${data.role}</div></div>
-      <div><span class="stat-label">Status</span><div style="margin-top:4px;"><span class="badge ${data.status === 'Active' ? 'badge-success' : 'badge-secondary'}">${data.status}</span></div></div>
-      <div><span class="stat-label">Employee</span><div style="font-weight:600; margin-top:4px;">${employeeText}</div></div>
+      <div><span class="stat-label">Username</span><div style="font-weight:600; margin-top:4px;">${escapeHTMLText(data.username)}</div></div>
+      <div><span class="stat-label">Role</span><div style="font-weight:600; margin-top:4px;">${escapeHTMLText(data.role)}</div></div>
+      <div><span class="stat-label">Status</span><div style="margin-top:4px;"><span class="badge ${data.status === 'Active' ? 'badge-success' : 'badge-secondary'}">${escapeHTMLText(data.status)}</span></div></div>
+      <div><span class="stat-label">Employee</span><div style="font-weight:600; margin-top:4px;">${escapeHTMLText(employeeText)}</div></div>
       <div><span class="stat-label">Two-Factor Authentication</span><div style="margin-top:4px;"><span class="badge ${data.mfa_enabled ? 'badge-success' : 'badge-secondary'}">${data.mfa_enabled ? 'Enabled' : 'Not enabled'}</span></div></div>
     </div>
   `;
@@ -6196,7 +6198,7 @@ async function renderProfileView(container) {
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
         <div class="form-group" style="margin-bottom: 0;">
           <label class="form-label" for="profile-email">Email</label>
-          <input type="email" id="profile-email" class="form-input" value="${data.email || ''}">
+          <input type="email" id="profile-email" class="form-input" value="${escapeHTMLText(data.email || '')}">
         </div>
         <div class="form-group" style="margin-bottom: 0;">
           <label class="form-label" for="profile-idle-timeout">Auto Logout (inactivity)</label>
@@ -6239,10 +6241,8 @@ async function renderProfileView(container) {
   `;
   container.appendChild(passwordPanel);
 
-  // 32.5: two-factor recovery. Only rendered for accounts that actually have
-  // MFA enrolled - for everyone else there is nothing here to manage, and an
-  // empty panel would just be noise on a screen most users open to change a
-  // password.
+  // 32.5: two-factor recovery, only for accounts with MFA enrolled (nothing
+  // to manage otherwise).
   if (data.mfa_enabled) {
     const mfaPanel = document.createElement('div');
     mfaPanel.className = 'table-panel';
@@ -7008,7 +7008,7 @@ async function qzLogJob(entry) {
  */
 async function qzTryPrint(jobType, opts = {}) {
   // Stage 127.2: opts.why, when given, is told why nothing printed.
-  const fail = (reason) => { if (opts.why) opts.why.reason = reason; return false; };
+  const fail = (reason, setup) => { if (opts.why) Object.assign(opts.why, { reason, setup }); return false; };
   if (!await qzTryConnect()) return fail(qzLastError ? `PrintBridge is not reachable (${qzLastError}).` : 'PrintBridge is not reachable.');
   // Stage 98.4: this computer's own printer per kind of print (print-routing.js).
   const routing = await loadViewModule('./print-routing.js');
@@ -7039,14 +7039,10 @@ async function qzTryPrint(jobType, opts = {}) {
       print_kind: opts.printKind || ''
     })
   });
-  if (!res) return fail('The server could not be reached.');
+  if (!res) return fail('The server could not be reached. Check this computer is online, then Retry.', 1);
   if (!res.ok) {
     if (!opts.printerCode && await routing.needsChoice(res)) return routing.chooseAndPrint(jobType, opts);
-    if (opts.quiet) {
-      const msg = await getErrorMessage(res, 'no print payload');
-      console.debug('[QZ] falling back to the browser sheet:', msg);
-      return fail(msg);
-    }
+    if (opts.quiet) return fail(await getErrorMessage(res, 'no print payload'), 1);
     await showApiError(res, 'Could not prepare the print job.', 'Print Failed');
     return false;
   }
@@ -7062,15 +7058,9 @@ async function qzTryPrint(jobType, opts = {}) {
 
   const printerName = (payload.printer && payload.printer.qz_printer_name) || '';
   if (!printerName) {
-    if (opts.quiet) {
-      console.debug('[QZ] printer has no OS printer name set; falling back to the browser sheet');
-      return fail(`Printer "${(payload.printer && payload.printer.name) || opts.printerCode}" has no OS printer name set.`);
-    }
-    await showCustomAlert(
-      `Printer "${(payload.printer && payload.printer.name) || opts.printerCode}" has no OS printer name set. ` +
-      'Open Sticker Printing → Print Setup, copy the exact name from the detected list, ' +
-      'and paste it into that Printer record\'s "OS Printer Name" field.',
-      'Printer Not Mapped');
+    const why = routing.notMapped((payload.printer && payload.printer.name) || opts.printerCode);
+    if (opts.quiet) return fail(why + ' Then Retry.', 1);
+    await showCustomAlert(why, 'Printer Not Mapped');
     return false;
   }
 

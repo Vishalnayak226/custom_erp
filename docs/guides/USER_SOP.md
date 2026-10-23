@@ -706,6 +706,19 @@ Click your name/avatar at the bottom of the sidebar to open the account popover.
 
 ---
 
+## 29a. Daily routines: goods out, job work and e-way bills (Stage 130.16)
+
+**Store manager, every morning**
+1. Open the task inbox: clear *Challan goods overdue* (call the party, or Receive return / Write off), *Job work overdue*, *E-way bills failed or unconfirmed* and *E-way bills not made*.
+2. Inventory → Delivery Challans → *Due back in 7 days*: confirm each return date with the party.
+3. E-Invoice (IRN) → E-Way Bills → *Expiring*: extend any bill whose goods are still moving (within 8 hours of expiry).
+
+**When goods leave without a sale**: always on a Delivery Challan (never an adjustment) - returnable goods stay ours and are tracked until they come back.
+
+**When a print fails or is lost**: print again from the document or Setup → Printing → Reprint, giving the reason; if reprints need approval, send the Reprint Request and print once approved. Never type a document out by hand.
+
+**At month end (accounts)**: Reports → *Goods received not invoiced*, *Customer advances outstanding (ageing)*, *Store credit by customer* and *Goods out on challan, by party* - each control total should tie to its GL account; a mismatch also shows in the inbox.
+
 ## 30. Glossary Addendum
 
 Terms used in this SOP not already in USER_GUIDE.md's glossary (§13):

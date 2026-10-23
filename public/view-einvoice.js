@@ -31,6 +31,8 @@ const PAGE = 50;
 export async function renderEInvoiceView(container) {
   const tab = typeof currentViewTab === 'string' ? currentViewTab : '';
   if (tab === 'settings') return renderSettings(container);
+  // Stage 130.16 (74.4): e-way bills, beside the IRN workbench.
+  if (tab === 'ewb') return (await import('./view-ewaybill.js' + new URL(import.meta.url).search)).renderEWBView(container);
   if (tab.startsWith('gstin-')) return renderProfileForm(container, decodeURIComponent(tab.slice(6)));
   if (tab.startsWith('doc-')) return renderDetail(container, tab.slice(4));
   return renderWorkbench(container);
@@ -62,7 +64,7 @@ async function renderWorkbench(container) {
   const rows = data.rows || [];
   const chips = TABS.map(([key, label]) => `<button type="button" class="btn btn-sm ${wb.tab === key ? 'btn-primary' : 'btn-outline'}" data-einv-tab="${key}">${label} <b>${(data.counts || {})[key] || 0}</b></button>`).join(' ');
   const el = screen(container, 'E-Invoice (IRN)',
-    `<button class="btn btn-outline" id="einv-run">Check now</button> <button class="btn btn-outline" data-go-settings>Settings</button>`,
+    `<button class="btn btn-outline" id="einv-run">Check now</button> <button class="btn btn-outline" data-go-settings>Settings</button> <button class="btn btn-outline" data-go-ewb>E-Way Bills</button>`,
     `<div class="einv-filters" style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:10px;">
        <div>${chips}</div>
        <input class="form-input" id="einv-q" placeholder="Number or IRN" value="${esc(wb.q)}" style="max-width:180px;">
@@ -100,6 +102,7 @@ async function renderWorkbench(container) {
   el.querySelector('#einv-next').addEventListener('click', () => { wb.offset += PAGE; redraw(); });
   el.querySelectorAll('[data-einv-open]').forEach(b => b.addEventListener('click', () => renderView('einvoice:doc-' + b.dataset.einvOpen)));
   el.querySelector('[data-go-settings]').addEventListener('click', () => renderView('einvoice:settings'));
+  el.querySelector('[data-go-ewb]').addEventListener('click', () => renderView('einvoice:ewb')); // Stage 130.16
   el.querySelector('#einv-run').addEventListener('click', async () => {
     // One worker pass now instead of the next minute's: newly posted documents
     // are registered and the queue is worked (nothing unqueued is sent).

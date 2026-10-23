@@ -628,13 +628,13 @@ func getReceiptValidationRule(tenantID, vendor string) (tolerancePct float64, al
 	scanErr := db.DB.QueryRow(fmt.Sprintf(`
 		SELECT COALESCE(data->>'over_receipt_tolerance_pct', '0'), COALESCE(data->>'allow_unexpected_items', 'No')
 		FROM %s.documents
-		WHERE doctype = 'ReceiptValidationRule' AND status = 'Active' AND data->>'vendor' = $1
+		WHERE doctype = 'ReceiptValidationRule' AND status = 'Active' AND deleted_at IS NULL AND data->>'vendor' = $1
 		LIMIT 1`, schema), vendor).Scan(&toleranceStr, &allowStr)
 	if scanErr == sql.ErrNoRows && vendor != "" {
 		scanErr = db.DB.QueryRow(fmt.Sprintf(`
 			SELECT COALESCE(data->>'over_receipt_tolerance_pct', '0'), COALESCE(data->>'allow_unexpected_items', 'No')
 			FROM %s.documents
-			WHERE doctype = 'ReceiptValidationRule' AND status = 'Active' AND COALESCE(data->>'vendor', '') = ''
+			WHERE doctype = 'ReceiptValidationRule' AND status = 'Active' AND deleted_at IS NULL AND COALESCE(data->>'vendor', '') = ''
 			LIMIT 1`, schema)).Scan(&toleranceStr, &allowStr)
 	}
 	if scanErr == sql.ErrNoRows {
@@ -727,6 +727,11 @@ func validatePurchaseOrderEditRules(tenantID, docID, priorStatus string, priorDa
 		if err := validatePurchaseOrderLinePrices(newItems); err != nil {
 			return err
 		}
+	}
+	// Stage 130.16 (74.3.2): the commercial terms - required at approval,
+	// kept when approved, logged when an approved PO's terms change.
+	if err := preparePOTerms(tenantID, priorStatus, priorData, payload); err != nil {
+		return err
 	}
 	if docID == "" || priorData == nil {
 		return nil

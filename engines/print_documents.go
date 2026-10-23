@@ -55,6 +55,8 @@ const (
 	PrintTxnOMSBill = "OMSBill"
 	// Stage 88.2.3: one fulfillment task's pick list (OMS ▸ Pick).
 	PrintTxnPickList = "PickList"
+	// Stage 130.16 (74.3.1): goods out without a sale (Rule 55).
+	PrintTxnDeliveryChallan = "DeliveryChallan"
 )
 
 // PrintTransactions lists them with the doctype each prints from.
@@ -76,6 +78,7 @@ var PrintTransactions = []struct {
 	{PrintTxnSalesInvoice, "Sales Invoice", "SalesInvoice"},
 	{PrintTxnOMSBill, "OMS Bill", "OMSBill"},
 	{PrintTxnPickList, "Pick List", "FulfillmentTask"},
+	{PrintTxnDeliveryChallan, "Delivery Challan", "DeliveryChallan"},
 }
 
 func printTxnDoctype(txn string) string {
@@ -151,6 +154,9 @@ type PrintDocument struct {
 	AttributeColumns []AttributeColumn `json:"attribute_columns,omitempty"`
 	designAttrs      map[string]map[string]string
 	brandNames       map[string]string
+	// Issue (Stage 130.16): original or reprint, revision, who and when -
+	// set on the print the page asks for.
+	Issue *PrintIssue `json:"issue,omitempty"`
 }
 
 // LoadPrintStore resolves a Location into a store block, its state and GSTIN
@@ -212,6 +218,13 @@ func loadPrintVendor(tenantID, vendorID string) PrintStore {
 	return out
 }
 
+// CompanyDisplayName (Stage 130.7, 120.5) is the company the app header and
+// tab title name: platform.company_name, else the brand on prints, else ""
+// (the registered client name can be a placeholder, so it is not used).
+func CompanyDisplayName(tenantID string) string {
+	return firstNonEmpty(strings.TrimSpace(GetSettingString(tenantID, "platform.company_name")), strings.TrimSpace(GetSettingString(tenantID, "print.brand_name")))
+}
+
 // printBrandName is the brand every print carries: the print.brand_name
 // setting, else the generating store's legal entity, else its name.
 func printBrandName(tenantID string, store PrintStore) string {
@@ -250,7 +263,7 @@ func itemThumbnailDataURL(tenantID, sku string) string {
 	var mediaID string
 	if err := db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
-		WHERE doctype = 'ProductMedia' AND status = 'Active' AND data->>'item' = $1
+		WHERE doctype = 'ProductMedia' AND status = 'Active' AND deleted_at IS NULL AND data->>'item' = $1
 		  AND COALESCE(data->>'file_type', '') LIKE 'image/%%'
 		ORDER BY (data->>'media_role' = 'Main Image') DESC, created_at
 		LIMIT 1`, schema), sku).Scan(&mediaID); err != nil {
@@ -459,6 +472,22 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 	doctype := PrintTxnDoctype(tenantID, txn) // Stage 127.3: any transaction prints
 	if doctype == "" {
 		return PrintDocument{}, &ValidationError{Code: "GLOBAL-0002", SubFor: "Transaction", Message: fmt.Sprintf("%q is not a printable transaction", txn)}
+	}
+	// Stage 130.17 (127.3.2): vouchers and statements have no document of
+	// their own.
+	sd := PrintDocument{Transaction: txn, Doctype: doctype, DocumentID: id, Fields: map[string]interface{}{}, Lines: []map[string]interface{}{}}
+	if ok, defStore, err := buildSpecialPrint(tenantID, txn, id, &sd); ok {
+		if err != nil {
+			return sd, err
+		}
+		sd.Store = LoadPrintStore(tenantID, firstNonEmpty(strings.TrimSpace(store), defStore))
+		sd.Brand = map[string]string{"name": printBrandName(tenantID, sd.Store), "logo": printBrandLogo(tenantID, sd.Store.Code)}
+		sd.applyPrintProfile(tenantID, txn)
+		sd.Fields["financial_year"] = financialYear(sd.Date)
+		if strField(sd.Fields, "currency") == "" {
+			sd.Fields["currency"] = "INR"
+		}
+		return sd, nil
 	}
 	data, status, err := fetchDocData(tenantID, doctype, id)
 	if err != nil {
@@ -735,6 +764,18 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 		// Stage 106.3: the roll bill's date and time and who rang it up -
 		// the same clock and name the ESC-POS receipt prints.
 		d.Fields["cashier"] = strField(data, "cashier")
+		// Stage 130.16 (74.3.4): every tender, points used, and the return policy.
+		tenders, points := receiptTenders(data)
+		d.Fields["tender_list"] = tenders
+		var tenderText []string
+		for _, t := range tenders {
+			tenderText = append(tenderText, fmt.Sprintf("%s %.2f", t["mode"], t["amount"]))
+		}
+		if points > 0 {
+			tenderText = append(tenderText, fmt.Sprintf("Points %d", points))
+		}
+		d.Fields["tenders"] = firstNonEmpty(strings.Join(tenderText, " · "), strField(data, "payment_mode"))
+		d.Fields["return_policy"] = strings.TrimSpace(GetSettingString(tenantID, SettingReceiptReturnPolicy))
 		if _, _, at, errT := fetchPrintableDocument(tenantID, "POSCart", id); errT == nil && !at.IsZero() {
 			d.Fields["bill_datetime"] = at.Format("02-01-2006 15:04")
 		}
@@ -789,7 +830,10 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 		d.Party, d.PartyTitle = loadPrintCustomer(tenantID, firstNonEmpty(strField(data, "customer_id"), strField(data, "customer"))), "Buyer"
 		d.Interstate, _ = data["interstate"].(bool)
 		d.Fields["sales_order"] = DocumentNumber(tenantID, "SalesOrder", strField(data, "sales_order_id")) // its number, not its id
-		d.Fields["buyer_gstin"] = d.Party.GSTIN
+		d.Fields["buyer_gstin"] = firstNonEmpty(strField(data, "customer_gstin"), d.Party.GSTIN)           // Stage 130.16: the invoice's own first
+		if pos := strField(data, "place_of_supply"); pos != "" {
+			d.Fields["place_of_supply"] = pos
+		}
 		// An OMS bill's IRN is its ERP bill's, once that exists (88.3.3).
 		d.addIRNFields(tenantID, "SalesInvoice", firstNonEmpty(strField(data, "sales_invoice_id"), id))
 		schema, _ := db.GetTenantSchema(tenantID)
@@ -858,6 +902,29 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 					"original_disc": round2(math.Max(numFromInterface(item["mrp"])-l.OriginalUnitPrice, 0)),
 					"condition":     l.Disposition, "exchange_sku": l.ExchangeSKU}}, cache, withImages)
 		}
+	case PrintTxnDeliveryChallan:
+		d.Title = "Delivery Challan"
+		d.Number = firstNonEmpty(strField(data, "code"), id)
+		d.Date = firstNonEmpty(strField(data, "dispatch_date"), d.Date)
+		defaultStore = strField(data, "location")
+		d.Party, d.PartyTitle = PrintStore{Code: strField(data, "party"), Name: strField(data, "party_name"), Address: strField(data, "party_address"),
+			State: strField(data, "party_state"), StateCode: stateCodeOf(strField(data, "party_gstin"), ""), GSTIN: strField(data, "party_gstin")}, "Consignee"
+		if ewb, ok := data["ewb_decision"].(map[string]interface{}); ok {
+			d.Interstate, _ = ewb["interstate"].(bool)
+			d.Fields["ewb_reason"] = strField(ewb, "reason")
+		}
+		d.Fields["returnable_text"] = map[bool]string{true: "Returnable - goods remain the consignor's", false: "Non-returnable"}[truthy(data["returnable"])]
+		for _, l := range jsonLines(data["items"]) {
+			value := numFromInterface(l["declared_value"])
+			qty := numFromInterface(l["qty"])
+			rate := 0.0
+			if qty > 0 {
+				rate = round2(value / qty)
+			}
+			d.addLine(tenantID, printLineIn{SKU: strField(l, "sku"), BatchNo: strField(l, "batch_no"), Qty: qty, Rate: rate, Taxable: value,
+				Extra: map[string]interface{}{"expected_return": strField(l, "expected_return"), "gross_weight": numFromInterface(l["gross_weight"]),
+					"net_weight": numFromInterface(l["net_weight"]), "condition": strField(l, "condition")}}, cache, withImages)
+		}
 	default:
 		// Stage 127.3: a transaction with no format of its own.
 		defaultStore = buildGenericPrint(tenantID, &d, data, cache, withImages)
@@ -871,8 +938,11 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 		}
 		d.Fields["place_of_supply"] = pos
 	}
-	d.Brand = map[string]string{"name": printBrandName(tenantID, d.Store)}
-	d.applyPrintProfile(tenantID, txn) // Stage 127.4
+	d.Brand = map[string]string{"name": printBrandName(tenantID, d.Store), "logo": printBrandLogo(tenantID, d.Store.Code)}
+	d.applyPrintProfile(tenantID, txn)                            // Stage 127.4
+	if err := d.applyTaxDocumentRule(tenantID, txn); err != nil { // Stage 130.16 (DEC-20)
+		return d, err
+	}
 	d.finish()
 	d.orderAttributeColumns(tenantID)
 	// Stage 71: the common header and audit fields every print carries.

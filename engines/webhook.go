@@ -91,7 +91,7 @@ func resolvesToPublicAddressOnly(host string) error {
 		return fmt.Errorf("host %q does not resolve", host)
 	}
 	for _, ip := range ips {
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() || ip.IsMulticast() {
+		if !publicAddress(ip) { // 134.2: the one list, carrier-grade NAT and IPv6 wrappers included
 			return fmt.Errorf("host %q resolves to a non-public address (%s) - refused", host, ip)
 		}
 	}
@@ -145,8 +145,11 @@ func dispatchWebhooksForEvent(schema, eventID, eventName string, payload map[str
 		if !matchEventPattern(s.pattern, eventName) {
 			continue
 		}
+		// 134.2: the job carries the subscription, not its signing secret -
+		// job rows are listed, retried and dead-lettered, and a secret has
+		// no business in that history. deliverWebhook reads it at send time.
 		jobPayload := map[string]interface{}{
-			"url": s.url, "secret": s.secret, "event_name": eventName, "event_payload": payload,
+			"url": s.url, "subscription_id": s.id, "event_name": eventName, "event_payload": payload,
 		}
 		if _, err := enqueueJobInSchema(schema, webhookDeliveryJobType, jobPayload, eventID+"-"+s.id, correlationID); err != nil {
 			log.Printf("[WEBHOOK] failed to enqueue delivery for subscription %s: %v", s.id, err)
@@ -154,13 +157,10 @@ func dispatchWebhooksForEvent(schema, eventID, eventName string, payload map[str
 	}
 }
 
-var webhookHTTPClient = &http.Client{
-	Timeout: 10 * time.Second,
-	// Redirects are never followed - a URL that validated as public at
-	// enqueue time could otherwise 3xx to an internal address and reach it
-	// anyway. http.ErrUseLastResponse returns the redirect response as-is.
-	CheckRedirect: func(req *http.Request, via []*http.Request) error { return http.ErrUseLastResponse },
-}
+// Redirects are never followed - a URL that validated as public at enqueue
+// time could otherwise 3xx to an internal address and reach it anyway - and
+// since 134.2 the address is checked again at connect time (outboundDial).
+var webhookHTTPClient = newOutboundClient(10*time.Second, false)
 
 const webhookMaxResponseBodyBytes = 64 * 1024
 
@@ -173,7 +173,15 @@ func deliverWebhook(ctx context.Context, schema string, job Job) (map[string]int
 		return nil, err
 	}
 	rawURL, _ := job.Payload["url"].(string)
-	secret, _ := job.Payload["secret"].(string)
+	secret, _ := job.Payload["secret"].(string) // a job queued before 134.2
+	if subID, _ := job.Payload["subscription_id"].(string); subID != "" {
+		var active bool
+		if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'secret', ''), status = 'Active' FROM %s.documents
+			WHERE doctype = 'WebhookSubscription' AND id = $1 AND deleted_at IS NULL`, schema), subID).Scan(&secret, &active); err != nil || !active {
+			// Deleted or switched off since the event: nothing to deliver.
+			return map[string]interface{}{"skipped": true, "reason": "subscription no longer active"}, nil
+		}
+	}
 	eventName, _ := job.Payload["event_name"].(string)
 	eventPayload, _ := job.Payload["event_payload"].(map[string]interface{})
 
@@ -214,6 +222,13 @@ func sendWebhookHTTPContext(ctx context.Context, rawURL, secret, eventName strin
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write(bodyBytes)
 	signature := hex.EncodeToString(mac.Sum(nil))
+	// 134.2: a timestamped signature as well, so a receiver can refuse a
+	// captured delivery replayed later: HMAC-SHA256 of "<unix seconds>.<body>".
+	// X-Webhook-Signature (body only) stays for receivers built on it.
+	ts := fmt.Sprint(time.Now().Unix())
+	tmac := hmac.New(sha256.New, []byte(secret))
+	tmac.Write([]byte(ts + "."))
+	tmac.Write(bodyBytes)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, rawURL, bytes.NewReader(bodyBytes))
 	if err != nil {
@@ -221,6 +236,8 @@ func sendWebhookHTTPContext(ctx context.Context, rawURL, secret, eventName strin
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Webhook-Signature", "sha256="+signature)
+	req.Header.Set("X-Webhook-Timestamp", ts)
+	req.Header.Set("X-Webhook-Signature-256", "t="+ts+",v1="+hex.EncodeToString(tmac.Sum(nil)))
 	req.Header.Set("X-Webhook-Event", eventName)
 	req.Header.Set("X-Webhook-Delivery", jobID)
 

@@ -86,9 +86,17 @@ async function loadReprintRows() {
   const label = (r) => r.title || (typeof getDoctypeLabel === 'function' ? getDoctypeLabel(r.doctype) : r.doctype);
   body.innerHTML = rpRows.length ? rpRows.map((r, i) => `<tr>
       <td style="white-space: nowrap;">${esc(when(r.printed_at))}</td><td>${esc(label(r))}</td><td>${esc(r.number || r.doc_id)}</td>
-      <td>${esc(r.store)}</td><td>${esc(r.action)}</td><td>${esc(r.printed_by)}</td><td>${esc(r.reprint_reason || '')}</td>
+      <td>${esc(r.store)}</td><td>${esc(r.action)}${r.reprinted && r.action !== 'Reprint' ? ' (again)' : ''}${printRunNote(r)}</td><td>${esc(r.printed_by)}</td><td>${esc(r.reprint_reason || '')}</td>
       <td><button class="action-btn" type="button" data-rp="${i}">Reprint</button></td></tr>`).join('')
     : '<tr><td colspan="8" class="text-muted">Nothing printed yet matches. A document printed before this list began can still be printed with Print this number.</td></tr>';
+}
+
+// printRunNote (Stage 130.16, 74.1.4) is a print run's detail: revision,
+// copies (one run is one set), how it went out, who approved a reprint.
+function printRunNote(r) {
+  const bits = [r.revision > 1 ? `revision ${r.revision}` : '', r.copies > 1 ? `${r.copies} copies${r.copy_labels ? ` (${r.copy_labels})` : ''}` : '',
+    r.outcome || '', r.approved_by ? `approved by ${r.approved_by}` : ''].filter(Boolean);
+  return bits.length ? `<div class="text-muted" style="font-size:12px;">${esc(bits.join(' · '))}</div>` : '';
 }
 
 // printByNumber finds one document of the chosen type by its number - printed

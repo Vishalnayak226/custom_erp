@@ -289,7 +289,7 @@ func callHookWithRecovery(hook extensionHookRow, payload []byte) (status int, la
 		sig.Write(payload)
 		signature := hex.EncodeToString(sig.Sum(nil))
 
-		client := &http.Client{Timeout: time.Duration(hook.TimeoutMs) * time.Millisecond}
+		client := newOutboundClient(time.Duration(hook.TimeoutMs)*time.Millisecond, false) // 134.2
 		req, reqErr := http.NewRequest(http.MethodPost, hook.TargetURL, bytes.NewReader(payload))
 		if reqErr != nil {
 			resultCh <- result{0, reqErr}

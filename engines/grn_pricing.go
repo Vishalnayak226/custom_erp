@@ -151,6 +151,14 @@ func PrepareGRNPricing(tenantID string, isCreate bool, payload map[string]interf
 		return nil
 	}
 	lines := grnLineMaps(payload)
+	// Stage 130.9 (72.D d): goods its store does not stock are not received there.
+	var skus []string
+	for _, l := range lines {
+		skus = append(skus, strField(l, "sku"))
+	}
+	if err := storeStockGate(tenantID, strField(payload, "location"), skus); err != nil {
+		return err
+	}
 	headerPO := strings.TrimSpace(strField(payload, "po_id"))
 	if headerPO == "" {
 		for _, id := range strings.Split(strField(payload, "po_ids"), ",") {
@@ -176,7 +184,7 @@ func PrepareGRNPricing(tenantID string, isCreate bool, payload map[string]interf
 	payload["po_ids"] = strings.Join(pos, ",")
 
 	rates := map[string]map[string]grnPOLineRate{}
-	vendor := ""
+	vendor, currency := "", ""
 	for _, po := range pos {
 		r, poData, err := poRatesBySKU(tenantID, po)
 		if err == sql.ErrNoRows || poData == nil {
@@ -193,6 +201,14 @@ func PrepareGRNPricing(tenantID string, isCreate bool, payload map[string]interf
 		} else if v != "" && v != vendor {
 			return &ValidationError{Code: "GOODSR-0318", SubFor: "Purchase Orders", Message: fmt.Sprintf(
 				"PO %s is for vendor %s, but this receipt is for vendor %s - one goods receipt can only take POs of the same vendor", po, v, vendor)}
+		}
+		// Stage 130.16 (74.3.2): nor POs in different currencies.
+		c := strings.ToUpper(firstNonEmpty(strings.TrimSpace(str(poData, "currency")), FunctionalCurrency(tenantID)))
+		if currency == "" {
+			currency = c
+		} else if c != currency {
+			return &ValidationError{Code: "GOODSR-1317", SubFor: "Purchase Orders", Message: fmt.Sprintf(
+				"PO %s is in %s, but this receipt is in %s - one goods receipt can only take POs of the same currency", po, c, currency)}
 		}
 	}
 	if vendor != "" && strings.TrimSpace(strField(payload, "vendor")) == "" {
@@ -245,13 +261,12 @@ func PrepareGRNPricing(tenantID string, isCreate bool, payload map[string]interf
 			continue
 		}
 		acc := grnLineAcceptedQty(l)
-		ir := numFromInterface(l["invoice_rate"])
-		gst := numFromInterface(l["gst_rate"])
 		if ok {
 			poValue += r.Rate * acc
 		}
-		invValue += ir * acc
-		invGST += ir * acc * gst / 100
+		v, g := grnLineAmount(l, acc, numFromInterface(l["invoice_rate"]), "invoice_rate_incl")
+		invValue += v
+		invGST += g
 	}
 	if encoded, err := json.Marshal(lines); err == nil && lines != nil {
 		payload["received_items"] = string(encoded)

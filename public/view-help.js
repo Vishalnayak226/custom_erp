@@ -118,6 +118,25 @@ async function openHelpArticle(slug) {
 }
 window.openHelpArticle = openHelpArticle;
 
+// 86.1b: Back / Forward to a /help/<slug> entry changes only the path, which
+// no hashchange sees - so render the article the address bar now names (and
+// Help itself when Back comes from another screen). A hash naming another
+// screen is the hashchange listener's.
+if (!window.__helpPopstateWired) {
+  window.__helpPopstateWired = true;
+  window.addEventListener('popstate', () => {
+    const m = location.pathname.match(/^\/help(?:\/(.*))?$/);
+    const link = parseDeepLink();
+    if (!m || (link && !(link.kind === 'view' && link.view === 'help'))) return;
+    const slug = decodeURIComponent(m[1] || '');
+    if (currentView !== 'help') { currentHelpSlug = slug; renderView('help'); return; }
+    if (slug === currentHelpSlug) return;
+    currentHelpSlug = slug;
+    document.querySelectorAll('.kb-nav-link').forEach(l => l.classList.toggle('active', l.getAttribute('data-slug') === slug));
+    renderHelpArticle(slug);
+  });
+}
+
 // Stage 39.9 - per-browser dedup for the "Was this helpful?" widget below.
 // A page reload that lands on the same article should not ask again.
 function helpFeedbackAlreadyGiven(slug) {

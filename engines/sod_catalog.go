@@ -50,6 +50,25 @@ type SoDConflict struct {
 }
 
 var sodConflicts = []SoDConflict{
+	// Stage 130.16 (74.5.3): the new movements and the print controls.
+	{
+		ID: "challan-and-write-off", Label: "Sends goods out on challan and approves their write-off", Severity: "High",
+		Why: "Send stock to a friendly party on a returnable challan, then approve it as lost: the goods leave the books with no second signature.",
+		A:   Duty{Name: "Creates delivery challans and job work", Doctypes: map[string]AccessLevel{"DeliveryChallan": AccessOperate, "SubcontractOrder": AccessOperate}},
+		B:   Duty{Name: "Approves challan write-offs", ApproverFor: []string{"ChallanWriteOff"}},
+	},
+	{
+		ID: "template-and-reprint-approval", Label: "Edits print templates and approves reprints or template changes", Severity: "Medium",
+		Why: "Whoever shapes what a tax document says must not also be the one who lets it be printed again: a changed template plus an approved reprint makes a convincing second original.",
+		A:   Duty{Name: "Edits print templates and profiles", Doctypes: map[string]AccessLevel{"PrintTemplate": AccessOperate, "PrintProfile": AccessOperate}},
+		B:   Duty{Name: "Approves reprints", ApproverFor: []string{"ReprintRequest"}},
+	},
+	{
+		ID: "material-request-and-issue-approval", Label: "Asks for material and approves the request", Severity: "Medium",
+		Why: "Store items issued to a department are an expense; one person asking and approving can draw stock for private use.",
+		A:   Duty{Name: "Raises material requests", Doctypes: map[string]AccessLevel{"MaterialIssue": AccessOperate}},
+		B:   Duty{Name: "Approves material requests", ApproverFor: []string{"MaterialIssue"}},
+	},
 	{
 		ID: "create-and-approve", Label: "Creates and approves the same document", Severity: "High",
 		Why: "The maker-checker control is the only thing standing between a fabricated purchase order, journal or claim and a real payment. One person holding both ends removes it entirely.",

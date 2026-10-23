@@ -387,7 +387,7 @@ func init() {
 	RegisterJobHandler(webPushJobType, deliverWebPush)
 }
 
-var webPushHTTPClient = &http.Client{Timeout: 10 * time.Second}
+var webPushHTTPClient = newOutboundClient(10*time.Second, false) // 134.2: the endpoint came from a browser
 
 // queueWebPush queues one message for one phone; key makes a repeat a no-op.
 func queueWebPush(schema string, subID int64, msg WebPushMessage, key string) error {
@@ -691,6 +691,9 @@ func StartWebPushAlertWorker(ctx context.Context, interval time.Duration) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				if !IsSchedulerLeader() { // 134.7: one server runs each sweep
+					continue
+				}
 				if db.DB == nil {
 					continue
 				}

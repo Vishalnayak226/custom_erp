@@ -21,19 +21,19 @@ screens: [reports]
 # Report catalog (part 2)
 
 This page continues the [report catalog](report-catalog.md), which lists
-every category and explains how to run a report. It holds **130** reports, from
+every category and explains how to run a report. It holds **147** reports, from
 Inventory to Procurement.
 
 ## Contents
 
-- [Inventory](#inventory) - 33 reports
+- [Inventory](#inventory) - 42 reports
 - [MIS & Management](#mis-management) - 10 reports
-- [Manufacturing](#manufacturing) - 19 reports
+- [Manufacturing](#manufacturing) - 21 reports
 - [Master Data & Audit](#master-data-audit) - 11 reports
 - [OMS](#oms) - 25 reports
 - [PIM](#pim) - 4 reports
 - [PIM / PIMS](#pim-pims) - 16 reports
-- [Procurement](#procurement) - 12 reports
+- [Procurement](#procurement) - 18 reports
 
 ## Inventory
 
@@ -88,6 +88,19 @@ Inventory to Procurement.
 - **Show** (`show`) - select, optional, one of: All batches,Only with stock left
 
 **Columns:** Batch · Item · Received On · Age (days) · Age Band · GRN · Supplier · Received Qty · Est. Left (FIFO) · Expires · Batch Status
+
+**Drill-down:** no.
+
+### Consumption by cost centre
+
+**Report id:** `consumption-by-cost-centre`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Cost centre · Department · Issued · Returned · Net consumption
 
 **Drill-down:** no.
 
@@ -149,6 +162,19 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
+### Delivery challan register
+
+**Report id:** `delivery-challan-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Date · Challan · Purpose · Store · Party · Item · Lot · Issued · Back good · Back damaged · Back rejected · Written off · Still out · Expected back · Status · E-way bill
+
+**Drill-down:** no.
+
 ### Demand Forecast (Trend)
 
 **Report id:** `demand-forecast`
@@ -163,6 +189,19 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
+### E-way bill register
+
+**Report id:** `ewaybill-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Date · Document · Type · From · To · Value · E-way bill · EWB no · Valid until · Vehicle · Why
+
+**Drill-down:** no.
+
 ### Goods In Receiving
 
 **Report id:** `grn-in-receiving`
@@ -172,6 +211,16 @@ Inventory to Procurement.
 - **Store code (blank = all)** (`store`) - text, optional
 
 **Columns:** Store · SKU · In receiving · Receipts · Received since
+
+**Drill-down:** no.
+
+### Goods out on challan, by party
+
+**Report id:** `challan-outstanding-returnables`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Party · Challans · Still out · Value · Not due · Overdue up to 30 days · 31-60 days · Over 60 days
 
 **Drill-down:** no.
 
@@ -232,6 +281,19 @@ Inventory to Procurement.
 - **To** (`to`) - date, optional
 
 **Columns:** Document Date · Document No · Store Code · Store Name · Design No · Combination ID · Barcode · MRP · New Value · Reason · Status · Created By · Approved By
+
+**Drill-down:** no.
+
+### Material issue and return register
+
+**Report id:** `material-issue-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Date · Document · Type · Store · Department · Cost centre · Item · Qty · Value · Status
 
 **Drill-down:** no.
 
@@ -367,6 +429,20 @@ Inventory to Procurement.
 
 ### Stock Ledger
 
+**Report id:** `cat-stock-ledger`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Movement Date · Store Code · Store Name · Location Code · Location Name · Item Code · Item Name · SKU · Barcode · Design No · Combination ID · Category Name · Movement Type · Qty · Source Document Type · Source Document No · Stock Status · Created By
+
+**Drill-down:** no.
+
+### Stock Ledger
+
 **Report id:** `stock-ledger`
 
 **Parameters:**
@@ -378,20 +454,6 @@ Inventory to Procurement.
 - **To (optional)** (`end`) - date, optional
 
 **Columns:** Date · SKU · Location · Qty Delta · Running Balance · Voucher Type · Voucher ID · From Location/Bin · To Location/Bin · From Condition · To Condition · User
-
-**Drill-down:** no.
-
-### Stock Ledger
-
-**Report id:** `cat-stock-ledger`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-- **Store** (`location`) - text, optional
-
-**Columns:** Movement Date · Store Code · Store Name · Location Code · Location Name · Item Code · Item Name · SKU · Barcode · Design No · Combination ID · Category Name · Movement Type · Qty · Source Document Type · Source Document No · Stock Status · Created By
 
 **Drill-down:** no.
 
@@ -435,6 +497,19 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
+### Stock adjustment register
+
+**Report id:** `inventory-adjustment-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Date · Adjustment · Store · Item · Qty · Before · After · Reason · Value · Status · Flag
+
+**Drill-down:** no.
+
 ### Stock by Location
 
 **Report id:** `stock-by-location`
@@ -444,6 +519,42 @@ Inventory to Procurement.
 - **Store code (blank = all)** (`store`) - text, optional
 
 **Columns:** Store · SKU · Main · Inward · In-Transit · QC Hold · Damage · On Hold · Purchase Return · Own locations · Sellable
+
+**Drill-down:** no.
+
+### Stock losses by reason and store
+
+**Report id:** `inventory-loss-by-reason`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Store · Reason · Lines · Units lost · Value
+
+**Drill-down:** no.
+
+### Transfer shortages by reason
+
+**Report id:** `transfer-shortage-by-reason`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Reason · Transfers · Damaged · Lost · Returned to source · Excess
+
+**Drill-down:** no.
+
+### Transfers in transit too long
+
+**Report id:** `transfers-in-transit-long`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Transfer · From · To · Dispatched · Days in transit
 
 **Drill-down:** no.
 
@@ -640,6 +751,26 @@ Inventory to Procurement.
 - **Store** (`location`) - text, optional
 
 **Columns:** Document Date · Production Order No · Parent Item · Component Item · Barcode · Source Document No · Movement Type · Qty · Status
+
+**Drill-down:** no.
+
+### Job work cost, yield and wastage
+
+**Report id:** `job-work-yield`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Order · Job worker · Sent · Came back as · Consumed · Output accepted · Output rejected · Yield % (of expected) · Scrap / loss % · Material value · Processing charge · Cost per output
+
+**Drill-down:** no.
+
+### Job work outstanding (qty and weight)
+
+**Report id:** `job-work-outstanding`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Order · Job worker · Line · Item · Sent · Accepted · Rejected · Scrap / loss · Loss awaiting approval · Still out · Net weight out · Fine weight out · Sent · Due back · Days overdue · Statutory return by
 
 **Drill-down:** no.
 
@@ -1621,6 +1752,42 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
+### Goods receipt discrepancies by vendor
+
+**Report id:** `grn-discrepancy-by-vendor`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Vendor · Receipts · Received · Accepted · Rejected · Damaged · Short of the invoice · Invoice difference · Rejected %
+
+**Drill-down:** no.
+
+### Goods receipts not billed
+
+**Report id:** `grn-not-billed`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Goods receipt · Vendor · Posted · Days · Vendor invoice no.
+
+**Drill-down:** no.
+
+### Goods received not invoiced (GRNI)
+
+**Report id:** `grni`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Goods receipt · Date · Vendor · Store · Accepted value · Invoiced · Not invoiced · Price difference · Vendor invoices · AP hold
+
+**Drill-down:** no.
+
 ### Invoice vs GRN Differences
 
 **Report id:** `grn-invoice-differences`
@@ -1635,6 +1802,16 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
+### Late and early receipts
+
+**Report id:** `grn-receipt-timing`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Goods receipt · PO · Vendor · Expected · Received · Timing
+
+**Drill-down:** no.
+
 ### Open Purchase Commitments
 
 **Report id:** `po-commitments`
@@ -1644,6 +1821,19 @@ Inventory to Procurement.
 **Columns:** Age Bucket · PO Count · Committed Amount *(sensitive)*
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
+
+### PO expected delivery and terms
+
+**Report id:** `po-delivery-and-terms`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** PO · Vendor · Store · Status · Expected delivery · Days late · Payment term · Delivery terms · Freight paid by · Quote valid until · Amendments · Value
+
+**Drill-down:** no.
 
 ### PO vs GRN Price Variance
 
@@ -1708,6 +1898,19 @@ Inventory to Procurement.
 - **Vendor (optional)** (`vendor_id`) - text, optional
 
 **Columns:** PO ID · Vendor · PO Number · Total Amount *(sensitive)* · Status · Date
+
+**Drill-down:** no.
+
+### Vendor document and transport register
+
+**Report id:** `vendor-document-transport-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Goods receipt · Received · Vendor · Store · Invoice no · Invoice date · Challan no · Challan date · LR / AWB · Vehicle · Transporter · Packages
 
 **Drill-down:** no.
 

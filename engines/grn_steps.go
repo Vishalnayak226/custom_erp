@@ -227,13 +227,62 @@ func grnAnyChildPosted(data map[string]interface{}) bool {
 	return false
 }
 
+// grnLineInclPrice is a GST-inclusive line's unit price incl. GST (Stage
+// 130.1): the first price keyed under keys that still matches the ex-GST
+// price, else the PO's while the price is the PO's, else the ex-GST price
+// grossed up. ok=false for a line priced before GST.
+func grnLineInclPrice(l map[string]interface{}, ex float64, keys ...string) (float64, bool) {
+	if !truthy(l["gst_inclusive"]) {
+		return 0, false
+	}
+	k := 1 + numFromInterface(l["gst_rate"])/100
+	for _, key := range keys {
+		if !lineNumberSet(l, key) {
+			continue
+		}
+		if inc := numFromInterface(l[key]); math.Abs(round2(inc/k)-round2(ex)) < 0.005 {
+			return round2(inc), true
+		}
+	}
+	if lineNumberSet(l, "po_rate_incl") && lineNumberSet(l, "po_rate") && math.Abs(ex-numFromInterface(l["po_rate"])) < 0.005 {
+		return round2(numFromInterface(l["po_rate_incl"])), true
+	}
+	return round2(ex * k), true
+}
+
+// grnLineAmount values qty units of a line at the ex-GST price ex. A
+// GST-inclusive line is worked per line from its incl. price (Stage 130.1,
+// user decision): pre-GST = round(qty x incl / (1 + GST)), GST the rest, so
+// the line adds up to the bill exactly however many pieces it has.
+func grnLineAmount(l map[string]interface{}, qty, ex float64, inclKeys ...string) (value, gst float64) {
+	rate := numFromInterface(l["gst_rate"])
+	if inc, ok := grnLineInclPrice(l, ex, inclKeys...); ok {
+		total := round2(qty * inc)
+		value = round2(total / (1 + rate/100))
+		return value, round2(total - value)
+	}
+	value = qty * ex
+	return value, value * rate / 100
+}
+
+// grnInvoiceLineAmount is one line of the vendor's invoice as keyed: invoice
+// qty x invoice price.
+func grnInvoiceLineAmount(l map[string]interface{}) (value, gst float64) {
+	return grnLineAmount(l, grnInvoiceQty(l), grnInvoicePrice(l), "invoice_rate_incl")
+}
+
+// grnOurLineAmount is one line of what we owe: the accepted qty at the GRN price.
+func grnOurLineAmount(l map[string]interface{}) (value, gst float64) {
+	return grnLineAmount(l, grnStepAccepted(l), grnGRNPrice(l), "grn_price_incl", "invoice_rate_incl")
+}
+
 // grnInvoiceLineTotals is the vendor's invoice as keyed on the lines:
 // invoice qty x invoice price, and GST at each line's rate.
 func grnInvoiceLineTotals(lines []map[string]interface{}) (value, gst float64) {
 	for _, l := range lines {
-		v := grnInvoiceQty(l) * grnInvoicePrice(l)
+		v, g := grnInvoiceLineAmount(l)
 		value += v
-		gst += v * numFromInterface(l["gst_rate"]) / 100
+		gst += g
 	}
 	return round2(value), round2(gst)
 }
@@ -243,9 +292,9 @@ func grnInvoiceLineTotals(lines []map[string]interface{}) (value, gst float64) {
 // vendor, and the invoice-vs-GRN note already leaves them off the payment.
 func grnOurTotals(lines []map[string]interface{}) (value, gst float64) {
 	for _, l := range lines {
-		v := grnStepAccepted(l) * grnGRNPrice(l)
+		v, g := grnOurLineAmount(l)
 		value += v
-		gst += v * numFromInterface(l["gst_rate"]) / 100
+		gst += g
 	}
 	return round2(value), round2(gst)
 }
@@ -346,7 +395,20 @@ func checkDuplicateVendorInvoice(tenantID, grnID, vendor, invoiceNo string) erro
 		  AND data->>'vendor' = $1 AND lower(trim(data->>'vendor_invoice_no')) = lower($2)
 		LIMIT 1`, schema), vendor, invoiceNo, grnID).Scan(&other)
 	if err == sql.ErrNoRows {
-		return nil
+		// Stage 130.16 (74.3.2): nor booked as a vendor bill of its own.
+		err = db.DB.QueryRow(fmt.Sprintf(`
+			SELECT COALESCE(data->>'invoice_number', id) FROM %s.documents
+			WHERE doctype = 'VendorInvoice' AND deleted_at IS NULL AND status <> 'Cancelled' AND COALESCE(data->>'grn_id', '') = ''
+			  AND data->>'vendor_id' = $1 AND lower(trim(data->>'invoice_number')) = lower($2)
+			LIMIT 1`, schema), vendor, invoiceNo).Scan(&other)
+		if err == sql.ErrNoRows {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		return &ValidationError{Code: "GOODSR-0941", SubFor: "Vendor Invoice No", Message: fmt.Sprintf(
+			"invoice %s of this vendor is already booked as vendor bill %s", invoiceNo, other)}
 	}
 	if err != nil {
 		return err
@@ -369,7 +431,20 @@ type stepGRN struct {
 	header map[string]interface{}   // header fields as loaded, for the change log
 }
 
-var grnLoggedHeader = []string{"vendor_invoice_no", "vendor_invoice_date", "vendor_invoice_amount"}
+var grnLoggedHeader = []string{"vendor_invoice_no", "vendor_invoice_date", "vendor_invoice_amount",
+	"vendor_challan_no", "vendor_challan_date", "lr_awb_no", "vehicle_no", "transporter", "package_count"}
+
+// grnLogisticsFields (Stage 130.16, 74.3.2) are the vendor's challan and the
+// transport, editable until the receipt posts.
+var grnLogisticsFields = map[string]bool{"vendor_challan_no": true, "vendor_challan_date": true, "lr_awb_no": true,
+	"vehicle_no": true, "transporter": true, "package_count": true}
+
+func valueOrEmpty(v interface{}) interface{} {
+	if v == nil {
+		return ""
+	}
+	return v
+}
 
 func loadStepGRN(tenantID, grnID string) (*stepGRN, error) {
 	schema, err := db.GetTenantSchema(tenantID)
@@ -649,11 +724,15 @@ type GRNReceiveEdit struct {
 	InvoiceNo     *string  `json:"vendor_invoice_no"`
 	InvoiceDate   *string  `json:"vendor_invoice_date"`
 	InvoiceAmount *float64 `json:"vendor_invoice_amount"`
-	Lines         []struct {
+	// Stage 130.16 (74.3.2): the vendor's challan and the transport.
+	Logistics map[string]interface{} `json:"logistics"`
+	Lines     []struct {
 		LineNo       int      `json:"line_no"`
 		ReceivedQty  *float64 `json:"received_qty"`
 		InvoiceQty   *float64 `json:"invoice_qty"`
 		InvoicePrice *float64 `json:"invoice_price"`
+		// Stage 130.1: the price as typed incl. GST on a GST-inclusive line.
+		InvoicePriceIncl *float64 `json:"invoice_price_incl"`
 	} `json:"lines"`
 	Reason string `json:"reason"`
 }
@@ -695,6 +774,15 @@ func SaveGRNReceive(tenantID, userID, grnID string, in GRNReceiveEdit) (*GRNStep
 		}
 		g.data["vendor_invoice_amount"] = round2(*in.InvoiceAmount)
 	}
+	for k, v := range in.Logistics {
+		if grnLogisticsFields[k] {
+			if k == "package_count" {
+				g.data[k] = numFromInterface(v)
+			} else {
+				g.data[k] = strings.TrimSpace(fmt.Sprint(valueOrEmpty(v)))
+			}
+		}
+	}
 	for _, e := range in.Lines {
 		l := g.line(e.LineNo)
 		if l == nil {
@@ -704,7 +792,7 @@ func SaveGRNReceive(tenantID, userID, grnID string, in GRNReceiveEdit) (*GRNStep
 		for _, f := range []struct {
 			v   *float64
 			key string
-		}{{e.ReceivedQty, "received_qty"}, {e.InvoiceQty, "invoice_qty"}, {e.InvoicePrice, "invoice_rate"}} {
+		}{{e.ReceivedQty, "received_qty"}, {e.InvoiceQty, "invoice_qty"}, {e.InvoicePrice, "invoice_rate"}, {e.InvoicePriceIncl, "invoice_rate_incl"}} {
 			if f.v == nil {
 				continue
 			}
@@ -735,9 +823,11 @@ func SaveGRNReceive(tenantID, userID, grnID string, in GRNReceiveEdit) (*GRNStep
 // GRNVerifyLine is one line's verified figures. Nil keeps the default (or the
 // value saved at an earlier Verify).
 type GRNVerifyLine struct {
-	LineNo          int      `json:"line_no"`
-	GRNQty          *float64 `json:"grn_qty"`
-	GRNPrice        *float64 `json:"grn_price"`
+	LineNo   int      `json:"line_no"`
+	GRNQty   *float64 `json:"grn_qty"`
+	GRNPrice *float64 `json:"grn_price"`
+	// Stage 130.1: the price as typed incl. GST on a GST-inclusive line.
+	GRNPriceIncl    *float64 `json:"grn_price_incl"`
 	RejectedQty     *float64 `json:"rejected_qty"`
 	RejectionReason *string  `json:"rejection_reason"`
 	DamagedQty      *float64 `json:"damaged_qty"`
@@ -814,6 +904,9 @@ func verifyGRNLines(tenantID string, g *stepGRN, in GRNVerifyInput) (*grnExcessR
 			return nil, err
 		}
 		if err := set(v.GRNPrice, "grn_price", "GRN Price"); err != nil {
+			return nil, err
+		}
+		if err := set(v.GRNPriceIncl, "grn_price_incl", "GRN Price"); err != nil {
 			return nil, err
 		}
 		// rejected_qty holds the clerk's own rejects plus any excess sent
@@ -1318,32 +1411,35 @@ type GRNStepLineView struct {
 	GSTRate      float64  `json:"gst_rate"`
 	// GSTInclusive: the line's PO prices include GST, so the screen shows
 	// and takes its prices that way (Stage 110.1); the figures here stay ex-GST.
-	GSTInclusive    bool     `json:"gst_inclusive,omitempty"`
-	RejectedQty     float64  `json:"rejected_qty"` // the clerk's own rejects
-	ExcessReturned  float64  `json:"excess_returned,omitempty"`
-	RejectionReason string   `json:"rejection_reason,omitempty"`
-	RejectionCode   string   `json:"rejection_reason_code,omitempty"`
-	DamageCode      string   `json:"damage_reason_code,omitempty"`
-	DamagedQty      float64  `json:"damaged_qty"`
-	DamageReason    string   `json:"damage_reason,omitempty"`
-	AcceptedQty     float64  `json:"accepted_qty"`
-	InvoiceValue    float64  `json:"invoice_value"` // incl. GST
-	OurValue        float64  `json:"our_value"`     // incl. GST
-	QtyDiff         float64  `json:"qty_diff"`      // GRN qty - invoice qty
-	PriceDiff       float64  `json:"price_diff"`    // GRN price - invoice price
-	ExcessQty       float64  `json:"excess_qty,omitempty"`
-	ExcessAction    string   `json:"excess_action,omitempty"`
-	ExcessStatus    string   `json:"excess_status,omitempty"`
-	PrevPrice       *float64 `json:"prev_price,omitempty"`
-	PrevGRN         string   `json:"prev_grn,omitempty"`
-	PrevVendor      string   `json:"prev_vendor,omitempty"`
-	PrevDate        string   `json:"prev_date,omitempty"`
-	PriceChangePct  *float64 `json:"price_change_pct,omitempty"`
-	PriceGroup      string   `json:"price_group,omitempty"`
-	Child           string   `json:"child,omitempty"`
-	CurrentMRP      float64  `json:"current_mrp"`
-	MRP             float64  `json:"mrp,omitempty"`
-	SuggestedMRP    float64  `json:"suggested_mrp"`
+	GSTInclusive bool `json:"gst_inclusive,omitempty"`
+	// Stage 130.1: those incl. GST prices exactly as keyed, for the screen.
+	InvoicePriceIncl float64  `json:"invoice_price_incl,omitempty"`
+	GRNPriceIncl     float64  `json:"grn_price_incl,omitempty"`
+	RejectedQty      float64  `json:"rejected_qty"` // the clerk's own rejects
+	ExcessReturned   float64  `json:"excess_returned,omitempty"`
+	RejectionReason  string   `json:"rejection_reason,omitempty"`
+	RejectionCode    string   `json:"rejection_reason_code,omitempty"`
+	DamageCode       string   `json:"damage_reason_code,omitempty"`
+	DamagedQty       float64  `json:"damaged_qty"`
+	DamageReason     string   `json:"damage_reason,omitempty"`
+	AcceptedQty      float64  `json:"accepted_qty"`
+	InvoiceValue     float64  `json:"invoice_value"` // incl. GST
+	OurValue         float64  `json:"our_value"`     // incl. GST
+	QtyDiff          float64  `json:"qty_diff"`      // GRN qty - invoice qty
+	PriceDiff        float64  `json:"price_diff"`    // GRN price - invoice price
+	ExcessQty        float64  `json:"excess_qty,omitempty"`
+	ExcessAction     string   `json:"excess_action,omitempty"`
+	ExcessStatus     string   `json:"excess_status,omitempty"`
+	PrevPrice        *float64 `json:"prev_price,omitempty"`
+	PrevGRN          string   `json:"prev_grn,omitempty"`
+	PrevVendor       string   `json:"prev_vendor,omitempty"`
+	PrevDate         string   `json:"prev_date,omitempty"`
+	PriceChangePct   *float64 `json:"price_change_pct,omitempty"`
+	PriceGroup       string   `json:"price_group,omitempty"`
+	Child            string   `json:"child,omitempty"`
+	CurrentMRP       float64  `json:"current_mrp"`
+	MRP              float64  `json:"mrp,omitempty"`
+	SuggestedMRP     float64  `json:"suggested_mrp"`
 	// SuggestedMRPRule names the MRP rule that made the suggestion; "" = the
 	// markup (Stage 114.6).
 	SuggestedMRPRule string `json:"suggested_mrp_rule,omitempty"`
@@ -1408,6 +1504,9 @@ type GRNStepView struct {
 	VerifiedBy         string            `json:"verified_by,omitempty"`
 	PricedBy           string            `json:"priced_by,omitempty"`
 	Allowed            map[string]bool   `json:"allowed,omitempty"`
+
+	// Stage 130.16 (74.3.2): the vendor's challan and the transport.
+	Logistics map[string]interface{} `json:"logistics"`
 }
 
 // GRNLineChange is one row of the correction log.
@@ -1445,7 +1544,7 @@ func GetGRNStepView(tenantID, grnID string) (*GRNStepView, error) {
 		ID: grnID, Code: firstNonEmpty(strField(data, "code"), grnID), Step: strField(data, "grn_step"), Status: status,
 		Vendor: strField(data, "vendor"), Location: strField(data, "location"), POIDs: GRNPOIDs(data),
 		InvoiceNo: strField(data, "vendor_invoice_no"), InvoiceDate: strField(data, "vendor_invoice_date"),
-		InvoiceTotal:      numFromInterface(data["vendor_invoice_amount"]),
+		InvoiceTotal: numFromInterface(data["vendor_invoice_amount"]), Logistics: grnLogistics(data),
 		InvoiceLinesValue: numFromInterface(data["invoice_lines_value"]), InvoiceLinesGST: numFromInterface(data["invoice_lines_gst"]),
 		InvoiceLinesTotal: numFromInterface(data["invoice_lines_total"]), Unexplained: numFromInterface(data["invoice_unexplained"]),
 		OurValue: numFromInterface(data["our_value"]), OurGST: numFromInterface(data["our_gst"]), OurTotal: numFromInterface(data["our_total"]),
@@ -1537,6 +1636,10 @@ func GetGRNStepView(tenantID, grnID string) (*GRNStepView, error) {
 			CurrentMRP: numFromInterface(item["mrp"]), MRP: numFromInterface(l["mrp"]), BatchNo: strField(l, "batch_no"),
 		}
 		lv.POOpenQty = poOpen(lv.POID, sku)
+		if inc, ok := grnLineInclPrice(l, grnInvoicePrice(l), "invoice_rate_incl"); ok {
+			lv.InvoicePriceIncl = inc
+			lv.GRNPriceIncl, _ = grnLineInclPrice(l, grnGRNPrice(l), "grn_price_incl", "invoice_rate_incl")
+		}
 		if item != nil {
 			lv.Design = firstNonEmpty(strField(item, "parent_product_code"), strField(item, "family"))
 			lv.Attributes = ItemAttributeValues(tenantID, item, designs)
@@ -1893,4 +1996,18 @@ func OpenPOsForVendor(tenantID, vendor string) ([]OpenPOSummary, error) {
 		out = append(out, s)
 	}
 	return out, nil
+}
+
+// grnLogistics is the vendor's challan and the transport, as the screen
+// shows them (Stage 130.16).
+func grnLogistics(data map[string]interface{}) map[string]interface{} {
+	out := map[string]interface{}{}
+	for k := range grnLogisticsFields {
+		if k == "package_count" {
+			out[k] = numFromInterface(data[k])
+		} else {
+			out[k] = strField(data, k)
+		}
+	}
+	return out
 }

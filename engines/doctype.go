@@ -409,6 +409,19 @@ func ValidateDocument(tenantID string, doctype string, docData map[string]interf
 	return validateDocumentWith(tenantID, doctype, docData, &docValidationLookups{fields: fields, fieldMaxLength: -1})
 }
 
+// FieldMaxLength is the character limit ValidateDocument holds a field to:
+// its own max_length when set, else platform.field_max_length.
+func FieldMaxLength(tenantID, doctype, fieldname string) int {
+	if fields, err := GetDocTypeMeta(tenantID, doctype); err == nil {
+		for _, f := range fields {
+			if f.Fieldname == fieldname && f.MaxLength != nil && *f.MaxLength > 0 {
+				return *f.MaxLength
+			}
+		}
+	}
+	return GetSettingInt(tenantID, "platform.field_max_length")
+}
+
 // docValidationLookups is what ValidateDocument reads from the database
 // besides the row itself. A single save builds one per call; an import
 // (49.4.4a) builds one per file and prefetches each batch's Link targets, so

@@ -183,9 +183,12 @@ const SVEventReversal = "REVERSAL"
 // since been blocked or cancelled cannot take it - the refund stops with a
 // reason a manager can act on (release the card), rather than turning stored
 // value into cash.
-func refundGiftCardShareTx(tx *sql.Tx, tenantID, schema, cartNumber, refundRequestID, user string, sharePaise int64, saleTenders []GiftCardTender) (string, error) {
+func refundGiftCardShareTx(tx *sql.Tx, tenantID, schema, cartNumber, refundRequestID, user string, sharePaise int64, saleTenders []GiftCardTender) (map[string]int64, error) {
+	// Stage 130.12: the share is returned per liability account - a bill paid
+	// by a gift card (2610) and store credit (2650) credits each its own.
+	byAccount := map[string]int64{}
 	if sharePaise <= 0 || len(saleTenders) == 0 {
-		return "", nil
+		return byAccount, nil
 	}
 	sorted := append([]GiftCardTender(nil), saleTenders...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].InstrumentID < sorted[j].InstrumentID })
@@ -193,7 +196,6 @@ func refundGiftCardShareTx(tx *sql.Tx, tenantID, schema, cartNumber, refundReque
 	for i, t := range sorted {
 		weights[i] = t.AmountPaise
 	}
-	liability := ""
 	today := time.Now().Format("2006-01-02")
 	for i, share := range allocatePaise(sharePaise, weights) {
 		if share <= 0 {
@@ -203,28 +205,28 @@ func refundGiftCardShareTx(tx *sql.Tx, tenantID, schema, cartNumber, refundReque
 		idem := "refund|" + refundRequestID + "|" + t.InstrumentID
 		var done bool
 		if err := tx.QueryRow(fmt.Sprintf(`SELECT EXISTS(SELECT 1 FROM %s.stored_value_ledger WHERE idempotency_key = $1)`, schema), idem).Scan(&done); err != nil {
-			return "", err
+			return nil, err
 		}
 		c, err := scanSVCard(tx.QueryRow(fmt.Sprintf(`SELECT %s FROM %s.stored_value_instruments WHERE instrument_id = $1 FOR UPDATE`, svCardColumns, schema), t.InstrumentID))
 		if err != nil {
-			return "", fmt.Errorf("gift card %s: %v", t.Masked, err)
+			return nil, fmt.Errorf("gift card %s: %v", t.Masked, err)
 		}
 		p, err := LoadStoredValueProfile(tenantID, c.Profile)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
-		liability = p.LiabilityAccount
+		byAccount[p.LiabilityAccount] += share
 		if done {
 			continue
 		}
 		if st := c.effectiveStatus(today); st == SVStatusBlocked || st == SVStatusCancelled {
-			return "", &ValidationError{Code: "POSOFF-0606", SubFor: t.Masked, Message: fmt.Sprintf(
+			return nil, &ValidationError{Code: "POSOFF-0606", SubFor: t.Masked, Message: fmt.Sprintf(
 				"%.2f of this refund goes back to gift card %s, which is %s - a manager releases the card first", PaiseToRupees(share), t.Masked, strings.ToLower(st))}
 		}
 		src := svSource{Doctype: "RefundRequest", ID: refundRequestID, User: user, Reason: "returned against " + cartNumber}
 		if _, err := appendSVEvent(tx, schema, &c, SVEventReversal, share, "", src, idem); err != nil {
-			return "", err
+			return nil, err
 		}
 	}
-	return liability, nil
+	return byAccount, nil
 }

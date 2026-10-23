@@ -181,13 +181,22 @@ engine with its own approval chain.
 
 ## Appraisals, training and grievances
 
-These three tabs exist and give ordinary record-keeping (create, list, edit,
-same generic form every other doctype gets) — confirmed by grep, there is no
-dedicated engine file backing any of them the way payroll, attendance and
-leave each have one. Full appraisal cycles, training-completion tracking and
-grievance escalation as *workflows* remain explicitly out of scope for this
-build. Use these tabs to keep a record; don't expect them to drive a process
-for you yet.
+All three are tabs under **HRM → HR → HR administration**, each with its own
+steps (User Guide §9E):
+
+- **Appraisals** — choose the **Appraisal cycle** (set up under **Manage
+  cycles**). **Start** opens an employee's appraisal with the cycle's KRAs;
+  enter the self ratings (1-5) and click **Submit for review**. A reviewer
+  other than the submitter enters manager ratings and comments, then clicks
+  **Approve review** or **Return for changes** (with a reason).
+- **Training** — choose the **Training program** (set up under **Manage
+  programs**). **Enrol** an employee (or tick several and **Enrol
+  selected**), then **Record result** to set Completed or Failed, the date
+  and an optional score.
+- **Grievances** — an employee raises one from **My Requests → + Grievance**.
+  A Super Admin opens the case, writes the **Resolution Notes** and chooses
+  **Resolve - actioned** or **Close - no action**. A Store Manager sees only
+  that a case exists, not what it says.
 
 ## Self-service
 
@@ -247,11 +256,6 @@ account is deactivated automatically, and re-activating the Employee is
 what restores login (`HR-0267`).
 
 ## What is not here yet
-
-**Appraisals, training and grievances are record-keeping only** — see
-[above](#appraisals-training-and-grievances). There is no appraisal-cycle
-automation, no training-completion tracking logic, and no grievance
-escalation workflow behind these tabs today.
 
 **No progressive income-tax slab engine.** TDS-on-salary is a single flat
 rate/threshold pair on a seeded `SALARY` TDS section, an illustrative

@@ -159,12 +159,15 @@ func RecordChannelSKUException(tenantID, channel, channelSKU, channelOrderID str
 	return err
 }
 
+// 134.6 (47.10.1): most open unmapped-SKU exceptions the exceptions queue returns, most recently seen first.
+const channelSKUExceptionCap = 1000
+
 func ListOpenChannelSKUExceptions(tenantID, channel string) ([]ChannelSKUException, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id,COALESCE(data->>'channel',''),COALESCE(data->>'channel_sku',''),COALESCE(data->>'first_order_id',''),COALESCE(data->>'last_order_id',''),CASE WHEN COALESCE(data->>'occurrences','') ~ '^\d+$' THEN (data->>'occurrences')::int ELSE 1 END,created_at::text FROM %s.documents WHERE doctype='ChannelSKUException' AND status='Open' AND deleted_at IS NULL AND ($1='' OR data->>'channel'=$1) ORDER BY updated_at DESC`, schema), channel)
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id,COALESCE(data->>'channel',''),COALESCE(data->>'channel_sku',''),COALESCE(data->>'first_order_id',''),COALESCE(data->>'last_order_id',''),CASE WHEN COALESCE(data->>'occurrences','') ~ '^\d+$' THEN (data->>'occurrences')::int ELSE 1 END,created_at::text FROM %s.documents WHERE doctype='ChannelSKUException' AND status='Open' AND deleted_at IS NULL AND ($1='' OR data->>'channel'=$1) ORDER BY updated_at DESC LIMIT %d`, schema, channelSKUExceptionCap), channel)
 	if err != nil {
 		return nil, err
 	}
@@ -464,6 +467,9 @@ func StartChannelSyncWorker(ctx context.Context, interval time.Duration) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				if !IsSchedulerLeader() { // 134.7: one server runs each sweep
+					continue
+				}
 				schemas, err := listTenantSchemas("oms")
 				if err != nil {
 					log.Printf("[CHANNEL-SYNC] list tenants: %v", err)

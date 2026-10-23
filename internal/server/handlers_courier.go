@@ -122,18 +122,24 @@ func handleCourierRates(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleCourierTrackingWebhook(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	body, err := io.ReadAll(io.LimitReader(r.Body, engines.InboundWebhookMaxBody))
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Could not read webhook payload")
 		return
 	}
 	tenantID, provider := r.Header.Get("Resolved-Tenant-ID"), r.PathValue("provider")
 	if err := engines.VerifyCourierWebhook(tenantID, provider, r.Header.Get("X-Courier-Signature"), body); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnauthorized, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "Invalid webhook signature") // 134.3: one answer, whatever failed
+		return
+	}
+	source := "courier:" + provider
+	if dup, err := engines.ClaimInboundWebhook(tenantID, source, "", body); err == nil && dup {
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "duplicate"})
 		return
 	}
 	bookingID, err := engines.IngestCourierTrackingWebhook(tenantID, provider, body)
 	if err != nil {
+		engines.ReleaseInboundWebhook(tenantID, source, "", body)
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}

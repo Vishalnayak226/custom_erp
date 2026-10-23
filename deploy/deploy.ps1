@@ -53,10 +53,54 @@ if ($Version) {
     throw "Could not read the live build's version from $Target (/api/v1/version). Pass -Version to set the release number by hand."
 }
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "Release version '$Version' is not MAJOR.MINOR.PATCH" }
+
+# Stage 90.5: the ledger note says what changed, not which number. Release.cmd
+# writes each release commit's titles as "- " lines in its body; a hand commit
+# has only its subject. One line per change since the live commit, without the
+# stage number - the Control Panel's Releases table shows them.
+function Get-ReleaseSummary([string]$Repo, [string]$Since) {
+    $enc = [Console]::OutputEncoding
+    [Console]::OutputEncoding = [Text.Encoding]::UTF8   # git writes UTF-8; the default code page garbles the dashes
+    try { $log = (& git -C $Repo log --no-merges --format='%s%x1f%b%x1e' "$Since..HEAD" 2>$null) -join "`n"; $code = $LASTEXITCODE }
+    finally { [Console]::OutputEncoding = $enc }
+    if ($code -ne 0) { return "" }
+    $lines = foreach ($c in ($log -split '\x1e')) {
+        $subject, $body = $c.Trim() -split '\x1f', 2
+        if (-not $subject) { continue }
+        if ($subject -match '^(\w+): release \d+\.\d+\.\d+ - (\d+) file\(s\)$') {
+            # No titles: a docs-only release adds nothing; 0.6.0 said only "39 file(s)".
+            if ($Matches[1] -ne 'docs') { "$($Matches[2]) files changed" }
+        } elseif ($subject -match '^\w+: release \d+\.\d+\.\d+ - ') {
+            "$body" -split "`n" | Where-Object { $_ -match '^- ' } | ForEach-Object { $_.Substring(2) }
+        } elseif ($subject -notmatch '^(docs|chore|test|ci|build|style)(\([^)]*\))?!?:') {
+            # A hand commit: features and fixes say what changed; "docs: release 0.2.0 deployed ..." does not.
+            $subject -replace '^\w+(\([^)]*\))?!?:\s*', ''
+        }
+    }
+    $emDash = [string][char]0x2014
+    $garbled = [string][char]0x393 + [char]0xC7 + [char]0xF6   # an em dash as 0.11.0's commit stored it
+    # "Stage 88 (88.2-88.6) - OMS ...", "Stages 110-112 - ...", "Stages 114 and 115 - ..." -> "OMS ...", "..."
+    $stage = '(^|;\s*)Stages?\s+[\d.]+[A-Za-z]?(\s*(?:-|,|and)\s*[\d.]+[A-Za-z]?)*(\s*\([^)]*\))?\s*[' + $emDash + [char]0x2013 + ':-]\s*'
+    $out = foreach ($l in $lines) {
+        $t = (($l -replace $garbled, $emDash) -replace $stage, '$1').Trim().Trim('"')
+        if (-not $t) { continue }
+        $t = $t.Substring(0, 1).ToUpper() + $t.Substring(1)
+        if ($t.Length -gt 140) { $t = $t.Substring(0, 139).TrimEnd() + [char]0x2026 }
+        $t
+    }
+    $out = @($out | Select-Object -Unique)
+    if ($out.Count -gt 12) { $out = @($out | Select-Object -First 12) + "and $($out.Count - 12) more" }
+    if (-not $out.Count) { return "Guides and records only" }
+    return ($out -join "`n")
+}
+if (-not $ReleaseNote -and $live -and $live.git_commit -and $live.git_commit -ne "dev") {
+    $summary = Get-ReleaseSummary $RepoRoot $live.git_commit
+    if ($summary) { $notes = $summary }
+}
 $by = (& git -C $RepoRoot config user.name)
 if (-not $by) { $by = $env:USERNAME }
 $by = ($by -replace "[^A-Za-z0-9 ._-]", "").Trim()
-Write-Host "Release $Version ($notes)" -ForegroundColor Cyan
+Write-Host "Release $Version - $($notes -replace "`n", '; ')" -ForegroundColor Cyan
 
 $ldflags   = "-s -w -X custom_erp/internal/server.gitCommit=$commit -X custom_erp/internal/server.buildTime=$buildTime -X custom_erp/internal/server.releaseVersion=$Version"
 
@@ -135,7 +179,7 @@ Write-Host "Migrating + swapping binary + health-checking + restarting on the bo
 $remote = @"
 set -e
 set -a; source /etc/erp/erp.env; set +a
-REMOTE_DIR=$RemoteDir DEPLOY_COMMIT=$commit DEPLOY_BY='$by' DEPLOY_NOTES='$($notes -replace "[^A-Za-z0-9 ._()-]", '')' bash $RemoteDir/deploy/remote_deploy.sh
+REMOTE_DIR=$RemoteDir DEPLOY_COMMIT=$commit DEPLOY_BY='$by' DEPLOY_NOTES_B64='$([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($notes)))' bash $RemoteDir/deploy/remote_deploy.sh
 "@
 $remote = $remote -replace "`r`n", "`n"
 

@@ -121,13 +121,13 @@ func resolvePutawayCriteria(tenantID, locationCode string) (map[string]bool, err
 	var raw string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT data->>'criteria' FROM %s.documents
-		WHERE doctype = 'PutawayStrategy' AND COALESCE(status, '') = 'Active'
+		WHERE doctype = 'PutawayStrategy' AND COALESCE(status, '') = 'Active' AND deleted_at IS NULL
 		  AND data->>'location_code' = $1
 		LIMIT 1`, schema), locationCode).Scan(&raw)
 	if err == sql.ErrNoRows {
 		err = db.DB.QueryRow(fmt.Sprintf(`
 			SELECT data->>'criteria' FROM %s.documents
-			WHERE doctype = 'PutawayStrategy' AND COALESCE(status, '') = 'Active'
+			WHERE doctype = 'PutawayStrategy' AND COALESCE(status, '') = 'Active' AND deleted_at IS NULL
 			  AND COALESCE(data->>'location_code', '') = ''
 			LIMIT 1`, schema)).Scan(&raw)
 	}
@@ -159,7 +159,7 @@ func loadPutawayCandidates(tenantID, schema, locationCode, sku string, qty int, 
 		       COALESCE(NULLIF(data->>'max_weight', '')::numeric, 0),
 		       COALESCE(NULLIF(data->>'max_volume', '')::numeric, 0)
 		FROM %s.documents
-		WHERE doctype = 'Bin' AND status = 'Active' AND data->>'location' = $1
+		WHERE doctype = 'Bin' AND status = 'Active' AND deleted_at IS NULL AND data->>'location' = $1
 		  AND COALESCE(data->>'bin_status', '') NOT IN ('Blocked', 'Full', 'Counting')`, schema), locationCode)
 	if err != nil {
 		return nil, err
@@ -190,7 +190,7 @@ func loadPutawayCandidates(tenantID, schema, locationCode, sku string, qty int, 
 	// than per bin.
 	zoneSeq := map[string]int{}
 	zoneRows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT data->>'code', COALESCE(NULLIF(data->>'putaway_sequence', '')::int, 999999) FROM %s.documents WHERE doctype = 'Zone' AND status = 'Active'`, schema))
+		`SELECT data->>'code', COALESCE(NULLIF(data->>'putaway_sequence', '')::int, 999999) FROM %s.documents WHERE doctype = 'Zone' AND status = 'Active' AND deleted_at IS NULL`, schema))
 	if err == nil {
 		for zoneRows.Next() {
 			var code string
@@ -273,7 +273,7 @@ func filterHazmatTemp(tenantID, schema, sku string, candidates []putawayBinCandi
 
 	zoneAttrs := map[string][2]string{} // zone code -> [hazmat_allowed, temperature_class]
 	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT data->>'code', COALESCE(data->>'hazmat_allowed', ''), COALESCE(data->>'temperature_class', '') FROM %s.documents WHERE doctype = 'Zone' AND status = 'Active'`, schema))
+		`SELECT data->>'code', COALESCE(data->>'hazmat_allowed', ''), COALESCE(data->>'temperature_class', '') FROM %s.documents WHERE doctype = 'Zone' AND status = 'Active' AND deleted_at IS NULL`, schema))
 	if err != nil {
 		return nil, err
 	}

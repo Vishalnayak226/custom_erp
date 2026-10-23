@@ -280,7 +280,8 @@ func GetItemTaxInfo(tenantID, sku string) (ItemTaxInfo, error) {
 		}
 		return ItemTaxInfo{}, err
 	}
-	data := item.Data
+	// Stage 130.9 (72.D b): a scheduled tax change in force is the item's tax.
+	data := withTaxChangeInForce(item.Data)
 
 	info := ItemTaxInfo{}
 	info.HSNCode, _ = data["hsn_code"].(string)

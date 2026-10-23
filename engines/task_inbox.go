@@ -44,6 +44,8 @@ type TaskInboxItem struct {
 type TaskInboxScope struct {
 	UserID, Username, Role, Location string
 	OMS, PIM, CRM                    bool
+	// Exceptions (Stage 130.16, R-TX-16): the transaction exception worklist.
+	Exceptions bool
 }
 
 // TaskInbox is the whole inbox plus per-source counts and any source that
@@ -181,6 +183,19 @@ func ListTaskInbox(tenantID string, scope TaskInboxScope) (*TaskInbox, error) {
 		} else {
 			inbox.Items = append(inbox.Items, items...)
 			inbox.Counts["crm"] += len(items)
+		}
+	}
+
+	// 5. Stage 130.16 (74.5.1, R-TX-16): tax failures, overdue balances,
+	// stale provider jobs and reconciliation mismatches.
+	if scope.Exceptions {
+		if items, err := TransactionExceptionItems(tenantID); err != nil {
+			inbox.Errors["exceptions"] = err.Error()
+		} else {
+			inbox.Items = append(inbox.Items, items...)
+			for _, it := range items {
+				inbox.Counts["exceptions"] += it.Count
+			}
 		}
 	}
 

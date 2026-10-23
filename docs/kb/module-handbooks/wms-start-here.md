@@ -15,7 +15,7 @@ supersedes: none
 superseded_by: none
 section: Module Handbooks
 order: 19
-summary: Start here for the WMS. What to set up once and in which order, how goods come in, sit in bins and go out, what every WMS menu entry does, and what the system does not do for you yet.
+summary: Start here for the WMS. What to set up once and in which order, how goods come in, sit in bins and go out, what every WMS menu entry does, and what the system now does for you.
 screens: [doctype:bin, doctype:zone, bin-conditions, lpn, bin-replenishment, doctype:binreplenishmentrule, mobile-picking, location-movement, doctype:dockdoor, doctype:trailer, doctype:holdcode, doctype:hold, doctype:holdreleaserequest, doctype:crossdockplan, doctype:wave, doctype:putawaystrategy, doctype:wavetemplate, doctype:sortstation, doctype:preshipvalidationrule, warehouse-cockpit, putaway, wave-picking, cycle-count, rf-receiving, rf-traceability, appointment-calendar, yard-board, place-hold, sortation, loading-dock]
 topic_type: how-to
 module: inventory
@@ -112,15 +112,15 @@ Every WMS screen is under **WMS**. Goods come in through a Goods Receipt, which 
 | Sortation / Put-Wall | Record which order goes in which slot | No |
 | Loading | Load a trailer and record departure | No |
 
-## What the system does not do for you yet
+## What the system does for you (Stage 130.13)
 
-- A Goods Receipt does not create a putaway task. Open **Putaway** yourself; its list shows what is waiting. RF Receiving offers **Put it away now** when it finishes.
-- A hold stops stock being sold or reserved for *new* orders, but a pick list for an order that was already reserved can still pick held stock from a bin. To stop that too, move the stock to **QC-Hold** in **Bin Conditions**, or set the bin's **Bin Status** to Blocked.
-- **Mobile Picking** keeps the lines you confirm on the phone only. Closing the screen loses them; only **Mark N order(s) packed** is saved.
-- **Loading** scans shipping packages, and today no screen creates or invoices them; they come only through the API.
-- **Sortation** records slot use only. It is not linked to waves or packing, and a sort station's slots are created through the API.
-- An approved cycle count corrects location stock, not bin quantities. Follow it with **Location Movement** or **Putaway** so the bins match.
-- **Cross-Dock Plans** are not matched to deliveries automatically; you stage them from Putaway.
-- **Check Out** on the Yard Board is manual, and outbound appointments are not linked to Loading.
+- A posted Goods Receipt has a **Put away** button beside **Print stickers**: Putaway opens on its store with its items listed first. RF Receiving still offers **Put it away now** when it finishes.
+- A hold stops held stock being picked as well as sold: a pick list takes at most the bins' free stock less what is held at the location, and reports the rest as short.
+- **Mobile Picking** saves each line you confirm on the server, with your name. Reload the screen, or open the wave on another phone, and it carries on from the first line still to pick.
+- **Loading** scans the shipping packages the OMS **Pack** step makes and invoices (since Stage 88).
+- **Sortation**: type a station and its number of slots and press **Set up slots**; **Assign the whole wave** gives each open order of a wave its own slot; a filled slot offers **Pack**.
+- An approved cycle count of a bin sets that bin to the counted quantity, as well as correcting the location's stock.
+- A Goods Receipt meets the **Cross-Dock Plans** of its PO or ASN: each plan for an item that came in is marked with the receipt, the receipt lists them, and a *Cross-Dock Goods Arrived* notification goes out.
+- Opening a load for a trailer puts its **Outbound** appointment *In Progress*; when the load **departs**, the trailer is checked out of the yard (Departed) and the appointment completed - no hand check-out.
 
 For the detailed receiving, picking and counting rules, see [Inventory & Warehouse Operations](inventory-wms-operations.md). For batches and expiry, see [Batch, Serial & Expiry Traceability](traceability-batch-serial.md).

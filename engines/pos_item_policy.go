@@ -15,6 +15,15 @@ import (
 // fixed asset) or a stored-value item, which is issued only through Gift
 // Card -> Issue. Each refused attempt is logged once per cart (UAT-28).
 func posSellabilityGate(tenantID, cartNumber, location, sku string, item map[string]interface{}, policy ItemPolicy) error {
+	// Stage 130.9 (72.D a): an item waiting for its release approval.
+	if err := itemReleaseGate(item, sku); err != nil {
+		return err
+	}
+	// Stage 130.9 (72.D d): an item this store does not sell.
+	if err := storeSellGate(tenantID, location, sku, item); err != nil {
+		logPOSPolicyAttempt(tenantID, cartNumber, location, sku, ItemExceptionNotSellable, "POSOFF-1304", err.Error())
+		return err
+	}
 	var code, msg string
 	name := posLineLabel(item, sku)
 	switch policy.Sellability {

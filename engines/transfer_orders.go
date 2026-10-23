@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 )
 
 // transferLot is one lot of a batch-tracked transfer line. On the request
@@ -260,6 +261,8 @@ func DispatchTransferOrderWith(tenantID, transferOrderID, userID string, picks [
 	data["dispatched_items"] = string(dispatchedBytes)
 	data["transfer_balance"] = string(balanceBytes)
 	data["dispatched_by"] = userID
+	// Stage 130.10 (78.3 g): when it left, for the in-transit limit.
+	data["dispatched_at"] = time.Now().Format(time.RFC3339)
 	updatedBytes, _ := json.Marshal(data)
 	if _, err := tx.Exec(fmt.Sprintf(
 		`UPDATE %s.documents SET data = $1, status = 'Dispatched', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'TransferOrder' AND id = $2`, schema),

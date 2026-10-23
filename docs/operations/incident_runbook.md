@@ -103,6 +103,17 @@ See `docs/operations/backup_restore.md` for the full restore procedure and the c
 
 ---
 
+## 5a. Transaction runbook (Stage 130.16, BRD §14.1)
+
+| Situation | What it means | Do | Never |
+|---|---|---|---|
+| **Provider unknown** - an IRN or e-way bill sent with no answer (IRN *UNKNOWN*, e-way bill *Submitted*) | It may already exist at the government system | Let the worker look it up (IRN workbench *Check now*; e-way bill **Generate** again looks up first); if the portal shows it, record it (*Record from portal*) | Resubmit blind, or change the document number to "try again" |
+| **Payment unknown** - a card / UPI tender timed out at the till | The money may have moved | Check the terminal / UPI app first; use the till's pending-payment recovery; record the reference | Take the payment a second time before checking |
+| **Paper jam / print lost** | The print log says *Sent to browser* or *Submitted* - nothing confirms paper | Reprint from the document or Setup → Printing → Reprint with a reason; with reprint control, the Reprint Request is approved first | Edit the document to print it "fresh" |
+| **Rejected at the GRN** | Rejected units do not fulfil the PO line; they stay open for replacement | Send them back with a Purchase Return; the vendor's replacement comes on a new receipt | Delete the GRN or the PO line |
+| **Partial receipt** | The PO stays open for the rest | Receive what came; short-close the PO with a reason if the rest will not come | Edit the received quantity up to the order |
+| **Partial challan / job work return** | The rest stays *still out* | Receive what came; write off what will not come back (approval) | Close the challan with goods still out |
+
 ## 6. Acceptance gate — how this was verified
 
 Per `micro_checklist.md` 17.10's acceptance gate ("a throwaway failure produces both a system log and an approved-destination alert without leaking secrets"): verified live against a throwaway server instance with `OPS_ALERT_WEBHOOK_URL` pointed at a local mock webhook receiver (not a real Slack/Teams destination, since none was available at build time) — see `docs/project_ledger.md`'s Stage 17.10 entry for the exact steps and what was observed. The code path is identical for a real destination; only the URL changes.

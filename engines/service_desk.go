@@ -80,6 +80,9 @@ func serviceContractCoverage(data map[string]interface{}, status string) map[str
 	}
 }
 
+// 134.6 (47.10.1): most open tickets the service desk loads, earliest respond/resolve-by date first.
+const serviceDeskTicketCap = 1000
+
 // ServiceDesk returns open tickets - overdue first, then by priority and due
 // date. mine narrows to the viewer's tickets plus unassigned ones.
 func ServiceDesk(tenantID, userID string, mine bool) ([]map[string]interface{}, error) {
@@ -90,7 +93,9 @@ func ServiceDesk(tenantID, userID string, mine bool) ([]map[string]interface{}, 
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, status, data, created_at AT TIME ZONE current_setting('TimeZone')
 		FROM %s.documents
-		WHERE doctype = 'ServiceTicket' AND deleted_at IS NULL AND status NOT IN ('Closed', 'Cancelled')`, schema))
+		WHERE doctype = 'ServiceTicket' AND deleted_at IS NULL AND status NOT IN ('Closed', 'Cancelled')
+		ORDER BY LEAST(NULLIF(data->>'respond_by_date', ''), NULLIF(data->>'resolve_by_date', '')) NULLS LAST, created_at, id
+		LIMIT %d`, schema, serviceDeskTicketCap))
 	if err != nil {
 		return nil, err
 	}

@@ -152,8 +152,50 @@ async function save() {
   if (S.isNew) { S.id = out.id; S.isNew = false; }
   if (S.isDefault === 'Yes') await clearOtherDefaults(S.txn, S.id);
   S.dirty = false;
-  window.showToast?.(`Template "${S.name}" saved.`, { variant: 'success' });
+  // Stage 130.16 (74.3.4): every save is a version; with approval on it waits.
+  const versions = await loadVersions();
+  const latest = versions[0];
+  window.showToast?.(latest && latest.status === 'Pending'
+    ? `Saved as version ${latest.version} - it prints once someone else approves it (Versions).`
+    : `Template "${S.name}" saved${latest ? ` as version ${latest.version}` : ''}.`, { variant: 'success' });
   renderTop();
+}
+
+async function loadVersions() {
+  if (!S || S.isNew || !S.id) return [];
+  const res = await api(`/api/v1/print/templates/${encodeURIComponent(S.id)}/versions`);
+  return res && res.ok ? res.json() : [];
+}
+
+// showVersions (Stage 130.16, 74.3.4): the template's versions - approve or
+// reject a change waiting for approval, restore an old one.
+async function showVersions() {
+  const versions = await loadVersions();
+  S.root.querySelector('[data-ps="versions-panel"]')?.remove();
+  const panel = document.createElement('div');
+  panel.dataset.ps = 'versions-panel';
+  panel.className = 'table-panel';
+  panel.style.cssText = 'position:absolute;right:16px;top:64px;z-index:20;max-width:560px;padding:14px 16px;box-shadow:var(--shadow-lg, 0 8px 24px rgba(0,0,0,.18));';
+  const when = (v) => { const d = new Date(v); return Number.isNaN(d.getTime()) ? '' : d.toLocaleString(); };
+  panel.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><strong>Versions</strong><span class="pts-spacer" style="flex:1"></span><button type="button" class="btn btn-ghost btn-sm" data-ver-close>Close</button></div>
+    <div class="table-wrapper"><table><thead><tr><th>Version</th><th>Status</th><th>Saved</th><th>Approved by</th><th></th></tr></thead><tbody>
+    ${versions.length ? versions.map(v => `<tr><td>${v.version}</td><td>${esc(v.status)}${v.note ? `<div class="text-muted" style="font-size:12px;">${esc(v.note)}</div>` : ''}</td>
+      <td>${esc(v.saved_by)}<div class="text-muted" style="font-size:12px;">${esc(when(v.saved_at))}</div></td><td>${esc(v.approved_by || '')}</td>
+      <td style="white-space:nowrap;">${v.status === 'Pending' ? `<button type="button" class="action-btn" data-ver="approve" data-v="${v.version}">Approve</button> <button type="button" class="action-btn action-btn-danger" data-ver="reject" data-v="${v.version}">Reject</button>` : ''}
+        ${v.status === 'Superseded' || v.status === 'Rejected' ? `<button type="button" class="action-btn" data-ver="restore" data-v="${v.version}">Restore</button>` : ''}</td></tr>`).join('')
+      : '<tr><td colspan="5" class="text-muted" style="text-align:center;">No versions yet - the next save is version 1.</td></tr>'}</tbody></table></div>`;
+  S.root.appendChild(panel);
+  panel.querySelector('[data-ver-close]').addEventListener('click', () => panel.remove());
+  panel.querySelectorAll('[data-ver]').forEach(b => b.addEventListener('click', async () => {
+    const action = b.dataset.ver;
+    const note = action === 'reject' ? String((await window.showCustomPrompt('Why is this change rejected?', '', 'Reject')) || '').trim() : '';
+    if (action === 'reject' && !note) return;
+    const res = await api(`/api/v1/print/templates/${encodeURIComponent(S.id)}/versions/${b.dataset.v}`, { method: 'POST', body: JSON.stringify({ action, note }) });
+    if (!res) return;
+    if (!res.ok) { await window.showApiError(res, 'That did not go through.'); return; }
+    window.showToast?.({ approve: 'Approved - it prints from now on. Reopen the template to edit it.', reject: 'Change rejected.', restore: 'Restored as a new version.' }[action], { variant: 'success' });
+    showVersions();
+  }));
 }
 
 async function closeStudio() {
@@ -325,6 +367,7 @@ function renderTop() {
     <button type="button" class="btn btn-ghost btn-sm" data-ps="undo" ${S.undo.length ? '' : 'disabled'}>Undo</button>
     <button type="button" class="btn btn-ghost btn-sm" data-ps="redo" ${S.redo.length ? '' : 'disabled'}>Redo</button>
     <button type="button" class="btn btn-outline btn-sm" data-ps="test">Test print</button>
+    ${S.isNew ? '' : '<button type="button" class="btn btn-outline btn-sm" data-ps="versions">Versions</button>'}
     <button type="button" class="btn btn-primary btn-sm" data-ps="save">Save</button>
     <button type="button" class="btn btn-ghost btn-sm" data-ps="close">Close</button>`;
   const q = (k) => top.querySelector(`[data-ps="${k}"]`);
@@ -332,6 +375,7 @@ function renderTop() {
   q('undo').addEventListener('click', undo);
   q('redo').addEventListener('click', redo);
   q('save').addEventListener('click', save);
+  q('versions')?.addEventListener('click', showVersions);
   q('close').addEventListener('click', closeStudio);
   // Stage 127.2: a test print goes where a real one would, with no browser dialog once set up.
   q('test').addEventListener('click', () => T.printLayout(S.txn, S.layout, S.sample));
@@ -414,7 +458,7 @@ function renderOverlay() {
   const k = scale() * T.PX_PER_MM;
   const table = S.layout.elements.find(el => el.type === 'table');
   overlay.innerHTML = S.layout.elements.map(el => `
-    <div class="pts-hit${el.id === S.sel ? ' sel' : ''}" data-id="${el.id}" data-type="${el.type}" style="left:${el.x * k}px;top:${el.y * k}px;width:${Math.max(4, el.w * k)}px;height:${Math.max(4, el.h * k)}px;">
+    <div class="pts-hit${el.id === S.sel ? ' sel' : ''}" data-id="${esc(el.id)}" data-type="${esc(el.type)}" style="left:${el.x * k}px;top:${el.y * k}px;width:${Math.max(4, el.w * k)}px;height:${Math.max(4, el.h * k)}px;">
       <span class="pts-tag">${esc(TYPE_LABEL[el.type] || el.type)}${el.key ? ` · ${esc(el.key)}` : ''} · ${PAGES_LABEL[T.printsOn(el, table)]}</span>
       ${el.id === S.sel ? '<span class="pts-handle" data-h="e"></span><span class="pts-handle" data-h="s"></span><span class="pts-handle" data-h="se"></span>' : ''}
     </div>`).join('');

@@ -577,6 +577,22 @@ Set up first: a sellable store with an open session; a ₹1,000 and a ₹500 tax
 
 ---
 
+## 27. Goods out, job work, terms, prints and e-way bills (Stage 130.15-130.16; User Guide §5.7, §5.8, §6.14, §7B.4, §9B.3a, §9B.6, §9F.2a)
+
+Set up first: a store whose legal entity has a GSTIN, state code and PIN (Setup → Legal Entities); a stocked item with a cost and an HSN; a vendor; an approval rule for *ChallanWriteOff* and *ReprintRequest* naming Store Manager; a Department and a Cost Centre.
+
+- [ ] **Material issue.** Inventory → Material Issue → request 4 of the item for the department and cost centre → Issue → stock falls by 4, *Consumption by cost centre* shows it. **Return unused** 1 Good and 1 Damaged → 1 back to sellable, 1 in QC hold; returning more than is still out is refused.
+- [ ] **Delivery challan.** Inventory → Delivery Challans → a *Repair* challan of 3 with a return date → Dispatch → the item's available falls by 3 but its on-hand and stock value do not. Print → three copies (*Original for Consignee*, *Duplicate for Transporter*, *Triplicate for Consignor*). **Receive return** 2 Good; **Write off** 1 *Lost* → nothing moves until another person approves it in Approvals; then the challan is *Closed*.
+- [ ] **Job work.** Manufacturing → Job Work → an order sending 10 of an item that comes back as another item at 0.5 per unit → Send (a DC number appears) → Receive 6 accepted, 2 rejected → 3 + 1 output made (1 in QC hold), 2 still out. **Book bill** once; the same bill number again is refused.
+- [ ] **PO terms.** Turn on *PO commercial terms are required for approval* → submitting a PO without a payment term is refused (PURCHA-1316); with Net 30, Door delivery, an expected date and the freight payer it goes; the vendor bill made from its goods receipt is due 30 days after the invoice date.
+- [ ] **GRN transport.** A goods receipt with challan no, LR / AWB, vehicle and packages → they print on the GRN and appear in *Vendor document and transport register*; a receipt of two POs in different currencies is refused (GOODSR-1317).
+- [ ] **Reprints.** Print an approved PO, change the vendor's address, print it again → the second print shows the *old* address and *REPRINT*; Setup → Printing → Reprint shows *Print* then *Print (again)* with *Sent to browser*. Turn on *Control reprints* → a third print asks why, and past the free reprint asks for approval first.
+- [ ] **Template versions.** Turn on *Template changes need approval* → save a template change → it prints the old layout until someone else approves version N under **Versions**; **Restore** an old version.
+- [ ] **Sales invoice.** Financial Accounting → Sales Invoice → + New → a registered customer in another state → IGST; in the store's state → CGST + SGST; Post → the receivable, revenue and output GST are booked.
+- [ ] **E-way bills.** E-Invoice (IRN) → E-Way Bills → a ₹60,000 challan is *Required* with its reason; **Record from portal** with a 12-digit number and a validity → *Generated*; **Extend** is refused until 8 hours before expiry; **Cancel** works within 24 hours.
+- [ ] **Exceptions and reconciliation.** The task inbox shows *E-way bills failed or unconfirmed*, *Challan goods overdue*, *Job work overdue* when there are any, and *Reconciliation checks not tied* after the daily run finds a mismatch.
+- [ ] **Old clients unchanged.** With none of the new settings turned on, a PO is approved without terms, a reprint needs no reason, a template save prints at once and no tax document is refused for a missing GSTIN.
+
 ## Sign-off
 
 | Tested by | Date | Environment (URL) | Role(s) used | Overall result |

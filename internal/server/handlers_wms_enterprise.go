@@ -271,7 +271,10 @@ func handleWavePickList(w http.ResponseWriter, r *http.Request) {
 	if allocations == nil {
 		allocations = []engines.WaveOrderAllocation{}
 	}
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{"pick_lines": pickLines, "allocations": allocations})
+	// Stage 130.13 (80.7 b): the lines already confirmed, so a reload or a
+	// second device carries on where the picker was.
+	confirmed, _ := engines.WavePickConfirmations(tenantID, waveID)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"pick_lines": pickLines, "allocations": allocations, "confirmed": confirmed})
 }
 
 func handleCartonizationSuggest(w http.ResponseWriter, r *http.Request) {

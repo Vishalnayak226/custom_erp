@@ -81,3 +81,23 @@ func handleStartPOSExchange(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewEncoder(w).Encode(credit)
 }
+
+// handleCancelPOSBill (Stage 130.9) cancels today's posted bill: every line
+// returned as sellable and the money paid back to its tenders.
+func handleCancelPOSBill(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Location string `json:"location"`
+		Reason   string `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request")
+		return
+	}
+	out, err := engines.CancelPOSBill(r.Header.Get("Resolved-Tenant-ID"), r.Header.Get("Resolved-Role"), r.Header.Get("Resolved-Username"),
+		r.PathValue("id"), req.Location, req.Reason)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(out)
+}

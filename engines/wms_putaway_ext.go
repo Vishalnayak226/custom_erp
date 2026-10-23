@@ -872,7 +872,7 @@ func ApplyDynamicPickFaceMinMax(tenantID, binCode, sku string, minQty, maxQty in
 	}
 	var id, dataStr string
 	if err := db.DB.QueryRow(fmt.Sprintf(
-		`SELECT id, data FROM %s.documents WHERE doctype = 'BinReplenishmentRule' AND status = 'Active'
+		`SELECT id, data FROM %s.documents WHERE doctype = 'BinReplenishmentRule' AND status = 'Active' AND deleted_at IS NULL
 		 AND data->>'bin_code' = $1 AND data->>'sku' = $2`, schema), binCode, sku).
 		Scan(&id, &dataStr); err != nil {
 		if err == sql.ErrNoRows {

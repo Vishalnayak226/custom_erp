@@ -83,7 +83,14 @@ export const TRANSACTIONS = [
   // Stage 88: the OMS bill made at Pack (the customer's GST invoice) and the
   // pick list of one fulfillment task.
   { key: 'OMSBill', label: 'OMS Bill', doctype: 'OMSBill' },
-  { key: 'PickList', label: 'Pick List', doctype: 'FulfillmentTask' }
+  { key: 'PickList', label: 'Pick List', doctype: 'FulfillmentTask' },
+  // Stage 130.16 (74.3.1): goods out without a sale.
+  { key: 'DeliveryChallan', label: 'Delivery Challan', doctype: 'DeliveryChallan' },
+  // Stage 130.17 (127.3.2): printed from their invoice's payments, or a party.
+  { key: 'ReceiptVoucher', label: 'Receipt Voucher', doctype: 'SalesInvoice', only: true },
+  { key: 'PaymentVoucher', label: 'Payment Voucher', doctype: 'VendorInvoice', only: true },
+  { key: 'CustomerStatement', label: 'Customer Statement', doctype: 'Customer', only: true },
+  { key: 'VendorStatement', label: 'Vendor Statement', doctype: 'Vendor', only: true }
 ];
 // Stage 127.3: a transaction with no format of its own prints by its doctype
 // ("JournalVoucher" reads "Journal Voucher").
@@ -165,6 +172,7 @@ const TXN_COLUMNS = {
   GRN: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Barcode / Item', 17), col('description', 'Design / Variant', 25), col('po_qty', 'PO Qty', 8), col('qty', 'Received', 8), col('accepted_qty', 'Accepted', 8), col('rejected_qty', 'Rejected', 8), col('damaged_qty', 'Damaged', 8), col('qc_status', 'QC Status', 11, { align: 'left' }), col('variance_reason', 'Variance Reason', 17)],
   GRNVendorCopy: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Item / Barcode', 18), col('description', 'Description', 27), col('po_qty', 'Ordered Qty', 10), col('qty', 'Delivered Qty', 10), col('accepted_qty', 'Accepted Qty', 10), col('rejected_qty', 'Rejected Qty', 10), col('damaged_qty', 'Damaged Qty', 11), col('variance_reason', 'Remarks', 18)],
   PurchaseReturn: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Barcode / Item', 16), col('description', 'Description', 27), col('received_qty', 'Received Qty', 9), col('return_qty', 'Return Qty', 9), col('uom', 'UOM', 6), col('rate', 'Rate', 11), col('gst_rate', 'Tax %', 7), col('taxable', 'Return Value', 13), col('reason', 'Reason', 16)],
+  DeliveryChallan: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Item', 16), col('description', 'Description', 30), col('hsn_code', 'HSN', 9), col('batch_no', 'Lot', 10), col('uom', 'UOM', 7), col('qty', 'Qty', 8), col('taxable', 'Value', 13), col('expected_return', 'Expected back', 12)],
   TransferOut: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Barcode / Combination', 18), col('description', 'Description', 31), col('hsn_code', 'HSN', 9), col('uom', 'UOM', 7), col('requested_qty', 'Requested Qty', 10), col('shipped_qty', 'Shipped Qty', 10), col('rate', 'Value / Unit', 11), col('taxable', 'Value', 13)],
   TransferIn: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Barcode / Combination', 20), col('description', 'Description', 36), col('shipped_qty', 'Shipped Qty', 11), col('received_qty', 'Received Qty', 11), col('short_qty', 'Short', 9), col('reason', 'Reason', 22)],
   DebitNote: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Item', 15), col('hsn_code', 'HSN', 8), col('description', 'Description / Reason', 28), col('original_taxable', 'Original Taxable', 13), col('taxable', 'Debit Taxable', 13), col('cgst', 'CGST', 10), col('sgst', 'SGST', 10), col('igst', 'IGST', 10), col('amount', 'Debit Total', 13)],
@@ -179,9 +187,16 @@ TXN_COLUMNS.VendorCreditNote = TXN_COLUMNS.DebitNote.map(c => ({ ...c,
 // left / right half, 2 the full width. A piece whose fields are all blank
 // drops out instead of printing a label with nothing after it.
 const TXN_INFO = {
-  PurchaseOrder: [['Ship to: {ship_to.name}, {ship_to.address} {ship_to.city}', 2, 0], ['Price basis: {fields.gst_mode} of GST', 0, 1], ['Currency: {fields.currency}', 1, 1], ['Buyer: {audit.created_by}', 0, 2]],
-  GRN: [['PO No.: {fields.po_numbers}', 0, 0], ['Vendor invoice / challan: {fields.vendor_invoice_no}', 1, 0], ['ASN: {fields.asn_id}', 0, 1], ['Invoice date: {fields.vendor_invoice_date|date}', 1, 1]],
+  // Stage 130.16 (74.3.2): the commercial terms, and the GRN's challan and transport.
+  PurchaseOrder: [['Ship to: {ship_to.name}, {ship_to.address} {ship_to.city}', 2, 0], ['Price basis: {fields.gst_mode} of GST', 0, 1], ['Currency: {fields.currency}', 1, 1], ['Buyer: {audit.created_by}', 0, 2],
+    ['Payment term: {fields.payment_terms}', 1, 2], ['Delivery terms: {fields.delivery_terms}', 0, 3], ['Expected delivery: {fields.expected_delivery_date|date}', 1, 3],
+    ['Freight paid by: {fields.freight_by}', 0, 4], ['Vendor contact: {fields.vendor_contact}', 1, 4], ['Quote valid until: {fields.quote_valid_until|date}', 0, 5]],
+  GRN: [['PO No.: {fields.po_numbers}', 0, 0], ['Vendor invoice: {fields.vendor_invoice_no}', 1, 0], ['ASN: {fields.asn_id}', 0, 1], ['Invoice date: {fields.vendor_invoice_date|date}', 1, 1],
+    ['Vendor challan: {fields.vendor_challan_no}', 0, 2], ['Challan date: {fields.vendor_challan_date|date}', 1, 2], ['LR / AWB: {fields.lr_awb_no}', 0, 3], ['Vehicle: {fields.vehicle_no}', 1, 3],
+    ['Transporter: {fields.transporter}', 0, 4], ['Packages: {fields.package_count}', 1, 4]],
   PurchaseReturn: [['Original PO: {fields.po_numbers}', 0, 0], ['Original GRN: {fields.grn_id}', 1, 0], ['Vendor invoice: {fields.vendor_invoice_no}', 0, 1], ['Invoice date: {fields.vendor_invoice_date|date}', 1, 1], ['Return reason: {fields.reason}', 0, 2], ['Linked debit note: {fields.debit_note_id}', 1, 2]],
+  DeliveryChallan: [['Purpose: {fields.purpose}', 0, 0], ['{fields.returnable_text}', 1, 0], ['Transport: {fields.transport_mode} {fields.vehicle_no}', 0, 1], ['LR / AWB: {fields.lr_awb_no}', 1, 1],
+    ['Transporter: {fields.transporter} {fields.transporter_id}', 0, 2], ['Packages: {fields.package_count}', 1, 2], ['E-way bill: {fields.ewb_required} - {fields.ewb_reason}', 2, 3], ['Reference: {fields.reference}', 0, 4]],
   TransferOut: [['Master transfer order: {number}', 0, 0], ['Transfer type: {fields.supply_type}', 1, 0], ['Value basis: {fields.value_basis}', 0, 1], ['Stock status after posting: {fields.stock_status_after}', 1, 1]],
   TransferIn: [['Master transfer order: {number}', 0, 0], ['Receipt status: {fields.receipt_status}', 1, 0], ['Transfer type: {fields.supply_type}', 0, 1], ['Stock status after posting: {fields.stock_status_after}', 1, 1]],
   DebitNote: [['Original invoice no.: {fields.original_invoice_no}', 0, 0], ['Original invoice date: {fields.original_invoice_date|date}', 1, 0], ['Against GRN: {fields.grn_id}', 0, 1], ['PO: {fields.po_numbers}', 1, 1], ['Document direction: {fields.document_direction}', 0, 2], ['Place of supply: {fields.place_of_supply}', 1, 2], ['Reason: {fields.reason}', 2, 3]],
@@ -200,6 +215,7 @@ const TXN_TOTALS = {
   GRN: [tot('po_qty', 'Total PO qty'), tot('qty', 'Total received'), tot('accepted_qty', 'Accepted', { strong: true }), tot('rejected_qty', 'Rejected'), tot('damaged_qty', 'Damaged', { hideZero: true })],
   GRNVendorCopy: [tot('po_qty', 'Total ordered'), tot('qty', 'Total delivered'), tot('accepted_qty', 'Accepted', { strong: true }), tot('rejected_qty', 'Rejected'), tot('damaged_qty', 'Damaged', { hideZero: true })],
   PurchaseReturn: [tot('return_qty', 'Total returned qty'), tot('taxable', 'Taxable return value'), tot('tax', 'Tax adjustment'), tot('round_off', 'Round off', { hideZero: true }), tot('grand_total', 'Total return value', { strong: true })],
+  DeliveryChallan: [tot('qty', 'Total pieces'), tot('taxable', 'Declared value', { strong: true })],
   TransferOut: [tot('shipped_qty', 'Total pieces'), tot('taxable', 'Value'), ...TAX_ROWS, tot('grand_total', 'Total value', { strong: true })],
   TransferIn: [tot('shipped_qty', 'Total shipped'), tot('received_qty', 'Total received', { strong: true }), tot('short_qty', 'Short')],
   DebitNote: [tot('taxable', 'Taxable amount debited'), tot('tax', 'Tax debited'), tot('round_off', 'Round off', { hideZero: true }), tot('grand_total', 'Total debit note', { strong: true })],
@@ -272,11 +288,14 @@ export function defaultLayout(txn, doc) {
   };
   const note = TXN_NOTE[txn];
   const signs = TXN_SIGNATURES[txn] || TXN_SIGNATURES.DebitNote;
+  // Stage 130.16 (74.3.4): the legal entity's approved logo, left of the brand.
+  const logo = doc && doc.brand && doc.brand.logo;
   return {
     version: 1,
     page: { size: 'A4', orientation: 'portrait', margin: 10, font: 'Inter, Arial, sans-serif' },
     elements: [
-      E({ type: 'field', key: 'brand.name', x: 10, y: 8, w: 105, h: 9, fontSize: 16, bold: true }),
+      ...(logo ? [E({ type: 'image', src: logo, x: 10, y: 6, w: 18, h: 12 })] : []),
+      E({ type: 'field', key: 'brand.name', x: logo ? 30 : 10, y: 8, w: logo ? 85 : 105, h: 9, fontSize: 16, bold: true }),
       E({ type: 'text', text: 'Financial year: {fields.financial_year}', x: 10, y: 17, w: 80, h: 4.5, fontSize: 8 }),
       E({ type: 'text', text: 'Status: {status}', x: 10, y: 21.5, w: 80, h: 4.5, fontSize: 8 }),
       E({ type: 'field', key: 'title', x: 105, y: 8, w: 95, h: 7, fontSize: 12, bold: true, align: 'right' }),
@@ -328,10 +347,20 @@ export function defaultLayout(txn, doc) {
 // website, CIN, terms...). ROLL_TEMPLATE_ID is how the print dialog offers it.
 export const ROLL_TEMPLATE_ID = 'builtin-roll-80';
 export const offersRollBill = (txn) => txn === 'POSTaxInvoice' || txn === 'SalesInvoice';
-export function rollBillLayout(txn) {
+export function rollBillLayout(txn, paper = '') {
   const E = (o) => ({ id: newElementId(), fontSize: 7.5, align: 'left', pages: 'first', ...o });
   const W = 72, X = 4;
   const c = (key, label, width, extra) => col(key, label, width, extra);
+  // Stage 130.16 (74.3.4): a 58 mm roll when the print profile says so - the
+  // same receipt, narrowed.
+  if (/^58/.test(String(paper))) {
+    const k = 50 / 72;
+    const wide = rollBillLayout(txn);
+    wide.page.size = '58 mm roll (2 inch)';
+    wide.elements = wide.elements.map(el => ({ ...el, x: X + (el.x - X) * k, w: el.w * k, fontSize: (el.fontSize || 7.5) * 0.9,
+      columns: el.columns && el.columns.map(cl => ({ ...cl, width: cl.width * k })) }));
+    return wide;
+  }
   return {
     version: 1,
     page: { size: '80 mm roll (3 inch)', orientation: 'portrait', margin: 3, font: 'Arial, sans-serif' },
@@ -355,12 +384,15 @@ export function rollBillLayout(txn) {
       E({ type: 'totals', x: 24, y: 75, w: 52, h: 35, fontSize: 8, pages: 'last', rows: [
         tot('qty', 'Total qty', { format: 'qty' }), tot('discount', 'Item discount', { hideZero: true }), tot('taxable', 'Taxable value'),
         ...TAX_ROWS, tot('round_off', 'Round off', { hideZero: true }), tot('grand_total', 'NET AMOUNT', { strong: true })] }),
-      E({ type: 'text', text: 'Paid by: {fields.payment_mode}', x: X, y: 110.5, w: W, h: 4, pages: 'last' }),
-      E({ type: 'text', text: 'Cashier: {fields.cashier}', x: X, y: 114.5, w: W, h: 4, pages: 'last' }),
-      E({ type: 'taxSummary', x: X, y: 119, w: W, h: 16, fontSize: 6.5, pages: 'last' }),
-      E({ type: 'text', text: 'GSTIN: {store.gstin}', x: X, y: 136, w: W, h: 4.5, fontSize: 8, bold: true, pages: 'last' }),
-      E({ type: 'text', text: '{amount_in_words}', x: X, y: 141, w: W, h: 7, fontSize: 7, italic: true, pages: 'last' }),
-      E({ type: 'text', text: 'Thank you for shopping with us', x: X, y: 149, w: W, h: 5, fontSize: 8, bold: true, align: 'center', pages: 'last' })
+      // Stage 130.16 (74.3.4): every tender, the change, the return policy.
+      E({ type: 'text', text: 'Paid: {fields.tenders}', x: X, y: 110.5, w: W, h: 8, pages: 'last' }),
+      E({ type: 'text', text: '{fields.change_text}', x: X, y: 118.5, w: W, h: 4, bold: true, pages: 'last' }),
+      E({ type: 'text', text: 'Cashier: {fields.cashier}', x: X, y: 122.5, w: W, h: 4, pages: 'last' }),
+      E({ type: 'taxSummary', x: X, y: 127, w: W, h: 16, fontSize: 6.5, pages: 'last' }),
+      E({ type: 'text', text: 'GSTIN: {store.gstin}', x: X, y: 144, w: W, h: 4.5, fontSize: 8, bold: true, pages: 'last' }),
+      E({ type: 'text', text: '{amount_in_words}', x: X, y: 149, w: W, h: 7, fontSize: 7, italic: true, pages: 'last' }),
+      E({ type: 'text', text: '{fields.return_policy}', x: X, y: 156.5, w: W, h: 8, fontSize: 6.5, italic: true, align: 'center', pages: 'last' }),
+      E({ type: 'text', text: 'Thank you for shopping with us', x: X, y: 165, w: W, h: 5, fontSize: 8, bold: true, align: 'center', pages: 'last' })
     ]
   };
 }
@@ -422,7 +454,7 @@ function cellHTML(colDef, line, el) {
   if (colDef.key === 'image') {
     const src = line.image;
     const size = el.imageSize || 14;
-    return src ? `<img src="${esc(src)}" alt="" style="width:${size}mm;height:${size}mm;object-fit:contain;">` : '';
+    return src ? `<img src="${esc(src)}" alt="" style="width:${esc(size)}mm;height:${esc(size)}mm;object-fit:contain;">` : '';
   }
   const main = esc(formatValue(resolvePath(line, colDef.key), colDef.format || guessFormat(colDef.key)));
   // Stage 106.3: more fields printed under the column's own, one per line -
@@ -439,12 +471,12 @@ function tableHead(el) {
   const cols = el.columns || [];
   const total = cols.reduce((s, c) => s + (Number(c.width) || 1), 0) || 1;
   return `<colgroup>${cols.map(c => `<col style="width:${((Number(c.width) || 1) / total * 100).toFixed(3)}%">`).join('')}</colgroup>
-    <thead><tr>${cols.map(c => `<th style="text-align:${c.align || 'left'};${el.headerBg ? `background:${el.headerBg};` : ''}">${esc(c.label || '')}</th>`).join('')}</tr></thead>`;
+    <thead><tr>${cols.map(c => `<th style="text-align:${esc(c.align || 'left')};${el.headerBg ? `background:${esc(el.headerBg)};` : ''}">${esc(c.label || '')}</th>`).join('')}</tr></thead>`;
 }
 
 function tableRowsHTML(el, lines) {
   const cols = el.columns || [];
-  return lines.map(l => `<tr>${cols.map(c => `<td style="text-align:${c.align || 'left'}">${cellHTML(c, l, el)}</td>`).join('')}</tr>`).join('');
+  return lines.map(l => `<tr>${cols.map(c => `<td style="text-align:${esc(c.align || 'left')}">${cellHTML(c, l, el)}</td>`).join('')}</tr>`).join('');
 }
 
 function taxSummaryHTML(el, ctx) {
@@ -489,8 +521,8 @@ export function elementHTML(el, ctx, pageInfo) {
       return `${el.label ? `<span class="tdp-label">${esc(el.label)}</span> ` : ''}${esc(v)}`;
     }
     case 'block': return blockHTML(el, ctx);
-    case 'image': return el.src ? `<img src="${esc(el.src)}" alt="" style="width:100%;height:100%;object-fit:${el.fit || 'contain'};">` : '';
-    case 'line': return `<div style="position:absolute;inset:0;${el.w >= el.h ? `border-top:${el.thickness || 0.3}mm solid ${el.color || '#333'}` : `border-left:${el.thickness || 0.3}mm solid ${el.color || '#333'}`}"></div>`;
+    case 'image': return el.src ? `<img src="${esc(el.src)}" alt="" style="width:100%;height:100%;object-fit:${esc(el.fit || 'contain')};">` : '';
+    case 'line': return `<div style="position:absolute;inset:0;${el.w >= el.h ? `border-top:${esc(el.thickness || 0.3)}mm solid ${esc(el.color || '#333')}` : `border-left:${esc(el.thickness || 0.3)}mm solid ${esc(el.color || '#333')}`}"></div>`;
     case 'box': return '';
     case 'taxSummary': return taxSummaryHTML(el, ctx);
     case 'totals': return totalsHTML(el, ctx);
@@ -568,7 +600,7 @@ function measureTable(el, lines, fontFamily) {
   // (.tdp-el), so a wrapped cell is counted at its real height.
   const inner = Math.max(1, el.w - 2);
   probe.style.cssText = `position:absolute;left:-10000px;top:0;width:${inner}mm;font-family:${fontFamily};`;
-  probe.innerHTML = `<table class="tdp-table" style="width:${inner}mm;font-size:${el.fontSize || 8}pt">${tableHead(el)}<tbody>${tableRowsHTML(el, lines)}</tbody></table>`;
+  probe.innerHTML = `<table class="tdp-table" style="width:${inner}mm;font-size:${esc(el.fontSize || 8)}pt">${tableHead(el)}<tbody>${tableRowsHTML(el, lines)}</tbody></table>`;
   document.body.appendChild(probe);
   const head = probe.querySelector('thead');
   const headMM = head ? head.getBoundingClientRect().height / PX_PER_MM : 6;
@@ -616,21 +648,52 @@ export function printContext(doc) {
     fields: doc.fields || {}, totals: doc.totals || {},
     // Stage 71: who printed it and when, beside the server's created /
     // approved audit fields.
-    audit: { ...(doc.audit || {}), printed_by: printedBy() + (doc.reprint ? ' - REPRINT' : ''), printed_at: printedAt() }
+    // Stage 130.16 (74.1.4): who and when from the server; a reprint of an
+    // issued document says so.
+    audit: { ...(doc.audit || {}), printed_by: (doc.issue?.printed_by || printedBy()) + (doc.reprint || doc.issue?.reprint ? ' - REPRINT' : ''), printed_at: doc.issue?.printed_at || printedAt() }
   };
 }
 
 // logPrint (Stage 127.6) records a print for Setup > Printing > Reprint. Best
 // effort: a log that fails never stops a print.
-async function logPrint(txn, id, doc, action, reason = '') {
+async function logPrint(txn, id, doc, action, reason = '', extra = {}) {
   try {
+    // Stage 130.16 (74.1.4): the run's copies, the template and how it went out.
+    const labels = doc.fields?.print_profile?.copy_labels || [];
+    let channel = '';
+    try { const r = await window.loadViewModule('./print-routing.js'); channel = r.lastPrint.channel; r.lastPrint.channel = ''; } catch (e) { /* unknown */ }
     await window.apiFetch(`/api/v1/print/document/${encodeURIComponent(txn)}/${encodeURIComponent(id)}/log`, {
       method: 'POST',
-      body: JSON.stringify({ action, number: doc.number || '', title: doc.title || '', store: doc.store?.code || '', reprint_reason: reason })
+      body: JSON.stringify({ action, number: doc.number || '', title: doc.title || '', store: doc.store?.code || '', reprint_reason: reason,
+        copies: Math.max(1, labels.length), copy_labels: labels, template_id: extra.templateId || '', channel, approval_id: doc.issue?.approved_request || '' })
     });
   } catch (e) {
     console.debug('[print] could not record the print', e);
   }
+}
+
+// reprintAllowed (Stage 130.16, 74.1.4): with reprint control on, a reprint
+// says why, is checked by the server before anything prints, and past the
+// free reprints goes to its approver first. Returns the reason, or ''.
+async function reprintAllowed(txn, id, doc) {
+  const issue = doc.issue || {};
+  if (issue.needs_approval && !issue.approved_request) {
+    if (issue.pending_request) { await window.showCustomAlert('A request to print this again is waiting for approval. Print it once it is approved.', 'Reprint'); return ''; }
+    const why = String((await window.showCustomPrompt('This reprint needs approval. Why is it being printed again?', '', 'Reprint request')) || '').trim();
+    if (!why) return '';
+    const res = await window.apiFetch(`/api/v1/print/document/${encodeURIComponent(txn)}/${encodeURIComponent(id)}/reprint-request`, { method: 'POST', body: JSON.stringify({ reason: why }) });
+    if (!res) return '';
+    if (!res.ok) { await window.showApiError(res, 'The reprint request was not sent.'); return ''; }
+    window.showToast('Reprint request sent for approval. Print again once it is approved.', { variant: 'success' });
+    return '';
+  }
+  const reason = String((await window.showCustomPrompt('Why is this being printed again?', '', 'Reprint')) || '').trim();
+  if (!reason) return '';
+  const res = await window.apiFetch(`/api/v1/print/document/${encodeURIComponent(txn)}/${encodeURIComponent(id)}/log`, { method: 'POST',
+    body: JSON.stringify({ action: 'Reprint', check: true, store: doc.store?.code || '', reprint_reason: reason, approval_id: issue.approved_request || '' }) });
+  if (!res) return '';
+  if (!res.ok) { await window.showApiError(res, 'This document cannot be printed again yet.'); return ''; }
+  return reason;
 }
 
 function printedBy() {
@@ -675,7 +738,7 @@ export function renderPages(layout, doc, opts = {}) {
     page.style.fontFamily = layout.page?.font || 'Inter, Arial, sans-serif';
     let html = '';
     if (first && !hasBrand && ctx.brand.name) {
-      html += `<div class="tdp-el tdp-brand-auto" style="left:${layout.page?.margin ?? 10}mm;top:3mm;width:${pw - 2 * (layout.page?.margin ?? 10)}mm;height:6mm;">${esc(ctx.brand.name)}</div>`;
+      html += `<div class="tdp-el tdp-brand-auto" style="left:${esc(layout.page?.margin ?? 10)}mm;top:3mm;width:${pw - 2 * (layout.page?.margin ?? 10)}mm;height:6mm;">${esc(ctx.brand.name)}</div>`;
     }
     (layout.elements || []).forEach(src => {
       if (src.hidden) return;
@@ -685,13 +748,13 @@ export function renderPages(layout, doc, opts = {}) {
         const { top, bottom: end } = roll && el === table ? { top: el.y, bottom: el.y + el.h + shift }
           : el === table && !opts.design ? tableBox(layout, el, first, last) : { top: el.y, bottom: el.y + el.h };
         bottom = Math.max(bottom, end);
-        html += `<div class="${elementClass(el)}" style="${boxStyle({ ...el, y: top, h: end - top, border: false, bg: '' })}"><table class="tdp-table${el.rowLines === false ? ' tdp-norules' : ''}" style="font-size:${el.fontSize || 8}pt">${tableHead(el)}<tbody>${tableRowsHTML(el, rows)}</tbody></table></div>`;
+        html += `<div class="${esc(elementClass(el))}" style="${esc(boxStyle({ ...el, y: top, h: end - top, border: false, bg: '' }))}"><table class="tdp-table${el.rowLines === false ? ' tdp-norules' : ''}" style="font-size:${esc(el.fontSize || 8)}pt">${tableHead(el)}<tbody>${tableRowsHTML(el, rows)}</tbody></table></div>`;
         return;
       }
       const inner = elementHTML(el, ctx, { page: pageNo, pages: total, design: !!opts.design });
       if (inner === '' && !['box', 'line'].includes(el.type)) return;
       bottom = Math.max(bottom, el.y + el.h);
-      html += `<div class="${elementClass(el)}" style="${boxStyle(el)}">${inner}</div>`;
+      html += `<div class="${esc(elementClass(el))}" style="${esc(boxStyle(el))}">${inner}</div>`;
     });
     if (roll) page.style.height = `${Math.ceil(bottom + (layout.page?.margin ?? 3))}mm`;
     page.innerHTML = html;
@@ -761,7 +824,9 @@ function transactionsFor(doctype, doc) {
 // the Excel download.
 export async function printTransactionDocument(doctype, id, opts = {}) {
   await tradeStylesReady;
-  const txns = transactionsFor(doctype, opts.doc);
+  // Stage 130.17 (127.3.2): opts.only prints one transaction of the record
+  // that its own list does not offer (a receipt voucher, a statement).
+  const txns = opts.only && opts.txn ? [opts.txn] : transactionsFor(doctype, opts.doc);
   if (!txns.length) { await window.showCustomAlert?.(`${doctype} has no print layout.`, 'Print'); return; }
   const S = { txn: opts.txn && txns.includes(opts.txn) ? opts.txn : txns[0], store: '', templateId: '', data: null, images: false };
 
@@ -800,7 +865,7 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
   if (window.attachLinkTypeahead) window.attachLinkTypeahead(q('store'), 'Location');
 
   const currentLayout = () => {
-    if (S.templateId === ROLL_TEMPLATE_ID) return rollBillLayout(S.txn);
+    if (S.templateId === ROLL_TEMPLATE_ID) return rollBillLayout(S.txn, S.data?.document?.fields?.print_profile?.paper);
     const t = (S.data?.templates || []).find(x => x.id === S.templateId);
     return parseLayout(t ? t.layout : '', S.txn, S.data?.document);
   };
@@ -864,15 +929,19 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
     // Stage 127.6: a reprint says why before it prints, and the page says
     // it is a reprint.
     let reason = '';
-    if (opts.reprint) {
+    const issue = S.data.document.issue || {};
+    if (issue.reprint && issue.control) {
+      reason = await reprintAllowed(S.txn, id, S.data.document);
+      if (!reason) return;
+    } else if (opts.reprint) {
       reason = String((await window.showCustomPrompt('Why is this being printed again?', '', 'Reprint')) || '').trim();
       if (!reason) return;
-      S.data.document.reprint = true;
     }
+    if (opts.reprint || issue.reprint) S.data.document.reprint = true;
     // Stage 127.2: set up for silent print, a failure explains itself
     // instead of opening the browser's print dialog.
     if (await printLayout(S.txn, currentLayout(), S.data.document)) {
-      await logPrint(S.txn, id, S.data.document, opts.reprint ? 'Reprint' : 'Print', reason);
+      await logPrint(S.txn, id, S.data.document, reason ? 'Reprint' : 'Print', reason, { templateId: S.templateId });
       close();
     }
   }));
@@ -1038,7 +1107,7 @@ async function rollToReceipt(pages, w, h, ref, store, browserPrint) {
     // Stage 127.2: the first bill on a new computer picks (or asks once
     // for) its receipt printer, as every other print does.
     const printer = await r.chosenPrinter('Receipt', store) || await r.choosePrinter('Receipt', store);
-    if (!printer) { why.reason = 'No receipt printer is chosen for this computer.'; return false; }
+    if (!printer) { Object.assign(why, { setup: true, reason: 'No receipt printer is chosen for this computer. Retry to choose one.' }); return false; }
     const pdf = await pdfModule();
     const escpos = /ESC-?POS/i.test(printer.printer_language || '');
     const dataBase64 = escpos
@@ -1069,7 +1138,7 @@ export async function printSlip(html, ref, browserPrint) {
 // invoice on the roll - the client's own roll template when its best match is
 // one, else the built-in 3-inch bill. Quiet on failure: false sends the till
 // back to its older receipt.
-export async function printPOSBill(cartNumber) {
+export async function printPOSBill(cartNumber, cashTendered = 0) {
   await tradeStylesReady;
   const get = async (images) => {
     const res = await window.apiFetch(`/api/v1/print/document/POSTaxInvoice/${encodeURIComponent(cartNumber)}${images ? '?images=1' : ''}`);
@@ -1077,14 +1146,96 @@ export async function printPOSBill(cartNumber) {
   };
   let data = await get(false);
   if (!data) return false;
+  // Stage 130.16 (74.1.4): a bill printed before is a reprint; under reprint
+  // control it needs its reason (and approval) - handled here either way, so
+  // the till never falls back to an unchecked receipt.
+  const issue = data.document.issue || {};
+  let reason = '';
+  if (issue.reprint && issue.control) {
+    reason = await reprintAllowed('POSTaxInvoice', cartNumber, data.document);
+    if (!reason) return true;
+  }
+  data.document.reprint = !!issue.reprint;
+  // Stage 130.16 (74.3.4): the change handed back (the till's own arithmetic).
+  const cash = ((data.document.fields || {}).tender_list || []).filter(t => /cash/i.test(t.mode)).reduce((s, t) => s + Number(t.amount || 0), 0);
+  if (Number(cashTendered) > cash && cash > 0) data.document.fields.change_text = `Cash given ${Number(cashTendered).toFixed(2)} · Change ${(Number(cashTendered) - cash).toFixed(2)}`;
   // The best match if it is a roll, else any roll template, else built-in.
   const templates = [...(data.templates || [])].sort((a, b) => (b.recommended ? 1 : 0) - (a.recommended ? 1 : 0));
   const layout = templates.map(x => parseLayout(x.layout, 'POSTaxInvoice', data.document)).find(l => isRollPage(l.page))
-    || rollBillLayout('POSTaxInvoice');
+    || rollBillLayout('POSTaxInvoice', data.document.fields?.print_profile?.paper);
   if (layoutUsesImages(layout)) data = (await get(true)) || data;
   const printed = await printRollBill(layout, data.document);
-  logPrint('POSTaxInvoice', cartNumber, data.document, 'Print'); // Stage 127.6
+  logPrint('POSTaxInvoice', cartNumber, data.document, reason ? 'Reprint' : 'Print', reason); // Stage 127.6
   return printed;
+}
+
+// previewPOSBill (Stage 133.3, user 2026-10-22: "Need a preview option aswell
+// to how it will come") shows the till's bill as Print Receipt would print it
+// - the same data, roll layout and renderer as printPOSBill - without
+// printing or logging. A bill printed before shows as the reprint it would
+// be. Resolves true when the user presses Print, null when there is no bill.
+export async function previewPOSBill(cartNumber, cashTendered = 0) {
+  await tradeStylesReady;
+  const get = async (images) => {
+    const res = await window.apiFetch(`/api/v1/print/document/POSTaxInvoice/${encodeURIComponent(cartNumber)}${images ? '?images=1' : ''}`);
+    return res && res.ok ? res.json() : null;
+  };
+  let data = await get(false);
+  if (!data) return null;
+  data.document.reprint = !!(data.document.issue || {}).reprint;
+  const cash = ((data.document.fields || {}).tender_list || []).filter(t => /cash/i.test(t.mode)).reduce((s, t) => s + Number(t.amount || 0), 0);
+  if (Number(cashTendered) > cash && cash > 0) data.document.fields.change_text = `Cash given ${Number(cashTendered).toFixed(2)} · Change ${(Number(cashTendered) - cash).toFixed(2)}`;
+  const templates = [...(data.templates || [])].sort((a, b) => (b.recommended ? 1 : 0) - (a.recommended ? 1 : 0));
+  const layout = templates.map(x => parseLayout(x.layout, 'POSTaxInvoice', data.document)).find(l => isRollPage(l.page))
+    || rollBillLayout('POSTaxInvoice', data.document.fields?.print_profile?.paper);
+  if (layoutUsesImages(layout)) data = (await get(true)) || data;
+  await qrEncoderReady(layout);
+  return previewPages(renderPages(layout, data.document), layout, 'Receipt preview');
+}
+
+// previewPages shows rendered pages the way the print dialog's preview does,
+// with Close and Print; resolves true on Print.
+function previewPages(pages, layout, title) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'td-overlay';
+    overlay.innerHTML = `
+      <div class="td-dialog" role="dialog" aria-modal="true" aria-label="${esc(title)}" style="width: min(560px, 100%);">
+        <div class="td-dialog-head">
+          <h2>${esc(title)}</h2>
+          <button type="button" class="btn btn-ghost btn-sm" data-td="close" aria-label="Close">&times;</button>
+        </div>
+        <div class="td-dialog-controls">
+          <div class="td-dialog-actions">
+            <button type="button" class="btn btn-outline btn-sm" data-td="close">Close</button>
+            <button type="button" class="btn btn-primary btn-sm" data-td="print">Print</button>
+          </div>
+        </div>
+        <div class="td-preview" data-td="preview"></div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const prev = overlay.querySelector('[data-td="preview"]');
+    const [pw] = pageDims(layout.page);
+    const scale = Math.min(1.25, (prev.clientWidth - 32) / (pw * PX_PER_MM));
+    pages.forEach(p => {
+      const wrap = document.createElement('div');
+      wrap.className = 'td-preview-page';
+      wrap.style.width = `${pw * PX_PER_MM * scale}px`;
+      wrap.style.height = `${renderedHeightMM(p, layout) * PX_PER_MM * scale}px`;
+      p.style.transform = `scale(${scale})`;
+      p.style.transformOrigin = 'top left';
+      wrap.appendChild(p);
+      prev.appendChild(wrap);
+    });
+    const done = (v) => { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
+    const onKey = (e) => { if (e.key === 'Escape') done(false); };
+    document.addEventListener('keydown', onKey);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) done(false); });
+    overlay.querySelectorAll('[data-td="close"]').forEach(b => b.addEventListener('click', () => done(false)));
+    const print = overlay.querySelector('[data-td="print"]');
+    print.addEventListener('click', () => done(true));
+    print.focus();
+  });
 }
 
 // documentPDF builds a transaction's PDF with its best-match template, without

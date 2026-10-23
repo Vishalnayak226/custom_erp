@@ -203,9 +203,9 @@ order is already waiting on the exact SKU you're about to put away:
 ## Picking & Packing
 
 Order-fulfillment picking and packing in this app is two layers: a
-**bin-level pick list** that tells a picker where to walk, and a
-**coarse status workflow** on the `FulfillmentTask` itself that actually
-drives the order forward. They are deliberately not the same mechanism.
+**bin-level pick list** that tells a picker where to walk, and the
+**pick and pack scans** on the `FulfillmentTask` itself (OMS → Pick / Pack)
+that actually drive the order forward.
 
 ### Bin-grouped pick list
 
@@ -224,59 +224,58 @@ error.
 **WMS → Wave / Batch Picking** consolidates several open fulfillment tasks
 into one walk instead of one per order:
 
-1. **Tag tasks into a wave** — enter a Wave ID and a comma-separated list
-   of Task IDs, click **Tag Tasks**.
-2. **Generate the wave pick list** — enter the same Wave ID, click
-   **Generate Pick List**. This returns a consolidated, walk-route-sorted
-   pick list across every tagged task, plus a **Per-Order Allocation**
-   table (how much of each SKU each task actually got, and any shortfall).
+1. **Make a wave** — choose the **Location**, tick the orders under
+   *Orders ready to wave*, choose **Into** (*A new wave* or an open one) and
+   click **Put N selected into the wave**.
+2. **Release it** — under *Open waves*, click **Release**. Then **Pick list**
+   shows the consolidated, walk-route-sorted pick list and, per order, what
+   could be allocated and what is short. **Pick on a phone** opens Mobile
+   Picking with that wave.
+
+User Guide §7.4 has the full wave → pick → pack → load flow.
 
 For a batch-tracked item, allocation here is **FEFO**, and the pick list
 shows the batch/expiry to take — see
 [Batch, Serial & Expiry Traceability](traceability-batch-serial.md).
 
 **Mobile Picking** (**WMS → Mobile Picking**) is a phone-friendly,
-one-item-at-a-time reader for the exact same wave pick list — enter a Wave
-ID, and it steps through the list as big-text cards, with optional voice
+one-item-at-a-time reader for the exact same wave pick list — choose the
+**Location**, then the **Wave** from the list (User Guide §5.1), and it steps
+through the list as big-text cards, with optional voice
 readout (`speechSynthesis`) and voice "next"/"confirm" control
 (`SpeechRecognition`, where the browser supports it).
 
 > [!NOTE]
-> **Confirm & Next only advances the card locally — it does not record a
-> pick against the server.** Both **Previous**/**Next** on the desktop wave
-> list and **Confirm & Next** on Mobile Picking are navigation only; nothing
-> here calls back to the server to mark a line picked. The pick list is a
-> *reference* for where to walk and what to take, not the record of what
-> was actually taken.
+> **Confirm & Next records the line on the server but takes nothing out of
+> a bin.** Each **Confirm & Next** on Mobile Picking is saved with who
+> picked it (`POST /api/v1/wms/wave/pick-confirm`), so reopening the wave
+> starts at the first line still to go. After the last line, **Mark N
+> order(s) packed** moves the complete orders to Packed. A short order is
+> left as it is — finish it on **OMS → Pick** (User Guide §7.4).
 
 ### What actually moves the order forward
 
-The order itself advances on **OMS → Pick / Pack / Ship**, by scans and the
-task's status transitions (`POST /api/v1/fulfillment/task/transition`):
-**Pending → Picking → Packed → Dispatched** (or **Rejected** from Pending or
-Picking). "Start Picking", "Mark Packed" and "Dispatch" are plain status
-changes — they don't take a quantity or a bin, and don't call the pick list
-or any scan endpoint underneath.
+The order itself advances on **OMS → Pick / Pack / Ship**, by scans
+(User Guide §9A.9 and §9A.10):
 
-The only genuinely quantity-carrying, wired pack action anywhere in WMS is
-packing a **Transfer Order** into boxes — see Transfers below.
+1. **OMS → Pick** → **Pick** opens the scan panel. Scan each unit's barcode
+   (or type its code and press Enter). Each scan counts one unit against the
+   task (`POST /api/v1/wms/pick-scan`, `ScanPickItem`).
+2. If the rest of a line cannot be found, click **Short-pick** and give a
+   reason (`POST /api/v1/wms/short-pick`, `ShortPickLine`). Its reserved
+   stock is released.
+3. When every line is picked or short-picked, **Go to Pack** opens the same
+   task on **OMS → Pack**. **Pack** opens the scan panel: scan each picked
+   unit into the box (`POST /api/v1/wms/pack-scan`, `ScanPackItem`).
+4. Enter the box **weight**, tick **Bill and documents are in the box** if
+   your business checks that, and click **Pack, bill and label**. This runs
+   the pre-pack checklist and closes the pack task
+   (`POST /api/v1/wms/pack-complete`), then makes the package, the OMS bill
+   and the courier booking.
 
-> [!WARNING]
-> **Task-level pick/pack scanning is real and tested, but has no screen.**
-> `POST /api/v1/wms/pick-scan` (`ScanPickItem`) and
-> `POST /api/v1/wms/pack-scan` (`ScanPackItem`) exist specifically to record
-> a scanned SKU against a `FulfillmentTask`'s picked/packed quantity,
-> `POST /api/v1/wms/short-pick` (`ShortPickLine`) records a short pick with a
-> reason code, and `POST /api/v1/wms/pack-complete`
-> (`handlePackCompleteValidated`, a pre-pack checklist wrapped around
-> `CompletePackTask`) is meant to be the real close-out of a pack task. All
-> four are role-open, module-gated routes with tested engine functions behind
-> them — confirmed by grep, none of `pick-scan`, `pack-scan`, `short-pick`, or
-> `pack-complete` appears anywhere in `public/app.js`. What the app actually
-> uses instead is the coarse Pending→Picking→Packed→Dispatched transition
-> above plus the read-only pick list. If you need genuine scan-by-scan
-> pick/pack tracking against a `FulfillmentTask` today, it has to be driven by
-> a direct API call, not by clicking through the app.
+**Reject** (from Pending or Picking) uses the plain status transition
+(`POST /api/v1/fulfillment/task/transition`), as does Mobile Picking's **Mark
+N order(s) packed**.
 
 ### Beyond picking: sortation and loading
 
@@ -346,33 +345,49 @@ sale/hold/reservation — and writes a `CycleCount`-voucher stock ledger
 entry so the correction is traceable to the line and reason code that
 justified it.
 
+### Full counts (Physical Inventory)
+
+A **full count** (physical inventory) counts *every* SKU at a location (or a
+zone within it) — `StartPhysicalInventory`, `SubmitPhysicalInventoryCount`,
+`ReconcilePhysicalInventory`, `ClosePhysicalInventory` and
+`CancelPhysicalInventory` (`engines/wms_physical_inventory.go`). It freezes
+the bins involved (`bin_status = 'Counting'`, which also blocks putaway and
+picking allocation against them for the duration) and creates one
+`CycleCountLine` per SKU under a `PhysicalInventory` header, reusing the
+exact same reconcile/post/approve mechanics described above rather than a
+second counting system.
+
+**Counting has a screen — the Store app on a phone** (User Guide §10A.9):
+
+1. Open the Store app and tap **Count**.
+2. An open full count for your store is listed under **Full counts at this
+   store**. Tap it.
+3. Scan every piece (fix a number with **−** / **+**), then send the count.
+   Several people can count the same full count on their own phones; each
+   phone's numbers are added together.
+
 > [!WARNING]
-> **Physical Inventory (a full/annual stock take) is a real, tested engine
-> with zero UI.** `StartPhysicalInventory`, `SubmitPhysicalInventoryCount`,
-> `ReconcilePhysicalInventory`, `ClosePhysicalInventory`, and
-> `CancelPhysicalInventory` (`engines/wms_physical_inventory.go`) are a
-> governed way to count *every* SKU at a location (or a zone within it) —
-> freezing the bins involved (`bin_status = 'Counting'`, which also blocks
-> putaway and picking allocation against them for the duration) and creating
-> one `CycleCountLine` per SKU under a `PhysicalInventory` header, reusing
-> the exact same reconcile/post/approve mechanics described above rather than
-> a second counting system. All five routes exist
-> (the `start`, `submit-count`, `reconcile`, `close` and `cancel` POST
-> actions under `/api/v1/wms/physical-inventory/`), all are module-gated the same as every other WMS route, and none
-> of them — nor the string `PhysicalInventory` — appears anywhere in
-> `public/app.js`. Today, running a full stock take (as opposed to an ongoing
-> ABC-sampled cycle count) means calling these directly, not clicking through
-> a screen.
+> **Starting, reconciling, closing and cancelling a full count still have no
+> screen** (checked by a search of `public/`, 2026-10-24). No screen calls
+> the `start`, `reconcile`, `close` or `cancel` POST actions under
+> `/api/v1/wms/physical-inventory/`. The warehouse team has to call these
+> directly; the Store app only counts a full count that is already open.
 
 ## Stock Adjustments
 
-There is no free-form "adjust this SKU's quantity" screen in this app —
-that's deliberate, not an oversight. Every quantity-level adjustment goes
-through the Cycle Count reconciliation/approval/reason-code path above
-(`PostCycleCountAdjustment`), so a quantity correction always carries a
-count session, a reviewer (for anything non-zero), and a root-cause reason
-code. If you need to correct a quantity, count it — enter the real quantity
-as a `CycleCountLine` against the current session and reconcile.
+There are two ways to correct a quantity:
+
+- **Count it** — enter the real quantity as a `CycleCountLine` against the
+  current session and reconcile. This goes through the Cycle Count
+  reconciliation/approval/reason-code path above
+  (`PostCycleCountAdjustment`).
+- **Inventory → Stock Adjustment** — when no other document explains the
+  difference (damaged or expired goods, shrinkage, stock found). Click
+  **+ New Stock Adjustment**, choose the **Store** and **Loss class**, add
+  each item with its **Change** (**-3** takes three off, **4** adds four) and
+  a **Reason** per line, then **Save adjustment**. If an approval rule exists
+  for *InventoryAdjustment*, it waits as **Pending Approval**; otherwise it
+  posts at once (User Guide §5.5).
 
 **Condition-level moves** are the other kind of "adjustment" — moving stock
 between **Good**, **Damaged**, **QC-Hold**, and **RTV** within the same bin,
@@ -446,25 +461,20 @@ through five possible states:
 4. **Dispatch** — moves each line's quantity out of the source location's
    `available` into `in_transit`. Refuses if requested quantity exceeds
    what's actually available (`STOCKT-0112`).
-5. **Receive** — prompts for the quantity actually received, per line,
-   defaulting to the full dispatched quantity. Confirmed quantity leaves
-   the source's `in_transit` (whatever left, left, however much of it
-   arrives) and only what's confirmed received is added to the
-   destination's `available`.
+5. **Receive** — click **Receive** and enter, per item, what arrived:
+   **Good**, **Damaged**, **Lost** and **Extra** (User Guide §7, step 6).
+   - Damaged, lost and extra units need a **reason** (reason codes of type
+     *Transfer Discrepancy*; **Add a reason code** opens the master list if
+     there are none yet).
+   - With **Units not entered here stay in transit** ticked (the default),
+     the rest waits for the next delivery and the transfer shows **Partially
+     Received**. Untick it to close the transfer now: what is not entered is
+     recorded as lost, with the reason.
+   - Click **Record Receipt**. Only what is received is added to the
+     destination's stock; damaged units are kept out of sellable stock.
 
-> [!WARNING]
-> **A genuine short-receive on a Transfer Order cannot be completed through
-> this screen.** `ReceiveTransferOrder` requires a shortage/damage
-> **reason** on any line where received quantity is less than dispatched
-> (`TRN-0259`) — but `receiveTransferOrder` in `public/app.js` only ever
-> prompts for a quantity per line, sends `{sku, qty}` with no `reason`
-> field, and has no follow-up prompt to supply one after a `TRN-0259`
-> rejection. In practice: entering the full dispatched quantity works, and
-> entering anything less always fails with no way to proceed from this
-> dialog. This contradicts USER_GUIDE.md §7's own description ("entering
-> the lower number records that shortage rather than hiding it") — as of
-> this writing that only happens via a direct API call that includes a
-> `reason` per short line, not by clicking through the Receive prompt.
+A short receive is therefore done on this screen: enter the lower quantity,
+choose the reason, and either leave the rest in transit or close it as lost.
 
 ### Transfer error codes
 
@@ -545,36 +555,25 @@ before `PostCycleCountAdjustment` will run, whether that's its first post
 attempt or a retry. Set one on panel 3, then Retry Post.
 
 **A Transfer Order receive is refused with "a shortage/damage reason is
-required."** Enter one when prompted — the dialog asks for a reason
-automatically whenever a line's received quantity is less than what was
-dispatched (`TRN-0259`).
+required."** Choose a **Reason** in the Receive dialog — it is needed for
+any damaged, lost or extra units, and for a short line when **Units not
+entered here stay in transit** is unticked (`TRN-0259`).
 
 **"Source and destination location cannot be the same" (`STOCKT-0111`).**
 Self-explanatory — pick two different locations for a transfer.
 
-**Wave pick list is empty for a wave I just tagged tasks into.** Nothing in
+**Wave pick list is empty for a wave I just put orders into.** Nothing in
 that wave's tasks is currently stored in a bin — putaway hasn't happened
 yet for that stock, or it's being picked from general (non-binned) stock
 instead. That's a valid state, not an error.
 
 ## What is not here yet
 
-**Task-level pick/pack scanning has no screen**, even though the server
-functions behind it (`ScanPickItem`, `ScanPackItem`, `ShortPickLine`,
-`CompletePackTask`) are real and tested — see the warning under Picking &
-Packing above. What the app drives today is a coarse task-status transition
-plus a read-only pick list, not scan-by-scan quantity tracking against a
-`FulfillmentTask`.
-
-**Full/annual Physical Inventory has no screen** — see the warning under
-Cycle Counts. The ABC-sampled cycle count workflow is fully wired; counting
-every SKU at a location under a governed, bin-freezing session is API-only
-today.
-
-
-**There is no free-form stock-adjustment screen**, and that's by design —
-every quantity correction goes through Cycle Count's count/reconcile/
-approve/reason-code path, never a direct "set this SKU's quantity to X."
+**Starting, reconciling and closing a full count (Physical Inventory) has no
+screen** — see the warning under Cycle Counts. The ABC-sampled cycle count
+workflow is fully wired, and the Store app counts an open full count; but
+opening, reconciling, closing or cancelling one is still a direct API call
+(checked by a search of `public/`, 2026-10-24).
 
 ## Stock ownership per warehouse
 

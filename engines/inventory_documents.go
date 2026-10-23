@@ -37,11 +37,18 @@ const (
 
 // InventoryAdjustmentLine is one item's change: a signed quantity (+ found or
 // received outside a document, - lost, damaged, expired) and its reason.
+// Stage 130.14 (74.2.3b): optionally the bin, the lot and the serial numbers
+// it is, and Condition "Damaged" - a damaged unit still owned moves out of
+// sellable stock into Damaged (qty < 0) or back (qty > 0), with no write-off.
 type InventoryAdjustmentLine struct {
-	SKU        string `json:"sku"`
-	Qty        int    `json:"qty"`
-	ReasonCode string `json:"reason_code"`
-	Note       string `json:"note"`
+	SKU        string   `json:"sku"`
+	Qty        int      `json:"qty"`
+	ReasonCode string   `json:"reason_code"`
+	Note       string   `json:"note"`
+	Bin        string   `json:"bin,omitempty"`
+	BatchNo    string   `json:"batch_no,omitempty"`
+	Serials    []string `json:"serials,omitempty"`
+	Condition  string   `json:"condition,omitempty"`
 }
 
 type InventoryAdjustmentInput struct {
@@ -51,6 +58,159 @@ type InventoryAdjustmentInput struct {
 	// LossClass (Stage 74.2.3): Shrinkage, Damage, Expiry or Theft - a Damage or
 	// Expiry loss posts through its own posting-profile event.
 	LossClass string `json:"loss_class,omitempty"`
+	// ReversalOf (Stage 130.14) is the posted adjustment this one reverses.
+	ReversalOf string `json:"-"`
+}
+
+// AdjustmentConditionDamaged is the one condition an adjustment line moves
+// stock into (or back out of) without writing it off.
+const AdjustmentConditionDamaged = "Damaged"
+
+// builtAdjustment is an adjustment worked out but not yet saved - what Create
+// saves and Preview shows.
+type builtAdjustment struct {
+	Location  string                   `json:"location"`
+	Lines     []map[string]interface{} `json:"lines"`
+	Increase  float64                  `json:"increase_value"`
+	Decrease  float64                  `json:"decrease_value"`
+	LossClass string                   `json:"loss_class"`
+}
+
+// buildInventoryAdjustment validates the input and works out each line's
+// before / after quantity (stock on hand at the store now) and value.
+func buildInventoryAdjustment(tenantID string, in InventoryAdjustmentInput) (*builtAdjustment, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	location := DocumentStoreCode(tenantID, in.Location)
+	if location == "" {
+		return nil, &ValidationError{Code: "GLOBAL-0001", SubFor: "Store", Message: "choose the store whose stock is adjusted"}
+	}
+	switch strings.TrimSpace(in.LossClass) {
+	case "", "Shrinkage", "Damage", "Expiry", "Theft":
+	default:
+		return nil, &ValidationError{Code: "GLOBAL-0002", SubFor: "Loss class", Message: fmt.Sprintf("%q is not a loss class (Shrinkage, Damage, Expiry or Theft)", in.LossClass)}
+	}
+	if len(in.Lines) == 0 {
+		return nil, &ValidationError{Code: "GLOBAL-0001", SubFor: "Items", Message: "add at least one item"}
+	}
+	out := &builtAdjustment{Location: location, LossClass: strings.TrimSpace(in.LossClass)}
+	seen := map[string]bool{}
+	for i, l := range in.Lines {
+		n := i + 1
+		item, err := ResolveItemBySKU(tenantID, strings.TrimSpace(l.SKU))
+		if err != nil || item == nil {
+			return nil, &ValidationError{Code: "GLOBAL-0004", SubFor: "Item", Message: fmt.Sprintf("line %d: item %q not found", n, l.SKU)}
+		}
+		sku := firstNonEmpty(strField(item.Data, "code"), item.ID)
+		bin, batch := strings.TrimSpace(l.Bin), strings.TrimSpace(l.BatchNo)
+		condition := strings.TrimSpace(l.Condition)
+		if condition != "" && !strings.EqualFold(condition, AdjustmentConditionDamaged) {
+			return nil, &ValidationError{Code: "GLOBAL-0002", SubFor: "Condition", Message: fmt.Sprintf("line %d: a line moves stock to Damaged or is a plain adjustment - %q is neither", n, condition)}
+		}
+		if condition != "" {
+			condition = AdjustmentConditionDamaged
+		}
+		key := sku + "|" + bin + "|" + batch + "|" + condition
+		if seen[key] {
+			return nil, &ValidationError{Code: "GLOBAL-0003", SubFor: "Item", Message: fmt.Sprintf("line %d: %s is already on this adjustment - change that line instead", n, sku)}
+		}
+		seen[key] = true
+		if l.Qty == 0 {
+			return nil, &ValidationError{Code: "GLOBAL-0001", SubFor: "Quantity", Message: fmt.Sprintf("line %d: enter how many to add (+) or take off (-)", n)}
+		}
+		reason, err := ResolveReasonCode(tenantID, strings.TrimSpace(l.ReasonCode), ReasonInventoryAdjust)
+		if err != nil {
+			var verr *ValidationError
+			if errors.As(err, &verr) {
+				return nil, &ValidationError{Code: verr.Code, SubFor: "Reason", Message: fmt.Sprintf("line %d: %s", n, verr.Message)}
+			}
+			return nil, err
+		}
+		if len(l.Serials) > 0 && len(l.Serials) != absInt(l.Qty) {
+			return nil, &ValidationError{Code: "GLOBAL-0002", SubFor: "Serials", Message: fmt.Sprintf("line %d: %d serial number(s) for a quantity of %d", n, len(l.Serials), absInt(l.Qty))}
+		}
+		switch {
+		case condition != "" && l.Qty > 0:
+			if dmg := damagedStock(schema, sku, location); dmg < l.Qty {
+				return nil, &ValidationError{Code: "INVENT-0101", SubFor: "Quantity", Message: fmt.Sprintf("line %d: only %d of %s are Damaged at %s to move back", n, dmg, sku, location)}
+			}
+		case l.Qty < 0:
+			if free := freeStock(schema, sku, location); free+l.Qty < 0 {
+				return nil, &ValidationError{Code: "INVENT-0101", SubFor: "Quantity", Message: fmt.Sprintf("line %d: only %d of %s are free at %s to take off", n, free, sku, location)}
+			}
+			if bin != "" {
+				if inBin := binGoodStock(schema, bin, sku); inBin+l.Qty < 0 {
+					return nil, &ValidationError{Code: "INVENT-0101", SubFor: "Bin", Message: fmt.Sprintf("line %d: bin %s holds %d of %s, not %d", n, bin, inBin, sku, -l.Qty)}
+				}
+			}
+		}
+		before := onHandAt(schema, sku, location)
+		after := before + l.Qty
+		unit := adjustmentUnitCost(tenantID, sku, item.Data)
+		value := round2(unit * math.Abs(float64(l.Qty)))
+		if condition != "" {
+			// Still owned: nothing is written off or added, so no value moves.
+			after, value = before, 0
+		} else if l.Qty > 0 {
+			out.Increase = round2(out.Increase + value)
+		} else {
+			out.Decrease = round2(out.Decrease + value)
+		}
+		line := map[string]interface{}{
+			"sku": sku, "item_name": strField(item.Data, "name"), "qty": l.Qty,
+			"reason_code": reason.Code, "reason": reason.Label, "note": strings.TrimSpace(l.Note),
+			"unit_cost": unit, "value": value, "before_qty": before, "after_qty": after,
+		}
+		if bin != "" {
+			line["bin"] = bin
+		}
+		if batch != "" {
+			line["batch_no"] = batch
+		}
+		if len(l.Serials) > 0 {
+			line["serials"] = l.Serials
+		}
+		if condition != "" {
+			line["condition"] = condition
+		}
+		out.Lines = append(out.Lines, line)
+	}
+	return out, nil
+}
+
+// PreviewInventoryAdjustment (Stage 130.14) shows what an adjustment would do
+// - each line's before and after quantity and value, and its GL legs - and
+// saves nothing.
+func PreviewInventoryAdjustment(tenantID string, in InventoryAdjustmentInput) (map[string]interface{}, error) {
+	b, err := buildInventoryAdjustment(tenantID, in)
+	if err != nil {
+		return nil, err
+	}
+	pctx := PostingContext{LegalEntity: locationLegalEntity(tenantID, b.Location), ReasonCode: commonLineReason(b.Lines), LossClass: b.LossClass}
+	var gl []map[string]interface{}
+	if b.Increase > 0 {
+		acc := ResolvePostingAccounts(tenantID, PostingEventAdjustmentGain, pctx, accountInventory, accountStockAdjustment)
+		gl = append(gl, map[string]interface{}{"account": acc.Debit, "debit": b.Increase}, map[string]interface{}{"account": acc.Credit, "credit": b.Increase})
+	}
+	if b.Decrease > 0 {
+		acc := ResolvePostingAccounts(tenantID, adjustmentLossEvent(b.LossClass), pctx, accountStockAdjustment, accountInventory)
+		gl = append(gl, map[string]interface{}{"account": acc.Debit, "debit": b.Decrease}, map[string]interface{}{"account": acc.Credit, "credit": b.Decrease})
+	}
+	return map[string]interface{}{"location": b.Location, "lines": b.Lines, "increase_value": b.Increase, "decrease_value": b.Decrease,
+		"net_value": round2(b.Increase - b.Decrease), "gl": gl}, nil
+}
+
+// adjustmentLossEvent is the posting-profile event a loss of this class books.
+func adjustmentLossEvent(lossClass string) string {
+	switch lossClass {
+	case "Damage":
+		return PostingEventAdjustmentDamage
+	case "Expiry":
+		return PostingEventAdjustmentExpiry
+	}
+	return PostingEventAdjustmentLoss
 }
 
 // CreateInventoryAdjustment validates and saves an adjustment, then (D13) sends
@@ -62,69 +222,22 @@ func CreateInventoryAdjustment(tenantID string, in InventoryAdjustmentInput, use
 	if err != nil {
 		return "", "", err
 	}
-	location := DocumentStoreCode(tenantID, in.Location)
-	if location == "" {
-		return "", "", &ValidationError{Code: "GLOBAL-0001", SubFor: "Store", Message: "choose the store whose stock is adjusted"}
+	b, err := buildInventoryAdjustment(tenantID, in)
+	if err != nil {
+		return "", "", err
 	}
-	switch strings.TrimSpace(in.LossClass) {
-	case "", "Shrinkage", "Damage", "Expiry", "Theft":
-	default:
-		return "", "", &ValidationError{Code: "GLOBAL-0002", SubFor: "Loss class", Message: fmt.Sprintf("%q is not a loss class (Shrinkage, Damage, Expiry or Theft)", in.LossClass)}
-	}
-	if len(in.Lines) == 0 {
-		return "", "", &ValidationError{Code: "GLOBAL-0001", SubFor: "Items", Message: "add at least one item"}
-	}
-	lines := make([]map[string]interface{}, 0, len(in.Lines))
-	var increase, decrease float64
-	seen := map[string]bool{}
-	for i, l := range in.Lines {
-		n := i + 1
-		item, err := ResolveItemBySKU(tenantID, strings.TrimSpace(l.SKU))
-		if err != nil || item == nil {
-			return "", "", &ValidationError{Code: "GLOBAL-0004", SubFor: "Item", Message: fmt.Sprintf("line %d: item %q not found", n, l.SKU)}
-		}
-		sku := firstNonEmpty(strField(item.Data, "code"), item.ID)
-		if seen[sku] {
-			return "", "", &ValidationError{Code: "GLOBAL-0003", SubFor: "Item", Message: fmt.Sprintf("line %d: %s is already on this adjustment - change that line instead", n, sku)}
-		}
-		seen[sku] = true
-		if l.Qty == 0 {
-			return "", "", &ValidationError{Code: "GLOBAL-0001", SubFor: "Quantity", Message: fmt.Sprintf("line %d: enter how many to add (+) or take off (-)", n)}
-		}
-		reason, err := ResolveReasonCode(tenantID, strings.TrimSpace(l.ReasonCode), ReasonInventoryAdjust)
-		if err != nil {
-			var verr *ValidationError
-			if errors.As(err, &verr) {
-				return "", "", &ValidationError{Code: verr.Code, SubFor: "Reason", Message: fmt.Sprintf("line %d: %s", n, verr.Message)}
-			}
-			return "", "", err
-		}
-		if l.Qty < 0 {
-			if free := freeStock(schema, sku, location); free+l.Qty < 0 {
-				return "", "", &ValidationError{Code: "INVENT-0101", SubFor: "Quantity", Message: fmt.Sprintf("line %d: only %d of %s are free at %s to take off", n, free, sku, location)}
-			}
-		}
-		unit := adjustmentUnitCost(tenantID, sku, item.Data)
-		value := round2(unit * math.Abs(float64(l.Qty)))
-		if l.Qty > 0 {
-			increase = round2(increase + value)
-		} else {
-			decrease = round2(decrease + value)
-		}
-		lines = append(lines, map[string]interface{}{
-			"sku": sku, "item_name": strField(item.Data, "name"), "qty": l.Qty,
-			"reason_code": reason.Code, "reason": reason.Label, "note": strings.TrimSpace(l.Note),
-			"unit_cost": unit, "value": value,
-		})
-	}
+	location, lines, increase, decrease := b.Location, b.Lines, b.Increase, b.Decrease
 
 	id := NewDocID("ADJ")
 	encodedLines, _ := json.Marshal(lines)
 	data := map[string]interface{}{
-		"code": id, "location": location, "note": strings.TrimSpace(in.Note), "items": string(encodedLines), "loss_class": strings.TrimSpace(in.LossClass),
+		"code": id, "location": location, "note": strings.TrimSpace(in.Note), "items": string(encodedLines), "loss_class": b.LossClass,
 		"increase_value": increase, "decrease_value": decrease, "net_value": round2(increase - decrease),
 		// The approval rules route on the size of the change, either way.
 		"amount": round2(increase + decrease), "requested_by": userID, "status": "Draft",
+	}
+	if in.ReversalOf != "" {
+		data["reversal_of"] = in.ReversalOf
 	}
 	issueNumberInto(data, tenantID, InventoryAdjustmentDoctype, id, "", location)
 	encoded, err := json.Marshal(data)
@@ -185,15 +298,30 @@ func PostInventoryAdjustment(tenantID, id, userID string) error {
 			location = strField(data, "location")
 			number = firstNonEmpty(strField(data, "code"), id)
 			lines := jsonLines(data["items"])
+			// Stage 130.14: the stock it was worked out from must still hold.
+			if err := checkAdjustmentSnapshotTx(tx, schema, location, lines); err != nil {
+				return nil, err
+			}
 			moves := make([]interface{}, 0, len(lines))
 			for _, l := range lines {
-				moves = append(moves, map[string]interface{}{"sku": strField(l, "sku"), "qty": numFromInterface(l["qty"])})
+				if strField(l, "condition") != "" {
+					continue // a condition move, below - still owned, on hand unchanged
+				}
+				m := map[string]interface{}{"sku": strField(l, "sku"), "qty": numFromInterface(l["qty"])}
+				if b := strField(l, "batch_no"); b != "" {
+					m["batch_no"] = b
+				}
+				moves = append(moves, m)
 			}
 			_, posted, err := PostInventoryLedgerWithVoucherTx(tx, schema, location, moves, false)
 			if err != nil {
 				return nil, err
 			}
 			if err := WriteStockLedgerLinesTx(tx, schema, location, InventoryAdjustmentDoctype, number, userID, "", posted); err != nil {
+				return nil, err
+			}
+			// Stage 130.14: condition moves, bins and serial numbers.
+			if err := applyAdjustmentLinesTx(tx, schema, location, number, lines); err != nil {
 				return nil, err
 			}
 			// Stage 74.1.3: the accounts come from an approved posting profile
@@ -208,14 +336,7 @@ func PostInventoryAdjustment(tenantID, id, userID string) error {
 				}
 			}
 			if loss := RupeesToPaise(numFromInterface(data["decrease_value"])); loss > 0 {
-				event := PostingEventAdjustmentLoss
-				switch lossClass {
-				case "Damage":
-					event = PostingEventAdjustmentDamage
-				case "Expiry":
-					event = PostingEventAdjustmentExpiry
-				}
-				acc := ResolvePostingAccounts(tenantID, event, pctx, accountStockAdjustment, accountInventory)
+				acc := ResolvePostingAccounts(tenantID, adjustmentLossEvent(lossClass), pctx, accountStockAdjustment, accountInventory)
 				if err := PostDoubleEntryTx(tx, tenantID, schema, InventoryAdjustmentDoctype, id, map[string]int64{acc.Debit: loss}, map[string]int64{acc.Credit: loss}, "", "InventoryAdjustment:"+id+":OUT"); err != nil {
 					return nil, err
 				}

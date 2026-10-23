@@ -28,6 +28,12 @@ func handleTaskInbox(w http.ResponseWriter, r *http.Request) {
 	if engines.RequireModules(tenantID, "crm_loyalty") == nil {
 		scope.CRM, _ = checkPermission(tenantID, role, "Customer", "read")
 	}
+	// Stage 130.16 (R-TX-16): the exception worklist, for whoever may read the
+	// documents it points at (sales invoices or delivery challans).
+	scope.Exceptions, _ = checkPermission(tenantID, role, "SalesInvoice", "read")
+	if !scope.Exceptions {
+		scope.Exceptions, _ = checkPermission(tenantID, role, "DeliveryChallan", "read")
+	}
 	inbox, err := engines.ListTaskInbox(tenantID, scope)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusInternalServerError)

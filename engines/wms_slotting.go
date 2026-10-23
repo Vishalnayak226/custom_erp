@@ -76,7 +76,7 @@ func GetSlottingSuggestions(tenantID, locationCode string) ([]SlottingSuggestion
 	// reused for every SKU below rather than a per-SKU bin query.
 	binRows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, COALESCE(data->>'bin_code', ''), COALESCE(data->>'bin_type', ''), COALESCE(data->>'capacity', '0')
-		FROM %s.documents WHERE doctype = 'Bin' AND status = 'Active' AND data->>'location' = $1`, schema), locationCode)
+		FROM %s.documents WHERE doctype = 'Bin' AND status = 'Active' AND deleted_at IS NULL AND data->>'location' = $1`, schema), locationCode)
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +274,7 @@ func GetUnslottingSuggestions(tenantID, locationCode string) ([]SlottingSuggesti
 
 	reserveRows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT data->>'bin_code' FROM %s.documents
-		WHERE doctype = 'Bin' AND status = 'Active' AND data->>'location' = $1 AND data->>'bin_type' = 'Reserve'`, schema), locationCode)
+		WHERE doctype = 'Bin' AND status = 'Active' AND deleted_at IS NULL AND data->>'location' = $1 AND data->>'bin_type' = 'Reserve'`, schema), locationCode)
 	if err != nil {
 		return nil, err
 	}
@@ -386,7 +386,7 @@ func GetDimensionAwareSlottingSuggestions(tenantID, locationCode string) ([]Slot
 
 	pickFaceRows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT data->>'bin_code' FROM %s.documents
-		WHERE doctype = 'Bin' AND status = 'Active' AND data->>'location' = $1 AND data->>'bin_type' = 'PickFace'`, schema), locationCode)
+		WHERE doctype = 'Bin' AND status = 'Active' AND deleted_at IS NULL AND data->>'location' = $1 AND data->>'bin_type' = 'PickFace'`, schema), locationCode)
 	if err != nil {
 		return nil, err
 	}

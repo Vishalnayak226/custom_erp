@@ -37,7 +37,14 @@ import (
 // freshly-built (test) binary from creating a new directory there (see the
 // CLAUDE.md note on that exact error). Production is unaffected either way;
 // the deployed server's working directory is not under Documents\.
-var mediaStoreDir = "media_store"
+// MEDIA_STORE_DIR (134.11 / 56.4) puts it elsewhere - a mounted volume on a
+// host whose working directory is not kept across deploys (Railway).
+var mediaStoreDir = func() string {
+	if v := os.Getenv("MEDIA_STORE_DIR"); v != "" {
+		return v
+	}
+	return "media_store"
+}()
 
 var allowedMediaExtensions = map[string]string{
 	".jpg":  "image/jpeg",
@@ -182,6 +189,8 @@ func validateMediaFile(filename string, fileBytes []byte) (fileType string, err 
 		}
 	} else if !strings.HasPrefix(detected, "image/") {
 		return "", &ValidationError{Code: "GLOBAL-0008", Message: fmt.Sprintf("file content does not match an image (detected %q) - upload rejected", detected)}
+	} else if err := CheckUpload(UploadImage, fileBytes); err != nil {
+		return "", err // 134.4: a real picture of a sane size, nothing riding along
 	}
 	return expectedMIME, nil
 }
@@ -205,7 +214,7 @@ func findExistingMediaByChecksum(tenantID, itemCode, mediaRole, checksum string)
 	var id string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
-		WHERE doctype = 'ProductMedia' AND data->>'item' = $1 AND data->>'media_role' = $2 AND data->>'checksum' = $3 AND status = 'Active'
+		WHERE doctype = 'ProductMedia' AND data->>'item' = $1 AND data->>'media_role' = $2 AND data->>'checksum' = $3 AND status = 'Active' AND deleted_at IS NULL
 		LIMIT 1`, schema), itemCode, mediaRole, checksum).Scan(&id)
 	if err != nil {
 		return "", nil // not found - not an error
@@ -223,7 +232,7 @@ func demoteExistingMainImage(tenantID, itemCode string) error {
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, data FROM %s.documents
-		WHERE doctype = 'ProductMedia' AND data->>'item' = $1 AND data->>'media_role' = 'Main Image' AND status = 'Active'`, schema), itemCode)
+		WHERE doctype = 'ProductMedia' AND data->>'item' = $1 AND data->>'media_role' = 'Main Image' AND status = 'Active' AND deleted_at IS NULL`, schema), itemCode)
 	if err != nil {
 		return err
 	}
@@ -561,7 +570,7 @@ func ListMediaForItem(tenantID, itemCode string) ([]ProductMediaAsset, error) {
 		SELECT id, COALESCE(data->>'media_role', ''), COALESCE(data->>'file_type', ''), COALESCE(data->>'checksum', ''), status,
 			COALESCE(NULLIF(data->>'version_no', '')::int, 1), COALESCE(data->>'alt_text', ''), COALESCE(data->>'expiry_date', ''), COALESCE(data->>'has_thumbnail', '') = 'Yes'
 		FROM %s.documents
-		WHERE doctype = 'ProductMedia' AND data->>'item' = $1 AND status = 'Active'
+		WHERE doctype = 'ProductMedia' AND data->>'item' = $1 AND status = 'Active' AND deleted_at IS NULL
 		ORDER BY id`, schema), itemCode)
 	if err != nil {
 		return nil, err

@@ -36,6 +36,9 @@ func StartScheduledReportWorker(ctx context.Context, interval time.Duration) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				if !IsSchedulerLeader() { // 134.7: one server runs each sweep
+					continue
+				}
 				if db.DB == nil {
 					continue
 				}

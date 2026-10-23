@@ -54,7 +54,7 @@ export function renderPOSReturnPanel(panel) {
       <div class="form-group">
         <label class="form-label" for="pos-return-location-display">Return Location</label>
         <input type="text" id="pos-return-location-display" class="form-input" placeholder="Search by store name or code" autocomplete="off">
-        <input type="hidden" id="pos-return-location" value="${posLocation}">
+        <input type="hidden" id="pos-return-location" value="${cfgEsc(posLocation)}">
       </div>
       <div class="pos-return-total">
         <span>Refund if all accepted <b id="pos-return-total">0.00</b></span>
@@ -226,6 +226,7 @@ function renderPOSReturnTable() {
           ${cfgEsc(posReturnEligibility.explanation || '')}
           ${posReturnBillStore && posReturnBillStore !== posLocation ? `<div style="margin-top:4px;"><b>Sold at ${cfgEsc(posReturnBillStore)}.</b> The return is taken here: the goods come back into this store's stock, and the return keeps the store that sold it.</div>` : ''}
           ${posReturnEligibility.sale_date ? `<span style="color:var(--text-muted);"> Sold ${cfgEsc(posReturnEligibility.sale_date)}; return window ${posReturnEligibility.window_days} days.</span>` : ''}
+          ${posBillCancellable() ? `<div style="margin-top:8px;"><button type="button" class="btn btn-outline btn-sm" ${actionAttrs('cancelWholePOSBill', [])}>Cancel the whole bill</button> <span style="color:var(--text-muted);">Today's bill: everything comes back and the money goes back to how it was paid.</span></div>` : ''}
         </div>`;
     }
   }
@@ -350,7 +351,37 @@ async function describeReturnRefund(returnID) {
 
 // The quantity box in the Return table calls this through the data-act
 // dispatcher, which only resolves names that are own properties of window.
-Object.assign(window, { updatePOSReturnLine });
+// Stage 130.9: a manager may cancel today's bill outright while nothing on it
+// has been returned - the server checks the same and does the reversal.
+function posBillCancellable() {
+  const e = posReturnEligibility;
+  if (!e || !e.found || !posIsManager()) return false;
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const lines = e.lines || [];
+  return e.sale_date === today && lines.some(l => l.remaining_qty > 0) && lines.every(l => !l.already_returned);
+}
+
+async function cancelWholePOSBill() {
+  const billNo = (posReturnEligibility || {}).original_order_id;
+  if (!billNo) return;
+  const picked = await posFormDialog('Cancel Bill', `Cancel bill ${billNo}? Every item comes back into stock and the money is paid back the way it was paid. This cannot be undone.`,
+    '<input class="form-input" data-cancel="reason" placeholder="Why is the bill being cancelled?" autocomplete="off" style="margin-top:10px;">',
+    extra => ({ reason: (extra.querySelector('[data-cancel="reason"]') || {}).value || '' }),
+    extra => extra.querySelector('[data-cancel="reason"]')?.focus());
+  if (!picked) return;
+  if (!picked.reason.trim()) { await showCustomAlert('Give the reason the bill is being cancelled.', 'Cancel Bill'); return; }
+  const res = await apiFetch(`/api/v1/pos/bills/${encodeURIComponent(billNo)}/cancel`, { method: 'POST', body: JSON.stringify({ location: posLocation, reason: picked.reason.trim() }) });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'The bill was not cancelled - nothing changed.', 'Cancel Bill'); return; }
+  const r = await res.json();
+  await showCustomAlert(`Bill ${r.bill_no} ${r.replayed ? 'was already' : 'is'} cancelled. Pay back ${Number(r.refund).toFixed(2)} the way it was paid. Return ${r.return_request_id}.`, 'Bill Cancelled');
+  posReturnCart = [];
+  posReturnEligibility = null;
+  renderPOSReturnTable();
+}
+
+Object.assign(window, { updatePOSReturnLine, cancelWholePOSBill });
 
 // quickAddPOSCustomer (Stage 53.5: name + phone in two prompts) is replaced
 // by the phone-first customer form in view-pos-customer.js (Stage 85.C3).
@@ -725,8 +756,115 @@ const POS_MORE_ACTIONS = [
   ['resume', 'Resume a held bill', () => resumePOSBill()],
   ['exchange', 'Exchange (take items back against this bill)', () => openPOSExchange()],
   // Stage 85.E8: a bill's lines from a CSV (Barcode, Qty).
-  ['upload', 'Upload lines (CSV)', () => uploadPOSLines()]
+  ['upload', 'Upload lines (CSV)', () => uploadPOSLines()],
+  // Stage 130.11 (49.14.3): a shared till - each person by their own PIN.
+  ['switch', 'Switch staff (PIN) - the bill on screen is kept', () => switchPOSStaff(false)],
+  ['pin', 'Set my PIN for this till', () => setMyPOSPin()],
+  ['tillpins', 'Register this till for staff PINs (store manager)', () => registerPOSTillForPINs()]
 ];
+
+// --- Stage 130.11 (49.14.3, user decision 2026-10-22): fast staff switch ----
+// A shared till is registered once by a store manager, the way a store phone
+// is (Stage 102): it then holds a device token, and staff switch in with their
+// own name and PIN (/api/v1/store-app/pin/login) - no shared password, and a
+// supervisor's override is made under the supervisor's own PIN, then the
+// cashier switches back. The bill on screen stays: only the session changes.
+// After a few idle minutes the till locks until someone enters their PIN.
+const TILL_DEVICE_KEY = 'erp_till_device_token';
+const tillDeviceToken = () => { try { return localStorage.getItem(TILL_DEVICE_KEY) || ''; } catch (_) { return ''; } };
+let posIdleMinutes = 5;
+let posIdleTimer = null;
+let posLocked = false;
+
+async function registerPOSTillForPINs() {
+  if (!posIsManager()) { await showCustomAlert('A store manager registers the till for staff PINs.', 'Staff PINs'); return; }
+  const res = await apiFetch('/api/v1/store-app/devices', { method: 'POST', body: JSON.stringify({ label: `Till ${posLocation || ''}`.trim() }) });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'The till was not registered.', 'Staff PINs'); return; }
+  const r = await res.json();
+  try { localStorage.setItem(TILL_DEVICE_KEY, r.device_token); } catch (_) { /* storage blocked: nothing to keep it in */ }
+  await showCustomAlert('This till is registered. Each person sets their PIN once (More… → Set my PIN), then switches in with it (More… → Switch staff). The till locks after a few idle minutes.', 'Staff PINs');
+  startPOSIdleLock();
+}
+
+async function setMyPOSPin() {
+  const picked = await posFormDialog('Set my PIN', 'Your PIN signs you in at a registered till or store phone. Store roles only - an administrator uses their password.',
+    `<input class="form-input" data-pin="pass" type="password" placeholder="Your password" autocomplete="current-password" style="margin-top:10px;">
+     <input class="form-input" data-pin="pin" type="password" inputmode="numeric" placeholder="New PIN (4-8 digits)" autocomplete="new-password" style="margin-top:8px;">`,
+    extra => ({ password: extra.querySelector('[data-pin="pass"]').value, pin: extra.querySelector('[data-pin="pin"]').value.trim() }),
+    extra => extra.querySelector('[data-pin="pass"]')?.focus());
+  if (!picked) return;
+  const res = await apiFetch('/api/v1/store-app/pin', { method: 'POST', body: JSON.stringify(picked) });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Your PIN was not set.', 'Set my PIN'); return; }
+  showToast('Your PIN is set.', { variant: 'success' });
+}
+
+async function switchPOSStaff(locked) {
+  const device = tillDeviceToken();
+  if (!device) { await showCustomAlert('A store manager first registers this till for staff PINs (More… → Register this till for staff PINs).', 'Switch staff'); return false; }
+  const title = locked ? 'Till locked' : 'Switch staff';
+  const picked = await posFormDialog(title, locked ? 'Enter your name and PIN to carry on - the bill on screen is kept.' : 'Who is at the till? Their PIN signs them in here; the bill on screen is kept.',
+    `<input class="form-input" data-sw="user" placeholder="Username" autocomplete="off" style="margin-top:10px;">
+     <input class="form-input" data-sw="pin" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off" style="margin-top:8px;">`,
+    extra => ({ user: extra.querySelector('[data-sw="user"]').value.trim(), pin: extra.querySelector('[data-sw="pin"]').value.trim() }),
+    extra => extra.querySelector('[data-sw="user"]')?.focus());
+  if (!picked || !picked.user || !picked.pin) return false;
+  // A plain fetch: a wrong PIN is a 401, which apiFetch would treat as a lost session.
+  const res = await fetch('/api/v1/store-app/pin/login', { method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Tenant-ID': localStorage.getItem('erp_tenant_id') || 'default' },
+    body: JSON.stringify({ device_token: device, username: picked.user, pin: picked.pin }) }).catch(() => null);
+  if (!res || !res.ok) {
+    const msg = res ? ((await res.json().catch(() => ({}))).error || 'Wrong name or PIN.') : 'The till is offline.';
+    if (res && res.status === 401 && /no longer registered/i.test(msg)) { try { localStorage.removeItem(TILL_DEVICE_KEY); } catch (_) {} }
+    await showCustomAlert(msg, title);
+    return false;
+  }
+  const s = await res.json();
+  localStorage.setItem('erp_token', s.token);
+  localStorage.setItem('erp_role', s.role);
+  localStorage.setItem('erp_username', s.user);
+  posIdleMinutes = Number(s.idle_minutes) || 5;
+  await Promise.all([window.fetchAndApplyPermissions?.(), window.fetchAndApplyProfile?.()].map(p => Promise.resolve(p).catch(() => {})));
+  if (typeof updateSidebarUserInfo === 'function') updateSidebarUserInfo();
+  showToast(`${s.user} is at the till.`, { variant: 'success' });
+  startPOSIdleLock();
+  return true;
+}
+
+function bumpPOSIdle() {
+  if (posLocked) return;
+  clearTimeout(posIdleTimer);
+  posIdleTimer = setTimeout(lockPOSTill, posIdleMinutes * 60000);
+}
+
+async function lockPOSTill() {
+  if (posLocked || !tillDeviceToken() || !document.getElementById('pos-checkout-btn')) return;
+  posLocked = true;
+  // Kept across a reload, so reloading the page does not get past the lock.
+  try { localStorage.setItem('erp_till_locked', '1'); } catch (_) {}
+  let ok = false;
+  while (!ok) {
+    ok = await switchPOSStaff(true);
+    if (!ok && !tillDeviceToken()) break;
+  }
+  posLocked = false;
+  try { localStorage.removeItem('erp_till_locked'); } catch (_) {}
+  bumpPOSIdle();
+}
+
+// startPOSIdleLock arms the idle lock on a registered till.
+export function startPOSIdleLock() {
+  if (!tillDeviceToken()) return;
+  if (!window.__posIdleWired) {
+    window.__posIdleWired = true;
+    ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, bumpPOSIdle, { passive: true }));
+  }
+  let lockedBefore = false;
+  try { lockedBefore = localStorage.getItem('erp_till_locked') === '1'; } catch (_) {}
+  if (lockedBefore) { lockPOSTill(); return; }
+  bumpPOSIdle();
+}
 
 // uploadPOSLines adds uploaded lines to the cart the way a scan does (price
 // and stock from the server), then sets each line's quantity.
@@ -954,6 +1092,8 @@ export async function openPOSGiftCard(t) {
   const actions = [['pay', 'Pay this bill with a gift card'], ['issue', 'Issue / add value (customer pays now)'], ['balance', 'Check balance']];
   if (till.tenders.length) actions.push(['remove', 'Remove the gift cards from this bill']);
   if (manager) actions.push(['block', 'Block a card'], ['unblock', 'Release a blocked card'], ['cancel', 'Cancel an unused issue (refund)'], ['register', 'Register new cards']);
+  // Stage 130.8: a lost card's number, shown again to an administrator only.
+  if (typeof isAdminRoleName === 'function' && isAdminRoleName(localStorage.getItem('erp_role') || '')) actions.push(['reveal', "Show a lost card's full number"]);
   const mode = (document.getElementById('pos-payment-mode') || {}).value || 'Cash';
   const html = `
     <div style="display:grid; gap:8px; margin-top:10px;">
@@ -962,6 +1102,7 @@ export async function openPOSGiftCard(t) {
       <input class="form-input" data-gc="amount" data-show="pay issue" type="number" min="0" step="0.01" placeholder="Amount (pay: blank = as much as the card covers)">
       <select class="form-input" data-gc="mode" data-show="issue">${['Cash', 'Card', 'UPI'].map(m => `<option ${m === mode ? 'selected' : ''}>${m}</option>`).join('')}</select>
       <input class="form-input" data-gc="reason" data-show="block unblock cancel" placeholder="Reason">
+      <input class="form-input" data-gc="cardid" data-show="reveal" placeholder="Card ID (Reports > Gift Card Liability)" autocomplete="off">
       <input class="form-input" data-gc="profile" data-show="register" value="Standard Gift Card" placeholder="Gift card profile">
       <input class="form-input" data-gc="generate" data-show="register" type="number" min="0" step="1" placeholder="How many new numbers to generate (or list printed numbers below)">
       <textarea class="form-input" data-gc="numbers" data-show="register" rows="3" placeholder="Printed card numbers, one per line"></textarea>
@@ -973,7 +1114,7 @@ export async function openPOSGiftCard(t) {
   const picked = await posFormDialog('Gift Card', 'A gift card is stored value - it is never a line on the bill.', html,
     extra => {
       const v = k => (extra.querySelector(`[data-gc="${k}"]`) || {}).value || '';
-      return { action: v('action'), card: v('card').trim(), amount: parseFloat(v('amount')) || 0, mode: v('mode'), reason: v('reason').trim(), profile: v('profile').trim(), generate: parseInt(v('generate'), 10) || 0, numbers: v('numbers') };
+      return { action: v('action'), card: v('card').trim(), amount: parseFloat(v('amount')) || 0, mode: v('mode'), reason: v('reason').trim(), profile: v('profile').trim(), generate: parseInt(v('generate'), 10) || 0, numbers: v('numbers'), cardId: v('cardid').trim() };
     },
     extra => {
       syncFields(extra);
@@ -1071,12 +1212,14 @@ function posPrintGiftCardReceipt(r) {
 }
 
 async function posGiftCardAction(p) {
-  if (!p.card) return;
-  const res = await apiFetch('/api/v1/stored-value/cards/action', { method: 'POST', body: JSON.stringify({ card_number: p.card, action: p.action, reason: p.reason, location: posLocation }) });
+  if (!p.card && !(p.action === 'reveal' && p.cardId)) return;
+  const res = await apiFetch('/api/v1/stored-value/cards/action', { method: 'POST', body: JSON.stringify({ card_number: p.card, action: p.action, reason: p.reason, location: posLocation, instrument_id: p.cardId }) });
   if (!res) return;
   if (!res.ok) { await showApiError(res, 'That did not go through.', 'Gift Card'); return; }
   const r = await res.json();
-  if (p.action === 'cancel') {
+  if (p.action === 'reveal') {
+    await showCustomAlert(`Card ${r.instrument_id} (${r.profile}): ${String(r.card_number).replace(/(.{4})/g, '$1 ').trim()}. This look-up is recorded in the audit log.`, 'Gift Card Number');
+  } else if (p.action === 'cancel') {
     await showCustomAlert(`${r.card} cancelled. Refund ${Number(r.amount).toFixed(2)} by ${r.payment_mode || 'the original payment mode'}.`, 'Gift Card');
   } else {
     await showCustomAlert(`${r.card} is now ${r.status}.`, 'Gift Card');
@@ -1090,10 +1233,11 @@ async function posRegisterGiftCards(p) {
   if (!res.ok) { await showApiError(res, 'No cards were registered.', 'Gift Card'); return; }
   const r = await res.json();
   if (r.numbers && r.numbers.length) {
-    // Shown once, for printing - the ERP never shows a full number again.
+    // Shown once, for printing - after this only an administrator can show a
+    // number again, for a lost card (Stage 130.8).
     const w = window.open('', '_blank', 'width=420,height=600');
     if (w) {
-      w.document.write(`<!doctype html><title>New gift cards</title><body style="font-family:monospace; padding:12px;"><h3>${r.registered} new ${cfgEsc(p.profile)} numbers</h3><p>Print them on the cards now - they are not shown again.</p><ol>${r.numbers.map(n => `<li>${cfgEsc(n.replace(/(.{4})/g, '$1 ').trim())}</li>`).join('')}</ol></body>`);
+      w.document.write(`<!doctype html><title>New gift cards</title><body style="font-family:monospace; padding:12px;"><h3>${r.registered} new ${cfgEsc(p.profile)} numbers</h3><p>Print them on the cards now - after this only an administrator can show a number again.</p><ol>${r.numbers.map(n => `<li>${cfgEsc(n.replace(/(.{4})/g, '$1 ').trim())}</li>`).join('')}</ol></body>`);
       w.document.close();
     }
   }
@@ -1160,7 +1304,7 @@ export function printPOSReceipt(t, cartNumber, location, paymentMode, items, sal
       ${subtotalLine}
       ${offerLine}
       ${loyaltyLine}
-      <div class="receipt-line receipt-total"><span>Total (${paymentMode})</span><span>${amountDue.toFixed(2)}</span></div>
+      <div class="receipt-line receipt-total"><span>Total (${cfgEsc(paymentMode)})</span><span>${amountDue.toFixed(2)}</span></div>
     </div>
   `;
   area.classList.add('printing');

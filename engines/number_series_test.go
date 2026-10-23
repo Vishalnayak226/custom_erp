@@ -159,9 +159,14 @@ func TestNumberSeriesStoreCodeYearFormatAndGSTLength(t *testing.T) {
 	if !errors.As(err, &verr) || verr.Code != "ADMINC-0311" || !strings.Contains(verr.Message, "ASN/JAY/"+fy+"/000001") || !strings.Contains(verr.Message, "16") {
 		t.Fatalf("a 20-character series: err = %v, want ADMINC-0311 naming ASN/JAY/%s/000001 and 16", err, fy)
 	}
-	// Stage 126.4: the seeded series as it is (ASN/JAY/26-27/00001, 19
-	// characters, made before the 16-character rule) saves when nothing in
-	// its number changes - a status change is not refused.
+	// Stage 126.4: an existing client's seeded series as it is
+	// (ASN/JAY/26-27/00001, 19 characters, made before the 16-character
+	// rule) saves when nothing in its number changes - a status change is
+	// not refused. Since 130.6 a fresh client's ASN ships short, so the
+	// legacy shape is put back here first.
+	if _, err := db.DB.Exec(`UPDATE ` + schemaName + `.prefix_configs SET prefix = 'ASN', separator = '/', padding_width = 5, year_format = '', include_store = TRUE WHERE doc_type = 'ASN'`); err != nil {
+		t.Fatalf("legacy ASN series: %v", err)
+	}
 	if err := SaveNumberSeries(tenantID, NumberSeries{DocType: "ASN", Prefix: "ASN", Separator: "/", PaddingWidth: 5, ResetFrequency: "ANNUAL", ActiveStatus: false}, &include, map[string]StoreSeriesOverride{}); err != nil {
 		t.Fatalf("status-only save of the seeded ASN series: %v", err)
 	}

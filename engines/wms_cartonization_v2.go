@@ -160,7 +160,7 @@ func SuggestCartonizationV2(tenantID, cartonTypeCode string, items []Cartonizati
 func getCartonCapacityV2(schema, cartonTypeCode string) (maxQty int, maxWeight, maxVolume float64, err error) {
 	var dataStr string
 	err = db.DB.QueryRow(fmt.Sprintf(
-		`SELECT data FROM %s.documents WHERE doctype = 'CartonType' AND (id = $1 OR data->>'code' = $1) AND status = 'Active'`, schema),
+		`SELECT data FROM %s.documents WHERE doctype = 'CartonType' AND (id = $1 OR data->>'code' = $1) AND status = 'Active' AND deleted_at IS NULL`, schema),
 		cartonTypeCode).Scan(&dataStr)
 	if err == sql.ErrNoRows {
 		return 0, 0, 0, fmt.Errorf("no Active CartonType %q found", cartonTypeCode)

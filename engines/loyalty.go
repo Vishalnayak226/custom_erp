@@ -134,6 +134,9 @@ func GetLoyaltyBalance(tenantID, customerID string) (int, error) {
 	return balance, err
 }
 
+// 134.6 (47.10.1): most ledger rows the customer point history returns (newest first; the balance is a separate SQL SUM).
+const loyaltyLedgerRowCap = 1000
+
 // GetLoyaltyLedger lists a customer's point transaction history, most
 // recent first.
 func GetLoyaltyLedger(tenantID, customerID string) ([]LoyaltyLedgerEntry, error) {
@@ -143,7 +146,7 @@ func GetLoyaltyLedger(tenantID, customerID string) ([]LoyaltyLedgerEntry, error)
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT transaction_type, points, COALESCE(reference_id, ''), created_at, COALESCE(reference_doctype, ''), expires_at
-		FROM %s.loyalty_point_ledger WHERE customer_id = $1 ORDER BY created_at DESC, id DESC`, schema), customerID)
+		FROM %s.loyalty_point_ledger WHERE customer_id = $1 ORDER BY created_at DESC, id DESC LIMIT %d`, schema, loyaltyLedgerRowCap), customerID)
 	if err != nil {
 		return nil, err
 	}

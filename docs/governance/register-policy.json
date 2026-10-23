@@ -138,6 +138,14 @@
       "disposition": "keep"
     },
     {
+      "prefix": "docs/product/report-catalog-coverage.md",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "authority": "projection",
+      "disposition": "keep"
+    },
+    {
       "prefix": "docs/product/research/",
       "type": "record",
       "status": "archived",
@@ -226,7 +234,7 @@
       "disposition": "keep"
     },
     {
-      "prefix": "docs/kb/reference/report-catalog.md",
+      "prefix": "docs/kb/reference/report-catalog",
       "type": "generated",
       "status": "active",
       "owner": "documentation-maintainer",

@@ -192,46 +192,5 @@ func saveSubcontractOrder(tenantID, id string, data map[string]interface{}, stat
 	return err
 }
 
-func SendToSubcontractor(tenantID, id, userID string) error {
-	data, status, err := fetchSubcontractOrder(tenantID, id)
-	if err != nil {
-		return err
-	}
-	if status != "Draft" {
-		return &ValidationError{Code: "MANUFA-0142", Message: fmt.Sprintf("only a Draft subcontract order can be sent (current status: %s)", status)}
-	}
-	sku, _ := data["sent_item_id"].(string)
-	location, _ := data["location"].(string)
-	qty := numFromInterface(data["sent_qty"])
-	if sku == "" || location == "" || qty <= 0 {
-		return &ValidationError{Code: "MANUFA-0142", Message: "sent_item_id, location, and a positive sent_qty are required to send a subcontract order"}
-	}
-	items := []interface{}{map[string]interface{}{"sku": sku, "qty": -qty}}
-	if _, err := PostInventoryLedgerWithVoucher(tenantID, location, items, false, "SubcontractOrder", id, userID); err != nil {
-		return fmt.Errorf("subcontract send failed: %v", err)
-	}
-	data["sent_date"] = time.Now().Format("2006-01-02")
-	return saveSubcontractOrder(tenantID, id, data, "Sent")
-}
-
-func ReceiveFromSubcontractor(tenantID, id, userID string, actualQty float64) error {
-	data, status, err := fetchSubcontractOrder(tenantID, id)
-	if err != nil {
-		return err
-	}
-	if status != "Sent" {
-		return &ValidationError{Code: "MANUFA-0142", Message: fmt.Sprintf("only a Sent subcontract order can be received (current status: %s)", status)}
-	}
-	sku, _ := data["received_item_id"].(string)
-	location, _ := data["location"].(string)
-	if sku == "" || location == "" || actualQty <= 0 {
-		return &ValidationError{Code: "MANUFA-0142", Message: "received_item_id, location, and a positive received qty are required to receive a subcontract order"}
-	}
-	items := []interface{}{map[string]interface{}{"sku": sku, "qty": actualQty}}
-	if _, err := PostInventoryLedgerWithVoucher(tenantID, location, items, false, "SubcontractOrder", id, userID); err != nil {
-		return fmt.Errorf("subcontract receive failed: %v", err)
-	}
-	data["actual_received_qty"] = actualQty
-	data["received_date"] = time.Now().Format("2006-01-02")
-	return saveSubcontractOrder(tenantID, id, data, "Received")
-}
+// SendToSubcontractor and ReceiveFromSubcontractor moved to job_work.go
+// (Stage 130.16, 74.3.3): sent through a delivery challan now.

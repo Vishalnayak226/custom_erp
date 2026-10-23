@@ -30,7 +30,7 @@ import (
 // minimal-payload precedent alerting.go's own file header documents for ops
 // alerts.
 
-var notificationHTTPClient = &http.Client{Timeout: 5 * time.Second}
+var notificationHTTPClient = newOutboundClient(5*time.Second, false) // 134.2: a client-typed address
 
 type notificationWebhookPayload struct {
 	// DeliveryID is the NotificationLog id: the provider echoes it back on

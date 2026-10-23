@@ -165,6 +165,46 @@ function newPOEntry() {
   return { sku: '', text: '', qty: '1', rate: '', mrp: '' };
 }
 
+// Stage 130.16 (74.3.2, DEC-19): the PO's commercial terms, grouped under
+// the header - required when it goes for approval if the client asks for it
+// (procurement.po_terms_required), never on a draft.
+const PO_TERM_KEYS = ['payment_term', 'payment_terms', 'delivery_terms', 'freight_by', 'vendor_contact', 'quote_valid_until'];
+const PO_DELIVERY_TERMS = ['Door delivery', 'Ex-works (EXW)', 'Free carrier (FCA)', 'Free on board (FOB)', 'Cost insurance freight (CIF)', 'Delivered at place (DAP)', 'Delivered duty paid (DDP)'];
+
+function poTermsHTML(d) {
+  const e = (v) => escapeHTMLText(v || '');
+  const opts = (list, v) => `<option value="">Choose</option>${list.map(x => `<option${x === v ? ' selected' : ''}>${e(x)}</option>`).join('')}`;
+  const filled = PO_TERM_KEYS.some(k => d[k]);
+  return `<details class="po-terms"${filled ? ' open' : ''} style="margin:4px 0 10px;">
+      <summary style="cursor:pointer;font-weight:600;">Commercial terms${d.payment_terms || d.delivery_terms ? ` <span class="text-muted" style="font-weight:400;">${e([d.payment_terms, d.delivery_terms].filter(Boolean).join(' · '))}</span>` : ''}</summary>
+      <div class="txn-head" style="margin-top:8px;">
+        <div class="form-group"><label class="form-label" for="po-payment-term">Payment term</label><input id="po-payment-term" class="form-input" autocomplete="off" value="${e(d.payment_term)}" placeholder="e.g. NET30"></div>
+        <div class="form-group"><label class="form-label" for="po-delivery-terms">Delivery terms</label><select id="po-delivery-terms" class="form-input">${opts(PO_DELIVERY_TERMS, d.delivery_terms)}</select></div>
+        <div class="form-group"><label class="form-label" for="po-freight-by">Freight paid by</label><select id="po-freight-by" class="form-input">${opts(['Vendor', 'Buyer'], d.freight_by)}</select></div>
+        <div class="form-group"><label class="form-label" for="po-vendor-contact">Vendor contact</label><input id="po-vendor-contact" class="form-input" value="${e(d.vendor_contact)}" placeholder="Name, phone"></div>
+        <div class="form-group"><label class="form-label" for="po-quote-valid">Quote valid until</label><input id="po-quote-valid" type="date" class="form-input" value="${e(d.quote_valid_until)}"></div>
+      </div>
+    </details>`;
+}
+
+function bindPOTerms(d) {
+  const term = document.getElementById('po-payment-term');
+  if (!term) return;
+  attachLinkTypeahead(term, 'PaymentTerm', { keepCode: true, onPick: (doc) => { d.payment_term = doc.code || doc.id; d.payment_terms = doc.name || d.payment_term; } });
+  term.addEventListener('change', () => { d.payment_term = term.value.trim(); if (!d.payment_term) d.payment_terms = ''; });
+  [['po-delivery-terms', 'delivery_terms'], ['po-freight-by', 'freight_by'], ['po-vendor-contact', 'vendor_contact'], ['po-quote-valid', 'quote_valid_until']]
+    .forEach(([id, key]) => document.getElementById(id)?.addEventListener('change', (ev) => { d[key] = ev.target.value.trim(); }));
+}
+
+// grnLogisticsPayload (Stage 130.16) reads the new receipt's challan and transport.
+function grnLogisticsPayload() {
+  const v = (id) => (document.getElementById(id)?.value || '').trim();
+  const out = { vendor_challan_no: v('grn-challan-no'), vendor_challan_date: v('grn-challan-date'), lr_awb_no: v('grn-lr'),
+    vehicle_no: v('grn-vehicle'), transporter: v('grn-transporter') };
+  if (v('grn-packages')) out.package_count = Number(v('grn-packages')) || 0;
+  return out;
+}
+
 function newPODraft() {
   return {
     id: '', vendor: '', target_warehouse: '', location: '',
@@ -481,6 +521,10 @@ function renderPOComposer(panel) {
         <div class="txn-hint" id="po-ship-addr"></div>
       </div>
       <div class="form-group">
+        <label class="form-label" for="po-expected">Expected delivery</label>
+        <input type="date" id="po-expected" class="form-input" value="${escapeHTMLText(d.expected_delivery_date || '')}">
+      </div>
+      <div class="form-group">
         <label class="form-label" for="po-gst-mode">GST treatment of purchase price</label>
         <select id="po-gst-mode" class="form-input">
           <option value="">Tenant default</option>
@@ -489,6 +533,7 @@ function renderPOComposer(panel) {
         </select>
       </div>
     </div>
+    ${poTermsHTML(d)}
 
     <form id="po-vendor-taxid" class="po-supply-banner po-supply-idle hidden"></form>
     <div id="po-supply-banner" class="po-supply-banner"></div>
@@ -590,6 +635,9 @@ function renderPOComposer(panel) {
     d.gst_mode = e.target.value;
     schedulePOPreview();
   });
+  // Stage 130.10 (78.3 a): the date reminders and late receipts are judged by.
+  document.getElementById('po-expected')?.addEventListener('change', (e) => { d.expected_delivery_date = e.target.value; });
+  bindPOTerms(d);
 
   // Stage 65.1 (the user: "my screen will be the create zone always"): one
   // entry row at the top; Add (or Enter) appends it to the list below, which
@@ -1689,6 +1737,9 @@ function poDraftPayload(d) {
     location: d.location,
     items: JSON.stringify(lines),
     gst_mode: d.gst_mode,
+    expected_delivery_date: d.expected_delivery_date || '',
+    // Stage 130.16 (74.3.2): the commercial terms.
+    ...Object.fromEntries(PO_TERM_KEYS.map(k => [k, d[k] || ''])),
     interstate: d.interstate,
     interstate_override: d.interstate_override
   };
@@ -1978,6 +2029,8 @@ window.amendPurchaseOrder = async function(poId) {
     target_warehouse: record.target_warehouse || '',
     location: record.location || '',
     gst_mode: record.gst_mode || '',
+    expected_delivery_date: record.expected_delivery_date || '',
+    ...Object.fromEntries(PO_TERM_KEYS.map(k => [k, record[k] || ''])),
     interstate: !!record.interstate,
     interstate_override: !!record.interstate_override,
     lines: lines.length ? lines.map(l => ({
@@ -2239,6 +2292,18 @@ async function renderGRNWorkbenchView(container) {
         <label class="form-label" for="grn-inv-amount">Invoice Total (incl. GST)<span class="required">*</span></label>
         <input type="number" id="grn-inv-amount" class="form-input num" min="0" step="0.01">
       </div>
+      <!-- Stage 130.16 (74.3.2): the vendor's challan and the transport. -->
+      <details class="grn-logistics" style="flex-basis:100%;">
+        <summary style="cursor:pointer;font-weight:600;">Supplier documents and transport</summary>
+        <div class="txn-head" style="margin-top:8px;">
+          <div class="form-group"><label class="form-label" for="grn-challan-no">Vendor challan no</label><input type="text" id="grn-challan-no" class="form-input" autocomplete="off"></div>
+          <div class="form-group"><label class="form-label" for="grn-challan-date">Challan date</label><input type="date" id="grn-challan-date" class="form-input"></div>
+          <div class="form-group"><label class="form-label" for="grn-lr">LR / AWB no</label><input type="text" id="grn-lr" class="form-input" autocomplete="off"></div>
+          <div class="form-group"><label class="form-label" for="grn-vehicle">Vehicle no</label><input type="text" id="grn-vehicle" class="form-input" autocomplete="off"></div>
+          <div class="form-group"><label class="form-label" for="grn-transporter">Transporter</label><input type="text" id="grn-transporter" class="form-input" autocomplete="off"></div>
+          <div class="form-group"><label class="form-label" for="grn-packages">Packages</label><input type="number" id="grn-packages" class="form-input num" min="0" step="1"></div>
+        </div>
+      </details>
       <!-- Stage 26.5.1: ASN capture ahead of a GRN - an optional prefill
            source alongside the PO one, same "Load Items from X" pattern. -->
       <div class="form-group">
@@ -2428,9 +2493,9 @@ async function renderGRNWorkbenchView(container) {
     const statusBadge = g.status === 'Approved' ? 'badge-success' : g.status === 'Cancelled' ? 'badge-danger' : 'badge-warning';
     html += `
       <tr>
-        <td style="font-family: monospace;">${g.code || g.id}</td>
+        <td style="font-family: monospace;">${escapeHTMLText(g.code || g.id)}</td>
         <td>${(g.po_ids ? String(g.po_ids).split(',') : [g.po_id]).filter(Boolean).map(p => documentSearchLink('PurchaseOrder', p)).join('<br>')}</td>
-        <td>${g.location || ''}</td>
+        <td>${escapeHTMLText(g.location || '')}</td>
         <td>${lines.length}</td>
         <td>${receivedTotal} / ${rejectedTotal} / ${damagedTotal}</td>
         <td>${g.vendor_invoice_no ? escapeHTMLText(g.vendor_invoice_no) : '<span class="text-muted">&mdash;</span>'}${(g.flow === 'steps' ? g.vendor_invoice_amount : g.invoice_total) ? `<div class="text-muted" style="font-size:12px;">${formatMoney(g.flow === 'steps' ? g.vendor_invoice_amount : g.invoice_total)}</div>` : ''}</td>
@@ -3438,6 +3503,7 @@ async function createGRNInner() {
       vendor_invoice_no: invNo,
       vendor_invoice_date: invDate,
       vendor_invoice_amount: Number(invAmountRaw),
+      ...grnLogisticsPayload(),
       received_items: JSON.stringify(grnLineItems.map(l => ({ ...l, po_id: l.po_id || poIds[0] }))),
       ...readStockFromTo(document.getElementById('grn-screen'))
     })
@@ -3544,14 +3610,14 @@ async function renderASNView(container) {
     try { lines = JSON.parse(a.expected_items || '[]'); } catch (e) { lines = []; }
     html += `
       <tr>
-        <td style="font-family: monospace;">${a.asn_number || a.id}</td>
-        <td>${a.po_id || a.po_number || ''}</td>
-        <td>${a.location || ''}</td>
-        <td>${a.vendor || ''}</td>
-        <td>${a.carrier || ''}</td>
-        <td>${a.expected_date || ''}</td>
+        <td style="font-family: monospace;">${escapeHTMLText(a.asn_number || a.id)}</td>
+        <td>${escapeHTMLText(a.po_id || a.po_number || '')}</td>
+        <td>${escapeHTMLText(a.location || '')}</td>
+        <td>${escapeHTMLText(a.vendor || '')}</td>
+        <td>${escapeHTMLText(a.carrier || '')}</td>
+        <td>${escapeHTMLText(a.expected_date || '')}</td>
         <td>${lines.length}</td>
-        <td><span class="badge badge-secondary">${a.status}</span></td>
+        <td><span class="badge badge-secondary">${escapeHTMLText(a.status)}</span></td>
       </tr>
     `;
   });

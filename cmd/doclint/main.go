@@ -380,7 +380,7 @@ func inspect(root string, rules []Rule, now time.Time) (Register, Report, error)
 			date, err := time.Parse("2006-01-02", d.ReviewBy)
 			if err != nil {
 				add(path, "review", "invalid review date")
-			} else if date.Format("2006-01-02") < now.Format("2006-01-02") {
+			} else if reviewDue(date, d.LastVerified, d.Type, path).Format("2006-01-02") < now.Format("2006-01-02") {
 				add(path, "review", "review expired")
 			}
 		}
@@ -703,4 +703,27 @@ func checkManifests(root string, add func(string, string, string)) {
 			}
 		}
 	}
+}
+
+// reviewDue (Stage 130.18, 84.8; decided 2026-10-22: a longer cadence by
+// document type, CI stays strict) is when a document's review falls due: its
+// own review_by, or last_verified plus its type's cadence when that is later
+// - 90 days for normative, procedure and security documents, 180 for
+// reference and templates. Generated files and records are not reviewed here.
+func reviewDue(reviewBy time.Time, lastVerified, docType, path string) time.Time {
+	days := 0
+	switch {
+	case strings.HasPrefix(path, "docs/security/") || docType == "normative" || docType == "procedure":
+		days = 90
+	case docType == "reference" || docType == "template":
+		days = 180
+	}
+	verified, err := time.Parse("2006-01-02", strings.TrimSpace(lastVerified))
+	if days == 0 || err != nil {
+		return reviewBy
+	}
+	if cadence := verified.AddDate(0, 0, days); cadence.After(reviewBy) {
+		return cadence
+	}
+	return reviewBy
 }

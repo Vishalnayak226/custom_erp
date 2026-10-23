@@ -49,6 +49,9 @@ func StartOutboxWorker(ctx context.Context, interval time.Duration) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				if !IsSchedulerLeader() { // 134.7: one server runs each sweep
+					continue
+				}
 				if db.DB == nil {
 					continue
 				}
@@ -239,7 +242,7 @@ func GetIntegrationLogs(tenantID string) ([]map[string]interface{}, error) {
 	}
 	defer rows.Close()
 
-	var logs []map[string]interface{}
+	logs := []map[string]interface{}{} // 132.10 (k): JSON [] when there are none, not null
 	for rows.Next() {
 		var id, eventName, payload, status string
 		var attempts int

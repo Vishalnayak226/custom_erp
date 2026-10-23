@@ -999,6 +999,12 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 	// raised before 73.1.1) goes to the clearing account of the refund method
 	// chosen - before this stage it always went to cash, whatever was chosen.
 	exchange := refundMethod == RefundMethodExchangeCredit
+	// Stage 130.12 (74.2.2): store credit, by the customer's choice - the
+	// money part (not a gift card's or store credit's own share, which go
+	// back onto their instrument, nor points) becomes the customer's store
+	// credit (2650). Never cash later (DEC-12).
+	storeCredit := refundMethod == RefundMethodStoreCredit
+	toStoreCredit := int64(0)
 	if exchange {
 		// Stage 73.2.6: an exchange - the money stays with the store as a
 		// credit for the new sale (2620), whatever it was first paid with.
@@ -1006,25 +1012,59 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 			revenueCredits["2620"] = moneyPaise
 		}
 	} else if tenders := paiseMapFrom(data["tenders"]); len(tenders) > 0 {
-		liability := "2610"
-		if tenders[TenderGiftCard] > 0 {
+		if gift := tenders[TenderGiftCard]; gift > 0 {
 			saleGift, errG := saleGiftCardTenders(tx, schema, strField(data, "original_order_id"))
 			if errG != nil {
 				return errG
 			}
-			acct, errG := refundGiftCardShareTx(tx, tenantID, schema, strField(data, "original_order_id"), refundRequestID, processedBy, tenders[TenderGiftCard], saleGift)
+			byAccount, errG := refundGiftCardShareTx(tx, tenantID, schema, strField(data, "original_order_id"), refundRequestID, processedBy, gift, saleGift)
 			if errG != nil {
 				return errG
 			}
-			if acct != "" {
-				liability = acct
+			placed := int64(0)
+			for acct, v := range byAccount {
+				revenueCredits[acct] += v
+				placed += v
+			}
+			if placed < gift {
+				revenueCredits["2610"] += gift - placed
 			}
 		}
-		for k, v := range refundCreditsByTender(tenders, liability) {
-			revenueCredits[k] += v
+		rest := map[string]int64{}
+		for k, v := range tenders {
+			if k != TenderGiftCard {
+				rest[k] = v
+			}
 		}
+		if storeCredit {
+			for k, v := range rest {
+				if k != TenderLoyaltyPoints && v > 0 {
+					toStoreCredit += v
+				}
+			}
+		} else {
+			for k, v := range refundCreditsByTender(rest, "") {
+				revenueCredits[k] += v
+			}
+		}
+	} else if storeCredit {
+		toStoreCredit = moneyPaise
 	} else if moneyPaise > 0 {
 		revenueCredits[paymentModeClearingAccount(refundMethod)] = moneyPaise
+	}
+	if toStoreCredit > 0 {
+		customerID, errC := storeCreditRefundCustomer(tx, tenantID, schema, strField(data, "original_order_id"))
+		if errC != nil {
+			return errC
+		}
+		src := svSource{Doctype: "RefundRequest", ID: refundRequestID, User: processedBy, Reason: "store credit for return " + returnRequestID}
+		scID, errC := issueStoreCreditTx(tx, tenantID, schema, customerID, toStoreCredit, src, "storecredit|"+refundRequestID)
+		if errC != nil {
+			return errC
+		}
+		revenueCredits[AccountStoreCreditLia] += toStoreCredit
+		data["store_credit_id"] = scID
+		data["store_credit_amount"] = PaiseToRupees(toStoreCredit)
 	}
 	if pointsPaise > 0 {
 		revenueCredits["5250"] += pointsPaise
@@ -1115,6 +1155,20 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 		if err := PostReturnGSTReversalTx(tx, schema, tenantID, returnRequestID,
 			refundedGSTLines(rrData), originalSaleWasInterstate(tenantID, originalOrderID)); err != nil {
 			return err
+		}
+
+		// Stage 130.12 (74.0.2 g): the return's GST credit note - its own
+		// number from the CN series, naming the original bill - kept apart
+		// from any store credit, which is a liability voucher, not a tax
+		// document. Numbered inside this transaction, so a failed refund
+		// leaves no gap.
+		if strField(rrData, "credit_note_no") == "" && originalOrderID != "" {
+			cn, errCN := issueCompactNumberTx(tx, schema, "CN", "CN", strField(rrData, "return_location"), time.Now())
+			if errCN != nil {
+				return errCN
+			}
+			rrData["credit_note_no"] = cn
+			rrData["credit_note_against"] = originalOrderID
 		}
 
 		rrData["status"] = "Closed"

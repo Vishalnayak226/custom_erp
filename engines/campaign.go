@@ -46,7 +46,7 @@ func birthdayCampaignMatches(schema, channel string, consentOnly bool) ([]campai
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT cu.id, COALESCE(cu.data->>'name', '') FROM %s.documents cu
-		WHERE cu.doctype = 'Customer' AND cu.status = 'Active' AND cu.data->>'date_of_birth' IS NOT NULL
+		WHERE cu.doctype = 'Customer' AND cu.status = 'Active' AND cu.deleted_at IS NULL AND cu.data->>'date_of_birth' IS NOT NULL
 		  AND to_char((cu.data->>'date_of_birth')::date, 'MM-DD') = to_char(CURRENT_DATE, 'MM-DD')
 		  AND `+consent, schema))
 	if err != nil {
@@ -146,7 +146,7 @@ func sendLapsedCustomerCampaign(schema, campaignID, campaignName, messageTemplat
 
 func runCampaignsForSchema(schema string) {
 	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT id, data FROM %s.documents WHERE doctype = 'Campaign' AND status = 'Active'`, schema))
+		`SELECT id, data FROM %s.documents WHERE doctype = 'Campaign' AND status = 'Active' AND deleted_at IS NULL`, schema))
 	if err != nil {
 		log.Printf("[CAMPAIGN] Failed to list campaigns in schema %s: %v", schema, err)
 		return
@@ -201,6 +201,9 @@ func StartCampaignWorker(ctx context.Context, interval time.Duration) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				if !IsSchedulerLeader() { // 134.7: one server runs each sweep
+					continue
+				}
 				if db.DB == nil {
 					continue
 				}

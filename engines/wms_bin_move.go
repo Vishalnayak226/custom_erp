@@ -266,6 +266,9 @@ type BinContentRow struct {
 	Batches  []string `json:"batches,omitempty"`
 }
 
+// 134.6 (47.10.1): most bin/SKU rows the bin-contents picker returns for one location.
+const binContentsRowCap = 5000
+
 // GetBinContents lists what each bin at a location holds (Good condition,
 // qty > 0). There was no reader of bin_stock for a screen before 57.9 -
 // putaway, replenishment and condition moves all asked for bin and SKU as
@@ -286,7 +289,8 @@ func GetBinContents(tenantID, locationCode string) ([]BinContentRow, error) {
 		LEFT JOIN %s.documents i ON i.doctype = 'Item' AND i.deleted_at IS NULL
 		      AND (i.id = b.sku OR i.data->>'code' = b.sku)
 		WHERE b.location_code = $1 AND b.condition = 'Good' AND b.qty > 0
-		ORDER BY b.bin_code, b.sku`, schema, schema, schema), locationCode)
+		ORDER BY b.bin_code, b.sku
+		LIMIT %d`, schema, schema, schema, binContentsRowCap), locationCode)
 	if err != nil {
 		return nil, err
 	}

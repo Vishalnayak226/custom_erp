@@ -162,3 +162,24 @@ func TestMissingRegisterIsNotAFailure(t *testing.T) {
 		t.Error("with no register, every document should be reported unregistered")
 	}
 }
+
+// Stage 130.18 (84.8): the cadence lengthens a short review_by from
+// last_verified, by type; it never shortens one.
+func TestReviewDueCadence(t *testing.T) {
+	d := func(s string) time.Time { v, _ := time.Parse("2006-01-02", s); return v }
+	cases := []struct {
+		reviewBy, verified, typ, path, want string
+	}{
+		{"2026-08-01", "2026-07-02", "procedure", "docs/x.md", "2026-09-30"},
+		{"2026-08-01", "2026-07-02", "reference", "docs/x.md", "2026-12-29"},
+		{"2027-06-01", "2026-07-02", "reference", "docs/x.md", "2027-06-01"},
+		{"2026-08-01", "2026-07-02", "reference", "docs/security/x.md", "2026-09-30"},
+		{"2026-08-01", "", "reference", "docs/x.md", "2026-08-01"},
+		{"2026-08-01", "2026-07-02", "generated", "docs/x.md", "2026-08-01"},
+	}
+	for _, c := range cases {
+		if got := reviewDue(d(c.reviewBy), c.verified, c.typ, c.path).Format("2006-01-02"); got != c.want {
+			t.Errorf("%+v: got %s", c, got)
+		}
+	}
+}

@@ -96,6 +96,7 @@ var securityCriticalEnvVars = []string{
 	"JWT_EXPIRY_HOURS",
 	"JWT_SECRET",
 	"SHOPIFY_WEBHOOK_SECRET",
+	"STORED_VALUE_KEY",
 	"TRUSTED_PROXY_CIDRS",
 	"TRUST_PROXY",
 }
@@ -198,6 +199,20 @@ func configurationFindings() []BaselineFinding {
 			Title:  "connector credential encryption key looks like a placeholder",
 			Detail: "CHANNEL_CREDENTIAL_KEY matches a documentation/example placeholder pattern (a single repeated character, or a word like changeme/secret/example/test), so any reader of this project's docs can decrypt stored connector credentials",
 			Remedy: "replace CHANNEL_CREDENTIAL_KEY with 32 bytes of CSPRNG output and re-encrypt stored credentials (tenantctl reencrypt-channel-credentials) under the new key",
+		})
+	}
+
+	// --- Gift card number key (Stage 130.8) --------------------------------
+	// Warn, not block, like SB-007: unset, the key is generated into the OS
+	// user config dir. Gift card numbers are then found and decrypted on this
+	// host only - a database restored onto another host could not find a
+	// single card, so the key belongs in the key inventory with the backups.
+	if os.Getenv("STORED_VALUE_KEY") == "" && !keyringSuffixConfigured("STORED_VALUE_KEY") {
+		add(BaselineFinding{
+			ID: "SB-027", Severity: BaselineWarn,
+			Title:  "no explicit gift card number key",
+			Detail: "STORED_VALUE_KEY is unset, so the key that hashes and encrypts gift card numbers is generated into the OS user config dir - a key no database backup captures, so cards restored onto another host could not be found or shown",
+			Remedy: "set STORED_VALUE_KEY (or the STORED_VALUE_KEY_<n> rotation keyring) to exactly 32 bytes and record it in the key inventory (49.6.5) alongside BACKUP_ENCRYPTION_KEY",
 		})
 	}
 

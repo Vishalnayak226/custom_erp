@@ -26,6 +26,9 @@ type PIMDashboard struct {
 	FailedPublishJobs       int `json:"failed_publish_jobs"`
 }
 
+// 134.6 (47.10.1): most rows any one PIM quality report returns (channel-mapping-gap is a Channel x Item cross join).
+const pimReportRowCap = 5000
+
 // ListPIMReport returns one allowlisted, read-only PIM quality report. The
 // row maps keep the HTTP/UI layer generic while the SQL remains explicit and
 // reviewable rather than accepting a caller-provided query or identifier.
@@ -36,13 +39,13 @@ func ListPIMReport(tenantID, name string) ([]map[string]interface{}, error) {
 	}
 	queries := map[string]string{
 		"content-aging":       fmt.Sprintf(`SELECT id AS content_id, COALESCE(data->>'product_id','') AS item_code, COALESCE(data->>'language','') AS language, status, EXTRACT(DAY FROM CURRENT_TIMESTAMP - updated_at)::int AS age_days FROM %s.documents WHERE doctype = 'ProductContent' AND status IN ('Draft','Pending Approval','Rejected') ORDER BY updated_at ASC`, schema),
-		"duplicate-media":     fmt.Sprintf(`SELECT COALESCE(data->>'checksum','') AS checksum, COUNT(*)::int AS media_count, string_agg(COALESCE(data->>'item',''), ', ' ORDER BY data->>'item') AS items FROM %s.documents WHERE doctype = 'ProductMedia' AND status = 'Active' AND COALESCE(data->>'checksum','') <> '' GROUP BY data->>'checksum' HAVING COUNT(*) > 1 ORDER BY media_count DESC, checksum`, schema),
+		"duplicate-media":     fmt.Sprintf(`SELECT COALESCE(data->>'checksum','') AS checksum, COUNT(*)::int AS media_count, string_agg(COALESCE(data->>'item',''), ', ' ORDER BY data->>'item') AS items FROM %s.documents WHERE doctype = 'ProductMedia' AND status = 'Active' AND deleted_at IS NULL AND COALESCE(data->>'checksum','') <> '' GROUP BY data->>'checksum' HAVING COUNT(*) > 1 ORDER BY media_count DESC, checksum`, schema),
 		"channel-mapping-gap": fmt.Sprintf(`SELECT channel.id AS channel_code, item.id AS item_code, COALESCE(item.data->>'category','') AS erp_category FROM %s.documents channel CROSS JOIN %s.documents item WHERE channel.doctype = 'Channel' AND item.doctype = 'Item' AND COALESCE(item.data->>'category','') <> '' AND NOT EXISTS (SELECT 1 FROM %s.documents mapping WHERE mapping.doctype = 'ChannelCategoryMap' AND mapping.data->>'channel' = channel.id AND mapping.data->>'erp_category' = item.data->>'category') ORDER BY channel.id, item.id`, schema, schema, schema),
 		"attribute-quality":   fmt.Sprintf(`SELECT id AS attribute_value_id, COALESCE(data->>'item','') AS item_code, COALESCE(data->>'attribute','') AS attribute_code, COALESCE(data->>'value','') AS value, status FROM %s.documents WHERE doctype = 'ProductAttributeValue' AND (BTRIM(COALESCE(data->>'value','')) = '' OR status <> 'Active') ORDER BY item_code, attribute_code`, schema),
 		// Stage 26.4.4: media whose expiry_date has passed (or has none set
 		// alongside a role that usually needs one, e.g. Certificate) but is
 		// still Active - a governance gap, not caught by anything above.
-		"media-expiry": fmt.Sprintf(`SELECT id AS media_id, COALESCE(data->>'item','') AS item_code, COALESCE(data->>'media_role','') AS media_role, COALESCE(data->>'expiry_date','') AS expiry_date FROM %s.documents WHERE doctype = 'ProductMedia' AND status = 'Active' AND COALESCE(data->>'expiry_date','') <> '' AND NULLIF(data->>'expiry_date','')::date <= CURRENT_DATE ORDER BY (data->>'expiry_date')::date ASC`, schema),
+		"media-expiry": fmt.Sprintf(`SELECT id AS media_id, COALESCE(data->>'item','') AS item_code, COALESCE(data->>'media_role','') AS media_role, COALESCE(data->>'expiry_date','') AS expiry_date FROM %s.documents WHERE doctype = 'ProductMedia' AND status = 'Active' AND deleted_at IS NULL AND COALESCE(data->>'expiry_date','') <> '' AND NULLIF(data->>'expiry_date','')::date <= CURRENT_DATE ORDER BY (data->>'expiry_date')::date ASC`, schema),
 		// Stage 26.4.5: content past its owner-set SLA due date that still
 		// hasn't reached Approved - a content-workflow health check, same
 		// shape as content-aging above but keyed off the SLA field instead
@@ -53,7 +56,7 @@ func ListPIMReport(tenantID, name string) ([]map[string]interface{}, error) {
 	if !ok {
 		return nil, fmt.Errorf("unknown PIM report %q", name)
 	}
-	rows, err := db.DB.Query(query)
+	rows, err := db.DB.Query(fmt.Sprintf("%s LIMIT %d", query, pimReportRowCap))
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +124,7 @@ func GetPIMDashboard(tenantID string) (*PIMDashboard, error) {
 			COUNT(*) FILTER (WHERE NOT EXISTS (
 				SELECT 1 FROM %s.documents media
 				WHERE media.doctype = 'ProductMedia'
-					AND media.status = 'Active'
+					AND media.status = 'Active' AND media.deleted_at IS NULL
 					AND media.data->>'item' = profiles.product_id
 					AND media.data->>'media_role' = 'Main Image'
 			))::int,
@@ -195,7 +198,7 @@ func StreamSearchFeedExportCSVContext(ctx context.Context, tenantID string, w io
 			COALESCE(NULLIF(profile.data->>'completeness_score','')::numeric, 0) AS completeness_score,
 			EXISTS (
 				SELECT 1 FROM %s.documents media
-				WHERE media.doctype = 'ProductMedia' AND media.status = 'Active'
+				WHERE media.doctype = 'ProductMedia' AND media.status = 'Active' AND media.deleted_at IS NULL
 					AND media.data->>'item' = item.id AND media.data->>'media_role' = 'Main Image'
 			) AS has_main_image
 		FROM %s.documents item
@@ -284,7 +287,7 @@ func fetchSearchFeedRows(tenantID string, itemCodes []string) ([]searchFeedRow, 
 			COALESCE(NULLIF(profile.data->>'completeness_score','')::numeric, 0) AS completeness_score,
 			EXISTS (
 				SELECT 1 FROM %s.documents media
-				WHERE media.doctype = 'ProductMedia' AND media.status = 'Active'
+				WHERE media.doctype = 'ProductMedia' AND media.status = 'Active' AND media.deleted_at IS NULL
 					AND media.data->>'item' = item.id AND media.data->>'media_role' = 'Main Image'
 			) AS has_main_image
 		FROM %s.documents item

@@ -45,7 +45,7 @@ func ConvertUOMQty(tenantID, sku string, qty float64, fromUOM, toUOM string) (fl
 	var factor float64
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT (data->>'factor')::numeric FROM %s.documents
-		WHERE doctype = 'UOMConversion' AND COALESCE(status, '') = 'Active'
+		WHERE doctype = 'UOMConversion' AND COALESCE(status, '') = 'Active' AND deleted_at IS NULL
 		  AND data->>'item' = $1 AND data->>'from_uom' = $2 AND data->>'to_uom' = $3
 		LIMIT 1`, schema), sku, fromUOM, toUOM).Scan(&factor)
 	if err == nil {
@@ -57,7 +57,7 @@ func ConvertUOMQty(tenantID, sku string, qty float64, fromUOM, toUOM string) (fl
 	// No direct edge - try the inverse.
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT (data->>'factor')::numeric FROM %s.documents
-		WHERE doctype = 'UOMConversion' AND COALESCE(status, '') = 'Active'
+		WHERE doctype = 'UOMConversion' AND COALESCE(status, '') = 'Active' AND deleted_at IS NULL
 		  AND data->>'item' = $1 AND data->>'from_uom' = $2 AND data->>'to_uom' = $3
 		LIMIT 1`, schema), sku, toUOM, fromUOM).Scan(&factor)
 	if err == sql.ErrNoRows {
@@ -83,7 +83,7 @@ func uomExists(tenantID, code string) (bool, error) {
 	}
 	var exists bool
 	err = db.DB.QueryRow(fmt.Sprintf(
-		`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'UOM' AND data->>'code' = $1 AND COALESCE(status, '') = 'Active')`, schema),
+		`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'UOM' AND data->>'code' = $1 AND COALESCE(status, '') = 'Active' AND deleted_at IS NULL)`, schema),
 		code).Scan(&exists)
 	return exists, err
 }
@@ -140,10 +140,10 @@ func validateUOMConversionMasterRules(tenantID, docID string, payload map[string
 	var existingID string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
-		WHERE doctype = 'UOMConversion' AND data->>'item' = $1 AND data->>'from_uom' = $2 AND data->>'to_uom' = $3 AND id != $4
+		WHERE doctype = 'UOMConversion' AND data->>'item' = $1 AND data->>'from_uom' = $2 AND data->>'to_uom' = $3 AND id != $4 AND deleted_at IS NULL
 		LIMIT 1`, schema), item, fromUOM, toUOM, docID).Scan(&existingID)
 	if err == nil {
-		return &ValidationError{Code: "MASTER-0053", Message: fmt.Sprintf(
+		return &ValidationError{Code: "MASTER-1321", Message: fmt.Sprintf(
 			"a conversion from %s to %s already exists for item %s (%s)", fromUOM, toUOM, item, existingID)}
 	}
 	return nil

@@ -196,11 +196,11 @@ ${employeePickerField('att-employee', '200px')}
     ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No attendance records yet. Click <b>+ Mark Attendance</b> to record one.</td></tr>`
     : records.map(r => `
         <tr>
-          <td style="font-family: monospace;">${r.code || r.id}</td>
-          <td>${r.employee_id || ''}</td>
-          <td>${r.date || ''}</td>
-          <td>${r.location || ''}</td>
-          <td><span class="badge ${r.status === 'Present' ? 'badge-success' : r.status === 'Absent' ? 'badge-danger' : 'badge-secondary'}">${r.status}</span></td>
+          <td style="font-family: monospace;">${hrEsc(r.code || r.id)}</td>
+          <td>${hrEsc(r.employee_id)}</td>
+          <td>${hrEsc(r.date)}</td>
+          <td>${hrEsc(r.location)}</td>
+          <td><span class="badge ${r.status === 'Present' ? 'badge-success' : r.status === 'Absent' ? 'badge-danger' : 'badge-secondary'}">${hrEsc(r.status)}</span></td>
         </tr>
       `).join('');
   html += `</tbody></table>`;
@@ -294,13 +294,13 @@ ${employeePickerField('leave-employee', '200px')}
     ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No leave applications yet. Click <b>+ Apply Leave</b> to record one on an employee's behalf.</td></tr>`
     : records.map(r => `
         <tr>
-          <td style="font-family: monospace;">${r.code || r.id}</td>
-          <td>${r.employee_id || ''}</td>
-          <td>${r.leave_type || ''}</td>
-          <td>${r.from_date || ''}</td>
-          <td>${r.to_date || ''}</td>
+          <td style="font-family: monospace;">${hrEsc(r.code || r.id)}</td>
+          <td>${hrEsc(r.employee_id)}</td>
+          <td>${hrEsc(r.leave_type)}</td>
+          <td>${hrEsc(r.from_date)}</td>
+          <td>${hrEsc(r.to_date)}</td>
           <td>${r.days ?? ''}</td>
-          <td><span class="badge ${r.status === 'Approved' ? 'badge-success' : r.status === 'Rejected' ? 'badge-danger' : 'badge-warning'}">${r.status}</span></td>
+          <td><span class="badge ${r.status === 'Approved' ? 'badge-success' : r.status === 'Rejected' ? 'badge-danger' : 'badge-warning'}">${hrEsc(r.status)}</span></td>
           <td>${r.status === 'Applied' ? `
             <button class="action-btn" ${actionAttrs('decideLeave', [r.id, 'Approved'])}>Approve</button>
             <button class="action-btn action-btn-danger" ${actionAttrs('decideLeave', [r.id, 'Rejected'])}>Reject</button>
@@ -480,7 +480,7 @@ async function runPayrollExport() {
     ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No records in this period. Mark attendance for the month under the <b>Attendance</b> tab, then run the export again.</td></tr>`
     : data.map(e => `
         <tr>
-          <td>${e.employee_id}</td>
+          <td>${hrEsc(e.employee_id)}</td>
           <td>${e.present_days}</td>
           <td>${e.absent_days}</td>
           <td>${e.late_days}</td>
@@ -535,13 +535,13 @@ ${employeePickerField('payroll-run-employee', '200px')}
     ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No payslips yet. Click <b>+ Run Payroll</b> &mdash; each employee needs a Salary Structure first.</td></tr>`
     : payslips.map(p => `
         <tr>
-          <td style="font-family: monospace;">${p.code || p.id}</td>
-          <td>${p.employee_id || ''}</td>
-          <td>${p.period_from || ''} to ${p.period_to || ''}</td>
+          <td style="font-family: monospace;">${hrEsc(p.code || p.id)}</td>
+          <td>${hrEsc(p.employee_id)}</td>
+          <td>${hrEsc(p.period_from)} to ${hrEsc(p.period_to)}</td>
           <td>${p.gross_pay ?? ''}</td>
           <td title="${dedParts(p).map(([k, v]) => `${k} ${v}`).join(', ') || 'none'}">${dedParts(p).reduce((s, [, v]) => s + Number(v), 0) || 0}${dedParts(p).length ? ` <small>(${dedParts(p).map(([k]) => k).join(', ')})</small>` : ''}</td>
           <td>${p.net_pay ?? ''}</td>
-          <td><span class="badge ${p.status === 'Posted' ? 'badge-success' : 'badge-secondary'}">${p.status}</span></td>
+          <td><span class="badge ${p.status === 'Posted' ? 'badge-success' : 'badge-secondary'}">${hrEsc(p.status)}</span></td>
           <td>${p.status === 'Draft' ? `<button class="action-btn" ${actionAttrs('postPayslipToGL', [p.id])}>Post to GL</button>` : ''}</td>
         </tr>
       `).join('');
@@ -650,12 +650,12 @@ ${employeePickerField('loan-employee', '200px')}
     ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No loans yet. Click <b>+ New Loan/Advance</b>, then <b>Disburse</b> it here to post it to the ledger.</td></tr>`
     : loans.map(l => `
         <tr>
-          <td style="font-family: monospace;">${l.code || l.id}</td>
-          <td>${l.employee_id || ''}</td>
+          <td style="font-family: monospace;">${hrEsc(l.code || l.id)}</td>
+          <td>${hrEsc(l.employee_id)}</td>
           <td>${l.principal_amount ?? ''}</td>
           <td>${l.monthly_deduction ?? ''}</td>
           <td>${l.outstanding_balance ?? ''}</td>
-          <td><span class="badge ${l.status === 'Active' ? 'badge-success' : 'badge-secondary'}">${l.status}</span></td>
+          <td><span class="badge ${l.status === 'Active' ? 'badge-success' : 'badge-secondary'}">${hrEsc(l.status)}</span></td>
           <td>${l.status === 'Draft' ? `<button class="action-btn" ${actionAttrs('disburseEmployeeLoan', [l.id])}>Disburse</button>` : ''}</td>
         </tr>
       `).join('');
@@ -745,7 +745,7 @@ async function renderMyRequestsTab(container) {
   formPanel.style.marginBottom = '24px';
   formPanel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">Request Leave</h2>
-    <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 12px;">Employee: ${employee.code || employee.id} - ${employee.name || ''}</p>
+    <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 12px;">Employee: ${hrEsc(employee.code || employee.id)} - ${hrEsc(employee.name)}</p>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       ${autoNumberField('Leave Code', 'LV', '160px')}
       <div class="form-group" style="margin-bottom: 0;">
@@ -862,9 +862,9 @@ async function renderMyRequestsTab(container) {
     <table>
       <thead><tr><th>Type</th><th>Detail</th><th>Status</th></tr></thead>
       <tbody>
-        ${myLeaves.map(l => `<tr><td>Leave</td><td>${l.leave_type || ''} ${l.from_date || ''} to ${l.to_date || ''}</td><td><span class="badge badge-secondary">${l.status}</span></td></tr>`).join('')}
-        ${myExpenses.map(e => `<tr><td>Expense</td><td>${e.category || ''} ${e.amount ?? ''}</td><td><span class="badge badge-secondary">${e.status}</span></td></tr>`).join('')}
-        ${myGrievances.map(g => `<tr><td>Grievance</td><td>${g.category || ''} ${g.description || ''}</td><td><span class="badge badge-secondary">${hrEsc((HR_GRV_STATE[g.status] || [g.status])[0])}</span></td></tr>`).join('')}
+        ${myLeaves.map(l => `<tr><td>Leave</td><td>${hrEsc(l.leave_type)} ${hrEsc(l.from_date)} to ${hrEsc(l.to_date)}</td><td><span class="badge badge-secondary">${hrEsc(l.status)}</span></td></tr>`).join('')}
+        ${myExpenses.map(e => `<tr><td>Expense</td><td>${hrEsc(e.category)} ${e.amount ?? ''}</td><td><span class="badge badge-secondary">${hrEsc(e.status)}</span></td></tr>`).join('')}
+        ${myGrievances.map(g => `<tr><td>Grievance</td><td>${hrEsc(g.category || '')} ${hrEsc(g.description || '')}${g.resolution_notes ? `<div class="text-muted">Resolution: ${hrEsc(g.resolution_notes)}</div>` : ''}</td><td><span class="badge badge-secondary">${hrEsc((HR_GRV_STATE[g.status] || [g.status])[0])}</span></td></tr>`).join('')}
         ${myLeaves.length === 0 && myExpenses.length === 0 && myGrievances.length === 0 ? `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No requests submitted yet. Use <b>+ Request Leave</b>, <b>+ Expense Claim</b> or <b>+ Grievance</b>.</td></tr>` : ''}
       </tbody>
     </table>
@@ -1465,7 +1465,7 @@ async function drawAppraisalEditor(pane, ctx, a, employee) {
   const ownSubmission = reviewing && submitted && (submitted.actor_user_id === me.id || submitted.actor_user_id === me.user);
   const returned = status === 'Rejected' ? [...log].reverse().find(e => e.action === 'Rejected') : null;
   const [label, kind] = HR_APR_STATE[status] || [status, 'secondary'];
-  const num = (v, on, attr) => (on ? `<input type="number" class="form-input" style="width:90px;" min="1" max="5" step="0.5" ${attr} value="${v ?? ''}">` : hrEsc(v ?? ''));
+  const num = (v, on, attr) => (on ? `<input type="number" class="form-input" style="width:90px;" min="1" max="5" step="0.5" ${attr} value="${hrEsc(v)}">` : hrEsc(v ?? ''));
   const reviewer1 = hrRoleName(reviewer) || 'Super Admin';
   pane.innerHTML = `<div class="table-panel" style="padding:24px;">
     <h2 style="font-size:16px;font-weight:700;margin:0 0 12px;">${a ? `Appraisal · ${hrEsc(emps.name(a.employee_id))}` : 'Start appraisal'}</h2>
@@ -1743,11 +1743,11 @@ const HR_GRV_STATE = {
 // (engines/hr_journeys.go reads it off the policy the server enforces).
 function hrGrievanceAccessText(a) {
   const lists = a.case_list_roles.length ? ` ${a.case_list_roles.join(', ')} also see${a.case_list_roles.length === 1 ? 's' : ''} every case's number, employee, category and status - not what it says.` : '';
-  return `Who can read grievances: what was raised and how it was resolved - ${a.content_readers.join(', ')} only.${lists} Any other role sees only the employee's own cases, by status. Cases are decided by ${hrRoleName(a.reviewer_role) || 'Super Admin'}.`;
+  return `Who can read grievances: what was raised and how it was resolved - ${a.content_readers.join(', ')} only.${lists} Any other role sees only the employee's own cases - and an employee reads what their own case says and how it was resolved. Cases are decided by ${hrRoleName(a.reviewer_role) || 'Super Admin'}.`;
 }
 function hrGrievanceYouText(a) {
   const y = a.you;
-  return `You (${hrRoleName(y.role)}): ${y.all_cases ? 'every case' : 'your own cases only'}, ${y.read_content ? 'including what they say' : 'not what they say'}${y.decide ? '; you decide cases' : ''}.`;
+  return `You (${hrRoleName(y.role)}): ${y.all_cases ? 'every case' : 'your own cases only'}, ${y.read_content || !y.all_cases ? 'including what they say' : 'not what they say'}${y.decide ? '; you decide cases' : ''}.`;
 }
 function hrGrievanceMineText(a) {
   const lists = a.case_list_roles.length ? ` ${a.case_list_roles.join(', ')} can see that it exists - its number, your name, category and status - but not what it says.` : '';

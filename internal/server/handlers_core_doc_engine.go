@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -76,6 +77,11 @@ func scopeValueExpr(fields []string) string {
 	}
 	return "COALESCE(" + strings.Join(parts, ", ") + ")"
 }
+
+// madeOnOwnScreen names the doctypes handleGenericDoc refuses to write - each
+// is made by its own screen. GET /api/v1/me/permissions sends it so no list or
+// picker offers New for them (132.10 h).
+var madeOnOwnScreen = []string{"StockMove", "OMSBill", "MRPChange", "InventoryAdjustment"}
 
 func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
@@ -260,7 +266,9 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// 24.10: surfaced so a caller can round-trip it back as
 			// expected_version on the next update - see the POST branch below.
 			dataMap["version"] = version
-			if dataMap, err = engines.FilterFieldsForRole(tenantID, role, doctype, dataMap); err != nil {
+			// 73.D.2: an employee reads their own grievance back.
+			own := engines.OwnRecordScope(tenantID, doctype, engines.SessionScope{Role: role, UserID: userID, LocationCode: location})
+			if dataMap, err = engines.FilterFieldsForSession(tenantID, role, doctype, dataMap, own); err != nil {
 				writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 				return
 			}
@@ -513,6 +521,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			defer rows.Close()
 
 			docs := []map[string]interface{}{}
+			own := engines.OwnRecordScope(tenantID, doctype, engines.SessionScope{Role: role, UserID: userID, LocationCode: location})
 			for rows.Next() {
 				var docID string
 				var dataStr string
@@ -536,7 +545,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				if sortRecent {
 					dataMap["updated_at"] = updatedAt.Format(time.RFC3339)
 				}
-				if dataMap, err = engines.FilterFieldsForRole(tenantID, role, doctype, dataMap); err != nil {
+				if dataMap, err = engines.FilterFieldsForSession(tenantID, role, doctype, dataMap, own); err != nil {
 					writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 					return
 				}
@@ -1026,6 +1035,11 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// Stage 25 Batch 3: GRN/PurchaseOrder/TransferOrder/ProductionOrder/
 		// Employee/Leave transactional checks - same choke point as Batch
 		// 2's ValidateMasterDataRules above, just for this stage's modules.
+		// Stage 130.10 (78.3 c): typed dates within the client's window.
+		if err := engines.ValidateDateLimits(tenantID, role, doctype, payload); err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
 		if err := engines.ValidateTransactionalRules(tenantID, doctype, docID, priorStatus, priorData, payload); err != nil {
 			if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
 				writeAPIErrorDetail(w, r, verr.Code, verr.SubFor, verr.Message)
@@ -1078,6 +1092,26 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			if err := engines.PrepareLocationCostCenter(tenantID, docID, userID, payload); err != nil {
+				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+				return
+			}
+		}
+
+		// Stage 130.10 (78.3 b, f, h): receipt timing, quote validity, the
+		// input credit deadline - stamped on the record.
+		engines.PrepareDayLimitStamps(tenantID, doctype, id == "", payload)
+
+		// Stage 130.9 (72.D a): a new item starts as Draft when items need
+		// release approval, and one still waiting is released only by it.
+		if doctype == "Item" {
+			if err := engines.PrepareItemRelease(tenantID, id == "", priorStatus, payload); err != nil {
+				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+				return
+			}
+		}
+		// Stage 130.16 (74.3.4): every template save is a version.
+		if doctype == "PrintTemplate" {
+			if err := engines.PreparePrintTemplateVersion(tenantID, docID, r.Header.Get("Resolved-User-ID"), id == "", priorData, payload); err != nil {
 				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 				return
 			}
@@ -1139,6 +1173,8 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// is now refused. And a create that reuses the id of a deleted record
 		// brings it back with the new data - it used to report success while
 		// the row stayed deleted and never appeared anywhere.
+		// Stage 130.9 (72.D e): an edit records its editor and reason
+		// (updated_by / edit_reason), which the audit trigger reads.
 		query := fmt.Sprintf(`
 			INSERT INTO %s.documents (id, doctype, data, status, created_by, version)
 			VALUES ($1, $2, $3, $4, $5, 1)
@@ -1146,11 +1182,13 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				data = EXCLUDED.data,
 				status = EXCLUDED.status,
 				updated_at = CURRENT_TIMESTAMP,
+				updated_by = $5,
+				edit_reason = NULLIF($8, ''),
 				version = %s.documents.version + 1,
 				deleted_at = CASE WHEN $7::bool THEN NULL ELSE %s.documents.deleted_at END
 			WHERE %s.documents.doctype = EXCLUDED.doctype
 			  AND ($6::int IS NULL OR %s.documents.version = $6)`, schema, schema, schema, schema, schema)
-		result, err := db.DB.Exec(query, docID, doctype, payloadBytes, statusVal, userID, expectedVersion, id == "")
+		result, err := db.DB.Exec(query, docID, doctype, payloadBytes, statusVal, userID, expectedVersion, id == "", strings.TrimSpace(editReason))
 		if err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
@@ -1171,6 +1209,15 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// can't roll it back and shouldn't slow down the response.
 		engines.InvokeAfterSaveHooksAsync(tenantID, doctype, docID, payload)
 
+		// Stage 130.9 (72.D a): the new item goes to its approver at once.
+		if doctype == "Item" && id == "" && statusVal == "Draft" && engines.ItemReleaseApprovalOn(tenantID) {
+			if errSub := engines.SubmitForApproval(tenantID, "Item", docID, userID, role); errSub != nil {
+				engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "ITEM_RELEASE_SUBMIT_FAILED", r.URL.Path, errSub.Error(), "")
+			} else {
+				statusVal = "Pending Approval"
+			}
+		}
+
 		if wasApproved {
 			if gated, errGate := engines.IsApprovalGated(tenantID, doctype); errGate == nil && gated {
 				if errReset := engines.ResetToPendingOnEdit(tenantID, doctype, docID, userID, role, payload); errReset != nil {
@@ -1184,6 +1231,18 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 					// the document actually dropped back into the approval queue.
 					statusVal = "Pending Approval"
 				}
+			}
+		}
+
+		// Stage 130.9 (72.D e): one signed audit event per edit - who changed
+		// which fields, and why - for every client.
+		if priorData != nil && id != "" {
+			if changed := changedFieldNames(priorData, payload); len(changed) > 0 {
+				detail := fmt.Sprintf("Edited %s %s: %s", doctype, docID, strings.Join(changed, ", "))
+				if r := strings.TrimSpace(editReason); r != "" {
+					detail += " - reason: " + r
+				}
+				engines.LogAuditEvent(tenantID, userID, "EDIT_"+doctype, "SUCCESS", detail)
 			}
 		}
 
@@ -1310,6 +1369,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				// unless generation is off, plus a receipt-date barcode when on.
 				engines.EnsureReceiptBarcodes(tenantID, docID, items)
 				engines.MarkASNReceivedIfComplete(tenantID, docID) // Stage 55.7
+				engines.MatchCrossDockPlansForGRN(tenantID, docID) // Stage 130.13 (80.7 g)
 
 				// Stage 62: the PO-vs-invoice price difference is settled by a
 				// Debit Note / Vendor Credit Note raised and posted now - never a
@@ -1790,6 +1850,27 @@ func handleReactivateMasterDocument(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Only master documents can be reactivated")
 		return
 	}
+	// 132.10 (i): a deleted record no longer counts toward "only one Active
+	// per scope", so another may have taken its place - re-run the save's
+	// master rules before bringing it back.
+	var raw []byte
+	var status string
+	if err := db.DB.QueryRow(fmt.Sprintf("SELECT data, COALESCE(status, '') FROM %s.documents WHERE id = $1 AND doctype = $2 AND deleted_at IS NOT NULL", schema), id, doctype).Scan(&raw, &status); err == nil {
+		payload := map[string]interface{}{}
+		if json.Unmarshal(raw, &payload) == nil {
+			if _, ok := payload["status"]; !ok && status != "" {
+				payload["status"] = status
+			}
+			if err := engines.ValidateMasterDataRules(tenantID, id, doctype, payload); err != nil {
+				if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
+					writeAPIErrorDetail(w, r, verr.Code, verr.SubFor, verr.Message)
+				} else {
+					writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+				}
+				return
+			}
+		}
+	}
 	result, err := db.DB.Exec(fmt.Sprintf("UPDATE %s.documents SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND doctype = $2 AND deleted_at IS NOT NULL", schema), id, doctype)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
@@ -1841,6 +1922,8 @@ var approvalOnlyStatuses = []string{"Approved", "Rejected"}
 var postedDocumentStatuses = map[string]bool{
 	"Approved": true, "Posted": true, "Paid": true, "Partially Paid": true, "Received": true, "Partially Received": true,
 	"Dispatched": true, "In Transit": true, "Completed": true, "Closed": true, "Reversed": true, "Delivered": true, "Shipped": true,
+	// Stage 130.16 (74.5.3): the new documents' issued states - never deleted.
+	"Issued": true, "Partly Returned": true, "Returned": true, "Partly Received": true, "Sent": true, "Challan Pending": true, "Used": true,
 }
 
 func isApprovalOnlyStatus(s string) bool {
@@ -2048,4 +2131,27 @@ func handleGetIndustryLock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(lock)
+}
+
+// changedFieldNames (Stage 130.9) lists, sorted, the fields an edit changed:
+// a value that differs, or one added or removed.
+func changedFieldNames(before, after map[string]interface{}) []string {
+	var out []string
+	seen := map[string]bool{}
+	for k, v := range after {
+		seen[k] = true
+		if k == "id" || k == "version" || k == "updated_at" {
+			continue
+		}
+		if fmt.Sprintf("%v", before[k]) != fmt.Sprintf("%v", v) {
+			out = append(out, k)
+		}
+	}
+	for k := range before {
+		if !seen[k] && k != "id" && k != "version" && k != "status" {
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
+	return out
 }

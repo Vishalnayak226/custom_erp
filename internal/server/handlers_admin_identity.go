@@ -96,6 +96,9 @@ func handleVerifyAuditLogChain(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"intact": intact, "broken_at": brokenAt})
 }
 
+// 134.6 (47.10.1): most user accounts the admin user list returns, alphabetical by username.
+const adminUserListCap = 2000
+
 func handleListUsers(w http.ResponseWriter, r *http.Request) {
 	role := r.Header.Get("Resolved-Role")
 	if !requireHRAdmin(w, r, role) {
@@ -117,7 +120,7 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 		COALESCE(to_jsonb(u)->>'department', ''),
 		COALESCE((SELECT e.id FROM %s.documents e WHERE e.doctype = 'Employee' AND e.deleted_at IS NULL AND e.data->>'user_id' = u.id
 		          ORDER BY (e.status = 'Active') DESC LIMIT 1), '')
-		FROM %s.users u WHERE %s ORDER BY username`, schema, schema, engines.NotSupportUserSQL("u")))
+		FROM %s.users u WHERE %s ORDER BY username LIMIT %d`, schema, schema, engines.NotSupportUserSQL("u"), adminUserListCap))
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return

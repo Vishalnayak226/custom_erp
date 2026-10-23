@@ -317,6 +317,9 @@ func StartWaveAutoCreationWorker(ctx context.Context, interval time.Duration) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				if !IsSchedulerLeader() { // 134.7: one server runs each sweep
+					continue
+				}
 				if db.DB == nil {
 					continue
 				}
@@ -336,7 +339,7 @@ func StartWaveAutoCreationWorker(ctx context.Context, interval time.Duration) {
 func processWaveTemplateAutoRun(schema string) {
 	rows, err := db.DB.Query(fmt.Sprintf(
 		`SELECT id, data->>'run_daily_at', COALESCE(data->>'last_auto_run_date', '')
-		 FROM %s.documents WHERE doctype = 'WaveTemplate' AND status = 'Active' AND COALESCE(data->>'run_daily_at', '') != ''`, schema))
+		 FROM %s.documents WHERE doctype = 'WaveTemplate' AND status = 'Active' AND deleted_at IS NULL AND COALESCE(data->>'run_daily_at', '') != ''`, schema))
 	if err != nil {
 		LogBackgroundJobError("WAVE_AUTO_CREATE", "query", schema, err)
 		return

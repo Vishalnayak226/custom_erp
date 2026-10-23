@@ -181,6 +181,7 @@ func PostGRNChildStep(tenantID, userID, storeCode, grnID, childKey string, in GR
 	LogAuditEvent(tenantID, userID, "GRN_CHILD_POSTED", "SUCCESS", fmt.Sprintf("GRN %s child %s posted (%d line(s))", grnID, childKey, len(mine)))
 	if allPosted {
 		MarkASNReceivedIfComplete(tenantID, grnID)
+		MatchCrossDockPlansForGRN(tenantID, grnID) // Stage 130.13 (80.7 g)
 		finalizeStepGRN(tenantID, userID, storeCode, grnID)
 	}
 	return GetGRNStepView(tenantID, grnID)
@@ -224,7 +225,9 @@ func grnNoteLines(data map[string]interface{}, lines []map[string]interface{}) (
 		iq, ip := grnInvoiceQty(l), grnInvoicePrice(l)
 		aq, gp := grnStepAccepted(l), grnGRNPrice(l)
 		rate := numFromInterface(l["gst_rate"])
-		t := round2(iq*ip - aq*gp)
+		iv, ig := grnInvoiceLineAmount(l)
+		ov, og := grnOurLineAmount(l)
+		t := round2(iv - ov)
 		if math.Abs(t) < 0.005 {
 			continue
 		}
@@ -237,7 +240,7 @@ func grnNoteLines(data map[string]interface{}, lines []map[string]interface{}) (
 		}
 		n := grnNoteLine{LineNo: grnLineNo(l), SKU: strField(l, "sku"), Source: strings.Join(src, " and "),
 			InvoiceQty: iq, InvoiceRate: round2(ip), GRNQty: aq, GRNPrice: round2(gp), GSTRate: rate,
-			Taxable: t, GST: round2(t * rate / 100), Qty: aq, PORate: round2(gp), InvoiceValue: round2(iq * ip), OurValue: round2(aq * gp)}
+			Taxable: t, GST: round2(ig - og), Qty: aq, PORate: round2(gp), InvoiceValue: round2(iv), OurValue: round2(ov)}
 		out = append(out, n)
 		taxable += n.Taxable
 		gst += n.GST
@@ -341,6 +344,10 @@ func ensureStepGRNVendorBill(tenantID, userID, grnID string, grn map[string]inte
 			"invoice_date": strField(grn, "vendor_invoice_date"), "financial_year": documentFinancialYear(time.Now()),
 			"status": "Draft", "source_doctype": "GRN", "source_doc_id": grnID,
 		}
+		// Stage 130.16 (74.3.2): due by the PO's payment term.
+		if due := POPaymentDueDate(tenantID, strField(grn, "po_id"), strField(grn, "vendor_invoice_date")); due != "" {
+			doc["due_date"] = due
+		}
 		issueNumberInto(doc, tenantID, "VendorInvoice", id, "", strField(grn, "location"))
 		b, _ := json.Marshal(doc)
 		if _, err := db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, 'VendorInvoice', $2, 'Draft', $3)`, schema), id, b, userID); err != nil {
@@ -374,7 +381,7 @@ func readStepGRNBilling(grn map[string]interface{}, lines []map[string]interface
 	var net float64
 	for _, l := range lines {
 		sku := strField(l, "sku")
-		v := grnInvoiceQty(l) * grnInvoicePrice(l)
+		v, _ := grnInvoiceLineAmount(l)
 		net += v
 		rate[sku] += v
 		qty[sku] += grnInvoiceQty(l)

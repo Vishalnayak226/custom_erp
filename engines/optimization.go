@@ -69,6 +69,9 @@ func CalculateSalesVelocity(tenantID string, locationCode string, sku string, da
 	return float64(totalSold) / divisor, nil
 }
 
+// 134.6 (47.10.1): most rows the replenishment (lowest stock first) and SLA-breach (oldest task first) scans read before their Go filter.
+const optimizationScanRowCap = 5000
+
 // GetReplenishmentSuggestions checks stock levels and triggers reorder suggestions based on sales velocities
 func GetReplenishmentSuggestions(tenantID string, locationCode string, leadTimeDays int, safetyStock int) ([]ReplenishmentSuggestion, error) {
 	schema, err := db.GetTenantSchema(tenantID)
@@ -78,8 +81,10 @@ func GetReplenishmentSuggestions(tenantID string, locationCode string, leadTimeD
 
 	// Fetch all inventory availability records for the location
 	query := fmt.Sprintf(`
-		SELECT sku, available FROM %s.inventory_availability 
-		WHERE location_code = $1`, schema)
+		SELECT sku, available FROM %s.inventory_availability
+		WHERE location_code = $1
+		ORDER BY available, sku
+		LIMIT %d`, schema, optimizationScanRowCap)
 	rows, err := db.DB.Query(query, locationCode)
 	if err != nil {
 		return nil, err
@@ -151,7 +156,9 @@ func GetSLABreaches(tenantID string, thresholdMinutes float64) ([]SLABreachRepor
 	// frame, so their difference is correct in any time zone.
 	query := fmt.Sprintf(`
 		SELECT id, data, created_at, EXTRACT(EPOCH FROM (NOW() - created_at)) / 60 FROM %s.documents
-		WHERE doctype = 'FulfillmentTask' AND status IN ('Pending', 'Picking', 'Packed')`, schema)
+		WHERE doctype = 'FulfillmentTask' AND status IN ('Pending', 'Picking', 'Packed')
+		ORDER BY created_at, id
+		LIMIT %d`, schema, optimizationScanRowCap)
 	rows, err := db.DB.Query(query)
 	if err != nil {
 		return nil, err

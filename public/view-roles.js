@@ -33,6 +33,9 @@ if (!document.getElementById('view-roles-css')) {
 .roles-savebar-note.dirty { color: var(--warning-strong); font-weight: 600; }
 .roles-new-form { padding: 24px; display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
 .roles-new-form .form-group { margin-bottom: 0; }
+.roles-risk { display: inline-block; margin-left: 8px; padding: 1px 6px; border-radius: 999px; font-size: 11px; font-weight: 600; background: var(--warning-soft-bg); color: var(--warning-strong); cursor: help; }
+.roles-matrix td.roles-col.roles-del-on { background: var(--warning-soft-bg); }
+.roles-risk-line { padding: 8px 16px; font-size: 13px; color: var(--warning-strong); border-bottom: 1px solid var(--border-color); }
 `;
   document.head.appendChild(style);
 }
@@ -48,6 +51,21 @@ let expanded = new Set();
 let filterText = '';
 let grantsByRole = new Map();
 let usersByRole = new Map();
+
+// 73.C.11 (user decision 2026-10-22): record types whose rights deserve a
+// second look - each says why on hover - and Delete, which removes records.
+const RISKY = {
+  PasswordResetRequest: "Resets another user's password.",
+  WebhookSubscription: 'Sends ERP data to an outside address, with a shared secret.',
+  NotificationChannelConfig: 'Holds the email / SMS / WhatsApp sending credentials.',
+  RoboticsIntegrationCredential: "Holds an integration's credentials.",
+  BankAccount: 'Bank account numbers.',
+  Payslip: 'Pay.', SalaryStructure: 'Pay.', EmployeeLoan: 'Pay and loans.',
+  Employee: 'Personal, bank and pay details.',
+  Grievance: 'What an employee raised with HR.',
+  Customer: 'Customer contact details.',
+  Vendor: 'Vendor bank details.'
+};
 
 const blank = () => ({ r: false, c: false, u: false, d: false });
 const same = (a, b) => COLS.every(([k]) => !!a[k] === !!b[k]);
@@ -246,9 +264,10 @@ function drawAccess() {
       <button type="button" class="btn btn-outline btn-sm" id="roles-stores" title="Which stores holders of this role work at">Stores: ${escapeHTMLText(roleStoresText(selectedRole))}</button>
       <span class="roles-held">${holders.length ? `Held by ${holders.length} user${holders.length === 1 ? '' : 's'}: ${escapeHTMLText(holders.slice(0, 5).join(', '))}${holders.length > 5 ? ', …' : ''}` : 'No user holds this role yet - assign it on the Users screen.'}</span>
     </div>
+    <div class="roles-risk-line hidden" id="roles-risk-line"></div>
     <div class="roles-matrix-wrap">
       <table class="roles-matrix">
-        <thead><tr><th>Module / record type</th><th class="roles-col">Full access</th>${COLS.map(([, l]) => `<th class="roles-col">${l}</th>`).join('')}</tr></thead>
+        <thead><tr><th>Module / record type</th><th class="roles-col">Full access</th>${COLS.map(([k, l]) => `<th class="roles-col"${k === 'd' ? ' title="Delete removes records - give it sparingly"' : ''}>${l}${k === 'd' ? ' ⚠' : ''}</th>`).join('')}</tr></thead>
         <tbody id="roles-matrix-body"></tbody>
       </table>
     </div>
@@ -316,7 +335,8 @@ function drawRows() {
     html += `<tr class="roles-mod"><td><button type="button" class="roles-caret" ${modAttr} aria-expanded="${open}">${escapeHTMLText(mod)} <span class="roles-count" data-mod-count="${escapeHTMLText(mod)}"></span></button></td>${rowTicks(modAttr, `${mod} (whole module)`)}</tr>`;
     if (open) {
       for (const t of shown) {
-        html += `<tr class="roles-dt"><td>${escapeHTMLText(t.label)}</td>${rowTicks(`data-dt="${escapeHTMLText(t.name)}"`, t.label)}</tr>`;
+        const risk = RISKY[t.name] ? `<span class="roles-risk" title="${escapeHTMLText(RISKY[t.name])}">Sensitive</span>` : '';
+        html += `<tr class="roles-dt"><td>${escapeHTMLText(t.label)}${risk}</td>${rowTicks(`data-dt="${escapeHTMLText(t.name)}"`, t.label)}</tr>`;
       }
     }
   }
@@ -345,6 +365,18 @@ function syncTicks() {
       box.indeterminate = n > 0 && n < names.length;
     }
   });
+  document.querySelectorAll('#roles-matrix-body input[data-col="d"]').forEach(box => box.closest('td').classList.toggle('roles-del-on', box.checked || box.indeterminate));
+  const all = [...groups.values()].flat().map(t => t.name);
+  const deletes = all.filter(name => (draft.get(name) || blank()).d).length;
+  const risky = all.filter(name => RISKY[name] && anyRight(draft.get(name) || blank())).map(getDoctypeLabel);
+  const riskLine = document.getElementById('roles-risk-line');
+  if (riskLine) {
+    const parts = [];
+    if (deletes) parts.push(`can delete ${deletes} record type${deletes === 1 ? '' : 's'}`);
+    if (risky.length) parts.push(`reaches sensitive records: ${risky.join(', ')}`);
+    riskLine.textContent = parts.length ? `⚠ This role ${parts.join('; ')}.` : '';
+    riskLine.classList.toggle('hidden', !parts.length);
+  }
   document.querySelectorAll('#roles-matrix-body [data-mod-count]').forEach(el => {
     const names = (groups.get(el.dataset.modCount) || []).map(t => t.name);
     const n = names.filter(name => anyRight(draft.get(name) || blank())).length;

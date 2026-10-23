@@ -19,6 +19,13 @@ format: work-register
 
 # Every-module functional ERP verification plan
 
+> **Dated baseline (note added 2026-10-24).** This plan records the tree as it
+> stood on 2026-10-04. Its "missing UI" and "no screen" claims predate the
+> screens built since (Stages 55 to 136); do not read them as the current
+> state. The current coverage record is the page / action-to-role inventory,
+> `docs/micro_checklist.md` item 135.5, and the outsider plan
+> (`wholeops-outsider-plan-2026-10-23.md`, same folder).
+
 ## Scope correction and honest baseline
 
 The [Stage 55 screen audit](../archive/audits/erp-usability-screen-register-2026-10-04.md)

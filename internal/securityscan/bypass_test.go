@@ -81,14 +81,27 @@ var reviewedBypassFindings = map[string]map[string]struct {
 			receipt voucher number (CA...), printed in full like customer_advance.go does.`},
 		"engines/platform_console.go": {1, `secretColumnRe listing card_number, so the data console
 			shows the gift card column masked - the control, not a use.`},
-		"engines/stored_value.go": {15, `Register, issue, balance, redeem, block and cancel look a gift
+		"engines/stored_value.go": {12, `Register, issue, balance, redeem, block and cancel look a gift
 			card up by its number and answer with MaskCardNumber (last four) only; the full number is
 			returned once, to the manager who generated it, for printing on the cards.`},
+		"db/migrations_stage130_8_gift_card_numbers_sealed.sql": {1, `Stage 130.8: a comment naming
+			stored_value_instruments.card_number. The migration only adds card_last4 and card_enc; it
+			writes no number - the server seals existing cards itself at boot, since only it holds the key.`},
+		"engines/store_credit.go": {1, `Stage 130.8: a new store credit instrument is inserted with
+			card_number = svSealCard's keyed hash, never the plain number. Approved by the user
+			2026-10-23 (release after 0.12.0).`},
+		"engines/stored_value_crypto.go": {7, `Stage 130.8, the control itself: card_number holds a keyed
+			hash (h1:...) for lookups, card_enc the number encrypted under STORED_VALUE_KEY, card_last4 what
+			screens print; the boot backfill seals pre-130.8 rows. RevealStoredValueCard returns the full
+			number to HasFullAccess roles only and writes REVEAL_GIFT_CARD_NUMBER to the audit log.
+			Approved by the user 2026-10-23 (release after 0.12.0).`},
 		"internal/server/handlers_item_master.go": {8, `The gift card balance / action / issue request
 			bodies carry the gift card number the cashier scanned; the handlers pass it to
 			engines/stored_value.go and return its masked view.`},
-		"public/view-pos-extras.js": {6, `The POS Gift Card dialog sends the scanned gift card number to
-			those endpoints and holds it on the open bill's tenders, in memory only.`},
+		"public/view-pos-extras.js": {7, `The POS Gift Card dialog sends the scanned gift card number to
+			those endpoints and holds it on the open bill's tenders, in memory only. The seventh (Stage
+			130.8) is the administrator's "show full number" alert for a lost card's reprint - the server
+			refuses non-admins and audits each look-up (engines/stored_value_crypto.go).`},
 		"public/view-pos.js": {2, `Checkout sends the open bill's gift card tenders. A gift card sale is
 			online only - refused before it could reach the offline queue - so a number never lands in
 			the device's offline store.`},

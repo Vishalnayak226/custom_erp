@@ -192,7 +192,7 @@ func runDocumentRegister(tenantID string, s RegisterSpec, storeField string, p m
 	if len(skus) > 0 {
 		irows, err := db.DB.Query(fmt.Sprintf(`
 			SELECT DISTINCT ON (data->>'item') data->>'item', id FROM %s.documents
-			WHERE doctype = 'ProductMedia' AND status = 'Active' AND data->>'item' = ANY($1) AND COALESCE(data->>'file_type', '') LIKE 'image/%%'
+			WHERE doctype = 'ProductMedia' AND status = 'Active' AND deleted_at IS NULL AND data->>'item' = ANY($1) AND COALESCE(data->>'file_type', '') LIKE 'image/%%'
 			ORDER BY data->>'item', (data->>'media_role' = 'Main Image') DESC, created_at`, schema), pq.Array(skus))
 		if err == nil {
 			for irows.Next() {

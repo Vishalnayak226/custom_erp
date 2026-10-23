@@ -273,6 +273,7 @@ func requireTransferReason(tenantID, reasonCode, category, what string) error {
 // transferPosting accumulates one event's stock effect per SKU.
 type transferPosting struct {
 	accounted int // units leaving the source's in_transit
+	lost      int // Stage 130.14: of those, lost - written off as a stock loss
 	toOnHand  int
 	toAvail   int
 	toDamaged int
@@ -545,6 +546,7 @@ func ReceiveTransferOrderLines(tenantID, transferOrderID, userID string, req Tra
 			}
 			addToBalance(bal, transferSerialLost, open)
 			p.accounted += open
+			p.lost += open
 			ev.Lost = open
 			eventLines = append(eventLines, ev)
 		}
@@ -600,6 +602,27 @@ func ReceiveTransferOrderLines(tenantID, transferOrderID, userID string, req Tra
 		}
 	}
 
+	// Stage 130.14 (74.2.3b): units lost in transit are written off as a stock
+	// loss, through the posting profile a stock adjustment's loss uses (at the
+	// moving-average cost; an item with no cost books nothing, as a sale does).
+	// Damaged units are still owned and arrive in Damaged - nothing to write off.
+	for sku, p := range postings {
+		if p.lost <= 0 {
+			continue
+		}
+		costPaise, ok := ResolveQuoteUnitCostPaise(tenantID, sku)
+		if !ok || costPaise <= 0 {
+			continue
+		}
+		value := costPaise * int64(p.lost)
+		acc := ResolvePostingAccounts(tenantID, PostingEventAdjustmentLoss,
+			PostingContext{LegalEntity: locationLegalEntity(tenantID, fromWarehouse), ReasonCode: reasonForSku[sku][0]}, accountStockAdjustment, accountInventory)
+		if err := PostDoubleEntryTx(tx, tenantID, schema, "TransferOrder", transferOrderID, map[string]int64{acc.Debit: value}, map[string]int64{acc.Credit: value},
+			"", fmt.Sprintf("TransferOrder:%s:LOST:%d:%s", transferOrderID, len(events)+1, sku)); err != nil {
+			return nil, err
+		}
+	}
+
 	ev := transferEvent{No: len(events) + 1, Kind: "Receipt", Key: strings.TrimSpace(req.ReceiptKey),
 		At: time.Now().UTC().Format(time.RFC3339), By: userID, Lines: eventLines}
 	newStatus := transferStatusAfter(balances)
@@ -646,6 +669,7 @@ func (p *transferPosting) recordArrival(kind string, qty int, batchNo, serialNo 
 		// Lost units leave in_transit and arrive nowhere: the dispatch line
 		// already took them off the source's on_hand.
 		p.accounted += qty
+		p.lost += qty
 	}
 }
 

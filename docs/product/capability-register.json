@@ -2,7 +2,7 @@
   "schema_version": 3,
   "status": "draft",
   "owner": "product-owner",
-  "release": "0.1.0 development tree; not released support",
+  "release": "none accepted yet (draft register; product releases are listed under Control Panel > Releases)",
   "configurations": [
     {
       "id": "REF-RETAIL-IN",

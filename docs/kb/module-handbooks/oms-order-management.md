@@ -151,11 +151,12 @@ this article covers the mechanics behind it.
 There are genuinely two different return paths in this system, at very
 different depths.
 
-The **quick, in-store refund** — same-visit, refund only, no batch/serial
-capture — is documented in [Point of Sale](pos-operations.md); it's what a
-till actually uses today.
+The **quick, in-store refund and exchange** — same visit, no batch/serial
+capture — is documented in [Point of Sale](pos-operations.md): the till's
+**Return** tab raises a return, and **More… → Exchange** swaps items against
+the original bill so the customer pays only the difference.
 
-A second, much richer workflow exists **entirely server-side**:
+The second, richer workflow runs on **OMS → Returns**:
 `CreateReturnRequest` → Approve/Reject → `ReceiveReturnRequest` →
 `ApplyReturnQC` (per-line disposition, with an optional exchange-for-SKU) →
 a resulting `RefundRequest` → Approve/Reject → `ProcessRefundRequest`, plus
@@ -209,12 +210,16 @@ released at the source only after a successful reserve at the destination),
 so nothing is left unreserved; retry once stock is available, or pick a
 different target.
 
-**Looking for exchange handling and can't find it.** See the warning
-above — today's real workflow is a POS refund plus a new sale, not a
-single exchange action.
+**Looking for exchange handling and can't find it.** At the till it is
+**More… → Exchange** (an empty till, session open): type the original bill
+number, choose what is coming back and its condition, then ring up the new
+items — the Total is what is left to pay after the credit. For a return
+being inspected on **OMS → Returns**, **Inspect** takes an optional item code
+per line to exchange it instead of refunding it.
 
 ## What is not here yet
 
-**The full `ReturnRequest`/`RefundRequest` QC-disposition and reverse-
-pickup workflow has zero UI** — see the warning above. It is real, tested,
-and API-only.
+Both return paths have screens (the till's **Return** tab and **More… →
+Exchange**, and **OMS → Returns**). What is still owed is acceptance, not a
+screen: the customer-role and end-to-end release checks, and a real
+provider settlement for card / UPI refunds (see the warning above).

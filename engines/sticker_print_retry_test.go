@@ -53,4 +53,24 @@ func TestStickerPrintRetryWritesHistoryOnce(t *testing.T) {
 	if rows() != 3 {
 		t.Fatalf("an unkeyed print is its own run: rows = %d, want 3", rows())
 	}
+
+	// Stage 133.3: a preview returns the same labels and writes no history,
+	// even with the key a later Print reuses; that Print then logs once.
+	preview := StickerPrintOptions{RequestKey: "preview-key-1", Preview: true}
+	shown, err := PrintStickers(tenantID, []string{"R-1", "R-2"}, "PRN-1", "admin", "", 3, preview)
+	if err != nil || len(shown) != 2 || shown[0].Barcode != "8900000000011" || shown[0].Name != "Retry one" {
+		t.Fatalf("preview labels: %+v %v", shown, err)
+	}
+	if rows() != 3 {
+		t.Fatalf("history rows after a preview = %d, want 3 (nothing logged)", rows())
+	}
+	if _, err := PrintStickers(tenantID, []string{"R-1", "R-2"}, "PRN-1", "admin", "", 3, StickerPrintOptions{RequestKey: "preview-key-1"}); err != nil {
+		t.Fatal(err)
+	}
+	if rows() != 5 {
+		t.Fatalf("the print after a preview logs its run: rows = %d, want 5", rows())
+	}
+	if _, err := PrintStickers(tenantID, []string{"R-1"}, "NO-SUCH-PRN", "admin", "", 1, preview); err == nil {
+		t.Fatal("a preview still checks the printer like a print does")
+	}
 }

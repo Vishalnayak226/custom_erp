@@ -22,6 +22,7 @@ function renderQZSetupPanel(container) {
       <label class="form-label" for="qz-doc-file">Print a marketplace label or invoice (PDF from Myntra, or any channel)</label>
       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
         <input type="file" id="qz-doc-file" class="form-input" accept=".pdf,.zpl,.txt,.prn" style="max-width: 340px;">
+        <button class="btn btn-outline" id="qz-doc-preview-btn" type="button">Preview</button>
         <button class="btn btn-primary" ${actionAttrs('qzPrintPickedDocument')}>Print</button>
       </div>
       <p class="page-subtitle" style="margin: 6px 0 0;">
@@ -30,7 +31,49 @@ function renderQZSetupPanel(container) {
     </div>
   `;
   container.appendChild(panel);
+  panel.querySelector('#qz-doc-preview-btn').addEventListener('click', qzPreviewPickedDocument);
   qzRefreshStatus();
+}
+
+// qzPreviewPickedDocument (Stage 133.3) shows the picked file as the channel
+// issued it before it prints: a PDF in the browser's own viewer in a new tab
+// (the page's security policy keeps PDFs out of its own frames), a ZPL or text
+// file as its text - the printer's commands, which the printer draws from.
+async function qzPreviewPickedDocument() {
+  const input = document.getElementById('qz-doc-file');
+  if (!input || !input.files || input.files.length === 0) {
+    await showCustomAlert('Choose a label or invoice file first.', 'Nothing Selected');
+    return;
+  }
+  const file = input.files[0];
+  if (/\.pdf$/i.test(file.name) || file.type === 'application/pdf') {
+    const url = URL.createObjectURL(file);
+    if (!window.open(url, '_blank')) await showCustomAlert('The browser blocked the preview tab - allow pop-ups for this site and try again.', 'Preview');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    return;
+  }
+  const text = await file.text();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-container" style="max-width: 760px;" role="dialog" aria-modal="true" aria-labelledby="qz-doc-preview-title">
+      <div class="modal-header"><h3 class="modal-title" id="qz-doc-preview-title">${escapeHTMLText(file.name)}</h3>
+        <button type="button" class="modal-close" aria-label="Close dialog" data-qz-preview="close">×</button></div>
+      <div class="modal-body">
+        <p style="margin: 0 0 8px; color: var(--text-muted);">This file is the label printer's own commands; the printer draws the label from them.</p>
+        <pre style="white-space: pre-wrap; font-family: monospace; font-size: 12px; max-height: 60vh; overflow: auto; margin: 0;">${escapeHTMLText(text)}</pre>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-qz-preview="close">Close</button>
+        <button type="button" class="btn btn-primary" data-qz-preview="print">Print</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('open'));
+  const close = () => overlay.remove();
+  overlay.querySelectorAll('[data-qz-preview="close"]').forEach(b => b.addEventListener('click', close));
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector('[data-qz-preview="print"]').addEventListener('click', () => { close(); qzPrintPickedDocument(); });
 }
 
 async function qzRefreshStatus() {
@@ -221,7 +264,10 @@ async function renderStickerPrintTab(container) {
       </div>
       <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 180px;">
         <label class="form-label" for="sticker-reprint-reason">Reprint reason (kept in the print history)</label>
-        <input type="text" id="sticker-reprint-reason" class="form-input">
+        <div style="display: flex; gap: 8px;">
+          <select id="sticker-reprint-code" class="form-select hidden" style="max-width: 240px;" aria-label="Reprint reason code"></select>
+          <input type="text" id="sticker-reprint-reason" class="form-input">
+        </div>
       </div>
     </div>
     <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 16px;">
@@ -236,9 +282,14 @@ async function renderStickerPrintTab(container) {
     </div>
     <div id="sticker-sku-list" style="margin-bottom: 16px; font-size: 13px; color: var(--text-muted);"></div>
     <div id="sticker-form-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
-    <button class="btn btn-primary" id="sticker-print-btn">Print Stickers</button>
+    <div style="display: flex; gap: 12px;">
+      <button class="btn btn-outline" id="sticker-preview-btn" type="button">Preview</button>
+      <button class="btn btn-primary" id="sticker-print-btn" style="flex: 1;">Print Stickers</button>
+    </div>
   `;
   printPage.appendChild(formPanel);
+  stickerReprintCodeWanted = '';
+  fillStickerReprintCodes();
 
   // Stage 55.19: printer setup (QZ Tray detect/test, channel label PDFs) is a
   // one-time path per computer, so it sits collapsed below the daily flow.
@@ -250,12 +301,12 @@ async function renderStickerPrintTab(container) {
 
   let historyHtml = `
     <table>
-      <thead><tr><th>SKU</th><th>Barcode</th><th>Printer</th><th>Printed By</th><th>Copies</th><th>Source</th><th>Lot</th><th>Reprint Reason</th><th>Date</th></tr></thead>
+      <thead><tr><th>SKU</th><th>Barcode</th><th>Printer</th><th>Printed By</th><th>Copies</th><th>Source</th><th>Lot</th><th>Reprint Reason</th><th>Date</th><th></th></tr></thead>
       <tbody>
   `;
   historyHtml += history.length === 0
-    ? `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No print history yet. Click <b>+ Print Stickers</b>, add SKUs or load a transaction, then print.</td></tr>`
-    : history.map(h => `
+    ? `<tr><td colspan="10" style="text-align:center; color:var(--text-muted);">No print history yet. Click <b>+ Print Stickers</b>, add SKUs or load a transaction, then print.</td></tr>`
+    : history.map((h, i) => `
         <tr>
           <td style="font-family: monospace;">${escapeHTMLText(h.sku)}</td>
           <td style="font-family: monospace;">${escapeHTMLText(h.barcode)}</td>
@@ -266,15 +317,38 @@ async function renderStickerPrintTab(container) {
           <td style="font-family: monospace;">${escapeHTMLText(h.batch_no || '')}</td>
           <td>${escapeHTMLText(h.reprint_reason || '')}</td>
           <td>${escapeHTMLText(new Date(h.printed_at).toLocaleString())}</td>
+          <td><button type="button" class="action-btn" data-sticker-reprint="${i}">Reprint</button></td>
         </tr>
       `).join('');
   historyHtml += `</tbody></table>`;
   historyPanel.innerHTML = historyHtml;
+  historyPanel.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-sticker-reprint]');
+    if (btn) reprintStickerRow(history[Number(btn.dataset.stickerReprint)]);
+  });
 
   // Stage 111.2: on by default; the choice is remembered on this computer.
   const onScan = document.getElementById('sticker-print-on-scan');
   try { onScan.checked = localStorage.getItem('sticker-print-on-scan') !== '0'; } catch (_) { onScan.checked = true; }
   onScan.addEventListener('change', () => { try { localStorage.setItem('sticker-print-on-scan', onScan.checked ? '1' : '0'); } catch (_) { /* storage off */ } });
+  // Stage 133.1 (user, 2026-10-22: "I want this to be fixed. not frozen for
+  // new print"): the printer and copies are remembered on this computer, so
+  // a new print opens ready; either can be changed for any one print, and a
+  // change is kept for the next.
+  const printerSel = document.getElementById('sticker-printer');
+  const copiesInput = document.getElementById('sticker-copies');
+  let keptPrinter = '', keptCopies = 0;
+  try {
+    keptPrinter = localStorage.getItem('sticker-printer') || '';
+    keptCopies = parseInt(localStorage.getItem('sticker-copies'), 10) || 0;
+  } catch (_) { /* storage off */ }
+  printerSel.value = stickerStartPrinter(printers, keptPrinter);
+  if (keptCopies > 0) copiesInput.value = keptCopies;
+  printerSel.addEventListener('change', () => { try { localStorage.setItem('sticker-printer', printerSel.value); } catch (_) { /* storage off */ } });
+  copiesInput.addEventListener('change', () => {
+    const n = parseInt(copiesInput.value, 10);
+    if (n > 0) { try { localStorage.setItem('sticker-copies', String(n)); } catch (_) { /* storage off */ } }
+  });
   document.getElementById('sticker-add-btn').addEventListener('click', addStickerSKU);
   document.getElementById('sticker-sku-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -283,6 +357,7 @@ async function renderStickerPrintTab(container) {
     }
   });
   document.getElementById('sticker-print-btn').addEventListener('click', printStickers);
+  document.getElementById('sticker-preview-btn').addEventListener('click', previewStickers);
 
   // Stage 88.5.5: an MRP change hands its items over for the sticker reprint.
   let prefill = null;
@@ -291,9 +366,61 @@ async function renderStickerPrintTab(container) {
     stickerSKUs = [...new Set(prefill.skus)];
     document.getElementById('sticker-print-on-scan').checked = false;
     document.getElementById('sticker-reprint-reason').value = prefill.reason || '';
+    stickerReprintCodeWanted = prefill.reason_code || '';
     window.txnShowPane('sticker-print:new');
   }
   renderStickerSKUList();
+}
+
+// stickerStartPrinter (Stage 133.1) is the printer a new sticker print opens
+// on: the one last used on this computer, else the Default For Sticker printer
+// of this store (or of no store in particular), else the only Active printer.
+function stickerStartPrinter(printers, kept) {
+  const codeOf = p => p.code || p.id;
+  const active = printers.filter(p => (p.status || 'Active') === 'Active');
+  if (kept && active.some(p => codeOf(p) === kept)) return kept;
+  const store = (window.erpWorkingStore || {}).code || '';
+  const here = active.filter(p => p.print_role === 'Sticker' && (!store || !p.location || p.location === store));
+  const pick = here.find(p => store && p.location === store) || here[0] || (active.length === 1 ? active[0] : null);
+  return pick ? codeOf(pick) : '';
+}
+
+// reprintStickerRow (Stage 133.2) opens the print page set up to print a
+// history row again, on its printer and copies. A row printed from a document
+// loads that document with only its SKU and lot ticked; a scanned row goes to
+// the scan list. The template follows today's rules, so a reprint matches a
+// fresh print; it can still be changed before printing.
+async function reprintStickerRow(h) {
+  if (!h) return;
+  window.txnShowPane('sticker-print:new');
+  const printerSel = document.getElementById('sticker-printer');
+  if (h.printer_code && [...printerSel.options].some(o => o.value === h.printer_code)) printerSel.value = h.printer_code;
+  const copies = h.copies > 0 ? h.copies : 1;
+  if (h.source_doctype && h.source_doc_id && stickerSourceDoctypes().some(d => d.doctype === h.source_doctype)) {
+    const doctypeSelect = document.getElementById('sticker-source-doctype');
+    doctypeSelect.value = h.source_doctype;
+    doctypeSelect.dispatchEvent(new Event('change'));
+    document.getElementById('sticker-source-doc').value = h.source_doc_id;
+    await loadStickerSourcePreview();
+    let found = false;
+    stickerSourceLines.forEach((l, i) => {
+      const match = String(l.sku) === h.sku && (l.batch_no || '') === (h.batch_no || '');
+      stickerSourceSelected[i] = match;
+      if (match) { stickerSourceCopies[i] = copies; found = true; }
+    });
+    renderStickerSourceLines();
+    if (!found && stickerSourceLines.length) {
+      const errorEl = document.getElementById('sticker-source-error');
+      errorEl.textContent = `${h.sku}${h.batch_no ? ` (lot ${h.batch_no})` : ''} is no longer on ${h.source_doc_id}. Tick the line to print, or scan the item below.`;
+      errorEl.classList.remove('hidden');
+    }
+  } else {
+    stickerSKUs = [h.sku];
+    document.getElementById('sticker-copies').value = copies;
+    document.getElementById('sticker-print-on-scan').checked = false;
+    renderStickerSKUList();
+  }
+  document.getElementById('sticker-reprint-reason').focus();
 }
 
 // Stage 52: "Print from Transaction" - load a GRN/Transfer Order's own lines
@@ -330,7 +457,18 @@ function renderStickerSourcePanel(container, printers) {
   doctypeSelect.value = stickerSourceDoctype;
   const docInput = document.getElementById('sticker-source-doc');
   const attachSourcePicker = () => {
-    attachLinkTypeahead(docInput, doctypeSelect.value, { noSetupHint: true, showAllOnFocus: true });
+    // 130.2: the latest documents first, so a click shows today's receipts.
+    // 134.1b: listed by the sticker screen's own search, so a role that prints
+    // stickers but cannot open receipts (Store Manager, Cashier) still finds them.
+    const doctype = doctypeSelect.value;
+    attachLinkTypeahead(docInput, doctype, {
+      noSetupHint: true, noQuickCreate: true, keepCode: true, showAllOnFocus: true,
+      source: async (q, { browse }) => {
+        const res = await apiFetch(`/api/v1/stickers/documents?source_doctype=${encodeURIComponent(doctype)}&q=${encodeURIComponent(q || '')}&limit=${browse ? 25 : 10}`);
+        return res && res.ok ? res.json() : null;
+      },
+      titleFn: d => [d.posting_date, d.location, d.status].filter(Boolean).join(' · ')
+    });
   };
   attachSourcePicker();
 
@@ -456,7 +594,7 @@ async function pickStickerChoice(value) {
 // Stage 111.1: "00048" or "26-27/00048" finds GRN/HO/26-27/00048 when only one
 // document ends that way; several or none say so in words.
 async function resolveStickerSourceDoc(doctype, text) {
-  const res = await apiFetch(`/api/v1/doc/${encodeURIComponent(doctype)}?q=${encodeURIComponent(text)}&limit=20`);
+  const res = await apiFetch(`/api/v1/stickers/documents?source_doctype=${encodeURIComponent(doctype)}&q=${encodeURIComponent(text)}&limit=20`);
   if (!res || !res.ok) return { id: text };
   const rows = (await res.json()) || [];
   const lower = text.toLowerCase();
@@ -525,7 +663,10 @@ function renderStickerSourceLines() {
         `).join('')}
       </tbody>
     </table>
-    <button class="btn btn-primary" id="sticker-source-print-btn" style="margin-top: 12px;">Print Selected</button>
+    <div style="display: flex; gap: 12px; margin-top: 12px;">
+      <button class="btn btn-outline" id="sticker-source-preview-btn" type="button">Preview</button>
+      <button class="btn btn-primary" id="sticker-source-print-btn">Print Selected</button>
+    </div>
   `;
   el.querySelectorAll('[data-source-select]').forEach(cb => {
     cb.addEventListener('change', () => {
@@ -560,31 +701,48 @@ function renderStickerSourceLines() {
   el.querySelectorAll('[data-source-print-one]').forEach(btn => {
     btn.addEventListener('click', () => printStickerSourceLines([Number(btn.getAttribute('data-source-print-one'))]));
   });
-  document.getElementById('sticker-source-print-btn').addEventListener('click', () => {
-    const selected = stickerSourceLines.map((l, i) => i).filter(i => stickerSourceSelected[i]);
-    printStickerSourceLines(selected);
+  const selectedLines = () => stickerSourceLines.map((l, i) => i).filter(i => stickerSourceSelected[i]);
+  document.getElementById('sticker-source-print-btn').addEventListener('click', () => printStickerSourceLines(selectedLines()));
+  document.getElementById('sticker-source-preview-btn').addEventListener('click', async () => {
+    const indexes = selectedLines();
+    const body = stickerSourceRequest(indexes);
+    if (body && await previewStickerRequest(body, 1, document.getElementById('sticker-source-error'))) printStickerSourceLines(indexes);
   });
 }
 
-// indexes are positions in stickerSourceLines. Sent as the `lines` request
-// field (sku + batch_no + copies per line) so the server can address the exact
-// lot's line; the older `skus`/`copies_override` fields are still accepted by
-// both endpoints for the manual flow and any existing client.
-async function printStickerSourceLines(indexes) {
+// previewStickerRequest (Stage 133.3) asks for a print's labels without
+// logging them (`preview`), shows them as they will print, and says whether
+// the user pressed Print there.
+async function previewStickerRequest(body, copies, errorEl) {
+  const res = await apiFetch('/api/v1/stickers/print', { method: 'POST', body: JSON.stringify({ ...body, preview: true }) });
+  if (!res) return false;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Could not prepare the preview.';
+    errorEl.classList.remove('hidden');
+    return false;
+  }
+  const { previewStickerLabels } = await loadStickerEngine();
+  const printer = stickerPrinters.find(p => (p.code || p.id) === body.printer_code) || null;
+  return previewStickerLabels(data, { printer, copies, apiFetch });
+}
+
+// stickerSourceRequest is the request for the chosen document lines - the
+// same for Print and Preview - or null with the reason shown.
+function stickerSourceRequest(indexes) {
   const errorEl = document.getElementById('sticker-source-error');
   errorEl.classList.add('hidden');
   if (!indexes || indexes.length === 0) {
     errorEl.textContent = 'Select at least one line first.';
     errorEl.classList.remove('hidden');
-    return;
+    return null;
   }
   const printerCode = document.getElementById('sticker-printer').value;
   if (!printerCode) {
     errorEl.textContent = 'Select a printer first.';
     errorEl.classList.remove('hidden');
-    return;
+    return null;
   }
-  const reprintReason = document.getElementById('sticker-reprint-reason').value.trim();
   const lines = indexes
     .map(i => stickerSourceLines[i])
     .filter(Boolean)
@@ -594,14 +752,22 @@ async function printStickerSourceLines(indexes) {
       copies: stickerSourceCopies[indexes[n]] || l.qty || 1,
       template_id: stickerSourceTemplates[indexes[n]] || ''
     }));
+  return {
+    lines, printer_code: printerCode, reprint_reason: stickerReprintReason(),
+    source_doctype: stickerSourceDoctype, source_doc_id: stickerSourceDocId
+  };
+}
 
-  const res = await apiFetch('/api/v1/stickers/print', {
-    method: 'POST',
-    body: stickerPrintBody({
-      lines, printer_code: printerCode, reprint_reason: reprintReason,
-      source_doctype: stickerSourceDoctype, source_doc_id: stickerSourceDocId
-    })
-  });
+// indexes are positions in stickerSourceLines. Sent as the `lines` request
+// field (sku + batch_no + copies per line) so the server can address the exact
+// lot's line; the older `skus`/`copies_override` fields are still accepted by
+// both endpoints for the manual flow and any existing client.
+async function printStickerSourceLines(indexes) {
+  const errorEl = document.getElementById('sticker-source-error');
+  const body = stickerSourceRequest(indexes);
+  if (!body) return;
+  const printerCode = body.printer_code;
+  const res = await apiFetch('/api/v1/stickers/print', { method: 'POST', body: stickerPrintBody(body) });
   if (!res) return;
   const data = await res.json();
   if (!res.ok) {
@@ -646,14 +812,7 @@ async function printScannedSticker(code) {
     return;
   }
   const copies = parseInt(document.getElementById('sticker-copies').value, 10) || 1;
-  const reprintReason = document.getElementById('sticker-reprint-reason').value.trim();
-  const lower = code.toLowerCase();
-  const idx = stickerSourceLines.findIndex(l => String(l.sku).toLowerCase() === lower || String(l.barcode || '').toLowerCase() === lower);
-  const line = idx >= 0 ? stickerSourceLines[idx] : null;
-  const body = line
-    ? { lines: [{ sku: line.sku, batch_no: line.batch_no || '', copies, template_id: stickerSourceTemplates[idx] || '' }],
-        printer_code: printerCode, reprint_reason: reprintReason, source_doctype: stickerSourceDoctype, source_doc_id: stickerSourceDocId }
-    : { skus: [code], printer_code: printerCode, reprint_reason: reprintReason, copies };
+  const { body, line } = stickerScanBody(code, printerCode, copies);
   const res = await apiFetch('/api/v1/stickers/print', { method: 'POST', body: stickerPrintBody(body) });
   if (!res) return;
   const data = await res.json();
@@ -666,6 +825,51 @@ async function printScannedSticker(code) {
   await printStickerRun(data, { printerCode, copies: line ? 1 : copies, jobRef: line ? stickerSourceDocId : '' });
   if (listEl) listEl.textContent = `Printed ${copies} × ${line ? line.sku : code}${line && line.batch_no ? ` (lot ${line.batch_no})` : ''}. Scan the next one.`;
   document.getElementById('sticker-sku-input').focus();
+}
+
+// stickerScanBody is one scan's request: with a document loaded and the item
+// on it, that line and its lot; otherwise the item itself.
+function stickerScanBody(code, printerCode, copies) {
+  const reprintReason = stickerReprintReason();
+  const lower = code.toLowerCase();
+  const idx = stickerSourceLines.findIndex(l => String(l.sku).toLowerCase() === lower || String(l.barcode || '').toLowerCase() === lower);
+  const line = idx >= 0 ? stickerSourceLines[idx] : null;
+  const body = line
+    ? { lines: [{ sku: line.sku, batch_no: line.batch_no || '', copies, template_id: stickerSourceTemplates[idx] || '' }],
+        printer_code: printerCode, reprint_reason: reprintReason, source_doctype: stickerSourceDoctype, source_doc_id: stickerSourceDocId }
+    : { skus: [code], printer_code: printerCode, reprint_reason: reprintReason, copies };
+  return { body, line };
+}
+
+// previewStickers (Stage 133.3) previews the scan list - or, when the list is
+// empty (Print on scan), what is typed in the scan box, as that scan would
+// print. Print in the preview prints it the same way.
+async function previewStickers() {
+  const errorEl = document.getElementById('sticker-form-error');
+  errorEl.classList.add('hidden');
+  const printerCode = document.getElementById('sticker-printer').value;
+  const copies = parseInt(document.getElementById('sticker-copies').value, 10) || 1;
+  const typed = document.getElementById('sticker-sku-input').value.trim();
+  if (!printerCode) {
+    errorEl.textContent = 'Select a printer first.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  if (stickerSKUs.length === 0 && !typed) {
+    errorEl.textContent = 'Scan or type a SKU first, then Preview.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  if (stickerSKUs.length) {
+    const body = { skus: stickerSKUs, printer_code: printerCode, reprint_reason: stickerReprintReason(), copies };
+    if (await previewStickerRequest(body, copies, errorEl)) printStickers();
+    return;
+  }
+  const { body, line } = stickerScanBody(typed, printerCode, copies);
+  if (await previewStickerRequest(body, line ? 1 : copies, errorEl)) {
+    document.getElementById('sticker-sku-input').value = '';
+    printScannedSticker(typed);
+  }
 }
 
 function removeStickerSKU(sku) {
@@ -690,7 +894,7 @@ async function printStickers() {
 
   const printerCode = document.getElementById('sticker-printer').value;
   const copies = parseInt(document.getElementById('sticker-copies').value, 10) || 1;
-  const reprintReason = document.getElementById('sticker-reprint-reason').value.trim();
+  const reprintReason = stickerReprintReason();
 
   if (!printerCode) {
     errorEl.textContent = 'Select a printer first.';
@@ -781,6 +985,28 @@ function loadStickerStudio() { return import('./sticker-studio.js' + PRINTING_MO
 function loadStickerEngine() { return import('./sticker-engine.js' + PRINTING_MODULE_QUERY); }
 // Stage 69: the Print tab's list / New pages.
 function loadTxnScreen() { return import('./txn-screen.js' + PRINTING_MODULE_QUERY); }
+
+// 134.1c: the Reprint reason codes beside the note, shown when the client has
+// any. stickerReprintReason is the one reprint_reason the server reads -
+// "CODE", "CODE: note" or the note alone; with reasons.codes_required on, a
+// note alone is refused, so the codes list is what a reprint needs.
+let stickerReprintCodeWanted = ''; // a hand-over's code (an MRP change: RPT-MRP), picked once the list is in
+async function fillStickerReprintCodes() {
+  const sel = document.getElementById('sticker-reprint-code');
+  if (!sel) return;
+  const picker = await import('./reason-picker.js' + PRINTING_MODULE_QUERY).catch(() => null);
+  const reasons = picker ? await picker.loadReasons('Reprint') : null;
+  if (!reasons || !(reasons.codes || []).length || !sel.isConnected) return;
+  const value = reasons.codes.some(c => c.code === stickerReprintCodeWanted) ? stickerReprintCodeWanted : '';
+  sel.outerHTML = picker.reasonSelectHTML(reasons, { value, attrs: 'id="sticker-reprint-code" style="max-width: 240px;"', label: 'Reprint reason code' });
+  document.getElementById('sticker-reprint-reason').placeholder = 'note (optional)';
+}
+
+function stickerReprintReason() {
+  const code = (document.getElementById('sticker-reprint-code') || {}).value || '';
+  const note = document.getElementById('sticker-reprint-reason').value.trim();
+  return code ? (note ? `${code}: ${note}` : code) : note;
+}
 
 // Every sticker print ends here: the labels came back from
 // POST /api/v1/stickers/print (validated and written to the print log), and the

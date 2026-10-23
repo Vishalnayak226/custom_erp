@@ -138,6 +138,11 @@ func sniffAttachmentType(content []byte) (contentType, ext string, err error) {
 			return "", "", attachmentError("EXP-0541", "It looks like a picture but cannot be read as one.")
 		}
 	}
+	if strings.HasPrefix(detected, "image/") {
+		if err := CheckUpload(UploadImage, content); err != nil { // 134.4: size in pixels, polyglots
+			return "", "", attachmentError("EXP-0541", err.(*ValidationError).Message)
+		}
+	}
 	return detected, ext, nil
 }
 

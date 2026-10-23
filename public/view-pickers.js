@@ -82,6 +82,15 @@ if (!document.getElementById('view-pickers-css')) {
 .form-section:not([open]) > summary { margin-bottom: 0; }
 .form-section-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 16px 20px; align-items: start; }
 .form-section-grid .form-group-wide { grid-column: 1 / -1; }
+/* Stage 131.1: the customer form - every detail, sectioned, the body scrolls. */
+.modal-container.customer-form { max-width: min(780px, 100%); }
+.customer-form > form { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.customer-form .modal-body { gap: 12px; }
+.customer-form .form-section + .form-section { border-top: 1px solid var(--border-color); padding-top: 12px; }
+.customer-form .form-section-grid { grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); gap: 12px 16px; align-items: end; }
+.customer-form .form-section-grid .form-group { margin-bottom: 0; }
+.customer-form .cf-consent { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.customer-form .cf-consent label { display: inline-flex; align-items: center; gap: 8px; }
 /* Stage 80.2: variant options as option + value rows. */
 .variant-editor { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .variant-editor > div { display: flex; flex-direction: column; gap: 6px; width: 100%; }
@@ -340,6 +349,13 @@ async function openQuickCreateDialog(doctype, seedText) {
     await showCustomAlert(SETUP_MSG.missingNoAccess(label).replace(/&mdash;/g, '-'), `Add ${label}`);
     return null;
   }
+  // Stage 131.1: a Customer is asked everything about them (openCustomerForm).
+  if (doctype === 'Customer') {
+    const seed = String(seedText || '');
+    const r = await openCustomerForm(/^\+?[\d\s-]{6,}$/.test(seed) ? { phone: seed.replace(/[\s-]/g, '') } : { name: seed });
+    if (r) showToast(describeDocumentStatusOutcome(label, r.status), { variant: r.status === 'Pending Approval' ? 'warning' : 'success' });
+    return r ? r.doc : null;
+  }
   const fields = await quickCreateFields(doctype);
   if (!fields) return null;
   const activeDoc = state.activeDoctypes.find(d => d.name === doctype);
@@ -404,7 +420,7 @@ async function openQuickCreateDialog(doctype, seedText) {
       const fg = document.createElement('div');
       fg.className = 'form-group';
       const id = `qc-${doctype}-${f.fieldname}`;
-      fg.innerHTML = `<label class="form-label" for="${id}"></label>`;
+      fg.innerHTML = `<label class="form-label" for="${escapeHTMLText(id)}"></label>`;
       fg.querySelector('label').innerHTML = `${escapeHTMLText(taxIdLabel(f.fieldname, getTranslatedLabel(f.label)))}${f.mandatory ? '<span class="required">*</span>' : ''}`;
       let input;
       if (f.fieldtype === 'Data' && isStateFieldName(f.fieldname) && fieldRegions().length) {
@@ -466,8 +482,8 @@ async function openQuickCreateDialog(doctype, seedText) {
       const opts = String(treatmentField.options || '').split(',').map(o => o.trim()).filter(o => o && o !== 'Taxable');
       treatmentGroup = document.createElement('div');
       treatmentGroup.className = 'form-group hidden';
-      treatmentGroup.innerHTML = `<label class="form-label" for="${tid}">${escapeHTMLText(getTranslatedLabel(treatmentField.label))}<span class="required">*</span></label>
-        <select class="form-select" id="${tid}" name="tax_treatment"><option value="">— Select —</option>${opts.map(o => `<option value="${escapeHTMLText(o)}">${escapeHTMLText(o)}</option>`).join('')}</select>`;
+      treatmentGroup.innerHTML = `<label class="form-label" for="${escapeHTMLText(tid)}">${escapeHTMLText(getTranslatedLabel(treatmentField.label))}<span class="required">*</span></label>
+        <select class="form-select" id="${escapeHTMLText(tid)}" name="tax_treatment"><option value="">— Select —</option>${opts.map(o => `<option value="${escapeHTMLText(o)}">${escapeHTMLText(o)}</option>`).join('')}</select>`;
       gstBox.closest('.form-group').insertAdjacentElement('afterend', treatmentGroup);
       const syncTreatment = () => treatmentGroup.classList.toggle('hidden', !(gstBox.value !== '' && Number(gstBox.value) === 0));
       gstBox.addEventListener('input', syncTreatment);
@@ -549,6 +565,175 @@ async function openQuickCreateDialog(doctype, seedText) {
     document.body.appendChild(overlay);
     const first = holder.querySelector('input:not([type="checkbox"]), select');
     (first || submitBtn).focus();
+  });
+}
+
+// ---------------------------------------------------------------------------
+// The customer form (Stage 131.1, user 2026-10-22: "here only ask all cust
+// detail"). One sectioned dialog asks everything about a customer - the
+// till's New / Edit Customer (till: the mobile is required, no account
+// terms) and every Customer picker's quick-create. Only the fields the role
+// can see are shown; a field a client added to Customer lands in More
+// details. Resolves to { doc, status, editing }, or null when cancelled.
+// ---------------------------------------------------------------------------
+const CUSTOMER_FORM_SECTIONS = [
+  ['Contact', ['phone', 'name', 'email']],
+  ['Address', ['address', 'address_line2', 'city', 'state', 'pincode']],
+  ['Tax', ['gstin', 'pan']],
+  ['Personal', ['date_of_birth', 'date_of_anniversary', 'gender', 'sizes']],
+  ['Preferences', ['preferred_store', 'preferred_salesman', 'tags']],
+  ['Account', ['credit_limit', 'price_list_code']]
+];
+const CUSTOMER_FORM_LABELS = {
+  phone: 'Mobile number', name: 'Name', date_of_birth: 'Date of birth', sizes: 'Sizes (e.g. Shirt M, Trouser 32, Shoe 8)',
+  tags: 'Tags (comma-separated)', credit_limit: 'Credit limit (blank = unlimited)', price_list_code: 'Contract price list'
+};
+// Written by the server, loyalty, CRM or the consent ledger - never typed here.
+const CUSTOMER_FORM_SKIP = new Set(['id', 'code', 'status', 'loyalty_points', 'loyalty_tier', 'merged_into', 'clevertap_segments',
+  'phone_country', 'consent_sms', 'consent_whatsapp', 'consent_email', 'consent_updated_at', 'consent_source', 'walk_in', 'walk_in_store']);
+
+async function openCustomerForm({ id = '', phone = '', name = '', title = '', need = '', till = false, saveLabel = '' } = {}) {
+  let doc = {};
+  if (id) {
+    const res = await apiFetch(`/api/v1/doc/Customer/${encodeURIComponent(id)}`);
+    if (!res || !res.ok) { if (res) await showApiError(res, 'The customer could not be opened.'); return null; }
+    doc = await res.json();
+  }
+  const meta = await quickCreateFields('Customer');
+  if (!meta) return null;
+  const byName = new Map(meta.map(f => [f.fieldname, f]));
+  const country = (window.FIELD_META && window.FIELD_META.country) || 'IN';
+  const isNew = !id;
+  const walkIn = doc.walk_in === 'Yes'; // the store's walk-in: saving it makes a new customer
+  const editing = !isNew && !walkIn;
+  const series = isNew ? await loadMasterCodeSeries('Customer') : null;
+  const planned = new Set(CUSTOMER_FORM_SECTIONS.flatMap(([, n]) => n));
+  const plan = CUSTOMER_FORM_SECTIONS.filter(([t]) => !(till && t === 'Account')).map(([t, n]) => [t, n.slice()]);
+  if (series && series.typed) plan[0][1].unshift('code');
+  plan.push(['More details', meta.map(f => f.fieldname).filter(n => !planned.has(n) && !CUSTOMER_FORM_SKIP.has(n) &&
+    !isDerivedCompanionField(n) && !isStateCodeFieldName(n) && !byName.get(n).mirrored && !byName.get(n).auto_generated &&
+    !['JSONTable', 'JSONMap'].includes(byName.get(n).fieldtype))]);
+  const sections = plan.map(([t, n]) => [t, n.filter(f => byName.has(f) && !(f === 'pan' && country !== 'IN'))]).filter(([, n]) => n.length);
+  const shown = sections.flatMap(([, n]) => n);
+  const required = new Set(['name', ...(till ? ['phone'] : []), ...(series && series.typed ? ['code'] : [])]);
+  const labelOf = n => (n === 'pincode' && country !== 'IN' ? 'Postal code'
+    : taxIdLabel(n, CUSTOMER_FORM_LABELS[n] || getTranslatedLabel(byName.get(n).label)));
+  const val = n => (walkIn ? '' : doc[n] ?? '');
+  const seeded = { phone: val('phone') || phone, name: val('name') || name };
+
+  const fieldHTML = (n) => {
+    const f = byName.get(n);
+    const v = escapeHTMLText(String(n in seeded ? seeded[n] : val(n)));
+    const at = `id="cf-${escapeHTMLText(n)}" name="${escapeHTMLText(n)}"`;
+    let input;
+    if (n === 'state') input = '<span data-cf-state></span>';
+    else if (f.fieldtype === 'Select') {
+      const opts = String(f.options || '').split(',').map(o => o.trim()).filter(Boolean);
+      input = `<select ${at} class="form-select"><option value="">-</option>${opts.map(o => `<option ${String(val(n)) === o ? 'selected' : ''}>${escapeHTMLText(o)}</option>`).join('')}</select>`;
+    } else if (f.fieldtype === 'Check') input = `<input type="checkbox" ${at} ${val(n) === true || val(n) === 'true' ? 'checked' : ''}>`;
+    else {
+      const type = n === 'phone' ? 'tel' : n === 'email' ? 'email' : f.fieldtype === 'Date' ? 'date'
+        : (f.fieldtype === 'Number' || f.fieldtype === 'Currency') ? 'number' : 'text';
+      const extra = n === 'phone' ? 'inputmode="tel"' : n === 'pincode' ? 'inputmode="numeric"'
+        : ['gstin', 'pan', 'code'].includes(n) ? `maxlength="${n === 'pan' ? 10 : 20}" style="text-transform:uppercase"` : type === 'number' ? 'step="any"' : '';
+      input = `<input type="${type}" ${at} class="form-input" value="${v}" autocomplete="off" ${extra}>`;
+    }
+    return `<div class="form-group"><label class="form-label" for="cf-${escapeHTMLText(n)}">${escapeHTMLText(labelOf(n))}${required.has(n) ? '<span class="required">*</span>' : ''}${n === 'gstin' ? ' <span class="txn-hint">(makes it a GST bill)</span>' : ''}</label>${input}</div>`;
+  };
+  const consent = isNew ? ['consent_sms', 'consent_whatsapp'].filter(n => byName.has(n)) : [];
+
+  return new Promise(resolve => {
+    const returnFocus = document.activeElement;
+    document.getElementById('customer-form-dialog')?.remove();
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay open quick-create-overlay';
+    overlay.id = 'customer-form-dialog';
+    overlay.innerHTML = `
+      <div class="modal-container customer-form" role="dialog" aria-modal="true" aria-labelledby="cf-title">
+        <div class="modal-header"><h3 class="modal-title" id="cf-title"></h3>
+          <button type="button" class="modal-close" aria-label="Close">&times;</button></div>
+        <form novalidate>
+          <div class="modal-body">
+            ${need ? `<div class="login-error">${escapeHTMLText(need)}</div>` : ''}
+            <div class="login-error hidden" role="alert" data-cf-error></div>
+            ${sections.map(([t, n]) => `<details class="form-section" open><summary>${escapeHTMLText(t)}</summary><div class="form-section-grid">${n.map(fieldHTML).join('')}</div></details>`).join('')}
+            ${consent.length ? `<details class="form-section" open><summary>Agrees to offers - tick only what they agreed to</summary><div class="cf-consent">
+              ${consent.map(n => `<label><input type="checkbox" name="${n}"> ${n === 'consent_sms' ? 'SMS' : 'WhatsApp'}</label>`).join('')}</div></details>` : ''}
+          </div>
+          <div class="modal-footer"><button type="button" class="btn btn-secondary" data-cf-cancel>Cancel</button>
+            <button type="submit" class="btn btn-primary"></button></div>
+        </form>
+      </div>`;
+    overlay.querySelector('.modal-title').textContent = title || (isNew ? 'New customer' : `Customer - ${doc.name || id}`);
+    const form = overlay.querySelector('form');
+    const saveBtn = overlay.querySelector('button[type="submit"]');
+    saveBtn.textContent = saveLabel || (editing ? 'Save' : 'Create customer');
+    const errorEl = overlay.querySelector('[data-cf-error]');
+    const slot = overlay.querySelector('[data-cf-state]');
+    if (slot) {
+      slot.replaceWith(fieldRegions().length ? buildStateSelect({ id: 'cf-state', name: 'state', value: val('state') })
+        : Object.assign(document.createElement('input'), { id: 'cf-state', name: 'state', className: 'form-input', value: val('state'), autocomplete: 'off' }));
+    }
+    if (series && !series.typed && !series.configured) overlay.querySelector('.form-section-grid').before(masterCodeSetupRow(series, 'Customer'));
+    shown.forEach(n => { const f = byName.get(n); if (f.fieldtype === 'Link' && f.options) attachLinkTypeahead(form.elements[n], f.options); });
+    const gst = form.elements.gstin;
+    if (gst) gst.addEventListener('input', () => fillStateFromTaxId(gst));
+
+    const close = (result) => {
+      overlay.remove();
+      document.removeEventListener('keydown', onKey, true);
+      if (returnFocus && returnFocus.isConnected) returnFocus.focus();
+      resolve(result);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape' && !document.querySelector('.typeahead-menu')) { e.stopPropagation(); close(null); }
+    };
+    document.addEventListener('keydown', onKey, true);
+    overlay.querySelector('.modal-close').addEventListener('click', () => close(null));
+    overlay.querySelector('[data-cf-cancel]').addEventListener('click', () => close(null));
+
+    const v = n => String((form.elements[n] || {}).value || '').trim();
+    const fail = (msg, n) => {
+      errorEl.textContent = msg;
+      errorEl.classList.remove('hidden');
+      errorEl.scrollIntoView({ block: 'nearest' });
+      if (n && form.elements[n]) form.elements[n].focus();
+    };
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      guardAgainstDoubleSubmit(saveBtn, 'Saving...', async () => {
+        errorEl.classList.add('hidden');
+        const missing = shown.filter(n => required.has(n) && !v(n));
+        if (missing.length) return fail(`Please fill in: ${missing.map(labelOf).join(', ')}.`, missing[0]);
+        const body = isNew ? {} : { ...doc };
+        shown.forEach(n => {
+          const f = byName.get(n);
+          if (f.fieldtype === 'Check') body[n] = form.elements[n].checked;
+          else if (f.fieldtype === 'Number' || f.fieldtype === 'Currency') { if (v(n) === '') delete body[n]; else body[n] = parseFloat(v(n)); }
+          else body[n] = ['gstin', 'pan', 'code'].includes(n) ? v(n).toUpperCase() : v(n);
+        });
+        body.status = doc.status || 'Active';
+        consent.forEach(n => { body[n] = form.elements[n].checked; });
+        if (walkIn) ['walk_in', 'walk_in_store', 'id', 'code'].forEach(k => delete body[k]);
+        const codeFormat = isNew ? readMasterCodeFormat(form) : null;
+        if (codeFormat) body._code_format = codeFormat;
+        const res = await apiFetch(editing ? `/api/v1/doc/Customer/${encodeURIComponent(id)}` : '/api/v1/doc/Customer', {
+          method: 'POST', body: JSON.stringify(body)
+        });
+        if (!res) return;
+        if (!res.ok) return fail(await getErrorMessage(res, 'The customer was not saved.'));
+        const saved = await res.json().catch(() => ({}));
+        const code = editing ? id : (saved.id || saved.code || '');
+        const back = code ? await apiFetch(`/api/v1/doc/Customer/${encodeURIComponent(code)}`) : null;
+        const out = back && back.ok ? await back.json() : { ...body, id: code, code };
+        rememberLinkDoc('Customer', out);
+        if (!editing) await refreshSetupStatus();
+        close({ doc: out, status: saved.status, editing });
+      });
+    });
+
+    document.body.appendChild(overlay);
+    (form.elements[seeded.phone ? 'name' : 'phone'] || form.querySelector('input, select')).focus();
   });
 }
 
@@ -1258,7 +1443,7 @@ async function changeLocationCodeBeforeSave(form, id) {
   return plan.new;
 }
 
-export { openDatePicker, closeDatePicker, openQuickCreateDialog, attachSmartHSNPicker, wireAttributeDefForm,
+export { openDatePicker, closeDatePicker, openQuickCreateDialog, openCustomerForm, attachSmartHSNPicker, wireAttributeDefForm,
   isStateFieldName, isStateCodeFieldName, buildStateSelect, fieldChecksumOK, fillStateFromTaxId, taxIdLabel,
   loadMasterCodeSeries, masterCodeSetupRow, readMasterCodeFormat, groupFormSections, attachVariantOptionsEditor, openLineUpload,
   wireLocationCostCenter, wireNewLocationDefaults, wireLocationCodeEdit, changeLocationCodeBeforeSave };

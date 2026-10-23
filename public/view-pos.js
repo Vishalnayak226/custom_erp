@@ -112,7 +112,7 @@ function renderPOSView(container) {
         <!-- Stage 85.A5: the store is picked at the top of the screen. Every
              downstream call (session, availability, cart number, receipt)
              still reads its code from here. -->
-        <input type="hidden" id="pos-location" value="${posLocation}">
+        <input type="hidden" id="pos-location" value="${escapeHTMLText(posLocation)}">
         <div class="form-group">
           <!-- Stage 53.4: same split-value control as the store box: the
                cashier searches a NAME (phone and code match too), and
@@ -248,6 +248,7 @@ function renderPOSView(container) {
   document.getElementById('pos-packaging-btn').addEventListener('click', openPOSPackaging);
   document.getElementById('pos-giftcard-btn').addEventListener('click', openPOSGiftCard);
   document.getElementById('pos-more-btn').addEventListener('click', openPOSMore);
+  if (localStorage.getItem('erp_till_device_token')) posLazy('startPOSIdleLock')(); // 130.11
   document.getElementById('pos-sku-input').addEventListener('keydown', onPOSScanKeyDown);
   document.getElementById('pos-sku-input').addEventListener('input', onPOSScanInput);
   document.getElementById('pos-checkout-btn').addEventListener('click', submitPOSCheckout);
@@ -759,7 +760,7 @@ function renderPOSCartTable(skipQuote) {
   const advanceUsed = advances.reduce((s, a) => s + a.amount, 0);
   const advRow = document.getElementById('pos-advance-row');
   if (advRow) {
-    advRow.textContent = advanceUsed > 0 ? `Advance: -${advanceUsed.toFixed(2)}` : '';
+    advRow.textContent = advanceUsed > 0 ? `Advance / credit: -${advanceUsed.toFixed(2)}` : '';
     advRow.classList.toggle('hidden', !(advanceUsed > 0));
   }
   totalEl.dataset.gross = (bill + roundOff).toFixed(2);
@@ -1432,6 +1433,7 @@ function posReceiptItems(cartItems) {
 // price-changed path is deliberately NOT terminal: it re-enters checkout and
 // freezes on whatever that returns.)
 function freezePOSTill(sale) {
+  sale.cashTendered = +document.getElementById('pos-cash-tendered')?.value || 0;
   posCompletedSale = sale;
   posCart = [];
   posCartNumber = '';
@@ -1454,7 +1456,7 @@ function freezePOSTill(sale) {
     </div>`).join('');
   const money = (label, value, strong) => `
     <div style="display:flex; justify-content:space-between; padding:3px 0; ${strong ? 'font-size:18px; font-weight:700; padding-top:8px; border-top:1px solid var(--border-color);' : 'font-size:13px;'}">
-      <span>${label}</span><span>${Number(value).toFixed(2)}</span>
+      <span>${cfgEsc(label)}</span><span>${Number(value).toFixed(2)}</span>
     </div>`;
 
   panel.innerHTML = `
@@ -1470,14 +1472,14 @@ function freezePOSTill(sale) {
       ${sale.offerDiscount > 0 ? money('Discount (offers and bill)', -sale.offerDiscount) : ''}
       ${sale.loyaltyDiscount > 0 ? money(`Loyalty points applied${sale.loyaltyPoints ? ` (${sale.loyaltyPoints} pt)` : ''}`, -sale.loyaltyDiscount) : ''}
       ${(sale.giftCards || []).map(g => money(`Gift card ${g.card}`, -g.amount)).join('')}
-      ${sale.advanceUsed > 0 ? money('Advance used', -sale.advanceUsed) : ''}
+      ${sale.advanceUsed > 0 ? money('Advance / credit used', -sale.advanceUsed) : ''}
       ${money(sale.status === 'paid' ? 'Collected' : 'Total', sale.amountDue, true)}
       ${sale.tendered !== null && sale.tendered !== undefined ? money('Cash tendered', sale.tendered) : ''}
       ${sale.changeDue !== null && sale.changeDue !== undefined ? money('Change due', sale.changeDue, true) : ''}
     </div>
     <div style="display:flex; gap:10px; margin-top:16px;">
       <button class="btn btn-primary" id="pos-new-sale-btn" type="button">New Sale (Reset)</button>
-      ${sale.canPrint ? '<button class="btn btn-outline" id="pos-print-receipt-btn" type="button">Print Receipt</button>' : ''}
+      ${sale.canPrint ? '<button class="btn btn-outline" id="pos-print-receipt-btn" type="button">Print Receipt</button><button class="btn btn-outline" id="pos-preview-receipt-btn" type="button">Preview</button>' : ''}
       ${sale.gstBill && sale.status === 'paid' ? '<button class="btn btn-outline" id="pos-print-gst-btn" type="button">Print GST Invoice</button>' : ''}
     </div>
   `;
@@ -1487,6 +1489,14 @@ function freezePOSTill(sale) {
   if (newBtn) { newBtn.addEventListener('click', startNewPOSSale); newBtn.focus(); }
   const printBtn = document.getElementById('pos-print-receipt-btn');
   if (printBtn) printBtn.addEventListener('click', () => printCompletedPOSSale());
+  // Stage 133.3: the bill as Print Receipt would print it; Print there prints.
+  const previewBtn = document.getElementById('pos-preview-receipt-btn');
+  if (previewBtn) previewBtn.addEventListener('click', async () => {
+    const docs = await import('./trade-docs.js' + new URL(import.meta.url).search);
+    const go = await docs.previewPOSBill(sale.cartNumber, sale.cashTendered);
+    if (go === null) await showCustomAlert('This bill has no preview yet - Print Receipt still prints it.', 'Receipt Preview');
+    if (go) printCompletedPOSSale();
+  });
   // Stage 85.D2: the tax invoice, from the Stage 71 print pack.
   const gstBtn = document.getElementById('pos-print-gst-btn');
   if (gstBtn) gstBtn.addEventListener('click', () => import('./trade-docs.js' + new URL(import.meta.url).search)
@@ -1540,7 +1550,7 @@ async function printCompletedPOSSale() {
   // Stage 106.3: the roll tax invoice (trade-docs.js); below is the fallback.
   try {
     const docs = await import('./trade-docs.js' + new URL(import.meta.url).search);
-    if (await docs.printPOSBill(sale.cartNumber)) return;
+    if (await docs.printPOSBill(sale.cartNumber, sale.cashTendered)) return;
   } catch (e) {
     console.debug('[POS] roll bill unavailable, using the plain receipt', e);
   }

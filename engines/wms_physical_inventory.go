@@ -79,7 +79,7 @@ func StartPhysicalInventory(tenantID, locationCode, zoneCode, userID string) (pi
 
 	binQuery := fmt.Sprintf(`
 		SELECT data->>'bin_code', COALESCE(data->>'bin_status', '')
-		FROM %s.documents WHERE doctype = 'Bin' AND status = 'Active' AND data->>'location' = $1`, schema)
+		FROM %s.documents WHERE doctype = 'Bin' AND status = 'Active' AND deleted_at IS NULL AND data->>'location' = $1`, schema)
 	var binRows *sql.Rows
 	if zoneCode != "" {
 		binQuery += ` AND data->>'zone' = $2`

@@ -57,7 +57,7 @@ func placeHoldTx(tx *sql.Tx, schema, holdCode, sku, locationCode, batchNo string
 	}
 	var codeActive bool
 	if err := tx.QueryRow(fmt.Sprintf(
-		`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'HoldCode' AND data->>'code' = $1 AND status = 'Active')`, schema),
+		`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'HoldCode' AND data->>'code' = $1 AND status = 'Active' AND deleted_at IS NULL)`, schema),
 		holdCode).Scan(&codeActive); err != nil {
 		return "", err
 	}

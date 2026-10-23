@@ -243,8 +243,14 @@ function sampleFor(f) {
 // Open / close
 // ---------------------------------------------------------------------------
 
+// 134.1e: a role that may not save templates (Cashier) is not offered New /
+// Duplicate / Save - the server would refuse them; it can still open, preview
+// and test-print a design.
+const mayTemplate = verb => typeof canDo !== 'function' || canDo(verb, 'StickerTemplate');
+
 export async function openStickerStudio({ templateId = null, copyFrom = null, copyBuiltin = false, copyDesign = '', onClose = null } = {}) {
   S.onClose = onClose;
+  S.canSave = mayTemplate(templateId ? 'update' : 'create');
   S.sel = new Set();
   S.undo = []; S.redo = [];
   S.dirty = false;
@@ -337,7 +343,7 @@ function mount() {
       </div>
       <div class="stk-bar-spacer"></div>
       <button class="btn btn-outline btn-sm stk-btn-icon" data-sa="test-print">${icon('print', 16)}<span>Test print</span></button>
-      <button class="btn btn-primary btn-sm" data-sa="save">Save</button>
+      ${S.canSave ? '<button class="btn btn-primary btn-sm" data-sa="save">Save</button>' : ''}
     </header>
     <div class="stk-body">
       <nav class="stk-rail" aria-label="Insert">
@@ -1840,6 +1846,7 @@ function slugCode(name) {
 }
 
 async function save() {
+  if (!S.canSave) return;
   commitChange();
   const t = S.t;
   t.name = (t.name || '').trim();
@@ -1987,6 +1994,7 @@ export async function renderStickerTemplateGallery(container, { onChange } = {})
             </div>
           </article>`).join('')}
       </div>`;
+  if (!mayTemplate('create')) panel.querySelectorAll('[data-g="new"], .stk-card-actions [data-g$="dup"]').forEach(b => b.remove());
   container.appendChild(panel);
 
   // Thumbnails show plausible values for any Item field a template prints.
@@ -2032,11 +2040,12 @@ export async function renderStickerTemplateGallery(container, { onChange } = {})
 // edits those records.
 
 export async function renderStickerTemplateRules(container) {
+  // 134.1e: only the masters this role may read (a Cashier reads neither
+  // product types nor categories); the rules it cannot see stay unlisted.
+  const readable = d => typeof canReadDoctype !== 'function' || canReadDoctype(d);
+  const list = d => (readable(d) ? window.apiFetch(`/api/v1/doc/${d}`) : Promise.resolve(null));
   const [tRes, typeRes, ptRes, catRes] = await Promise.all([
-    window.apiFetch('/api/v1/doc/StickerTemplate'),
-    window.apiFetch('/api/v1/doc/ItemType'),
-    window.apiFetch('/api/v1/doc/ProductType'),
-    window.apiFetch('/api/v1/doc/Category')
+    window.apiFetch('/api/v1/doc/StickerTemplate'), list('ItemType'), list('ProductType'), list('Category')
   ]);
   if (!tRes) return;
   if (!tRes.ok) { window.renderErrorPanel?.(container, 'Failed to load sticker templates.', () => window.renderView(currentView)); return; }

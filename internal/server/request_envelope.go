@@ -112,6 +112,8 @@ var envelopeRoutes = []envelopeRoute{
 	{pattern: "/api/v1/pim/import/*/preview", maxBody: 16 << 20},
 	{pattern: "/api/v1/pim/import-templates/*/preview", maxBody: 16 << 20},
 	{pattern: "/api/v1/pim/import-templates/*/import", maxBody: 16 << 20},
+	// Stage 134.10: a brand logo of at most 300 KB plus its framing.
+	{pattern: "/api/v1/admin/branding/logo", maxBody: 1 << 20},
 	// Stage 128: a Setup Workbook of at most 8 MB plus its multipart framing.
 	{pattern: "/api/v1/admin/setup-workbook/preview", maxBody: 9 << 20},
 	{pattern: "/api/v1/admin/setup-workbook/apply", maxBody: 9 << 20},

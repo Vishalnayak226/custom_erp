@@ -203,20 +203,21 @@ func handleBigCommerceWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 	channelCode := r.PathValue("channelCode")
 
-	body, err := io.ReadAll(r.Body)
+	body, err := io.ReadAll(io.LimitReader(r.Body, engines.InboundWebhookMaxBody))
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "failed to read request body")
 		return
 	}
 
-	cred, credErr := engines.GetChannelWebhookSecret(tenantID, channelCode)
-	if credErr != nil || cred == "" {
-		writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "channel has no webhook secret configured")
+	// 134.3: one answer for every refusal; the current secret or, for a week
+	// after a change, the previous one.
+	if !engines.VerifyWebhookHMACAny(body, r.Header.Get("X-Bc-Webhook-Signature"), "", "hex", engines.GetChannelWebhookSecrets(tenantID, channelCode)...) {
+		writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "Invalid webhook signature")
 		return
 	}
-	sig := r.Header.Get("X-Bc-Webhook-Signature")
-	if !engines.VerifyBigCommerceWebhook(body, sig, cred) {
-		writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "invalid webhook signature")
+	source := "bigcommerce:" + channelCode
+	if dup, err := engines.ClaimInboundWebhook(tenantID, source, "", body); err == nil && dup {
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "duplicate"})
 		return
 	}
 
@@ -247,6 +248,7 @@ func handleBigCommerceWebhook(w http.ResponseWriter, r *http.Request) {
 		// then disables the subscription after repeated failures; a missing
 		// credential or an unmapped SKU must not cost the store its webhook.
 		// The failure is audited so it is visible in the connector log.
+		engines.ReleaseInboundWebhook(tenantID, source, "", body) // the retry is processed
 		engines.LogAuditEvent(tenantID, "system", "BIGCOMMERCE_ORDER_IMPORT", "FAILURE",
 			fmt.Sprintf("channel=%s scope=%s bc_order=%d: %v", channelCode, hook.Scope, hook.Data.ID, importErr))
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "acknowledged", "import_error": importErr.Error()})
@@ -450,6 +452,9 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		// Advances (Stage 85.D3) are the customer's advances paying part or
 		// all of the bill - stored value, redeemed with the gift cards.
 		Advances []engines.AdvanceTenderRequest `json:"advances"`
+		// StoreCredit (Stage 130.12) is how much of the customer's store
+		// credit pays the bill - redeemed with the gift cards and advances.
+		StoreCredit float64 `json:"store_credit"`
 		// Items carries SELECTION inputs only. sale_price is accepted for one
 		// narrowing purpose - an item the tenant has not priced anywhere, in
 		// pos.pricing_mode 'assisted' (see engines.ResolvePOSQuote) - and is
@@ -714,6 +719,18 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Stage 130.12: store credit comes from the till among the advances.
+	if len(req.Advances) > 0 {
+		kept := req.Advances[:0]
+		for _, a := range req.Advances {
+			if strings.TrimSpace(a.Number) == engines.StoreCreditTenderRef {
+				req.StoreCredit += a.Amount
+				continue
+			}
+			kept = append(kept, a)
+		}
+		req.Advances = kept
+	}
 	// Stage 85.D3: the customer's advances pay after points and gift cards,
 	// through the same stored-value redemption. Online only, the bill's own
 	// customer only.
@@ -732,6 +749,23 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		giftTenders = append(giftTenders, advTenders...)
+	}
+	// Stage 130.12: the customer's store credit, after advances, online only.
+	if req.StoreCredit > 0 {
+		if req.OfflineSynced || req.AuthorizeOnly {
+			writeAPIErrorDetail(w, r, "POSOFF-1309", "", "Store credit is used online at the till - it cannot be queued offline or sent to the payment terminal.")
+			return
+		}
+		paid := 0.0
+		for _, t := range giftTenders {
+			paid += engines.PaiseToRupees(t.AmountPaise)
+		}
+		scTenders, scErr := engines.PrepareStoreCreditTender(tenantID, role, req.CustomerID, req.StoreCredit, engines.RupeesToPaise(quote.AmountDue-paid))
+		if scErr != nil {
+			writeEngineError(w, r, scErr, http.StatusUnprocessableEntity)
+			return
+		}
+		giftTenders = append(giftTenders, scTenders...)
 	}
 	giftPaid := 0.0
 	for _, t := range giftTenders {
@@ -2031,14 +2065,25 @@ func handleCurrentStockReport(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	results, err := engines.GetCurrentStockReport(tenantID)
+	// 134.6 (47.10.3): one page, searched in SQL - ?q= (part of a SKU or
+	// location), ?location=, ?limit= (default and cap: the client's list
+	// settings), ?offset=. The body stays an array; X-Total-Count says how
+	// many rows match, for "1-100 of N".
+	q := r.URL.Query()
+	limit := defaultListLimitFor(tenantID)
+	if v, err := strconv.Atoi(q.Get("limit")); err == nil && v > 0 {
+		limit = v
+	}
+	if max := maxListLimitFor(tenantID); limit > max {
+		limit = max
+	}
+	offset, _ := strconv.Atoi(q.Get("offset"))
+	results, total, err := engines.GetCurrentStockPage(tenantID, engines.CurrentStockFilter{Q: q.Get("q"), Location: q.Get("location"), Limit: limit, Offset: offset})
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if results == nil {
-		results = []map[string]interface{}{}
-	}
+	w.Header().Set("X-Total-Count", strconv.Itoa(total))
 	_ = json.NewEncoder(w).Encode(results)
 }
 

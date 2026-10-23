@@ -280,7 +280,7 @@ function renderDocTable() {
     // and "No records found." was equally uninformative whether the list was
     // genuinely empty or the user had simply typed a search that matched
     // nothing. Those are different problems with different next steps.
-    const label = getDoctypeLabel(currentDoctype);
+    const label = escapeHTMLText(getDoctypeLabel(currentDoctype));
     const emptyMsg = currentSearchQuery
       ? `No ${label} records match &ldquo;${escapeHTMLText(currentSearchQuery)}&rdquo;. Clear the search box above to see all of them.`
       : `No ${label} records yet. Use <b>New ${label}</b> above to create the first one, or <b>Bulk Import</b> to load a CSV.`;
@@ -689,10 +689,10 @@ window.viewTaxonomyHistory = async function(id) {
   overlay.id = 'pim-history-modal';
   const rows = entries.length === 0
     ? `<tr><td colspan="3" class="text-center text-muted">No history recorded yet. Entries appear here the first time this record is edited.</td></tr>`
-    : entries.map(e => `<tr><td>${e.created_at || ''}</td><td>${e.user_id || ''}</td><td>${e.details || ''}</td></tr>`).join('');
+    : entries.map(e => `<tr><td>${e.created_at || ''}</td><td>${escapeHTMLText(e.user_id || '')}</td><td>${escapeHTMLText(e.details || '')}</td></tr>`).join('');
   overlay.innerHTML = `
     <div class="modal-container">
-      <div class="modal-header"><h3 class="modal-title">History: ${getDoctypeLabel(currentDoctype)} ${id}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
+      <div class="modal-header"><h3 class="modal-title">History: ${escapeHTMLText(getDoctypeLabel(currentDoctype))} ${escapeHTMLText(id)}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
       <div class="modal-body"><div class="table-wrapper"><table><thead><tr><th>When</th><th>User</th><th>Change</th></tr></thead><tbody>${rows}</tbody></table></div></div>
       <div class="modal-footer"><button type="button" class="btn btn-secondary">Close</button></div>
     </div>`;
@@ -944,7 +944,7 @@ window.openPIMBulkEditModal = function() {
   overlay.id = 'pim-bulk-edit-modal';
   overlay.innerHTML = `
     <div class="modal-container">
-      <div class="modal-header"><h3 class="modal-title">Edit ${bulkSelectedDocIDs.size} selected ${getDoctypeLabel(currentDoctype)} record${bulkSelectedDocIDs.size === 1 ? '' : 's'}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
+      <div class="modal-header"><h3 class="modal-title">Edit ${bulkSelectedDocIDs.size} selected ${escapeHTMLText(getDoctypeLabel(currentDoctype))} record${bulkSelectedDocIDs.size === 1 ? '' : 's'}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
       <form><div class="modal-body"><div class="form-group"><label class="form-label">Field</label><select class="form-select" id="pim-bulk-field"></select></div><div class="form-group"><label class="form-label" id="pim-bulk-value-label">New value</label><div id="pim-bulk-value"></div></div><p class="text-muted" style="font-size:13px; margin:0;">Preview: this change will update all ${bulkSelectedDocIDs.size} selected records. Approved records are returned to Pending Approval when their doctype is approval-gated.</p></div><div class="modal-footer"><button type="button" class="btn btn-secondary">Cancel</button><button type="submit" class="btn btn-primary">Confirm bulk edit</button></div></form>
     </div>`;
   document.body.appendChild(overlay);
@@ -1175,7 +1175,7 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
     // stable id here - one association point for every field type below,
     // rather than a per-branch fix that a new fieldtype could miss.
     const fieldId = `dyn-field-${currentDoctype}-${f.fieldname}`;
-    fg.innerHTML = `<label class="form-label" for="${fieldId}">${taxIdLabel(f.fieldname, getTranslatedLabel(f.label))}${f.mandatory && !isCodeField ? '<span class="required">*</span>' : ''}</label>`;
+    fg.innerHTML = `<label class="form-label" for="${escapeHTMLText(fieldId)}">${escapeHTMLText(taxIdLabel(f.fieldname, getTranslatedLabel(f.label)))}${f.mandatory && !isCodeField ? '<span class="required">*</span>' : ''}</label>`;
 
     if (f.fieldtype === 'Data' && isStateFieldName(f.fieldname) && (window.FIELD_META?.regions || []).length) {
       // Stage 76.2: every state is chosen from the home country's list.
@@ -1191,7 +1191,7 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
       // approval flow (meta's approval_only) - offered only if already set.
       const opts = f.options.split(',').filter(o => !(f.approval_only || []).includes(o.trim()) || o.trim() === String(existingVal ?? ''));
       opts.forEach(o => {
-        select.innerHTML += `<option value="${o.trim()}">${o.trim()}</option>`;
+        select.innerHTML += `<option value="${escapeHTMLText(o.trim())}">${escapeHTMLText(o.trim())}</option>`;
       });
       if (existingVal !== undefined && existingVal !== null) select.value = existingVal;
       // Masters with an Active status start Active; transaction forms with a
@@ -1267,6 +1267,9 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
           return;
         }
         return res.json().then(data => {
+          // Stage 136.3: the Link check refuses a Cancelled record, so it is
+          // never offered (a saved value still shows via selectKnownValue).
+          data = (data || []).filter(item => item.status !== 'Cancelled');
           // Stage 30.5.1: an empty target list used to render as a dropdown
           // containing only "— Select Reference —" with no indication that
           // anything was wrong, let alone what to do about it. This is the
@@ -1274,7 +1277,7 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
           // so attaching the affordance here covers all of them at once
           // (10 of the 18 core master lists were empty at audit time).
           if (!data || data.length === 0) {
-            select.innerHTML = `<option value="" disabled selected>— No ${getDoctypeLabel(f.options)} records yet —</option>`;
+            select.innerHTML = `<option value="" disabled selected>— No ${escapeHTMLText(getDoctypeLabel(f.options))} records yet —</option>`;
             selectKnownValue();
             appendCreateOption();
             // With inline create on offer the select itself is the way out;
@@ -1511,6 +1514,13 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
   if (currentDoctype === 'Location' && !isEdit) wireNewLocationDefaults(body);
   // Stage 123.3: an admin types the store's own code here.
   if (currentDoctype === 'Location' && isEdit) wireLocationCodeEdit(body, existingRecord);
+  // Stage 130.9 (72.D e): a change may say why - kept in the audit trail.
+  if (isEdit && !body.querySelector('#doc-edit-reason')) {
+    const reasonBox = document.createElement('div');
+    reasonBox.className = 'form-group';
+    reasonBox.innerHTML = '<label class="form-label" for="doc-edit-reason">Reason for the change (optional)</label><input type="text" class="form-input" id="doc-edit-reason" maxlength="300" autocomplete="off" placeholder="Kept in the audit trail with your name">';
+    body.appendChild(reasonBox);
+  }
 
   // Stage 80: variant options as option + value rows, then the fields in
   // named sections (both no-ops on a form without them).
@@ -1736,6 +1746,8 @@ async function handleDynamicFormSubmitInner(form) {
   if (isEdit && editingDocVersion !== null) {
     payload.expected_version = editingDocVersion;
   }
+  const editReasonEl = document.getElementById('doc-edit-reason');
+  if (isEdit && editReasonEl && editReasonEl.value.trim()) payload.edit_reason = editReasonEl.value.trim();
   // BLD-035: see deleteDocRecord's own note above - same unencoded-slash
   // 404, this time on the save itself. This is the one of the three that
   // was actually live and reachable (edit-load/delete's own copies of this
@@ -1849,7 +1861,7 @@ async function renderDocTypeBuilderView(container) {
     listHTML += `
       <li class="menu-item-container has-flyout">
         <a class="menu-item menu-item-group" href="#">
-          <span>${mod}</span>
+          <span>${escapeHTMLText(mod)}</span>
           <svg class="menu-item-arrow flyout-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="9 6 15 12 9 18"></polyline>
           </svg>
@@ -1902,7 +1914,7 @@ window.loadDoctypeConfig = async function(doctypeName, liveContainer = null) {
 
   let html = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
-      <h3 style="font-size: 18px; font-weight:600;">Fields for ${doctypeName}</h3>
+      <h3 style="font-size: 18px; font-weight:600;">Fields for ${escapeHTMLText(doctypeName)}</h3>
       <button class="btn btn-outline btn-sm" ${actionAttrs('addNewFieldConfig', [doctypeName])}>Add Field</button>
     </div>
     <table>

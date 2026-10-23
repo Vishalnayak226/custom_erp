@@ -291,6 +291,8 @@ func PostInventoryLedgerWithVoucherTx(tx *sql.Tx, schema string, locationCode st
 		if qtyVal == 0 {
 			continue
 		}
+		// Stage 130.9 (72.D f): a line whose product type allows negative stock.
+		lineAllowsNegative := allowNegative || itemMap["allow_negative"] == true
 
 		// Floor-check: a negative delta (checkout/decrement) must not push available
 		// stock below zero. Locks the row (FOR UPDATE) so concurrent checkouts against
@@ -305,7 +307,7 @@ func PostInventoryLedgerWithVoucherTx(tx *sql.Tx, schema string, locationCode st
 				WHERE sku = $1 AND location_code = $2
 				FOR UPDATE`, schema), sku, locationCode).Scan(&currentAvailable)
 			if err == sql.ErrNoRows {
-				if !allowNegative {
+				if !lineAllowsNegative {
 					return nil, nil, &InsufficientStockError{SKU: sku, Location: locationCode, Available: 0, Requested: -qtyVal}
 				}
 				currentAvailable = 0
@@ -322,7 +324,7 @@ func PostInventoryLedgerWithVoucherTx(tx *sql.Tx, schema string, locationCode st
 				currentAvailable += covered
 			}
 			if currentAvailable+qtyVal < 0 {
-				if !allowNegative {
+				if !lineAllowsNegative {
 					return nil, nil, &InsufficientStockError{SKU: sku, Location: locationCode, Available: currentAvailable, Requested: -qtyVal}
 				}
 				resulting := currentAvailable + qtyVal

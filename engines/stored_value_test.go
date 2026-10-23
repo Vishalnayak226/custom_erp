@@ -4,7 +4,10 @@ import (
 	"custom_erp/db"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
+
+	"github.com/lib/pq"
 )
 
 // Stage 72.6 and 72.8 - consumption entry and gift cards as stored value
@@ -77,8 +80,13 @@ func TestStage72StoredValueAndConsumptionEntry(t *testing.T) {
 	if err != nil || rec.Event != SVEventActivate || rec.Balance != 1000 || rec.ExpiresOn == "" {
 		t.Fatalf("issue: %v %+v", err, rec)
 	}
-	var cardAID string
-	_ = db.DB.QueryRow(`SELECT instrument_id FROM `+schemaName+`.stored_value_instruments WHERE card_number = $1`, cardA).Scan(&cardAID)
+	// Stage 130.8: the number is stored sealed - found by its hash, never as typed.
+	var cardAID, stored, last4 string
+	_ = db.DB.QueryRow(`SELECT instrument_id, card_number, COALESCE(card_last4, '') FROM `+schemaName+`.stored_value_instruments WHERE card_number = ANY($1)`,
+		pq.Array(svLookupKeys(cardA))).Scan(&cardAID, &stored, &last4)
+	if stored == cardA || !strings.HasPrefix(stored, svHashPrefix) || last4 != cardA[len(cardA)-4:] {
+		t.Errorf("card A stored as %q (last4 %q) - want a hash and its last four", stored, last4)
+	}
 	if gl(cardAID, "1102", "debit") != 100000 || gl(cardAID, "2610", "credit") != 100000 {
 		t.Errorf("issue posting: UPI clearing %d, liability %d (paise), want 100000 each", gl(cardAID, "1102", "debit"), gl(cardAID, "2610", "credit"))
 	}
@@ -182,7 +190,9 @@ func TestStage72StoredValueAndConsumptionEntry(t *testing.T) {
 
 	// --- 72.6 consumption entry (UAT-13) --------------------------------------------
 	insert("BUTTER", "Item", map[string]interface{}{"code": "BUTTER", "name": "Butter paper", "item_type": "Consumable - Periodic"})
-	insert("TAPE", "Item", map[string]interface{}{"code": "TAPE", "name": "Tape", "item_type": "Packaging"})
+	// Stage 130.15: Packaging is backflushed by its type, and a backflushed
+	// item is never also entered by hand - this tape is issued by hand.
+	insert("TAPE", "Item", map[string]interface{}{"code": "TAPE", "name": "Tape", "item_type": "Packaging", "consumption_method": ConsumeManual})
 	insert("FITTING", "Item", map[string]interface{}{"code": "FITTING", "name": "Fitting service", "item_type": "Service"})
 	if _, err := PostInventoryLedger(tenantID, loc, []interface{}{
 		map[string]interface{}{"sku": "BUTTER", "qty": 1000.0}, map[string]interface{}{"sku": "TAPE", "qty": 20.0},

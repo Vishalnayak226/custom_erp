@@ -74,7 +74,7 @@ var crmSecretFields = map[string][]string{
 // a test points it at a no-op to use an httptest server.
 var crmProviderURLCheck = validateWebhookURL
 
-var crmHTTPClient = &http.Client{Timeout: 15 * time.Second}
+var crmHTTPClient = newOutboundClient(15*time.Second, false) // 134.2: gateway and webhook addresses are client-typed
 
 // CRMSender is a sender as the screen sees it.
 type CRMSender struct {
