@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": "cmd/genkb",
   "generator_version": "stage48-v1",
-  "release": "0.13.0",
+  "release": "0.14.0",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "schema": "source registries",
   "tenant": "none",
@@ -64,7 +64,7 @@
     },
     {
       "path": "internal/kb/content/articles/courier-integrations.html",
-      "sha256": "56ea05d0c4344a455176a711c2f52db9258ae9f9099e0a1e075880e979f5e525",
+      "sha256": "1fc744bd3061ca8687db027bff786e9a45ff926aa5042979aab5a4a52f32cc32",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -325,7 +325,7 @@
     },
     {
       "path": "internal/kb/content/articles/platform-control-panel.html",
-      "sha256": "92ab9a74ee0c7447a208144eefe6f5f0f24b1ec38360fefbe10d54c3191090ed",
+      "sha256": "7470f63a1380c6a354c19ccacf0bba6acb001dd3f1dc5635855d804f03807220",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -388,7 +388,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes.html",
-      "sha256": "a9f420758ce35b37eaae0e073eb7df1b77c555a66d8c8cc2b859cce9ac934ce3",
+      "sha256": "c629806eca820ab0ba9c3171d2f3a774475e093fc6cf0781ecfdca3942da228b",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -532,7 +532,7 @@
     },
     {
       "path": "internal/kb/content/index.json",
-      "sha256": "3bfec1aa1572855f459f3b67517d5ffb00ebd3355cc68d177cc9268be1a067bd",
+      "sha256": "430d784151b3c2ceacd1c9e134f97c3da18d1249d6789fb2bc70afd29ee8c6aa",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -541,7 +541,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "9d4103cd039967ae1f1dccef21cd0cf64d4a4d993d80d7478c441ca682573d6a",
+      "sha256": "27d7803814f7fe0be78329e0d90bc4fec52c034cabcad383de330d98b2d2e8d6",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

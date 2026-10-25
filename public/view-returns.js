@@ -195,9 +195,7 @@ async function runReturnAction(returnID, action) {
       if (!reason) return;
       await postReturnAction(`/api/v1/returns/${encodeURIComponent(returnID)}/reject`, { reason_code: reason.trim() });
     } else if (action === 'reverse-pickup') {
-      const pincode = await showCustomPrompt('Pickup PIN code for the reverse shipment:', '', 'Book Reverse Pickup');
-      if (!pincode) return;
-      await postReturnAction(`/api/v1/returns/${encodeURIComponent(returnID)}/reverse-pickup`, { pickup_pincode: pincode.trim() });
+      await openReversePickupDialog(row);
     } else {
       await postReturnAction(`/api/v1/returns/${encodeURIComponent(returnID)}/${action}`, {});
     }
@@ -214,6 +212,32 @@ async function postReturnAction(url, body) {
     return null;
   }
   return res.json().catch(() => ({}));
+}
+
+// Stage 135.11: the pickup needs a courier as well as the PIN code - the old
+// prompt sent only the PIN, so every booking was refused. A blank courier is
+// picked by PIN code from the courier service areas, as on OMS -> Ship.
+async function openReversePickupDialog(row) {
+  const { posFormDialog } = await import('./view-pos-extras.js' + new URL(import.meta.url).search);
+  const field = (id, label, input) => `<div class="form-group"><label class="form-label" for="${id}">${label}</label>${input}</div>`;
+  const picked = await posFormDialog(`Book pickup for ${row.number}`, '',
+    field('rp-pin', 'PIN code', '<input id="rp-pin" class="form-input" inputmode="numeric" maxlength="6" autocomplete="postal-code">')
+    + field('rp-courier', 'Courier', '<input id="rp-courier" class="form-input" placeholder="Automatic">')
+    + field('rp-name', 'Contact name', '<input id="rp-name" class="form-input">')
+    + field('rp-address', 'Pickup address', '<textarea id="rp-address" class="form-input" rows="2"></textarea>'),
+    (el) => ({
+      pickup_pincode: el.querySelector('#rp-pin').value.trim(),
+      provider: el.querySelector('#rp-courier').value.trim(),
+      pickup_name: el.querySelector('#rp-name').value.trim(),
+      pickup_address: el.querySelector('#rp-address').value.trim()
+    }));
+  if (!picked) return;
+  if (!/^\d{6}$/.test(picked.pickup_pincode)) {
+    await showCustomAlert('Enter the 6-digit PIN code - the courier is chosen by it.', 'Book Pickup');
+    return;
+  }
+  const result = await postReturnAction(`/api/v1/returns/${encodeURIComponent(row.id)}/reverse-pickup`, picked);
+  if (result) showToast(`Pickup booked as ${result.booking_id}${result.awb ? `, AWB ${result.awb}` : ''}.`, { variant: 'success' });
 }
 
 // openReturnQCDialog is the inspection step: a disposition per line, and

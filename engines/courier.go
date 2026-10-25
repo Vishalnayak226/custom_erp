@@ -244,7 +244,7 @@ func ScheduleCourierPickup(ctx context.Context, tenantID, provider, bookingID, p
 	if err != nil {
 		return "", err
 	}
-	_, err = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || jsonb_build_object('pickup_reference',$1,'pickup_scheduled_at',$2), updated_at=CURRENT_TIMESTAMP WHERE id=$3 AND doctype='LogisticsBooking'`, schema), ref, pickupAt.UTC().Format(time.RFC3339), bookingID)
+	_, err = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || jsonb_build_object('pickup_reference',$1::text,'pickup_scheduled_at',$2::text), updated_at=CURRENT_TIMESTAMP WHERE id=$3 AND doctype='LogisticsBooking'`, schema), ref, pickupAt.UTC().Format(time.RFC3339), bookingID)
 	return ref, err
 }
 

@@ -81,17 +81,21 @@ function Get-ReleaseSummary([string]$Repo, [string]$Since) {
     $garbled = [string][char]0x393 + [char]0xC7 + [char]0xF6   # an em dash as 0.11.0's commit stored it
     # "Stage 88 (88.2-88.6) - OMS ...", "Stages 110-112 - ...", "Stages 114 and 115 - ..." -> "OMS ...", "..."
     $stage = '(^|;\s*)Stages?\s+[\d.]+[A-Za-z]?(\s*(?:-|,|and)\s*[\d.]+[A-Za-z]?)*(\s*\([^)]*\))?\s*[' + $emDash + [char]0x2013 + ':-]\s*'
+    # Very small (user, 2026-10-24): each change's headline - the words before
+    # its first colon, semicolon or comma, 32 characters at most - and the
+    # first three on one line.
     $out = foreach ($l in $lines) {
-        $t = (($l -replace $garbled, $emDash) -replace $stage, '$1').Trim().Trim('"')
+        $t = (($l -replace $garbled, $emDash) -replace $stage, '$1') -replace '"', ''
+        $t = ($t -split '[:;,]', 2)[0].Trim()
         if (-not $t) { continue }
-        $t = $t.Substring(0, 1).ToUpper() + $t.Substring(1)
-        if ($t.Length -gt 140) { $t = $t.Substring(0, 139).TrimEnd() + [char]0x2026 }
-        $t
+        if ($t.Length -gt 32) { $t = $t.Substring(0, 32); $t = $t.Substring(0, [Math]::Max($t.LastIndexOf(' '), 1)).TrimEnd() + [char]0x2026 }
+        $t.Substring(0, 1).ToUpper() + $t.Substring(1)
     }
     $out = @($out | Select-Object -Unique)
-    if ($out.Count -gt 12) { $out = @($out | Select-Object -First 12) + "and $($out.Count - 12) more" }
     if (-not $out.Count) { return "Guides and records only" }
-    return ($out -join "`n")
+    $note = ($out | Select-Object -First 3) -join " $([char]0xB7) "
+    if ($out.Count -gt 3) { $note += " +$($out.Count - 3) more" }
+    return $note
 }
 if (-not $ReleaseNote -and $live -and $live.git_commit -and $live.git_commit -ne "dev") {
     $summary = Get-ReleaseSummary $RepoRoot $live.git_commit

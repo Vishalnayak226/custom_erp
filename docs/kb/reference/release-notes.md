@@ -19,13 +19,17 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **185** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **186** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
 - [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-11
 
 ## 2026-10-24
+
+**Stage 90.6 — Releases in a few words** *(migration + deploy script, NOT COMMITTED)*
+
+The user found 0.13.0's automatic note too long and the older rows unchanged. The automatic note is now one line (each title's headline, first three, "+N more"); `db/migrations_stage90_6_release_notes.sql` rewrites 0.1.0-0.13.0 to a few words each at the next deploy, so no one runs anything by hand (Claude is blocked from production writes). Notes cell smaller and muted. Detail: micro_checklist 90.6.
 
 **"Build all" run, first slice** *(session erp-f9; paused for a release)*
 

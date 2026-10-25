@@ -171,7 +171,7 @@ async function renderControlPanelView(container) {
         <thead><tr><th>When</th><th>Environment</th><th>Version</th><th>Commit</th><th>By</th><th>Status</th><th>What changed</th></tr></thead>
         <tbody>
           ${deps.length === 0 ? `<tr><td colspan="7" style="color:var(--text-muted);">No release recorded in the ledger yet. Running now: <b>${escapeHTMLText(b.version || '')}</b> (${escapeHTMLText(b.git_commit || '')}).</td></tr>` : ''}
-          ${deps.map(d => `<tr><td>${when(d.promoted_at)}</td><td>${escapeHTMLText(d.environment)}</td><td>${escapeHTMLText(d.app_version)}</td><td style="font-family:monospace;">${escapeHTMLText(d.git_commit)}</td><td>${escapeHTMLText(d.promoted_by)}</td><td>${escapeHTMLText(d.status)}</td><td style="white-space:pre-line; min-width:280px; font-size:13px;">${escapeHTMLText(d.notes || '')}</td></tr>`).join('')}
+          ${deps.map(d => `<tr><td>${when(d.promoted_at)}</td><td>${escapeHTMLText(d.environment)}</td><td>${escapeHTMLText(d.app_version)}</td><td style="font-family:monospace;">${escapeHTMLText(d.git_commit)}</td><td>${escapeHTMLText(d.promoted_by)}</td><td>${escapeHTMLText(d.status)}</td><td style="font-size:12px; color:var(--text-muted);">${escapeHTMLText(d.notes || '')}</td></tr>`).join('')}
         </tbody>
       </table>
     </div>

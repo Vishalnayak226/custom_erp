@@ -72,9 +72,9 @@ deployed from the changes it carries since the release that was live:
 
 Once the new build is running and healthy it is written to the **Releases**
 table (when, environment, version, commit, who, status) and every client's
-**Version** changes to it. The table's **What changed** column lists, one line
-each, what that release brought since the one before it (for example *Bulk
-Purchase Upload: one Excel file from the client becomes POs*). All clients run the same build, so they all show
+**Version** changes to it. The table's **What changed** column says in a few
+words what that release brought since the one before it (for example *CRM ·
+Store app · Bulk purchase upload*). All clients run the same build, so they all show
 the same number. A client is shown on another version only if it has been
 pinned to one. The number also appears at the bottom-right of every user's
 profile chip, with the release date.

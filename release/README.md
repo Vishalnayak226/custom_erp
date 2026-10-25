@@ -92,6 +92,7 @@ A release problem these did not catch is a missing gate: add it to
 | G11 Commit | only if HEAD, index and every snapshot file are unchanged; tree must equal the tested tree | other sessions committing mid-release |
 | G12 Sync | committed versions of regenerated files back into the shared tree where untouched | reverse diffs left behind after 0.4.0 |
 | G13 Push | `git push origin main` | Deploy refuses anything not on origin |
+| D1 Keys (Deploy) | every secret key the build reads (JWT_SECRET, AUDIT_ARCHIVE_KEY and each `loadVersionedKeyring` name in engines/) is set in `/etc/erp/erp.env` (names only are read) or already has its key file on the server; otherwise the deploy stops; a key held only in a file is named with "add NAME_1, never plain NAME" | 0.13.0: no STORED_VALUE_KEY, so the server generated one and sealed the gift cards with a key outside every backup (135.14) |
 
 Deploy (`scripts\Invoke-Deploy.ps1`) refuses a commit that is not on origin or
 that Release did not pass, and only ever deploys the number Release wrote.

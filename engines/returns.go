@@ -1259,27 +1259,38 @@ func ScheduleReturnReversePickup(ctx context.Context, tenantID, returnRequestID,
 		return "", "", fmt.Errorf("reverse pickup only applies to a Customer Return (return request %s is %v)", returnRequestID, data["request_type"])
 	}
 
+	originalOrderID, _ := data["original_order_id"].(string)
 	var existing string
 	errDup := db.DB.QueryRow(fmt.Sprintf(
 		`SELECT id FROM %s.documents WHERE doctype = 'LogisticsBooking' AND data->>'return_request_id' = $1 AND deleted_at IS NULL LIMIT 1`, schema),
 		returnRequestID).Scan(&existing)
 	if errDup == nil {
-		return existing, "", nil
+		// Stage 135.11: the return is still Approved, so an earlier attempt
+		// booked the courier and stopped before the pickup (credentials
+		// missing, the courier down). Finish that booking rather than
+		// answering success for a pickup that never happened.
+		bookingID = existing
 	} else if errDup != sql.ErrNoRows {
 		return "", "", errDup
+	} else {
+		bookingID, err = CreateLogisticsBooking(tenantID, originalOrderID, "", provider, "", pickupPincode, 0)
+		if err != nil {
+			return "", "", err
+		}
+		if _, err := db.DB.Exec(fmt.Sprintf(
+			`UPDATE %s.documents SET data = data || jsonb_build_object('return_request_id', $1::text, 'shipment_direction', 'Reverse'), updated_at = CURRENT_TIMESTAMP
+			 WHERE id = $2 AND doctype = 'LogisticsBooking'`, schema),
+			returnRequestID, bookingID); err != nil {
+			return bookingID, "", err
+		}
 	}
-
-	originalOrderID, _ := data["original_order_id"].(string)
-	bookingID, err = CreateLogisticsBooking(tenantID, originalOrderID, "", provider, "", pickupPincode, 0)
+	// The booking's carrier is the courier: the one asked for, or, when none
+	// was, the one the courier service areas picked for the PIN code.
+	_, booking, _, err := fetchLogisticsBooking(tenantID, bookingID)
 	if err != nil {
-		return "", "", err
-	}
-	if _, err := db.DB.Exec(fmt.Sprintf(
-		`UPDATE %s.documents SET data = data || jsonb_build_object('return_request_id', $1::text, 'shipment_direction', 'Reverse'), updated_at = CURRENT_TIMESTAMP
-		 WHERE id = $2 AND doctype = 'LogisticsBooking'`, schema),
-		returnRequestID, bookingID); err != nil {
 		return bookingID, "", err
 	}
+	provider = courierDataString(booking, "carrier")
 
 	awbResult, err := AllocateCourierAWB(ctx, tenantID, provider, bookingID, CourierShipmentRequest{
 		OriginPincode: pickupPincode, DestinationPincode: pickupPincode,

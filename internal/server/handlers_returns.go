@@ -271,8 +271,9 @@ func handleScheduleReturnReversePickup(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid payload")
 		return
 	}
-	if req.Provider == "" || req.PickupPincode == "" {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'provider' and 'pickup_pincode' are required")
+	// A blank provider lets the courier service areas pick one by PIN code.
+	if req.PickupPincode == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'pickup_pincode' is required")
 		return
 	}
 	pickupAt := time.Now().Add(24 * time.Hour)

@@ -98,6 +98,40 @@ $unitRepo = ((& git -C $repo show "$($target):deploy/erp.service") -join "`n").T
 $unitLive = ((Remote "cat /etc/systemd/system/erp.service") -join "`n").Trim()
 if ($unitRepo -eq $unitLive) { Note 'service file: the live one matches the repo' }
 else { Note 'service file: differs from the repo - this deploy installs it (and puts the old one back by itself if the ERP is not healthy on it)' }
+# Secret keys (135.14, learned at 0.13.0): a key the build reads that has no
+# value in erp.env and no key file on the server is generated there at first
+# start - outside every database backup. STORED_VALUE_KEY sealed the gift cards
+# that way. Only variable names are read from erp.env, never values.
+$keyFiles = [ordered]@{ JWT_SECRET = 'jwt_secret.local'; AUDIT_ARCHIVE_KEY = 'audit_archive_key.local' }
+foreach ($line in @(Invoke-Git @('grep', '-h', '-o', '-E', 'loadVersionedKeyring\("[A-Z_]+", "[a-z_]+\.local"\)', $target, '--', 'engines/*.go', ':!engines/*_test.go'))) {
+    foreach ($m in [regex]::Matches("$line", 'loadVersionedKeyring\("([A-Z_]+)", "([a-z_]+\.local)"\)')) { $keyFiles[$m.Groups[1].Value] = $m.Groups[2].Value }
+}
+# Remote returns its lines as one array object - no @() around it, or the
+# list nests one level deep and -contains never matches.
+$envNames = Remote "grep -E '^[A-Z0-9_]+=.' /etc/erp/erp.env | cut -d= -f1"
+$keyDir = "$($cfg.remoteDir)/.config/custom_erp"
+$localFiles = Remote "ls -1 $keyDir 2>/dev/null || true"
+$missingKeys = @()
+foreach ($name in @($keyFiles.Keys)) {
+    $file = $keyFiles[$name]
+    if ($envNames -contains $name) { continue }
+    if (@($envNames | Where-Object { $_ -match "^${name}_\d+$" }).Count) {
+        # A numbered key without the plain one: the ring still reads the file.
+        if ($localFiles -contains $file) { Note "key ${name}: in erp.env as ${name}_<n>, and the server still reads $keyDir/$file for what it sealed before - keep that file with the backups" }
+        continue
+    }
+    if ($localFiles -contains $file) {
+        # AUDIT_ARCHIVE_KEY is one key with no _<n> ring: any value set later
+        # cannot open what the file sealed.
+        $move = if ($name -eq 'AUDIT_ARCHIVE_KEY') { "never set $name now (it has no _<n> ring, so a new value cannot read the archives the file sealed)" } else { "to move it into erp.env add ${name}_1, never plain $name (that replaces the file's key and what it sealed can no longer be read)" }
+        Note "key ${name}: only in $keyDir/$file on the server - keep that file with the backups; $move"
+    } else { $missingKeys += $name }
+}
+if ($missingKeys.Count) {
+    $why = "erp.env sets no $($missingKeys -join ', ') and the server has no key file for it - the new build would generate one at first start, outside every backup. Add it to /etc/erp/erp.env first (deploy/erp.env.example says how)"
+    if (-not $Check) { Stop-Deploy $why }
+    Note "NOTE (would stop a real deploy): $why"
+} else { Note "secret keys ($($keyFiles.Count)): each is set in erp.env or already has its key file on the server" }
 if ($Check) {
     $report | Set-Content -LiteralPath $reportPath -Encoding utf8
     Write-Host ''

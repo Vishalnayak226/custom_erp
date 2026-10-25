@@ -44,6 +44,10 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 290. Stage 90.6 — Releases in a few words (2026-10-24, migration + deploy script, NOT COMMITTED)
+
+The user found 0.13.0's automatic note too long and the older rows unchanged. The automatic note is now one line (each title's headline, first three, "+N more"); `db/migrations_stage90_6_release_notes.sql` rewrites 0.1.0-0.13.0 to a few words each at the next deploy, so no one runs anything by hand (Claude is blocked from production writes). Notes cell smaller and muted. Detail: micro_checklist 90.6.
+
 ## 289. "Build all" run, first slice (2026-10-24, session erp-f9; paused for a release)
 
 The user asked to build everything open that needs no decision. The run was recorded at the top of the checklist and stopped after its first four items when the user asked to release what was done. **132.10** fixed the eight bugs Guide found. Two error codes reached users as "Unexpected error occurred"; a new test now fails on any engine or handler code without a catalog row. Soft-deleted masters still counted as Active, which blocked new setup and let deleted credentials, offers and campaigns keep working; 82 queries now exclude them, and restoring a record re-runs its rules. Other fixes: a wrong "barcode" headline on every other duplicate (new MASTER-1321), a crash on an empty integration log, operator-only screens in a client's menu, and New offered on record types the generic save refuses. **135.2-135.4** brought thirteen KB handbooks in line with the screens that exist now (one subagent swept nine of them), put a dated-baseline note on the 2026-10-04 plan, and gave the capability register a label with no version number. **135.3** corrected the publish worker's "stub" comment. The sweep found a real bug (Book Pickup always fails) and two doc gaps, recorded as 135.11-135.13. Details: checklist 132.10, 135.2-135.4.
