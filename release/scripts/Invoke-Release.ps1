@@ -444,6 +444,17 @@ $findings = Get-DataChangeFindings -MigrationFiles $newMigrations -AddedGoLines 
 $state.findings = @($findings | ForEach-Object { "[$($_.Kind)] $($_.File):$($_.Line) $($_.Text)" })
 Format-Findings $findings | ForEach-Object { Note $_ }
 Note "$($newMigrations.Count) new migration(s); the Deploy click asks before running any [client data] / [DESTRUCTIVE] change"
+# G9b (2026-10-26): a deploy/ script this release changes reaches the server only if
+# deploy/deploy.ps1 ships it - 0.15.0 changed restore_drill.sh and the server kept the August copy.
+$deployChanged = @((Invoke-Git @('diff', '--cached', '--name-only', 'HEAD', '--', 'deploy/') $wt) | Where-Object { $_ -match '^deploy/[^/]+\.(sh|service)$' })
+if ($deployChanged.Count) {
+    $shipper = Get-Content -LiteralPath (Join-Path $wt 'deploy/deploy.ps1') -Raw
+    foreach ($f in $deployChanged) {
+        $name = Split-Path $f -Leaf
+        if ($shipper -notmatch [regex]::Escape($name)) { Note "deploy/$name changed but deploy/deploy.ps1 does not ship it - the server keeps its old copy (add it to deploy.ps1's list, or copy it by hand after the deploy)" }
+        else { Note "deploy/$name changed - the deploy ships it" }
+    }
+}
 
 # ------------------------------------------------- G10 fresh database + tests
 # Every migration from empty (the shared custom_erp hides ordering and

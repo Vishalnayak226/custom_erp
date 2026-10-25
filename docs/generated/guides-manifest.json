@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": "cmd/gendocs",
   "generator_version": "stage48-v1",
-  "release": "0.15.0",
+  "release": "0.16.0",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "schema": "source registries",
   "tenant": "none",
@@ -101,7 +101,7 @@
     },
     {
       "path": "docs/kb/reference/release-notes.md",
-      "sha256": "b886289afab11fc7da080f6247e12b3e154f46a1ac38f639d3686c7407e7d092",
+      "sha256": "e36780e9538048a7641d8030837041c69fc6743499f5e1909292ce2db2d6c554",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",

@@ -3,7 +3,7 @@
 <p>Newest first. Earlier entries continue on:</p>
 <ul><li><a href="/help/release-notes-2">Part 2</a> - 2026-07-27 to 2026-09-13</li></ul>
 <h2 id="2026-10-26">2026-10-26 <a class="kb-anchor" href="#2026-10-26" aria-label="Copy link to this section">#</a></h2>
-<p><strong>&#34;Build all&#34; run, Stage 49: the next 20 items</strong> <em>(code + tests + runbooks, NOT COMMITTED)</em></p>
+<p><strong>&#34;Build all&#34; run, Stage 49: the next 20 items</strong> <em>(code + tests + runbooks, released in 0.15.0 <code>21e7c99</code>)</em></p>
 <p>The user asked for the next 20 open items, to start once release 0.14.0 (<code>0bcac93</code>) was pushed. They were taken in tracker order from 49.11.2, leaving out the items that need legal advice, live drills, a decision or real users. Five are fully done (49.11.3, 49.11.8, 49.12.2, 49.12.6, 49.12.7); fifteen are built in part, with what is left written on each entry.</p>
 <p><strong>Stage 138 — No &#34;Switch product&#34; box for a client</strong> <em>(frontend + <code>/me/modules</code>, released in 0.14.0 <code>0bcac93</code>)</em></p>
 <p>The user asked why minn&#39;s sidebar showed &#34;Switch product...&#34; and wanted a client to see app&#39;s clean layout with only the modules it lacks hidden. Stage 27&#39;s switcher appeared for a client with 2+ products but not every full-suite module, and picking one only changed the address bar. Removed the switcher, the server&#39;s <code>owned_packages</code> and its two helpers; the sidebar&#39;s existing module hiding is unchanged. Detail in <code>micro_checklist.md</code> 138.1; minn check after the deploy is open.</p>

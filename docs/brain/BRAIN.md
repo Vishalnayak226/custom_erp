@@ -9,12 +9,12 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 
 | | |
 |---|---|
-| Graph built from commit | `0bcac935` |
-| Brain redrawn | source graph 0bcac935 |
+| Graph built from commit | `21e7c998` |
+| Brain redrawn | source graph 21e7c998 |
 | Regions / lobes | 38 / 8 |
 | Files in the working tree | 1852 (1364 of them parsed into the graph) |
 | Files claimed by a region | **100.0%** |
-| Symbols in the graph | 17677 |
+| Symbols in the graph | 17680 |
 | Cross-region relationships | 7405 extracted (95% inferred) + 8 declared by hand |
 
 **Interactive version: [brain.html](brain.html)** — open it in a browser and click any region.
@@ -39,7 +39,7 @@ flowchart LR
   n_business["Functional Lobes — Business Operations<br/><small>394 files · 5057 symbols</small>"]
   n_peripheral["Peripheral Nerves — Integrations<br/><small>66 files · 1173 symbols</small>"]
   n_autonomic["Autonomic — Background & Reflexes<br/><small>18 files · 223 symbols</small>"]
-  n_memory["Hippocampus — Written Memory<br/><small>362 files · 4699 symbols</small>"]
+  n_memory["Hippocampus — Written Memory<br/><small>362 files · 4702 symbols</small>"]
   n_motor["Motor Cortex — Build & Delivery<br/><small>59 files · 270 symbols</small>"]
   n_verification["Cerebellum — Verification<br/><small>413 files · 1744 symbols</small>"]
   n_business -->|2520| n_brainstem
@@ -101,7 +101,7 @@ flowchart LR
 | **Functional Lobes — Business Operations** | The specialised areas. Each one owns a domain and can be licensed on its own. | 16 | 394 | 5057 | 1643 |
 | **Peripheral Nerves — Integrations** | Contact with the outside world: storefronts, payment terminals, marketing clouds, third-party extensions. | 3 | 66 | 1173 | 7 |
 | **Autonomic — Background & Reflexes** | Runs without anyone asking it to: outbox drain, pollers, alerting, scheduled sweeps. | 2 | 18 | 223 | 33 |
-| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 362 | 4699 | 214 |
+| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 362 | 4702 | 214 |
 | **Motor Cortex — Build & Delivery** | How the system actually moves: build, migrate, promote, back up, restore. | 1 | 59 | 270 | 0 |
 | **Cerebellum — Verification** | Balance and correction. Kept out of the wiring diagrams on purpose — tests touch everything, so drawing them would grey out every real edge. | 1 | 413 | 1744 | 0 |
 
@@ -162,7 +162,7 @@ flowchart LR
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>355 files · 4578 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>355 files · 4581 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 121 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
@@ -411,7 +411,7 @@ flowchart LR
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>355 files · 4578 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>355 files · 4581 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 121 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
@@ -866,7 +866,7 @@ flowchart LR
 | [Extension Platform](#extension-platform) | Peripheral Nerves — Integrations | 14 | 188 | → Persistence & Migrations (28) |
 | [Event Outbox & Async Job Runner](#event-outbox--async-job-runner) | Autonomic — Background & Reflexes | 8 | 64 | ← Logging, Alerting & Notifications (24) |
 | [Logging, Alerting & Notifications](#logging-alerting--notifications) | Autonomic — Background & Reflexes | 10 | 159 | ← Warehouse Management (WMS) (75) |
-| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 355 | 4578 | ← The Brain Map (this) (213) |
+| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 355 | 4581 | ← The Brain Map (this) (213) |
 | [The Brain Map (this)](#the-brain-map-this) | Hippocampus — Written Memory | 7 | 121 | → Project Documentation (213) |
 | [Build, Deploy & Operate](#build-deploy--operate) | Motor Cortex — Build & Delivery | 59 | 270 | → Identity, RBAC & MFA (10) |
 | [Security Baseline & Attack Surface](#security-baseline--attack-surface) | Brainstem — Kernel | 26 | 257 | → Persistence & Migrations (19) |
@@ -887,7 +887,7 @@ The whole frontend: one hand-written vanilla-JS single-page app, no framework an
 - `apiFetch()` — [public/app.js](../../public/app.js#L917) · degree 26
 - `init()` — [public/app.js](../../public/app.js#L3505) · degree 22
 - `renderPick()` — [public/view-oms-steps.js](../../public/view-oms-steps.js#L255) · degree 21
-- `renderView()` — [public/app.js](../../public/app.js#L5939) · degree 21
+- `renderView()` — [public/app.js](../../public/app.js#L5941) · degree 21
 - `ErpTypeahead` — [public/components/erp-typeahead.js](../../public/components/erp-typeahead.js#L65) · degree 20
 - `renderPOComposer()` — [public/view-procurement.js](../../public/view-procurement.js#L486) · degree 20
 

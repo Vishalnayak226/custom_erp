@@ -121,7 +121,7 @@ field, checked against the `X-Courier-Signature` header at
 that resolves to `Delivered` calls `RecordDeliveryEvent`; one that resolves
 to a delivery failure opens or updates an `NDRCase` via `RecordNDR`; `RTO`
 calls `RecordRTO` — the same three functions the manual flow's own
-**Mark In-Transit** / **Mark Delivered** / **Report RTO** buttons call by
+**In transit** / **Delivered** / **RTO** buttons (OMS → Ship, *On the way*) call by
 hand (see below), so a booking is not locked into "manual" or "automatic"
 forever — whichever one reports a status first wins.
 
@@ -153,7 +153,7 @@ actually uses today:
 3. Per booking: **Print label** (auto-picks the printer whose Default For is
    Shipping Label via QZ Tray, falling back to the on-screen label view
    if QZ Tray isn't running), **In transit** / **Delivered** under **On the way**
-   (`RecordDeliveryEvent`, `WMSLOG-0139` on failure), and **Report RTO**
+   (`RecordDeliveryEvent`, `WMSLOG-0139` on failure), and **RTO**
    (`RecordRTO`) once a booking is Handed Over.
 
 None of this — booking, label, tracking marks — calls a real courier API.

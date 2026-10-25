@@ -334,7 +334,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '64';
+const VIEW_MODULE_VERSION = '65';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -3740,7 +3740,9 @@ const MENU_PERMISSION_MAP = {
   'menu-sortation': { doctypes: ['SortSlot'] },
   'menu-loading': { doctypes: ['LoadingTask'] },
 
-  'menu-hr': { doctypes: ['Employee'] },
+  // 132.18: or files their own leave / grievance (self-service, e.g. Cashier) - HR shows such a
+  // role My Requests and its own Leave / Grievances (view-hr.js hides every tab it cannot read).
+  'menu-hr': { doctypes: ['Employee', 'Leave', 'Grievance'] },
   'menu-assets': { doctypes: ['Asset'] },
   'menu-expenses': { doctypes: ['ExpenseClaim'] },
 

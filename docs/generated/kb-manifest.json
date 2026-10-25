@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": "cmd/genkb",
   "generator_version": "stage48-v1",
-  "release": "0.15.0",
+  "release": "0.16.0",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "schema": "source registries",
   "tenant": "none",
@@ -64,7 +64,7 @@
     },
     {
       "path": "internal/kb/content/articles/courier-integrations.html",
-      "sha256": "1fc744bd3061ca8687db027bff786e9a45ff926aa5042979aab5a4a52f32cc32",
+      "sha256": "93179ac76b3e0f3cfc3295fd40c111d7c26b174e775d1e747b7dac186d47c7db",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -388,7 +388,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes.html",
-      "sha256": "79fe658717d7c1a8c65c6e2374af2586887849c61eb08333b75f601b988e0163",
+      "sha256": "c82789505265e06a62e2f365e514fa4f9b0d7c91c00f1297e5f99979af06f75c",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -541,7 +541,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "2fe26abbeac55fa3cc6985728165491fc4c6cb997c3ac5438769c32ee188e208",
+      "sha256": "7faf8fbb1cefb36912f27faa7bbd65b85685bd6d808f77cbfba8bfe24e579065",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

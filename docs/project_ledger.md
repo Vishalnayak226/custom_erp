@@ -44,7 +44,7 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
-## 295. "Build all" run, Stage 49: the next 20 items (2026-10-26, code + tests + runbooks, NOT COMMITTED)
+## 295. "Build all" run, Stage 49: the next 20 items (2026-10-26, code + tests + runbooks, released in 0.15.0 `21e7c99`)
 
 The user asked for the next 20 open items, to start once release 0.14.0 (`0bcac93`) was pushed. They were taken in tracker order from 49.11.2, leaving out the items that need legal advice, live drills, a decision or real users. Five are fully done (49.11.3, 49.11.8, 49.12.2, 49.12.6, 49.12.7); fifteen are built in part, with what is left written on each entry.
 
