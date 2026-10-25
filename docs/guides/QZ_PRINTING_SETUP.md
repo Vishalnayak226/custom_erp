@@ -29,6 +29,25 @@ too](#making-the-marketplace-panels-work-too).
 
 ---
 
+## The easy way: PrintBridge (Stage 137)
+
+PrintBridge is the ERP's own print agent. It speaks the same protocol as QZ
+Tray, needs no Java, and one installer serves every Wholeops address. On each
+computer that prints:
+
+1. In the ERP open **Sticker Printing → + Print Stickers → Printer setup on
+   this computer** and click **Download PrintBridge**.
+2. Run the file and click **Yes** to the one certificate question.
+3. A printer icon appears near the clock. PrintBridge starts with Windows; if
+   it was closed from the tray, the ERP starts it again at your next click (the
+   browser may ask once *Open PrintBridge?* - tick **Always allow**).
+
+Then do Part 2 (the Printer records) and set each label printer's preset -
+roll, alignment, darkness (User Guide §7A.6). Part 1 below is only for a
+computer that keeps QZ Tray, for example for the marketplace panels.
+
+---
+
 ## What you need to know first
 
 QZ Tray is a small program that runs on the **packing PC** (not the server).

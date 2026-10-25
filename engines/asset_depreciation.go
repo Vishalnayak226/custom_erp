@@ -58,17 +58,30 @@ type assetDepPlan struct {
 	costPaise int64     // what capitalisation posted to 1400
 }
 
+// assetCostPaise is what capitalisation debits (or debited) to 1400, the
+// figure depreciation and disposal must clear exactly. Stage 132.17: it is
+// now the cost to the paisa, recorded as capitalised_paise - int(cost) had
+// dropped the paise. An asset capitalised before then posted whole rupees and
+// has no record, so it keeps that figure.
+func assetCostPaise(data map[string]interface{}) int64 {
+	if p, ok := data["capitalised_paise"].(float64); ok && p > 0 {
+		return int64(p)
+	}
+	cost, _ := data["cost"].(float64)
+	if s, _ := data["status"].(string); s == "" || s == "Draft" {
+		return RupeesToPaise(cost)
+	}
+	return int64(int(cost)) * 100
+}
+
 // assetDepreciationPlan reads the plan from an asset's data. capDate
 // overrides the stored capitalisation date (a Draft's preview).
 func assetDepreciationPlan(data map[string]interface{}, capDate string) (assetDepPlan, bool) {
-	cost, _ := data["cost"].(float64)
 	life, _ := data["useful_life_years"].(float64)
 	if capDate == "" {
 		capDate, _ = data["capitalisation_date"].(string)
 	}
-	// int(cost) * 100: the same figure CapitalizeAssetWithLife debits to 1400,
-	// so depreciation and disposal clear exactly what was capitalised.
-	plan := assetDepPlan{costPaise: int64(int(cost)) * 100, months: int(math.Round(life * 12))}
+	plan := assetDepPlan{costPaise: assetCostPaise(data), months: int(math.Round(life * 12))}
 	t, err := time.Parse("2006-01-02", capDate)
 	if err != nil || plan.months <= 0 || plan.costPaise <= 0 {
 		return plan, false
@@ -535,8 +548,7 @@ func PreviewAssetDisposal(tenantID, assetID string, proceeds float64, receivedIn
 			accumulated += plan.amount(i)
 		}
 	}
-	cost, _ := data["cost"].(float64)
-	costPaise := int64(int(cost)) * 100
+	costPaise := assetCostPaise(data)
 	debits, credits, gainLoss := assetDisposalEntry(costPaise, accumulated, RupeesToPaise(proceeds), receivedInto)
 	preview.Cost = PaiseToRupees(costPaise)
 	preview.AccumulatedDepreciation = PaiseToRupees(accumulated)
@@ -599,8 +611,7 @@ func DisposeAssetWithProceeds(tenantID, assetID, disposalType string, proceeds f
 	for _, p := range posted {
 		accumulated += p.amount
 	}
-	cost, _ := data["cost"].(float64)
-	costPaise := int64(int(cost)) * 100
+	costPaise := assetCostPaise(data)
 	proceedsPaise := RupeesToPaise(proceeds)
 	debits, credits, gainLoss := assetDisposalEntry(costPaise, accumulated, proceedsPaise, receivedInto)
 	if err := PostDoubleEntryTx(tx, tenantID, schema, "Asset-Disposal", assetID, debits, credits, "", fmt.Sprintf("Asset:%s:DISPOSE", assetID)); err != nil {

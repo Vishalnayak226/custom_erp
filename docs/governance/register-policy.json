@@ -90,6 +90,14 @@
       "disposition": "keep"
     },
     {
+      "prefix": "docs/qa/generated/",
+      "type": "generated",
+      "status": "active",
+      "owner": "qa-owner",
+      "authority": "projection",
+      "disposition": "keep"
+    },
+    {
       "prefix": "docs/qa/",
       "type": "reference",
       "status": "draft",

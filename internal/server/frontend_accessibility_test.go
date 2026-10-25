@@ -335,7 +335,8 @@ func TestRFOutcomeVocabularyIsComplete(t *testing.T) {
 	for _, chunk := range publicViewChunkNames(t) {
 		js += "\n" + readPublicAsset(t, chunk)
 	}
-	css := readPublicAsset(t, "styles.css")
+	// Stage 135.7: the RF screen's rules moved to its lazy rf.css.
+	css := readPublicAsset(t, "styles.css") + readPublicAsset(t, "rf.css")
 
 	for _, outcome := range []string{"ok", "duplicate", "wrong_item", "owner_mismatch", "hold", "error", "offline"} {
 		if !regexp.MustCompile(`(?m)^\s*` + regexp.QuoteMeta(outcome) + `:\s*\{\s*vibrate:`).MatchString(js) {

@@ -134,7 +134,17 @@ func catKey(header string) string {
 // default fold in a summary).
 func catNumericHeader(h string) bool {
 	l := strings.ToLower(h)
-	if strings.Contains(l, "%") || strings.Contains(l, " no") || strings.HasSuffix(l, " id") || strings.Contains(l, "date") || strings.Contains(l, "rate") || strings.Contains(l, "price") || l == "mrp" {
+	if strings.Contains(l, "%") || strings.Contains(l, " no") || strings.HasSuffix(l, " id") || strings.Contains(l, "date") {
+		return false
+	}
+	// A total named after the price it is taken at - "Stock Value at Purchase Price" - is
+	// still a total. It was folded as "first" (the price exclusion below), so a grouped
+	// Stock Valuation Summary kept one item's value per store/category and did not tie to
+	// the ledger on app (Stage 132.13 o, found by Guide).
+	if strings.Contains(l, "value") || strings.Contains(l, "amount") || strings.Contains(l, "qty") {
+		return true
+	}
+	if strings.Contains(l, "rate") || strings.Contains(l, "price") || l == "mrp" {
 		return false
 	}
 	for _, s := range []string{"qty", "amount", "value", "count", "cost", "charges", "tax", "points", "debit", "credit", "balance", "variance"} {

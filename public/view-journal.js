@@ -84,7 +84,7 @@ async function renderJournalVouchersView(container) {
                   <td class="num">${jvLineCount(v)}</td>
                   <td class="num">${Number(v.total_amount || 0).toLocaleString()}</td>
                   <td><span class="badge ${JV_STATUS_BADGE[v.status] || 'badge-secondary'}">${escapeHTMLText(v.status || '')}</span></td>
-                  <td>${renderJournalVoucherActions(v)}</td>
+                  <td>${renderJournalVoucherActions(v, vouchers)}</td>
                 </tr>`).join('')}
           </tbody>
         </table>
@@ -98,11 +98,17 @@ async function renderJournalVouchersView(container) {
   txnRestorePane('jv-screen');
 }
 
-function renderJournalVoucherActions(v) {
+function renderJournalVoucherActions(v, all = []) {
   if (v.status === 'Draft') return `<button class="action-btn" ${actionAttrs('submitJournalVoucher', [v.id])}>Submit for Approval</button>`;
   if (v.status === 'Pending Approval') return `<span style="color: var(--text-muted); font-size: 12px;">Awaiting approval on the Approvals screen</span>`;
   if (v.status === 'Approved') return `<button class="action-btn" ${actionAttrs('retryPostJournalVoucher', [v.id])}>Retry Post</button>`;
-  if (v.status === 'Posted') return `<button class="action-btn" ${actionAttrs('reverseJournalVoucher', [v.id])}>Reverse</button>`;
+  if (v.status === 'Posted') {
+    // Stage 132.17: a voucher stays Posted until its reversal posts; while
+    // one is on its way, say so instead of offering a second.
+    const rev = v.reversed_by && all.find(x => x.id === v.reversed_by);
+    if (rev && !['Rejected', 'Cancelled'].includes(rev.status)) return `<span style="color: var(--text-muted); font-size: 12px;">Being reversed by ${escapeHTMLText(rev.voucher_number || rev.id)} (${escapeHTMLText(rev.status)})</span>`;
+    return `<button class="action-btn" ${actionAttrs('reverseJournalVoucher', [v.id])}>Reverse</button>`;
+  }
   return '';
 }
 
@@ -252,7 +258,7 @@ async function reverseJournalVoucher(id) {
   const res = await apiFetch(`/api/v1/finance/journal-voucher/${encodeURIComponent(id)}/reverse`, { method: 'POST' });
   if (!res) return;
   if (!res.ok) { await showApiError(res, 'Failed to reverse the voucher.'); return; }
-  showToast('Reversing voucher created as Draft.');
+  showToast('Reversing voucher created as Draft - this one shows Reversed once that posts.');
   renderView('journal-vouchers');
 }
 

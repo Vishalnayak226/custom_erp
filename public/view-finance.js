@@ -1034,7 +1034,7 @@ async function renderBankWorkbench(host) {
             ${l.match_method ? `<br><small>${escapeHTMLText(l.match_method)} by ${escapeHTMLText(l.matched_by)}${l.match_difference ? `, difference ${money(l.match_difference)}` : ''}</small>` : ''}
             ${l.match_status === 'Exception' ? `<br><small>Owner ${escapeHTMLText(l.exception_owner)}, ${l.exception_age_days} day(s): ${escapeHTMLText(l.exception_reason)}</small>` : ''}
             ${l.resolution_note ? `<br><small>${escapeHTMLText(l.resolution_note)}</small>` : ''}
-            ${(l.matched_postings || []).map(p => `<br><small>${documentSearchLink(p.document_type, p.document_id, `${p.document_type} ${p.document_id}`)}</small>`).join('')}</td>
+            ${(l.matched_postings || []).map(p => `<br><small>${documentSearchLink(p.document_type, p.document_id, `${getDoctypeLabel(p.document_type)} ${p.document_id}`)}</small>`).join('')}</td>
           <td>${l.match_status === 'Unmatched' || l.match_status === 'Exception' ? `
               <button class="action-btn" data-bank-find>Find match</button>
               ${l.dr_cr === 'Credit' ? '<button class="action-btn" data-bank-payout>Payout</button>' : ''}
@@ -1046,7 +1046,7 @@ async function renderBankWorkbench(host) {
     </table>
     <h3 style="font-size:15px;margin:20px 0 8px;">Unmatched book entries on ${escapeHTMLText(wb.gl_account_code)} (${wb.unmatched_book.length})</h3>
     ${wb.unmatched_book.length === 0 ? '<p style="color:var(--text-muted)">None.</p>' : `<table><thead><tr><th>Posted</th><th>Document</th><th>Debit (in)</th><th>Credit (out)</th><th>Posted by</th></tr></thead><tbody>
-      ${wb.unmatched_book.slice(0, 50).map(p => `<tr><td>${escapeHTMLText(p.date.slice(0, 16))}</td><td>${documentSearchLink(p.document_type, p.document_id, `${p.document_type} ${p.document_id}`)}</td><td>${p.debit ? money(p.debit) : ''}</td><td>${p.credit ? money(p.credit) : ''}</td><td>${escapeHTMLText(p.posted_by || 'before attribution')}</td></tr>`).join('')}
+      ${wb.unmatched_book.slice(0, 50).map(p => `<tr><td>${escapeHTMLText(p.date.slice(0, 16))}</td><td>${documentSearchLink(p.document_type, p.document_id, `${getDoctypeLabel(p.document_type)} ${p.document_id}`)}</td><td>${p.debit ? money(p.debit) : ''}</td><td>${p.credit ? money(p.credit) : ''}</td><td>${escapeHTMLText(p.posted_by || 'before attribution')}</td></tr>`).join('')}
     </tbody></table>`}
     <h3 style="font-size:15px;margin:20px 0 8px;">Payouts waiting for a bank line</h3>
     <p>Card clearing (1101): <b>${money(wb.card_clearing_balance)}</b> &middot; UPI clearing (1102): <b>${money(wb.upi_clearing_balance)}</b> &middot; Marketplace batches: <b>${wb.marketplace_payouts.length}</b></p>
@@ -1078,7 +1078,7 @@ async function renderBankWorkbench(host) {
       open(candidates.length === 0 ? `<p style="color:var(--text-muted)">No unmatched book entry on this side of the account. Post the missing entry (or the bank charge), or raise an exception.</p>` : `
         <table><thead><tr><th></th><th>Posted</th><th>Document</th><th>Amount</th><th>Difference</th><th>Days apart</th></tr></thead><tbody>
         ${candidates.map(p => `<tr><td><input type="checkbox" data-cand="${escapeHTMLText(p.posting_id)}" data-cand-amount="${credit ? p.debit : p.credit}" aria-label="Select ${escapeHTMLText(p.document_id)}"></td>
-          <td>${escapeHTMLText(p.date.slice(0, 16))}</td><td>${documentSearchLink(p.document_type, p.document_id, `${p.document_type} ${p.document_id}`)}</td>
+          <td>${escapeHTMLText(p.date.slice(0, 16))}</td><td>${documentSearchLink(p.document_type, p.document_id, `${getDoctypeLabel(p.document_type)} ${p.document_id}`)}</td>
           <td>${money(credit ? p.debit : p.credit)}</td><td>${money(p.amount_difference)}</td><td>${p.days_apart || 0}</td></tr>`).join('')}
         </tbody></table>
         <div style="display:flex;gap:12px;align-items:center;margin-top:8px"><span data-cand-sum>Selected 0.00 of ${money(amount)}</span>

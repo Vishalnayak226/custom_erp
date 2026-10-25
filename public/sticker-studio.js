@@ -2194,7 +2194,7 @@ export async function renderStickerTemplateRules(container) {
 // Changes a few fields of a record through the generic doc API: read it, send
 // it back whole with the change and the version it was read at, so an edit
 // made meanwhile by someone else is refused rather than overwritten.
-async function patchDoc(doctype, id, changes) {
+export async function patchDoc(doctype, id, changes) {
   const url = `/api/v1/doc/${doctype}/${encodeURIComponent(id)}`;
   const res = await window.apiFetch(url);
   if (!res) return false;

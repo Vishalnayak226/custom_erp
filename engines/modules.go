@@ -160,60 +160,6 @@ func ResolveSoleProductPackage(enabledModules []string) *ProductPackage {
 	return match
 }
 
-// ResolveOwnedPackages returns every non-full-suite package whose entire
-// module set (via packageModuleSet, so "reports" counts as always owned
-// alongside any real product) is a subset of a tenant's enabled optional
-// modules - i.e. every product this tenant could navigate to, not just the
-// one ResolveSoleProductPackage would auto-redirect to. Used only to drive
-// the frontend's product switcher for a tenant that owns 2+ products but
-// not the full suite; sorted by PackageKey for a stable response.
-func ResolveOwnedPackages(enabledModules []string) []ProductPackage {
-	enabledSet := map[string]bool{}
-	for _, m := range enabledModules {
-		enabledSet[m] = true
-	}
-
-	var out []ProductPackage
-	for key, pkg := range ProductPackages {
-		if key == "erp_full" {
-			continue
-		}
-		owned := true
-		for m := range packageModuleSet(pkg) {
-			if !enabledSet[m] {
-				owned = false
-				break
-			}
-		}
-		if owned {
-			out = append(out, pkg)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].PackageKey < out[j].PackageKey })
-	return out
-}
-
-// IsFullSuite reports whether a tenant's enabled optional modules cover
-// every module the "erp_full" package grants - i.e. this tenant has
-// (at least) the complete product line, not a curated subset. Used so the
-// frontend's product switcher stays hidden for a full-suite tenant even
-// though such a tenant technically satisfies every individual package's
-// requirements too (ResolveOwnedPackages would otherwise list all of
-// them) - a full-suite tenant should see exactly today's one unified
-// sidebar, never a "switch product" affordance.
-func IsFullSuite(enabledModules []string) bool {
-	enabledSet := map[string]bool{}
-	for _, m := range enabledModules {
-		enabledSet[m] = true
-	}
-	for m := range packageModuleSet(ProductPackages["erp_full"]) {
-		if !enabledSet[m] {
-			return false
-		}
-	}
-	return true
-}
-
 // ListProductPackages returns the ProductPackages catalog as a stable,
 // sorted-by-key slice for API responses - the map itself has no defined
 // iteration order, and callers (the Stage 26.1.4 entitlement admin screen)

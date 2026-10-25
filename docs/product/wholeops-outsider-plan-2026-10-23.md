@@ -188,7 +188,7 @@ Setup pages generated from metadata rather than a dedicated file.
 | `view-printing.js`, `view-reprint.js` | M27 |
 | `view-api-access.js`, `view-import-jobs.js` | M28 |
 | `view-users.js`, `view-roles.js` | M29 |
-| `view-documents.js`, `view-document-links.js`, `view-inbox.js`, `view-help.js` | Shared contract across M01–M30 |
+| `app.js` (the shell: sign-in, Home, Profile, menus), `view-documents.js`, `view-document-links.js`, `view-inbox.js`, `view-help.js` | Shared contract across M01–M30 |
 
 Also include the `public/store/` app, customer-facing `public/p/` and `public/f/` surfaces,
 login/account flows in the shell, `grn-steps.js`, transaction/template/print studios, and

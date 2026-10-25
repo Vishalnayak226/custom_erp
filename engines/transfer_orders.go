@@ -270,25 +270,27 @@ func DispatchTransferOrderWith(tenantID, transferOrderID, userID string, picks [
 		return err
 	}
 
-	if err := tx.Commit(); err != nil {
-		return err
-	}
 	// 26.10.1: one stock ledger line per SKU dispatched, from fromWarehouse -
 	// available decreased there (a negative movement), heading to toWarehouse.
 	// 73.1.7: a tracked line writes one line per lot / per serial instead, so
-	// the ledger answers "where did lot X go".
+	// the ledger answers "where did lot X go". Stage 132.17: in the same
+	// transaction - written after the commit, a failed write left the stock
+	// moved with no ledger line and only a log warning.
 	toWarehouse, _ := data["to_warehouse"].(string)
 	for _, line := range dispatched {
 		for _, mv := range transferLedgerMoves(line) {
-			if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
+			if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
 				ItemID: line.Sku, WarehouseID: fromWarehouse, Qty: -float64(mv.qty),
 				VoucherType: "TransferOrder", VoucherID: transferOrderID, UserID: userID,
 				ToLocationID: toWarehouse, ToStatus: "In Transit", BatchNo: mv.batchNo, SerialNo: mv.serialNo,
 				IdempotencyKey: fmt.Sprintf("TO-DISPATCH:%s:%s%s", transferOrderID, line.Sku, mv.keySuffix()),
-			}); lerr != nil {
-				LogSystemError(tenantID, "", "WARN", "DispatchTransferOrder", fmt.Sprintf("stock ledger write failed for %s: %v", line.Sku, lerr), "")
+			}); err != nil {
+				return fmt.Errorf("stock ledger for %s: %w", line.Sku, err)
 			}
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
 	}
 	LogAuditEvent(tenantID, userID, "DISPATCH_TRANSFER_ORDER", "SUCCESS", fmt.Sprintf("Dispatched transfer order %s from %s", transferOrderID, fromWarehouse))
 	return nil

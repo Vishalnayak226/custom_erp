@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -114,6 +115,41 @@ func enqueueJobInSchema(schema, jobType string, payload map[string]interface{}, 
 	return enqueueJobWith(db.DB, schema, jobType, payload, idempotencyKey, correlationID)
 }
 
+// jobSecretKeys are payload keys a job never stores (Stage 49.8.6): a job row
+// is listed, retried and dead-lettered, so a secret in it outlives its use. A
+// handler that needs one reads it when it runs, as webhook delivery does
+// (134.2). Exact names, not fragments - a document's session_id or a token
+// count inside an event payload must pass through untouched.
+var jobSecretKeys = map[string]bool{
+	"password": true, "password_hash": true, "passcode": true, "secret": true,
+	"client_secret": true, "api_secret": true, "webhook_secret": true, "signing_secret": true,
+	"api_key": true, "apikey": true, "private_key": true, "access_token": true,
+	"refresh_token": true, "auth_token": true, "bearer_token": true, "mfa_secret": true, "totp_secret": true,
+}
+
+// redactJobSecrets replaces the value of every jobSecretKeys key, at any depth.
+func redactJobSecrets(v interface{}) interface{} {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		out := make(map[string]interface{}, len(val))
+		for k, item := range val {
+			if jobSecretKeys[strings.ToLower(k)] {
+				out[k] = redactedMarker
+			} else {
+				out[k] = redactJobSecrets(item)
+			}
+		}
+		return out
+	case []interface{}:
+		out := make([]interface{}, len(val))
+		for i, item := range val {
+			out[i] = redactJobSecrets(item)
+		}
+		return out
+	}
+	return v
+}
+
 // jobEnqueuer is satisfied by both *sql.DB and *sql.Tx, so a caller that
 // must commit a job together with its own row (Stage 73.2.13's notification
 // log) enqueues inside its transaction - the outbox guarantee - rather than
@@ -126,6 +162,9 @@ type jobEnqueuer interface {
 func enqueueJobWith(q jobEnqueuer, schema, jobType string, payload map[string]interface{}, idempotencyKey, correlationID string) (string, error) {
 	if jobType == "" {
 		return "", fmt.Errorf("a job needs a job_type")
+	}
+	if payload != nil {
+		payload, _ = redactJobSecrets(payload).(map[string]interface{})
 	}
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
@@ -349,6 +388,11 @@ func finishJob(schema string, job Job, result map[string]interface{}, jobErr err
 			log.Printf("[JOBRUNNER] failed to dead-letter job %s: %v", job.ID, err)
 		}
 		log.Printf("[JOBRUNNER] job %s (%s) dead-lettered after %d attempts: %s", job.ID, job.JobType, nextAttempts, errMsg)
+		// Stage 49.11.1: a job that gave up is a security / operations event,
+		// not only a log line - a failed delivery or sync is someone's to act on.
+		if tenantID, idErr := tenantIDForSchema(schema); idErr == nil {
+			LogAuditEvent(tenantID, "system", "JOB", "DEAD_LETTERED", fmt.Sprintf("Job %s (%s) gave up after %d attempts: %.300s", job.ID, job.JobType, nextAttempts, errMsg))
+		}
 		return
 	}
 

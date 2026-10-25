@@ -2,7 +2,7 @@
 title: Release notes (part 2)
 section: Reference
 order: 26
-summary: Earlier releases, 2026-07-27 to 2026-09-11, continued from the release notes.
+summary: Earlier releases, 2026-07-27 to 2026-09-12, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,7 +19,13 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **83** earlier entries, 2026-07-27 to 2026-09-11.
+This page continues the [release notes](release-notes.md) with **84** earlier entries, 2026-07-27 to 2026-09-12.
+
+## 2026-09-12
+
+**Stage 47.7.6 — the audit archive, and the incident it caused while being built** *(code + schema + tests)*
+
+Closes the one piece §142 left open: 47.7 (A-07/A-30) now reads **fully done**. `engines/audit_archive.go` adds the archive itself on top of §142's signed-events-plus-checkpoints model — AES-256-GCM-encrypted, gzip-compressed archive files (same key-management pattern as `channel_credentials.go`), one archive per checkpoint window (never partial — a single held row under legal hold blocks the whole window), manifest-then-delete taken literally (the file is written and self-verified by re-decrypting and re-checking its digest *before* the archive row is recorded and the source rows deleted, all inside one transaction). The subtler half: checkpoint verification is now archive-aware, redirecting to the archive file instead of the (now-empty) live table for an archived window, so a legitimate archive is never mistaken for the deletion attack checkpoints exist to catch — while still catching the archive file itself being deleted, corrupted or swapped. Five new HTTP endpoints and a daily scheduler entry round it out. Full mechanics in `micro_checklist.md`'s 47.7.6 entry.
 
 ## 2026-09-11
 

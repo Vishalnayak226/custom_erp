@@ -2,7 +2,6 @@ package engines
 
 import (
 	"bytes"
-	"encoding/csv"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -151,7 +150,7 @@ func BuildPrintExport(d PrintDocument, format string) ([]byte, string, string, e
 	case "csv":
 		var buf bytes.Buffer
 		buf.WriteString("\xEF\xBB\xBF") // so Excel reads ₹ and Indian names as UTF-8
-		w := csv.NewWriter(&buf)
+		w := newSafeCSVWriter(&buf)
 		for _, h := range header {
 			_ = w.Write([]string{h[0], h[1]})
 		}

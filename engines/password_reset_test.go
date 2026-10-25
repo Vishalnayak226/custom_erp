@@ -131,3 +131,35 @@ func TestCompletePasswordResetRevokesSessionsAndEnforcesPolicy(t *testing.T) {
 		t.Error("a reset token must be single-use")
 	}
 }
+
+// Stage 49.2.8 (reset race): one reset link used twice at the same moment -
+// two tabs, a double click - sets a password once; the other use fails.
+func TestStage49PasswordResetTokenWinsOnce(t *testing.T) {
+	db.InitDB(passwordResetTestConnStr())
+	userID, _, cleanup := seedPasswordResetTestUser(t)
+	defer cleanup()
+	rawToken := "race-reset-token-" + userID
+	if _, err := db.DB.Exec(
+		`UPDATE tenant_default.users SET reset_token_hash = $1, reset_token_expires_at = NOW() + interval '30 minutes' WHERE id = $2`,
+		hashResetToken(rawToken), userID); err != nil {
+		t.Fatalf("seed reset token: %v", err)
+	}
+	results := make(chan error, 2)
+	for _, pw := range []string{"Race-Winner-One-2026", "Race-Winner-Two-2026"} {
+		go func(pw string) { results <- CompletePasswordReset("default", rawToken, pw) }(pw)
+	}
+	succeeded := 0
+	for i := 0; i < 2; i++ {
+		if err := <-results; err == nil {
+			succeeded++
+		}
+	}
+	if succeeded != 1 {
+		t.Fatalf("%d of two simultaneous uses of one reset link succeeded; exactly one must", succeeded)
+	}
+	var cv int
+	db.DB.QueryRow(`SELECT credential_version FROM tenant_default.users WHERE id = $1`, userID).Scan(&cv)
+	if cv != 2 {
+		t.Fatalf("credential_version %d after one reset; a second reset ran", cv)
+	}
+}

@@ -114,6 +114,48 @@ var returnDispositionRule = map[string]struct {
 // then Item.standard_cost, then zero), so a sale and its return agree on what
 // the goods cost by construction rather than by both trusting the same
 // client-supplied number.
+// salesInvoiceLineItems reads a SalesInvoice's sold lines. An online order's shipment
+// turns its OMS bill into a SalesInvoice whose "items" (a JSON string or a list) carry
+// sku, qty and the GST-inclusive unit_price (oms_bill.go) - Stage 132.13 (t).
+type salesInvoiceLine struct {
+	Sku       string  `json:"sku"`
+	Qty       int     `json:"qty"`
+	UnitPrice float64 `json:"unit_price"`
+}
+
+func salesInvoiceLineItems(dataStr string) []salesInvoiceLine {
+	var d map[string]json.RawMessage
+	if json.Unmarshal([]byte(dataStr), &d) != nil {
+		return nil
+	}
+	raw := d["items"]
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		raw = json.RawMessage(s)
+	}
+	var lines []salesInvoiceLine
+	_ = json.Unmarshal(raw, &lines)
+	return lines
+}
+
+// salesInvoiceForOrder (Stage 132.13 t): a Customer Return that quotes an online order
+// (its SalesOrder) is taken against the SalesInvoice that order's shipment produced - the
+// bill holding what was sold. Any other reference is returned unchanged. A shipped online
+// order could not be returned at all (SALESR-0131 "no original bill found").
+func salesInvoiceForOrder(tenantID, id string) string {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil || id == "" {
+		return id
+	}
+	var inv string
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = 'SalesInvoice' AND deleted_at IS NULL
+		AND status <> 'Cancelled' AND data->>'sales_order_id' = $1 ORDER BY created_at LIMIT 1`, schema), id).Scan(&inv)
+	if inv != "" {
+		return inv
+	}
+	return id
+}
+
 func resolveOriginalSaleLinePrices(tenantID, orderID string) (map[string]originalLinePrice, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -124,7 +166,17 @@ func resolveOriginalSaleLinePrices(tenantID, orderID string) (map[string]origina
 		`SELECT data FROM %s.documents WHERE doctype = 'POSCart' AND id = $1 AND status = 'Paid'`, schema),
 		orderID).Scan(&dataStr)
 	if err == sql.ErrNoRows {
-		return map[string]originalLinePrice{}, nil
+		// Not a till bill: an online order's SalesInvoice prices each unit at what the
+		// customer paid for it (the GST-inclusive unit price on the invoice line).
+		prices := map[string]originalLinePrice{}
+		var invStr string
+		if db.DB.QueryRow(fmt.Sprintf(`SELECT data FROM %s.documents WHERE doctype = 'SalesInvoice' AND id = $1`, schema), orderID).Scan(&invStr) == nil {
+			for _, l := range salesInvoiceLineItems(invStr) {
+				costPaise, _ := ResolveQuoteUnitCostPaise(tenantID, l.Sku)
+				prices[l.Sku] = originalLinePrice{SalePrice: l.UnitPrice, CostPrice: PaiseToRupees(costPaise)}
+			}
+		}
+		return prices, nil
 	} else if err != nil {
 		return nil, err
 	}
@@ -262,6 +314,8 @@ func prepareReturnRequest(tenantID, schema, requestType, returnLocation, origina
 		if originalOrderID == "" {
 			return nil, errors.New("original_order_id is required for a Customer Return")
 		}
+		originalOrderID = salesInvoiceForOrder(tenantID, originalOrderID) // an online order -> its invoice
+		out.originalOrderID = originalOrderID
 		soldLines, saleDate, found, errResolve := resolveOriginalSale(tenantID, originalOrderID)
 		if errResolve != nil {
 			return nil, errResolve
@@ -373,8 +427,10 @@ func originalSaleWasInterstate(tenantID, originalOrderID string) bool {
 		return false
 	}
 	var interstate sql.NullBool
+	// A till bill says so in gst_breakdown; an online order's SalesInvoice by charging IGST.
 	_ = db.DB.QueryRow(fmt.Sprintf(
-		`SELECT (data->'gst_breakdown'->>'interstate')::boolean FROM %s.documents WHERE id = $1`, schema),
+		`SELECT COALESCE((data->'gst_breakdown'->>'interstate')::boolean,
+			CASE WHEN jsonb_typeof(data->'igst') = 'number' THEN (data->>'igst')::numeric > 0 END) FROM %s.documents WHERE id = $1`, schema),
 		originalOrderID).Scan(&interstate)
 	return interstate.Valid && interstate.Bool
 }
@@ -639,6 +695,18 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 		items[i].Disposition = disposition
 		if rule.ReceivesStock {
 			if err := applyReturnedStockToBucket(tx, schema, items[i].SKU, returnLocation, items[i].Qty, rule.Bucket); err != nil {
+				return 0, "", err
+			}
+			// Stage 132.13 (p): the unit is back on hand, so the stock ledger records it -
+			// without this the Stock Ledger report's running balance fell one behind on hand
+			// with every customer return (found by Guide on app). Same transaction, keyed so
+			// a retried QC cannot count it twice.
+			if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
+				ItemID: items[i].SKU, WarehouseID: returnLocation, Qty: float64(items[i].Qty),
+				VoucherType: "SalesReturn", VoucherID: returnRequestID,
+				IdempotencyKey: fmt.Sprintf("ReturnRequest:%s:%s:QC", returnRequestID, items[i].SKU),
+				ToStatus:       rule.Bucket, UserID: qcBy,
+			}); err != nil {
 				return 0, "", err
 			}
 			// Stage 106.4: a Good (Sellable) return lands where Sales Return's

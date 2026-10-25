@@ -335,17 +335,52 @@
     });
   }
 
+  function openAny() {
+    return candidates().reduce(function (chain, url) {
+      return chain.catch(function () { return openSocket(url); });
+    }, Promise.reject(new Error('start')));
+  }
+  function later(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  /* Stage 137.5: PrintBridge wakes with the ERP. Its installer (and each
+   * start) registers a printbridge: link. On a PC that has had PrintBridge,
+   * a page that finds it not answering opens that link inside a click - the
+   * sign-in, the first click after a reload, or Print - so a Quit from the
+   * tray or a crash is undone. Never on a PC that has not had it (Windows
+   * would only ask which app opens the link), and three wakes with no answer
+   * stop the waking, for a PC where it was removed. */
+  var SEEN = 'erp_printbridge_seen', wokeAt = 0, firstClick = true;
+  function seen(v) { try { if (v) localStorage.setItem(SEEN, v); return parseInt(localStorage.getItem(SEEN), 10) || 0; } catch (e) { return 0; } }
+  function wake() {
+    var n = seen();
+    if (!n || n > 3 || Date.now() - wokeAt < 30000) return false;
+    wokeAt = Date.now();
+    seen(String(n + 1));
+    var f = document.createElement('iframe');
+    f.hidden = true;
+    f.src = 'printbridge://wake';
+    document.body.appendChild(f);
+    setTimeout(function () { f.remove(); }, 5000);
+    return true;
+  }
+  global.addEventListener('pointerdown', function () {
+    if (!firstClick || socket) return;
+    firstClick = false;
+    if (seen()) openAny().then(function (ws) { ws.close(); }, wake);
+  }, true);
+
   function connect() {
     if (socket && socket.readyState === 1) return Promise.resolve(true);
     if (connecting) return connecting;
 
-    var urls = candidates();
     connecting = loadCertificate().then(function () {
-      return urls.reduce(function (chain, url) {
-        return chain.catch(function () { return openSocket(url); });
-      }, Promise.reject(new Error('start')));
+      return openAny().catch(function (err) {
+        if (!wake()) throw err;
+        return later(2500).then(openAny).catch(function () { return later(2500).then(openAny); });
+      });
     }).then(function (ws) {
       socket = ws;
+      seen('1');
       attachHandlers(ws);
       // Handshake order matters and matches the official client: an
       // unsigned getVersion first, then the certificate.
@@ -359,7 +394,7 @@
     }).catch(function (err) {
       connecting = null;
       if (socket) { try { socket.close(); } catch (e) { /* noop */ } socket = null; }
-      throw new Error('QZ Tray is not running or not reachable. Start QZ Tray on this PC and try again.');
+      throw new Error('PrintBridge is not running or not reachable on this computer.');
     });
 
     return connecting;
@@ -407,6 +442,8 @@
     getDefaultPrinter: getDefaultPrinter,
     // Stage 98.4: the computer's name, which keeps its printer choices.
     hostname: function () { return connect().then(function () { return send('networking.hostname', null); }); },
+    // Stage 137.4: PrintBridge's own release; an agent before 0.2.0 refuses the call.
+    agentVersion: function () { return connect().then(function () { return send('printbridge.version', null); }); },
     printItems: printItems,
     // Exposed for the self-test in the Configure Printers screen, which
     // proves the signing chain end-to-end before an operator relies on it.

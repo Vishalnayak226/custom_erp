@@ -20,11 +20,12 @@ func TestReferenceOutputsStayUnderExplicitRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeDictionaryFixture(t, source)
+	writePageInventoryFixture(t, source)
 	files, err := referenceFiles(source, "2026-09-06")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := 6 + len(kbReportCatalog("2026-09-06")) + len(kbErrorCodeReference("2026-09-06")) + len(kbReleaseNotes("2026-09-06", "# Ledger\n")); len(files) != want {
+	if want := 7 + len(kbReportCatalog("2026-09-06")) + len(kbErrorCodeReference("2026-09-06")) + len(kbReleaseNotes("2026-09-06", "# Ledger\n")); len(files) != want {
 		t.Fatalf("got %d outputs, want %d", len(files), want)
 	}
 	out := t.TempDir()

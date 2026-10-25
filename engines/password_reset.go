@@ -111,10 +111,16 @@ func CompletePasswordReset(tenantID, token, newPassword string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := db.DB.Exec(fmt.Sprintf(
-		`UPDATE %s.users SET password_hash = $1, reset_token_hash = NULL, reset_token_expires_at = NULL, failed_login_count = 0, locked_until = NULL, credential_version = credential_version + 1, must_change_password = FALSE WHERE id = $2`, schema),
-		string(newHash), userID); err != nil {
+	// 49.2.8: the UPDATE claims the token itself, so two uses of one link at
+	// the same moment (two tabs, a double click) set a password once.
+	res, err := db.DB.Exec(fmt.Sprintf(
+		`UPDATE %s.users SET password_hash = $1, reset_token_hash = NULL, reset_token_expires_at = NULL, failed_login_count = 0, locked_until = NULL, credential_version = credential_version + 1, must_change_password = FALSE WHERE id = $2 AND reset_token_hash = $3 AND reset_token_expires_at > NOW()`, schema),
+		string(newHash), userID, hashResetToken(token))
+	if err != nil {
 		return err
+	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		return errors.New("reset token is invalid or has expired")
 	}
 
 	// Without this, the revocation above is real but not immediate - a

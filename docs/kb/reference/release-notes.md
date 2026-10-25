@@ -19,11 +19,21 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **186** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **188** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
-- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-11
+- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-12
+
+## 2026-10-25
+
+**"Build all" run, Stages 47 / 49: the next 20 items** *(code + tests, NOT COMMITTED)*
+
+The user asked for the next 20 items. They were taken in tracker order from Stages 47 and 49, each built as a self-contained slice with its own test. The twelve items Stage 134 had already closed were ticked first. Five items are fully done. Fifteen are built in part, with what is left written on each entry.
+
+**Stage 137 — Printer presets and one PrintBridge for every computer** *(code + PrintBridge 0.2.0, NOT COMMITTED)*
+
+The user asked whether printing was ready: stickers came out misaligned, they wanted a preset set once in config that stops the asking, and PrintBridge had to work on any computer, wake when the ERP is used, and come back after a Quit. Decisions: stickers; the printer's roll wins over item template rules; one installer from the ERP; Windows. Built: a Printer preset (roll, shift, darkness, speed) applied on the server (`applyPrinterRoll`) and in the sticker engine, with Test alignment and Calibrate roll; PrintBridge 0.2.0 trusts every `*.wholeops.in` address, asks once about any other, registers a `printbridge:` link that the ERP opens to wake it; the installer is served from `public/downloads` and a release gate keeps its version current. Verified on a fresh scratch DB, the agent's tests and Chromium with a recording stub; the installer and the paper alignment wait on the user's PC. Detail: micro_checklist Stage 137.
 
 ## 2026-10-24
 
@@ -448,10 +458,4 @@ Closes 49.15.1-49.15.5/49.15.7; 49.15.6 stays open by design. Root `SECURITY.md`
 **Stage 40.8/40.9/40.10 + Stage 44.7 — closing Stage 40 and Stage 44, and a QZ Tray CSP defect found in the process** *(code + schema + tests + prod verification)*
 
 Closes Stage 40 (`docs/micro_checklist.md`) completely: the three items left open since the 2026-08-10 batch (real-browser verification, `customer_phone` live-verification, and a QZ silent-print builder for a Purchase Order) were all buildable now, not blocked as first thought.
-
-## 2026-09-12
-
-**Stage 47.7.6 — the audit archive, and the incident it caused while being built** *(code + schema + tests)*
-
-Closes the one piece §142 left open: 47.7 (A-07/A-30) now reads **fully done**. `engines/audit_archive.go` adds the archive itself on top of §142's signed-events-plus-checkpoints model — AES-256-GCM-encrypted, gzip-compressed archive files (same key-management pattern as `channel_credentials.go`), one archive per checkpoint window (never partial — a single held row under legal hold blocks the whole window), manifest-then-delete taken literally (the file is written and self-verified by re-decrypting and re-checking its digest *before* the archive row is recorded and the source rows deleted, all inside one transaction). The subtler half: checkpoint verification is now archive-aware, redirecting to the archive file instead of the (now-empty) live table for an archived window, so a legitimate archive is never mistaken for the deletion attack checkpoints exist to catch — while still catching the archive file itself being deleted, corrupted or swapped. Five new HTTP endpoints and a daily scheduler entry round it out. Full mechanics in `micro_checklist.md`'s 47.7.6 entry.
 

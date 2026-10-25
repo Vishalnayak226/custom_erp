@@ -482,13 +482,13 @@ func stickerPreview(opts []StickerPrintOptions) bool {
 // stickerLabel is one line's label for a print, logged unless it is a preview.
 func stickerLabel(opts []StickerPrintOptions, tenantID, schema, sku string, copies int, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate string, requestLine int) (StickerLabel, error) {
 	if stickerPreview(opts) {
-		return resolveStickerLabel(tenantID, schema, sku, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate)
+		return resolveStickerLabel(tenantID, schema, sku, printerCode, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate)
 	}
 	return resolveAndLogSticker(tenantID, schema, sku, copies, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate, stickerRequestKey(opts), requestLine)
 }
 
 func resolveAndLogSticker(tenantID, schema, sku string, copies int, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate, requestKey string, requestLine int) (StickerLabel, error) {
-	label, err := resolveStickerLabel(tenantID, schema, sku, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate)
+	label, err := resolveStickerLabel(tenantID, schema, sku, printerCode, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate)
 	if err != nil {
 		return label, err
 	}
@@ -507,7 +507,7 @@ func resolveAndLogSticker(tenantID, schema, sku string, copies int, printerCode,
 
 // resolveStickerLabel assembles one SKU's label - Item data, the lot's own
 // values, the template - and writes nothing.
-func resolveStickerLabel(tenantID, schema, sku, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate string) (StickerLabel, error) {
+func resolveStickerLabel(tenantID, schema, sku, printerCode, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate string) (StickerLabel, error) {
 	// Stage 30.1.1: resolved through the shared ResolveItemBySKU (code ->
 	// barcode -> id) rather than the internal id alone - a sticker run
 	// keyed off item Codes used to print every label with a blank
@@ -579,6 +579,7 @@ func resolveStickerLabel(tenantID, schema, sku, sourceDoctype, sourceDocID, batc
 	} else if tmpl, _, tErr = ResolveStickerTemplateForItem(tenantID, item, label.Category); tErr != nil {
 		log.Printf("[STICKERS] could not resolve template for %s: %v", sku, tErr)
 	}
+	tmpl = applyPrinterRoll(tenantID, schema, printerCode, tmpl)
 	if tmpl != nil {
 		label.TemplateID = tmpl.ID
 		label.TemplateName = tmpl.Name

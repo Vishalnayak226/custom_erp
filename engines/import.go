@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -50,12 +51,32 @@ func sanitizeCSVCell(value string) string {
 	if trimmed == "" {
 		return value
 	}
+	// Stage 49.8.2: a plain number (a negative quantity or amount) is never a
+	// formula, and an apostrophe would turn the column into text.
+	if _, err := strconv.ParseFloat(strings.TrimSpace(trimmed), 64); err == nil {
+		return value
+	}
 	switch trimmed[0] {
 	case '=', '+', '-', '@':
 		return "'" + value
 	default:
 		return value
 	}
+}
+
+// safeCSVWriter is a csv.Writer for files people open in a spreadsheet:
+// every cell goes through sanitizeCSVCell (Stage 49.8.2). Machine formats a
+// bank or a channel reads (payment files) keep the plain csv.Writer.
+type safeCSVWriter struct{ *csv.Writer }
+
+func newSafeCSVWriter(w io.Writer) safeCSVWriter { return safeCSVWriter{csv.NewWriter(w)} }
+
+func (s safeCSVWriter) Write(record []string) error {
+	out := make([]string, len(record))
+	for i, cell := range record {
+		out[i] = sanitizeCSVCell(cell)
+	}
+	return s.Writer.Write(out)
 }
 
 // importBatchRows (24.32, loophole #9) bounds how many CSV rows share one

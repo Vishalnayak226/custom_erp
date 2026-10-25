@@ -103,6 +103,12 @@ gaps and process reminders around it, not the base build. Append new items as th
 
 ## Process reminders for every future core patch
 
+- [ ] **Versioned (Stage 47.11.7).** Every payload carries `api_version` (`HookAPIVersion` in
+      `engines/extensions.go`, now 1), and every hook row records the version it was registered
+      against (`api_version` on `POST /api/v1/admin/extension/hooks`, default the current one;
+      listed with `api_sunset`). A breaking change adds a new version to `hookAPIVersions` and gives
+      the old one a sunset date: registered hooks keep getting their version's payload until that
+      day, and registration refuses an unknown or retired version (EXT-0292).
 - [ ] Treat the hook payload shape (`hook_point`, `doctype`, `document_id`, `tenant_id`, `data`)
       as an **append-only public contract** — new optional keys are fine, renaming/removing an
       existing key is a breaking change for every client extension relying on it.

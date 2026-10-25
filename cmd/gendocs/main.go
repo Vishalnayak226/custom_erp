@@ -138,6 +138,13 @@ func referenceFiles(root, stamp string) (map[string][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	pages, err := pageInventoryFiles(root, stamp)
+	if err != nil {
+		return nil, err
+	}
+	for name, body := range pages {
+		files[name] = body
+	}
 	for name, body := range map[string][]byte{
 		"docs/guides/ERROR_CODES.md":               []byte(errorCodesDoc(stamp)),
 		"docs/guides/REPORT_CATALOG.md":            []byte(reportCatalogDoc(stamp)),

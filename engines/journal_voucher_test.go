@@ -71,15 +71,32 @@ func TestJournalVoucherLifecycle(t *testing.T) {
 			t.Fatalf("expected gl_postings debit=77700 credit=77700, got debit=%d credit=%d", debit, credit)
 		}
 
-		reversalID, err := ReverseJournalVoucher(tenantID, voucherID, "admin")
+		reversalID, err := ReverseJournalVoucher(tenantID, voucherID, "manager1")
 		if err != nil {
 			t.Fatalf("ReverseJournalVoucher: %v", err)
+		}
+		// Stage 132.17: the original stays Posted - its amounts still stand -
+		// until the reversal posts, and a second reversal waits for the first.
+		if err := db.DB.QueryRow("SELECT status FROM "+schema+".documents WHERE id=$1", voucherID).Scan(&status); err != nil {
+			t.Fatalf("query reversed status: %v", err)
+		}
+		if status != "Posted" {
+			t.Fatalf("expected original status Posted while its reversal is a Draft, got %s", status)
+		}
+		if _, err := ReverseJournalVoucher(tenantID, voucherID, "manager1"); err == nil {
+			t.Fatalf("expected a second reversal to wait for the first")
+		}
+		if err := SubmitForApproval(tenantID, "JournalVoucher", reversalID, "manager1", "Store Manager"); err != nil {
+			t.Fatalf("SubmitForApproval(reversal): %v", err)
+		}
+		if err := DecideApproval(tenantID, "JournalVoucher", reversalID, "admin", "HR/Admin", "HO", "Approved", "ok"); err != nil {
+			t.Fatalf("DecideApproval(reversal): %v", err)
 		}
 		if err := db.DB.QueryRow("SELECT status FROM "+schema+".documents WHERE id=$1", voucherID).Scan(&status); err != nil {
 			t.Fatalf("query reversed status: %v", err)
 		}
 		if status != "Reversed" {
-			t.Fatalf("expected original status Reversed, got %s", status)
+			t.Fatalf("expected original status Reversed once the reversal posted, got %s", status)
 		}
 		data, _, err := fetchJournalVoucher(schema, reversalID)
 		if err != nil {

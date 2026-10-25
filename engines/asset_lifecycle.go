@@ -87,7 +87,7 @@ func GetAssetLifecycle(tenantID, assetID string) (*AssetLifecycle, error) {
 	}}
 
 	if entry.UsefulLifeYears > 0 && entry.Cost > 0 {
-		lc.Annual = entry.Cost / entry.UsefulLifeYears
+		lc.Annual = int(entry.Cost) / entry.UsefulLifeYears
 	}
 	posted := map[string]assetDepPosting{}
 	if entry.Status != "Draft" {

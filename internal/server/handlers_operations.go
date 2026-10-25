@@ -156,7 +156,7 @@ func handlePayExpenseClaim(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	engines.LogAuditEvent(tenantID, userID, "EXPENSE_PAY", "SUCCESS", fmt.Sprintf("Expense claim %s paid, payable_amount=%d", req.ClaimID, payable))
+	engines.LogAuditEvent(tenantID, userID, "EXPENSE_PAY", "SUCCESS", fmt.Sprintf("Expense claim %s paid, payable_amount=%.2f", req.ClaimID, payable))
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "paid", "payable_amount": payable})
 }
 

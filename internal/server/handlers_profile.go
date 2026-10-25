@@ -217,23 +217,6 @@ func handleMyModules(w http.ResponseWriter, r *http.Request) {
 			"url_prefix":   pkg.URLPrefix,
 		}
 	}
-	// owned_packages: every product this tenant licenses (not just the sole
-	// one above) - drives the frontend's product switcher for a tenant with
-	// 2+ products but not the full suite. Deliberately left empty for a
-	// full-suite tenant (engines.IsFullSuite) - such a tenant technically
-	// satisfies every individual package's requirements too, but should see
-	// exactly today's one unified sidebar, not a "switch product" list.
-	owned := []map[string]string{}
-	if !engines.IsFullSuite(enabledOptional) {
-		for _, pkg := range engines.ResolveOwnedPackages(enabledOptional) {
-			owned = append(owned, map[string]string{
-				"package_key":  pkg.PackageKey,
-				"display_name": pkg.DisplayName,
-				"url_prefix":   pkg.URLPrefix,
-			})
-		}
-	}
-	resp["owned_packages"] = owned
 	_ = json.NewEncoder(w).Encode(resp)
 }
 

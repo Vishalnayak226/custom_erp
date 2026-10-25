@@ -286,7 +286,7 @@ func publicAPIMiddleware(requiredScope string, next http.HandlerFunc) http.Handl
 			}
 		}()
 
-		if !tenantConcurrency.acquire(tenantID) {
+		if !tenantConcurrency.acquire(tenantID, false) {
 			if claimed {
 				engines.ReleaseIdempotentRequest(tenantID, credential.ID, idempotencyKey)
 			}
@@ -300,7 +300,7 @@ func publicAPIMiddleware(requiredScope string, next http.HandlerFunc) http.Handl
 				PostedBy: "service:api-key:" + credential.KeyPrefix, SourceCommand: r.Method + " " + r.URL.Path})()
 			next.ServeHTTP(rec, r)
 		}()
-		tenantConcurrency.release(tenantID)
+		tenantConcurrency.release(tenantID, false)
 
 		if claimed {
 			if rec.truncated {

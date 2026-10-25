@@ -513,6 +513,16 @@ func validateDocumentWith(tenantID string, doctype string, docData map[string]in
 			}
 		}
 
+		// Stage 49.4.6: a typed value may not carry an invisible control
+		// character or a text-direction override - they can make a stored code
+		// or name read differently on screen, in a print and in SQL/CSV output
+		// ("Trojan Source"). Tabs and line breaks stay allowed.
+		if s, isText := val.(string); isText {
+			if r, bad := unsafeTextRune(s); bad {
+				return &ValidationError{Code: "GLOBAL-0309", Message: fmt.Sprintf("%s holds an invisible character (U+%04X)", f.Label, r), SubFor: f.Fieldname}
+			}
+		}
+
 		// 1. Mandatory check
 		if f.Mandatory && valStr == "" {
 			if f.Fieldname == "id" || f.Fieldname == "status" {
@@ -911,4 +921,21 @@ func applyMasterIDCodeInvariant(isCreate bool, payload map[string]interface{}, i
 	}
 	payload["id"] = code
 	return code, nil
+}
+
+// unsafeTextRune finds the first character a typed value may not hold
+// (Stage 49.4.6): C0 controls other than tab / line feed / carriage return,
+// DEL, C1 controls, and the bidi embedding / override / isolate characters.
+func unsafeTextRune(s string) (rune, bool) {
+	for _, r := range s {
+		switch {
+		case r < 0x20 && r != '\t' && r != '\n' && r != '\r',
+			r == 0x7F,
+			r >= 0x80 && r <= 0x9F,
+			r >= 0x202A && r <= 0x202E,
+			r >= 0x2066 && r <= 0x2069:
+			return r, true
+		}
+	}
+	return 0, false
 }

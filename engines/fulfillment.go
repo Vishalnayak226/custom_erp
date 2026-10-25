@@ -20,9 +20,9 @@ func salesReturnWindowDaysFor(tenantID string) int {
 // resolveOriginalSale (SALESR-0129/0130/0131) looks up the sale a return
 // claims against. POSCart is checked first (this app's actual retail sale
 // path) and returns its line items so the caller can cross-check returned
-// quantities; SalesInvoice has no per-line item data at all (it's a single
-// total_amount doctype - see sales_invoice.go), so a SalesInvoice match
-// only satisfies "an original bill exists", not a quantity cross-check.
+// quantities; a SalesInvoice returns the lines it carries (an online order's
+// invoice has them - Stage 132.13 t); one with none only satisfies "an
+// original bill exists".
 func resolveOriginalSale(tenantID, orderID string) (lines []transferLine, saleDate time.Time, found bool, err error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -41,10 +41,15 @@ func resolveOriginalSale(tenantID, orderID string) (lines []transferLine, saleDa
 		}
 		return lines, createdAt, true, nil
 	}
+	// Stage 132.13 (t): a SalesInvoice made from an online order's shipment does carry its
+	// lines (sku, qty) - read them, so a return against it is checked against what was sold.
 	if errQ := db.DB.QueryRow(fmt.Sprintf(
-		`SELECT created_at AT TIME ZONE current_setting('TimeZone') FROM %s.documents WHERE doctype = 'SalesInvoice' AND id = $1`, schema),
-		orderID).Scan(&createdAt); errQ == nil {
-		return nil, createdAt, true, nil
+		`SELECT data, created_at AT TIME ZONE current_setting('TimeZone') FROM %s.documents WHERE doctype = 'SalesInvoice' AND id = $1`, schema),
+		orderID).Scan(&dataStr, &createdAt); errQ == nil {
+		for _, l := range salesInvoiceLineItems(dataStr) {
+			lines = append(lines, transferLine{Sku: l.Sku, Qty: l.Qty})
+		}
+		return lines, createdAt, true, nil
 	}
 	return nil, time.Time{}, false, nil
 }

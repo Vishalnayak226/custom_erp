@@ -178,7 +178,10 @@ var fieldFormats = []FieldFormat{
 // A suffix list rather than a per-field opt-out, because the same shape will
 // recur ("email_verified_at", "gstin_status") and each would otherwise have to
 // be discovered by hitting the bug.
-var fieldFormatExcludedSuffixes = []string{"_country", "_verified", "_verified_at", "_status", "_type", "_code_type"}
+//
+// "_prefix" (Stage 132.13 u): a prefix of a formatted value is not the value - Courier
+// Service Area's "Pincode Prefix (blank = all)" refused "411" as "not a valid PIN code".
+var fieldFormatExcludedSuffixes = []string{"_country", "_verified", "_verified_at", "_status", "_type", "_code_type", "_prefix"}
 
 // IsDerivedCompanionField reports whether a fieldname is a companion of a
 // formatted field rather than one itself. Shared by DetectFieldFormat and

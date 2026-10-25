@@ -4,7 +4,6 @@ import (
 	"context"
 	"custom_erp/db"
 	"database/sql"
-	"encoding/csv"
 	"fmt"
 	"io"
 	"strconv"
@@ -211,7 +210,7 @@ func StreamSearchFeedExportCSVContext(ctx context.Context, tenantID string, w io
 	}
 	defer rows.Close()
 
-	writer := csv.NewWriter(w)
+	writer := newSafeCSVWriter(w)
 	if err := writer.Write([]string{"item_code", "name", "title", "short_desc", "tags", "family", "category", "completeness_score", "has_main_image"}); err != nil {
 		return err
 	}

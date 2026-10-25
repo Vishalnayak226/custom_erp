@@ -5254,6 +5254,11 @@
           "headings": [
             {
               "level": 2,
+              "text": "2026-10-25",
+              "slug": "2026-10-25"
+            },
+            {
+              "level": 2,
               "text": "2026-10-24",
               "slug": "2026-10-24"
             },
@@ -5376,11 +5381,6 @@
               "level": 2,
               "text": "2026-09-13",
               "slug": "2026-09-13"
-            },
-            {
-              "level": 2,
-              "text": "2026-09-12",
-              "slug": "2026-09-12"
             }
           ]
         },
@@ -5389,7 +5389,7 @@
           "title": "Release notes (part 2)",
           "section": "Reference",
           "order": 26,
-          "summary": "Earlier releases, 2026-07-27 to 2026-09-11, continued from the release notes.",
+          "summary": "Earlier releases, 2026-07-27 to 2026-09-12, continued from the release notes.",
           "audience": "everyone",
           "last_verified": "2026-09-10",
           "owner": "documentation-maintainer",
@@ -5401,6 +5401,11 @@
           "applies_to": "source registries; not release acceptance",
           "source_path": "reference/release-notes-2.md",
           "headings": [
+            {
+              "level": 2,
+              "text": "2026-09-12",
+              "slug": "2026-09-12"
+            },
             {
               "level": 2,
               "text": "2026-09-11",
@@ -6047,8 +6052,13 @@
             },
             {
               "level": 2,
-              "text": "HR / Payroll",
+              "text": "HR \u0026 Payroll",
               "slug": "hr-payroll"
+            },
+            {
+              "level": 2,
+              "text": "HR / Payroll",
+              "slug": "hr-payroll-2"
             },
             {
               "level": 2,
@@ -6074,11 +6084,6 @@
               "level": 2,
               "text": "Item Master",
               "slug": "item-master"
-            },
-            {
-              "level": 2,
-              "text": "Manufacturing / Production",
-              "slug": "manufacturing-production"
             }
           ]
         },
@@ -6087,7 +6092,7 @@
           "title": "Error code reference (part 2)",
           "section": "Troubleshooting",
           "order": 21,
-          "summary": "Error codes for Master Data to WMS / Logistics, continued from the error code reference.",
+          "summary": "Error codes for Manufacturing / Production to WMS / Logistics, continued from the error code reference.",
           "audience": "everyone",
           "last_verified": "2026-09-10",
           "owner": "documentation-maintainer",
@@ -6103,6 +6108,11 @@
               "level": 2,
               "text": "Contents",
               "slug": "contents"
+            },
+            {
+              "level": 2,
+              "text": "Manufacturing / Production",
+              "slug": "manufacturing-production"
             },
             {
               "level": 2,

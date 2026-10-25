@@ -193,6 +193,9 @@ func Run() {
 	// Start Job Runner Retention Sweeper (Stage 38.6) - the
 	// StartPublicAPIRuntimeSweeper precedent, keeping async_jobs bounded.
 	engines.StartJobRunnerRetentionSweeper(workerCtx, 1*time.Hour)
+	// Stage 47.18.3: the same for the integration outbox / event log and the
+	// extension hook call log.
+	engines.StartIntegrationLogRetentionSweeper(workerCtx, 1*time.Hour)
 	// Start Audit Evidence Scheduler (Stage 47.7.7) - enqueues the hourly
 	// checkpoint and verification jobs onto the runner above. Hourly rather
 	// than continuous: a checkpoint seals a window, and an hour is short

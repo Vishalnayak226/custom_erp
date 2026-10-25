@@ -157,6 +157,8 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 			// compared to.
 			_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET failed_login_count = $1, locked_until = NOW() + make_interval(mins => $2) WHERE id = $3`, schema),
 				newCount, accountLockoutDurationMinutesFor(tenantID), u.ID)
+			// Stage 49.11.1: the lock itself is a credential-lifecycle event.
+			engines.LogAuditEvent(tenantID, u.Username, "LOGIN", "ACCOUNT_LOCKED", fmt.Sprintf("Locked for %d minutes after %d failed sign-ins", accountLockoutDurationMinutesFor(tenantID), newCount))
 		} else {
 			_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET failed_login_count = $1 WHERE id = $2`, schema), newCount, u.ID)
 		}

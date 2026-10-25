@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"custom_erp/db"
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -242,7 +241,7 @@ func processReportExportJobs(ctx context.Context, schema string) {
 // keeps the exported CSV's columns consistent run to run).
 func reportRowsToCSV(def ReportDefinition, rows []map[string]interface{}) (string, error) {
 	var buf bytes.Buffer
-	w := csv.NewWriter(&buf)
+	w := newSafeCSVWriter(&buf)
 	headers := make([]string, len(def.Columns))
 	keys := make([]string, len(def.Columns))
 	for i, c := range def.Columns {

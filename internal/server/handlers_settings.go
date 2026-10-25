@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
+	"strings"
 
 	"custom_erp/engines"
 )
@@ -56,14 +58,22 @@ func handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	applied := 0
+	var changed []string
 	for key, value := range updates {
 		if err := engines.SetSetting(tenantID, key, value, actorUsername); err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
 		applied++
+		// 47.18.3: the audit line names what changed, so a retention hold (a
+		// setting at 0) is on record as such, not as "1 setting".
+		if len(value) > 60 {
+			value = value[:60] + "..."
+		}
+		changed = append(changed, key+"="+value)
 	}
+	sort.Strings(changed)
 
-	engines.LogAuditEvent(tenantID, actorUsername, "SETTINGS", "UPDATED", fmt.Sprintf("Updated %d configuration setting(s)", applied))
+	engines.LogAuditEvent(tenantID, actorUsername, "SETTINGS", "UPDATED", fmt.Sprintf("Updated %d configuration setting(s): %s", applied, strings.Join(changed, ", ")))
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success", "updated": applied})
 }

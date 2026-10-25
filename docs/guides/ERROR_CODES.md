@@ -9,7 +9,7 @@
 
 Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.
 
-There are **562** codes. Each row says what the user is shown, what to do about
+There are **566** codes. Each row says what the user is shown, what to do about
 it, and how serious it is.
 
 **How to read an error dialog** - it has up to three lines: the *headline* (the
@@ -48,14 +48,15 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 - [Deployment / Release](#deployment--release) - 7 codes
 - [DocType / Dynamic Metadata](#doctype--dynamic-metadata) - 8 codes
 - [Expense Management](#expense-management) - 8 codes
-- [Extension Hooks / Customization](#extension-hooks--customization) - 3 codes
+- [Extension Hooks / Customization](#extension-hooks--customization) - 4 codes
 - [Finance & Accounting](#finance--accounting) - 47 codes
 - [Fixed Assets](#fixed-assets) - 9 codes
 - [GST](#gst) - 1 codes
-- [Global](#global) - 8 codes
+- [Global](#global) - 9 codes
 - [Global / Common](#global--common) - 25 codes
 - [Goods Receipt](#goods-receipt) - 19 codes
 - [Goods Receipt / GRN](#goods-receipt--grn) - 8 codes
+- [HR & Payroll](#hr--payroll) - 2 codes
 - [HR / Payroll](#hr--payroll) - 14 codes
 - [Integration / API](#integration--api) - 9 codes
 - [Integrations](#integrations) - 1 codes
@@ -340,6 +341,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `EXT-0289` | Extension hook rejected transaction | Custom validation rejected this transaction: {reason}. | Correct data or contact extension owner. | High | 422 |
 | `EXT-0290` | Extension hook timeout | Custom validation service did not respond in time. Please retry or contact support. | Retry later or contact admin. | High | 503 |
 | `EXT-0291` | Extension token scope violation | Extension token is not authorized for this document type or action. | Use correct scoped token. | Critical | 401 |
+| `EXT-0292` | Hook API version not served | This hook was written for a hook version this ERP does not serve. | Register it against the current hook version named below. | Medium | 422 |
 
 ## Finance & Accounting
 
@@ -423,6 +425,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `GLOBAL-0306` | Request headers too large | The request carries too many or too large headers. | Sign out and back in; if this persists, contact support - a browser extension or proxy may be adding headers. | Low | 431 |
 | `GLOBAL-0307` | Malformed, ambiguous or over-nested JSON request | The request data could not be accepted. | Check the request is one valid JSON value, with no field repeated in the same object. | Low | 400 |
 | `GLOBAL-0308` | Request exceeded its time limit | This took longer than the time a single request is allowed, so it was stopped. | Send less at once - split a large import file into smaller files, or narrow a report's filters and use background export. | Medium | 504 |
+| `GLOBAL-0309` | Field holds an invisible control or direction character | A field holds an invisible character that cannot be saved. | Retype the field named below, or paste it as plain text. | Low | 422 |
 | `GLOBAL-1315` | Reprint refused (no Document Reprint permission, no reason, approval needed or already used, no approver set) | This document can't be printed again yet. | Give the reason; ask a manager for the Document Reprint permission or send a Reprint Request and print once it is approved. | Medium | 422 |
 | `GLOBAL-1319` | Print refused: a tax document from a store with no GSTIN, or a template version that cannot be decided (not waiting, own change, not found) | This can't be printed or changed yet. | Add the GSTIN to the store's legal entity (Setup > Legal Entities); a template change is approved by someone other than the person who saved it. | Medium | 422 |
 
@@ -492,6 +495,13 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `GRN-0253` | GRN cancellation blocked by downstream invoice | GRN cannot be cancelled because vendor invoice or stock movement exists. | Cancel downstream document first or create reversal. | Critical | 409 |
 | `GRN-0254` | Accepted quantity without barcode | Accepted quantity must have generated barcodes before stock posting. | Regenerate barcode or hold posting. | High | 422 |
 | `GRN-0255` | QC hold pending | Stock is under QC hold and cannot be sold or transferred. | Complete QC approval/rejection. | High | 200 |
+
+## HR & Payroll
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `HRPAYR-1322` | Payslip deductions are more than its gross pay | This payslip's deductions are more than its gross pay. | Check the salary structure, the loan EMI and the statutory rates, then run payroll for the period again. | Medium | 422 |
+| `HRPAYR-1323` | Payroll run again for a period whose payslip is already posted | This employee's payslip for the period is already posted. | Open the posted payslip; a correction is made as an adjustment in the next period. | Medium | 422 |
 
 ## HR / Payroll
 

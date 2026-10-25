@@ -286,7 +286,11 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// that attachments and purchase returns use too.
 			rule := documentReadRule{doctype: doctype, role: role, location: location, supplierCode: supplierCode, scope: docScope}
 			if !rule.visible(dataMap) || !engines.CreatorMayAccess(doctype, role, userID, createdBy) { // 73.D.9: a schedule is its creator's
-				writeAPIError(w, r, "GLOBAL-0011", "")
+				// Stage 49.4.7: answered exactly like a record that does not
+				// exist, so the refusal never confirms one is there; the
+				// refused read is still on the audit log, as GLOBAL-0011 was.
+				engines.LogAuditEvent(tenantID, userID, "GLOBAL-0011", "Error", fmt.Sprintf("[GLOBAL-0011] out-of-scope read of %s %s answered as not found", doctype, id))
+				writeAPIError(w, r, "GLOBAL-0004", "")
 				return
 			}
 
@@ -1145,6 +1149,18 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		// Stage 132.17: the same for a status that stands for stock or money
+		// already moved - only the document's own action sets it, on a create
+		// as much as on a change. Guide proved each one: a transfer saved as
+		// Dispatched was received with nothing taken from the source, a claim
+		// saved as Verified was paid unapproved, an invoice saved as Matched
+		// was paid unmatched, an order saved as Material Issued completed
+		// without using its materials. Engines write these statuses in SQL,
+		// so none of them comes through here.
+		if statusVal != priorStatus && isActionOnlyStatus(doctype, statusVal) {
+			writeAPIErrorDetail(w, r, "GLOBAL-0019", "", fmt.Sprintf("Status %s is set only by the %s's own action, not by a save - save it, then use that action.", statusVal, doctype))
+			return
+		}
 
 		// Extension before_save hooks (Stage 14.17-14.20): synchronous, and
 		// a failure blocks the save outright - a 3rd-party pricing/
@@ -1900,12 +1916,19 @@ func handleGetDocTypeMeta(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
-	// A save may not claim Approved/Rejected on an approval-gated doctype (the
-	// GLOBAL-0019 guard in handleGenericDoc), so the form must not offer them.
-	if gated, errGate := engines.IsApprovalGated(tenantID, doctype); errGate == nil && gated {
+	// A save may not claim Approved/Rejected on an approval-gated doctype, nor
+	// a status only the document's own action sets (the GLOBAL-0019 guards in
+	// handleGenericDoc), so the form must not offer them.
+	gated, errGate := engines.IsApprovalGated(tenantID, doctype)
+	gated = errGate == nil && gated
+	if gated || len(actionOnlyStatuses[doctype]) > 0 {
 		for i := range fields {
 			if fields[i].Fieldname == "status" {
-				fields[i].ApprovalOnly = approvalOnlyStatuses
+				var hidden []string
+				if gated {
+					hidden = append(hidden, approvalOnlyStatuses...)
+				}
+				fields[i].ApprovalOnly = append(hidden, actionOnlyStatuses[doctype]...)
 			}
 		}
 	}
@@ -1915,6 +1938,25 @@ func handleGetDocTypeMeta(w http.ResponseWriter, r *http.Request) {
 // approvalOnlyStatuses are reached only through SubmitForApproval/
 // DecideApproval on an approval-gated doctype, never by a plain save.
 var approvalOnlyStatuses = []string{"Approved", "Rejected"}
+
+// actionOnlyStatuses (Stage 132.17) are set only by the document's own action
+// endpoint - the one that moves the stock or money the status stands for -
+// never by a plain save.
+var actionOnlyStatuses = map[string][]string{
+	"TransferOrder":   {"Packed", "Dispatched", "Partially Received", "Received", "Returned"}, // /transfer/pack, dispatch, receive, return
+	"ExpenseClaim":    {"Verified", "Paid"},                                                   // /expenses/verify, pay
+	"VendorInvoice":   {"Matched", "MismatchHold", "Paid"},                                    // /procurement/vendor-invoice/match, pay
+	"ProductionOrder": {"Material Issued", "In Process", "Completed"},                         // /manufacturing/issue-material, confirm-operation, complete
+}
+
+func isActionOnlyStatus(doctype, s string) bool {
+	for _, a := range actionOnlyStatuses[doctype] {
+		if s == a {
+			return true
+		}
+	}
+	return false
+}
 
 // postedDocumentStatuses (Stage 74.1.5) are the statuses after which a
 // transactional document has moved stock or money: the generic API refuses to

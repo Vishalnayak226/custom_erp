@@ -629,22 +629,22 @@ func ReceiveTransferOrderLines(tenantID, transferOrderID, userID string, req Tra
 	if err := saveTransferMovementTx(tx, schema, transferOrderID, data, balances, append(events, ev), newStatus); err != nil {
 		return nil, err
 	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-
+	// Stage 132.17: the ledger lines go in the same transaction as the stock.
 	for sku, p := range postings {
 		for _, mv := range p.moves {
-			if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
+			if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
 				ItemID: sku, WarehouseID: toWarehouse, Qty: float64(mv.qty),
 				VoucherType: "TransferOrder", VoucherID: transferOrderID, UserID: userID,
 				FromLocationID: fromWarehouse, FromStatus: "In Transit", ToStatus: mv.toStatus,
 				BatchNo: mv.batchNo, SerialNo: mv.serialNo,
 				IdempotencyKey: fmt.Sprintf("TO-RECEIVE:%s:%d:%s:%s:%s:%s", transferOrderID, ev.No, sku, mv.kind, mv.batchNo, mv.serialNo),
-			}); lerr != nil {
-				LogSystemError(tenantID, "", "WARN", "ReceiveTransferOrder", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
+			}); err != nil {
+				return nil, fmt.Errorf("stock ledger for %s: %w", sku, err)
 			}
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
 	}
 	evJSON, _ := json.Marshal(eventLines)
 	LogAuditEvent(tenantID, userID, "RECEIVE_TRANSFER_ORDER", "SUCCESS",
@@ -866,21 +866,22 @@ func ReturnTransferToSource(tenantID, transferOrderID, userID, reasonCode, note,
 	if err := saveTransferMovementTx(tx, schema, transferOrderID, data, balances, append(events, ev), newStatus); err != nil {
 		return nil, err
 	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
 	toWarehouse, _ := data["to_warehouse"].(string)
+	// Stage 132.17: the ledger lines go in the same transaction as the stock.
 	for sku, p := range postings {
 		for _, mv := range p.moves {
-			if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
+			if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
 				ItemID: sku, WarehouseID: fromWarehouse, Qty: float64(mv.qty),
 				VoucherType: "TransferOrder", VoucherID: transferOrderID, UserID: userID,
 				FromLocationID: toWarehouse, FromStatus: "In Transit", BatchNo: mv.batchNo, SerialNo: mv.serialNo,
 				IdempotencyKey: fmt.Sprintf("TO-RETURN:%s:%d:%s:%s:%s", transferOrderID, ev.No, sku, mv.batchNo, mv.serialNo),
-			}); lerr != nil {
-				LogSystemError(tenantID, "", "WARN", "ReturnTransferToSource", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
+			}); err != nil {
+				return nil, fmt.Errorf("stock ledger for %s: %w", sku, err)
 			}
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
 	}
 	evJSON, _ := json.Marshal(eventLines)
 	LogAuditEvent(tenantID, userID, "RETURN_TRANSFER_TO_SOURCE", "SUCCESS",

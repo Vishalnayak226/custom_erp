@@ -272,6 +272,13 @@ type QZPrinter struct {
 	WidthMM       string `json:"label_width_mm"`
 	HeightMM      string `json:"label_height_mm"`
 	DPI           string `json:"dpi"`
+	// Stage 137: the sticker preset - the roll's template and this
+	// printer's own alignment, applied by the sticker engine.
+	StickerTemplate string `json:"sticker_template"`
+	ShiftRightMM    string `json:"shift_right_mm"`
+	ShiftDownMM     string `json:"shift_down_mm"`
+	Darkness        string `json:"darkness"`
+	PrintSpeed      string `json:"print_speed"`
 }
 
 // ListQZPrinters returns every Active Printer for the tenant, so the browser
@@ -292,7 +299,12 @@ func ListQZPrinters(tenantID string) ([]QZPrinter, error) {
 		       COALESCE(data->>'location', ''),
 		       COALESCE(data->>'label_width_mm', ''),
 		       COALESCE(data->>'label_height_mm', ''),
-		       COALESCE(data->>'dpi', '')
+		       COALESCE(data->>'dpi', ''),
+		       COALESCE(data->>'sticker_template', ''),
+		       COALESCE(data->>'shift_right_mm', ''),
+		       COALESCE(data->>'shift_down_mm', ''),
+		       COALESCE(data->>'darkness', ''),
+		       COALESCE(data->>'print_speed', '')
 		FROM %s.documents
 		WHERE doctype = 'Printer' AND deleted_at IS NULL
 		  AND COALESCE(data->>'status', 'Active') = 'Active'
@@ -306,7 +318,8 @@ func ListQZPrinters(tenantID string) ([]QZPrinter, error) {
 	for rows.Next() {
 		var p QZPrinter
 		if err := rows.Scan(&p.ID, &p.Code, &p.Name, &p.QZPrinterName, &p.PrintRole,
-			&p.Language, &p.Location, &p.WidthMM, &p.HeightMM, &p.DPI); err != nil {
+			&p.Language, &p.Location, &p.WidthMM, &p.HeightMM, &p.DPI,
+			&p.StickerTemplate, &p.ShiftRightMM, &p.ShiftDownMM, &p.Darkness, &p.PrintSpeed); err != nil {
 			return nil, err
 		}
 		printers = append(printers, p)

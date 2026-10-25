@@ -3,7 +3,6 @@ package engines
 import (
 	"bytes"
 	"custom_erp/db"
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -336,7 +335,7 @@ func ExportPIMProductGroupCSV(tenantID, groupID string) (string, []byte, error) 
 	}
 
 	var buf bytes.Buffer
-	writer := csv.NewWriter(&buf)
+	writer := newSafeCSVWriter(&buf)
 	_ = writer.Write([]string{"group_id", "group_name", "item_code", "name", "family", "status",
 		"completeness_score", "missing_fields", "title", "short_desc", "tags", "category", "has_main_image"})
 	for _, member := range resolved.Members {

@@ -224,7 +224,9 @@ async function renderHelpArticle(slug) {
 // frontmatter via the index's screen_map, so there is no second mapping file to
 // keep in sync with the articles.
 async function openHelpDrawer(screenID) {
-  const index = await loadHelpIndex();
+  // Stage 135.7: the drawer is styled by kb.css, which the Help screen's
+  // registry entry loads; the drawer opens from any screen, so load it here too.
+  const [index] = await Promise.all([loadHelpIndex(), loadViewStyles('kb.css')]);
   if (!index) {
     showCustomAlert('The Knowledge Center could not be loaded.', 'Help');
     return;

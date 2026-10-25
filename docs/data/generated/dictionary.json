@@ -26625,7 +26625,8 @@
         {
           "key": "stock_value_at_purchase_price",
           "label": "Stock Value at Purchase Price",
-          "sensitive": true
+          "sensitive": true,
+          "total": true
         },
         {
           "key": "stock_value_at_landed_cost",
@@ -26636,7 +26637,8 @@
         {
           "key": "stock_value_at_selling_price",
           "label": "Stock Value at Selling Price",
-          "sensitive": false
+          "sensitive": false,
+          "total": true
         },
         {
           "key": "stock_value_at_mrp",

@@ -3,7 +3,6 @@ package engines
 import (
 	"bytes"
 	"custom_erp/db"
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -244,7 +243,7 @@ func RunPIMExportTemplate(tenantID, templateID string) ([]byte, error) {
 	}
 
 	var buf bytes.Buffer
-	writer := csv.NewWriter(&buf)
+	writer := newSafeCSVWriter(&buf)
 	if !headerless {
 		headerRow := make([]string, len(cols))
 		for i, c := range cols {

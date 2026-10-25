@@ -2,7 +2,7 @@
 title: Error code reference (part 2)
 section: Troubleshooting
 order: 21
-summary: Error codes for Master Data to WMS / Logistics, continued from the error code reference.
+summary: Error codes for Manufacturing / Production to WMS / Logistics, continued from the error code reference.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -20,11 +20,12 @@ applies_to: source registries; not release acceptance
 # Error code reference (part 2)
 
 This page continues the [error code reference](error-code-reference.md), which
-lists every area and explains how to read a code. It holds **268** codes, from
-Master Data to WMS / Logistics.
+lists every area and explains how to read a code. It holds **281** codes, from
+Manufacturing / Production to WMS / Logistics.
 
 ## Contents
 
+- [Manufacturing / Production](#manufacturing-production) - 13 codes
 - [Master Data](#master-data) - 43 codes
 - [Mobile App / Device](#mobile-app-device) - 7 codes
 - [Notifications](#notifications) - 6 codes
@@ -56,6 +57,24 @@ Master Data to WMS / Logistics.
 - [Vendor Invoice / AP](#vendor-invoice-ap) - 4 codes
 - [WMS](#wms) - 1 codes
 - [WMS / Logistics](#wms-logistics) - 3 codes
+
+## Manufacturing / Production
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `MANUFA-0140` | BOM missing | BOM is not maintained for this finished good. | Correct production details or request approval. | Medium | 422 |
+| `MANUFA-0141` | BOM inactive | Selected BOM is inactive. Please select an active BOM. | Correct production details or request approval. | Medium | 422 |
+| `MANUFA-0142` | Routing missing | Routing/work center is not configured for this production order. | Correct production details or request approval. | Medium | 422 |
+| `MANUFA-0143` | Raw material shortage | Raw material stock is insufficient for production issue. | Correct production details or request approval. | Medium | 422 |
+| `MANUFA-0144` | Production order already released | Production order is already released. This change is not allowed. | Correct production details or request approval. | Medium | 409 |
+| `MANUFA-0145` | Yield exceeds planned quantity | Yield quantity cannot exceed planned quantity without approval. | Correct production details or request approval. | Medium | 422 |
+| `MANUFA-0146` | Scrap reason missing | Scrap reason is required before posting scrap quantity. | Correct production details or request approval. | Medium | 422 |
+| `MANUFA-0147` | Operation sequence invalid | Operation cannot be confirmed before previous operation is completed. | Correct production details or request approval. | Medium | 422 |
+| `MANUFA-0148` | Quality approval pending | Production receipt cannot be posted until quality approval is completed. | Correct production details or request approval. | Medium | 422 |
+| `MFG-0276` | BOM version changed after release | BOM changed after production release. Please re-plan or approve variance. | Cancel/re-plan or approve variance. | High | 422 |
+| `MFG-0277` | Work center capacity exceeded | Work center capacity is exceeded for the selected schedule. | Reschedule or approve overtime. | Medium | 200 |
+| `MFG-0278` | QC result failed | Quality inspection failed. Finished goods cannot be released to available stock. | Route to rework/scrap or approve exception. | High | 503 |
+| `MFG-0279` | Production cost variance exceeds tolerance | Production cost variance exceeds configured tolerance. Approval is required. | Review variance and approve/post adjustment. | High | 200 |
 
 ## Master Data
 

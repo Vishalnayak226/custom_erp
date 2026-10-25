@@ -30,6 +30,38 @@ type ExtensionHook struct {
 	TimeoutMs int       `json:"timeout_ms"`
 	CreatedBy string    `json:"created_by"`
 	CreatedAt time.Time `json:"created_at"`
+	// APIVersion is the hook contract the hook was written against; Sunset is
+	// the last day this build serves it, when a newer version has replaced it.
+	APIVersion int    `json:"api_version"`
+	Sunset     string `json:"api_sunset,omitempty"`
+}
+
+// Stage 47.11.7: the hook contract's version (policy 48.5.6). A hook declares
+// the version it was written against; registration refuses one this build
+// does not serve. A breaking change to the payload or the hook points adds a
+// new version here and gives the old one a sunset date, so hooks already
+// registered keep working through that deprecation window; every payload
+// names its version.
+const HookAPIVersion = 1
+
+// hookAPIVersions are the versions this build serves: version -> sunset date
+// (YYYY-MM-DD, the last day it is served), "" while it is current.
+var hookAPIVersions = map[int]string{1: ""}
+
+// CheckHookAPIVersion refuses a version this build does not serve, or one past
+// its sunset. 0 means "the current one".
+func CheckHookAPIVersion(version int, today string) (int, error) {
+	if version == 0 {
+		version = HookAPIVersion
+	}
+	sunset, ok := hookAPIVersions[version]
+	if !ok {
+		return 0, &ValidationError{Code: "EXT-0292", Message: fmt.Sprintf("hook API version %d is not served by this build (current: %d)", version, HookAPIVersion)}
+	}
+	if sunset != "" && today > sunset {
+		return 0, &ValidationError{Code: "EXT-0292", Message: fmt.Sprintf("hook API version %d was retired after %s; register against version %d", version, sunset, HookAPIVersion)}
+	}
+	return version, nil
 }
 
 // ExtensionHookLogEntry mirrors one row of tenant_default.extension_hook_log.
@@ -107,9 +139,16 @@ func validateHookTargetURL(targetURL string) error {
 // RegisterExtensionHook creates a new hook and returns its id + secret. The
 // secret is never persisted in plaintext-retrievable form beyond this one
 // return - callers must capture it now.
-func RegisterExtensionHook(tenantID, hookPoint, doctype, targetURL string, timeoutMs int, createdBy string) (id string, secret string, err error) {
+func RegisterExtensionHook(tenantID, hookPoint, doctype, targetURL string, timeoutMs int, createdBy string, apiVersion ...int) (id string, secret string, err error) {
 	if hookPoint != "document.before_save" && hookPoint != "document.after_save" {
 		return "", "", fmt.Errorf("invalid hook_point %q: must be 'document.before_save' or 'document.after_save'", hookPoint)
+	}
+	version := 0
+	if len(apiVersion) > 0 {
+		version = apiVersion[0]
+	}
+	if version, err = CheckHookAPIVersion(version, time.Now().Format("2006-01-02")); err != nil {
+		return "", "", err
 	}
 	if err := validateHookTargetURL(targetURL); err != nil {
 		return "", "", err
@@ -126,9 +165,9 @@ func RegisterExtensionHook(tenantID, hookPoint, doctype, targetURL string, timeo
 		return "", "", err
 	}
 	query := fmt.Sprintf(`
-		INSERT INTO %s.extension_hooks (hook_point, doctype, target_url, secret, timeout_ms, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`, schema)
-	err = db.DB.QueryRow(query, hookPoint, doctype, targetURL, secret, timeoutMs, createdBy).Scan(&id)
+		INSERT INTO %s.extension_hooks (hook_point, doctype, target_url, secret, timeout_ms, created_by, api_version)
+		VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`, schema)
+	err = db.DB.QueryRow(query, hookPoint, doctype, targetURL, secret, timeoutMs, createdBy, version).Scan(&id)
 	if err != nil {
 		return "", "", err
 	}
@@ -142,7 +181,7 @@ func ListExtensionHooks(tenantID string) ([]ExtensionHook, error) {
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT id, hook_point, doctype, target_url, enabled, timeout_ms, COALESCE(created_by, ''), created_at
+		SELECT id, hook_point, doctype, target_url, enabled, timeout_ms, COALESCE(created_by, ''), created_at, api_version
 		FROM %s.extension_hooks ORDER BY created_at DESC`, schema))
 	if err != nil {
 		return nil, err
@@ -152,9 +191,10 @@ func ListExtensionHooks(tenantID string) ([]ExtensionHook, error) {
 	var out []ExtensionHook
 	for rows.Next() {
 		var h ExtensionHook
-		if err := rows.Scan(&h.ID, &h.HookPoint, &h.Doctype, &h.TargetURL, &h.Enabled, &h.TimeoutMs, &h.CreatedBy, &h.CreatedAt); err != nil {
+		if err := rows.Scan(&h.ID, &h.HookPoint, &h.Doctype, &h.TargetURL, &h.Enabled, &h.TimeoutMs, &h.CreatedBy, &h.CreatedAt, &h.APIVersion); err != nil {
 			return nil, err
 		}
+		h.Sunset = hookAPIVersions[h.APIVersion]
 		out = append(out, h)
 	}
 	return out, rows.Err()
@@ -334,6 +374,8 @@ func hashPayload(payload []byte) string {
 
 func buildHookPayload(tenantID, hookPoint, doctype, documentID string, data map[string]interface{}) []byte {
 	payload, _ := json.Marshal(map[string]interface{}{
+		// 47.11.7: one version is served today; a breaking v2 builds one payload per version.
+		"api_version": HookAPIVersion,
 		"hook_point":  hookPoint,
 		"doctype":     doctype,
 		"document_id": documentID,

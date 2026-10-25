@@ -743,14 +743,12 @@ func CancelOrder(tenantID, orderID, reasonCode string, actor ...string) error {
 				case int:
 					qty = v
 				}
-				// Release the reservation's held-back stock the same way
-				// TransitionTaskStatus's own Rejected branch already does
-				// (engines/fulfillment.go) - decrement the availability
-				// read model's reserved count directly; no generic release-
-				// by-reservation-id function exists yet in this repo.
-				if _, err := db.DB.Exec(fmt.Sprintf(
-					`UPDATE %s.inventory_availability SET reserved = GREATEST(0, reserved - $1), updated_at = CURRENT_TIMESTAMP WHERE sku = $2 AND location_code = $3`, schema),
-					qty, sku, locationCode); err != nil {
+				// Stage 135.6: release the line's reservation row and its
+				// reserved count together. Lowering the count alone left the
+				// row behind; once the line read Cancelled the sweeper took
+				// it as orphaned and lowered reserved a second time, eating
+				// other orders' reservations.
+				if err := releaseLineReservationAtLocation(schema, sku, locationCode, qty, lr.id); err != nil {
 					return err
 				}
 			}

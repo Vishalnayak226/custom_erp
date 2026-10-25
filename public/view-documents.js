@@ -1260,8 +1260,43 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
         select.dispatchEvent(new Event('change', { bubbles: true }));
       });
 
+      // Stage 132.13 (q): a list longer than one page (the server's default 500) gets a
+      // search over the whole list above it - the 501st customer / item / vendor could not
+      // be picked. The select, its values and the create option stay as they are.
+      const addLinkSearch = (total, shown) => {
+        const label = getDoctypeLabel(f.options);
+        const search = document.createElement('input');
+        search.type = 'search';
+        search.className = 'form-input';
+        search.style.marginBottom = '6px';
+        search.placeholder = `Search all ${total} ${label} (the list shows the first ${shown})`;
+        search.setAttribute('aria-label', `Search ${label}`);
+        fg.insertBefore(search, select);
+        let timer = null, seq = 0;
+        search.addEventListener('input', () => {
+          clearTimeout(timer);
+          timer = setTimeout(async () => {
+            const mine = ++seq;
+            const res = await apiFetch(`/api/v1/doc/${f.options}?q=${encodeURIComponent(search.value.trim())}&limit=50`);
+            if (!res || !res.ok || mine !== seq) return;
+            const rows = await res.json().catch(() => []);
+            const keep = select.value;
+            [...select.options].forEach(o => { if (o.value && o.value !== CREATE_OPTION && o.value !== keep) o.remove(); });
+            const before = select.querySelector(`option[value="${CREATE_OPTION}"]`);
+            (rows || []).forEach(item => {
+              const id = item.id == null ? '' : String(item.id);
+              if (!id || [...select.options].some(o => o.value === id)) return;
+              const opt = document.createElement('option');
+              opt.value = id;
+              opt.textContent = item.name || item.label || item.title || item.code || id;
+              select.insertBefore(opt, before);
+            });
+          }, 250);
+        });
+      };
+
       // Fetch target link options asynchronously
-      apiFetch(`/api/v1/doc/${f.options}`).then(res => {
+      apiFetch(`/api/v1/doc/${f.options}?count=true`).then(res => {
         if (!res || !res.ok) {
           select.innerHTML = '<option value="" disabled selected>— Failed to load options —</option>';
           return;
@@ -1303,6 +1338,8 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
           // options it names exist (restoreFormValues).
           else if (select.dataset.pendingValue && [...select.options].some(o => o.value === select.dataset.pendingValue)) select.value = select.dataset.pendingValue;
           appendCreateOption();
+          const total = parseInt(res.headers.get('X-Total-Count') || '', 10);
+          if (total > data.length) addLinkSearch(total, data.length);
         });
       });
     } else if (f.fieldtype === 'JSONTable' || f.fieldtype === 'JSONMap') {

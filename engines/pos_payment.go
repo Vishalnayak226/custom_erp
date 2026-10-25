@@ -310,7 +310,13 @@ func releasePOSReservations(schema string, ids []string) {
 		if strings.TrimSpace(id) == "" {
 			continue
 		}
-		_, _ = db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.inventory_reservation WHERE id = $1::uuid`, schema), id)
+		// Stage 135.6: CreateReservation raised reserved; deleting the row
+		// alone left those units counted as reserved for good, so every
+		// authorized sale shrank available-to-sell. One statement, so a row
+		// the sweeper already released is not released twice.
+		_, _ = db.DB.Exec(fmt.Sprintf(`WITH gone AS (DELETE FROM %s.inventory_reservation WHERE id = $1::uuid RETURNING sku, location_code, quantity)
+			UPDATE %s.inventory_availability a SET reserved = GREATEST(a.reserved - gone.quantity, 0), updated_at = CURRENT_TIMESTAMP
+			FROM gone WHERE a.sku = gone.sku AND a.location_code = gone.location_code`, schema, schema), id)
 	}
 }
 

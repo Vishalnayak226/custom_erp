@@ -23,7 +23,7 @@
     },
     {
       "path": "docs/data/generated/dictionary.json",
-      "sha256": "e3ed250590923b3fe1a614349bce64044dcbcba12f978e1e771c2726f346db82",
+      "sha256": "17cd10ae24852c88550f3b0cc1c54888892a629164c4e98daef2c4b03dd3a277",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -49,7 +49,7 @@
     },
     {
       "path": "docs/guides/ERROR_CODES.md",
-      "sha256": "de7880f96a0eee076e59dfb45c0e89619d6bad11188b82a6a022aa25aa76914c",
+      "sha256": "33c12700a53ab6224d457caa331e79ac8c0c01136ae15a139af5e6bfbe6ba003",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -88,7 +88,7 @@
     },
     {
       "path": "docs/kb/reference/release-notes-2.md",
-      "sha256": "e9defeec4eb1c0327db0c8826b388c5cb6fed425ae7052a67b7daeb943f33374",
+      "sha256": "878b2483a2a657e675fc943f17a66f769c8b9738f414196bb52ccc523dce31a2",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -101,7 +101,7 @@
     },
     {
       "path": "docs/kb/reference/release-notes.md",
-      "sha256": "bb8c91abbb63a129289bb6c38cd73976fa2eb49c866a58229324957958c482eb",
+      "sha256": "80dc201c72d563a6e000634fa20b86b783e2ec3862bc8d52f54e3d94fa25c837",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -153,7 +153,7 @@
     },
     {
       "path": "docs/kb/troubleshooting/error-code-reference-2.md",
-      "sha256": "dae50ff5a4bd48ba982e44afeaa506eb81bf4ed54f27389e8306997d80390b6e",
+      "sha256": "90c4ba9f8448cc69b0e711b00420326725d532844d2e72e64811d65202593b16",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -166,7 +166,20 @@
     },
     {
       "path": "docs/kb/troubleshooting/error-code-reference.md",
-      "sha256": "424fc12f06252c482ec463675a98a4b970ef318af11dec9b51d99796eb0878c8",
+      "sha256": "25bba97dd777e3a2bc168de7c4679c6aa70d0b2896cac663c7f7b99d7548383e",
+      "sources": [
+        "cmd/gendocs/*.go",
+        "engines/*.go",
+        "internal/server/*.go",
+        "docs/project_ledger.md",
+        "docs/governance/generation.json",
+        "docs/data/registry-snapshot.json",
+        "docs/data/business-definitions.json"
+      ]
+    },
+    {
+      "path": "docs/qa/generated/page-inventory.md",
+      "sha256": "96e49eea711208e608a9916af85c99d1374c44216e68fc2ffcf3c3c2ea42eb76",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",

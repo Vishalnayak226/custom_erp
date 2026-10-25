@@ -9,8 +9,8 @@ audience: [engineering, operations, implementation, QA, domain reviewers]
 applies_to: source release 0.1.0; configuration-specific acceptance required
 authority: canonical
 confidentiality: internal
-last_verified: 2026-09-09
-review_by: 2026-10-09
+last_verified: 2026-10-25
+review_by: 2026-11-25
 supersedes: none
 superseded_by: none
 ---
@@ -31,6 +31,43 @@ Read [current architecture](current-architecture.md) first. These source views e
 | Audit and operational logs | `engines/logs.go`; security/operations owners | Evidence purpose, sensitive fields, retention and export; Stage 47.7 gaps remain |
 
 The [dictionary](../data/generated/dictionary.md) inventories actual metadata and physical keys. JSON Link fields are not automatically SQL foreign keys. Entity/location/stock-owner constraints must be checked alongside tenant isolation. Backups can include multiple tenants and require distinct access and recovery controls.
+
+## One owner per business truth
+
+Stage 135.6, read from source on 2026-10-25 (functions under `engines/` unless named otherwise). Each truth has one authoritative record and the commands that should be its only writers. Everything else reads it or keeps a finer breakdown that must add up to it. No new ledger is proposed, and no existing table is reworked.
+
+| Truth | Authoritative record | Commands that write it | Kept beside it (must reconcile) |
+|---|---|---|---|
+| Tenant, user, role, scope | `public.tenants` → `tenant_<x>` schema (`db.GetTenantSchema`); `users`, `roles`, `role_permissions` per schema | Tenant lifecycle; Settings → Users / Roles | `routeCapabilities` + `checkRouteCapability` (`internal/server`, run by `apiMiddleware`); `ResolveSessionScope` / `ScopeForDoctype` (`scope_policy.go`) |
+| Item, variant, UOM | `Item` documents (variants are Items: `family`, `parent_product_code`, `variant_option_values`); `ProductFamily`, `ItemAttribute`; `UOMConversion` | Generic document save with `ValidateItemVariantUniqueness` / `PrepareItemVariantCode` (`pim.go`); `ConvertUOMQty` (`uom.go`) | No separate variant table exists; PIM enrichment writes the same Item |
+| Physical quantity per item and location | `inventory_availability` (sku, location_code): on_hand, available, reserved, blocked, hold_qty, qc_hold, damaged, in_transit, inward, rtv, with_party | `PostInventoryLedgerWithVoucherTx` (`inventory.go`; locks rows in SKU order, refuses going below available − blocked − hold_qty) | `StockLedgerEntry` documents (movement history); `stock_location_balance`; `bin_stock` (see below) |
+| Custody and condition | `hold_qty` + `Hold` documents (`placeHoldTx`); `Batch`, `SerialNumber`; `warehouse_owner` (one owner per warehouse) | `wms_holds.go`, `EnsureBatch`, `RegisterSerial`, `AssignWarehouseOwner` | `bin_stock_batch`, `bin_stock_owner` ≤ `bin_stock` |
+| Customer commitment | `SalesOrder` / `SalesOrderLine` documents; `inventory_reservation` (+ `reserved` on availability) | `CreateSalesOrder` → `ResolveAllocationPlan` → `CreateReservation`; `ReleaseOrderToFulfillment` (FulfillmentTask); dispatch in `TransitionTaskStatus` | `bin_allocation` (a pick task's bin / lot / owner hold against `bin_stock`, not a second reservation) |
+| Posted money and period | `gl_postings`; `accounting_periods` | `PostDoubleEntryTx` (`finance.go`): balance check, `rejectIfCurrentPeriodClosed`, idempotency key, insert | Subledgers feed it: POS, sales invoice (AR), vendor invoice / GRN post (AP), GRN costing, payroll, cycle count; `item_cost` is a moving average per item, not per location |
+| External action and its acknowledgment | Intent: `async_jobs` (`EnqueueJob`), `integration_event_outbox` (`PublishEvent`, in the caller's transaction), `inbound_webhook_receipts`. Acknowledgment: courier `provider_awb`, IRP `irn` / `ack_no` / `signed_qr`, e-way bill `ewb_no` | `AllocateCourierAWB`, `irpAcknowledge`, `ewbGenerated`; channel sync runs (`recordChannelSyncRun`) | `integration_event_log`: real acknowledgments from Unicommerce and CleverTap; the generic outbox processor's "Success" rows are simulated and are not a provider acknowledgment |
+
+### Stock: one quantity, three breakdowns and a reservation
+
+An event changes the quantity once, in `inventory_availability`. The other tables say where inside the location the units are, or who they are promised to.
+
+- **Inside a store**, `stock_location_balance` (sku, store, stock_location) holds the client's own locations (Alteration, Display, Inward). `MoveStock` → `applyBucketDeltaTx` changes the balance and `available` / `blocked` in one transaction. A receipt lands in the store's default location in the posting's transaction (`applyReceiptDefaultTx`).
+- **Inside a warehouse**, `bin_stock` (bin, sku, condition) breaks the location into bins. Putaway (`PutawayToBin`) and bin-to-bin moves (`MoveBinStock`) change bins only, not the location's quantity. A pick scan takes units out of their bin (`ConsumeTaskBinStockTx`). Dispatch then lowers on_hand / available once, together with any bin units not scanned. Receipts, POS, transfers, adjustments and counts do not touch bins. `BinStockReconciliation` (report `bin-stock-reconciliation`) compares the two.
+- **Promised, not moved**: `CreateReservation` adds a row and raises `reserved` in one transaction; available-to-sell is `computeATS` (available − reserved − safety − blocked − buffer − held). Dispatch lowers `reserved` and deletes the row in the same transaction as the stock decrement, so a shipped unit leaves the books once. Releases go through `releaseLineReservationAtLocation`, the order-change path or the sweeper, each of which deletes the row and lowers `reserved` together.
+- **History**: `StockBookVsLedger` (`stock_book_ledger.go`) compares the book with the `StockLedgerEntry` movements.
+
+### Gaps found on 2026-10-25
+
+Fixed in Stage 135.6, with `TestStage135ReservationReleasedExactlyOnce`:
+
+- Cancelling an order lowered `reserved` but left its reservation row. The sweeper then released the row again and ate another order's reservation (`CancelOrder` now calls `releaseLineReservationAtLocation`).
+- A POS card authorization's holds were deleted without lowering `reserved`, so those units stayed reserved for good (`releasePOSReservations` now deletes and lowers in one statement).
+
+Open (recorded as 135.16-135.19 in the build tracker):
+
+- `PostInventoryLedgerWithVoucherTx` is not the only writer of `inventory_availability`. Dispatch, transfer out and receive, return QC, the GRN QC split, cycle count, bundles, delivery challans, holds and `MoveStock` write it directly. Several write their `StockLedgerEntry` after commit. Return-QC restock and `MoveStock` write none, so `StockBookVsLedger` can show drift that is not a lost unit.
+- No check that `stock_location_balance` adds up to `blocked`.
+- The POS and ledger floor (available − blocked − hold_qty) does not subtract `reserved`, so a till can sell units held for an online order; dispatch then floors on_hand at zero.
+- Production issue and finish read the order's status without a lock and post stock with no voucher key, so two concurrent calls each post. The GL idempotency check is check-then-insert on a non-unique key, which is safe only when the caller locks the document.
 
 ## Return lifecycle
 

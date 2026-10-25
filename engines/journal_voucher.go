@@ -252,6 +252,15 @@ func postApprovedJournalVoucher(tenantID, voucherID string) {
 	}
 	if err := updateJournalVoucherData(schema, voucherID, "Posted", data); err != nil {
 		LogSystemError(tenantID, "", "ERROR", "postApprovedJournalVoucher", fmt.Sprintf("voucher %s posted to GL but status update failed: %v", voucherID, err), "")
+		return
+	}
+	// Stage 132.17: a reversal that has posted marks the voucher it reverses.
+	if orig, _ := data["reversed_from"].(string); orig != "" {
+		if od, ost, err := fetchJournalVoucher(schema, orig); err == nil && ost == "Posted" {
+			if err := updateJournalVoucherData(schema, orig, "Reversed", od); err != nil {
+				LogSystemError(tenantID, "", "ERROR", "postApprovedJournalVoucher", fmt.Sprintf("reversal %s posted but %s not marked Reversed: %v", voucherID, orig, err), "")
+			}
+		}
 	}
 }
 
@@ -303,6 +312,9 @@ func ReverseJournalVoucher(tenantID, voucherID, userID string) (string, error) {
 	if status != "Posted" {
 		return "", fmt.Errorf("only a Posted journal voucher can be reversed (current status: %s)", status)
 	}
+	if by := journalVoucherReversalPending(schema, data); by != "" {
+		return "", fmt.Errorf("%s is already being reversed by %s - approve or reject that one first", voucherID, by)
+	}
 	lines, err := journalVoucherLinesFromData(data)
 	if err != nil {
 		return "", err
@@ -331,11 +343,29 @@ func ReverseJournalVoucher(tenantID, voucherID, userID string) (string, error) {
 		return newID, err
 	}
 
+	// Stage 132.17: the voucher stays Posted - its amounts are still in the
+	// GL - until the reversal itself posts (postApprovedJournalVoucher marks
+	// it Reversed then). Marked Reversed here, a reversal left in Draft or
+	// rejected showed the voucher reversed while its amounts stood, and it
+	// could not be reversed again.
 	data["reversed_by"] = newID
-	if err := updateJournalVoucherData(schema, voucherID, "Reversed", data); err != nil {
+	if err := updateJournalVoucherData(schema, voucherID, "Posted", data); err != nil {
 		return newID, err
 	}
 	return newID, nil
+}
+
+// journalVoucherReversalPending names the live reversal of a voucher, if one
+// exists: one raised and not yet rejected or cancelled.
+func journalVoucherReversalPending(schema string, data map[string]interface{}) string {
+	by, _ := data["reversed_by"].(string)
+	if by == "" {
+		return ""
+	}
+	if _, st, err := fetchJournalVoucher(schema, by); err != nil || st == "Rejected" || st == "Cancelled" {
+		return ""
+	}
+	return by
 }
 
 var recurringJournalFrequencies = map[string]bool{"Daily": true, "Weekly": true, "Monthly": true, "Yearly": true}

@@ -9,10 +9,11 @@ function renderQZSetupPanel(container) {
   panel.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
       <div>
-        <h2 style="margin: 0 0 4px; font-size: 16px;">Print Setup (QZ Tray)</h2>
-        <p id="qz-status" class="page-subtitle" style="margin: 0;">Checking for QZ Tray on this PC&hellip;</p>
+        <h2 style="margin: 0 0 4px; font-size: 16px;">Print Setup (PrintBridge)</h2>
+        <p id="qz-status" class="page-subtitle" style="margin: 0;">Checking for PrintBridge on this computer&hellip;</p>
       </div>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <a class="btn btn-outline" href="/downloads/printbridge-setup.exe" download title="Windows: run it once on each computer that prints">Download PrintBridge</a>
         <button class="btn btn-outline" ${actionAttrs('qzDetectPrinters')}>Detect Printers</button>
         <button class="btn btn-outline" ${actionAttrs('qzTestPrint')}>Test Print</button>
       </div>
@@ -81,14 +82,28 @@ async function qzRefreshStatus() {
   if (!el) return;
   const ok = await qzTryConnect();
   if (ok) {
-    const v = window.QZPrint.version();
-    el.textContent = `Connected to QZ Tray${v ? ' ' + v : ''} - printing is silent on this PC.`;
-    el.style.color = 'var(--color-success, #15803d)';
+    // Stage 137.4: PrintBridge's own release; one older than the download
+    // (or one before 0.2.0, which cannot say) is offered the update.
+    const [have, latest] = await Promise.all([
+      window.QZPrint.agentVersion ? window.QZPrint.agentVersion().catch(() => '') : '',
+      fetch('/downloads/printbridge-version.txt').then(r => (r.ok ? r.text() : '')).catch(() => '')
+    ]);
+    const older = latest && versionBelow(have || '0.1.0', latest.trim());
+    el.textContent = older
+      ? `${have ? `PrintBridge ${have}` : 'An older PrintBridge'} is running. ${latest.trim()} is out: Download PrintBridge and run it.`
+      : `PrintBridge${have ? ' ' + have : ''} is running - printing is silent on this computer.`;
+    el.style.color = older ? 'var(--color-warning, #b45309)' : 'var(--color-success, #15803d)';
   } else {
-    el.textContent = qzLastError + ' Printing falls back to the browser dialog until it is running.';
+    el.textContent = qzLastError + ' Download PrintBridge and run it once; until then prints open the browser dialog.';
     el.style.color = 'var(--color-warning, #b45309)';
   }
 }
+
+const versionBelow = (a, b) => {
+  const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
+  for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) < (pb[i] || 0);
+  return false;
+};
 
 // Lists the OS printer names QZ can see. This is the value the operator
 // copies into a Printer record's "OS Printer Name" field.
@@ -101,7 +116,7 @@ async function qzDetectPrinters() {
     const names = await window.QZPrint.listOSPrinters();
     const list = Array.isArray(names) ? names : [names];
     if (list.length === 0) {
-      out.textContent = 'QZ Tray reports no printers installed on this PC.';
+      out.textContent = 'PrintBridge reports no printers installed on this computer.';
       return;
     }
     let def = '';
@@ -258,6 +273,7 @@ async function renderStickerPrintTab(container) {
           ${printers.map(p => `<option value="${escapeHTMLText(p.code || p.id)}">${escapeHTMLText(p.name || p.code || p.id)}</option>`).join('')}
         </select>
       </div>
+      <button type="button" class="btn btn-outline" id="sticker-preset-btn" hidden>Printer preset</button>
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="sticker-copies">Copies per SKU</label>
         <input type="number" id="sticker-copies" class="form-input" style="width: 100px;" value="1" min="1">
@@ -295,7 +311,7 @@ async function renderStickerPrintTab(container) {
   // one-time path per computer, so it sits collapsed below the daily flow.
   const setup = document.createElement('details');
   setup.className = 'sticker-printer-setup';
-  setup.innerHTML = '<summary style="cursor:pointer;font-weight:600;margin:0 0 12px;">Printer setup on this computer (QZ Tray) and channel label PDFs</summary>';
+  setup.innerHTML = '<summary style="cursor:pointer;font-weight:600;margin:0 0 12px;">Printer setup on this computer (PrintBridge) and channel label PDFs</summary>';
   printPage.appendChild(setup);
   renderQZSetupPanel(setup);
 
@@ -344,7 +360,15 @@ async function renderStickerPrintTab(container) {
   } catch (_) { /* storage off */ }
   printerSel.value = stickerStartPrinter(printers, keptPrinter);
   if (keptCopies > 0) copiesInput.value = keptCopies;
-  printerSel.addEventListener('change', () => { try { localStorage.setItem('sticker-printer', printerSel.value); } catch (_) { /* storage off */ } });
+  printerSel.addEventListener('change', () => {
+    try { localStorage.setItem('sticker-printer', printerSel.value); } catch (_) { /* storage off */ }
+    renderStickerPresetButton();
+    renderStickerSourceLines();
+  });
+  document.getElementById('sticker-preset-btn').addEventListener('click', openPrinterPreset);
+  renderStickerPresetButton();
+  // The roll's name and shape come with the template choices.
+  loadStickerTemplateChoices().then(c => { if (!stickerTemplateChoices.length) stickerTemplateChoices = c; renderStickerPresetButton(); renderStickerSourceLines(); });
   copiesInput.addEventListener('change', () => {
     const n = parseInt(copiesInput.value, 10);
     if (n > 0) { try { localStorage.setItem('sticker-copies', String(n)); } catch (_) { /* storage off */ } }
@@ -554,10 +578,147 @@ async function loadStickerSourcePreview() {
 async function loadStickerTemplateChoices() {
   const [tplRes, E] = await Promise.all([apiFetch('/api/v1/doc/StickerTemplate'), loadStickerEngine()]);
   const docs = tplRes && tplRes.ok ? await tplRes.json() : [];
+  stickerEngineSync = E;
   return [
-    ...docs.filter(t => (t.status || 'Active') === 'Active').map(t => ({ id: t.id, name: t.name || t.code || t.id })),
-    ...E.unsavedDesigns(docs).map(d => ({ id: `design:${d.id}`, name: `${d.label} (built-in)` }))
+    ...docs.filter(t => (t.status || 'Active') === 'Active').map(t => ({ id: t.id, name: t.name || t.code || t.id, shape: E.rollShape(E.templateFromDoc(t)) })),
+    ...E.unsavedDesigns(docs).map(d => ({ id: `design:${d.id}`, name: `${d.label} (built-in)`, shape: E.rollShape(E.designTemplate(d)), design: d }))
   ];
+}
+
+// Stage 137: the printer picked on the print page, and the roll its preset
+// names ({ id, name, shape } from the template choices) or null.
+let stickerEngineSync = null; // the sticker engine once loaded, for the synchronous renders
+const stickerSelectedPrinter = () => {
+  const code = (document.getElementById('sticker-printer') || {}).value || '';
+  return stickerPrinters.find(p => (p.code || p.id) === code) || null;
+};
+function stickerRoll() {
+  const id = (stickerSelectedPrinter() || {}).sticker_template || '';
+  return id ? stickerTemplateChoices.find(t => t.id === id) || null : null;
+}
+// stickerFitsRoll mirrors the server's applyPrinterRoll: '' or 'standard' is
+// the built-in label. True when there is no roll to fit.
+function stickerFitsRoll(id, roll) {
+  if (!roll || !stickerEngineSync) return true;
+  const shape = !id || id === 'standard' ? stickerEngineSync.builtInShape() : (stickerTemplateChoices.find(t => t.id === id) || {}).shape;
+  return !!shape && stickerEngineSync.fitsRoll(shape, roll.shape);
+}
+
+function renderStickerPresetButton() {
+  const btn = document.getElementById('sticker-preset-btn');
+  const p = stickerSelectedPrinter();
+  if (!btn) return;
+  btn.hidden = !p;
+  if (!p) return;
+  const roll = stickerRoll();
+  btn.textContent = roll ? `Roll: ${roll.name}` : 'Printer preset';
+  btn.title = `Roll, shift (right ${Number(p.shift_right_mm) || 0} mm, down ${Number(p.shift_down_mm) || 0} mm), darkness and speed of ${p.name || p.code}`;
+}
+
+// openPrinterPreset (Stage 137.1, 137.3; user, 2026-10-25: "preset i need in
+// config, once i set, it will not ask") edits the selected printer's preset:
+// the roll loaded, its alignment, darkness and speed. Saved on the Printer
+// record, so every computer printing to it uses it. Test alignment prints
+// with the values on screen, saved or not, so the shift is tuned on paper.
+async function openPrinterPreset() {
+  const printer = stickerSelectedPrinter();
+  if (!printer) { await showCustomAlert('Select a printer first.', 'Printer preset'); return; }
+  const E = await loadStickerEngine();
+  if (!stickerTemplateChoices.length) stickerTemplateChoices = await loadStickerTemplateChoices();
+  const may = typeof canUpdateDoctype !== 'function' || canUpdateDoctype('Printer');
+  const fields = [['shift_right_mm', 'Shift right (mm)', '0'], ['shift_down_mm', 'Shift down (mm)', '0'],
+    ['darkness', 'Darkness (0-15)', 'Template'], ['print_speed', 'Speed (inches/s)', 'Template']];
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-container" style="max-width: 560px;" role="dialog" aria-modal="true" aria-labelledby="stk-preset-title">
+      <div class="modal-header"><h3 class="modal-title" id="stk-preset-title">Printer preset · ${escapeHTMLText(printer.name || printer.code || printer.id)}</h3>
+        <button type="button" class="modal-close" aria-label="Close dialog" data-p="close">×</button></div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="stk-preset-roll">Roll loaded</label>
+          <select id="stk-preset-roll" class="form-input">
+            <option value="">None - template rules decide</option>
+            ${stickerTemplateChoices.map(t => `<option value="${escapeHTMLText(t.id)}"${t.id === printer.sticker_template ? ' selected' : ''}>${escapeHTMLText(t.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+          ${fields.map(([k, label, hint]) => `<div class="form-group" style="margin: 0;">
+            <label class="form-label" for="stk-preset-${k}">${label}</label>
+            <input type="number" step="any" id="stk-preset-${k}" class="form-input" placeholder="${hint}" value="${escapeHTMLText(printer[k] ?? '')}"></div>`).join('')}
+        </div>
+        <div id="stk-preset-error" class="login-error hidden" style="margin-top: 12px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-p="test">Test alignment</button>
+        <button type="button" class="btn btn-outline" data-p="calibrate">Calibrate roll</button>
+        <button type="button" class="btn btn-outline" data-p="close">Cancel</button>
+        <button type="button" class="btn btn-primary" data-p="save"${may ? '' : ' disabled title="Your role cannot change printers"'}>Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('open'));
+  const errorEl = overlay.querySelector('#stk-preset-error');
+  const say = (msg) => { errorEl.textContent = msg; errorEl.classList.toggle('hidden', !msg); };
+  const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  const read = () => {
+    const p = { sticker_template: overlay.querySelector('#stk-preset-roll').value };
+    for (const [k] of fields) {
+      const v = overlay.querySelector(`#stk-preset-${k}`).value.trim();
+      p[k] = v === '' ? '' : Number(v);
+    }
+    return p;
+  };
+  const problem = (p) => {
+    if (p.darkness !== '' && !(p.darkness >= 0 && p.darkness <= 15)) return 'Darkness is 0 to 15.';
+    if (p.print_speed !== '' && !(p.print_speed > 0)) return 'Speed is more than 0.';
+    if ([p.shift_right_mm, p.shift_down_mm].some(v => v !== '' && Math.abs(v) > 20)) return 'A shift is at most 20 mm either way.';
+    return '';
+  };
+  const rollTemplate = async (id) => {
+    const choice = stickerTemplateChoices.find(t => t.id === id);
+    if (!choice) return null;
+    if (choice.design) return E.designTemplate(choice.design);
+    const res = await apiFetch(`/api/v1/doc/StickerTemplate/${encodeURIComponent(id)}`);
+    return res && res.ok ? E.templateFromDoc(await res.json()) : null;
+  };
+  overlay.addEventListener('click', async (e) => {
+    const act = e.target.closest('[data-p]')?.dataset.p;
+    if (!act) return;
+    if (act === 'close') { close(); return; }
+    const p = read();
+    say(problem(p));
+    if (problem(p)) return;
+    const btn = e.target.closest('button');
+    btn.disabled = true;
+    try {
+      if (act === 'test') {
+        await E.printAlignmentTest(await rollTemplate(p.sticker_template), Object.assign({}, printer, p));
+      } else if (act === 'calibrate') {
+        await E.calibrateRoll(printer);
+        window.showToast?.(`${printer.name || printer.code} is measuring the roll.`, { variant: 'info' });
+      } else if (act === 'save') {
+        if (p.sticker_template.startsWith('design:')) {
+          p.sticker_template = await pickStickerChoice(p.sticker_template);
+          if (!p.sticker_template) return;
+        }
+        const { patchDoc } = await loadStickerStudio();
+        if (!await patchDoc('Printer', printer.id, p)) return;
+        Object.assign(printer, p);
+        close();
+        renderStickerPresetButton();
+        renderStickerSourceLines();
+        window.showToast?.('Printer preset saved.', { variant: 'success' });
+      }
+    } catch (err) {
+      say(err.message || String(err));
+    } finally {
+      btn.disabled = act === 'save' && !may;
+    }
+  });
 }
 
 // Stage 119.5: a pick kept as the Product type rule. The lines it now applies
@@ -625,8 +786,16 @@ function renderStickerSourceLines() {
     return;
   }
   const anyBatch = stickerSourceLines.some(l => l.batch_no);
+  // Stage 137.2: with a roll set on the printer, only templates that fit it
+  // are offered, and a line whose rule picks one that does not fit shows the
+  // roll's template - what the server prints.
+  const roll = stickerRoll();
   const choiceOptions = (selected) => [{ id: 'standard', name: 'Standard label' }, ...stickerTemplateChoices]
+    .filter(t => stickerFitsRoll(t.id, roll))
     .map(t => `<option value="${escapeHTMLText(t.id)}" ${t.id === selected ? 'selected' : ''}>${escapeHTMLText(t.name)}</option>`).join('');
+  stickerSourceLines.forEach((l, i) => { if (stickerSourceTemplates[i] && !stickerFitsRoll(stickerSourceTemplates[i], roll)) stickerSourceTemplates[i] = ''; });
+  const ruleText = l => (roll && !stickerFitsRoll(l.template_id, roll)
+    ? `${roll.name} (printer preset)` : `${l.template_name} (${STICKER_RULE_TEXT[l.template_rule] || 'no rule'})`);
   const values = stickerSourceLines.map((l, i) => stickerSourceTemplates[i] || '');
   const runValue = values.every(v => v === values[0]) ? values[0] : '__mixed';
   // Stage 119.5: a saved template picked here can be kept as the Product type rule.
@@ -654,7 +823,7 @@ function renderStickerSourceLines() {
             ${anyBatch ? `<td style="font-family: monospace;">${escapeHTMLText(l.batch_no || '')}</td>` : ''}
             <td>${escapeHTMLText(l.category || '')}</td>
             <td><select data-source-template="${i}" class="form-input" style="min-width: 160px;" aria-label="Template for ${escapeHTMLText(l.sku)}" title="Rule that picked it: ${escapeHTMLText(l.template_rule || 'Standard')}">
-              <option value="">${escapeHTMLText(l.template_name)} (${escapeHTMLText(STICKER_RULE_TEXT[l.template_rule] || 'no rule')})</option>
+              <option value="">${escapeHTMLText(ruleText(l))}</option>
               ${choiceOptions(values[i])}
             </select>${keepable(values[i]) && l.product_type ? ` <button type="button" class="action-btn" data-source-keep="${i}" title="${escapeHTMLText(keepTitle(l.product_type))}">Keep for ${escapeHTMLText(l.product_type)}</button>` : ''}</td>
             <td><input type="number" min="1" data-source-copies="${i}" class="form-input" style="width: 70px;" aria-label="Copies of ${escapeHTMLText(l.sku)}" value="${escapeHTMLText(stickerSourceCopies[i] ?? l.qty)}"></td>

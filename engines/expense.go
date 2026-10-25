@@ -118,7 +118,7 @@ func VerifyExpenseClaim(tenantID, claimID string) error {
 // with no matching earlier entry would be accounting-incorrect. Advance
 // issue/usage/balance tracking (MB 16.2's "Advance" requirement) is
 // explicitly out of scope for this pass.
-func PayExpenseClaim(tenantID, claimID string) (payableAmount int, err error) {
+func PayExpenseClaim(tenantID, claimID string) (payableAmount float64, err error) {
 	data, status, err := fetchExpenseClaim(tenantID, claimID)
 	if err != nil {
 		return 0, fmt.Errorf("claim not found: %v", err)
@@ -127,26 +127,26 @@ func PayExpenseClaim(tenantID, claimID string) (payableAmount int, err error) {
 		return 0, fmt.Errorf("only a finance-verified claim can be paid (current status: %s)", status)
 	}
 
-	amount := 0
+	// Stage 132.17: in paise - int(rupees) dropped the paise, so a claim of
+	// 1,250.75 was paid and booked as 1,250 (Guide found it).
+	var amount, gstAmount, advanceAdjusted int64
 	if v, ok := data["amount"].(float64); ok {
-		amount = int(v)
+		amount = RupeesToPaise(v)
 	}
-	gstAmount := 0
 	if v, ok := data["gst_amount"].(float64); ok {
-		gstAmount = int(v)
+		gstAmount = RupeesToPaise(v)
 	}
-	advanceAdjusted := 0
 	if v, ok := data["advance_adjusted"].(float64); ok {
-		advanceAdjusted = int(v)
+		advanceAdjusted = RupeesToPaise(v)
 	}
 	if amount <= 0 {
 		return 0, fmt.Errorf("claim amount must be positive to pay")
 	}
 	if advanceAdjusted < 0 || advanceAdjusted > amount+gstAmount {
-		return 0, fmt.Errorf("advance adjusted (%d) must be between 0 and the claim total (%d)", advanceAdjusted, amount+gstAmount)
+		return 0, fmt.Errorf("advance adjusted (%.2f) must be between 0 and the claim total (%.2f)", PaiseToRupees(advanceAdjusted), PaiseToRupees(amount+gstAmount))
 	}
 
-	debits := map[string]int{"5400": amount}
+	debits := map[string]int64{"5400": amount}
 	if gstAmount > 0 {
 		debits["1500"] = gstAmount
 	}
@@ -155,7 +155,7 @@ func PayExpenseClaim(tenantID, claimID string) (payableAmount int, err error) {
 	// advance itself is cleared from 1600 Staff Loans & Advances, where an
 	// advance is booked (DisburseEmployeeLoan). Crediting 1100 with the whole
 	// claim overstated the payment by the advance and left 1600 uncleared.
-	credits := map[string]int{"1100": amount + gstAmount - advanceAdjusted}
+	credits := map[string]int64{"1100": amount + gstAmount - advanceAdjusted}
 	if advanceAdjusted > 0 {
 		credits["1600"] = advanceAdjusted
 	}
@@ -174,7 +174,7 @@ func PayExpenseClaim(tenantID, claimID string) (payableAmount int, err error) {
 		department = ""
 	}
 	project, _ := data["project"].(string)
-	if err := PostDoubleEntry(tenantID, "ExpenseClaim", claimID, PaiseMap(debits), PaiseMap(credits), "", fmt.Sprintf("ExpenseClaim:%s:PAY", claimID),
+	if err := PostDoubleEntry(tenantID, "ExpenseClaim", claimID, debits, credits, "", fmt.Sprintf("ExpenseClaim:%s:PAY", claimID),
 		PostingOptions{Department: department, Project: project}); err != nil {
 		return 0, fmt.Errorf("failed to post expense payment GL entry: %v", err)
 	}
@@ -182,5 +182,5 @@ func PayExpenseClaim(tenantID, claimID string) (payableAmount int, err error) {
 	if err := saveExpenseClaimStatus(tenantID, claimID, "Paid", data); err != nil {
 		return 0, err
 	}
-	return amount + gstAmount - advanceAdjusted, nil
+	return PaiseToRupees(amount + gstAmount - advanceAdjusted), nil
 }

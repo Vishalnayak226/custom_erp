@@ -112,6 +112,8 @@
         "public/favicon*.png",
         "public/brand-*.png",
         "public/styles.css",
+        "public/kb.css",
+        "public/rf.css",
         "public/store.css",
         "public/components/*",
         "public/view-*.js",
@@ -251,6 +253,7 @@
         "internal/server/handlers_admin_identity.go",
         "internal/server/handlers_access_governance.go",
         "internal/server/route_capabilities.go",
+        "internal/server/page_inventory.go",
         "internal/server/handlers_profile.go"
       ]
     },
@@ -738,11 +741,13 @@
       "id": "printing",
       "lobe": "peripheral",
       "name": "Device Printing (QZ Tray)",
-      "role": "Silent one-click printing to named OS printers via a QZ Tray bridge on each packing PC. RSA request signing (the tray verifies SHA512withRSA over a SHA-256 hex string), the Printer Master's OS-name/role/language mapping, ZPL/TSPL/ESC-POS command generation, and byte-for-byte pass-through of marketplace-issued label PDFs. Also the Sticker Studio (Stage 58): the browser-side sticker engine that renders every label at printer DPI into TSPL/ZPL bitmaps or the print dialog, and the full-screen label designer. Stage 63: designed transaction prints (PO, Vendor PO, GRN, transfers, debit/credit notes) - the trade-docs page renderer and print window, and the Print Template Studio. Stage 98: every print's lines as CSV / Excel, the print as a PDF made in the browser, the PDF emailed to the other party, and each computer's own printer per kind of print (chosen once, kept on the server). Stage 88.4: one Templates page, module by module.",
+      "role": "Silent one-click printing to named OS printers via a QZ Tray bridge on each packing PC. RSA request signing (the tray verifies SHA512withRSA over a SHA-256 hex string), the Printer Master's OS-name/role/language mapping, ZPL/TSPL/ESC-POS command generation, and byte-for-byte pass-through of marketplace-issued label PDFs. Also the Sticker Studio (Stage 58): the browser-side sticker engine that renders every label at printer DPI into TSPL/ZPL bitmaps or the print dialog, and the full-screen label designer. Stage 63: designed transaction prints (PO, Vendor PO, GRN, transfers, debit/credit notes) - the trade-docs page renderer and print window, and the Print Template Studio. Stage 98: every print's lines as CSV / Excel, the print as a PDF made in the browser, the PDF emailed to the other party, and each computer's own printer per kind of print (chosen once, kept on the server). Stage 88.4: one Templates page, module by module. Stage 137: each printer's sticker preset (the roll loaded wins over template rules; shift, darkness, speed; Test alignment, Calibrate roll), and the PrintBridge installer the ERP serves, with the printbridge: wake link.",
       "match": [
         "engines/qz_*.go",
+        "engines/sticker_printer_preset.go",
         "internal/server/handlers_qz_*.go",
         "public/qz-print.js",
+        "public/downloads/*",
         "public/sticker-engine.js",
         "public/sticker-studio.js",
         "public/sticker-studio.css",
@@ -797,6 +802,7 @@
       "role": "The reason a slow third party can never hang a checkout: business writes publish an event into integration_event_outbox inside the same DB transaction, and a background poller drains it afterwards. Retry and integration logs live here too. Stage 38.6 adds a general-purpose async job runner (SELECT...FOR UPDATE SKIP LOCKED claiming, lease/heartbeat, retry/backoff, DeadLettered DLQ, a visibility screen) that any future job type registers a handler with; Stage 38.4's HMAC-signed webhook subscriptions are its first real consumer, fanning out from a committed outbox event to one webhook_delivery job per matching subscription.",
       "match": [
         "engines/outbox.go",
+        "engines/integration_log_retention.go",
         "engines/jobrunner.go",
         "engines/scheduler_leader.go",
         "engines/webhook.go",

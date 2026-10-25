@@ -69,6 +69,31 @@ function Invoke-Docs([string]$group) {
     return @{ ok = ($LASTEXITCODE -eq 0); out = $out }
 }
 
+# G0a One release at a time (2026-10-26: two queued runs went G0-G10 side by side and each
+# stopped at G11 on the other's git index.lock). CreateNew is atomic; a lock whose process is
+# gone (or is a different process with a reused PID) was left by a run that died, and is taken over.
+$lockPath = Join-Path $reportDir 'release.lock'
+$lockHeld = $false
+for ($attempt = 0; -not $lockHeld -and $attempt -lt 2; $attempt++) {
+    try {
+        $fs = [IO.File]::Open($lockPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write)
+        $bytes = [Text.Encoding]::UTF8.GetBytes((@{ pid = $PID; started = (Get-Process -Id $PID).StartTime.ToString('o') } | ConvertTo-Json -Compress))
+        $fs.Write($bytes, 0, $bytes.Length); $fs.Dispose()
+        $lockHeld = $true
+    } catch {
+        if (-not (Test-Path -LiteralPath $lockPath)) { throw }
+        $held = $null; try { $held = Get-Content -LiteralPath $lockPath -Raw | ConvertFrom-Json } catch { }
+        $owner = if ($held -and $held.pid) { Get-Process -Id $held.pid -ErrorAction SilentlyContinue } else { $null }
+        if ($owner -and [math]::Abs(($owner.StartTime - [datetime]$held.started).TotalSeconds) -lt 5) {
+            # Not Stop-Release: its Save-Report would overwrite the running release's last-release.json.
+            Write-Host "RELEASE STOPPED: another release is running (pid $($held.pid), started $($owner.StartTime.ToString('HH:mm'))) - let it finish, then run Release again" -ForegroundColor Red
+            exit 1
+        }
+        Remove-Item -LiteralPath $lockPath -Force -ErrorAction SilentlyContinue
+    }
+}
+if (-not $lockHeld) { Stop-Release "could not take the release lock $lockPath" }
+
 try {
 # ---------------------------------------------------------------- G0 preflight
 Write-Gate 'G0 Preflight'
@@ -214,7 +239,31 @@ if ($publicChanged.Count) {
         $c1 = [int]([regex]::Match($html, $cssRe).Groups[1].Value); $c0 = [int]([regex]::Match($headHtml, $cssRe).Groups[1].Value)
         if ($c1 -eq $c0) { Write-Text $htmlPath ([regex]::Replace($html, $cssRe, "styles.css?v=$($c1 + 1)")); Note "styles.css ?v=$c1 -> $($c1 + 1)" }
     }
+    # Stage 137: qz-print.js is a shell script of its own (qz-print.js?v=N);
+    # it changed in 06547bb with no new N, so browsers could keep the old one.
+    if ($ship | Where-Object { $_.Path -eq 'public/qz-print.js' }) {
+        $html = Read-Text $htmlPath
+        $headHtml = (& git -C $wt show 'HEAD:public/index.html') -join "`n"
+        $qzRe = 'qz-print\.js\?v=(\d+)'
+        $q1 = [int]([regex]::Match($html, $qzRe).Groups[1].Value); $q0 = [int]([regex]::Match($headHtml, $qzRe).Groups[1].Value)
+        if ($q1 -eq $q0) { Write-Text $htmlPath ([regex]::Replace($html, $qzRe, "qz-print.js?v=$($q1 + 1)")); Note "qz-print.js ?v=$q1 -> $($q1 + 1)" }
+    }
 } else { Note 'no public/ change' }
+
+# ---------------------------------------------------- G4d PrintBridge download
+# Stage 137.4: the ERP serves public/downloads/printbridge-setup.exe and offers
+# an update from printbridge-version.txt. Both must be the agent's current
+# release (../PrintBridge), or every computer is offered an old one.
+Write-Gate 'G4d PrintBridge download'
+$pbExe = Join-Path $wt 'public/downloads/printbridge-setup.exe'; $pbVerFile = Join-Path $wt 'public/downloads/printbridge-version.txt'
+if (-not (Test-Path $pbExe) -or -not (Test-Path $pbVerFile)) { Stop-Release 'public/downloads/printbridge-setup.exe or printbridge-version.txt is missing - build it with ..\PrintBridge\installer\build.ps1 -Universal' }
+$pbServed = (Read-Text $pbVerFile).Trim()
+$pbSrc = Join-Path (Split-Path $repo -Parent) 'PrintBridge/agent/internal/agent/handlers.go'
+if (Test-Path $pbSrc) {
+    $pbAgent = [regex]::Match((Read-Text $pbSrc), 'BuildVersion\s*=\s*"([^"]+)"').Groups[1].Value
+    if ($pbAgent -and $pbAgent -ne $pbServed) { Stop-Release "PrintBridge is $pbAgent but the ERP serves $pbServed - run ..\PrintBridge\installer\build.ps1 -Universal -OutDir <a temp folder>, copy printbridge-setup.exe into public\downloads and write $pbAgent to printbridge-version.txt" }
+    Note "PrintBridge download $pbServed (agent source $pbAgent)"
+} else { Note "PrintBridge download $pbServed (no ..\PrintBridge on this machine to compare)" }
 
 # --------------------------------------------------------- G4b Release number
 # One number everywhere: the release decides it, internal/server/VERSION holds
@@ -653,4 +702,7 @@ Write-Host "Report: $reportPath"
 exit 0
 } catch {
     Stop-Release "$($_.Exception.Message)"
+} finally {
+    # exit inside the try still runs this, so every way out of a release frees the lock
+    if ($lockHeld) { Remove-Item -LiteralPath $lockPath -Force -ErrorAction SilentlyContinue }
 }

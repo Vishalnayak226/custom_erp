@@ -18,7 +18,8 @@ superseded_by: none
 # Verification strategy and evidence boundaries
 
 Use [requirements traceability](../generated/requirements-traceability.md) to locate tests
-and help. A location is not an execution result. The acceptance record identifies release,
+and help, and the [page and action inventory](generated/page-inventory.md) to see each
+screen's API calls with the roles enforced for them. A location is not an execution result. The acceptance record identifies release,
 configuration, fixtures, commands, outcomes, reviewers and immutable evidence references.
 
 | Test layer | Required questions |

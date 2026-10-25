@@ -54,7 +54,8 @@ func TestStage73D9ScheduleIsItsCreatorsOnly(t *testing.T) {
 		t.Error("a Super Admin does not see the schedule in the list")
 	}
 
-	if rec := doRequest(t, handler, http.MethodGet, "/api/v1/doc/ScheduledReport/"+id, tokenOther, nil); rec.Code != http.StatusForbidden || strings.Contains(rec.Body.String(), "secret-token") {
+	// Stage 49.4.7: refused as "not found", so the refusal does not confirm it exists.
+	if rec := doRequest(t, handler, http.MethodGet, "/api/v1/doc/ScheduledReport/"+id, tokenOther, nil); rec.Code != http.StatusNotFound || strings.Contains(rec.Body.String(), "secret-token") {
 		t.Errorf("another store manager opened the schedule: %d %s", rec.Code, rec.Body.String())
 	}
 	if rec := doRequest(t, handler, http.MethodGet, "/api/v1/doc/ScheduledReport/"+id, tokenOwner, nil); rec.Code != http.StatusOK {

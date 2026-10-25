@@ -207,3 +207,14 @@ func TestFieldFormatSpecsAreServable(t *testing.T) {
 		}
 	}
 }
+
+// Stage 132.13 (u): a prefix of a formatted value is not checked as the full value -
+// Courier Service Area's "Pincode Prefix (blank = all)" must accept "411".
+func TestFieldFormatPrefixIsNotTheFullValue(t *testing.T) {
+	if f, ok := DetectFieldFormat("pincode_prefix"); ok {
+		t.Errorf("pincode_prefix is checked as %q; a prefix must not be held to the full PIN format", f.Key)
+	}
+	if _, ok := DetectFieldFormat("pincode"); !ok {
+		t.Error("pincode itself must still be checked")
+	}
+}

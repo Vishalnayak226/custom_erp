@@ -222,7 +222,10 @@ func paidCarts(tenantID string, params map[string]string, extra string) ([]struc
 }
 
 func backflushConsumptionReport(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
-	carts, err := paidCarts(tenantID, params, `AND jsonb_typeof(data->'consumption') = 'array' AND jsonb_array_length(data->'consumption') > 0`)
+	// CASE, not AND: Postgres may evaluate either side of an AND first, and
+	// jsonb_array_length on a non-array consumption crashed the whole report
+	// ("cannot get array length of a scalar") - Guide, Stage 132.13.
+	carts, err := paidCarts(tenantID, params, `AND CASE WHEN jsonb_typeof(data->'consumption') = 'array' THEN jsonb_array_length(data->'consumption') > 0 ELSE FALSE END`)
 	if err != nil {
 		return nil, err
 	}

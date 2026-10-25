@@ -279,7 +279,10 @@ function composeErrorLines(message, detail, userAction, correlationId) {
 
 // Inline centered retry panel for full-page load failures, so a failed GET
 // doesn't leave a blank view. Same card layout as renderMockModuleView.
-function renderErrorPanel(container, message, retryFn) {
+function renderErrorPanel(container, message, retryFn, status) {
+  // 47.10.6: a load changes nothing; only a failure that may pass offers a retry.
+  if (status === undefined && lastLoadFailure && Date.now() - lastLoadFailure.at < 5000) status = lastLoadFailure.status;
+  const kind = status === 403 ? 0 : status === 404 ? 1 : 2;
   container.innerHTML = '';
   const errPanel = document.createElement('div');
   errPanel.className = 'table-panel';
@@ -287,14 +290,14 @@ function renderErrorPanel(container, message, retryFn) {
   errPanel.style.textAlign = 'center';
   errPanel.innerHTML = `
     <div style="max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; align-items: center;">
-      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.5">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="${kind === 2 ? '#ef4444' : 'currentColor'}" stroke-width="1.5">
         <circle cx="12" cy="12" r="10"></circle>
         <line x1="12" y1="8" x2="12" y2="12"></line>
         <line x1="12" y1="16" x2="12.01" y2="16"></line>
       </svg>
-      <h2 style="font-size: 20px; font-weight: 600;">Something Went Wrong</h2>
-      <p class="text-muted" style="font-size: 14px; line-height: 1.6;">${escapeHTMLText(message)}</p>
-      <button class="btn btn-primary" id="error-panel-retry-btn">Try Again</button>
+      <h2 style="font-size: 20px; font-weight: 600;">${['No access', 'Not found', 'Something Went Wrong'][kind]}</h2>
+      <p class="text-muted" style="font-size: 14px; line-height: 1.6;">${escapeHTMLText(message)} ${['Ask your administrator for access.', 'It may have been deleted, or the link is old.', 'Nothing was changed. Trying again is safe.'][kind]}</p>
+      ${kind === 2 ? '<button class="btn btn-primary" id="error-panel-retry-btn">Try Again</button>' : ''}
     </div>
   `;
   container.appendChild(errPanel);
@@ -331,7 +334,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '62';
+const VIEW_MODULE_VERSION = '63';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -354,7 +357,7 @@ function loadViewModule(src) {
 
 const LAZY_VIEW_MODULES = {
   pos: ['view-pos.js', 'renderPOSView', 'POS', 'txn-screen.css'],
-  'rf-traceability': ['view-rf-traceability.js', 'renderRFTraceabilityView', 'RF Traceability'],
+  'rf-traceability': ['view-rf-traceability.js', 'renderRFTraceabilityView', 'RF Traceability', 'rf.css'],
   returns: ['view-returns.js', 'renderReturnsView', 'Returns', 'txn-screen.css'],
   loyalty: ['view-loyalty.js', 'renderLoyaltyView', 'Loyalty'],
   crm: ['view-crm.js', 'renderCRMView', 'CRM', 'crm.css'],
@@ -417,7 +420,7 @@ const LAZY_VIEW_MODULES = {
   'tenant-usage': ['view-admin.js', 'renderTenantUsageView', 'Tenant Usage'],
   'platform-console': ['view-admin.js', 'renderPlatformConsoleView', 'Data Console'],
   'control-panel': ['view-control-panel.js', 'renderControlPanelView', 'Control Panel'],
-  help: ['view-help.js', 'renderHelpView', 'Help'],
+  help: ['view-help.js', 'renderHelpView', 'Help', 'kb.css'],
 };
 
 // Stage 68: a view's own stylesheet (the registry's 4th entry), fetched with
@@ -678,7 +681,7 @@ let state = {
   permissions: { isAdmin: true, doctypes: new Set(), create: new Set(), update: new Set(), delete: new Set(), capabilities: new Set(), loaded: false },
   // Unknown entitlements hide module navigation until the server confirms
   // them. Direct views and the server's moduleGate also fail closed.
-  modules: { enabled: null, solePackage: null, ownedPackages: [], loaded: false },
+  modules: { enabled: null, solePackage: null, loaded: false },
   // Stage 41. setupStatus is "how many records exist per Master record
   // type", loaded once per session from GET /api/v1/setup/status and refreshed
   // whenever a master is created, so any screen can answer "is X set up?"
@@ -907,8 +910,25 @@ function restoreNavScroll(saved) {
 // disables it) for the rare caller that legitimately expects longer.
 const DEFAULT_API_TIMEOUT_MS = 30000;
 
+// 47.11.2: one request for identical reads in flight. 47.10.6: last failed read.
+const inflightGets = new Map();
+let lastLoadFailure = null;
+
 async function apiFetch(url, options = {}) {
+  if ((options.method && options.method !== 'GET') || options.body || options.signal) return apiFetchOnce(url, options);
+  const key = url + '|' + JSON.stringify(options.headers || {});
+  let pending = inflightGets.get(key);
+  if (!pending) {
+    pending = apiFetchOnce(url, options).finally(() => inflightGets.delete(key));
+    inflightGets.set(key, pending);
+  }
+  const response = await pending;
+  return response && response.clone();
+}
+
+async function apiFetchOnce(url, options = {}, retried = false) {
   const token = localStorage.getItem('erp_token');
+  const isRead = !options.method || options.method === 'GET';
   const tenantID = localStorage.getItem('erp_tenant_id') || 'default';
 
   const headers = {
@@ -933,6 +953,7 @@ async function apiFetch(url, options = {}) {
       signal: options.signal || (controller ? controller.signal : undefined)
     });
   } catch (err) {
+    if (isRead) lastLoadFailure = { status: 0, at: Date.now() };
     if (controller && err.name === 'AbortError') {
       // A mutating call's server-side effect is genuinely unknown once the
       // client gives up waiting - never claim "nothing was changed" here.
@@ -959,9 +980,16 @@ async function apiFetch(url, options = {}) {
     return null;
   }
   if (response.status === 429) {
+    // 47.11.2: a short Retry-After on a read is waited out once.
+    const wait = Number(response.headers.get('Retry-After')) || 0;
+    if (isRead && !retried && wait > 0 && wait <= 5) {
+      await new Promise(resolve => setTimeout(resolve, wait * 1000));
+      return apiFetchOnce(url, options, true);
+    }
     showToast(await getErrorMessage(response, 'Rate limit exceeded. Please throttle your requests.'), { variant: 'warning', title: 'Rate Limit' });
     return null;
   }
+  if (!response.ok && isRead) lastLoadFailure = { status: response.status, at: Date.now() };
 
   return response;
 }
@@ -4296,7 +4324,6 @@ async function fetchAndApplyModules() {
       state.modules = {
         enabled: new Set(data.enabled_modules || []),
         solePackage: data.sole_package || null,
-        ownedPackages: data.owned_packages || [],
         loaded: true
       };
     }
@@ -4304,7 +4331,6 @@ async function fetchAndApplyModules() {
     console.error('Error fetching module entitlements:', err);
   }
   applyModuleEntitlements();
-  renderProductSwitcher();
 }
 
 // applyProductPathRouting (Stage 27) is a pure navigation convenience, run
@@ -4325,39 +4351,6 @@ function applyProductPathRouting() {
   if (location.pathname === '/' && state.modules.solePackage) {
     history.replaceState(null, '', state.modules.solePackage.url_prefix);
   }
-}
-
-// renderProductSwitcher (Stage 27) shows a small "Switch product" list in
-// the sidebar footer, but only when it's actually a meaningful choice: a
-// tenant with 2+ licensed products but not the full suite (a single-product
-// tenant has nowhere else to switch to; a full-suite tenant already gets
-// every module in one sidebar exactly as before, so a switcher would just
-// be noise). Plain links using pushState, not a page reload - reuses the
-// existing account-menu's dropdown styling rather than introducing a new
-// component.
-function renderProductSwitcher() {
-  const existing = document.getElementById('product-switcher');
-  if (existing) existing.remove();
-
-  const owned = state.modules.ownedPackages || [];
-  if (owned.length < 2) return;
-
-  const footer = document.querySelector('.sidebar-footer');
-  if (!footer) return;
-
-  const el = document.createElement('div');
-  el.id = 'product-switcher';
-  el.className = 'account-menu';
-  el.innerHTML = `
-    <select class="form-input" id="product-switcher-select" style="width:100%;">
-      <option value="">Switch product...</option>
-      ${owned.map(p => `<option value="${p.url_prefix}"${location.pathname === p.url_prefix ? ' selected' : ''}>${p.display_name}</option>`).join('')}
-    </select>
-  `;
-  footer.insertAdjacentElement('beforebegin', el);
-  document.getElementById('product-switcher-select').addEventListener('change', (e) => {
-    if (e.target.value) history.pushState(null, '', e.target.value);
-  });
 }
 
 async function fetchAndApplyPermissions() {
@@ -7299,7 +7292,7 @@ function renderMockModuleView(container, view) {
       </svg>
       <h2 style="font-size: 20px; font-weight: 600;">Module Setup Pending</h2>
       <p class="text-muted" style="font-size: 14px; line-height: 1.6;">
-        This transaction screen (Stage 4+) is configured. Switch to dynamic **Setup** or customize attributes using **Database Schema Design**.
+        This screen is not set up yet. Use <b>Setup</b>, or <b>Database Schema Design</b> to add its fields.
       </p>
       <button class="btn btn-secondary" ${actionAttrs('goToDefaultView')}>Back to Reports</button>
     </div>

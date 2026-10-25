@@ -171,6 +171,22 @@ func (rl *RateLimiter) Allow(key string, limit int, duration time.Duration) bool
 	return true
 }
 
+// RetryAfter is how long until the key's oldest hit leaves the window and one
+// more request fits, so a 429 can say when to come back (47.11.2). Zero when
+// the key has no hits (it was folded into an overflow bucket).
+func (rl *RateLimiter) RetryAfter(key string, duration time.Duration) time.Duration {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	hits := rl.requests[key]
+	if len(hits) == 0 {
+		return 0
+	}
+	if wait := hits[0].Add(duration).Sub(rl.clock()); wait > 0 {
+		return wait
+	}
+	return 0
+}
+
 // sweep drops every key with no hit inside the longest window. Caller holds mu.
 func (rl *RateLimiter) sweep(now time.Time) {
 	cutoff := now.Add(-rl.window)
@@ -206,25 +222,48 @@ func perTenantMaxConcurrentRequestsFor(tenantID string) int {
 type tenantConcurrencyLimiter struct {
 	mu       sync.Mutex
 	inFlight map[string]int
+	heavy    map[string]int
 }
 
-var tenantConcurrency = &tenantConcurrencyLimiter{inFlight: make(map[string]int)}
+var tenantConcurrency = &tenantConcurrencyLimiter{inFlight: make(map[string]int), heavy: make(map[string]int)}
+
+// isHeavyRead names the reads that may run long - report runs and exports.
+// 47.11.3: they may hold at most half of a tenant's slots, so a burst of them
+// cannot leave a sale, a receipt or a sign-in waiting to finish.
+func isHeavyRead(r *http.Request) bool {
+	return r.Method == http.MethodGet && (strings.HasPrefix(r.URL.Path, "/api/v1/reports/") || strings.Contains(r.URL.Path, "/export"))
+}
 
 // acquire returns true (and reserves a slot) if tenantID is below its
-// concurrency cap. Callers that get true MUST call release exactly once.
-func (l *tenantConcurrencyLimiter) acquire(tenantID string) bool {
+// concurrency cap (and, for a heavy read, below half of it). Callers that get
+// true MUST call release exactly once with the same heavy flag.
+func (l *tenantConcurrencyLimiter) acquire(tenantID string, heavy bool) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.inFlight[tenantID] >= perTenantMaxConcurrentRequestsFor(tenantID) {
+	limit := perTenantMaxConcurrentRequestsFor(tenantID)
+	if l.inFlight[tenantID] >= limit {
 		return false
+	}
+	if heavy {
+		if l.heavy[tenantID] >= max(1, limit/2) {
+			return false
+		}
+		l.heavy[tenantID]++
 	}
 	l.inFlight[tenantID]++
 	return true
 }
 
-func (l *tenantConcurrencyLimiter) release(tenantID string) {
+func (l *tenantConcurrencyLimiter) release(tenantID string, heavy bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if heavy {
+		if l.heavy[tenantID] > 1 {
+			l.heavy[tenantID]--
+		} else {
+			delete(l.heavy, tenantID)
+		}
+	}
 	// 47.11.1: a tenant leaves the map when its last request ends, so the
 	// map holds only tenants with work in flight. It used to keep every
 	// tenant id it had ever seen at 0, and before authentication the id can
@@ -261,6 +300,13 @@ func (l *tenantConcurrencyLimiter) snapshot() map[string]int {
 // passwordChangeAllowedPaths are the only calls a session holding an
 // administrator-issued password may make (Stage 57.17): setting a new one,
 // and reading who it is so the forced-change screen can greet the user.
+// purposeTokenRoutes are the only paths each purpose token may call (Stage
+// 49.2.8); a purpose not listed may call nothing.
+var purposeTokenRoutes = map[string]map[string]bool{
+	"mfa_enroll":    {"/api/v1/auth/mfa/enroll": true, "/api/v1/auth/mfa/activate": true},
+	"mfa_challenge": {"/api/v1/auth/mfa/verify": true},
+}
+
 var passwordChangeAllowedPaths = map[string]bool{
 	"/api/v1/me/change-password": true,
 	"/api/v1/me":                 true,
@@ -580,6 +626,10 @@ func securityHeaders(next http.Handler) http.Handler {
 		// ports and one-click printing fell back to the browser dialog on
 		// every single job, with no visible error anywhere.
 		"connect-src 'self' ws://localhost:* wss://localhost.qz.io:*; " +
+		// Stage 137.5: a hidden frame opens printbridge://wake to start
+		// PrintBridge when it is not answering (public/qz-print.js). Only
+		// that scheme; a frame of any other site stays refused.
+		"frame-src 'self' printbridge:; " +
 		"object-src 'none'; " +
 		"base-uri 'self'; " +
 		"form-action 'self'; " +
@@ -594,6 +644,7 @@ func securityHeaders(next http.Handler) http.Handler {
 		"font-src 'self'; " +
 		"img-src 'self' data: blob:; " +
 		"connect-src 'self' ws://localhost:* wss://localhost.qz.io:*; " +
+		"frame-src 'self' printbridge:; " +
 		"object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; " +
 		"report-uri /api/v1/security/csp-report"
 
@@ -848,6 +899,9 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		correlationID := generateUUID()
 		w.Header().Set("X-Correlation-ID", correlationID)
 		w.Header().Set("Content-Type", "application/json")
+		// 49.4.5: no API answer is kept by a browser or proxy cache unless its
+		// handler says so (a handler's own Cache-Control replaces this one).
+		w.Header().Set("Cache-Control", "no-store")
 		// Published to the request early (rather than only at the end of this
 		// function, with the other Resolved-* fields) so writeAPIError/
 		// writeAPIErrorGeneric can read it from any rejection point below,
@@ -903,6 +957,9 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			limiterKey += ":" + fp
 		}
 		if !globalLimiter.Allow(limiterKey, limit, time.Minute) {
+			if wait := globalLimiter.RetryAfter(limiterKey, time.Minute); wait > 0 {
+				w.Header().Set("Retry-After", fmt.Sprint(int(wait.Seconds())+1))
+			}
 			// SEC-0280 "Rate limit exceeded" - exact scenario + status (429) match.
 			// The detail says how long the wait is; the bare catalog message
 			// left a user with no idea whether to retry in a second or an hour.
@@ -986,6 +1043,15 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				tenantID = claims["tenant"]
 				locationCode = claims["loc"]
 				purpose = claims["purpose"]
+				// Stage 49.2.8: a purpose token is good only for its own step.
+				// The MFA enrollment / challenge tokens a password alone earns
+				// used to pass as a full session with the user's live role -
+				// the second factor could be skipped entirely. Extension tokens
+				// keep their own doctype scope (handleGenericDoc).
+				if purpose != "" && purpose != "extension" && !purposeTokenRoutes[purpose][r.URL.Path] {
+					writeAPIError(w, r, "GLOBAL-0009", "")
+					return
+				}
 				scopeDoctype = claims["scope_doctype"]
 				// Stage 102.1.4: a PIN sign-in on a registered store phone
 				// names that phone; removing the phone ends the session now.
@@ -1004,6 +1070,9 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				// prevent. Same generic 401 as any other dead session: the
 				// caller learns their session is not valid here, not why.
 				if hostTenantOK && hostTenantID != tenantID {
+					// Stage 49.11.1: a tenant-routing refusal is recorded on the
+					// client whose address was used, naming whose session it was.
+					engines.LogAuditEvent(hostTenantID, username, "TENANT_ROUTING", "REFUSED", fmt.Sprintf("A session of client %q was used on this client's address", tenantID))
 					writeAPIError(w, r, "GLOBAL-0009", "")
 					return
 				}
@@ -1015,6 +1084,17 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				// sandbox fails the same way regardless of which user is asking.
 				if tenantID != "" && purpose != "extension" {
 					if expired, _ := engines.IsSandboxExpired(tenantID); expired {
+						writeAPIError(w, r, "GLOBAL-0009", "")
+						return
+					}
+				}
+				// Stage 49.3.3: an extension token carries no user, so the
+				// live-state check below (which refuses a suspended or purged
+				// client) never runs for it - and a purged client's id would
+				// otherwise resolve to the default schema (db.GetTenantSchema's
+				// fallback). Its client must be registered and serving.
+				if purpose == "extension" {
+					if operational, err := engines.TenantIsOperational(tenantID); err != nil || !operational {
 						writeAPIError(w, r, "GLOBAL-0009", "")
 						return
 					}
@@ -1174,11 +1254,17 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// above). Rejects fast rather than letting an already-overloaded
 		// tenant's next request queue indefinitely for a shared pool
 		// connection another tenant needs too.
-		if !tenantConcurrency.acquire(tenantID) {
-			writeAPIErrorGeneric(w, r, http.StatusServiceUnavailable, "Too many concurrent requests in flight for this tenant - please retry shortly")
+		heavy := isHeavyRead(r)
+		if !tenantConcurrency.acquire(tenantID, heavy) {
+			w.Header().Set("Retry-After", "2")
+			msg := "Too many concurrent requests in flight for this tenant - please retry shortly"
+			if heavy {
+				msg = "Reports and exports are busy for this business right now - this one did not run. Try again in a few seconds."
+			}
+			writeAPIErrorGeneric(w, r, http.StatusServiceUnavailable, msg)
 			return
 		}
-		defer tenantConcurrency.release(tenantID)
+		defer tenantConcurrency.release(tenantID, heavy)
 
 		// Stage 73.1.9: a GL row posted while serving this request names its
 		// user and route (engines/posting_actor.go).

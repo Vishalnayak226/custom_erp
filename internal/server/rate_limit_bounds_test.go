@@ -91,11 +91,11 @@ func TestRateLimiterFullTableKeepsExistingBudgets(t *testing.T) {
 
 func TestTenantConcurrencyForgetsIdleTenants(t *testing.T) {
 	db.InitDB(testConnStr())
-	l := &tenantConcurrencyLimiter{inFlight: make(map[string]int)}
+	l := &tenantConcurrencyLimiter{inFlight: make(map[string]int), heavy: make(map[string]int)}
 	for i := 0; i < 5000; i++ {
 		tenant := fmt.Sprintf("junk-tenant-%d", i)
-		if l.acquire(tenant) {
-			l.release(tenant)
+		if l.acquire(tenant, false) {
+			l.release(tenant, false)
 		}
 	}
 	if n := len(l.snapshot()); n != 0 {
@@ -104,15 +104,15 @@ func TestTenantConcurrencyForgetsIdleTenants(t *testing.T) {
 	// The cap itself still holds while requests are in flight.
 	limit := perTenantMaxConcurrentRequestsFor("default")
 	for i := 0; i < limit; i++ {
-		if !l.acquire("default") {
+		if !l.acquire("default", false) {
 			t.Fatalf("slot %d of %d refused", i+1, limit)
 		}
 	}
-	if l.acquire("default") {
+	if l.acquire("default", false) {
 		t.Fatalf("slot %d must be refused at a cap of %d", limit+1, limit)
 	}
 	for i := 0; i < limit; i++ {
-		l.release("default")
+		l.release("default", false)
 	}
 	if n := len(l.snapshot()); n != 0 {
 		t.Fatalf("the tenant must leave the map when its last request ends, %d entries left", n)
@@ -158,5 +158,64 @@ func TestJunkTokensShareTheAddressBudget(t *testing.T) {
 	}
 	if code := do(officeIP, bob); code == http.StatusTooManyRequests {
 		t.Fatal("bob, a different signed session behind the same address, must keep his own budget")
+	}
+}
+
+// 47.11.2: a refused request learns when one more fits - the oldest hit's exit
+// from the window - so the client can wait that long instead of guessing.
+func TestRateLimiterRetryAfterIsTheOldestHitsExit(t *testing.T) {
+	rl := NewRateLimiter()
+	start := time.Date(2026, 10, 25, 10, 0, 0, 0, time.UTC)
+	now := start
+	rl.clock = func() time.Time { return now }
+	for i := 0; i < 3; i++ {
+		if !rl.Allow("k", 3, time.Minute) {
+			t.Fatalf("hit %d refused under the limit", i+1)
+		}
+		now = now.Add(10 * time.Second)
+	}
+	if rl.Allow("k", 3, time.Minute) {
+		t.Fatal("the fourth hit in the window must be refused")
+	}
+	if got, want := rl.RetryAfter("k", time.Minute), 30*time.Second; got != want {
+		t.Fatalf("RetryAfter = %v, want %v (the first hit at +0s leaves the window at +60s; now is +30s)", got, want)
+	}
+	if got := rl.RetryAfter("never-seen", time.Minute); got != 0 {
+		t.Fatalf("an unknown key has no wait, got %v", got)
+	}
+}
+
+// 47.11.3: report runs and exports may hold at most half of a tenant's slots;
+// the other half stays free for sales, receipts and sign-ins.
+func TestTenantConcurrencyKeepsHalfForWorkThatIsNotAReport(t *testing.T) {
+	db.InitDB(testConnStr())
+	l := &tenantConcurrencyLimiter{inFlight: make(map[string]int), heavy: make(map[string]int)}
+	limit := perTenantMaxConcurrentRequestsFor("default")
+	heavyCap := max(1, limit/2)
+	for i := 0; i < heavyCap; i++ {
+		if !l.acquire("default", true) {
+			t.Fatalf("report slot %d of %d refused", i+1, heavyCap)
+		}
+	}
+	if l.acquire("default", true) {
+		t.Fatalf("report %d must wait: reports may hold %d of %d slots", heavyCap+1, heavyCap, limit)
+	}
+	for i := heavyCap; i < limit; i++ {
+		if !l.acquire("default", false) {
+			t.Fatalf("a sale was refused at slot %d of %d while reports held %d", i+1, limit, heavyCap)
+		}
+	}
+	for i := 0; i < heavyCap; i++ {
+		l.release("default", true)
+	}
+	for i := heavyCap; i < limit; i++ {
+		l.release("default", false)
+	}
+	if n := len(l.snapshot()); n != 0 || len(l.heavy) != 0 {
+		t.Fatalf("slots still held after every request ended: %v / %v", l.snapshot(), l.heavy)
+	}
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/reports/run/stock-ledger", nil)
+	if !isHeavyRead(r) || isHeavyRead(httptest.NewRequest(http.MethodPost, "/api/v1/checkout", nil)) {
+		t.Fatal("a report run is heavy; a checkout is not")
 	}
 }

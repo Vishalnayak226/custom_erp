@@ -1069,6 +1069,8 @@ func handleCreateExtensionHook(w http.ResponseWriter, r *http.Request) {
 		Doctype   string `json:"doctype"`
 		TargetURL string `json:"target_url"`
 		TimeoutMs int    `json:"timeout_ms"`
+		// Stage 47.11.7: the hook contract version it was written for; 0 = current.
+		APIVersion int `json:"api_version"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid extension-hook payload")
@@ -1081,9 +1083,9 @@ func handleCreateExtensionHook(w http.ResponseWriter, r *http.Request) {
 
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	createdBy := r.Header.Get("Resolved-Username")
-	id, secret, err := engines.RegisterExtensionHook(tenantID, req.HookPoint, req.Doctype, req.TargetURL, req.TimeoutMs, createdBy)
+	id, secret, err := engines.RegisterExtensionHook(tenantID, req.HookPoint, req.Doctype, req.TargetURL, req.TimeoutMs, createdBy, req.APIVersion)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 

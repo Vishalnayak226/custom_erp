@@ -35,7 +35,6 @@ const production = registry[0] + '\n'
       let currentView = '', currentDoctype = 'BoundaryType', calls = [];
       let response = { ok: false };
       function saveNavState() {}
-      function renderProductSwitcher() {}
       async function apiFetch() { if (response instanceof Error) throw response; return response; }
       ${leaves.map(name => `async function ${name}(root) { calls.push('${name}'); root.textContent = 'Rendered'; }`).join('\n')}
       ${production}

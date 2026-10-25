@@ -611,6 +611,12 @@ func registerStage282Settings() {
 		Min: settingBound(1), Max: settingBound(365),
 		Description: "How long a completed, dead-lettered or cancelled async job (Stage 38.6) stays visible in the job history before the hourly sweeper deletes it. Jobs still Pending or Leased are never swept.",
 	})
+	RegisterSetting(SettingDefinition{
+		Key: "platform.integration_log_retention_days", Module: "Platform",
+		Label: "Integration and hook log retention", Type: SettingTypeInt, Default: "90", Unit: "days",
+		Min: settingBound(0), Max: settingBound(3650),
+		Description: "How long sent integration events, the integration event log and the extension hook call log are kept before the hourly sweep deletes them (Stage 47.18.3). Events not yet sent are never swept. 0 keeps everything (a hold).",
+	})
 
 	// --- OMS Settlement Reconciliation (Stage 35.8) ---
 	RegisterSetting(SettingDefinition{

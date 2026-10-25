@@ -9,8 +9,8 @@ audience: [engineering, operations, implementation, QA, domain reviewers]
 applies_to: source release 0.1.0; configuration-specific acceptance required
 authority: proposed-policy
 confidentiality: internal
-last_verified: 2026-09-09
-review_by: 2026-10-09
+last_verified: 2026-10-25
+review_by: 2026-11-25
 supersedes: none
 superseded_by: none
 ---
@@ -37,5 +37,26 @@ retention and legal-hold schema defaults to 365 days hot with automatic deletion
 The encrypted archive, manifest-before-delete path and query/export/restore drill remain open
 under 47.7.6. This records the current implementation; qualified retention and evidence acceptance
 are still required.
+
+## Security event taxonomy (Stage 49.11.1)
+
+Every class below is an `audit_logs` row (`engines.LogAuditEvent(tenant, user, action, status, details)`), so one query on `action` / `status` finds it. A refused request whose catalog entry is `AuditRequired` is logged with `action` = its error code (`[GLOBAL-0011] …`). Read 2026-10-25 from source.
+
+| Class | `action` / `status` as stored | Where |
+|---|---|---|
+| Sign-in success / failure / lock | `LOGIN` SUCCESS, PIN_SUCCESS, PIN_FAILED, PIN_LOCKED, ACCOUNT_LOCKED, LOCK_PASSED_REMEMBERED_DEVICE, BOOTSTRAP_CREDENTIAL_EXPIRED; a wrong password as `USERAC-0021` | `handlers_auth.go`, store-app PIN |
+| Login abuse | `LOGIN_ABUSE` PASSWORD_SPRAY_SUSPECTED, DISTRIBUTED_GUESSING_SUSPECTED | `login_abuse.go` (134.5) |
+| MFA / credential / session lifecycle | `LOGIN` MFA_ENROLLMENT_REQUIRED, MFA_CHALLENGE_ISSUED, MFA_VERIFIED, MFA_ENROLLED_AND_VERIFIED, MFA_RECOVERY_CODES_ISSUED, MFA_RECOVERY_CODE_USED, MFA_DEVICE_REMEMBERED; `PROFILE` PASSWORD_CHANGED, MFA_REENROLL_*, MFA_RECOVERY_CODES_REGENERATED; `AUTH` PASSWORD_RESET_REQUESTED / COMPLETED; `USER_MANAGEMENT` PASSWORD_RESET_BY_ADMIN, PASSWORD_RESET_REQUESTED_DUAL_CONTROL, MFA_RESET_BY_ADMIN | auth, profile, password reset, admin identity |
+| Authorization denial | `GLOBAL-0011` (route capability, scope); an out-of-scope record read is answered as not found and still logged as `GLOBAL-0011` (49.4.7) | `apiMiddleware`, `handleGenericDoc` |
+| Privilege change | `ROLE_PERMISSIONS` GRANT_UPDATED; `USER_MANAGEMENT` USER_CREATED, ROLE_CREATED, USER_STATUS_CHANGED, USER_STORES_CHANGED, ROLE_STORES_CHANGED, USER_LOCATION_CHANGED, USER_DEPARTMENT_CHANGED, USER_SUPPLIER_LINK_SET | admin identity, users, roles |
+| Configuration change | `SETTINGS` UPDATED (each key = value, 47.18.3) | `handlers_settings.go` |
+| Secret / integration change | `INTEGRATION` SHOPIFY_*; `API_CREDENTIAL_ISSUED` SUCCESS | connectors, API access |
+| Approval / override | the approval engine's `approval_log` (every submit and decision, `[decided by the submitter]` marked); `POS_PRICE_OVERRIDE` | `approval.go`, `pos_quote.go` |
+| Tenant-routing failure | `TENANT_ROUTING` REFUSED - a session used on another client's address, on that client's log | `apiMiddleware` |
+| Job / webhook give-up | `JOB` DEAD_LETTERED - a job that exhausted its attempts | `jobrunner.go` |
+| Operator support | `LOGIN` OPERATOR_OPEN_ISSUED, OPERATOR_SESSION | platform support (125) |
+| Deployment / migration | the release ledger (`public.deployments`, Control Panel → Releases) | `-record-release` |
+
+Not emitted yet: sensitive read / bulk export, fraud / invariant exceptions, and audit-verifier failure as an event (the verifier reports it on its own screen and job). Those are the next rows to add.
 
 For investigations preserve the relevant release, configuration, query/selector, source hashes and collection identity. Record corrections as dated addenda. A hash identifies captured bytes; it does not independently prove completeness, trustworthy time, custody or tamper resistance. Qualified control owners accept evidence sufficiency for the intended use.

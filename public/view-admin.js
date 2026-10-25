@@ -711,7 +711,7 @@ async function renderApprovalRulesView(container) {
         <tbody>
           ${state.approvalRules.length === 0 ? '<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No approval rules configured. Use <b>Save Rule</b> above to require approval for a record type &mdash; without a rule, documents skip maker-checker entirely.</td></tr>' : state.approvalRules.map(r => `
             <tr>
-              <td style="font-weight:600;">${escapeHTMLText(r.doctype)}</td>
+              <td style="font-weight:600;" title="${escapeHTMLText(r.doctype)}">${escapeHTMLText(getDoctypeLabel(r.doctype))}</td>
               <td>${escapeHTMLText(String(r.min_amount))}</td>
               <td>${r.max_amount == null ? 'No limit' : escapeHTMLText(String(r.max_amount))}</td>
               <td><span class="badge badge-secondary">${escapeHTMLText(r.required_role)}</span></td>
@@ -1011,9 +1011,9 @@ async function renderExtensionHooksView(container) {
           ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No extension hooks registered yet. Use <b>Register Hook</b> above to let an external system subscribe to an event.</td></tr>`
           : hooks.map(h => `
             <tr>
-              <td>${h.hook_point}</td>
-              <td style="font-weight:600;">${h.doctype}</td>
-              <td style="font-family: monospace; max-width: 280px; overflow-wrap: anywhere;">${h.target_url}</td>
+              <td>${escapeHTMLText(h.hook_point)}${h.api_version ? ` <span class="text-muted">v${Number(h.api_version)}${h.api_sunset ? `, served until ${escapeHTMLText(h.api_sunset)}` : ''}</span>` : ''}</td>
+              <td style="font-weight:600;" title="${escapeHTMLText(h.doctype)}">${h.doctype === '*' ? 'Every record type' : escapeHTMLText(getDoctypeLabel(h.doctype))}</td>
+              <td style="font-family: monospace; max-width: 280px; overflow-wrap: anywhere;">${escapeHTMLText(h.target_url)}</td>
               <td><span class="badge ${h.enabled ? 'badge-success' : 'badge-secondary'}">${h.enabled ? 'Enabled' : 'Disabled'}</span></td>
               <td>${h.timeout_ms}ms</td>
               <td>${h.created_by || ''}</td>
@@ -1434,7 +1434,6 @@ async function renderLogHubView(container) {
     tabContent.innerHTML = `
       <div class="table-panel">
         <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding: 16px 16px 0;">Async Jobs</h3>
-        <p style="padding: 0 16px 12px; color: var(--text-muted); font-size: 13px;">Every background job queued through the Stage 38.6 job runner (webhook deliveries and future job types) - retry a Failed/DeadLettered job or cancel a Pending one.</p>
         ${jobsLoadFailed ? `<p style="padding: 0 16px 12px; color: var(--danger-color); font-size: 13px;">Failed to load async jobs. <button class="btn btn-outline btn-sm" id="log-hub-jobs-retry-btn">Try Again</button></p>` : ''}
         <div class="table-wrapper">
           <table>

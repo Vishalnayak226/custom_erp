@@ -24,7 +24,7 @@ func TestExpensePaymentPostsAdvanceAgainstStaffAdvances(t *testing.T) {
 	db.DB.Exec("UPDATE " + schema + ".documents SET status = 'Verified' WHERE id = 'T5515-CL1'")
 	payable, err := PayExpenseClaim(tenantID, "T5515-CL1")
 	if err != nil || payable != 880 {
-		t.Fatalf("PayExpenseClaim = %d, %v (want 880)", payable, err)
+		t.Fatalf("PayExpenseClaim = %v, %v (want 880)", payable, err)
 	}
 	got := map[string][2]int64{}
 	rows, _ := db.DB.Query("SELECT account_code, debit, credit FROM " + schema + ".gl_postings WHERE document_type = 'ExpenseClaim' AND document_id = 'T5515-CL1'")

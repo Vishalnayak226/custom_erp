@@ -133,9 +133,23 @@ func RunPayroll(tenantID, employeeID, periodFrom, periodTo, actorUserID string) 
 	if err != nil {
 		return "", err
 	}
-	code, err := GenerateSequence(tenantID, "Payslip", "", "")
-	if err != nil {
-		code = fmt.Sprintf("PAYSLIP-%s-%d", employeeID, time.Now().Unix())
+	// One payslip per employee per period (Stage 132.13 r - a second run used to make a
+	// second Draft for the same month). A Draft is recomputed in place - attendance or the
+	// structure may have changed; a Posted one is refused.
+	var existingID, existingStatus string
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT id, status FROM %s.documents
+		WHERE doctype = 'Payslip' AND deleted_at IS NULL AND status <> 'Cancelled'
+		  AND data->>'employee_id' = $1 AND data->>'period_from' = $2 AND data->>'period_to' = $3
+		ORDER BY created_at LIMIT 1`, schema), employeeID, periodFrom, periodTo).Scan(&existingID, &existingStatus)
+	if existingID != "" && existingStatus != "Draft" {
+		return "", &ValidationError{Code: "HRPAYR-1323", Message: fmt.Sprintf("payslip %s for employee %s, %s to %s is already %s", existingID, employeeID, periodFrom, periodTo, existingStatus)}
+	}
+	code := existingID
+	if code == "" {
+		code, err = GenerateSequence(tenantID, "Payslip", "", "")
+		if err != nil {
+			code = fmt.Sprintf("PAYSLIP-%s-%d", employeeID, time.Now().Unix())
+		}
 	}
 	payload := map[string]interface{}{
 		"code": code, "employee_id": employeeID,
@@ -148,7 +162,12 @@ func RunPayroll(tenantID, employeeID, periodFrom, periodTo, actorUserID string) 
 	if err != nil {
 		return "", err
 	}
-	if _, err := db.DB.Exec(fmt.Sprintf(`
+	if existingID != "" {
+		if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = $2, updated_at = NOW()
+			WHERE doctype = 'Payslip' AND id = $1 AND status = 'Draft'`, schema), code, marshaled); err != nil {
+			return "", err
+		}
+	} else if _, err := db.DB.Exec(fmt.Sprintf(`
 		INSERT INTO %s.documents (id, doctype, data, status, created_by)
 		VALUES ($1, 'Payslip', $2, 'Draft', $3)`, schema), code, marshaled, actorUserID); err != nil {
 		return "", err
@@ -200,15 +219,21 @@ func PostPayslipToGL(tenantID, payslipID, actorUserID string) error {
 		return &ValidationError{Code: "HRPAYR-0153", Message: "payroll period is locked - changes are not allowed"}
 	}
 
-	gross := int(numFromInterface(d["gross_pay"]))
-	pf := int(numFromInterface(d["pf_deduction"]))
-	esi := int(numFromInterface(d["esi_deduction"]))
-	pt := int(numFromInterface(d["pt_deduction"]))
-	tds := int(numFromInterface(d["tds_deduction"]))
-	loanDed := int(numFromInterface(d["loan_deduction"]))
-	netPay := int(numFromInterface(d["net_pay"]))
+	// In paise, rounded (Stage 132.13 s): each amount used to be cut to whole rupees on its
+	// own, so a 0.75% ESI of 112.50 left the journal a rupee short and the payslip could not
+	// be posted. Net is posted as gross less the deductions, so the entry always balances.
+	gross := RupeesToPaise(numFromInterface(d["gross_pay"]))
+	pf := RupeesToPaise(numFromInterface(d["pf_deduction"]))
+	esi := RupeesToPaise(numFromInterface(d["esi_deduction"]))
+	pt := RupeesToPaise(numFromInterface(d["pt_deduction"]))
+	tds := RupeesToPaise(numFromInterface(d["tds_deduction"]))
+	loanDed := RupeesToPaise(numFromInterface(d["loan_deduction"]))
+	netPay := gross - pf - esi - pt - tds - loanDed
+	if netPay < 0 {
+		return &ValidationError{Code: "HRPAYR-1322", Message: fmt.Sprintf("payslip %s: deductions (%.2f) are more than the gross pay (%.2f)", payslipID, PaiseToRupees(gross-netPay), PaiseToRupees(gross))}
+	}
 
-	credits := map[string]int{"2400": netPay}
+	credits := map[string]int64{"2400": netPay}
 	if pf > 0 {
 		credits["2401"] = pf
 	}
@@ -224,8 +249,11 @@ func PostPayslipToGL(tenantID, payslipID, actorUserID string) error {
 	if loanDed > 0 {
 		credits["1600"] = loanDed
 	}
-	debits := map[string]int{"5500": gross}
-	if err := PostDoubleEntry(tenantID, "Payslip", payslipID, PaiseMap(debits), PaiseMap(credits), periodTo, fmt.Sprintf("Payslip:%s:POST", payslipID)); err != nil {
+	if netPay == 0 {
+		delete(credits, "2400")
+	}
+	debits := map[string]int64{"5500": gross}
+	if err := PostDoubleEntry(tenantID, "Payslip", payslipID, debits, credits, periodTo, fmt.Sprintf("Payslip:%s:POST", payslipID)); err != nil {
 		return fmt.Errorf("GL posting failed, payslip not marked Posted: %v", err)
 	}
 

@@ -44,6 +44,38 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 293. "Build all" run, Stages 47 / 49: the next 20 items (2026-10-25, code + tests, NOT COMMITTED)
+
+The user asked for the next 20 items. They were taken in tracker order from Stages 47 and 49, each built as a self-contained slice with its own test. The twelve items Stage 134 had already closed were ticked first. Five items are fully done. Fifteen are built in part, with what is left written on each entry.
+
+The security tests found four live bugs, all fixed. One password-reset link used twice at the same moment set two passwords, because the token was read and then the row updated by user id; the update now claims the token itself. A correct password alone earned an MFA challenge token that worked as a full session, Super Admin included, so the second factor could be skipped; purpose tokens now reach only their own MFA step. A purged client's extension token fell through to the default client's records; extension tokens now pass the same client gate as sessions. Reading another store's record answered 403 while a missing one answered 404, which confirmed the record existed; both now answer 404, and the refused read is still audited. CSV exports from reports, PIM and print wrote formulas through raw; they are now neutralized, and negative numbers stay numbers, which also fixes a negative number in a CSV import being stored as text.
+
+The rest of the run added:
+- error panels that say whether it was no access, not found, or safe to retry;
+- shared in-flight reads, and `Retry-After` on rate limits and busy reports, with reports capped at half a tenant's slots;
+- a versioned extension-hook contract with sunset dates;
+- business names for raw record-type names on screen;
+- every screen's owner and help article in the page inventory;
+- retention for the integration and hook logs, with an evidenced hold;
+- clock-skew, MFA-downgrade and reset-race tests;
+- 1,216 generated authorization cases;
+- `no-store` on API answers;
+- refusal of invisible control and text-direction characters at save;
+- a test that concurrent approval decisions record exactly one;
+- a test that connector secrets are never read back;
+- secret redaction in job payloads;
+- a security event taxonomy, plus three missing events (account locked, tenant routing refused, job dead-lettered).
+
+Detail: micro_checklist 47.10.6-49.11.1 and the run line at the top.
+
+## 292. Stage 137 — Printer presets and one PrintBridge for every computer (2026-10-25, code + PrintBridge 0.2.0, NOT COMMITTED)
+
+The user asked whether printing was ready: stickers came out misaligned, they wanted a preset set once in config that stops the asking, and PrintBridge had to work on any computer, wake when the ERP is used, and come back after a Quit. Decisions: stickers; the printer's roll wins over item template rules; one installer from the ERP; Windows. Built: a Printer preset (roll, shift, darkness, speed) applied on the server (`applyPrinterRoll`) and in the sticker engine, with Test alignment and Calibrate roll; PrintBridge 0.2.0 trusts every `*.wholeops.in` address, asks once about any other, registers a `printbridge:` link that the ERP opens to wake it; the installer is served from `public/downloads` and a release gate keeps its version current. Verified on a fresh scratch DB, the agent's tests and Chromium with a recording stub; the installer and the paper alignment wait on the user's PC. Detail: micro_checklist Stage 137.
+
+## 291. "Build all" run, second slice (2026-10-25; 135.11 released in 0.14.0, the rest NOT COMMITTED)
+
+The user resumed the paused run ("Yes go ahead"). **135.11**: Book Pickup on OMS → Returns was refused on every click because the screen sent no courier. It now asks PIN code, courier (blank picks one by PIN code), contact and address. The new test found that the pickup step itself failed on every call (untyped SQL parameters), and a retry now finishes a booking that stopped part-way. Released in 0.14.0 by session erp-62. **135.7**: the cold core had 121 bytes left. The Knowledge Center and RF screen styles moved to lazy `kb.css` / `rf.css`, leaving 2,695 bytes without raising the gate. **135.6**: the six business truths were mapped to their tables and commands in the architecture doc. That work found and fixed two double-bookings of reservations (an order cancel released twice; POS authorization holds never released), and recorded four more gaps as 135.16-135.19 (one needs a decision). **135.5**: a generated page and action inventory. For every front-end file it lists its screens, owners, and each API call with the roles `checkRouteCapability` allows. It found 186 routes no screen calls. **135.8**, first slice: one organization set up from empty through the UI only, then Buy → Move → Sell, each episode by its own user signed in through the login form. Every quantity reconciled, and no bug was found. A Stage 55.2 residual was confirmed already fixed. Detail: micro_checklist 135.5-135.8, 135.11, 135.15-135.19, 55.2.
+
 ## 290. Stage 90.6 — Releases in a few words (2026-10-24, migration + deploy script, NOT COMMITTED)
 
 The user found 0.13.0's automatic note too long and the older rows unchanged. The automatic note is now one line (each title's headline, first three, "+N more"); `db/migrations_stage90_6_release_notes.sql` rewrites 0.1.0-0.13.0 to a few words each at the next deploy, so no one runs anything by hand (Claude is blocked from production writes). Notes cell smaller and muted. Detail: micro_checklist 90.6.

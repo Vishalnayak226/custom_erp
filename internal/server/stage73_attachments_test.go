@@ -135,7 +135,8 @@ func TestAttachmentsFollowTheClaimsReadRule(t *testing.T) {
 	// Another store's manager and a colleague at the same store cannot read
 	// the claim through the document API - and so get nothing here either.
 	for _, user := range []string{managerB, otherCashier} {
-		if r := call(user, http.MethodGet, "/api/v1/doc/ExpenseClaim/"+url.PathEscape(claimID), nil, ""); r.Code != http.StatusForbidden {
+		// Stage 49.4.7: refused as "not found", the same as a claim that does not exist.
+		if r := call(user, http.MethodGet, "/api/v1/doc/ExpenseClaim/"+url.PathEscape(claimID), nil, ""); r.Code != http.StatusNotFound {
 			t.Fatalf("precondition: %s should not read the claim, got %d", user, r.Code)
 		}
 		if r := call(user, http.MethodGet, listURL, nil, ""); r.Code != http.StatusForbidden {

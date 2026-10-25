@@ -76,13 +76,15 @@ A release problem these did not catch is a missing gate: add it to
 
 | Gate | Checks or does | Learned from |
 |---|---|---|
+| G0a Lock | one release at a time: `reports\release.lock` (pid + start time) taken atomically, freed on every exit; a lock whose process is gone is taken over | 2026-10-26: two queued runs went G0-G10 side by side and each stopped at G11 on the other's `index.lock` |
 | G0 Preflight | on main, nothing staged, not behind origin, tree quiet 10 min, Postgres up | 2026-10-18/19: sessions still writing files during a release |
 | G1 Snapshot | `%TEMP%` worktree at HEAD + shipped files; held paths left out | half-built report catalog nearly shipped (0.2.0) |
 | G2 Line endings | LF for text, never binaries, `i/mixed` manifests or `eol=crlf` files | `git apply` writes CRLF; four PNGs nearly corrupted (0.3.0) |
 | G3 gofmt | formats files whose HEAD copy was clean | 0.2.0 / 0.4.0 |
-| G4 Cache versions | bumps `VIEW_MODULE_VERSION` + `app.js?v=`, `styles.css?v=` | browsers kept old screens after a deploy (Stage 53.17) |
+| G4 Cache versions | bumps `VIEW_MODULE_VERSION` + `app.js?v=`, `styles.css?v=`, `qz-print.js?v=` | browsers kept old screens after a deploy (Stage 53.17); `qz-print.js` changed in 06547bb with no new `?v=` (Stage 137) |
 | G4b Release number | reads the live number, applies the feat→MINOR / docs→PATCH rule, writes `internal/server/VERSION`; Deploy ships that number | prod said 0.4.0 while VERSION and the manuals said 0.1.0 (2026-10-19) |
 | G4c Budget | release budget (cold core incl. `view-pos.js`) judged right after G4, before the slow gates | 0.11.0 stopped at G8 at 5:52 for 983 bytes; G4-final files make it exact this early |
+| G4d PrintBridge download | `public/downloads/printbridge-setup.exe` + `printbridge-version.txt` present, and the version equals `../PrintBridge` `BuildVersion` | the ERP serves the installer and offers updates from that file (Stage 137.4) - a stale one would be offered to every PC |
 | G5 Catalog spec | regenerates `report_catalog_spec_generated.go` if stale | 75.3 |
 | G6 Attack surface | `surfacescan` from the release set | manifest listed held files (0.2.0) |
 | G7 Docs | KB, graphify + brain (new files filed beside a sibling), register, no broken links | unclaimed file broke the brain (0.4.0) |

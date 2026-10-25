@@ -19,6 +19,9 @@ Thumbs.db
 
 # Compiled binaries
 *.exe
+# Stage 137.4: the PrintBridge installer the ERP serves (built by
+# ../PrintBridge/installer/build.ps1 -Universal; release gate checks its version).
+!public/downloads/printbridge-setup.exe
 *.exe~
 *.dll
 *.so

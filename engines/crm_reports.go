@@ -288,11 +288,16 @@ func init() {
 				return nil, err
 			}
 			where, args := crmRangeArgs(params, crmZoneName(schema), "t.created_at", nil)
+			// Appointments are counted per store once and joined: a subquery on t.store was
+			// refused by Postgres ("subquery uses ungrouped column t.store") because the rows
+			// are grouped on COALESCE(t.store, '') - the report failed for every client.
 			return crmQueryRows(fmt.Sprintf(`SELECT COALESCE(t.store, '') AS store, COALESCE(t.owner, '(anyone)') AS owner, t.kind,
 				COUNT(*) FILTER (WHERE t.status = 'Open') AS open, COUNT(*) FILTER (WHERE t.status = 'Open' AND t.due_at < LOCALTIMESTAMP) AS overdue,
 				COUNT(*) FILTER (WHERE t.status = 'Done') AS done,
-				(SELECT COUNT(*) FROM %[1]s.crm_appointments a WHERE a.store = t.store) AS appointments
-				FROM %[1]s.crm_tasks t WHERE TRUE%[2]s GROUP BY 1, 2, 3 ORDER BY 1, 2, 3`, schema, where), args...)
+				COALESCE(MAX(ap.n), 0) AS appointments
+				FROM %[1]s.crm_tasks t
+				LEFT JOIN (SELECT a.store, COUNT(*) AS n FROM %[1]s.crm_appointments a GROUP BY a.store) ap ON ap.store = t.store
+				WHERE TRUE%[2]s GROUP BY 1, 2, 3 ORDER BY 1, 2, 3`, schema, where), args...)
 		}})
 	reg(ReportDefinition{ID: "crm-feedback", Label: "Feedback and NPS", StoreKey: "store",
 		Description: "Feedback by store: answers, promoters, detractors and NPS (promoters minus detractors, % of answers). " + crmReportNote("when the feedback was asked"),

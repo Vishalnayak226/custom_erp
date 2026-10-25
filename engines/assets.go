@@ -19,7 +19,7 @@ type AssetRegisterEntry struct {
 	ID                      string  `json:"id"`
 	Code                    string  `json:"code"`
 	Category                string  `json:"category"`
-	Cost                    int     `json:"cost"`
+	Cost                    float64 `json:"cost"`
 	Location                string  `json:"location"`
 	Custodian               string  `json:"custodian"`
 	UsefulLifeYears         int     `json:"useful_life_years"`
@@ -80,11 +80,9 @@ func GetAssetRegister(tenantID string) ([]AssetRegisterEntry, error) {
 		}
 		entry.ItemCode, _ = data["item_code"].(string)
 		entry.SourceGRN, _ = data["source_grn"].(string)
-		cost := 0
-		if v, ok := data["cost"].(float64); ok {
-			cost = int(v)
-		}
-		entry.Cost = cost
+		data["status"] = status
+		cost := assetCostPaise(data)
+		entry.Cost = PaiseToRupees(cost)
 		usefulLife := 0
 		if v, ok := data["useful_life_years"].(float64); ok {
 			usefulLife = int(v)
@@ -101,17 +99,17 @@ func GetAssetRegister(tenantID string) ([]AssetRegisterEntry, error) {
 				entry.CalculatedDepreciation = PaiseToRupees(due)
 			}
 			entry.AccumulatedDepreciation = PaiseToRupees(postedPaise[id])
-			entry.NetBlock = PaiseToRupees(int64(cost)*100 - postedPaise[id])
+			entry.NetBlock = PaiseToRupees(cost - postedPaise[id])
 		case "Disposed":
 			// Written off - DisposeAsset already posted the GL entry for
 			// whatever the net book value was at disposal time; the
 			// register should now show it has no remaining book value,
 			// not its original cost.
-			entry.AccumulatedDepreciation = float64(cost)
-			entry.CalculatedDepreciation = float64(cost)
+			entry.AccumulatedDepreciation = entry.Cost
+			entry.CalculatedDepreciation = entry.Cost
 			entry.NetBlock = 0
 		default: // Draft
-			entry.NetBlock = float64(cost)
+			entry.NetBlock = entry.Cost
 		}
 		results = append(results, entry)
 	}
@@ -169,13 +167,11 @@ func CapitalizeAssetWithLife(tenantID, assetID string, usefulLifeYears float64) 
 	if status != "Draft" {
 		return fmt.Errorf("only a Draft asset can be capitalised (current status: %s)", status)
 	}
-	cost := 0
-	if v, ok := data["cost"].(float64); ok {
-		cost = int(v)
-	}
+	cost := assetCostPaise(data) // a Draft: the cost to the paisa
 	if cost <= 0 {
 		return fmt.Errorf("asset cost must be a positive number to capitalise")
 	}
+	data["capitalised_paise"] = cost
 	// ASSET-0271: useful_life_years drives the depreciation plan - without
 	// it, depreciation silently computes as zero forever (see
 	// assetDepreciationPlan's own months <= 0 short-circuit) rather than
@@ -191,7 +187,7 @@ func CapitalizeAssetWithLife(tenantID, assetID string, usefulLifeYears float64) 
 		data["capitalisation_date"] = time.Now().Format("2006-01-02")
 	}
 
-	if err := PostDoubleEntry(tenantID, "Asset", assetID, PaiseMap(map[string]int{"1400": cost}), PaiseMap(map[string]int{"2100": cost}), "", fmt.Sprintf("Asset:%s:CAPITALIZE", assetID)); err != nil {
+	if err := PostDoubleEntry(tenantID, "Asset", assetID, map[string]int64{"1400": cost}, map[string]int64{"2100": cost}, "", fmt.Sprintf("Asset:%s:CAPITALIZE", assetID)); err != nil {
 		return fmt.Errorf("failed to post capitalisation GL entry: %v", err)
 	}
 	return saveAssetData(tenantID, assetID, "Capitalised", data)

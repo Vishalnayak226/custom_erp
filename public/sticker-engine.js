@@ -1350,6 +1350,37 @@ function printerDPI(printer, t) {
   return Number(printer && printer.dpi) || t.settings.dpi || 203;
 }
 
+// Stage 137.3: a printer's own alignment - its preset's shift, darkness and
+// speed - on top of each template, so a printer that prints 1 mm off is set
+// once for every template. Blank darkness / speed keep the template's. The
+// shift is in the paper's frame, like the template's own offsets.
+const presetNum = v => (v === '' || v === null || v === undefined || !isFinite(Number(v)) ? null : Number(v));
+export function withPrinterPreset(t, printer) {
+  const sx = presetNum(printer && printer.shift_right_mm), sy = presetNum(printer && printer.shift_down_mm);
+  const d = presetNum(printer && printer.darkness), sp = presetNum(printer && printer.print_speed);
+  if (sx === null && sy === null && d === null && sp === null) return t;
+  const s = Object.assign({}, t.settings, { offset_x_mm: t.settings.offset_x_mm + (sx || 0), offset_y_mm: t.settings.offset_y_mm + (sy || 0) });
+  if (d !== null) s.density = d;
+  if (sp !== null) s.speed = sp;
+  return Object.assign({}, t, { settings: s });
+}
+function tuned(segments, printer) {
+  const seen = new Map();
+  return segments.map(seg => {
+    if (!seen.has(seg.t)) seen.set(seg.t, withPrinterPreset(seg.t, printer));
+    return Object.assign({}, seg, { t: seen.get(seg.t) });
+  });
+}
+
+// Stage 137.2: how a template's labels sit on the roll, as the server's
+// stickerRollShape - one label's size, labels across and down, direction,
+// roll or A4 sheet. A template fits a printer's roll when the shapes match.
+export const rollShape = t => ({ w: t.w, h: t.h, across: t.settings.per_row, down: t.settings.per_col,
+  vertical: t.settings.direction === 'vertical', sheet: t.settings.sheet.mode === 'a4' });
+export const fitsRoll = (a, b) => Math.abs(a.w - b.w) < 0.05 && Math.abs(a.h - b.h) < 0.05 &&
+  a.across === b.across && a.down === b.down && a.vertical === b.vertical && a.sheet === b.sheet;
+export const builtInShape = () => rollShape(defaultTemplate());
+
 // Silent thermal print through QZ Tray. Returns true when sent (or handled),
 // false when the caller should fall back to the browser sheet. A failed send
 // (printer off, out of labels) asks Retry / browser print (134.1a) - Retry
@@ -1360,6 +1391,7 @@ async function printThermal(segments, printer, jobRef, { ask = true } = {}) {
   if (lang !== 'ZPL' && lang !== 'TSPL') return false;
   if (!printer.qz_printer_name || typeof window.qzTryConnect !== 'function' || !window.QZPrint) return false;
   if (!await window.qzTryConnect()) return false;
+  segments = tuned(segments, printer);
   const dpi = printerDPI(printer, segments[0].t);
   const items = buildThermalItems(segments, lang, dpi);
   const entry = {
@@ -1500,9 +1532,9 @@ export async function previewStickerLabels(labels, { printer, copies = 1, apiFet
   if (!labels || labels.length === 0) return false;
   defaultTemplate();
   const templates = await loadTemplates(labels, apiFetch || window.apiFetch);
-  const segments = expandRuns(labels, templates, copies);
+  const segments = tuned(expandRuns(labels, templates, copies), printer);
   const dpi = Number(printer && printer.dpi) || 0;
-  const same = (a, b) => a.t === b.t && a.cells.length === b.cells.length &&
+  const same =(a, b) => a.t === b.t && a.cells.length === b.cells.length &&
     a.cells.every((c, k) => c.label === b.cells[k].label && c.x === b.cells[k].x && c.y === b.cells[k].y);
   const prints = [];
   for (const pg of sheetPages(segments)) {
@@ -1596,7 +1628,7 @@ async function printStickersSilently(segments, formPrinter, jobRef, why) {
   if (!printer) { Object.assign(why, { setup: true, reason: 'No sticker printer is chosen for this computer. Retry to choose one.' }); return false; }
   if (await printThermal(segments, printer, jobRef, { ask: false })) return true;
   const dpi = Number(printer.dpi) || Number(formPrinter && formPrinter.dpi) || 0;
-  for (const dataBase64 of await stickerPDFs(segments, dpi)) {
+  for (const dataBase64 of await stickerPDFs(tuned(segments, printer), dpi)) {
     if (!await window.qzTryPrint('Document', { documentRef: jobRef || 'Stickers', dataBase64, docFormat: 'pdf',
       printKind: 'Sticker', printerCode: printer.code, location, quiet: true, why })) return false;
   }
@@ -1656,9 +1688,9 @@ async function printStickersNoDialog(segments, printer, jobRef) {
   if (await printThermal(segments, printer, jobRef)) return;
   const dpi = Number(printer && printer.dpi) || 0;
   const r = window.loadViewModule ? await window.loadViewModule('./print-routing.js') : null;
-  if (!r) { await printSheet(segments, dpi); return; }
+  if (!r) { await printSheet(tuned(segments, printer), dpi); return; }
   await r.printNoDialog('Sticker', (window.erpWorkingStore || {}).code || '',
-    (why) => printStickersSilently(segments, printer, jobRef, why), () => printSheet(segments, dpi));
+    (why) => printStickersSilently(segments, printer, jobRef, why), () => printSheet(tuned(segments, printer), dpi));
 }
 
 // Entry point for every sticker print in the app. `labels` is what
@@ -1678,6 +1710,36 @@ export async function printTestLabel(t, label, printer) {
   await ensureTemplateAssets(t);
   const segments = [{ t, items: Array(t.settings.per_row * t.settings.per_col).fill(label) }];
   await printStickersNoDialog(segments, printer, 'Test print');
+}
+
+// Stage 137.3: Test alignment - on every label of the roll, a box 0.5 mm in
+// from each edge, a cross through the middle and the shift in use. Even gaps
+// all round mean the printer is aligned; otherwise the gap says which way to
+// shift. Printed like a sticker, with the printer's preset; nothing logged.
+// preset is the printer record with the values being tried, saved or not.
+export async function printAlignmentTest(roll, preset) {
+  const t = Object.assign({}, roll || defaultTemplate(), { assets: {} });
+  const { w, h } = t;
+  const shift = `R ${Number(preset.shift_right_mm) || 0}  D ${Number(preset.shift_down_mm) || 0} mm`;
+  t.elements = [
+    { kind: 'box', x_mm: 0.5, y_mm: 0.5, w_mm: w - 1, h_mm: h - 1, thickness_mm: 0.3 },
+    { kind: 'line', x_mm: 0, y_mm: h / 2 - 0.15, w_mm: w, h_mm: 0.3, thickness_mm: 0.3 },
+    { kind: 'line', x_mm: w / 2 - 0.15, y_mm: 0, w_mm: 0.3, h_mm: h, thickness_mm: 0.3 },
+    { kind: 'text', field: 'custom', text: shift, x_mm: 1.2, y_mm: 1.2, w_mm: w / 2 - 2, h_mm: Math.min(4, h / 2 - 2), font_size_mm: 2.2, fit: 'shrink' }
+  ].map(normaliseElement);
+  await printTestLabel(t, { sku: '', name: '' }, preset);
+}
+
+// Stage 137.3: Calibrate roll - the printer feeds a few labels and measures
+// the label and the gap (TSPL GAPDETECT, ZPL ~JC), so each print starts where
+// the template expects. Needed after loading a different roll.
+export async function calibrateRoll(printer) {
+  const lang = String((printer && printer.printer_language) || '').toUpperCase();
+  const data = { TSPL: 'GAPDETECT\r\n', ZPL: '~JC' }[lang];
+  if (!data) throw new Error('Calibrate needs a label printer whose Printer Language is TSPL or ZPL.');
+  if (!printer.qz_printer_name) throw new Error('This printer has no OS Printer Name.');
+  if (!window.QZPrint || !await window.qzTryConnect()) throw new Error('PrintBridge is not running on this computer.');
+  await window.QZPrint.printItems(printer.qz_printer_name, [{ type: 'raw', format: 'command', flavor: 'plain', data }], 1);
 }
 
 // Draws a template thumbnail/preview into an existing canvas at `scale` px/mm
