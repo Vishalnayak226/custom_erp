@@ -324,6 +324,20 @@ if (Test-Path (Join-Path $wt 'cmd/gencatalog')) {
 Write-Gate 'G6 Attack surface'
 $surfTmp = Join-Path $env:TEMP "release_surface_$ts.json"
 Invoke-Native -Exe $go -Arguments @('run', './cmd/surfacescan', '-out', $surfTmp) -WorkDir $wt | Out-Null
+# G6b (Stage 49.17.1): what this release changes in the attack surface - the
+# last release's manifest (HEAD) against the one just generated - into the
+# report, high-risk lines (a route anyone can reach, changed authentication,
+# a new dependency or outbound call) first. Read, not a stop.
+$surfBase = Join-Path $env:TEMP "release_surface_base_$ts.json"
+$baseLines = Invoke-Native -Exe 'git' -Arguments @('show', 'HEAD:docs/security/attack_surface.json') -WorkDir $wt -AllowFail
+if ($baseLines.Count -gt 0 -and $baseLines[0] -eq '{') {
+    ($baseLines -join "`n") | Set-Content -LiteralPath $surfBase -Encoding utf8NoBOM
+    $impact = Invoke-Native -Exe $go -Arguments @('run', './cmd/securityimpact', '-base', $surfBase, '-new', $surfTmp) -WorkDir $wt -AllowFail
+    $report.Add(''); $report.Add('Security impact (G6b):'); $impact | ForEach-Object { $report.Add("    $_") }
+    $high = @($impact | Where-Object { $_ -like '  ! *' }).Count
+    Note "security impact: $high high-risk change(s), see the report"
+    Remove-Item $surfBase -ErrorAction SilentlyContinue
+} else { Note 'security impact: no manifest at HEAD to compare' }
 Copy-Item $surfTmp (Join-Path $wt 'docs/security/attack_surface.json') -Force
 Remove-Item $surfTmp -ErrorAction SilentlyContinue
 Note 'attack_surface.json regenerated from the release set'   # the full suite's surface test re-checks it

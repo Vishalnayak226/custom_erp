@@ -49,6 +49,14 @@ func requireSuperAdmin(w http.ResponseWriter, r *http.Request, role string) bool
 	return requireAdminGate(w, r, engines.IsSuperAdmin(role))
 }
 
+// requireAdminCapability (Stage 132.15) is full access, or a role whose
+// template holds this one admin capability by name (Setup Operator) - the
+// in-handler twin of checkRouteCapability's LevelAdmin rule.
+func requireAdminCapability(w http.ResponseWriter, r *http.Request, capability string) bool {
+	role := r.Header.Get("Resolved-Role")
+	return requireAdminGate(w, r, engines.HasFullAccess(role) || engines.RoleHasCapability(role, capability))
+}
+
 func requireAdminGate(w http.ResponseWriter, r *http.Request, allowed bool) bool {
 	if r.Header.Get("Resolved-Purpose") == "extension" {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Extension tokens cannot access admin/configuration endpoints")
@@ -270,8 +278,21 @@ func handleCreateRole(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to create role.")
 		return
 	}
-	engines.LogAuditEvent(tenantID, r.Header.Get("Resolved-Username"), "USER_MANAGEMENT", "ROLE_CREATED", fmt.Sprintf("Created role %s", name))
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "name": name})
+	engines.LogAuditEventCtx(r.Context(), tenantID, r.Header.Get("Resolved-Username"), "USER_MANAGEMENT", "ROLE_CREATED", fmt.Sprintf("Created role %s", name))
+	// Stage 132.15: a new role named after a shipped template (Setup Operator,
+	// Accountant...) starts with that template's access instead of none -
+	// applied the way the role-template plan applies it, recorded with who
+	// did it and revertible. Only a brand-new role: an existing one is never
+	// rewritten here.
+	out := map[string]string{"status": "success", "name": name}
+	if tmpl, ok := engines.RoleTemplateFor(name); ok && strings.EqualFold(tmpl.Name, name) {
+		if _, err := engines.ApplyRoleTemplateMigration(tenantID, []string{name}, r.Header.Get("Resolved-Username")); err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "The role was created, but its template's access could not be applied: "+err.Error())
+			return
+		}
+		out["template"] = tmpl.Name
+	}
+	_ = json.NewEncoder(w).Encode(out)
 }
 
 func handleCreateUser(w http.ResponseWriter, r *http.Request) {
@@ -409,7 +430,7 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	engines.LogAuditEvent(tenantID, actorUsername, "USER_MANAGEMENT", "USER_CREATED", fmt.Sprintf("Created user %s with role %s", req.Username, req.Role))
+	engines.LogAuditEventCtx(r.Context(), tenantID, actorUsername, "USER_MANAGEMENT", "USER_CREATED", fmt.Sprintf("Created user %s with role %s", req.Username, req.Role))
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
@@ -456,7 +477,7 @@ func handleSetUserStatus(w http.ResponseWriter, r *http.Request) {
 	// the end of the auth-state cache window.
 	engines.InvalidateLiveUserState(tenantID, req.ID)
 
-	engines.LogAuditEvent(tenantID, actorUsername, "USER_MANAGEMENT", "USER_STATUS_CHANGED", fmt.Sprintf("Set user %s status to %s", req.ID, req.Status))
+	engines.LogAuditEventCtx(r.Context(), tenantID, actorUsername, "USER_MANAGEMENT", "USER_STATUS_CHANGED", fmt.Sprintf("Set user %s status to %s", req.ID, req.Status))
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
@@ -501,7 +522,7 @@ func handleSetUserLocation(w http.ResponseWriter, r *http.Request) {
 			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 			return
 		}
-		engines.LogAuditEvent(tenantID, actorUsername, "USER_MANAGEMENT", "USER_DEPARTMENT_CHANGED", fmt.Sprintf("Set user %s department to %s", req.ID, dept))
+		engines.LogAuditEventCtx(r.Context(), tenantID, actorUsername, "USER_MANAGEMENT", "USER_DEPARTMENT_CHANGED", fmt.Sprintf("Set user %s department to %s", req.ID, dept))
 		if req.LocationCode == "" {
 			_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "department": dept})
 			return
@@ -518,7 +539,7 @@ func handleSetUserLocation(w http.ResponseWriter, r *http.Request) {
 	// cached state too or the user keeps seeing their old store's data.
 	engines.InvalidateLiveUserState(tenantID, req.ID)
 
-	engines.LogAuditEvent(tenantID, actorUsername, "USER_MANAGEMENT", "USER_LOCATION_CHANGED", fmt.Sprintf("Set user %s location to %s", req.ID, req.LocationCode))
+	engines.LogAuditEventCtx(r.Context(), tenantID, actorUsername, "USER_MANAGEMENT", "USER_LOCATION_CHANGED", fmt.Sprintf("Set user %s location to %s", req.ID, req.LocationCode))
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
@@ -685,7 +706,7 @@ func handleRolePermissions(w http.ResponseWriter, r *http.Request) {
 		}
 		actorUsername := r.Header.Get("Resolved-Username")
 		for _, g := range grants {
-			engines.LogAuditEvent(tenantID, actorUsername, "ROLE_PERMISSIONS", "GRANT_UPDATED",
+			engines.LogAuditEventCtx(r.Context(), tenantID, actorUsername, "ROLE_PERMISSIONS", "GRANT_UPDATED",
 				fmt.Sprintf("Set %s permissions on %s: read=%v create=%v update=%v delete=%v", req.Role, g.DoctypeName, g.AllowRead, g.AllowCreate, g.AllowUpdate, g.AllowDelete))
 		}
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success", "granted": len(grants)})

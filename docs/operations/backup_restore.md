@@ -9,8 +9,8 @@ audience: [maintainers, operations-owner]
 applies_to: source documentation; scoped release acceptance required
 authority: canonical
 confidentiality: internal
-last_verified: 2026-09-09
-review_by: 2026-10-09
+last_verified: 2026-10-26
+review_by: 2026-12-26
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -86,6 +86,23 @@ It is idempotent (a marker comment identifies its own crontab line, so re-runnin
 - **Remember `deploy.ps1` does not ship `deploy/`** — copy the new `backup.sh` to `/opt/erp/deploy/` by hand after the release that brings it.
 - **Keep the backup key off the droplet too** — a copy of `BACKUP_ENCRYPTION_KEY` in a password manager. The bucket holds encrypted dumps; without the key they cannot be restored.
 - **Restore from the bucket alone** (the drill to record below, 75.1.7): download the dump and its `.sha256`, `sha256sum -c`, then decrypt and `pg_restore` into a scratch database exactly as for an on-box file.
+
+### Backup threat model (Stage 49.13.4)
+
+The question is not "did the backup run" but "who could destroy or alter both production and every usable backup". Read 2026-10-26 from `deploy/backup.sh`, the monitors in `engines/alerting.go` and the restore drill.
+
+| Threat | What protects the backups today | Gap (owner's action) |
+|---|---|---|
+| Disk or droplet lost | nightly encrypted dump; off-box copy to the bucket when `OFFSITE_S3_*` is set; `BACKUP_OFFSITE_STALE` after 26 h | the off-box copy runs only once the bucket variables are set on each host |
+| Someone with root on the ERP host | the dumps are encrypted, but the key is in `/etc/erp/erp.env` on the same host, and local files can be deleted | **make the off-box copy immutable**: a bucket lock (retention) rule so no object can be deleted or overwritten for 35 days; with that, a host compromise cannot reach the backups of the last month |
+| Backup credential reused to destroy | the bucket token is scoped to one bucket; curl only uploads | the token can still delete; the bucket lock above is what stops it. Database backup and runtime use one role (risk R-07) |
+| Restore credential misuse | restores and the drill use a separate admin connection (`DRILL_ADMIN_URL`), never the app role | - |
+| Key lost | the dump cannot be restored without `BACKUP_ENCRYPTION_KEY` | keep a copy of `BACKUP_ENCRYPTION_KEY` **and `AUDIT_SIGNING_KEY`** in a password manager, off the host: without the second, a restored audit trail cannot be verified (`-verify-restore` says so) |
+| Silent failure | failed run alert; no fresh whole-database run in 36 h alerts (and is a boot finding in production); size, duration and sha256 recorded per run in `public.backup_runs` | set `OPS_ALERT_WEBHOOK_URL`, or alerts stay in the server log |
+| Corrupt or tampered dump | sha256 sidecar checked before restore; the restore drill now also proves ledgers balance and audit evidence verifies (`erp-server -verify-restore`, 49.13.5) | run the drill monthly; the last logged drill is 2026-08-07 (see the security scorecard) |
+| Retention and legal hold | local dumps are kept `RETAIN_DAYS`; a client under legal hold cannot be purged (`SetTenantLegalHold`) | local pruning does not look at legal hold, and the bucket's own lifecycle rule is the owner's to set; while a hold is on, keep the relevant dumps by hand |
+
+**Minimum safe set** (in order): bucket variables on both hosts → bucket lock 35 days → both keys in a password manager → alert webhook → one timed restore from the bucket alone, recorded below (this also gives the RTO the availability model asks for).
 
 ### Why the cron line sources the env file with `set -a`
 

@@ -334,7 +334,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '63';
+const VIEW_MODULE_VERSION = '64';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -3697,7 +3697,11 @@ const MENU_PERMISSION_MAP = {
   // comment: "All role-open... a warehouse operator role doesn't exist
   // separately from Store Manager/Cashier/HR-Admin") - { open: true } here
   // matches that actual server behavior rather than inventing a UI-only gate.
-  'menu-putaway': { modules: ['Inventory'] },
+  // 132.18: what each screen reads, not its module - Guide, as a Cashier,
+  // opened these from the menu into "no permission" and a stuck Loading.
+  'menu-putaway': { doctypes: ['ASN'] }, // GET /wms/inbound-work reads ASN
+  'menu-crm-pipeline': { doctypes: ['SalesQuotation'] }, // /crm/opportunities
+  'menu-einvoice': { capability: 'finance.statements' }, // /einvoice/documents (on top of data-like Finance)
   // Stage 42.2.10: same role-open convention as the rest of the WMS
   // floor-ops screens (handlers_warehouse_task.go's cockpit route has no
   // role_permissions check either).
@@ -3757,7 +3761,8 @@ const MENU_PERMISSION_MAP = {
   'menu-system-status': { devOnly: true },
   // Configuration / system settings (Stage 28.1) - HR/Admin-only, same gate
   // as GET/PUT /api/v1/admin/settings.
-  'menu-configuration': { adminOnly: true },
+  // 132.15: also a role whose template holds admin.settings (Setup Operator).
+  'menu-configuration': { adminOnly: true, capability: 'admin.settings' },
   // Tenant Entitlements admin screen (Stage 26.1.4) - reads/writes
   // cross-tenant module entitlements, HR/Admin-only same as every other
   // admin/tenant-control endpoint it calls.
@@ -4195,7 +4200,8 @@ function canDeleteDoctype(doctype) { return canDo('delete', doctype); }
 
 function isMenuRuleVisible(rule) {
   if (!rule || rule.open) return true;
-  if (rule.adminOnly) return state.permissions.isAdmin;
+  if (rule.adminOnly) return state.permissions.isAdmin || (!!rule.capability && state.permissions.capabilities.has(rule.capability));
+  if (rule.capability) return state.permissions.isAdmin || state.permissions.capabilities.has(rule.capability); // 132.18
   if (rule.devOnly) return state.permissions.isSuperAdmin; // 125.6
   if (rule.opOnly) return state.permissions.isOperator; // 132.10: the server's operator allowlist
   if (rule.doctypes) return state.permissions.isAdmin || rule.doctypes.some(canReadDoctype);
@@ -4218,7 +4224,9 @@ function applyBorrowedMenuRules() {
   document.querySelectorAll('.sidebar-menu [data-like], .sidebar-menu [data-doctype]').forEach(el => {
     const li = el.closest('li'), name = el.dataset.doctype;
     const d = name && state.activeDoctypes.find(x => x.name === name);
-    li.classList.toggle('perm-hidden', name ? !d || !isMenuRuleVisible({ doctypes: [name] }) : !isMenuRuleVisible(MENU_PERMISSION_MAP[el.dataset.like]));
+    // 132.18: an entry's own rule (MENU_PERMISSION_MAP[its id]) applies on top of the borrowed one.
+    const own = MENU_PERMISSION_MAP[el.id];
+    li.classList.toggle('perm-hidden', name ? !d || !isMenuRuleVisible({ doctypes: [name] }) : !(isMenuRuleVisible(MENU_PERMISSION_MAP[el.dataset.like]) && (!own || isMenuRuleVisible(own))));
     if (state.modules.loaded) li.classList.toggle('module-hidden', !isMenuModuleVisible(name ? d && d.module_key : (MENU_MODULE_MAP[el.dataset.like] || {}).module));
   });
   ['perm-hidden', 'module-hidden'].forEach(cls => document.querySelectorAll('li.has-subflyout').forEach(row => {

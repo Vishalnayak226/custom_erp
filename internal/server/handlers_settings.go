@@ -19,18 +19,31 @@ import (
 // single source of truth for which settings exist; a row in system_settings is
 // only ever an override of a registered default.
 
+// Stage 132.15: a role holding admin.settings without full access (Setup
+// Operator) sees and changes only the business settings
+// (engines.SettingIsAdminOnly).
 func handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	role := r.Header.Get("Resolved-Role")
-	if !requireHRAdmin(w, r, role) {
+	if !requireAdminCapability(w, r, "admin.settings") {
 		return
 	}
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
-	_ = json.NewEncoder(w).Encode(engines.ListSettingsWithValues(tenantID))
+	all := engines.ListSettingsWithValues(tenantID)
+	if !engines.HasFullAccess(role) {
+		business := all[:0]
+		for _, s := range all {
+			if !engines.SettingIsAdminOnly(s.Key) {
+				business = append(business, s)
+			}
+		}
+		all = business
+	}
+	_ = json.NewEncoder(w).Encode(all)
 }
 
 func handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	role := r.Header.Get("Resolved-Role")
-	if !requireHRAdmin(w, r, role) {
+	if !requireAdminCapability(w, r, "admin.settings") {
 		return
 	}
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
@@ -44,6 +57,19 @@ func handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	if len(updates) == 0 {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "No settings provided")
 		return
+	}
+	if !engines.HasFullAccess(role) {
+		var refused []string
+		for key := range updates {
+			if engines.SettingIsAdminOnly(key) {
+				refused = append(refused, key)
+			}
+		}
+		if len(refused) > 0 {
+			sort.Strings(refused)
+			writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only an administrator changes security and platform settings: "+strings.Join(refused, ", "))
+			return
+		}
 	}
 
 	// Validate the whole batch before writing anything, so one invalid value
@@ -74,6 +100,6 @@ func handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	sort.Strings(changed)
 
-	engines.LogAuditEvent(tenantID, actorUsername, "SETTINGS", "UPDATED", fmt.Sprintf("Updated %d configuration setting(s): %s", applied, strings.Join(changed, ", ")))
+	engines.LogAuditEventCtx(r.Context(), tenantID, actorUsername, "SETTINGS", "UPDATED", fmt.Sprintf("Updated %d configuration setting(s): %s", applied, strings.Join(changed, ", ")))
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success", "updated": applied})
 }

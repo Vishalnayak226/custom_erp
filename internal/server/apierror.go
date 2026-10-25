@@ -138,7 +138,7 @@ func logForEntry(r *http.Request, entry CatalogEntry, message string) {
 		engines.LogSystemError(tenantID, correlationID, entry.Severity, entry.Module, logged, "")
 	}
 	if entry.AuditRequired {
-		engines.LogAuditEvent(tenantID, userID, entry.Code, "Error", tagged)
+		engines.LogAuditEventCtx(r.Context(), tenantID, userID, entry.Code, "Error", tagged)
 	}
 }
 

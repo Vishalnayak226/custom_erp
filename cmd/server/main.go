@@ -35,7 +35,34 @@ func main() {
 	releaseVersion := flag.String("version", "", "with -record-release: record this version instead of the running build's (backfill)")
 	releaseCommit := flag.String("commit", "", "with -record-release: record this commit instead of the running build's (backfill)")
 	releaseAt := flag.String("at", "", "with -record-release: when it was released, RFC 3339 (backfill; default now)")
+	// Stage 49.13.5: deploy/restore_drill.sh runs this against its throwaway
+	// restored copy - ledgers balance, audit evidence verifies, reconciliations.
+	verifyRestore := flag.Bool("verify-restore", false, "check a RESTORED database (never live): ledgers balance, audit evidence verifies, reconciliations; exit 1 on a blocking failure")
 	flag.Parse()
+
+	if *verifyRestore {
+		db.InitDB(db.ConnStringFromEnv())
+		checks, err := engines.VerifyRestoredDatabase()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "restore check could not run: %v\n", err)
+			os.Exit(1)
+		}
+		blocking := 0
+		for _, c := range checks {
+			mark := "ok  "
+			if !c.OK && c.Blocking {
+				mark, blocking = "FAIL", blocking+1
+			} else if !c.OK {
+				mark = "note"
+			}
+			fmt.Printf("  %s %-14s %-16s %s\n", mark, c.Tenant, c.Check, c.Detail)
+		}
+		if blocking > 0 {
+			fmt.Fprintf(os.Stderr, "%d blocking restore check(s) failed\n", blocking)
+			os.Exit(1)
+		}
+		return
+	}
 
 	if *recordRelease {
 		db.InitDB(db.ConnStringFromEnv())

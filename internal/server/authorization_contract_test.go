@@ -78,7 +78,9 @@ func TestAuthorizationContractMatrix(t *testing.T) {
 			case LevelAdmin:
 				// Stage 125.6: a client's Admin administers its client; the
 				// platform's developer routes stay Super Admin only.
-				want = engines.HasFullAccess(role)
+				// Stage 132.15: or a template that names this one admin
+				// capability (Setup Operator) - that capability only.
+				want = engines.HasFullAccess(role) || declaredCapability(role, classification.Capability)
 				if devOnlyCapabilities[classification.Capability] {
 					want = engines.IsSuperAdmin(role)
 				}
@@ -104,12 +106,29 @@ func TestAuthorizationContractMatrix(t *testing.T) {
 // regression names itself: no floor role reaches an administrative route, and
 // (Stage 125.6) only Super Admin reaches a developer route - not even Admin.
 func TestOnlyTheAdministratorTemplateReachesAdminRoutes(t *testing.T) {
+	// Stage 132.15: the one exception, route by route so any widening fails
+	// this test - a new route filed under admin.settings (say, a security
+	// action) must not reach the Setup Operator by accident. It reaches the
+	// Setup Workbook, the settings screen (business settings only,
+	// handlers_settings.go), the client's logo and the industry.
+	setupOperatorAdmin := map[string]bool{
+		"GET /api/v1/admin/settings": true, "PUT /api/v1/admin/settings": true,
+		"POST /api/v1/admin/branding/logo": true, "DELETE /api/v1/admin/branding/logo": true,
+		"GET /api/v1/admin/industries": true, "POST /api/v1/admin/industry": true, "GET /api/v1/admin/industry/lock": true,
+		"GET /api/v1/admin/setup-workbook/template": true, "GET /api/v1/admin/setup-workbook/export": true,
+		"POST /api/v1/admin/setup-workbook/preview": true, "POST /api/v1/admin/setup-workbook/apply": true,
+		"GET /api/v1/admin/setup-workbook/runs": true, "GET /api/v1/admin/setup-workbook/runs/{id}": true,
+		"GET /api/v1/admin/setup-workbook/runs/{id}/file": true,
+	}
 	for pattern, classification := range routeCapabilities {
 		if classification.Level != LevelAdmin {
 			continue
 		}
 		for _, role := range contractRoles() {
 			if engines.IsSuperAdmin(role) || (engines.HasFullAccess(role) && !devOnlyCapabilities[classification.Capability]) {
+				continue
+			}
+			if role == engines.RoleSetupOperator && setupOperatorAdmin[pattern] {
 				continue
 			}
 			if allowed, _, _ := checkRouteCapability(pattern, role); allowed {

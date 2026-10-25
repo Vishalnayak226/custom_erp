@@ -145,6 +145,9 @@ func referenceFiles(root, stamp string) (map[string][]byte, error) {
 	for name, body := range pages {
 		files[name] = body
 	}
+	for name, body := range scorecardFiles(root, stamp) {
+		files[name] = body
+	}
 	for name, body := range map[string][]byte{
 		"docs/guides/ERROR_CODES.md":               []byte(errorCodesDoc(stamp)),
 		"docs/guides/REPORT_CATALOG.md":            []byte(reportCatalogDoc(stamp)),

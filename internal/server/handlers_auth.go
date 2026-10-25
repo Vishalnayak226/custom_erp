@@ -76,10 +76,10 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		}
 		spray, distributed := loginFailed(tenantID, req.Username, addr)
 		if spray {
-			engines.LogAuditEvent(tenantID, "system", "LOGIN_ABUSE", "PASSWORD_SPRAY_SUSPECTED", fmt.Sprintf("address %s failed sign-ins for %d or more user names within 15 minutes", addr, loginWatchReport))
+			engines.LogAuditEventCtx(r.Context(), tenantID, "system", "LOGIN_ABUSE", "PASSWORD_SPRAY_SUSPECTED", fmt.Sprintf("address %s failed sign-ins for %d or more user names within 15 minutes", addr, loginWatchReport))
 		}
 		if distributed {
-			engines.LogAuditEvent(tenantID, "system", "LOGIN_ABUSE", "DISTRIBUTED_GUESSING_SUSPECTED", fmt.Sprintf("user name %q failed sign-ins from %d or more addresses within 15 minutes", name, loginWatchReport))
+			engines.LogAuditEventCtx(r.Context(), tenantID, "system", "LOGIN_ABUSE", "DISTRIBUTED_GUESSING_SUSPECTED", fmt.Sprintf("user name %q failed sign-ins from %d or more addresses within 15 minutes", name, loginWatchReport))
 		}
 	}
 
@@ -135,7 +135,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, r, "USERAC-0021", "")
 			return
 		}
-		engines.LogAuditEvent(tenantID, u.Username, "LOGIN", "LOCK_PASSED_REMEMBERED_DEVICE", "Account was locked by failed sign-ins; correct password from a remembered device signed in and cleared the lock")
+		engines.LogAuditEventCtx(r.Context(), tenantID, u.Username, "LOGIN", "LOCK_PASSED_REMEMBERED_DEVICE", "Account was locked by failed sign-ins; correct password from a remembered device signed in and cleared the lock")
 	}
 
 	// 49.2.2: bcrypt only, fails closed. This used to also accept an exact
@@ -158,7 +158,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 			_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET failed_login_count = $1, locked_until = NOW() + make_interval(mins => $2) WHERE id = $3`, schema),
 				newCount, accountLockoutDurationMinutesFor(tenantID), u.ID)
 			// Stage 49.11.1: the lock itself is a credential-lifecycle event.
-			engines.LogAuditEvent(tenantID, u.Username, "LOGIN", "ACCOUNT_LOCKED", fmt.Sprintf("Locked for %d minutes after %d failed sign-ins", accountLockoutDurationMinutesFor(tenantID), newCount))
+			engines.LogAuditEventCtx(r.Context(), tenantID, u.Username, "LOGIN", "ACCOUNT_LOCKED", fmt.Sprintf("Locked for %d minutes after %d failed sign-ins", accountLockoutDurationMinutesFor(tenantID), newCount))
 		} else {
 			_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET failed_login_count = $1 WHERE id = $2`, schema), newCount, u.ID)
 		}
@@ -196,7 +196,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	// true for the account that credential was minted for.
 	bootstrapState, bootstrapExpiry, bootstrapErr := engines.EvaluateTenantBootstrapCredential(tenantID, u.PasswordHash)
 	if bootstrapErr == nil && bootstrapState == engines.BootstrapExpired {
-		engines.LogAuditEvent(tenantID, u.Username, "LOGIN", "BOOTSTRAP_CREDENTIAL_EXPIRED",
+		engines.LogAuditEventCtx(r.Context(), tenantID, u.Username, "LOGIN", "BOOTSTRAP_CREDENTIAL_EXPIRED",
 			"Password correct, but it is the one-time provisioning credential and its rotation window has closed")
 		_ = engines.RecordTenantLifecycleEvent(tenantID, engines.TenantEventBootstrapExpired, u.Username,
 			"login refused: the one-time provisioning credential was never rotated and has expired")
@@ -214,7 +214,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		if enabled, _, mfaErr := engines.GetUserMFAStatus(tenantID, u.ID); mfaErr == nil && enabled &&
 			engines.TrustedMFADevice(tenantID, u.ID, req.DeviceToken, u.CredentialVersion) {
 			rememberedDevice = true
-			engines.LogAuditEvent(tenantID, u.Username, "LOGIN", "MFA_REMEMBERED_DEVICE", "Password correct; authenticator code skipped on a remembered device")
+			engines.LogAuditEventCtx(r.Context(), tenantID, u.Username, "LOGIN", "MFA_REMEMBERED_DEVICE", "Password correct; authenticator code skipped on a remembered device")
 		}
 	}
 	if engines.RequiresMFA(u.Role) && !rememberedDevice {
@@ -225,7 +225,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		}
 		if !enabled {
 			enrollToken := engines.SignPurposeToken(u.ID, u.Username, tenantID, "mfa_enroll", 10*time.Minute)
-			engines.LogAuditEvent(tenantID, u.Username, "LOGIN", "MFA_ENROLLMENT_REQUIRED", "Password correct; TOTP enrollment required before a session can be issued")
+			engines.LogAuditEventCtx(r.Context(), tenantID, u.Username, "LOGIN", "MFA_ENROLLMENT_REQUIRED", "Password correct; TOTP enrollment required before a session can be issued")
 			enrollResp := map[string]interface{}{
 				"mfa_enrollment_required": true,
 				"enrollment_token":        enrollToken,
@@ -243,7 +243,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		challengeToken := engines.SignPurposeToken(u.ID, u.Username, tenantID, "mfa_challenge", 5*time.Minute)
-		engines.LogAuditEvent(tenantID, u.Username, "LOGIN", "MFA_CHALLENGE_ISSUED", "Password correct; awaiting TOTP code")
+		engines.LogAuditEventCtx(r.Context(), tenantID, u.Username, "LOGIN", "MFA_CHALLENGE_ISSUED", "Password correct; awaiting TOTP code")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"mfa_required":    true,
 			"challenge_token": challengeToken,
@@ -261,7 +261,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	// user behaves exactly as before rather than losing access.
 	token := engines.SignToken(u.ID, u.Username, u.Role, tenantID, u.LocationCode, u.CredentialVersion)
 
-	engines.LogAuditEvent(tenantID, u.Username, "LOGIN", "SUCCESS", fmt.Sprintf("User logged in successfully with role %s", u.Role))
+	engines.LogAuditEventCtx(r.Context(), tenantID, u.Username, "LOGIN", "SUCCESS", fmt.Sprintf("User logged in successfully with role %s", u.Role))
 
 	resp := map[string]string{
 		"token": token,
@@ -373,9 +373,9 @@ func handleMFAActivate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token := engines.SignToken(userID, username, role, tenantID, locationCode, credentialVersion)
-	engines.LogAuditEvent(tenantID, username, "LOGIN", "MFA_ENROLLED_AND_VERIFIED", "TOTP enrollment completed and verified")
+	engines.LogAuditEventCtx(r.Context(), tenantID, username, "LOGIN", "MFA_ENROLLED_AND_VERIFIED", "TOTP enrollment completed and verified")
 	if len(recoveryCodes) > 0 {
-		engines.LogAuditEvent(tenantID, username, "LOGIN", "MFA_RECOVERY_CODES_ISSUED",
+		engines.LogAuditEventCtx(r.Context(), tenantID, username, "LOGIN", "MFA_RECOVERY_CODES_ISSUED",
 			fmt.Sprintf("%d single-use recovery codes issued at enrollment", len(recoveryCodes)))
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
@@ -491,10 +491,10 @@ func handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 	remaining := 0
 	if usedRecoveryCode {
 		remaining, _ = engines.CountUnusedRecoveryCodes(tenantID, userID)
-		engines.LogAuditEvent(tenantID, username, "LOGIN", "MFA_RECOVERY_CODE_USED",
+		engines.LogAuditEventCtx(r.Context(), tenantID, username, "LOGIN", "MFA_RECOVERY_CODE_USED",
 			fmt.Sprintf("Signed in with a single-use recovery code; %d remaining", remaining))
 	} else {
-		engines.LogAuditEvent(tenantID, username, "LOGIN", "MFA_VERIFIED", "TOTP code verified, session issued")
+		engines.LogAuditEventCtx(r.Context(), tenantID, username, "LOGIN", "MFA_VERIFIED", "TOTP code verified, session issued")
 	}
 
 	// used_recovery_code drives the frontend's "your authenticator is
@@ -513,7 +513,7 @@ func handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 	if req.RememberDevice {
 		if deviceToken, days, rememberErr := engines.RememberMFADevice(tenantID, userID, r.UserAgent()); rememberErr == nil && deviceToken != "" {
 			resp["device_token"], resp["device_days"] = deviceToken, days
-			engines.LogAuditEvent(tenantID, username, "LOGIN", "MFA_DEVICE_REMEMBERED", fmt.Sprintf("This browser skips the authenticator code for %d days", days))
+			engines.LogAuditEventCtx(r.Context(), tenantID, username, "LOGIN", "MFA_DEVICE_REMEMBERED", fmt.Sprintf("This browser skips the authenticator code for %d days", days))
 		}
 	}
 	_ = json.NewEncoder(w).Encode(resp)

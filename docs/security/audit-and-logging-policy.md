@@ -56,7 +56,12 @@ Every class below is an `audit_logs` row (`engines.LogAuditEvent(tenant, user, a
 | Job / webhook give-up | `JOB` DEAD_LETTERED - a job that exhausted its attempts | `jobrunner.go` |
 | Operator support | `LOGIN` OPERATOR_OPEN_ISSUED, OPERATOR_SESSION | platform support (125) |
 | Deployment / migration | the release ledger (`public.deployments`, Control Panel → Releases) | `-record-release` |
+| Bulk export (2026-10-26) | `DATA_EXPORT` SUCCESS (a delivered export or report download), REFUSED_FROZEN | `apiMiddleware` (`isBulkExport`) |
+| Detection (2026-10-26) | `SECURITY_ALERT` URGENT / REVIEW - one row per fired rule, naming the rows behind it | `security_detection.go` (49.11.4) |
+| Emergency control (2026-10-26) | `USER_MANAGEMENT` SESSIONS_REVOKED, ALL_SESSIONS_REVOKED; `SECURITY_CONTROL` EXPORTS_FROZEN / EXPORTS_UNFROZEN; `EVIDENCE_EXPORTED` SUCCESS | `security_emergency.go`, `security_posture.go` (49.12) |
 
-Not emitted yet: sensitive read / bulk export, fraud / invariant exceptions, and audit-verifier failure as an event (the verifier reports it on its own screen and job). Those are the next rows to add.
+Not emitted as single events: other sensitive reads, and fraud / invariant exceptions beyond the till-reversal detection. Audit-verifier failure is now the `audit_verify_failed` detection.
+
+**Event schema (Stage 49.11.2).** Each row carries trusted server time (UTC for signed rows), the client (its schema), the actor, `action` / `status` / `details` and, for a request, its **correlation id** (`LogAuditEventCtx`) - the same id as its system-error rows, jobs and outbox events, so one lookup (Activity Log → Security → Trace a request) finds them all instead of copying payloads. `details` passes the same redaction as system logs (passwords, tokens, keys, bearer values) and is bounded to 16 KiB before it is signed. The software version is not repeated per row: it is the release live at that time (`public.deployments`), which the evidence pack includes. An attack is told from a user's mistake by the catalog: only `AuditRequired` refusals (permission, scope, sign-in) are audited; validation errors a user corrects are not. A lost audit write is counted and paged (`AUDIT_WRITE_FAILED`, 49.13.7), never only logged.
 
 For investigations preserve the relevant release, configuration, query/selector, source hashes and collection identity. Record corrections as dated addenda. A hash identifies captured bytes; it does not independently prove completeness, trustworthy time, custody or tamper resistance. Qualified control owners accept evidence sufficiency for the intended use.

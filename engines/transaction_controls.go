@@ -232,7 +232,7 @@ func RunReconciliationChecks(tenantID string, force bool) ([]ReconciliationResul
 	sort.Strings(ids)
 	for _, id := range ids {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		def, _, _, c, err := RunReportWithControlTotals(ctx, tenantID, id, RoleSuperAdmin, "system", map[string]string{})
+		def, _, _, c, err := RunReportWithControlTotals(ctx, tenantID, id, RoleSuperAdmin, "system", reconciliationParams(id, now))
 		cancel()
 		label := id
 		if def != nil {
@@ -259,6 +259,31 @@ func RunReconciliationChecks(tenantID string, force bool) ([]ReconciliationResul
 		record(chk.id, chk.label, tied, diff, detail)
 	}
 	return LatestReconciliationResults(tenantID)
+}
+
+// reconciliationParams fills a report's required dates with this month to
+// date, the period the nightly check ties. Found by the 49.13.5 restore
+// check: gst-return-summary needs start / end, so it was "could not run" on
+// every client, every night.
+func reconciliationParams(reportID string, now time.Time) map[string]string {
+	params := map[string]string{}
+	def, ok := reportRegistry[reportID]
+	if !ok {
+		return params
+	}
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).Format("2006-01-02")
+	for _, p := range def.Params {
+		if !p.Required || p.Type != "date" {
+			continue
+		}
+		key := strings.ToLower(p.Key)
+		if strings.Contains(key, "start") || strings.Contains(key, "from") {
+			params[p.Key] = monthStart
+		} else {
+			params[p.Key] = now.Format("2006-01-02")
+		}
+	}
+	return params
 }
 
 // LatestReconciliationResults is each check's most recent result.

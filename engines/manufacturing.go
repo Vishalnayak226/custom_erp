@@ -159,7 +159,8 @@ func IssueProductionMaterial(tenantID, orderID string) error {
 		}
 	}
 	if len(items) > 0 {
-		if _, err := PostInventoryLedger(tenantID, location, items, false); err != nil {
+		// Stage 132.18: the stock ledger names the order (it read "StockAdjustment", no document).
+		if _, err := PostInventoryLedgerWithVoucher(tenantID, location, items, false, "ProductionOrder", orderID, ""); err != nil {
 			return fmt.Errorf("material issue failed: %v", err)
 		}
 	}

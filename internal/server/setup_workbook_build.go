@@ -66,6 +66,9 @@ func swTableSheet(cols []swCol, data [][]engines.XLSXCell) engines.XLSXSheet {
 
 func (run *swRun) buildWorkbook(filled bool) ([]byte, error) {
 	sheets := []engines.XLSXSheet{run.instructionsSheet(filled)}
+	// Stage 132.15: who may do what is an administrator's to read - a Setup
+	// Operator's export carries the four access sheets as headers only.
+	accessFilled := filled && engines.HasFullAccess(run.c.role)
 	for _, sh := range setupWorkbookSheets {
 		var s engines.XLSXSheet
 		var err error
@@ -79,13 +82,13 @@ func (run *swRun) buildWorkbook(filled bool) ([]byte, error) {
 		case swItemFields:
 			s, err = run.itemFieldsSheet(filled)
 		case swRoles:
-			s = run.rolesSheet(filled)
+			s = run.rolesSheet(accessFilled)
 		case swRoleAccess:
-			s = run.roleAccessSheet(filled)
+			s = run.roleAccessSheet(accessFilled)
 		case swUsers:
-			s = run.usersSheet(filled)
+			s = run.usersSheet(accessFilled)
 		case swApproval:
-			s, err = run.approvalSheet(filled)
+			s, err = run.approvalSheet(accessFilled)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("%s: %v", sh.Name, err)
@@ -308,6 +311,9 @@ func (run *swRun) settingsSheet(filled bool) engines.XLSXSheet {
 	all := engines.ListSettingsWithValues(run.c.tenantID)
 	sort.SliceStable(all, func(i, j int) bool { return swModuleRank(all[i].Module) < swModuleRank(all[j].Module) })
 	for _, s := range all {
+		if !engines.HasFullAccess(run.c.role) && engines.SettingIsAdminOnly(s.Key) {
+			continue // Stage 132.15: not a Setup Operator's to read or change
+		}
 		value := ""
 		if filled {
 			value = swSettingDisplay(s.SettingDefinition, s.Value)

@@ -58,7 +58,7 @@ func handleIssueAPICredential(w http.ResponseWriter, r *http.Request) {
 			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 			return
 		}
-		engines.LogAuditEvent(tenantID, actor, "API_CREDENTIAL_ISSUED", "SUCCESS",
+		engines.LogAuditEventCtx(r.Context(), tenantID, actor, "API_CREDENTIAL_ISSUED", "SUCCESS",
 			fmt.Sprintf("credential=%s oauth_client_id=%s scopes=%s", client.Credential.ID, client.ClientID, strings.Join(client.Credential.Scopes, ",")))
 		w.Header().Set("Cache-Control", "no-store")
 		w.WriteHeader(http.StatusCreated)
@@ -73,7 +73,7 @@ func handleIssueAPICredential(w http.ResponseWriter, r *http.Request) {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	engines.LogAuditEvent(tenantID, actor, "API_CREDENTIAL_ISSUED", "SUCCESS",
+	engines.LogAuditEventCtx(r.Context(), tenantID, actor, "API_CREDENTIAL_ISSUED", "SUCCESS",
 		fmt.Sprintf("credential=%s prefix=%s scopes=%s", issued.Credential.ID, issued.Credential.KeyPrefix, strings.Join(issued.Credential.Scopes, ",")))
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusCreated)
@@ -106,7 +106,7 @@ func handleRotateAPICredential(w http.ResponseWriter, r *http.Request) {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	engines.LogAuditEvent(tenantID, actor, "API_CREDENTIAL_ROTATED", "SUCCESS",
+	engines.LogAuditEventCtx(r.Context(), tenantID, actor, "API_CREDENTIAL_ROTATED", "SUCCESS",
 		fmt.Sprintf("old_credential=%s new_credential=%s new_prefix=%s", r.PathValue("id"), issued.Credential.ID, issued.Credential.KeyPrefix))
 	w.Header().Set("Cache-Control", "no-store")
 	if issued.Credential.AuthMode == "oauth_client" {
@@ -127,7 +127,7 @@ func handleRevokeAPICredential(w http.ResponseWriter, r *http.Request) {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	engines.LogAuditEvent(tenantID, actor, "API_CREDENTIAL_REVOKED", "SUCCESS", "credential="+credentialID)
+	engines.LogAuditEventCtx(r.Context(), tenantID, actor, "API_CREDENTIAL_REVOKED", "SUCCESS", "credential="+credentialID)
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "revoked", "id": credentialID})
 }
 
@@ -159,7 +159,7 @@ func handleSetAPICredentialLimits(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
-	engines.LogAuditEvent(tenantID, actor, "API_CREDENTIAL_LIMITS_SET", "SUCCESS",
+	engines.LogAuditEventCtx(r.Context(), tenantID, actor, "API_CREDENTIAL_LIMITS_SET", "SUCCESS",
 		fmt.Sprintf("credential=%s rate_per_minute=%d daily_quota=%d", credentialID, perMinute, perDay))
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"id": credentialID, "rate_limit_per_minute": perMinute, "daily_quota": perDay,

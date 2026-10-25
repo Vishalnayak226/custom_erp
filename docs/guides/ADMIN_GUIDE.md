@@ -145,6 +145,15 @@ The **Store app** is an installable web app (PWA) at your ERP address followed b
 - **Offline:** the app's own files are kept on the phone so it opens without a connection. A count is the one task that works offline: it is kept on the phone until sent (a resend changes nothing). Everything else needs a connection.
 - **Changing the app's files** (`public/store/`): raise `?v=` on `store.css` / `store.js` in `index.html`, the `?v=` the shell loads its modules with (`store.js`, `loadModule`), `sw.js`'s list and `CACHE` in `sw.js`, in the same release, so phones load the new files at once. A new task is a module in `public/store/` registered in `store.js`'s `TILES` and `MODULES`.
 
+#### B.2.2 A sign-in for the set-up assistant (Setup Operator, Stage 132.15)
+
+Someone who sets a client up - the Guide set-up assistant, or an implementation person - gets the **Setup Operator** role, not Admin, so everything they change is on record under their own name and they cannot touch who may do what.
+
+1. **Settings → Roles → + New Role**, name it exactly **Setup Operator**, **Create Role**. A new role named after a shipped role template starts with that template's access (recorded like any template change); the access page opens - review it, change a tick if your business needs to, **Save access**.
+2. **Settings → Users**: add a user (for Guide, `guide`) with the role **Setup Operator**, its home store, and **All stores** under Stores.
+
+**What it may do:** create and correct the masters and set-up records of every module (stores, departments, items, vendors, customers, price lists, BOMs, employees, salary structures, bank accounts, printers, templates ...); raise purchase orders and goods receipts (a client's bulk upload); run **Configuration → Setup Workbook**; change every Configuration setting except **Security**, **Platform** and **Store app**; choose the industry. **What it may not:** delete anything, approve anything (it holds no approval rule), pay a vendor bill or run a payment proposal, read payslips, loans, grievances or appraisals, or reach Users, Roles, approval rules, audit logs or integration credentials. In the Setup Workbook its Users, Roles, Role Access and Approval Rules rows are refused, its export leaves those four sheets and the security settings empty, and it sees only its own workbook runs (an administrator's upload can hold first passwords).
+
 ### B.3 Configuring the System (no code required)
 
 Several things are configurable through the app's admin screens, not by editing code:
@@ -1537,6 +1546,51 @@ After saving, the sender shows its **Callback URL** (`…/api/v1/crm/hooks/<kind
 1. **`.\manage.ps1 logs`** — the fastest first check. Shows the server's own output and error logs, plus the database log.
 2. **Activity Log** (in the app sidebar, formerly "Log Hub") — shows audit trails and recorded system errors from inside the running application.
 3. **`docs/operations/incident_runbook.md`** — the full incident-response procedure: severity levels, escalation, rollback, and exactly where every kind of log lives. Read this before an incident happens, not during one.
+
+### B.4a Activity Log → Security (Stage 49.11-49.13)
+
+Administrators (Super Admin, Admin) see a **Security** tab in the Activity Log. It covers this business only, never another client.
+
+**The top row.**
+- **Checks last ran**: the security checks run every 5 minutes. Red over 15 minutes means they stopped.
+- **Audit evidence**: *Sealed*, or *Unsealed N h* when the hourly checkpoint has not run for 3 hours while events waited.
+- **Verifier failures (7 days)** and **Audit writes lost**: either above 0 needs a look (`incident_runbook.md` §7.8).
+- **Urgent alerts sent**: *Not set up* until the operator sets `OPS_ALERT_WEBHOOK_URL`. Until then, urgent detections show only here.
+- **Exports**: *Open* or *Frozen*.
+
+**Detections (14 days).** Each row says what happened, who owns it, the first thing to do, and the runbook section. It also names the audit rows behind it (action, user, window and up to three references for **Trace a request**). *Urgent* rows also page the operator; *Review* rows wait here. A detection does not repeat for the same user within its window (1-4 hours). **Run checks now** runs them at once, after a fix or for a drill. The checks:
+
+| Detection | Fires on | Level |
+|---|---|---|
+| Password spray or distributed guessing | a *LOGIN_ABUSE* row (§B.2 sign-in) | Urgent |
+| Many wrong passwords | 25 wrong passwords in 15 minutes | Review |
+| Several accounts locked | 3 locks in an hour | Review |
+| One user refused again and again | 10 permission refusals by one user in 10 minutes | Review |
+| A session from another client used here | any | Urgent |
+| Many role or user changes by one person | 5 in 10 minutes | Review |
+| Many exports by one user | 20 exports or report downloads in 10 minutes | Urgent |
+| Many cancels, voids or price overrides by one user | 10 in an hour | Review |
+| Background jobs giving up | 5 dead-lettered jobs in an hour | Review |
+| A disabled user acted after being disabled | any | Urgent |
+| Audit evidence failed or could not be verified | the verifier's failure | Urgent |
+| Audit checkpoints stopped while events waited | 3 hours without a checkpoint | Urgent |
+
+**To review.** Administrators without two-factor, API keys that expire within 30 days or were never or not recently used, and background jobs that gave up in the last 7 days.
+
+**Trace a request.** Paste the reference from an error message (or from a detection). It lists every audit row, system error, background job and integration event that request left.
+
+**Evidence pack.** Choose From and To (at most 31 days) and **Download**. The zip holds the window's audit rows with their signatures, system errors, audit checkpoints, the releases that were live, every applied migration's checksum, and `manifest.json` with each file's SHA-256, signed in `manifest.sig`. Building it changes nothing. It is itself recorded as *EVIDENCE_EXPORTED*. Keep it somewhere safe; it can hold personal data.
+
+**Emergency.** Each button asks for a reason (recorded in the audit log) and **your own password**:
+- **Sign out everywhere** (choose a user): every session of that person ends at their next click, and their remembered devices must enter the authenticator code again. Their password does not change; reset it from Users if it may be known.
+- **Sign out everyone**: the same for every user of this business except you.
+- **Freeze exports**: every export and report download for this business is refused (*Exports are paused…*) and logged, until you **Unfreeze exports**. Audit evidence exports stay open. The setting behind it is Settings → Security → *Freeze exports (emergency)*. Use this tab instead, so a reason is recorded.
+
+**Every export is now recorded.** Each delivered export or report download is an audit row *DATA_EXPORT* (who and which export), which is what *Many exports by one user* counts.
+
+**Reports refused as busy (GLOBAL-0310).** A report a person walks away from keeps running on the server until its query ends. So the server counts every live report run per business (half its request slots, 7 by default) and in total (20). Past that, a new report answers *Too many reports are still running…*; try again in a minute, or use Export for a large one.
+
+**Restore check.** `deploy/restore_drill.sh` now also runs `erp-server -verify-restore` on its throwaway copy. For each client it checks that the ledger balances, the audit evidence verifies with this server's key, and the reconciliations run. A *FAIL* line stops the drill; a *note* line is a difference live's Reconciliation screen would also show. The command runs only against the database in `DATABASE_URL`, so point it at a restored copy, never at live.
 
 ---
 

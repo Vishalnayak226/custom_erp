@@ -2,7 +2,7 @@
 title: Release notes (part 2)
 section: Reference
 order: 26
-summary: Earlier releases, 2026-07-27 to 2026-09-12, continued from the release notes.
+summary: Earlier releases, 2026-07-27 to 2026-09-13, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,7 +19,17 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **84** earlier entries, 2026-07-27 to 2026-09-12.
+This page continues the [release notes](release-notes.md) with **86** earlier entries, 2026-07-27 to 2026-09-13.
+
+## 2026-09-13
+
+**Stage 49.15 — vulnerability disclosure, triage, remediation and security-update lifecycle** *(docs only)*
+
+Closes 49.15.1-49.15.5/49.15.7; 49.15.6 stays open by design. Root `SECURITY.md` (the public-facing entry point GitHub's Security tab and researchers expect) plus `docs/security/vulnerability-disclosure-lifecycle.md` (the engineering-facing companion, same rigor as `secure-development-lifecycle.md`: every claim points at a real artifact in this repository, every real gap marked `[needs decision: ...]` rather than written as prose that implies it's done).
+
+**Stage 40.8/40.9/40.10 + Stage 44.7 — closing Stage 40 and Stage 44, and a QZ Tray CSP defect found in the process** *(code + schema + tests + prod verification)*
+
+Closes Stage 40 (`docs/micro_checklist.md`) completely: the three items left open since the 2026-08-10 batch (real-browser verification, `customer_phone` live-verification, and a QZ silent-print builder for a Purchase Order) were all buildable now, not blocked as first thought.
 
 ## 2026-09-12
 

@@ -87,6 +87,7 @@ A release problem these did not catch is a missing gate: add it to
 | G4d PrintBridge download | `public/downloads/printbridge-setup.exe` + `printbridge-version.txt` present, and the version equals `../PrintBridge` `BuildVersion` | the ERP serves the installer and offers updates from that file (Stage 137.4) - a stale one would be offered to every PC |
 | G5 Catalog spec | regenerates `report_catalog_spec_generated.go` if stale | 75.3 |
 | G6 Attack surface | `surfacescan` from the release set | manifest listed held files (0.2.0) |
+| G6b Security impact | `securityimpact`: last release's manifest vs the new one into the report - routes and their sign-in level, jobs, flags, outbound calls, dependencies; high-risk lines first (read, not a stop) | Stage 49.17.1: nobody saw what a release added to the surface |
 | G7 Docs | KB, graphify + brain (new files filed beside a sibling), register, no broken links | unclaimed file broke the brain (0.4.0) |
 | G8 Static | build, vet and the two test programs compiled side by side; `node --check` | `view-pos.js` counts in the cold core (0.4.0) |
 | G9 Data scan | data statements in new migrations, `-migrate` backfills, new background jobs | cost centers, attributes, reason codes, stock defaults |

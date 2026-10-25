@@ -234,14 +234,41 @@ func isHeavyRead(r *http.Request) bool {
 	return r.Method == http.MethodGet && (strings.HasPrefix(r.URL.Path, "/api/v1/reports/") || strings.Contains(r.URL.Path, "/export"))
 }
 
+// priorityReserve (Stage 49.13.2) is the slots above a tenant's cap that only
+// sign-in, health, cancellation and the emergency security controls may use,
+// so a flood of ordinary work can never keep the administrator from signing
+// in and stopping it. Small on purpose: each holds a pool connection.
+const priorityReserve = 3
+
+// isPriorityRequest names the requests that may use priorityReserve.
+func isPriorityRequest(r *http.Request) bool {
+	p := r.URL.Path
+	switch p {
+	case "/api/v1/login", "/api/v1/health", "/api/v1/ready":
+		return true
+	}
+	return strings.HasPrefix(p, "/api/v1/auth/") || strings.HasPrefix(p, "/api/v1/admin/security/") ||
+		(r.Method == http.MethodPost && strings.HasSuffix(p, "/cancel"))
+}
+
 // acquire returns true (and reserves a slot) if tenantID is below its
 // concurrency cap (and, for a heavy read, below half of it). Callers that get
 // true MUST call release exactly once with the same heavy flag.
 func (l *tenantConcurrencyLimiter) acquire(tenantID string, heavy bool) bool {
+	return l.acquireClass(tenantID, heavy, false)
+}
+
+// acquireClass is acquire with the priority lane: a priority request may go
+// up to the cap plus priorityReserve.
+func (l *tenantConcurrencyLimiter) acquireClass(tenantID string, heavy, priority bool) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	limit := perTenantMaxConcurrentRequestsFor(tenantID)
-	if l.inFlight[tenantID] >= limit {
+	capFor := limit
+	if priority {
+		capFor += priorityReserve
+	}
+	if l.inFlight[tenantID] >= capFor {
 		return false
 	}
 	if heavy {
@@ -1072,7 +1099,7 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				if hostTenantOK && hostTenantID != tenantID {
 					// Stage 49.11.1: a tenant-routing refusal is recorded on the
 					// client whose address was used, naming whose session it was.
-					engines.LogAuditEvent(hostTenantID, username, "TENANT_ROUTING", "REFUSED", fmt.Sprintf("A session of client %q was used on this client's address", tenantID))
+					engines.LogAuditEventCtx(r.Context(), hostTenantID, username, "TENANT_ROUTING", "REFUSED", fmt.Sprintf("A session of client %q was used on this client's address", tenantID))
 					writeAPIError(w, r, "GLOBAL-0009", "")
 					return
 				}
@@ -1255,7 +1282,7 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// tenant's next request queue indefinitely for a shared pool
 		// connection another tenant needs too.
 		heavy := isHeavyRead(r)
-		if !tenantConcurrency.acquire(tenantID, heavy) {
+		if !tenantConcurrency.acquireClass(tenantID, heavy, isPriorityRequest(r)) {
 			w.Header().Set("Retry-After", "2")
 			msg := "Too many concurrent requests in flight for this tenant - please retry shortly"
 			if heavy {
@@ -1274,6 +1301,56 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 		defer engines.BindPostingActor(engines.RequestPostingActor(userID, username, purpose, command))()
 
+		// Stage 49.11.1 / 49.12.3: a bulk export is a security event, and the
+		// client's emergency export freeze stops every one here, once.
+		if isBulkExport(r) {
+			if !strings.HasPrefix(r.URL.Path, "/api/v1/admin/audit-logs/") && engines.GetSettingBool(tenantID, engines.SettingFreezeExports) {
+				engines.LogAuditEventCtx(r.Context(), tenantID, username, "DATA_EXPORT", "REFUSED_FROZEN", command)
+				writeAPIErrorGeneric(w, r, http.StatusLocked, "Exports are paused for this business by an administrator. Ask your administrator.")
+				return
+			}
+			rec := &exportStatusRecorder{ResponseWriter: w, status: http.StatusOK}
+			defer func() {
+				if rec.status < 400 {
+					engines.LogAuditEventCtx(r.Context(), tenantID, username, "DATA_EXPORT", "SUCCESS", command)
+				}
+			}()
+			w = rec
+		}
+
 		next.ServeHTTP(w, r)
 	}
 }
+
+// isBulkExport names the requests that take data out in bulk: exports, report
+// downloads and CSV files. Status and cancel calls on an export are not one.
+func isBulkExport(r *http.Request) bool {
+	p := r.URL.Path
+	if strings.HasSuffix(p, "/cancel") || p == "/api/v1/reports/exports" {
+		return false
+	}
+	return strings.Contains(p, "/export") || strings.HasSuffix(p, ".csv") || strings.Contains(p, "payroll-export")
+}
+
+// exportStatusRecorder keeps the status an export answered with, so only a
+// delivered export is logged. Flush and Unwrap keep streaming exports working.
+type exportStatusRecorder struct {
+	http.ResponseWriter
+	status      int
+	wroteHeader bool
+}
+
+func (e *exportStatusRecorder) WriteHeader(code int) {
+	if !e.wroteHeader {
+		e.status, e.wroteHeader = code, true
+	}
+	e.ResponseWriter.WriteHeader(code)
+}
+
+func (e *exportStatusRecorder) Flush() {
+	if f, ok := e.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+func (e *exportStatusRecorder) Unwrap() http.ResponseWriter { return e.ResponseWriter }

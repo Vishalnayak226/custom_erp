@@ -9,8 +9,8 @@ audience: [engineering, operations, implementation, QA, domain reviewers]
 applies_to: source release 0.1.0; configuration-specific acceptance required
 authority: canonical
 confidentiality: internal
-last_verified: 2026-09-09
-review_by: 2026-10-09
+last_verified: 2026-10-26
+review_by: 2026-12-26
 supersedes: [OPS-REL-001, OPS-JOB-001]
 superseded_by: none
 ---
@@ -25,6 +25,7 @@ Platform operators start here; tenant administrators use the [tenant admin manua
 | Watch health and react to a symptom | [Observe and respond](#observe-and-respond) |
 | Ship a new release or back one out | [Upgrade and rollback](#upgrade-and-rollback) |
 | Recover a failed background job or outbox message | [Job and outbox recovery](#job-and-outbox-recovery) |
+| Know what each kind of work may use under load | [Availability model](#availability-model-stage-49131) |
 
 ## Deploy and configure
 
@@ -76,3 +77,20 @@ The existing [job runner](../../engines/jobrunner.go) and [outbox worker](../../
 6. Observe the terminal outcome and reconcile the business/provider reference. Preserve attempts, operator identity and reasoning in the execution record.
 
 Escalate repeated failures, backlog growth, tenant-scope uncertainty and ambiguous external outcomes with IDs and redacted diagnostics. Restart/replay/concurrent-worker acceptance belongs to the release's resilience evidence. Job/outbox state is not a substitute for customer-facing settlement or audit acceptance.
+
+## Availability model (Stage 49.13.1)
+
+What each kind of work may use, and what happens to it under pressure. Every limit below is in the code today (read 2026-10-26); the targets are **proposed** and wait for the owner's numbers.
+
+| Work | Shares | Limit | Under pressure | Proposed target |
+|---|---|---|---|---|
+| Sign-in, MFA, health, cancel, Security controls | the client's request slots, plus a **priority lane** | `platform.per_tenant_max_concurrent_requests` (15) **+ 3 reserved** (49.13.2); sign-in 5/min per caller; username backoff and lockout | keeps its 3 reserved slots when ordinary work fills the 15 | sign-in p95 < 1 s |
+| Sales, receipts, saves (command finalization) | request slots; the shared database pool (50 connections) | the client's 15 slots; reports may hold at most half | ordinary work answers 503 `Retry-After: 2`; reports cannot starve it | p95 < 2 s; never a lost or double sale (idempotency keys) |
+| Lookups and search | request slots; per-caller rate limits | 100 searches/min, 60 other calls/min per caller; list pages capped (`platform.max_list_limit`) | 429 with `Retry-After`; the browser waits once, then retries | p95 < 1 s |
+| Reports and exports | half the client's slots; **live report runs** | 7 report requests per client; live runs ≤ 7 per client and ≤ 20 per server, abandoned runs counted until their query ends (49.13.3); 5 min hard stop; 55 s per request | GLOBAL-0310 503 "still running", or Export runs it in the background | on-screen report p95 < 10 s; larger ones are exports |
+| Background jobs and integrations | the job runner (scheduler leader only) | 10 jobs claimed per client per 10 s pass; bounded attempts, then dead-letter | queue; a poison job stops at its attempt limit (detection *Background jobs giving up*) | oldest ready job < 5 min (queue-saturation alert) |
+| Restore | backups (nightly, plus the off-box copy) | RPO ≤ 24 h (≤ 26 h off-box); RTO not yet measured | - | RTO and RPO to be set by the owner and proven by the restore drill |
+
+**What sheds first:** a flood of reports or exports (half-slot cap, then GLOBAL-0310), then ordinary calls over a caller's rate (429), then the client's ordinary slots (503). Sign-in and the emergency controls are the last to go (priority lane). One client's flood cannot take another client's slots: every limit above is per client, except the database pool and the 20 live report runs per server.
+
+**Still open:** a measured load test of the normal-screen burst (47.11.3) and an RTO measured by a timed restore drill.

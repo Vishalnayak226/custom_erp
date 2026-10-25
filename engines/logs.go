@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"context"
 	"crypto/sha256"
 	"custom_erp/db"
 	"encoding/hex"
@@ -54,23 +55,44 @@ func auditChecksum(prevChecksum, userID, action, status, details string) string 
 	return hex.EncodeToString(h[:])
 }
 
+// maxAuditDetailBytes bounds one audit row's details (Stage 49.11.2). Generous
+// - readers match on its prefix - but a whole request body or document can
+// no longer land in the security log.
+const maxAuditDetailBytes = 16 * 1024
+
 // LogAuditEvent writes an audit log entry for the specified tenant
 func LogAuditEvent(tenantID, userID, action, status, details string) {
+	logAuditEvent(tenantID, userID, action, status, details, "")
+}
+
+// LogAuditEventCtx is LogAuditEvent plus the request's correlation id from
+// ctx (Stage 49.11.2), so a security event links to the request, its system
+// log rows and the jobs it queued (InvestigationTrail) instead of copying them.
+func LogAuditEventCtx(ctx context.Context, tenantID, userID, action, status, details string) {
+	logAuditEvent(tenantID, userID, action, status, details, CorrelationIDFromContext(ctx))
+}
+
+func logAuditEvent(tenantID, userID, action, status, details, correlationID string) {
+	// Stage 49.11.2: never a secret or a whole payload in the evidence. The
+	// same redaction system_error_logs gets, applied before signing so the
+	// signature covers what is stored.
+	details = redactAndBoundLogField(details, maxAuditDetailBytes)
+	correlationID = SafeCorrelationID(correlationID)
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		log.Printf("Audit logging failed: cannot get tenant schema: %v", err)
+		noteAuditWriteFailure(tenantID, action, "cannot get tenant schema", err)
 		return
 	}
 
 	tx, err := db.DB.Begin()
 	if err != nil {
-		log.Printf("Audit logging failed: cannot begin transaction: %v", err)
+		noteAuditWriteFailure(tenantID, action, "cannot begin transaction", err)
 		return
 	}
 	defer tx.Rollback()
 
 	if err := db.SetSearchPath(tx, schema); err != nil {
-		log.Printf("Audit logging failed: cannot set search path: %v", err)
+		noteAuditWriteFailure(tenantID, action, "cannot set search path", err)
 		return
 	}
 
@@ -96,20 +118,62 @@ func LogAuditEvent(tenantID, userID, action, status, details string) {
 	// Microsecond truncation: Postgres TIMESTAMP stores no finer, so signing
 	// the nanosecond value would sign something the database never held.
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	signature := SignAuditRow(tenantID, userID, action, status, details, "", "", "", now)
+	signature := SignAuditRow(tenantID, userID, action, status, details, "", "", correlationID, now)
 	var prevChecksum string
 	_ = tx.QueryRow(`SELECT checksum FROM audit_logs ORDER BY created_at DESC, id DESC LIMIT 1`).Scan(&prevChecksum)
 	checksum := auditChecksum(prevChecksum, userID, action, status, details)
 
-	query := `INSERT INTO audit_logs (user_id, action, status, details, checksum, created_at, signature, sig_version)
-	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
-	_, err = tx.Exec(query, userID, action, status, details, checksum, now, signature, AuditSigVersion)
+	query := `INSERT INTO audit_logs (user_id, action, status, details, checksum, created_at, signature, sig_version, correlation_id)
+	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+	_, err = tx.Exec(query, userID, action, status, details, checksum, now, signature, AuditSigVersion, nullIfEmpty(correlationID))
 	if err != nil {
-		log.Printf("Audit logging failed: cannot insert entry: %v", err)
+		noteAuditWriteFailure(tenantID, action, "cannot insert entry", err)
 		return
 	}
 
-	tx.Commit()
+	if err := tx.Commit(); err != nil {
+		noteAuditWriteFailure(tenantID, action, "cannot commit", err)
+	}
+}
+
+// Stage 49.13.7: a lost audit event must never be silent. The business call
+// that wanted it has already happened, so the write is not retried blindly;
+// instead every loss is counted (Activity Log -> Security shows the count
+// and the last reason) and pages through SendOpsAlert at most once per
+// auditLossAlertEvery, so a database outage does not become an alert storm.
+const auditLossAlertEvery = 10 * time.Minute
+
+var auditWriteLoss struct {
+	sync.Mutex
+	count     int64
+	lastErr   string
+	lastAt    time.Time
+	lastAlert time.Time
+}
+
+func noteAuditWriteFailure(tenantID, action, stage string, err error) {
+	reason := redactAndBoundLogField(fmt.Sprintf("%s: %v", stage, err), 300)
+	log.Printf("Audit logging failed (%s, %s): %s", tenantID, action, reason)
+	now := time.Now()
+	auditWriteLoss.Lock()
+	auditWriteLoss.count++
+	auditWriteLoss.lastErr, auditWriteLoss.lastAt = reason, now
+	alert := now.Sub(auditWriteLoss.lastAlert) >= auditLossAlertEvery
+	if alert {
+		auditWriteLoss.lastAlert = now
+	}
+	auditWriteLoss.Unlock()
+	if alert {
+		SendOpsAlert("AUDIT_WRITE_FAILED", tenantID, "an audit event ("+action+") could not be written - security evidence is being lost: "+reason)
+	}
+}
+
+// AuditWriteLoss reports how many audit events this server failed to write
+// since it started, and the last reason.
+func AuditWriteLoss() (count int64, lastErr string, lastAt time.Time) {
+	auditWriteLoss.Lock()
+	defer auditWriteLoss.Unlock()
+	return auditWriteLoss.count, auditWriteLoss.lastErr, auditWriteLoss.lastAt
 }
 
 // AuditChainBreak describes the first row (in insertion order) whose stored

@@ -246,6 +246,18 @@ type SettingWithValue struct {
 
 // ListSettingsWithValues returns every registered setting with the tenant's
 // current effective value, in registration order.
+// adminOnlySettingModules (Stage 132.15) are the settings only a full-access
+// role changes or reads: who may sign in and how, and the platform's own
+// running. A Setup Operator configures the business, never these.
+var adminOnlySettingModules = map[string]bool{"Security": true, "Platform": true, "Store app": true}
+
+// SettingIsAdminOnly reports whether a key is one of those. An unregistered
+// key counts as admin-only, so a mistyped or future key fails closed.
+func SettingIsAdminOnly(key string) bool {
+	def, ok := settingsRegistry[key]
+	return !ok || adminOnlySettingModules[def.Module]
+}
+
 func ListSettingsWithValues(tenantID string) []SettingWithValue {
 	schema, err := db.GetTenantSchema(tenantID)
 	defs := ListSettingDefinitions()

@@ -81,7 +81,10 @@ everything below is edited on the BOM record itself under **Setup**.
    enough raw material on hand (`MANUFA-0143`) — checked explicitly before
    posting, not left to fail midway through. The exact exploded requirement
    is snapshotted at this moment, which is what makes BOM-change detection
-   at completion possible (below).
+   at completion possible (below). In the stock ledger the issue - and every
+   completion's finished goods, by-products and backflushed components - is
+   voucher type *ProductionOrder* with the order's number (Stage 132.18;
+   before, a blank *StockAdjustment*).
 3. **Work through routing, if one is configured** — see
    [Routing, work centers and operations](#routing-work-centers-and-operations).
 4. **Complete the order.** A one-shot **Complete** posts the entire

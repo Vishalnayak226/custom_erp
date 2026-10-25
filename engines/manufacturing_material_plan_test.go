@@ -107,4 +107,13 @@ func TestProductionMaterialPlanStage5512(t *testing.T) {
 	if _, a := avail("RAW"); a != 0 {
 		t.Fatalf("a partial output must not issue wire again: %v", a)
 	}
+
+	// Stage 132.18: every movement names the order that made it - the wire
+	// issued, the finished unit and the backflushed box - not a blank
+	// "StockAdjustment" the stock ledger cannot trace.
+	var named, blank int
+	_ = db.DB.QueryRow("SELECT COUNT(*) FILTER (WHERE data->>'voucher_type' = 'ProductionOrder' AND data->>'voucher_id' = 'PRO-55'), COUNT(*) FILTER (WHERE COALESCE(data->>'voucher_id', '') = '' AND data->>'sku' = 'FG') FROM "+schema+".documents WHERE doctype = 'StockLedgerEntry'").Scan(&named, &blank)
+	if named < 3 || blank != 0 {
+		t.Fatalf("stock ledger: %d lines name PRO-55 (want the wire, the unit and the box), %d finished-goods lines name nothing", named, blank)
+	}
 }

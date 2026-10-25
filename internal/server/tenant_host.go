@@ -262,7 +262,7 @@ func handleSetTenantHostSlug(w http.ResponseWriter, r *http.Request) {
 	invalidateTenantHostCache()
 
 	tenantID, userID, _ := resolvedContext(r)
-	engines.LogAuditEvent(tenantID, userID, "TENANT-HOST-SLUG", "Update",
+	engines.LogAuditEventCtx(r.Context(), tenantID, userID, "TENANT-HOST-SLUG", "Update",
 		"host_slug for tenant '"+req.TenantID+"' set to '"+slug+"'")
 
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{

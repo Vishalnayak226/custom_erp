@@ -490,6 +490,11 @@ func registerStage282Settings() {
 		Min: settingBound(8), Max: settingBound(128),
 		Description: "Stage 49.2.2: shortest password ValidatePasswordStrength accepts for a self-service change, a reset completion or an admin-created account. Does not retroactively affect an existing password shorter than this.",
 	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingFreezeExports, Module: "Security",
+		Label: "Freeze exports (emergency)", Type: SettingTypeBool, Default: "false",
+		Description: "Stage 49.12.3: while on, every bulk export and report download is refused for this business and logged. For a suspected data leak; turn it off to undo. Audit evidence exports stay open. Set it from Activity Log → Security so a reason is recorded.",
+	})
 
 	// --- Platform ---
 	// These are safety limits rather than business policy: configurable (so

@@ -23,7 +23,7 @@ func handleForgetMyMFADevices(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Could not forget your remembered devices - try again")
 		return
 	}
-	engines.LogAuditEvent(tenantID, r.Header.Get("Resolved-Username"), "SECURITY", "MFA_DEVICES_FORGOTTEN",
+	engines.LogAuditEventCtx(r.Context(), tenantID, r.Header.Get("Resolved-Username"), "SECURITY", "MFA_DEVICES_FORGOTTEN",
 		fmt.Sprintf("Forgot %d remembered device(s); each asks for the authenticator code again", forgotten))
 	_ = json.NewEncoder(w).Encode(map[string]int64{"forgotten": forgotten})
 }

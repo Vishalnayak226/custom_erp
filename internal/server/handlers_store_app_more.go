@@ -186,7 +186,7 @@ func handleStoreAppPINLogin(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "This phone is no longer registered to a store. Sign in with your password, or ask a store manager to register it again.")
 		return
 	case errors.Is(err, engines.ErrStoreAppPINSignIn):
-		engines.LogAuditEvent(tenantID, strings.TrimSpace(in.Username), "LOGIN", "PIN_FAILED", "Store app PIN sign-in refused")
+		engines.LogAuditEventCtx(r.Context(), tenantID, strings.TrimSpace(in.Username), "LOGIN", "PIN_FAILED", "Store app PIN sign-in refused")
 		writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "Wrong name or PIN.")
 		return
 	case err != nil:

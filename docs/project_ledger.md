@@ -44,6 +44,25 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 295. "Build all" run, Stage 49: the next 20 items (2026-10-26, code + tests + runbooks, NOT COMMITTED)
+
+The user asked for the next 20 open items, to start once release 0.14.0 (`0bcac93`) was pushed. They were taken in tracker order from 49.11.2, leaving out the items that need legal advice, live drills, a decision or real users. Five are fully done (49.11.3, 49.11.8, 49.12.2, 49.12.6, 49.12.7); fifteen are built in part, with what is left written on each entry.
+
+The core is **detection without a second event store**. Twelve rules read the audit log once per client every 5 minutes and write a fired detection back as one `SECURITY_ALERT` row: owner, first response, runbook section, and the rows behind it by correlation id. Urgent rules page; the rest queue on a new **Activity Log → Security** tab. The tab also shows evidence health, admins without 2FA and keys to review, traces a request by its reference, downloads a signed forensic evidence pack, and holds three emergency controls: sign out everywhere, sign out everyone, freeze exports. Each control asks for a reason and the admin's own password. Every audit row now carries its request's correlation id and is redacted and bounded before signing; every delivered export is a `DATA_EXPORT` event; a lost audit write is counted and paged.
+
+Found and fixed on the way:
+- a report the caller walked away from kept its goroutine and database connection with nothing counting it - live runs are now bounded per client and per server (`GLOBAL-0310`);
+- the nightly reconciliation ran GST Return Summary with no dates, so that check failed on every client every night;
+- the audit "checkpoints overdue" check cost 177 ms as a count on a large log - now one index step.
+
+Also: `erp-server -verify-restore`, run by the restore drill on its throwaway copy (ledgers balance, audit evidence verifies, reconciliations run); a priority lane so sign-in and the emergency controls get slots a flood cannot take; release gate G6b, which lists each release's attack-surface changes in the report; a generated security scorecard; and runbooks for security incidents, availability and backup threats.
+
+Detail: micro_checklist 49.11.2-49.17.4 and the run line at the top.
+
+## 294. Stage 138 — No "Switch product" box for a client (2026-10-26, frontend + `/me/modules`, released in 0.14.0 `0bcac93`)
+
+The user asked why minn's sidebar showed "Switch product..." and wanted a client to see app's clean layout with only the modules it lacks hidden. Stage 27's switcher appeared for a client with 2+ products but not every full-suite module, and picking one only changed the address bar. Removed the switcher, the server's `owned_packages` and its two helpers; the sidebar's existing module hiding is unchanged. Detail in `micro_checklist.md` 138.1; minn check after the deploy is open.
+
 ## 293. "Build all" run, Stages 47 / 49: the next 20 items (2026-10-25, code + tests, NOT COMMITTED)
 
 The user asked for the next 20 items. They were taken in tracker order from Stages 47 and 49, each built as a self-contained slice with its own test. The twelve items Stage 134 had already closed were ticked first. Five items are fully done. Fifteen are built in part, with what is left written on each entry.

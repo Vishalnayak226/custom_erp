@@ -101,6 +101,8 @@ func Run() {
 	// tenant's configured depth/age thresholds; delivery follows the same
 	// webhook gate and bounded redaction rules.
 	engines.StartQueueSaturationMonitor(workerCtx, 30*time.Second)
+	// Stage 49.11.4: security detections over the audit log, every 5 minutes.
+	engines.StartSecurityDetectionSweep(workerCtx, 5*time.Minute)
 
 	// Start Backup Freshness Monitor (Stage 43.2) - hourly check that a
 	// nightly backup actually exists and is under 36h old. 36 rather than 24
@@ -1562,6 +1564,14 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/admin/audit-logs/archives/{id}", apiMiddleware(handleReadAuditArchive))
 	http.HandleFunc("GET /api/v1/admin/audit-logs/archives/{id}/export", apiMiddleware(handleExportAuditArchive))
 	http.HandleFunc("POST /api/v1/admin/audit-logs/archives/{id}/restore", apiMiddleware(handleRestoreAuditArchive))
+	// Stage 49.11-49.12: Activity Log -> Security (handlers_security_ops.go).
+	http.HandleFunc("GET /api/v1/admin/audit-logs/forensic-export", apiMiddleware(handleForensicExport))
+	http.HandleFunc("GET /api/v1/admin/security/posture", apiMiddleware(handleSecurityPosture))
+	http.HandleFunc("GET /api/v1/admin/security/trail", apiMiddleware(handleSecurityTrail))
+	http.HandleFunc("POST /api/v1/admin/security/detections/run", apiMiddleware(handleRunSecurityDetections))
+	http.HandleFunc("POST /api/v1/admin/security/sign-out-user", apiMiddleware(handleSignOutUserEverywhere))
+	http.HandleFunc("POST /api/v1/admin/security/sign-out-all", apiMiddleware(handleSignOutAllUsers))
+	http.HandleFunc("POST /api/v1/admin/security/freeze-exports", apiMiddleware(handleFreezeExports))
 
 	// Stage 49.6.8 - data-subject rights request lifecycle (engines/privacy_rights.go).
 	http.HandleFunc("POST /api/v1/admin/privacy/requests", apiMiddleware(handleCreateDataSubjectRequest))

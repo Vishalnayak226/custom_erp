@@ -438,7 +438,16 @@ async function createRole() {
   const created = data.name || name;
   nameEl.value = '';
   document.getElementById('new-role-description').value = '';
-  showToast(`Role "${created}" created. Tick what it may use, then Save access.`, { variant: 'success' });
+  // 132.15: a role named after a shipped template starts with its access.
+  if (data.template) {
+    const pr = await apiFetch('/api/v1/admin/role-permissions');
+    if (pr && pr.ok) {
+      const m = new Map();
+      for (const g of await pr.json()) if (g.role === created) m.set(g.doctype_name, { r: !!g.allow_read, c: !!g.allow_create, u: !!g.allow_update, d: !!g.allow_delete });
+      grantsByRole.set(created, m);
+    }
+  }
+  showToast(data.template ? `Role "${created}" created with its template's access.` : `Role "${created}" created. Tick what it may use, then Save access.`, { variant: 'success' });
   // Straight on to the new role's access - the next thing to do with it.
   const rows = [...document.querySelectorAll('#roles-list tbody tr')].map(tr => tr.dataset.role);
   if (!rows.includes(created)) rows.push(created);

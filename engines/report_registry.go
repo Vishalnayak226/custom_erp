@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -233,6 +234,9 @@ func RunReportContext(ctx context.Context, tenantID, reportID, role, userID stri
 	}
 	start := time.Now()
 	rows, err = runReportRaced(ctx, d, tenantID, params)
+	if err == errReportRunsBusy {
+		return nil, nil, false, err
+	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		// The caller is gone. No run log and no REPORT-0162 wrapping: this is
 		// not the report failing, it is nobody waiting for it any more.
@@ -282,8 +286,12 @@ func runReportRaced(ctx context.Context, def ReportDefinition, tenantID string, 
 		rows []map[string]interface{}
 		err  error
 	}
+	if !acquireReportRun(tenantID) {
+		return nil, errReportRunsBusy
+	}
 	done := make(chan runOutcome, 1)
 	go func() {
+		defer releaseReportRun(tenantID)
 		defer func() {
 			// A panic in one report must not take the process down through a
 			// goroutine nobody is recovering on, which is a new failure mode
@@ -304,6 +312,50 @@ func runReportRaced(ctx context.Context, def ReportDefinition, tenantID string, 
 		return nil, ctx.Err()
 	case <-timeout.C:
 		return nil, context.DeadlineExceeded
+	}
+}
+
+// Stage 49.13.3: a run the caller walked away from (or that passed
+// reportRunHardTimeout) keeps its goroutine and pooled connection until its
+// query ends - the race above releases the caller, not the query. So every
+// LIVE run is counted, abandoned or not, per client and process-wide, and a
+// new run past either bound is refused up front instead of piling more
+// queries onto a pool that is already busy with ones nobody reads.
+const reportRunsMaxTotal = 20 // of db's 50 pooled connections
+
+var errReportRunsBusy = &ValidationError{Code: "GLOBAL-0310",
+	Message: "too many reports are still running for this business - try again in a minute, or use Export for a large one"}
+
+var reportRuns = struct {
+	sync.Mutex
+	perTenant map[string]int
+	total     int
+}{perTenant: map[string]int{}}
+
+func reportRunsMaxFor(tenantID string) int {
+	return max(1, GetSettingInt(tenantID, "platform.per_tenant_max_concurrent_requests")/2)
+}
+
+func acquireReportRun(tenantID string) bool {
+	limit := reportRunsMaxFor(tenantID)
+	reportRuns.Lock()
+	defer reportRuns.Unlock()
+	if reportRuns.total >= reportRunsMaxTotal || reportRuns.perTenant[tenantID] >= limit {
+		return false
+	}
+	reportRuns.total++
+	reportRuns.perTenant[tenantID]++
+	return true
+}
+
+func releaseReportRun(tenantID string) {
+	reportRuns.Lock()
+	defer reportRuns.Unlock()
+	reportRuns.total--
+	if reportRuns.perTenant[tenantID] > 1 {
+		reportRuns.perTenant[tenantID]--
+	} else {
+		delete(reportRuns.perTenant, tenantID)
 	}
 }
 

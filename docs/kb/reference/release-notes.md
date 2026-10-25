@@ -19,11 +19,21 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **188** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **190** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
-- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-12
+- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-13
+
+## 2026-10-26
+
+**"Build all" run, Stage 49: the next 20 items** *(code + tests + runbooks, NOT COMMITTED)*
+
+The user asked for the next 20 open items, to start once release 0.14.0 (`0bcac93`) was pushed. They were taken in tracker order from 49.11.2, leaving out the items that need legal advice, live drills, a decision or real users. Five are fully done (49.11.3, 49.11.8, 49.12.2, 49.12.6, 49.12.7); fifteen are built in part, with what is left written on each entry.
+
+**Stage 138 — No "Switch product" box for a client** *(frontend + `/me/modules`, released in 0.14.0 `0bcac93`)*
+
+The user asked why minn's sidebar showed "Switch product..." and wanted a client to see app's clean layout with only the modules it lacks hidden. Stage 27's switcher appeared for a client with 2+ products but not every full-suite module, and picking one only changed the address bar. Removed the switcher, the server's `owned_packages` and its two helpers; the sidebar's existing module hiding is unchanged. Detail in `micro_checklist.md` 138.1; minn check after the deploy is open.
 
 ## 2026-10-25
 
@@ -450,12 +460,4 @@ Closes 49.16.2 (already satisfied by §149's `verification-standards-matrix.md` 
 **Stage 49.10.1 — version-pinned verification matrix** *(docs only)*
 
 `docs/security/verification-standards-matrix.md`. Adopted OWASP ASVS 5.0.0 (17 chapters, ~350 requirements) and the 2025 CWE Top 25 — both fetched live via web search/fetch during this session rather than recalled from training data, specifically because a wrong requirement ID in a "point at something real" document is worse than not writing it. Mapped every ASVS chapter and every CWE Top-25 entry to either a real cited control already in this repository or an explicit open Stage/item number; nothing left as a bare, uncited gap.
-
-**Stage 49.15 — vulnerability disclosure, triage, remediation and security-update lifecycle** *(docs only)*
-
-Closes 49.15.1-49.15.5/49.15.7; 49.15.6 stays open by design. Root `SECURITY.md` (the public-facing entry point GitHub's Security tab and researchers expect) plus `docs/security/vulnerability-disclosure-lifecycle.md` (the engineering-facing companion, same rigor as `secure-development-lifecycle.md`: every claim points at a real artifact in this repository, every real gap marked `[needs decision: ...]` rather than written as prose that implies it's done).
-
-**Stage 40.8/40.9/40.10 + Stage 44.7 — closing Stage 40 and Stage 44, and a QZ Tray CSP defect found in the process** *(code + schema + tests + prod verification)*
-
-Closes Stage 40 (`docs/micro_checklist.md`) completely: the three items left open since the 2026-08-10 batch (real-browser verification, `customer_phone` live-verification, and a QZ silent-print builder for a Purchase Order) were all buildable now, not blocked as first thought.
 

@@ -118,6 +118,13 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/admin/audit-logs/archives/{id}":                    {LevelAdmin, "admin.audit-logs"},
 	"GET /api/v1/admin/audit-logs/archives/{id}/export":             {LevelAdmin, "admin.audit-logs"},
 	"POST /api/v1/admin/audit-logs/archives/{id}/restore":           {LevelAdmin, "admin.audit-logs"},
+	"GET /api/v1/admin/audit-logs/forensic-export":                  {LevelAdmin, "admin.audit-logs"},
+	"GET /api/v1/admin/security/posture":                            {LevelAdmin, "admin.audit-logs"},
+	"GET /api/v1/admin/security/trail":                              {LevelAdmin, "admin.audit-logs"},
+	"POST /api/v1/admin/security/detections/run":                    {LevelAdmin, "admin.audit-logs"},
+	"POST /api/v1/admin/security/sign-out-user":                     {LevelAdmin, "admin.audit-logs"},
+	"POST /api/v1/admin/security/sign-out-all":                      {LevelAdmin, "admin.audit-logs"},
+	"POST /api/v1/admin/security/freeze-exports":                    {LevelAdmin, "admin.audit-logs"},
 	"POST /api/v1/admin/privacy/requests":                           {LevelAdmin, "admin.privacy"},
 	"GET /api/v1/admin/privacy/requests":                            {LevelAdmin, "admin.privacy"},
 	"POST /api/v1/admin/privacy/requests/{id}/decide":               {LevelAdmin, "admin.privacy"},
@@ -1050,7 +1057,10 @@ func checkRouteCapability(pattern string, role string) (ok bool, classification 
 		if devOnlyCapabilities[classification.Capability] {
 			return engines.IsSuperAdmin(role), classification, true
 		}
-		return engines.HasFullAccess(role), classification, true
+		// Stage 132.15: a role template may hold one admin capability by
+		// name (Setup Operator: admin.setup-workbook, admin.settings) - that
+		// capability's routes only, never the admin level as a whole.
+		return engines.HasFullAccess(role) || engines.RoleHasCapability(role, classification.Capability), classification, true
 	default: // LevelAuthenticated, LevelBackground
 		if allowed, restricted := capabilityRoleAllowlist[classification.Capability]; restricted {
 			for _, want := range allowed {

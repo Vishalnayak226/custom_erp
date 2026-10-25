@@ -1139,6 +1139,11 @@ func (run *swRun) planSettings(t *swTable) []*swRow {
 			rows = append(rows, &swRow{Row: in.Num, Key: shown, Action: "same"})
 			continue
 		}
+		if !engines.HasFullAccess(run.c.role) && engines.SettingIsAdminOnly(def.Key) {
+			// Stage 132.15: the settings handler would refuse it; say so in the preview.
+			rows = append(rows, swErrRow(in.Num, shown, "only an administrator changes security and platform settings"))
+			continue
+		}
 		k := def.Key
 		rows = append(rows, &swRow{Row: in.Num, Key: shown, Action: "change",
 			Changes: []swChange{{Field: def.Label, From: swSettingDisplay(def.SettingDefinition, def.Value), To: swSettingDisplay(def.SettingDefinition, v)}},
@@ -2429,29 +2434,49 @@ func handleSetupWorkbookApply(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"run_id": runID, "status": "Running"})
 }
 
+// swRunVisible (Stage 132.15): an administrator sees every run; anyone else
+// (a Setup Operator) only their own - an administrator's upload can carry
+// users' first passwords.
+func swRunVisible(r *http.Request, run map[string]interface{}) bool {
+	if engines.HasFullAccess(r.Header.Get("Resolved-Role")) {
+		return true
+	}
+	by, _ := run["created_by"].(string)
+	return by != "" && strings.EqualFold(by, r.Header.Get("Resolved-Username"))
+}
+
 func handleSetupWorkbookRuns(w http.ResponseWriter, r *http.Request) {
 	runs, err := engines.ListSetupWorkbookRuns(r.Header.Get("Resolved-Tenant-ID"), 50)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
+	visible := runs[:0]
 	for _, run := range runs {
+		if !swRunVisible(r, run) {
+			continue
+		}
 		delete(run, "sheets")
 		delete(run, "error_csv")
+		visible = append(visible, run)
 	}
-	_ = json.NewEncoder(w).Encode(runs)
+	_ = json.NewEncoder(w).Encode(visible)
 }
 
 func handleSetupWorkbookRun(w http.ResponseWriter, r *http.Request) {
 	run, err := engines.GetSetupWorkbookRun(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("id"))
-	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusNotFound, err.Error())
+	if err != nil || !swRunVisible(r, run) {
+		writeAPIErrorGeneric(w, r, http.StatusNotFound, "No such workbook run.")
 		return
 	}
 	_ = json.NewEncoder(w).Encode(run)
 }
 
 func handleSetupWorkbookRunFile(w http.ResponseWriter, r *http.Request) {
+	if run, err := engines.GetSetupWorkbookRun(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("id")); err != nil || !swRunVisible(r, run) {
+		writeAPIErrorGeneric(w, r, http.StatusNotFound, "No such workbook run.")
+		return
+	}
 	name, file, err := engines.GetSetupWorkbookRunFile(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("id"))
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusNotFound, err.Error())

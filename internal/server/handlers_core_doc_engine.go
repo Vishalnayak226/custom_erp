@@ -2108,7 +2108,7 @@ func handleGetIndustries(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleSwitchIndustry(w http.ResponseWriter, r *http.Request) {
-	if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+	if !requireAdminCapability(w, r, "admin.industry") { // 132.15: Setup Operator too
 		return
 	}
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
@@ -2163,7 +2163,7 @@ func handleSwitchIndustry(w http.ResponseWriter, r *http.Request) {
 // - who set it, when, and whether an override would be needed - before the
 // user attempts a switch that handleSwitchIndustry would just reject.
 func handleGetIndustryLock(w http.ResponseWriter, r *http.Request) {
-	if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+	if !requireAdminCapability(w, r, "admin.industry") { // 132.15: Setup Operator too
 		return
 	}
 	tenantID := r.Header.Get("Resolved-Tenant-ID")

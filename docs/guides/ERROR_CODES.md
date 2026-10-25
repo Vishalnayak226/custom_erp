@@ -9,7 +9,7 @@
 
 Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.
 
-There are **566** codes. Each row says what the user is shown, what to do about
+There are **567** codes. Each row says what the user is shown, what to do about
 it, and how serious it is.
 
 **How to read an error dialog** - it has up to three lines: the *headline* (the
@@ -52,7 +52,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 - [Finance & Accounting](#finance--accounting) - 47 codes
 - [Fixed Assets](#fixed-assets) - 9 codes
 - [GST](#gst) - 1 codes
-- [Global](#global) - 9 codes
+- [Global](#global) - 10 codes
 - [Global / Common](#global--common) - 25 codes
 - [Goods Receipt](#goods-receipt) - 19 codes
 - [Goods Receipt / GRN](#goods-receipt--grn) - 8 codes
@@ -426,6 +426,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `GLOBAL-0307` | Malformed, ambiguous or over-nested JSON request | The request data could not be accepted. | Check the request is one valid JSON value, with no field repeated in the same object. | Low | 400 |
 | `GLOBAL-0308` | Request exceeded its time limit | This took longer than the time a single request is allowed, so it was stopped. | Send less at once - split a large import file into smaller files, or narrow a report's filters and use background export. | Medium | 504 |
 | `GLOBAL-0309` | Field holds an invisible control or direction character | A field holds an invisible character that cannot be saved. | Retype the field named below, or paste it as plain text. | Low | 422 |
+| `GLOBAL-0310` | Too many report runs still running | Too many reports are still running for this business, so this one did not start. | Try again in a minute. For a large report, use Export - it runs in the background. | Medium | 503 |
 | `GLOBAL-1315` | Reprint refused (no Document Reprint permission, no reason, approval needed or already used, no approver set) | This document can't be printed again yet. | Give the reason; ask a manager for the Document Reprint permission or send a Reprint Request and print once it is approved. | Medium | 422 |
 | `GLOBAL-1319` | Print refused: a tax document from a store with no GSTIN, or a template version that cannot be decided (not waiting, own change, not found) | This can't be printed or changed yet. | Add the GSTIN to the store's legal entity (Setup > Legal Entities); a template change is approved by someone other than the person who saved it. | Medium | 422 |
 

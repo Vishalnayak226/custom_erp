@@ -296,6 +296,53 @@ var roleTemplates = []RoleTemplate{
 		},
 		GlobalScopes: []ScopeDimension{ScopeLocation},
 	},
+	{
+		// Stage 132.15 (user, 2026-10-25: "a Guide user per organisation").
+		// Setting up is creating and correcting masters and configuration,
+		// so the masters and configuration of every module are operate;
+		// the transactions they feed are read, except the opening purchase
+		// documents a client's bulk upload brings in. No delete anywhere
+		// (Operate, never Manage), no approver rows, and no users, roles,
+		// security or platform settings: the two admin capabilities below
+		// are the Setup Workbook and the business settings, and the
+		// settings handler refuses Security and Platform keys to anyone
+		// without full access.
+		Name:    RoleSetupOperator,
+		Summary: "Sets a client up: masters and configuration in every module, printers, opening purchase documents and the Setup Workbook. Never approves, deletes, pays, or manages users, roles, security or platform settings.",
+		Modules: map[string]AccessLevel{
+			"Core": AccessOperate, "Master Data": AccessOperate, "PIM": AccessOperate,
+			"Inventory": AccessOperate, "Procurement": AccessOperate, "Inbound": AccessOperate, "Reports": AccessOperate,
+			"Sales": AccessRead, "POS": AccessRead, "OMS": AccessRead, "CRM": AccessRead,
+			"Manufacturing": AccessRead, "Quality": AccessRead, "Service": AccessRead,
+			"HR": AccessRead, "Finance": AccessRead,
+			// Integrations (webhook subscriptions, connector secrets): none.
+		},
+		Doctypes: map[string]AccessLevel{
+			// Each module's own setup records, inside modules that are
+			// otherwise transactions.
+			"Customer": AccessOperate, "POSProfile": AccessOperate, "PriceListVersion": AccessOperate,
+			"Salesman": AccessOperate, "Offer": AccessOperate,
+			"AllocationRule": AccessOperate, "CourierServiceArea": AccessOperate, "ChannelSKUException": AccessOperate,
+			"NotificationChannelConfig": AccessOperate, "NotificationTemplate": AccessOperate,
+			"ProductBundle": AccessOperate, "StatusTransitionRule": AccessOperate, "Campaign": AccessOperate,
+			"BOM": AccessOperate, "Routing": AccessOperate, "WorkCenter": AccessOperate,
+			"InspectionPlan": AccessOperate, "MaintenanceSchedule": AccessOperate,
+			"Employee": AccessOperate, "Shift": AccessOperate, "ShiftAssignment": AccessOperate,
+			"SalaryStructure": AccessOperate, "AppraisalCycle": AccessOperate, "TrainingProgram": AccessOperate,
+			"BankAccount": AccessOperate, "Currency": AccessOperate, "ExchangeRate": AccessOperate,
+			"PostingProfile": AccessOperate, "TDSSection": AccessOperate, "Asset": AccessOperate,
+			// Paying is not setting up: Vendor is operate, so the bill and the
+			// payment run stay read (the vendor-create-and-payment conflict).
+			"VendorInvoice": AccessRead, "PaymentProposal": AccessRead,
+			// What people earn and owe, and their password resets, are not
+			// set-up records at all.
+			"Payslip": AccessNone, "EmployeeLoan": AccessNone, "Grievance": AccessNone,
+			"Appraisal": AccessNone, "PasswordResetRequest": AccessNone,
+		},
+		// The industry is chosen once, at set-up (and locked after).
+		Capabilities: []string{"admin.setup-workbook", "admin.settings", "admin.industries", "admin.industry"},
+		GlobalScopes: []ScopeDimension{ScopeLocation, ScopeOwner, ScopeEntity},
+	},
 }
 
 // allModules is the "everything at one level" shorthand, used only by

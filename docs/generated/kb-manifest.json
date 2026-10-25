@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": "cmd/genkb",
   "generator_version": "stage48-v1",
-  "release": "0.14.0",
+  "release": "0.15.0",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "schema": "source registries",
   "tenant": "none",
@@ -100,7 +100,7 @@
     },
     {
       "path": "internal/kb/content/articles/error-code-reference.html",
-      "sha256": "8b718c8effb5c0901000df0fb5563160ed72c6262adea9ae6f8b611d6d4a4846",
+      "sha256": "116147222f7036648f3b7c00a95811d8fe15a93601c7f205769f86ef7999dc39",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -271,7 +271,7 @@
     },
     {
       "path": "internal/kb/content/articles/manufacturing-mrp.html",
-      "sha256": "fbced7309fc9011bb0d2aa4331fc028c44df3318a23a78fdcdd00049052ab5b4",
+      "sha256": "4e283be5fac6418f0d17fbf2aeceb770e587ae410d3b183a3b626021638b6397",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -379,7 +379,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes-2.html",
-      "sha256": "9cd62d5cb122e7c0013b1632cb5f3c3d5dbe35ad04612106b5f8be531a6253c9",
+      "sha256": "b09a87054119e9ea7cec90d642599d66e2f8039c7bcf039f304a65cb9109bee9",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -388,7 +388,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes.html",
-      "sha256": "43bfaf06f1117ef18f175e7c4222ddcd2a5c607647cdca7a4591a54d613fceac",
+      "sha256": "79fe658717d7c1a8c65c6e2374af2586887849c61eb08333b75f601b988e0163",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -532,7 +532,7 @@
     },
     {
       "path": "internal/kb/content/index.json",
-      "sha256": "44ef4ebf251aaa438ce83da1f1d68dc7f2d8577c0ce297bacfead7cb1014eebd",
+      "sha256": "6824e2b029099e2932f6dd8e3861d304f0a9a14bc6afbd6155f2632075772309",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -541,7 +541,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "64a82bbfb99340e5e4bed2c2f9c4adbd9b17198ba29b85e0878fbb8361b3e124",
+      "sha256": "2fe26abbeac55fa3cc6985728165491fc4c6cb997c3ac5438769c32ee188e208",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

@@ -300,7 +300,7 @@ func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	engines.LogAuditEvent(tenantID, username, "PROFILE", "UPDATED", "Self-service profile update (email, idle-timeout, and/or theme preference)")
+	engines.LogAuditEventCtx(r.Context(), tenantID, username, "PROFILE", "UPDATED", "Self-service profile update (email, idle-timeout, and/or theme preference)")
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
@@ -364,7 +364,7 @@ func handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	// window - see engines.CompletePasswordReset's identical call for why.
 	engines.InvalidateLiveUserState(tenantID, userID)
 
-	engines.LogAuditEvent(tenantID, username, "PROFILE", "PASSWORD_CHANGED", "User changed their own password; all other sessions revoked")
+	engines.LogAuditEventCtx(r.Context(), tenantID, username, "PROFILE", "PASSWORD_CHANGED", "User changed their own password; all other sessions revoked")
 	engines.SendPasswordChangedNotice(tenantID, email, username, "your account settings")
 
 	role := r.Header.Get("Resolved-Role")

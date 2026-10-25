@@ -107,7 +107,7 @@ func handleMFARegenerateRecoveryCodes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	engines.LogAuditEvent(tenantID, username, "PROFILE", "MFA_RECOVERY_CODES_REGENERATED",
+	engines.LogAuditEventCtx(r.Context(), tenantID, username, "PROFILE", "MFA_RECOVERY_CODES_REGENERATED",
 		fmt.Sprintf("%d new single-use recovery codes issued; all previous codes invalidated", len(codes)))
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"recovery_codes": codes})
 }
@@ -142,7 +142,7 @@ func handleMFAReenrollStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	engines.LogAuditEvent(tenantID, username, "PROFILE", "MFA_REENROLL_STARTED", "New authenticator secret issued, awaiting confirmation")
+	engines.LogAuditEventCtx(r.Context(), tenantID, username, "PROFILE", "MFA_REENROLL_STARTED", "New authenticator secret issued, awaiting confirmation")
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"secret":      secret,
 		"otpauth_url": engines.BuildOTPAuthURL(secret, username, "CustomERP"),
@@ -191,7 +191,7 @@ func handleMFAReenrollConfirm(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("authenticator moved but recovery codes could not be reissued for %s: %v", username, recErr), "")
 	}
 
-	engines.LogAuditEvent(tenantID, username, "PROFILE", "MFA_REENROLL_COMPLETED", "Authenticator moved to a new device")
+	engines.LogAuditEventCtx(r.Context(), tenantID, username, "PROFILE", "MFA_REENROLL_COMPLETED", "Authenticator moved to a new device")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"status":         "success",
 		"recovery_codes": codes,
@@ -209,7 +209,7 @@ func handleMFAReenrollCancel(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to cancel the device change")
 		return
 	}
-	engines.LogAuditEvent(tenantID, username, "PROFILE", "MFA_REENROLL_CANCELLED", "Pending authenticator change discarded")
+	engines.LogAuditEventCtx(r.Context(), tenantID, username, "PROFILE", "MFA_REENROLL_CANCELLED", "Pending authenticator change discarded")
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
@@ -269,7 +269,7 @@ func handleSetUserSupplier(w http.ResponseWriter, r *http.Request) {
 	if req.SupplierCode != "" {
 		detail = "Linked to vendor " + req.SupplierCode
 	}
-	engines.LogAuditEvent(tenantID, actor, "USER_MANAGEMENT", "USER_SUPPLIER_LINK_SET", detail+" for user "+req.ID)
+	engines.LogAuditEventCtx(r.Context(), tenantID, actor, "USER_MANAGEMENT", "USER_SUPPLIER_LINK_SET", detail+" for user "+req.ID)
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
@@ -341,7 +341,7 @@ func handleAdminResetUserMFA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	engines.LogAuditEvent(tenantID, actor, "USER_MANAGEMENT", "MFA_RESET_BY_ADMIN",
+	engines.LogAuditEventCtx(r.Context(), tenantID, actor, "USER_MANAGEMENT", "MFA_RESET_BY_ADMIN",
 		fmt.Sprintf("MFA enrollment and recovery codes cleared for %s; next login will re-enroll", targetUsername))
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"status": "success",

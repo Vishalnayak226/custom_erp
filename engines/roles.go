@@ -40,6 +40,12 @@ const (
 
 	RoleStoreManager = "Store Manager"
 	RoleCashier      = "Cashier"
+
+	// RoleSetupOperator (Stage 132.15) sets a client up - the account the
+	// Guide set-up assistant signs in with, one per organisation, so all it
+	// changes is on record under its own name. Its template (role_templates.go)
+	// holds two admin capabilities by name; it is never HasFullAccess.
+	RoleSetupOperator = "Setup Operator"
 )
 
 // HasFullAccess reports whether a role administers its client - every record

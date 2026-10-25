@@ -1286,6 +1286,7 @@ async function renderLogHubView(container) {
     <button class="log-hub-tab" data-tab="system" style="padding:10px 20px; border:none; background:transparent; cursor:pointer; font-weight:500; color:var(--text-muted);">System Errors</button>
     <button class="log-hub-tab" data-tab="integration" style="padding:10px 20px; border:none; background:transparent; cursor:pointer; font-weight:500; color:var(--text-muted);">Integration Payloads</button>
     <button class="log-hub-tab" data-tab="jobs" style="padding:10px 20px; border:none; background:transparent; cursor:pointer; font-weight:500; color:var(--text-muted);">Async Jobs</button>
+    <button class="log-hub-tab" data-tab="security" style="padding:10px 20px; border:none; background:transparent; cursor:pointer; font-weight:500; color:var(--text-muted);">Security</button>
   `;
   container.appendChild(tabBar);
 
@@ -1517,6 +1518,7 @@ async function renderLogHubView(container) {
       else if (tab === 'system') renderSystemPane();
       else if (tab === 'integration') renderIntegrationPane();
       else if (tab === 'jobs') renderJobsPane();
+      else if (tab === 'security') import('./view-security.js' + new URL(import.meta.url).search).then(m => m.renderSecurityPane(tabContent));
     });
   });
 
@@ -1687,7 +1689,8 @@ async function renderConfigurationView(container) {
   // they can't live in the key/value settings registry - but the endpoint
   // URLs belong on this screen with everything else, not on a separate page
   // the admin has to know exists. Rendered by renderConfigIntegrations().
-  modules.push(CONFIG_INTEGRATIONS_MODULE);
+  // 132.15: payment and channel credentials stay with an administrator.
+  if (state.permissions.isAdmin) modules.push(CONFIG_INTEGRATIONS_MODULE);
   // Stage 89: where each item field is asked - its own page, beside Inventory.
   modules.splice(modules.includes('Inventory') ? modules.indexOf('Inventory') + 1 : modules.length - 1, 0, CONFIG_ITEM_FIELDS_MODULE);
   if (!configSelectedModule || !modules.includes(configSelectedModule)) configSelectedModule = modules[0];

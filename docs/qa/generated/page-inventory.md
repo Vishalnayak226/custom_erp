@@ -7,14 +7,14 @@
 > **Generated 2026-09-10.** This page is produced from `public/**/*.js`, the shell's view registry in `public/app.js`, `internal/server/routes.go` and `route_capabilities.go`, role templates, the data and settings registries, and the owner table in `docs/product/wholeops-outsider-plan-2026-10-23.md`, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-Stage 135.5. Each front-end file, the screens the shell routes to it, and each API call its source makes, with the handler, module / feature gate, capability and roles enforced for that route. **Roles** are evaluated with `checkRouteCapability`, the check every signed-in request passes, for: Super Admin, Admin, Administrator, Store Supervisor, Cashier, Picker, Warehouse Manager, Accounts Payable, Accounts Receivable, Accountant, HR Manager, Employee Self-Service, Auditor, Integrator. A module gate also needs the module switched on for the client, and generic record routes also need the role's per-doctype grant. **Methods** are every method registered for the called path; the source is not parsed for which one it sends, and a path built from a base is matched to every route under that base. **Nothing here was inspected live** and tabs are not derived from source: 55.0F records both. **Failure behaviour** is one shared contract for every screen (47.10.6): a refused permission shows *No access*, a missing record *Not found*, any other load failure *Nothing was changed. Trying again is safe.* with a retry.
+Stage 135.5. Each front-end file, the screens the shell routes to it, and each API call its source makes, with the handler, module / feature gate, capability and roles enforced for that route. **Roles** are evaluated with `checkRouteCapability`, the check every signed-in request passes, for: Super Admin, Admin, Administrator, Store Supervisor, Cashier, Picker, Warehouse Manager, Accounts Payable, Accounts Receivable, Accountant, HR Manager, Employee Self-Service, Auditor, Integrator, Setup Operator. A module gate also needs the module switched on for the client, and generic record routes also need the role's per-doctype grant. **Methods** are every method registered for the called path; the source is not parsed for which one it sends, and a path built from a base is matched to every route under that base. **Nothing here was inspected live** and tabs are not derived from source: 55.0F records both. **Failure behaviour** is one shared contract for every screen (47.10.6): a refused permission shows *No access*, a missing record *Not found*, any other load failure *Nothing was changed. Trying again is safe.* with a retry.
 
 | Count | |
 |---|---|
-| Front-end files with screens or API calls | 75 |
+| Front-end files with screens or API calls | 76 |
 | Screens in the shell registry | 66 |
-| File-to-route actions | 875 |
-| Registered `/api` routes | 826 |
+| File-to-route actions | 884 |
+| Registered `/api` routes | 833 |
 | Routes no front-end file calls | 186 |
 | Calls matching no route | 2 |
 
@@ -334,14 +334,14 @@ Owners: M01, M30. Live inspection: not recorded.
 | GET | `/api/v1/admin/extension/hooks` | `handleListExtensionHooks` |  | admin: admin.extension | Super Admin |
 | POST | `/api/v1/admin/extension/hooks` | `handleCreateExtensionHook` |  | admin: admin.extension | Super Admin |
 | POST | `/api/v1/admin/extension/token` | `handleIssueExtensionToken` |  | admin: admin.extension | Super Admin |
-| GET | `/api/v1/admin/industries` | `handleGetIndustries` |  | admin: admin.industries | Super Admin, Admin |
-| GET | `/api/v1/admin/industry/lock` | `handleGetIndustryLock` |  | admin: admin.industry | Super Admin, Admin |
-| POST | `/api/v1/admin/industry` | `handleSwitchIndustry` |  | admin: admin.industry | Super Admin, Admin |
+| GET | `/api/v1/admin/industries` | `handleGetIndustries` |  | admin: admin.industries | Super Admin, Admin, Setup Operator |
+| GET | `/api/v1/admin/industry/lock` | `handleGetIndustryLock` |  | admin: admin.industry | Super Admin, Admin, Setup Operator |
+| POST | `/api/v1/admin/industry` | `handleSwitchIndustry` |  | admin: admin.industry | Super Admin, Admin, Setup Operator |
 | GET | `/api/v1/admin/packages` | `handleListProductPackages` |  | admin: admin.packages | Super Admin |
 | GET | `/api/v1/admin/roles` | `handleListRoles` |  | admin: admin.roles | Super Admin, Admin |
 | POST | `/api/v1/admin/roles` | `handleCreateRole` |  | admin: admin.roles | Super Admin, Admin |
-| GET | `/api/v1/admin/settings` | `handleGetSettings` |  | admin: admin.settings | Super Admin, Admin |
-| PUT | `/api/v1/admin/settings` | `handleUpdateSettings` |  | admin: admin.settings | Super Admin, Admin |
+| GET | `/api/v1/admin/settings` | `handleGetSettings` |  | admin: admin.settings | Super Admin, Admin, Setup Operator |
+| PUT | `/api/v1/admin/settings` | `handleUpdateSettings` |  | admin: admin.settings | Super Admin, Admin, Setup Operator |
 | GET | `/api/v1/admin/tenant-usage` | `handleTenantUsage` |  | admin: admin.tenant-usage | Super Admin |
 | POST | `/api/v1/admin/tenant/module-entitlement` | `handleSetModuleEntitlement` |  | admin: admin.tenant | Super Admin |
 | GET | `/api/v1/admin/tenant/module-entitlements` | `handleGetModuleEntitlements` |  | admin: admin.tenant | Super Admin |
@@ -425,8 +425,8 @@ Owners: not in the plan's table. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
 |---|---|---|---|---|---|
-| DELETE | `/api/v1/admin/branding/logo` | `handleBrandingLogoAdmin` |  | admin: admin.settings | Super Admin, Admin |
-| POST | `/api/v1/admin/branding/logo` | `handleBrandingLogoAdmin` |  | admin: admin.settings | Super Admin, Admin |
+| DELETE | `/api/v1/admin/branding/logo` | `handleBrandingLogoAdmin` |  | admin: admin.settings | Super Admin, Admin, Setup Operator |
+| POST | `/api/v1/admin/branding/logo` | `handleBrandingLogoAdmin` |  | admin: admin.settings | Super Admin, Admin, Setup Operator |
 | POST | `/api/v1/admin/tenant/feature-flag` | `handleSetFeatureFlag` |  | admin: admin.tenant | Super Admin |
 | GET | `/api/v1/branding/logo` | `handleBrandingLogo` |  | public: version.default | anyone |
 | GET | `/api/v1/branding` | `handleBranding` |  | public: version.default | anyone |
@@ -1278,6 +1278,22 @@ Owners: M17, M18. Live inspection: not recorded.
 | ANY | `/api/v1/doc/{doctype}/{id}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
 | ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
 
+### `public/view-security.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| GET | `/api/v1/admin/audit-logs/forensic-export` | `handleForensicExport` |  | admin: admin.audit-logs | Super Admin, Admin |
+| POST | `/api/v1/admin/security/detections/run` | `handleRunSecurityDetections` |  | admin: admin.audit-logs | Super Admin, Admin |
+| POST | `/api/v1/admin/security/freeze-exports` | `handleFreezeExports` |  | admin: admin.audit-logs | Super Admin, Admin |
+| GET | `/api/v1/admin/security/posture` | `handleSecurityPosture` |  | admin: admin.audit-logs | Super Admin, Admin |
+| POST | `/api/v1/admin/security/sign-out-all` | `handleSignOutAllUsers` |  | admin: admin.audit-logs | Super Admin, Admin |
+| POST | `/api/v1/admin/security/sign-out-user` | `handleSignOutUserEverywhere` |  | admin: admin.audit-logs | Super Admin, Admin |
+| GET | `/api/v1/admin/security/trail` | `handleSecurityTrail` |  | admin: admin.audit-logs | Super Admin, Admin |
+| GET | `/api/v1/admin/users` | `handleListUsers` |  | admin: admin.users | Super Admin, Admin |
+| POST | `/api/v1/admin/users` | `handleCreateUser` |  | admin: admin.users | Super Admin, Admin |
+
 ### `public/view-service-desk.js`
 
 Owners: M21–M24. Live inspection: not recorded.
@@ -1295,13 +1311,13 @@ Owners: M01, M30. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
 |---|---|---|---|---|---|
-| POST | `/api/v1/admin/setup-workbook/apply` | `handleSetupWorkbookApply` |  | admin: admin.setup-workbook | Super Admin, Admin |
-| GET | `/api/v1/admin/setup-workbook/export` | `handleSetupWorkbookExport` |  | admin: admin.setup-workbook | Super Admin, Admin |
-| POST | `/api/v1/admin/setup-workbook/preview` | `handleSetupWorkbookPreview` |  | admin: admin.setup-workbook | Super Admin, Admin |
-| GET | `/api/v1/admin/setup-workbook/runs/{id}/file` | `handleSetupWorkbookRunFile` |  | admin: admin.setup-workbook | Super Admin, Admin |
-| GET | `/api/v1/admin/setup-workbook/runs/{id}` | `handleSetupWorkbookRun` |  | admin: admin.setup-workbook | Super Admin, Admin |
-| GET | `/api/v1/admin/setup-workbook/runs` | `handleSetupWorkbookRuns` |  | admin: admin.setup-workbook | Super Admin, Admin |
-| GET | `/api/v1/admin/setup-workbook/template` | `handleSetupWorkbookTemplate` |  | admin: admin.setup-workbook | Super Admin, Admin |
+| POST | `/api/v1/admin/setup-workbook/apply` | `handleSetupWorkbookApply` |  | admin: admin.setup-workbook | Super Admin, Admin, Setup Operator |
+| GET | `/api/v1/admin/setup-workbook/export` | `handleSetupWorkbookExport` |  | admin: admin.setup-workbook | Super Admin, Admin, Setup Operator |
+| POST | `/api/v1/admin/setup-workbook/preview` | `handleSetupWorkbookPreview` |  | admin: admin.setup-workbook | Super Admin, Admin, Setup Operator |
+| GET | `/api/v1/admin/setup-workbook/runs/{id}/file` | `handleSetupWorkbookRunFile` |  | admin: admin.setup-workbook | Super Admin, Admin, Setup Operator |
+| GET | `/api/v1/admin/setup-workbook/runs/{id}` | `handleSetupWorkbookRun` |  | admin: admin.setup-workbook | Super Admin, Admin, Setup Operator |
+| GET | `/api/v1/admin/setup-workbook/runs` | `handleSetupWorkbookRuns` |  | admin: admin.setup-workbook | Super Admin, Admin, Setup Operator |
+| GET | `/api/v1/admin/setup-workbook/template` | `handleSetupWorkbookTemplate` |  | admin: admin.setup-workbook | Super Admin, Admin, Setup Operator |
 
 ### `public/view-shopify.js`
 
@@ -1493,8 +1509,8 @@ Settings → Configuration renders the settings registry by module, through the 
 
 | Method | Route | Handler | Gate | Capability | Roles |
 |---|---|---|---|---|---|
-| GET | `/api/v1/admin/settings` | `handleGetSettings` |  | admin: admin.settings | Super Admin, Admin |
-| PUT | `/api/v1/admin/settings` | `handleUpdateSettings` |  | admin: admin.settings | Super Admin, Admin |
+| GET | `/api/v1/admin/settings` | `handleGetSettings` |  | admin: admin.settings | Super Admin, Admin, Setup Operator |
+| PUT | `/api/v1/admin/settings` | `handleUpdateSettings` |  | admin: admin.settings | Super Admin, Admin, Setup Operator |
 | POST | `/api/v1/shopify/{channel}/settings` | `handleShopifySettings` | oms | signed-in: oms.default | every signed-in role |
 
 | Module | Settings |
@@ -1517,7 +1533,7 @@ Settings → Configuration renders the settings registry by module, through the 
 | Procurement & GRN | 8 |
 | Reports | 1 |
 | Sales & Returns | 1 |
-| Security | 11 |
+| Security | 12 |
 | Stock Transfer | 1 |
 | Store app | 1 |
 | Warehouse | 8 |

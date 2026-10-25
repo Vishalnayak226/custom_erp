@@ -112,4 +112,18 @@ done
 
 echo
 [ "$ok" -eq 1 ] || fail "the restored database is missing data - this backup would NOT have saved you."
-echo "DRILL PASSED: $newest restores cleanly and carries data."
+
+# Stage 49.13.5: rows coming back is not enough. The release binary checks the
+# restored copy itself - every ledger balances, the audit evidence verifies
+# with this server's signing key (so the key needed to trust it is here), and
+# the reconciliations run. FAIL lines stop the drill; "note" lines are the
+# same differences live's own Reconciliation screen would show.
+ERP_BIN="${ERP_BIN:-/opt/erp/erp-server}"
+if [ -x "$ERP_BIN" ]; then
+  echo
+  echo "Checking the restored copy (ledgers, audit evidence, reconciliations):"
+  DATABASE_URL="$drill_url" "$ERP_BIN" -verify-restore || fail "the restored copy fails an integrity check - see the FAIL lines above."
+else
+  echo "WARNING: $ERP_BIN not found - the integrity checks were skipped (set ERP_BIN)." >&2
+fi
+echo "DRILL PASSED: $newest restores cleanly, carries data and checks out."

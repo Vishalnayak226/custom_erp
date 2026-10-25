@@ -9,8 +9,8 @@ audience: [maintainers, operations-owner]
 applies_to: source documentation; scoped release acceptance required
 authority: canonical
 confidentiality: internal
-last_verified: 2026-09-09
-review_by: 2026-10-09
+last_verified: 2026-10-26
+review_by: 2026-12-26
 supersedes: none
 superseded_by: none
 verification_scope: metadata and lifecycle classification; domain acceptance pending
@@ -117,3 +117,117 @@ See `docs/operations/backup_restore.md` for the full restore procedure and the c
 ## 6. Acceptance gate — how this was verified
 
 Per `micro_checklist.md` 17.10's acceptance gate ("a throwaway failure produces both a system log and an approved-destination alert without leaking secrets"): verified live against a throwaway server instance with `OPS_ALERT_WEBHOOK_URL` pointed at a local mock webhook receiver (not a real Slack/Teams destination, since none was available at build time) — see `docs/project_ledger.md`'s Stage 17.10 entry for the exact steps and what was observed. The code path is identical for a real destination; only the URL changes.
+
+---
+
+## 7. Security incidents (Stage 49.12)
+
+Sections 1-6 are about the service being up. This section is for someone **attacking or misusing** it. Detections in **Activity Log → Security** name the section to open (§7.1-§7.8); the same sections apply when a person reports something.
+
+### 7.0 Classes, severity and who decides (49.12.1)
+
+| Class | Example | Severity |
+|---|---|---|
+| Account | stolen password or session, MFA bypass, a disabled user still acting | P1; P0 if an administrator |
+| Client crossover | one client's session or data reaching another client | P0 |
+| Data leaving | bulk export, an unknown API key reading data | P0 if personal or financial data left |
+| Integrity | tampered audit evidence, unbalanced ledger, stock changed outside the app | P0 |
+| Availability | flooding, a poison job, the database or disk full | P1 (P0 if sales stop) |
+| Supply chain / release | a vulnerable dependency or a bad release live | P1; P0 if exploited |
+| Provider | payment, courier, channel, mail or SMS provider compromised or down | P2; P1 if money or orders are wrong |
+| Insider | an employee misusing their access (refunds, voids, exports) | P1 |
+
+**Decide in this order:** (1) Is data leaving or being changed right now? Contain first (§7.1-§7.10), then investigate. (2) Does it cross clients? P0 at once. (3) Is money, stock or the audit trail affected? Integrity questions go to the business owner before anything is "fixed" in the data.
+
+**Who:** today one person holds every role. The platform owner is incident commander and technical lead, and decides customer communication. The client's owner signs off on what their business tells its customers. Alternates, out-of-band phone numbers and legal or privacy contacts are §2's placeholders and need the owner's names. Until they are filled in, P0 response depends on one person. **Out-of-band:** if the ERP or its mail may be compromised, use the phone, not ERP notifications.
+
+**Every incident:** take the evidence pack first (§7.11 step 1), write the timeline as you go (§7.12), and never repair evidence rows by hand.
+
+### 7.1 Stolen password or session
+
+- **Signs:** detections *Password spray*, *Many wrong passwords*, *Several accounts locked*; a user reports sign-ins they did not make.
+- **Contain:** Activity Log → Security → choose the user → **Sign out everywhere** (asks a reason and your password; their remembered devices are forgotten too). Then Users → **Reset password** (dual control for an administrator) and **Reset 2FA** if the phone may be gone.
+- **Keep:** the evidence pack for the days involved; the sign-in rows named in the detection.
+- **Recover:** the user signs in with the new password and sets up 2FA again.
+- **Check:** no new detections for that user for 24 hours; their recent work in the audit log is their own.
+
+### 7.2 Privileged account misused, or a disabled user still acting
+
+- **Signs:** *Many role or user changes by one person*; *A disabled user acted after being disabled* (that one is a control failure - the session should already be dead).
+- **Contain:** sign that administrator out everywhere; if more than one account is involved, **Sign out everyone** (you stay signed in). Undo unexpected role changes from Users / Roles.
+- **Keep:** evidence pack; the USER_MANAGEMENT and ROLE_PERMISSIONS rows (who changed what).
+- **Recover:** reset the account's password and 2FA; review every role it changed.
+- **Check:** Activity Log → Security shows no admin without 2FA; the disabled-user detection stays quiet.
+
+### 7.3 Client crossover or access probing
+
+- **Signs:** *A session from another client used here* (refused, but a token was carried across); *One user refused again and again*.
+- **Contain:** for crossover, sign the session's user out everywhere **in their own client**, then treat it as P0 until it is explained. For probing, ask the user; sign them out if it was not them.
+- **Keep:** evidence pack in **both** clients; the TENANT_ROUTING rows.
+- **Recover:** if any record was read across clients, it is a data-leaving incident (§7.6) for the client whose data it was.
+
+### 7.4 Exposed secret or API key
+
+- **Contain:** an API key: Integrations → API credentials → **Revoke** (or **Rotate**). A server key (`JWT_SECRET`, `CHANNEL_CREDENTIAL_KEY`, `STORED_VALUE_KEY`, `AUDIT_SIGNING_KEY`): rotate with the numbered-key ring described in `deploy/erp.env.example` (add `_n`, restart, remove the old one), never by replacing the value in place, or sealed data can no longer be read. Rotating `JWT_SECRET` signs every user of every client out.
+- **Keep:** where the secret was seen (file, chat, log line) and from when.
+- **Check:** the old key fails; the provider's own console shows no use after rotation.
+
+### 7.5 Malicious connector, webhook or poison job
+
+- **Signs:** *Background jobs giving up*; a webhook burst in the integration log.
+- **Contain:** disconnect the connector (Integrations); `ERP_DISABLE_EXTERNAL_SIDE_EFFECTS=true` stops every outbound effect on the server. Do not retry a poison job in a loop - Activity Log → Async Jobs shows it; fix the cause first.
+- **Recover:** reconnect with a new credential; replay only the jobs you have read.
+
+### 7.6 Data leaving (export burst)
+
+- **Signs:** *Many exports by one user*; DATA_EXPORT rows you did not expect.
+- **Contain:** Activity Log → Security → **Freeze exports** (every export and report download for this client is refused and logged; audit evidence exports stay open), then sign the user out everywhere. Revoke any API key involved (§7.4).
+- **Keep:** evidence pack; the DATA_EXPORT rows say what was taken and when.
+- **Recover:** **Unfreeze exports** once the account is safe. Whether customers or regulators must be told is a legal decision (49.12.5) - record the facts, do not decide it alone.
+
+### 7.7 Till fraud
+
+- **Signs:** *Many cancels, voids or price overrides by one user*.
+- **Contain:** the store manager reviews the bills with the cashier before the till closes; sign the cashier out if it continues.
+- **Keep:** the POS_BILL_CANCELLED / POS_SALE_VOIDED / POS_PRICE_OVERRIDE rows and the till session report.
+
+### 7.8 Audit evidence failed or stopped
+
+- **Signs:** *Audit evidence failed or could not be verified*; *Audit checkpoints stopped while events waited*; **Audit writes lost** above 0 on the Security pane.
+- **Contain:** take a database backup **before** anything else - it is the evidence. Do not edit audit rows.
+- **Investigate:** the verifier names the row ids. A tampered row with the business record unchanged points at someone with database access; a key mismatch after a restore points at a missing `AUDIT_SIGNING_KEY`. Checkpoints stopping: check the job runner and the scheduler leader (`SCHEDULER_LEADER`). Lost writes: the reason is on the Security pane; usually the database or the disk.
+
+### 7.9 Vulnerable dependency or bad release
+
+- **Contain:** a deploy that fails its health check rolls itself back (`deploy/README.md`). For a release that is healthy but dangerous, deploy the previous release commit with the Deploy click. The schema stays forward (migrations are additive), which is safe.
+- **Fix:** patch, release through every gate, deploy. The release report's *Security impact* (gate G6b) shows what changed in the attack surface.
+
+### 7.10 Ransomware or destructive database action
+
+- **Contain:** stop the service (`systemctl stop erp`), take the host off the network if it is compromised, keep the disk.
+- **Recover:** restore the newest backup taken **before** the compromise onto a clean host (`docs/operations/backup_restore.md`), check it with `erp-server -verify-restore` (the restore drill runs the same check) before serving it, and rotate every key (§7.4).
+- **Check:** ledgers balance, audit evidence verifies, reconciliations tie; tell the client how much data was lost (from the backup's time).
+
+### 7.11 Eradication and recovery (49.12.6)
+
+1. **Evidence first.** Activity Log → Security → **Evidence pack** for the incident window: a zip of the audit rows with their signatures, system errors, checkpoints, the releases live then and every migration's checksum, with a signed manifest. Collecting it changes nothing and is itself logged. Keep a copy off the ERP host.
+2. **Entry and blast radius.** From the pack and **Trace a request** (the reference in any error message): which account, key or route, which clients, which records, since when.
+3. **Remove persistence.** Revoke every credential the attacker could have held - sessions (sign out everyone), API keys, connector credentials, and server keys if the host was reached. A compromised worker or integration is not reconnected until its credential is new.
+4. **Rebuild from trusted state.** Code from a release commit on origin, deployed by the Deploy click. Data from a backup that passes `-verify-restore`, when a restore is needed.
+5. **Reconcile.** Ledgers, stock, open orders and payments for the window (Reports → reconciliation; the restore check runs the same checks).
+6. **Watch.** The detection that caught it stays quiet for a week; read the Security pane daily.
+
+### 7.12 Incident record and lessons (49.12.7)
+
+Write one record per incident in a private incident folder - never in this repository, and never with secrets or customer data:
+
+| Field | Write |
+|---|---|
+| Timeline | detection, decisions, containment, recovery - times in UTC |
+| What happened | entry point; accounts, keys and clients involved; what data; what money or stock |
+| Evidence | the pack's file name and its `manifest.sig`; where it is kept |
+| Customer commitments | what each client was told, when and by whom |
+| Changes | each fix as a checklist item: a control, a test, a detection rule, a runbook line, a document |
+| Closed when | every change item is done and verified |
+
+Blameless: the record asks what let it happen, not who. A reusable lesson goes into the right test, detection rule or runbook section without the incident's evidence.
