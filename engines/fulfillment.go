@@ -478,14 +478,11 @@ func TransitionTaskStatus(tenantID string, taskID string, newStatus string) erro
 		return err
 	}
 
-	if err := tx.Commit(); err != nil {
+	// Stage 132.20: the ledger lines commit with the task (they were written after it, best-effort).
+	if err := writeStockLedgerLinesInTx(tx, schema, locationCode, "FulfillmentTask", taskID, "", ledgerLines); err != nil {
 		return err
 	}
-	// Post-commit and idempotency-keyed, exactly as POS checkout does it.
-	if len(ledgerLines) > 0 {
-		WriteStockLedgerLines(tenantID, locationCode, "FulfillmentTask", taskID, "", ledgerLines)
-	}
-	return nil
+	return tx.Commit()
 }
 
 // ProcessReturnAnywhere is RETIRED as of Stage 47.4.1 (audit finding A-04).

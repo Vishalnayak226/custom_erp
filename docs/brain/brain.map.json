@@ -338,6 +338,7 @@
         "engines/journal_voucher.go",
         "engines/posting_profiles.go",
         "engines/accounting_periods.go",
+        "engines/business_day.go",
         "engines/voucher.go",
         "engines/bank_reconciliation.go",
         "engines/bank_reconciliation_workbench.go",
@@ -502,6 +503,7 @@
         "engines/fulfillment.go",
         "engines/fulfillment_pickpack.go",
         "engines/returns.go",
+        "engines/returns_ledger_backfill.go",
         "engines/oms_reports.go",
         "engines/shipping_package.go",
         "engines/pack_invoice.go",
@@ -909,6 +911,8 @@
         "engines/security_emergency.go",
         "engines/security_posture.go",
         "engines/restore_verify.go",
+        "engines/bounded_state.go",
+        "engines/state_forecast.go",
         "internal/server/handlers_security_ops.go",
         "internal/securityscan/*.go",
         "internal/supplychain/*.go",
@@ -918,7 +922,8 @@
         "SECURITY.md",
         "cmd/surfacescan/*",
         "cmd/edgecheck/*",
-        "cmd/securityimpact/*"
+        "cmd/securityimpact/*",
+        "cmd/stateforecast/*"
       ]
     },
     {

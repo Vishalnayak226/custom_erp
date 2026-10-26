@@ -627,11 +627,14 @@ func commitTreatmentCorrection(tenantID, docID, actorID, actorName string, ch Tr
 			return nil, err
 		}
 	}
+	// Stage 132.20: the ledger lines commit with the correction (they were written after it, best-effort).
+	for _, pa := range posted {
+		if err := writeStockLedgerLinesInTx(tx, schema, pa.location, TreatmentCorrectionDoctype, docID, actorName, pa.lines); err != nil {
+			return nil, err
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
-	}
-	for _, pa := range posted {
-		WriteStockLedgerLines(tenantID, pa.location, TreatmentCorrectionDoctype, docID, actorName, pa.lines)
 	}
 	if typeNew != nil {
 		InvalidateItemTypeCache(tenantID)

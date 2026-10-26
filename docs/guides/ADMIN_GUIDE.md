@@ -1608,6 +1608,8 @@ This system can run up to three independent copies side by side, sharing the sam
 
 `test` and `live` live in their own separate folders (git "worktrees") created by `promote.ps1` (§D.1) — they are not manually maintained copies, they're produced by the promotion process itself.
 
+**The business day (Stage 132.19).** The production server and its database run on UTC; the business runs on India time. Every report, day book, trial balance as-of, GST period and "today" counts days in the **business time zone** — Asia/Kolkata unless set otherwise — so a sale at 00:30 on the 1st is on the 1st, not the last day of the month before. Stored times are unchanged (screens already show them in local time). Two settings name another zone, and must agree: the database setting `erp.business_tz` (`ALTER DATABASE custom_erp SET erp.business_tz = 'Asia/Dubai'`) for days counted in SQL (`public.erp_day_start`, `erp_today`, `erp_local_date`), and the server environment `ERP_BUSINESS_TZ` for dates the server stamps. A new report or query that filters by date uses `created_at >= public.erp_day_start($1::date) AND created_at < public.erp_day_start($2::date + 1)` and `public.erp_today()` — never `$1::date` against a timestamp or `CURRENT_DATE` — and Go code uses `engines.BusinessToday()`, never `time.Now().Format("2006-01-02")`.
+
 ### C.2 Deployment Pipeline
 
 See §D for the full deployment procedure. In short: a change is tested in `dev`, promoted to `test`, verified, then promoted to `live` — never edited directly in `live`.

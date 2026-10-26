@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 )
 
 // Stage 73.3.2 - customer context at the till. A cashier serving a known
@@ -146,7 +145,7 @@ func TillCustomerContextFor(tenantID, customerID string) (*TillCustomerContext, 
 	if err != nil {
 		return nil, err
 	}
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	for rows.Next() {
 		var vs string
 		if err := rows.Scan(&vs); err != nil {

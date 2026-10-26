@@ -122,7 +122,7 @@ func GetActiveBOMForItem(tenantID, parentItem, asOfDate string) (string, error) 
 		return "", err
 	}
 	if asOfDate == "" {
-		asOfDate = time.Now().Format("2006-01-02")
+		asOfDate = BusinessToday()
 	}
 
 	var id string

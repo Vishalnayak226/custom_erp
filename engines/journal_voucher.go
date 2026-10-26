@@ -244,7 +244,7 @@ func postApprovedJournalVoucher(tenantID, voucherID string) {
 	// voucher dated last month landed in this month. The rows take the
 	// voucher's date (keeping their time of day), as depreciation's rows take
 	// their month's end (asset_depreciation.go). A future date is left alone.
-	if _, perr := time.Parse("2006-01-02", voucherDate); perr == nil && voucherDate < time.Now().Format("2006-01-02") {
+	if _, perr := time.Parse("2006-01-02", voucherDate); perr == nil && voucherDate < BusinessToday() {
 		if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.gl_postings SET created_at = $1::date + CAST(created_at AS time)
 			WHERE idempotency_key = $2 AND document_type = 'JournalVoucher' AND document_id = $3`, schema), voucherDate, postingKey, voucherID); err != nil {
 			LogSystemError(tenantID, "", "ERROR", "postApprovedJournalVoucher", fmt.Sprintf("voucher %s posted but its rows keep today's date: %v", voucherID, err), "")
@@ -329,7 +329,7 @@ func ReverseJournalVoucher(tenantID, voucherID, userID string) (string, error) {
 	department, _ := data["department"].(string)
 	entity, _ := data["entity"].(string)
 	project, _ := data["project"].(string)
-	newID, err := createJournalVoucherInSchema(schema, time.Now().Format("2006-01-02"), narration, reversed, userID, JournalVoucherOptions{CostCenter: costCenter, Department: department, Entity: entity, Project: project})
+	newID, err := createJournalVoucherInSchema(schema, BusinessToday(), narration, reversed, userID, JournalVoucherOptions{CostCenter: costCenter, Department: department, Entity: entity, Project: project})
 	if err != nil {
 		return "", err
 	}
@@ -439,7 +439,7 @@ func runRecurringJournalsForSchema(schema string) {
 	}
 	rows.Close()
 
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	for _, t := range templates {
 		var data map[string]interface{}
 		if err := json.Unmarshal([]byte(t.data), &data); err != nil {

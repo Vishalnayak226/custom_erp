@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"time"
 )
 
 // CalculateTDS looks up a TDSSection by code and, if paymentAmount meets or
@@ -129,7 +128,7 @@ func PayVendorInvoiceWithTDS(tenantID, invoiceID, sectionCode, userID string) (n
 	// posting's own legs - a TDS payment always clears the whole bill.
 	data["payment_basis_paise"] = debits
 	noteVendorPayment(data, nil, settlementKindPaymentTDS, "", fmt.Sprintf("VendorInvoice:%s:PAY_TDS", invoiceID), userID,
-		time.Now().Format("2006-01-02"), debits, documentFXPosition(tenantID, data, "invoice_amount"), amount)
+		BusinessToday(), debits, documentFXPosition(tenantID, data, "invoice_amount"), amount)
 
 	data["status"] = "Paid"
 	data["tds_section"] = sectionCode

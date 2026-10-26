@@ -93,12 +93,12 @@ func orderConsoleConditions(schema string, f OrderConsoleFilter, skipDimension s
 		add(`EXISTS (SELECT 1 FROM `+schema+`.documents l WHERE l.doctype = 'SalesOrderLine' AND l.data->>'order_id' = d.id AND l.deleted_at IS NULL AND l.data->>'location_code' = $%d)`, f.Location)
 	}
 	if f.FromDate != "" {
-		add("d.created_at >= $%d::date", f.FromDate)
+		add("d.created_at >= public.erp_day_start($%d::date)", f.FromDate)
 	}
 	if f.ToDate != "" {
 		// Inclusive of the whole end day - a date-only filter that excluded
 		// today's orders would look like data loss to the person using it.
-		add("d.created_at < ($%d::date + INTERVAL '1 day')", f.ToDate)
+		add("d.created_at < public.erp_day_start($%d::date + 1)", f.ToDate)
 	}
 	if f.SLAMinutes > 0 {
 		argOffset++

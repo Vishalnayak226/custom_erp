@@ -61,7 +61,7 @@ func GetGLJournal(tenantID, startDate, endDate, postedBy, attribution, documentT
 		return nil, fmt.Errorf("start and end are required")
 	}
 	args := []interface{}{startDate, endDate}
-	where := "p.created_at >= $1::date AND p.created_at < ($2::date + 1)"
+	where := "p.created_at >= public.erp_day_start($1::date) AND p.created_at < public.erp_day_start($2::date + 1)"
 	attrClause, attrArgs := glAttributionFilter(postedBy, attribution, len(args)+1)
 	where += attrClause
 	args = append(args, attrArgs...)
@@ -112,7 +112,7 @@ func GetGLPostingReview(tenantID, startDate, endDate string) ([]map[string]inter
 		       COUNT(DISTINCT p.document_type || ':' || p.document_id),
 		       COALESCE(SUM(p.debit), 0), COALESCE(SUM(p.credit), 0), MIN(p.created_at), MAX(p.created_at)
 		FROM %s.gl_postings p
-		WHERE p.created_at >= $1::date AND p.created_at < ($2::date + 1)
+		WHERE p.created_at >= public.erp_day_start($1::date) AND p.created_at < public.erp_day_start($2::date + 1)
 		GROUP BY p.posted_by
 		ORDER BY p.posted_by NULLS LAST`, schema), startDate, endDate)
 	if err != nil {

@@ -184,7 +184,7 @@ func GetPayrollReconciliation(tenantID, start, end string) ([]map[string]interfa
 	// of each clearing document's bank leg is matched to a statement line.
 	var paidPaise, bankLegPaise, bankMatchedPaise, balancePaise int64
 	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(debit), 0) FROM %s.gl_postings
-		WHERE account_code = '2400' AND debit > 0 AND created_at >= $1::date`, schema), start).Scan(&paidPaise); err != nil {
+		WHERE account_code = '2400' AND debit > 0 AND created_at >= public.erp_day_start($1::date)`, schema), start).Scan(&paidPaise); err != nil {
 		return nil, err
 	}
 	if err := db.DB.QueryRow(fmt.Sprintf(`
@@ -192,7 +192,7 @@ func GetPayrollReconciliation(tenantID, start, end string) ([]map[string]interfa
 		FROM %s.gl_postings b
 		WHERE b.credit > 0 AND b.account_code IN (`+bankGLAccountsSQL(schema)+`)
 		  AND (b.document_type, b.document_id) IN (SELECT p.document_type, p.document_id FROM %s.gl_postings p
-		       WHERE p.account_code = '2400' AND p.debit > 0 AND p.created_at >= $1::date)`, schema, schema), start).Scan(&bankLegPaise, &bankMatchedPaise); err != nil {
+		       WHERE p.account_code = '2400' AND p.debit > 0 AND p.created_at >= public.erp_day_start($1::date))`, schema, schema), start).Scan(&bankLegPaise, &bankMatchedPaise); err != nil {
 		return nil, err
 	}
 	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(credit), 0) - COALESCE(SUM(debit), 0) FROM %s.gl_postings WHERE account_code = '2400'`, schema)).Scan(&balancePaise); err != nil {
@@ -250,7 +250,7 @@ func payrollReconciliationDrillDown(tenantID, step, start, end string) ([]map[st
 			SELECT p.created_at, p.document_type, p.document_id, p.account_code, p.debit, p.credit, COALESCE(p.matched_statement_line_id, ''), COALESCE(p.posted_by, '')
 			FROM %s.gl_postings p
 			WHERE (p.document_type, p.document_id) IN (SELECT q.document_type, q.document_id FROM %s.gl_postings q
-			       WHERE q.account_code = '2400' AND q.debit > 0 AND q.created_at >= $1::date)
+			       WHERE q.account_code = '2400' AND q.debit > 0 AND q.created_at >= public.erp_day_start($1::date))
 			ORDER BY p.created_at, p.document_id`, schema, schema), start)
 		if err != nil {
 			return nil, err

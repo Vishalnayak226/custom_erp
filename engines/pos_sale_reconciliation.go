@@ -225,11 +225,11 @@ func runSaleReconciliation(tenantID, fromDate, toDate string) ([]map[string]inte
 	args := []interface{}{}
 	if strings.TrimSpace(fromDate) != "" {
 		args = append(args, fromDate)
-		conditions += fmt.Sprintf(" AND created_at >= $%d::date", len(args))
+		conditions += fmt.Sprintf(" AND created_at >= public.erp_day_start($%d::date)", len(args))
 	}
 	if strings.TrimSpace(toDate) != "" {
 		args = append(args, toDate)
-		conditions += fmt.Sprintf(" AND created_at < ($%d::date + 1)", len(args))
+		conditions += fmt.Sprintf(" AND created_at < public.erp_day_start($%d::date + 1)", len(args))
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(
 		`SELECT id FROM %s.documents WHERE %s ORDER BY created_at DESC LIMIT 500`, schema, conditions), args...)

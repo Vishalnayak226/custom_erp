@@ -265,7 +265,7 @@ func RunWaveTemplateAutoCreate(tenantID, waveTemplateID, userID string) (string,
 	args := []interface{}{locationCode, channel, serviceLevel}
 	if cutoff != "" {
 		if cutoffT, perr := time.Parse("15:04", cutoff); perr == nil {
-			today := time.Now().Format("2006-01-02")
+			today := BusinessToday()
 			deadline := today + " " + cutoffT.Format("15:04:00")
 			query += fmt.Sprintf(" AND ft.created_at <= $%d::timestamp", len(args)+1)
 			args = append(args, deadline)

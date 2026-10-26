@@ -55,7 +55,7 @@ func GetProfitAndLoss(tenantID, startDate, endDate string, filters ...FinancialR
 		       CASE WHEN a.account_type = 'Revenue' THEN COALESCE(SUM(p.credit), 0) - COALESCE(SUM(p.debit), 0)
 		            ELSE COALESCE(SUM(p.debit), 0) - COALESCE(SUM(p.credit), 0) END AS amount
 		FROM %s.gl_accounts a
-		LEFT JOIN %s.gl_postings p ON a.account_code = p.account_code AND p.created_at >= $1::date AND p.created_at < ($2::date + 1)%s
+		LEFT JOIN %s.gl_postings p ON a.account_code = p.account_code AND p.created_at >= public.erp_day_start($1::date) AND p.created_at < public.erp_day_start($2::date + 1)%s
 		WHERE a.account_type IN ('Revenue', 'Expense')
 		GROUP BY a.account_code, a.account_name, a.account_type
 		ORDER BY a.account_type, a.account_code`, schema, schema, dimClause), args...)
@@ -122,7 +122,7 @@ func GetBalanceSheet(tenantID, asOfDate string, filters ...FinancialReportFilter
 		       CASE WHEN a.account_type = 'Asset' THEN COALESCE(SUM(p.debit), 0) - COALESCE(SUM(p.credit), 0)
 		            ELSE COALESCE(SUM(p.credit), 0) - COALESCE(SUM(p.debit), 0) END AS amount
 		FROM %s.gl_accounts a
-		LEFT JOIN %s.gl_postings p ON a.account_code = p.account_code AND p.created_at < ($1::date + 1)%s
+		LEFT JOIN %s.gl_postings p ON a.account_code = p.account_code AND p.created_at < public.erp_day_start($1::date + 1)%s
 		WHERE a.account_type IN ('Asset', 'Liability', 'Equity')
 		GROUP BY a.account_code, a.account_name, a.account_type
 		ORDER BY a.account_type, a.account_code`, schema, schema, dimClause), args...)
@@ -186,7 +186,7 @@ func GetCashFlowStatement(tenantID, startDate, endDate string) ([]map[string]int
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT document_type, COALESCE(SUM(debit), 0) AS cash_in, COALESCE(SUM(credit), 0) AS cash_out
-		FROM %s.gl_postings WHERE account_code = '1100' AND created_at >= $1::date AND created_at < ($2::date + 1)
+		FROM %s.gl_postings WHERE account_code = '1100' AND created_at >= public.erp_day_start($1::date) AND created_at < public.erp_day_start($2::date + 1)
 		GROUP BY document_type ORDER BY document_type`, schema), startDate, endDate)
 	if err != nil {
 		return nil, err
@@ -301,7 +301,7 @@ func GetTaxLedgerReport(tenantID, startDate, endDate string) ([]map[string]inter
 		WHERE p.account_code IN (%s)`, schema, schema, taxLedgerAccountCodes)
 	var args []interface{}
 	if startDate != "" && endDate != "" {
-		query += " AND p.created_at >= $1::date AND p.created_at < ($2::date + 1)"
+		query += " AND p.created_at >= public.erp_day_start($1::date) AND p.created_at < public.erp_day_start($2::date + 1)"
 		args = append(args, startDate, endDate)
 	}
 	query += " ORDER BY p.created_at ASC"
@@ -348,7 +348,7 @@ func GetStatutoryGLExport(tenantID, startDate, endDate string) ([]map[string]int
 		SELECT p.posting_id, p.account_code, a.account_name, a.account_type,
 		       p.document_type, p.document_id, p.debit, p.credit, p.created_at, p.posted_by, p.source_command
 		FROM %s.gl_postings p JOIN %s.gl_accounts a ON a.account_code = p.account_code
-		WHERE p.created_at >= $1::date AND p.created_at < ($2::date + 1)
+		WHERE p.created_at >= public.erp_day_start($1::date) AND p.created_at < public.erp_day_start($2::date + 1)
 		ORDER BY p.created_at ASC`, schema, schema), startDate, endDate)
 	if err != nil {
 		return nil, err
@@ -393,9 +393,9 @@ func financialStatementDrillDown(tenantID, accountCode, startDate, endDate strin
 		return nil, fmt.Errorf("account_code is required")
 	}
 	args := []interface{}{accountCode, endDate}
-	dateClause := "p.created_at < ($2::date + 1)"
+	dateClause := "p.created_at < public.erp_day_start($2::date + 1)"
 	if startDate != "" {
-		dateClause = "p.created_at >= $2::date AND p.created_at < ($3::date + 1)"
+		dateClause = "p.created_at >= public.erp_day_start($2::date) AND p.created_at < public.erp_day_start($3::date + 1)"
 		args = []interface{}{accountCode, startDate, endDate}
 	}
 	dimClause, dimArg := dimensionJoinClause(filter, len(args)+1)

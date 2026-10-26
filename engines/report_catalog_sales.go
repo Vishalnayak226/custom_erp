@@ -543,11 +543,11 @@ func storedValueEventRows(kind string) func(tenantID, schema string, p map[strin
 		}
 		if v := p["from"]; v != "" {
 			args = append(args, v)
-			q += fmt.Sprintf(" AND l.created_at >= $%d::date", len(args))
+			q += fmt.Sprintf(" AND l.created_at >= public.erp_day_start($%d::date)", len(args))
 		}
 		if v := p["to"]; v != "" {
 			args = append(args, v)
-			q += fmt.Sprintf(" AND l.created_at < ($%d::date + 1)", len(args))
+			q += fmt.Sprintf(" AND l.created_at < public.erp_day_start($%d::date + 1)", len(args))
 		}
 		if v := p["location"]; v != "" {
 			args = append(args, v)

@@ -105,7 +105,7 @@ func GetBudgetVarianceReport(tenantID, periodStart, periodEnd string) ([]map[str
 		query := fmt.Sprintf(`
 			SELECT COALESCE(SUM(p.debit), 0), COALESCE(SUM(p.credit), 0)
 			FROM %s.gl_postings p JOIN %s.gl_accounts a ON a.account_code = p.account_code
-			WHERE p.account_code = $1 AND p.created_at >= $2::date AND p.created_at < ($3::date + 1) AND %s`,
+			WHERE p.account_code = $1 AND p.created_at >= public.erp_day_start($2::date) AND p.created_at < public.erp_day_start($3::date + 1) AND %s`,
 			schema, schema, costCenterClause)
 		if err := db.DB.QueryRow(query, args...).Scan(&debitPaise, &creditPaise); err != nil {
 			return nil, err
@@ -421,7 +421,7 @@ func currentCashBalance(schema, asOfDate string) (float64, error) {
 	var debitPaise, creditPaise int64
 	err := db.DB.QueryRow(fmt.Sprintf(`
 		SELECT COALESCE(SUM(debit), 0), COALESCE(SUM(credit), 0) FROM %s.gl_postings
-		WHERE account_code IN ('1100', '1101', '1102') AND created_at < ($1::date + 1)`, schema),
+		WHERE account_code IN ('1100', '1101', '1102') AND created_at < public.erp_day_start($1::date + 1)`, schema),
 		asOfDate).Scan(&debitPaise, &creditPaise)
 	if err != nil {
 		return 0, err

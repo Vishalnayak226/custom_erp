@@ -1294,11 +1294,19 @@ func validateLocationIdentityCodes(tenantID, docID string, payload map[string]in
 	}
 	var other string
 	if short != "" {
+		// Stage 132.20 (user decision 2026-10-26): a deleted store's code stays
+		// reserved - its documents carry it - and the refusal says so.
+		var deleted bool
 		err = db.DB.QueryRow(fmt.Sprintf(`
-			SELECT COALESCE(data->>'name', id) FROM %s.documents
+			SELECT COALESCE(data->>'name', id), deleted_at IS NOT NULL FROM %s.documents
 			WHERE doctype = 'Location' AND id <> $1 AND COALESCE(data->>'code', id) <> $1
 			  AND (UPPER(TRIM(data->>'short_code')) = UPPER($2) OR UPPER(COALESCE(data->>'code', id)) = UPPER($2))
-			LIMIT 1`, schema), self, short).Scan(&other)
+			ORDER BY deleted_at IS NOT NULL
+			LIMIT 1`, schema), self, short).Scan(&other, &deleted)
+		if err == nil && deleted {
+			return &ValidationError{Code: "MASTER-0312", SubFor: "short_code", Message: fmt.Sprintf(
+				"Short Code %q belonged to %s, a deleted store - it stays reserved because that store's document numbers carry it; choose another", short, other)}
+		}
 		if err == nil {
 			return &ValidationError{Code: "MASTER-0312", SubFor: "short_code", Message: fmt.Sprintf(
 				"Short Code %q is already used by %s - each store needs its own, because it is printed inside document numbers", short, other)}

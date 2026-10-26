@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": "cmd/genkb",
   "generator_version": "stage48-v1",
-  "release": "0.16.0",
+  "release": "0.17.0",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "schema": "source registries",
   "tenant": "none",
@@ -181,7 +181,7 @@
     },
     {
       "path": "internal/kb/content/articles/hr-payroll.html",
-      "sha256": "a5001ce469c09c901c1211e78963a175d851d6e6719c33d7dfe2e23ce15c635b",
+      "sha256": "2119376a983f3182bbc8594fdb824cb0d018f3328def1a1c874065960dafae58",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -541,7 +541,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "7faf8fbb1cefb36912f27faa7bbd65b85685bd6d808f77cbfba8bfe24e579065",
+      "sha256": "0afc5b6d8fd72a6f89f6e0f1f2e0356925448e864ab08763ef26ebb7dff39992",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

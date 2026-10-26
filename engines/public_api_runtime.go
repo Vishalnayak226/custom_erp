@@ -129,7 +129,7 @@ var publicAPIDailyUsage = &dailyUsageCache{
 }
 
 func (c *dailyUsageCache) currentUsed(schema, credentialID string) (int, error) {
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	c.mu.Lock()
 	if c.day[credentialID] != today {
 		c.day[credentialID] = today

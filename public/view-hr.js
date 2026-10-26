@@ -356,7 +356,9 @@ function wireLeaveHelp({ employee, typeId, fromId, toId, daysId, infoId, records
         const { balances } = await res.json();
         const line = balances.find(b => b.leave_type === $(typeId).value);
         if (line && line.entitlement !== null) {
-          notes.unshift(`${line.leave_type} ${year}: ${line.entitlement} days a year, ${line.approved} approved, ${line.pending} awaiting approval, ${line.remaining} left.`);
+          // 132.20: "left" drops on approval; what is awaiting approval is held back from a new application.
+          notes.unshift(`${line.leave_type} ${year}: ${line.entitlement} days a year, ${line.approved} approved, ${line.remaining} left` +
+            (line.pending ? ` (${line.pending} awaiting approval - up to ${line.available} more can be applied for).` : '.'));
         } else if (line) {
           notes.unshift(`${line.leave_type} leave has no yearly limit.`);
         }

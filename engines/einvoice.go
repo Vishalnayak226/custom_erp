@@ -220,7 +220,7 @@ func SaveIRPProfile(tenantID string, in IRPProfile, credentials map[string]strin
 		in.InterGSTIN = "REQUIRED"
 	}
 	if strings.TrimSpace(in.EffectiveFrom) == "" {
-		in.EffectiveFrom = time.Now().Format("2006-01-02")
+		in.EffectiveFrom = BusinessToday()
 	}
 	if _, err := time.Parse("2006-01-02", in.EffectiveFrom); err != nil {
 		return in, einvoiceError("EINV-0980", "Effective from", "effective from must be a date (YYYY-MM-DD)")

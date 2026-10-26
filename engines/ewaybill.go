@@ -320,13 +320,13 @@ func ewbFactsFor(tenantID, doctype, docID string) (*ewbFacts, string, error) {
 	}
 	switch doctype {
 	case DeliveryChallanDoctype:
-		f.number, f.date, f.fromStore = firstNonEmpty(strField(data, "code"), docID), firstNonEmpty(strField(data, "dispatch_date"), time.Now().Format("2006-01-02")), strField(data, "location")
+		f.number, f.date, f.fromStore = firstNonEmpty(strField(data, "code"), docID), firstNonEmpty(strField(data, "dispatch_date"), BusinessToday()), strField(data, "location")
 		f.toGSTIN, f.toState, f.purpose = strField(data, "party_gstin"), stateCodeOf(strField(data, "party_gstin"), strField(data, "party_state")), strField(data, "purpose")
 		for _, l := range jsonLines(data["items"]) {
 			addLine(strField(l, "sku"), strField(l, "hsn_code"), numFromInterface(l["declared_value"]))
 		}
 	case "SalesInvoice":
-		f.number, f.date, f.fromStore = firstNonEmpty(strField(data, "invoice_number"), docID), firstNonEmpty(strField(data, "invoice_date"), time.Now().Format("2006-01-02")), strField(data, "location")
+		f.number, f.date, f.fromStore = firstNonEmpty(strField(data, "invoice_number"), docID), firstNonEmpty(strField(data, "invoice_date"), BusinessToday()), strField(data, "location")
 		f.toGSTIN, f.toState = strField(data, "customer_gstin"), firstNonEmpty(strField(data, "place_of_supply"), stateCodeOf(strField(data, "customer_gstin"), ""))
 		lines := jsonLines(data["items"])
 		if len(lines) == 0 {
@@ -336,7 +336,7 @@ func ewbFactsFor(tenantID, doctype, docID string) (*ewbFacts, string, error) {
 			addLine(strField(l, "sku"), strField(l, "hsn_code"), firstPositive(numFromInterface(l["amount"]), numFromInterface(l["taxable"])))
 		}
 	case "TransferOrder":
-		f.number, f.date, f.fromStore = firstNonEmpty(strField(data, "transfer_number"), strField(data, "code"), docID), time.Now().Format("2006-01-02"), strField(data, "from_warehouse")
+		f.number, f.date, f.fromStore = firstNonEmpty(strField(data, "transfer_number"), strField(data, "code"), docID), BusinessToday(), strField(data, "from_warehouse")
 		to := LoadPrintStore(tenantID, strField(data, "to_warehouse"))
 		f.toGSTIN, f.toState, f.toPin = to.GSTIN, firstNonEmpty(to.StateCode, stateCodeOf(to.GSTIN, "")), to.Pincode
 		v, _ := GetTransferValue(tenantID, docID)
@@ -787,7 +787,7 @@ func ewbRegister(tenantID string, p map[string]string) ([]map[string]interface{}
 	if err != nil {
 		return nil, err
 	}
-	rows, err := db.DB.Query(fmt.Sprintf(`SELECT %s FROM %s.ewb_documents WHERE ($1 = '' OR created_at >= $1::date) AND ($2 = '' OR created_at < $2::date + 1) ORDER BY created_at DESC LIMIT 5000`,
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT %s FROM %s.ewb_documents WHERE ($1 = '' OR created_at >= public.erp_day_start($1::date)) AND ($2 = '' OR created_at < public.erp_day_start($2::date + 1)) ORDER BY created_at DESC LIMIT 5000`,
 		ewbColumns, schema), strings.TrimSpace(p["from"]), strings.TrimSpace(p["to"]))
 	if err != nil {
 		return nil, err

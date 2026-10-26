@@ -494,7 +494,7 @@ func RaiseBankException(tenantID, lineID, owner, reason, actor string) error {
 	}
 	if err := patchBankLine(tx, schema, lineID, map[string]interface{}{
 		"match_status": "Exception", "exception_owner": owner, "exception_reason": reason,
-		"exception_raised_at": time.Now().Format("2006-01-02"), "exception_raised_by": actor,
+		"exception_raised_at": BusinessToday(), "exception_raised_by": actor,
 	}); err != nil {
 		return err
 	}
@@ -809,7 +809,7 @@ func GetBankReconciliationWorkbench(tenantID, bankAccountID, from, to string) (*
 		return nil, err
 	}
 	if to == "" {
-		to = time.Now().Format("2006-01-02")
+		to = BusinessToday()
 	}
 	if from == "" {
 		if t, err := time.Parse("2006-01-02", to); err == nil {
@@ -932,7 +932,7 @@ func GetBankReconciliationWorkbench(tenantID, bankAccountID, from, to string) (*
 	var card, upi, bookBal int64
 	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(debit - credit) FILTER (WHERE account_code = '1101'), 0),
 		COALESCE(SUM(debit - credit) FILTER (WHERE account_code = '1102'), 0),
-		COALESCE(SUM(debit - credit) FILTER (WHERE account_code = $1 AND created_at < ($2::date + 1)), 0)
+		COALESCE(SUM(debit - credit) FILTER (WHERE account_code = $1 AND created_at < public.erp_day_start($2::date + 1)), 0)
 		FROM %s.gl_postings WHERE account_code IN ('1101', '1102', $1)`, schema), glAccount, to).Scan(&card, &upi, &bookBal)
 	w.CardClearing, w.UPIClearing, w.BookBalance = PaiseToRupees(card), PaiseToRupees(upi), PaiseToRupees(bookBal)
 	w.OpenDifferences = roundRupees(w.OpenDifferences)
@@ -949,13 +949,13 @@ func unmatchedSettlementPayouts(schema, startDate, endDate string) (int, string)
 		SELECT COUNT(DISTINCT d.data->>'settlement_batch_id')
 		FROM %s.gl_postings p JOIN %s.documents d ON d.doctype = 'MarketplaceSettlementLine' AND d.id = p.document_id
 		WHERE p.document_type = 'MarketplaceSettlementLine' AND p.account_code = '1100' AND p.debit > 0
-		  AND p.matched_statement_line_id IS NULL AND p.created_at >= $1::date AND p.created_at < ($2::date + 1)`, schema, schema),
+		  AND p.matched_statement_line_id IS NULL AND p.created_at >= public.erp_day_start($1::date) AND p.created_at < public.erp_day_start($2::date + 1)`, schema, schema),
 		startDate, endDate).Scan(&batches); err != nil {
 		return 1, "could not read marketplace payouts: " + err.Error()
 	}
 	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(debit - credit) FILTER (WHERE account_code = '1101'), 0),
 		COALESCE(SUM(debit - credit) FILTER (WHERE account_code = '1102'), 0)
-		FROM %s.gl_postings WHERE account_code IN ('1101', '1102') AND created_at < ($1::date + 1)`, schema), endDate).Scan(&card, &upi)
+		FROM %s.gl_postings WHERE account_code IN ('1101', '1102') AND created_at < public.erp_day_start($1::date + 1)`, schema), endDate).Scan(&card, &upi)
 	open := batches
 	if card != 0 {
 		open++

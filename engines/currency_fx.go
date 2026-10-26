@@ -222,7 +222,7 @@ func resolveSettlementFX(tenantID string, position DocumentFXPosition, receivabl
 		SettlementDate: strings.TrimSpace(opts.SettlementDate),
 	}
 	if settlement.SettlementDate == "" {
-		settlement.SettlementDate = time.Now().UTC().Format("2006-01-02")
+		settlement.SettlementDate = BusinessToday()
 	} else {
 		if err := validateISODate("Settlement Date", settlement.SettlementDate, true); err != nil {
 			return settlement, err
@@ -453,7 +453,7 @@ func RevalueOpenForeignItems(tenantID, asOfDate, rateType, userID string, dryRun
 	}
 	asOfDate = strings.TrimSpace(asOfDate)
 	if asOfDate == "" {
-		asOfDate = time.Now().UTC().Format("2006-01-02")
+		asOfDate = BusinessToday()
 	}
 	if err := validateISODate("As Of Date", asOfDate, true); err != nil {
 		return nil, err
@@ -715,7 +715,7 @@ func GetFXGainLossRegister(tenantID, fromDate, toDate, kind string) ([]FXRegiste
 		// because the just-posted row's created_at was already "tomorrow" by
 		// this function's UTC-clock reckoning.
 		var today string
-		if err := db.DB.QueryRow("SELECT CURRENT_DATE::text").Scan(&today); err != nil {
+		if err := db.DB.QueryRow("SELECT public.erp_today()::text").Scan(&today); err != nil {
 			return nil, err
 		}
 		todayT, terr := time.Parse("2006-01-02", today)
@@ -767,7 +767,7 @@ func GetFXGainLossRegister(tenantID, fromDate, toDate, kind string) ([]FXRegiste
 		FROM %s.gl_postings p
 		LEFT JOIN %s.gl_accounts a ON a.account_code = p.account_code
 		WHERE p.account_code IN (%s)
-		  AND p.created_at >= $%d::date AND p.created_at < ($%d::date + 1)
+		  AND p.created_at >= public.erp_day_start($%d::date) AND p.created_at < public.erp_day_start($%d::date + 1)
 		ORDER BY p.created_at DESC, p.posting_id DESC`, schema, schema,
 		strings.Join(placeholders, ","), len(accounts)+1, len(accounts)+2),
 		args...)
@@ -830,7 +830,7 @@ type PresentationBalanceRow struct {
 // job, and it is listed there.
 func GetTrialBalanceInPresentationCurrency(tenantID, asOfDate, presentationCurrency, rateType string) (map[string]interface{}, error) {
 	if strings.TrimSpace(asOfDate) == "" {
-		asOfDate = time.Now().UTC().Format("2006-01-02")
+		asOfDate = BusinessToday()
 	}
 	if err := validateISODate("As Of Date", asOfDate, true); err != nil {
 		return nil, err

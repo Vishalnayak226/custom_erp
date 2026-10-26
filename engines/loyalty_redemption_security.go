@@ -44,7 +44,7 @@ func loyaltyVelocityCheck(q interface {
 	if err := q.QueryRow(fmt.Sprintf(`
 		SELECT COUNT(*) FROM %s.loyalty_point_ledger
 		WHERE customer_id = $1 AND transaction_type = 'Burn' AND reference_doctype != 'LoyaltyExpiry'
-		  AND created_at::date = CURRENT_DATE`, schema), customerID).Scan(&count); err != nil {
+		  AND public.erp_local_date(created_at) = public.erp_today()`, schema), customerID).Scan(&count); err != nil {
 		return err
 	}
 	maxPerDay := GetSettingInt(tenantID, "security.loyalty_max_redemptions_per_day")

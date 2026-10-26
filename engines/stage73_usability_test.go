@@ -70,7 +70,8 @@ func TestLeaveBalanceIsScopedToTheEmployee(t *testing.T) {
 		t.Fatalf("admin balance: %v", err)
 	}
 	for _, l := range lines {
-		if l.LeaveType == "Casual" && (l.Approved != 3 || l.Pending != 1 || l.Remaining == nil || *l.Remaining != 8) {
+		// 132.20: Remaining drops on approval only (12 - 3); Available also holds back the pending day.
+		if l.LeaveType == "Casual" && (l.Approved != 3 || l.Pending != 1 || l.Remaining == nil || *l.Remaining != 9 || l.Available == nil || *l.Available != 8) {
 			t.Fatalf("casual line %+v", l)
 		}
 		if l.LeaveType == "Unpaid" && l.Entitlement != nil {

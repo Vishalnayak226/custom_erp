@@ -183,7 +183,7 @@ func periodCloseTaskCheck(tenantID, schema, key, startDate, endDate string) (boo
 		}
 		var grnSuspensePaise int64
 		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(credit), 0) - COALESCE(SUM(debit), 0) FROM %s.gl_postings
-			WHERE account_code = '2100' AND created_at < ($1::date + 1)`, schema), endDate).Scan(&grnSuspensePaise)
+			WHERE account_code = '2100' AND created_at < public.erp_day_start($1::date + 1)`, schema), endDate).Scan(&grnSuspensePaise)
 		return holds == 0, fmt.Sprintf("%d supplier bill(s) in mismatch hold; GRN Suspense 2100 at period end: %.2f", holds, PaiseToRupees(grnSuspensePaise))
 	case "ar_tieout":
 		buckets, err := GetReceivablesAgeingReport(tenantID)

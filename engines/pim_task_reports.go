@@ -81,9 +81,9 @@ func runPIMTaskWorkloadReport(tenantID string, _ map[string]string) ([]map[strin
 		       COUNT(*) FILTER (WHERE status = 'In Progress')::int,
 		       COUNT(*) FILTER (WHERE status = 'Blocked')::int,
 		       COUNT(*) FILTER (WHERE NULLIF(data->>'due_date','') IS NOT NULL
-		                          AND (data->>'due_date')::date < CURRENT_DATE)::int,
+		                          AND (data->>'due_date')::date < public.erp_today())::int,
 		       COUNT(*) FILTER (WHERE NULLIF(data->>'due_date','') IS NOT NULL
-		                          AND (data->>'due_date')::date BETWEEN CURRENT_DATE AND CURRENT_DATE + 7)::int
+		                          AND (data->>'due_date')::date BETWEEN public.erp_today() AND public.erp_today() + 7)::int
 		  FROM %s.documents
 		 WHERE doctype = 'PIMTask' AND deleted_at IS NULL
 		   AND status IN ('Open', 'In Progress', 'Blocked')
@@ -119,14 +119,14 @@ func runPIMOverdueTaskReport(tenantID string, params map[string]string) ([]map[s
 		       COALESCE(data->>'item_code', ''),
 		       COALESCE(NULLIF(data->>'assignee', ''), '(unassigned)'),
 		       COALESCE(data->>'due_date', ''),
-		       (CURRENT_DATE - (data->>'due_date')::date)::int,
+		       (public.erp_today() - (data->>'due_date')::date)::int,
 		       COALESCE(data->>'priority', 'Normal'),
 		       status
 		  FROM %s.documents
 		 WHERE doctype = 'PIMTask' AND deleted_at IS NULL
 		   AND status IN ('Open', 'In Progress', 'Blocked')
 		   AND NULLIF(data->>'due_date', '') IS NOT NULL
-		   AND (data->>'due_date')::date < CURRENT_DATE
+		   AND (data->>'due_date')::date < public.erp_today()
 		   AND ($1 = '' OR COALESCE(data->>'assignee', '') = $1)
 		 ORDER BY (data->>'due_date')::date ASC, id`, schema)
 	rows, err := db.DB.Query(query, params["assignee"])

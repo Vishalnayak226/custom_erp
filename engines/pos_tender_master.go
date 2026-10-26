@@ -219,10 +219,10 @@ func TenderTotals(tenantID, sessionID, store, from, to string) (map[string]float
 		add(" AND data->>'location' = $%d", store)
 	}
 	if from != "" {
-		add(" AND created_at >= $%d::date", from)
+		add(" AND created_at >= public.erp_day_start($%d::date)", from)
 	}
 	if to != "" {
-		add(" AND created_at < ($%d::date + 1)", to)
+		add(" AND created_at < public.erp_day_start($%d::date + 1)", to)
 	}
 	rows, err := db.DB.Query(q, args...)
 	if err != nil {

@@ -92,6 +92,18 @@ func TestNumberSeriesStoreSegmentSuffixAndOverrides(t *testing.T) {
 	if err := ValidateMasterDataRules(tenantID, "LOC-A", "Location", map[string]interface{}{"code": "LOC-A", "name": "Bandra Store", "short_code": "BDR", "facility_code": "UC-BANDRA"}); err != nil {
 		t.Errorf("re-saving a store with its own codes: %v", err)
 	}
+	// Stage 132.20: a deleted store's Short Code stays reserved (its documents
+	// carry it), and the refusal says it is a deleted store's.
+	if _, err := db.DB.Exec("UPDATE " + schemaName + ".documents SET deleted_at = CURRENT_TIMESTAMP WHERE id = 'LOC-A'"); err != nil {
+		t.Fatalf("soft-delete LOC-A: %v", err)
+	}
+	err = ValidateMasterDataRules(tenantID, "LOC-B", "Location", map[string]interface{}{"code": "LOC-B", "name": "Andheri Store", "short_code": "bdr"})
+	if !errors.As(err, &verr) || verr.Code != "MASTER-0312" || !strings.Contains(verr.Message, "deleted store") {
+		t.Errorf("a deleted store's short code: err = %v, want MASTER-0312 naming a deleted store", err)
+	}
+	if _, err := db.DB.Exec("UPDATE " + schemaName + ".documents SET deleted_at = NULL WHERE id = 'LOC-A'"); err != nil {
+		t.Fatalf("restore LOC-A: %v", err)
+	}
 
 	if got := ResolveFacilityCode(schemaName, "uc-bandra"); got != "LOC-A" {
 		t.Errorf("ResolveFacilityCode = %q, want LOC-A", got)

@@ -207,7 +207,7 @@ func RecomputeLoyaltyTier(tenantID, customerID string) (string, error) {
 		// tier's grace days, counted from the first time this was seen.
 		nextSince = since
 		if nextSince == "" {
-			nextSince = time.Now().Format("2006-01-02")
+			nextSince = BusinessToday()
 		}
 		if d, errD := time.Parse("2006-01-02", nextSince); errD == nil && time.Since(d) < time.Duration(grace)*24*time.Hour {
 			newTier = existing
@@ -328,7 +328,7 @@ func sweepLoyaltyExpiryForSchema(schema string) {
 		if loyaltyAccruesForSchema(schema) {
 			var tenantID string
 			if err := db.DB.QueryRow(`SELECT tenant_id FROM public.tenants WHERE schema_name = $1`, schema).Scan(&tenantID); err == nil {
-				day := time.Now().Format("2006-01-02")
+				day := BusinessToday()
 				if err := postLoyaltyValue(tenantID, loyaltyExpiryReferenceDoctype, r.customerID+":"+day, "LoyaltyExpiry:"+r.customerID+":"+day,
 					int64(toExpire)*loyaltyPointValuePaise(tenantID), false, ""); err != nil {
 					log.Printf("[LOYALTY-EXPIRY] %d points expired for %s but the liability was not released: %v", toExpire, r.customerID, err)

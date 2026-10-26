@@ -80,7 +80,7 @@ func documentTransactionDate(payload map[string]interface{}) string {
 			}
 		}
 	}
-	return time.Now().UTC().Format("2006-01-02")
+	return BusinessToday()
 }
 
 // documentAmountFields are the monetary fields a base-currency twin is written

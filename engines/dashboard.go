@@ -211,7 +211,7 @@ func processDashboardDigests(ctx context.Context, schema string) {
 		log.Printf("[DASHBOARD_DIGEST] could not resolve tenant for schema %s: %v", schema, err)
 		return
 	}
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	rows, err := db.DB.Query(fmt.Sprintf(
 		`SELECT id, data FROM %s.documents WHERE doctype = 'DashboardDigest' AND `+scheduleDueSQL+`
 		 LIMIT $2`, schema),

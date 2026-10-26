@@ -74,7 +74,7 @@ func processScheduledReports(ctx context.Context, schema string) {
 	// whether it's due - the previous unbounded fetch-then-filter-in-Go
 	// shape would otherwise let a LIMIT here silently starve genuinely due
 	// schedules sorted after not-yet-due ones.
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	rows, err := db.DB.Query(fmt.Sprintf(
 		`SELECT id, data FROM %s.documents WHERE doctype = 'ScheduledReport' AND `+scheduleDueSQL+`
 		 LIMIT $2`, schema),
@@ -230,7 +230,7 @@ func advanceScheduleDate(from, frequency string) string {
 	if err != nil {
 		t = time.Now()
 	}
-	todayStr := time.Now().Format("2006-01-02")
+	todayStr := BusinessToday()
 	for t.Format("2006-01-02") <= todayStr {
 		switch frequency {
 		case "Weekly":

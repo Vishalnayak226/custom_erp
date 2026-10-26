@@ -10,18 +10,23 @@ import (
 // Stage 55.14: what an employee has left of each leave type this year, so a
 // leave form can explain the balance before HRPAYR-0151 refuses the save.
 //
-// The figures are exactly validateLeaveBalance's (transactional_validation.go):
+// Available is exactly validateLeaveBalance's figure (transactional_validation.go):
 // the flat yearly entitlement per type, less the days already Applied or
 // Approved in the same calendar year (by from_date, a plain date string - no
 // time zone involved). A user without HR's global self scope can read only
 // their own employee's balance, the same rule the Leave list itself follows.
 
+// Stage 132.20 (user decision 2026-10-26): Remaining drops on approval -
+// entitlement less approved days - and Available (Remaining less what is
+// awaiting approval) is what a new application may still take; the save
+// check refuses beyond it, as before.
 type LeaveBalanceLine struct {
 	LeaveType   string   `json:"leave_type"`
 	Entitlement *float64 `json:"entitlement"`
 	Approved    float64  `json:"approved"`
 	Pending     float64  `json:"pending"`
 	Remaining   *float64 `json:"remaining"`
+	Available   *float64 `json:"available"`
 }
 
 // GetLeaveBalance returns one line per leave type for employeeID in year.
@@ -86,8 +91,9 @@ func GetLeaveBalance(tenantID, employeeID, year string, session SessionScope) ([
 	for t, l := range used {
 		if ent, ok := leaveAnnualEntitlement[t]; ok {
 			e := ent
-			r := ent - l.Approved - l.Pending
-			l.Entitlement, l.Remaining = &e, &r
+			r := ent - l.Approved
+			a := r - l.Pending
+			l.Entitlement, l.Remaining, l.Available = &e, &r, &a
 		}
 		out = append(out, *l)
 	}

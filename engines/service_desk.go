@@ -61,7 +61,7 @@ func serviceContractCoverage(data map[string]interface{}, status string) map[str
 	used, _ := parityNumber(data["visits_used"])
 	start, _ := data["start_date"].(string)
 	end, _ := data["end_date"].(string)
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	covered := status == "Active" && (start == "" || start <= today) && (end == "" || end >= today) && used < included
 	reason := "Covered"
 	switch {
@@ -117,7 +117,7 @@ func ServiceDesk(tenantID, userID string, mine bool) ([]map[string]interface{}, 
 	}
 	rows.Close()
 
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	out := []map[string]interface{}{}
 	for _, t := range tickets {
 		str := func(k string) string { v, _ := t.data[k].(string); return v }

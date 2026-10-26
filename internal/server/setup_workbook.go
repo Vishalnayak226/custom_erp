@@ -2518,5 +2518,5 @@ func handleSetupWorkbookExport(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
-	swWriteXLSX(w, fmt.Sprintf("setup-workbook-%s-%s.xlsx", c.tenantID, time.Now().Format("2006-01-02")), file)
+	swWriteXLSX(w, fmt.Sprintf("setup-workbook-%s-%s.xlsx", c.tenantID, engines.BusinessToday()), file)
 }

@@ -164,6 +164,17 @@ func main() {
 			fmt.Fprintf(os.Stderr, "location cost center backfill failed: %v\n", err)
 			os.Exit(1)
 		}
+
+		// Stage 132.20: customer returns QC'd before 132.13 (p) get their missing
+		// stock ledger lines - once (same keys as the live path), stock untouched.
+		retDone, err := engines.BackfillReturnStockLedgerAllTenants()
+		for tenant, n := range retDone {
+			fmt.Printf("  [return-ledger] %s: %d return line(s) given their stock ledger movement\n", tenant, n)
+		}
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "return stock ledger backfill failed: %v\n", err)
+			os.Exit(1)
+		}
 		return
 	}
 

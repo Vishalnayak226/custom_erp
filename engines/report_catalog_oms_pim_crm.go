@@ -369,7 +369,7 @@ var catATP = &catSource{Label: "Stock", Rows: atpRows, SKU: "sku",
 		"ATP Qty":            catHN("atp"),
 		"Promise Date": func(r *catRow) interface{} {
 			if r.hn("atp") > 0 {
-				return time.Now().Format("2006-01-02") // ships from stock today
+				return BusinessToday() // ships from stock today
 			}
 			return nil
 		},
@@ -928,11 +928,11 @@ func loyaltyRows(tenantID, schema string, p map[string]string) ([]*catRow, error
 	var args []interface{}
 	if v := p["from"]; v != "" {
 		args = append(args, v)
-		q += fmt.Sprintf(" AND created_at >= $%d::date", len(args))
+		q += fmt.Sprintf(" AND created_at >= public.erp_day_start($%d::date)", len(args))
 	}
 	if v := p["to"]; v != "" {
 		args = append(args, v)
-		q += fmt.Sprintf(" AND created_at < $%d::date + 1", len(args))
+		q += fmt.Sprintf(" AND created_at < public.erp_day_start($%d::date + 1)", len(args))
 	}
 	rows, err := dbQuery(q+" ORDER BY customer_id, created_at LIMIT 50000", args...)
 	if err != nil {

@@ -384,7 +384,7 @@ func GetTrialBalance(tenantID, asOfDate string, filters ...FinancialReportFilter
 		       COALESCE(SUM(p.debit), 0) as total_debit,
 		       COALESCE(SUM(p.credit), 0) as total_credit
 		FROM %s.gl_accounts a
-		LEFT JOIN %s.gl_postings p ON a.account_code = p.account_code AND p.created_at < ($1::date + 1)%s
+		LEFT JOIN %s.gl_postings p ON a.account_code = p.account_code AND p.created_at < public.erp_day_start($1::date + 1)%s
 		GROUP BY a.account_code, a.account_name, a.account_type
 		ORDER BY a.account_code`, schema, schema, dimClause)
 

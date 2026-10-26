@@ -22,7 +22,7 @@ import (
 func alreadySentCampaignToday(schema, campaignID, customerID string) bool {
 	var exists bool
 	_ = db.DB.QueryRow(fmt.Sprintf(
-		`SELECT EXISTS(SELECT 1 FROM %s.clevertap_event_log WHERE campaign_id = $1 AND customer_id = $2 AND created_at::date = CURRENT_DATE)`, schema),
+		`SELECT EXISTS(SELECT 1 FROM %s.clevertap_event_log WHERE campaign_id = $1 AND customer_id = $2 AND public.erp_local_date(created_at) = public.erp_today())`, schema),
 		campaignID, customerID).Scan(&exists)
 	return exists
 }
@@ -47,7 +47,7 @@ func birthdayCampaignMatches(schema, channel string, consentOnly bool) ([]campai
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT cu.id, COALESCE(cu.data->>'name', '') FROM %s.documents cu
 		WHERE cu.doctype = 'Customer' AND cu.status = 'Active' AND cu.deleted_at IS NULL AND cu.data->>'date_of_birth' IS NOT NULL
-		  AND to_char((cu.data->>'date_of_birth')::date, 'MM-DD') = to_char(CURRENT_DATE, 'MM-DD')
+		  AND to_char((cu.data->>'date_of_birth')::date, 'MM-DD') = to_char(public.erp_today(), 'MM-DD')
 		  AND `+consent, schema))
 	if err != nil {
 		return nil, err
@@ -73,7 +73,7 @@ func lapsedCampaignMatches(schema string, lapsedDays int, channel string, consen
 			SELECT data->>'customer_id' AS customer_id FROM %s.documents
 			WHERE doctype = 'POSCart' AND status = 'Paid' AND COALESCE(data->>'customer_id', '') <> ''
 			GROUP BY data->>'customer_id'
-			HAVING MAX(created_at) < CURRENT_DATE - ($1 || ' days')::interval) x
+			HAVING MAX(created_at) < public.erp_today() - ($1 || ' days')::interval) x
 		LEFT JOIN %s.documents cu ON cu.doctype = 'Customer' AND cu.id = x.customer_id
 		WHERE `+consent, schema, schema), lapsedDays)
 	if err != nil {

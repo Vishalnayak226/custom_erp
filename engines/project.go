@@ -63,7 +63,7 @@ func GetProjectPL(tenantID, startDate, endDate string) ([]map[string]interface{}
 		       CASE WHEN a.account_type = 'Revenue' THEN COALESCE(SUM(p.credit), 0) - COALESCE(SUM(p.debit), 0)
 		            ELSE COALESCE(SUM(p.debit), 0) - COALESCE(SUM(p.credit), 0) END AS amount
 		FROM %s.gl_postings p JOIN %s.gl_accounts a ON a.account_code = p.account_code
-		WHERE a.account_type IN ('Revenue', 'Expense') AND p.created_at >= $1::date AND p.created_at < ($2::date + 1)
+		WHERE a.account_type IN ('Revenue', 'Expense') AND p.created_at >= public.erp_day_start($1::date) AND p.created_at < public.erp_day_start($2::date + 1)
 		GROUP BY COALESCE(p.project, 'Unassigned'), a.account_type
 		ORDER BY project, a.account_type`, schema, schema), startDate, endDate)
 	if err != nil {

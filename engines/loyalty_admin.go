@@ -291,15 +291,15 @@ func loyaltyMovementReport(tenantID string, params map[string]string) ([]map[str
 		from = "1900-01-01"
 	}
 	if to == "" {
-		to = time.Now().Format("2006-01-02")
+		to = BusinessToday()
 	}
 	var opening int64
 	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(CASE WHEN transaction_type = 'Earn' THEN points ELSE -points END), 0)
-		FROM %s.loyalty_point_ledger WHERE created_at < $1::date`, schema), from).Scan(&opening); err != nil {
+		FROM %s.loyalty_point_ledger WHERE created_at < public.erp_day_start($1::date)`, schema), from).Scan(&opening); err != nil {
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT `+loyaltyMovementSQL+` AS kind, COALESCE(SUM(points), 0) FROM %s.loyalty_point_ledger
-		WHERE created_at >= $1::date AND created_at < ($2::date + 1) GROUP BY 1`, schema), from, to)
+		WHERE created_at >= public.erp_day_start($1::date) AND created_at < public.erp_day_start($2::date + 1) GROUP BY 1`, schema), from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -335,13 +335,13 @@ func loyaltyMovementReport(tenantID string, params map[string]string) ([]map[str
 	add("Closing balance", closing)
 	var ledgerNow int64
 	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(CASE WHEN transaction_type = 'Earn' THEN points ELSE -points END), 0)
-		FROM %s.loyalty_point_ledger WHERE created_at < ($1::date + 1)`, schema), to).Scan(&ledgerNow)
+		FROM %s.loyalty_point_ledger WHERE created_at < public.erp_day_start($1::date + 1)`, schema), to).Scan(&ledgerNow)
 	if ledgerNow != closing {
 		add("DIFFERENCE from the ledger (investigate)", ledgerNow-closing)
 	}
 	if loyaltyAccruesForSchema(schema) {
 		var liability int64
-		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(credit - debit), 0) FROM %s.gl_postings WHERE account_code = $1 AND created_at < ($2::date + 1)`, schema),
+		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(credit - debit), 0) FROM %s.gl_postings WHERE account_code = $1 AND created_at < public.erp_day_start($2::date + 1)`, schema),
 			accountLoyaltyLiability, to).Scan(&liability)
 		out = append(out, map[string]interface{}{"movement": "Liability in the books (2630)", "points": nil, "value": PaiseToRupees(liability)})
 		out = append(out, map[string]interface{}{"movement": "Books less points outstanding", "points": nil, "value": PaiseToRupees(liability - closing*v)})

@@ -188,6 +188,7 @@ promise to perform every ERP domain serially or a mandate to split the service i
     *candidate. **Still open and this item's own remaining Done-bar requirement**: reconciling*
     *§7's ~200-item real backlog into JRN-01–23 against these now-decided scopes — decisions*
     *unblock it, they do not perform it. BLD-020 (pairwise matrix) is now unblocked to start.*
+  - *2026-10-26 (next 20, second run): the backlog reconciliation is generated - `docs/qa/generated/backlog-journey-map.md` (cmd/gendocs `journeys.go`, regenerated at G7): every open checklist item placed on its journey by stage (sub-stage where the JRN table's owner column names it, e.g. 47.2 to JRN-01), each journey with its reference configuration, owner, acceptance environment (Chromium, 3 viewports, en-IN, Small/Mid/Large) and open / decision / blocked counts; journeys outside both reference configurations are marked deferred as their exclusion rationale; a stage nobody placed is listed as unmapped (Stage 139 today). First run: 324 items placed. Verified: `TestBLD002BacklogMapsOntoJourneys`. Left: the product/QA owner reviews the stage placement in `stageJourney` - an unapproved assumption until then. Status: Built, needs owner review*
 
 ## Wave 1 — repair and prove the release blockers
 
@@ -627,11 +628,13 @@ promise to perform every ERP domain serially or a mandate to split the service i
   legal hold/retention/offboarding across UI, API, credentials and workers. **Done:** three
   tenant/role variants prove isolation and controlled access throughout, named legal decisions
   for irreversible retention/deletion; DNS/TLS operational proof is separate. Sources: PKG-08, MC-046–052/067/122/123.
+  - *2026-10-26 (next 20, second run), local slice: the lifecycle now reaches the workers. Found: `listTenantSchemas` read every registry row, so ~30 workers kept sending campaigns and dunning mail, submitting e-invoices, delivering webhooks and running queued jobs for a suspended or trial-expired client. Fixed at that one choke point: it now serves only operational clients (one query, no per-tenant lookups); 14 maintenance loops (retention, audit evidence/archive, detection, posture, operator monitors) use `listRegisteredTenantSchemas`, allowlisted by test. Verified: `TestBLD028WorkersServeOnlyOperationalTenants` (active, suspended, trial over, future trial, deprovision-requested, resume), `TestBLD028OnlyMaintenanceSweepsSeeEveryTenant`, lifecycle tests. Left: the package-transition half (BLD-024/025, waits on BLD-023) and DNS/TLS proof. Status: Built (local slice)*
 - [ ] **BLD-029 — noisy-neighbor containment. DEPENDS on BLD-021 and BLD-042 workload;
   engineering/operations.** Bound tenant query, connection, CPU, job and storage consumption;
   measure large-tenant effects and fairness before adding infrastructure. **Done:** three
   contention/spike/recovery campaigns with per-tenant latency/error/lag/cost, no cross-tenant
   data or cache leakage and defined admission/backpressure. Sources: PKG-09, MC-052/071/110.
+  - *2026-10-26 (next 20, second run): three campaigns on the real admission path, two clients through `apiMiddleware` (`TestBLD029NoisyNeighbourIsContained`). Found two real faults: the per-tenant slot was taken after the sandbox, live-state and entitlement lookups, and every refusal wrote a `system_error_logs` row (GLOBAL-0010 is log-required) - so a 100-request burst from one client took the shared pool to 50 of 50 and kept the other client waiting up to ~1 s. Fixed: the slot is taken as soon as the token names the tenant; refusals log one summary row per client per minute (`refuseBusy`), same response body. Measured after: contention 40 long reports - 7 admitted, 33 refused, pool peak 9 of 50; spike 100 requests - 15 admitted, 85 refused, peak 16; client B 0 failures, median ~2 ms; recovery - all slots returned. Left: the representative Linux workload (BLD-042) and a global fair-share guard for 4+ clients at cap at once (4 x 15 > 50 connections). Status: Built (local campaigns)*
 - [ ] **BLD-030 — portable exports and versioned module contracts. DEPENDS on BLD-021/023;
   engineering/data owner.** Version records, attachments, configuration, audit evidence and ID
   mappings; document API/event deprecation and queued-work upgrade behavior. Verify a clean
@@ -692,6 +695,7 @@ promise to perform every ERP domain serially or a mandate to split the service i
   keys, failed-row correction, resumability and spreadsheet-safe scoped exports. **Done:**
   representative customer datasets reconcile counts/balances/IDs, interrupted retry preserves
   provenance, large-file budgets hold and a nondeveloper completes correction. Sources: MC-075–077, 47.13/48.5.
+  - *2026-10-26 (next 20, second run): failed-row correction and resume already existed (Stage 55.11); added the representative reconciliation campaign `TestBLD032RepresentativeImportReconciles`: 2,000 rows with ~95 bad of three kinds (invalid status, missing name, code repeated in the file) - counts add up exactly, database matches the report, ~0.3-0.5 s; a full re-run (a retry after an interrupted upload) creates nothing and keeps `created_by`; fixing only the downloaded failed rows and resuming the same job brings every code in exactly once (a corrected row whose code another row already imported updates that record - the importer's upsert rule). Left: an observed non-developer correction (BLD-040) and the portable format (BLD-030). Status: Built (local campaign)*
 
 ## Wave 4 — excellent everyday UI and accessibility
 
@@ -1355,6 +1359,7 @@ promise to perform every ERP domain serially or a mandate to split the service i
   behavior, and align ownership, backoff and cancellation with existing runner patterns.
   **Done:** three idle/active/disabled scenarios demonstrate no unnecessary module DB/provider
   work, no lost due work and bounded connection/CPU use. Sources: PERF-04, MC-069/071/080/105.
+  - *2026-10-26 (next 20, second run): `TestBLD044WorkerInventoryMatchesTheCode` holds the inventory of all 41 workers routes.go starts to the code - module-owned workers must ask for their module (a client without it costs them nothing), every tenant-visiting worker must be leader-gated (only the job runner is exempt: it claims with SKIP LOCKED leases). Measured idle cost (one client, 5 min each): 180 transactions/min with all modules, 122 with the worker modules off (-32%), 11 pooled connections both. Left: disable/re-enable behaviour (BLD-025) and a per-worker breakdown on the production host. Status: Built (local slice)*
 - [ ] **BLD-045 — browser interaction performance. DEPENDS on BLD-034/041;
   frontend/QA.** Measure cold boot, warm navigation, dense-table interaction and long sessions
   on constrained supported devices/networks; use actual LCP/INP and main-thread observations,
@@ -1625,6 +1630,7 @@ promise to perform every ERP domain serially or a mandate to split the service i
   actual data/export/log paths. **Done:** three scoped lifecycle/failure variants with measured
   storage, preserved legal holds and named qualified decisions; no fabricated compliance.
   Sources: MC-121–126/128, 47.7/47.16/49.6/49.16.
+  - *2026-10-26 (next 20, second run): key custody. A row signed by an audit key the server no longer holds was reported as tampered - a lost key would raise a wall of false tamper alarms. Each signed row and checkpoint now records its key's fingerprint (`sig_key`, additive migration `migrations_stage50_15_bld053_audit_sig_key.sql`, archives carry it too); the verifier reports such rows as unverifiable with the missing fingerprints (not verified, not tampered, still not intact), the scheduler message and the restore check name the key, and the statement says plainly: if custody has no key with that fingerprint, treat the rows as tampered (the fingerprint is not covered by the MAC). Verified: `TestBLD053RowSignedByAMissingKeyIsUnverifiableNotTampered` plus the audit evidence/archive suites. Left: Unix permission cases (Linux host), the legal retention decision. Status: Built (key-loss slice)*
 - [ ] **BLD-054 — independent security, incident and supply-chain acceptance. DEPENDS on
   Wave 1 and relevant controls; security/operations; EXTERNAL reviewers.** Reuse Stage 49
   threat/abuse, dependency/provenance and disclosure program. Scope an authenticated independent
@@ -1671,6 +1677,7 @@ promise to perform every ERP domain serially or a mandate to split the service i
   region coverage after one `brain.map.json` edit claimed the two new Go files. **Stays open**: the
   clean-checkout generated-freshness check and the remaining Stage 48 owner, content, migration and
   human-acceptance gates. Full detail `project_ledger.md` §190.*
+  - *2026-10-26 (next 20, second run): strict lint had regressed to 9 findings. Fixed: the live handover back to 141 lines - its 2026-10-24-and-earlier section 6 entries moved verbatim, in order, to `docs/archive/handovers/ai-handover-2026-10-26.md` (checked: no line lost); two workstation paths made portable; the stale capability catalog and traceability regenerated; new security docs linked and registered. Now only the two guide budgets remain (the guide split is 134.9, waiting for a quiet tree) plus other sessions' in-progress files. Status: Built - guide split left (134.9)*
 - [ ] **BLD-056 — complete remaining documentation acceptance. DEPENDS per table below;
   documentation plus named domain owners.** Execute the existing twelve parent gates in
   place; preserve completed sub-items and historical evidence. **Done:** remaining ownership,

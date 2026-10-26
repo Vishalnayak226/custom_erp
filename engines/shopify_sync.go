@@ -256,7 +256,7 @@ func shopifyItemPrice(tenantID, priceList string, item map[string]interface{}, s
 	mrp := numFromInterface(item["mrp"])
 	price = numFromInterface(item["sale_price"])
 	if priceList != "" {
-		if p, ok, err := ResolvePriceForSKU(tenantID, priceList, sku, time.Now().Format("2006-01-02")); err == nil && ok && p > 0 {
+		if p, ok, err := ResolvePriceForSKU(tenantID, priceList, sku, BusinessToday()); err == nil && ok && p > 0 {
 			price = p
 		}
 	}

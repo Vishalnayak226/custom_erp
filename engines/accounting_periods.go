@@ -4,7 +4,6 @@ import (
 	"custom_erp/db"
 	"database/sql"
 	"fmt"
-	"time"
 )
 
 type AccountingPeriod struct {
@@ -275,7 +274,7 @@ func rejectIfCurrentPeriodClosed(tx *sql.Tx, schema, docType, docID, transaction
 	if transactionDate == "" {
 		err = tx.QueryRow(fmt.Sprintf(`
 			SELECT period_name FROM %s.accounting_periods
-			WHERE status = 'Closed' AND CURRENT_DATE BETWEEN start_date AND end_date
+			WHERE status = 'Closed' AND public.erp_today() BETWEEN start_date AND end_date
 			LIMIT 1`, schema)).Scan(&name)
 	} else {
 		err = tx.QueryRow(fmt.Sprintf(`
@@ -318,7 +317,7 @@ func isBackdatedPostingApproved(tx *sql.Tx, schema, docType, docID, transactionD
 	}
 	effectiveDate := transactionDate
 	if effectiveDate == "" {
-		effectiveDate = time.Now().Format("2006-01-02")
+		effectiveDate = BusinessToday()
 	}
 	var count int
 	err := tx.QueryRow(fmt.Sprintf(`

@@ -147,7 +147,7 @@ func RegisterExtensionHook(tenantID, hookPoint, doctype, targetURL string, timeo
 	if len(apiVersion) > 0 {
 		version = apiVersion[0]
 	}
-	if version, err = CheckHookAPIVersion(version, time.Now().Format("2006-01-02")); err != nil {
+	if version, err = CheckHookAPIVersion(version, BusinessToday()); err != nil {
 		return "", "", err
 	}
 	if err := validateHookTargetURL(targetURL); err != nil {

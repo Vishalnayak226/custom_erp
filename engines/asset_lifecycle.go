@@ -97,13 +97,13 @@ func GetAssetLifecycle(tenantID, assetID string) (*AssetLifecycle, error) {
 	}
 	capDate := entry.CapitalisationDate
 	if capDate == "" {
-		capDate = time.Now().Format("2006-01-02") // a Draft: the preview capitalising today would give
+		capDate = BusinessToday() // a Draft: the preview capitalising today would give
 	}
 	st := &lc.Depreciation
 	st.MonthsNotPosted, st.Postings = []string{}, []map[string]interface{}{}
 	plan, planned := assetDepreciationPlan(data, capDate)
 	if planned {
-		today := time.Now().Format("2006-01-02")
+		today := BusinessToday()
 		if entry.Status == "Capitalised" {
 			st.MonthsDue = plan.monthsDue(time.Now())
 		}

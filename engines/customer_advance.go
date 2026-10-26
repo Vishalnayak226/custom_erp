@@ -316,7 +316,7 @@ func PrepareAdvanceTenders(tenantID, customerID string, reqs []AdvanceTenderRequ
 	if err != nil {
 		return nil, err
 	}
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	seen := map[string]bool{}
 	var total int64
 	out := []GiftCardTender{}

@@ -120,7 +120,7 @@ func purchaseReturnable(q queryRower, tenantID, schema, grnID, excludeReturnID s
 	var dataStr, status string
 	var ageDays int
 	err := q.QueryRow(fmt.Sprintf(
-		`SELECT data, status, CURRENT_DATE - created_at::date FROM %s.documents WHERE doctype = 'GRN' AND id = $1 AND deleted_at IS NULL`+lockClause, schema),
+		`SELECT data, status, public.erp_today() - public.erp_local_date(created_at) FROM %s.documents WHERE doctype = 'GRN' AND id = $1 AND deleted_at IS NULL`+lockClause, schema),
 		grnID).Scan(&dataStr, &status, &ageDays)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, &ValidationError{Code: "PURCHA-0118", SubFor: "Goods Receipt (GRN)", Message: fmt.Sprintf("goods receipt %s does not exist", grnID)}
@@ -630,24 +630,26 @@ func PostPurchaseReturn(tenantID, returnID, userID, storeCode string) (*Purchase
 		updated, returnID); err != nil {
 		return nil, err
 	}
-	if err := tx.Commit(); err != nil {
+	// Stage 132.20 (user decision 2026-10-26): the ledger lines and the item
+	// cost taken back commit with the return - they were written after it,
+	// best-effort, and a failure left the Stock Ledger and the cost short.
+	if err := writeStockLedgerLinesInTx(tx, schema, ctx.Location, "PurchaseReturn", returnID, userID, postedLines); err != nil {
 		return nil, err
 	}
-
-	// After the commit, best-effort like the GRN's own costing and ledger
-	// writes: the goods have physically gone back.
-	WriteStockLedgerLines(tenantID, ctx.Location, "PurchaseReturn", returnID, userID, postedLines)
 	for _, e := range ledger {
-		if lerr := WriteStockLedgerEntry(tenantID, e); lerr != nil {
-			LogSystemError(tenantID, "", "WARN", "PostPurchaseReturn", fmt.Sprintf("stock ledger write failed for %s: %v", e.ItemID, lerr), "")
+		if err := insertStockLedgerEntry(tx, schema, e); err != nil {
+			return nil, fmt.Errorf("stock ledger for %s: %w", e.ItemID, err)
 		}
 	}
 	for _, l := range lines {
 		if l.StockBucket == PurchaseReturnBucketAccepted && l.LineValue > 0 {
-			if cerr := reverseItemCostReceipt(schema, l.SKU, l.Qty, RupeesToPaise(l.LineValue)); cerr != nil {
-				LogSystemError(tenantID, "", "WARN", "PostPurchaseReturn", fmt.Sprintf("item cost not reduced for %s: %v", l.SKU, cerr), "")
+			if err := reverseItemCostReceipt(tx, schema, l.SKU, l.Qty, RupeesToPaise(l.LineValue)); err != nil {
+				return nil, fmt.Errorf("item cost for %s: %w", l.SKU, err)
 			}
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
 	}
 
 	result := &PurchaseReturnPostResult{ReturnID: returnID, ReturnValue: total, GSTReversed: itcReversed}
@@ -750,11 +752,13 @@ func purchaseReturnITCReversal(tx queryRower, tenantID, schema, poID, grnID stri
 // reverseItemCostReceipt takes a returned receipt back out of the moving
 // average: the qty and value come off cumulative received, and the average
 // is recomputed from what is left (kept as it was if nothing is left).
-func reverseItemCostReceipt(schema, itemCode string, qty float64, valuePaise int64) error {
+func reverseItemCostReceipt(q interface {
+	Exec(string, ...interface{}) (sql.Result, error)
+}, schema, itemCode string, qty float64, valuePaise int64) error {
 	if qty <= 0 || valuePaise <= 0 {
 		return nil
 	}
-	_, err := db.DB.Exec(fmt.Sprintf(`
+	_, err := q.Exec(fmt.Sprintf(`
 		WITH input AS (SELECT $1::varchar AS item_code, $2::numeric AS qty, $3::bigint AS value_paise)
 		UPDATE %s.item_cost c SET
 			cumulative_qty_received = GREATEST(c.cumulative_qty_received - i.qty, 0),

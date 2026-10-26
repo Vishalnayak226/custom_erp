@@ -319,7 +319,7 @@ var catCommon = map[string]catFn{
 	"From Date":   func(r *catRow) interface{} { return r.p["from"] },
 	"To Date":     func(r *catRow) interface{} { return r.p["to"] },
 	"As Of Date": func(r *catRow) interface{} {
-		return firstNonEmpty(r.p["to"], time.Now().Format("2006-01-02"))
+		return firstNonEmpty(r.p["to"], BusinessToday())
 	},
 	// The item
 	"SKU":            func(r *catRow) interface{} { return r.sku() },

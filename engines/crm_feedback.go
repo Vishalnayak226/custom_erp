@@ -362,11 +362,11 @@ func GetCRMFeedbackSummary(tenantID, surveyID, from, to string) (*CRMFeedbackSum
 	args := []interface{}{surveyID}
 	if from != "" {
 		args = append(args, from)
-		dates += fmt.Sprintf(" AND f.created_at >= $%d::date", len(args))
+		dates += fmt.Sprintf(" AND f.created_at >= public.erp_day_start($%d::date)", len(args))
 	}
 	if to != "" {
 		args = append(args, to)
-		dates += fmt.Sprintf(" AND f.created_at < $%d::date + 1", len(args))
+		dates += fmt.Sprintf(" AND f.created_at < public.erp_day_start($%d::date + 1)", len(args))
 	}
 	where := "f.survey_id = $1" + dates
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT v.version, v.question, v.scale, COUNT(f.id), COUNT(f.score),

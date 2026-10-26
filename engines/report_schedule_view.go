@@ -72,7 +72,7 @@ func ListReportSchedules(tenantID, userID, role string) ([]ReportScheduleView, e
 	if err != nil {
 		return nil, err
 	}
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	// scheduleDueSQL's columns are unqualified; they resolve to d, the only
 	// table in the outer FROM.
 	rows, err := db.DB.Query(fmt.Sprintf(`

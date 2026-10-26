@@ -26,7 +26,7 @@ import (
 func catPeriod(p map[string]string) (from, to string, days float64) {
 	to = strings.TrimSpace(p["to"])
 	if to == "" {
-		to = time.Now().Format("2006-01-02")
+		to = BusinessToday()
 	}
 	from = strings.TrimSpace(p["from"])
 	if from == "" {
@@ -50,7 +50,7 @@ func catSold(r *catRow) catSale {
 		rows, err := dbQuery(fmt.Sprintf(`SELECT d.data->>'location', i->>'sku', SUM(COALESCE(NULLIF(i->>'qty', '')::numeric, 0)),
 			SUM(COALESCE(NULLIF(i->>'net_total', '')::numeric, COALESCE(NULLIF(i->>'sale_price', '')::numeric, 0) * COALESCE(NULLIF(i->>'qty', '')::numeric, 0)))
 			FROM %s.documents d, jsonb_array_elements(CASE WHEN jsonb_typeof(d.data->'items') = 'array' THEN d.data->'items' ELSE '[]'::jsonb END) i
-			WHERE d.doctype = 'POSCart' AND d.status = 'Paid' AND d.deleted_at IS NULL AND d.created_at >= $1::date AND d.created_at < $2::date + 1
+			WHERE d.doctype = 'POSCart' AND d.status = 'Paid' AND d.deleted_at IS NULL AND d.created_at >= public.erp_day_start($1::date) AND d.created_at < public.erp_day_start($2::date + 1)
 			GROUP BY 1, 2`, r.lk.schema), from, to)
 		if err == nil {
 			for rows.Next() {
@@ -417,11 +417,11 @@ func approvalRows(tenantID, schema string, p map[string]string) ([]*catRow, erro
 	var args []interface{}
 	if v := p["from"]; v != "" {
 		args = append(args, v)
-		q += fmt.Sprintf(" AND created_at >= $%d::date", len(args))
+		q += fmt.Sprintf(" AND created_at >= public.erp_day_start($%d::date)", len(args))
 	}
 	if v := p["to"]; v != "" {
 		args = append(args, v)
-		q += fmt.Sprintf(" AND created_at < $%d::date + 1", len(args))
+		q += fmt.Sprintf(" AND created_at < public.erp_day_start($%d::date + 1)", len(args))
 	}
 	rows, err := dbQuery(q+" ORDER BY created_at DESC LIMIT 20000", args...)
 	if err != nil {
@@ -487,11 +487,11 @@ func activityRows(tenantID, schema string, p map[string]string) ([]*catRow, erro
 	var args []interface{}
 	if v := p["from"]; v != "" {
 		args = append(args, v)
-		q += fmt.Sprintf(" AND created_at >= $%d::date", len(args))
+		q += fmt.Sprintf(" AND created_at >= public.erp_day_start($%d::date)", len(args))
 	}
 	if v := p["to"]; v != "" {
 		args = append(args, v)
-		q += fmt.Sprintf(" AND created_at < $%d::date + 1", len(args))
+		q += fmt.Sprintf(" AND created_at < public.erp_day_start($%d::date + 1)", len(args))
 	}
 	rows, err := dbQuery(q+" ORDER BY created_at DESC LIMIT 20000", args...)
 	if err != nil {

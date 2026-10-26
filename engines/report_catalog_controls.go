@@ -43,10 +43,10 @@ func catWindow(p map[string]string, storeField string, args *[]interface{}) stri
 		conds = append(conds, fmt.Sprintf(cond, len(*args)))
 	}
 	if v := strings.TrimSpace(p["from"]); v != "" {
-		add("d.created_at >= $%d::date", v)
+		add("d.created_at >= public.erp_day_start($%d::date)", v)
 	}
 	if v := strings.TrimSpace(p["to"]); v != "" {
-		add("d.created_at < $%d::date + 1", v)
+		add("d.created_at < public.erp_day_start($%d::date + 1)", v)
 	}
 	if v := strings.TrimSpace(p["location"]); v != "" && storeField != "" {
 		add("d.data->>'"+storeField+"' = ANY($%d)", pqStringArray(strings.Split(v, ",")))
@@ -164,11 +164,11 @@ func catGSTControls(keys ...string) ReportControlTotalsFunc {
 			gwin := "TRUE"
 			if v := strings.TrimSpace(p["from"]); v != "" {
 				gargs = append(gargs, v)
-				gwin = fmt.Sprintf("created_at >= $%d::date", len(gargs))
+				gwin = fmt.Sprintf("created_at >= public.erp_day_start($%d::date)", len(gargs))
 			}
 			if v := strings.TrimSpace(p["to"]); v != "" {
 				gargs = append(gargs, v)
-				gwin += fmt.Sprintf(" AND created_at < $%d::date + 1", len(gargs))
+				gwin += fmt.Sprintf(" AND created_at < public.erp_day_start($%d::date + 1)", len(gargs))
 			}
 			var ledgerPaise int64
 			if err := tx.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(credit), 0) - COALESCE(SUM(debit), 0) FROM %s.gl_postings

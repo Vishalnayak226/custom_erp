@@ -58,7 +58,7 @@ func init() {
 		from:  `%[1]s.crm_opportunities o LEFT JOIN %[1]s.crm_pipeline_stages st ON st.id = o.stage_id`,
 		where: `TRUE`,
 		Fields: []DatasetField{
-			dsF("date", "Expected close", "date", `COALESCE(o.expected_close, o.created_at::date)`),
+			dsF("date", "Expected close", "date", `COALESCE(o.expected_close, public.erp_local_date(o.created_at))`),
 			dsF("stage", "Stage", "category", `COALESCE(st.name, o.stage_id)`),
 			dsF("status", "Status", "category", `o.status`),
 			dsF("owner", "Owner", "category", `COALESCE(NULLIF(o.owner, ''), '(nobody)')`),

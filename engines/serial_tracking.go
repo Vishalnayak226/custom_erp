@@ -150,19 +150,28 @@ func RegisterSerial(tenantID string, in SerialInfo, locationCode, voucherType, v
 		}
 		patch := map[string]interface{}{"status": SerialInStock, "location_code": locationCode, "current_bin": ""}
 		patchJSON, _ := json.Marshal(patch)
-		if _, err := db.DB.Exec(fmt.Sprintf(`
+		// Stage 132.20: the unit and its ledger line in one transaction (the line was best-effort).
+		tx, terr := db.DB.Begin()
+		if terr != nil {
+			return nil, terr
+		}
+		defer tx.Rollback()
+		if _, err := tx.Exec(fmt.Sprintf(`
 			UPDATE %s.documents SET data = data || $1::jsonb, status = $2, updated_at = CURRENT_TIMESTAMP
 			WHERE doctype = 'SerialNumber' AND id = $3`, schema), patchJSON, SerialInStock, existing.DocID); err != nil {
 			return nil, err
 		}
-		existing.Status, existing.LocationCode, existing.CurrentBin = SerialInStock, locationCode, ""
-		if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
+		if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
 			ItemID: sku, WarehouseID: locationCode, Qty: 0,
 			VoucherType: voucherType, VoucherID: voucherID, UserID: userID, ToStatus: SerialInStock,
 			SerialNo: serialNo,
-		}); lerr != nil {
-			LogSystemError(tenantID, "", "WARN", "RegisterSerial", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
+		}); err != nil {
+			return nil, fmt.Errorf("stock ledger: %w", err)
 		}
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+		existing.Status, existing.LocationCode, existing.CurrentBin = SerialInStock, locationCode, ""
 		LogAuditEvent(tenantID, userID, "SERIAL_RESTOCK", "SUCCESS",
 			fmt.Sprintf("Restocked returned serial %s of %s at %s", serialNo, sku, locationCode))
 		return existing, nil
@@ -184,17 +193,26 @@ func RegisterSerial(tenantID string, in SerialInfo, locationCode, voucherType, v
 	// code), and documents.id is the primary key across every doctype.
 	docID := NewDocID("SERIAL")
 	payload, _ := json.Marshal(data)
-	if _, err := db.DB.Exec(fmt.Sprintf(`
+	// Stage 132.20: the unit and its ledger line in one transaction (the line was best-effort).
+	tx, terr := db.DB.Begin()
+	if terr != nil {
+		return nil, terr
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(fmt.Sprintf(`
 		INSERT INTO %s.documents (id, doctype, data, status, created_by)
 		VALUES ($1, 'SerialNumber', $2, 'InStock', $3)`, schema), docID, payload, userID); err != nil {
 		return nil, err
 	}
-	if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
+	if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
 		ItemID: sku, WarehouseID: locationCode, Qty: 0,
 		VoucherType: voucherType, VoucherID: voucherID, UserID: userID, ToStatus: SerialInStock,
 		SerialNo: serialNo,
-	}); lerr != nil {
-		LogSystemError(tenantID, "", "WARN", "RegisterSerial", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
+	}); err != nil {
+		return nil, fmt.Errorf("stock ledger: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
 	}
 	LogAuditEvent(tenantID, userID, "SERIAL_REGISTER", "SUCCESS",
 		fmt.Sprintf("Registered serial %s of %s at %s", serialNo, sku, locationCode))
@@ -232,17 +250,26 @@ func PutawaySerial(tenantID, sku, serialNo, binCode, locationCode, userID string
 	}
 	patch := map[string]interface{}{"current_bin": binCode, "location_code": locationCode}
 	patchJSON, _ := json.Marshal(patch)
-	if _, err := db.DB.Exec(fmt.Sprintf(`
+	// Stage 132.20: the unit and its ledger line in one transaction (the line was best-effort).
+	tx, terr := db.DB.Begin()
+	if terr != nil {
+		return terr
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(fmt.Sprintf(`
 		UPDATE %s.documents SET data = data || $1::jsonb, updated_at = CURRENT_TIMESTAMP
 		WHERE doctype = 'SerialNumber' AND id = $2`, schema), patchJSON, unit.DocID); err != nil {
 		return err
 	}
-	if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
+	if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
 		ItemID: sku, WarehouseID: locationCode, Qty: 0,
 		VoucherType: "SerialPutaway", VoucherID: serialNo, UserID: userID,
 		FromLocationID: unit.CurrentBin, ToLocationID: binCode, SerialNo: serialNo,
-	}); lerr != nil {
-		LogSystemError(tenantID, "", "WARN", "PutawaySerial", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
+	}); err != nil {
+		return fmt.Errorf("stock ledger: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return err
 	}
 	LogAuditEvent(tenantID, userID, "WMS_SERIAL_PUTAWAY", "SUCCESS",
 		fmt.Sprintf("Put away serial %s of %s to bin %s", serialNo, sku, binCode))
@@ -336,17 +363,26 @@ func TransitionSerialStatus(tenantID, sku, serialNo, newStatus, voucherType, vou
 		patch["notes"] = reason
 	}
 	patchJSON, _ := json.Marshal(patch)
-	if _, err := db.DB.Exec(fmt.Sprintf(`
+	// Stage 132.20: the unit and its ledger line in one transaction (the line was best-effort).
+	tx, terr := db.DB.Begin()
+	if terr != nil {
+		return terr
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(fmt.Sprintf(`
 		UPDATE %s.documents SET data = data || $1::jsonb, status = $2, updated_at = CURRENT_TIMESTAMP
 		WHERE doctype = 'SerialNumber' AND id = $3`, schema), patchJSON, newStatus, unit.DocID); err != nil {
 		return err
 	}
-	if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
+	if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
 		ItemID: sku, WarehouseID: unit.LocationCode, Qty: 0,
 		VoucherType: voucherType, VoucherID: voucherID, UserID: userID,
 		FromStatus: unit.Status, ToStatus: newStatus, SerialNo: serialNo,
-	}); lerr != nil {
-		LogSystemError(tenantID, "", "WARN", "TransitionSerialStatus", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
+	}); err != nil {
+		return fmt.Errorf("stock ledger: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return err
 	}
 	LogAuditEvent(tenantID, userID, "SERIAL_STATUS_CHANGE", "SUCCESS",
 		fmt.Sprintf("Serial %s of %s: %s -> %s%s", serialNo, sku, unit.Status, newStatus, reasonSuffix(reason)))

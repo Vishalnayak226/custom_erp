@@ -4,7 +4,6 @@ import (
 	"custom_erp/db"
 	"encoding/json"
 	"fmt"
-	"time"
 )
 
 // Stage 37.8: Service management. Pre-build audit found no ServiceTicket/
@@ -288,7 +287,7 @@ func GetServiceSLABreaches(tenantID string) ([]map[string]interface{}, error) {
 	}
 	defer rows.Close()
 
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	var out []map[string]interface{}
 	for rows.Next() {
 		var id, customer, status, respondBy, resolveBy string

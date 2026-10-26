@@ -5403,7 +5403,7 @@
   ],
   "migrations": {
     "base_schema_file": "db/migration.sql",
-    "incremental_files": 298,
+    "incremental_files": 299,
     "newest": [
       "migrations_stage98_3_store_email.sql",
       "migrations_stage98_4_printer_choice.sql",
@@ -5488,6 +5488,13 @@
         "internal/server/handlers_environment.go",
         "internal/server/handlers_integrations_admin.go",
         "internal/server/routes.go"
+      ]
+    },
+    {
+      "name": "ERP_BUSINESS_TZ",
+      "security_critical": false,
+      "read_by": [
+        "engines/business_day.go"
       ]
     },
     {
@@ -5839,9 +5846,9 @@
     "cli_commands": 18,
     "dependencies": 2,
     "direct_dependencies": 2,
-    "environment_flags": 41,
+    "environment_flags": 42,
     "environment_flags_security_critical": 14,
-    "incremental_migrations": 298,
+    "incremental_migrations": 299,
     "outbound_call_sites": 16,
     "routes": 846,
     "routes_integration_credential": 5,

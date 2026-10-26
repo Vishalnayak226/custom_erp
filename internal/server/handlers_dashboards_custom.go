@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"custom_erp/engines"
 )
@@ -203,7 +202,7 @@ func handleDashboardExport(w http.ResponseWriter, r *http.Request) {
 		name = "dashboard"
 	}
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s %s.xlsx"`, name, time.Now().Format("2006-01-02")))
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s %s.xlsx"`, name, engines.BusinessToday()))
 	_, _ = w.Write(book)
 }
 

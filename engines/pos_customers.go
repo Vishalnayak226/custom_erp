@@ -349,7 +349,7 @@ func SearchStoreBills(tenantID string, stores []string, q, date string) ([]Store
 	}
 	if date = strings.TrimSpace(date); date != "" {
 		args = append(args, date)
-		sqlq += fmt.Sprintf(" AND c.created_at::date = $%d::date", len(args))
+		sqlq += fmt.Sprintf(" AND public.erp_local_date(c.created_at) = $%d::date", len(args))
 	}
 	sqlq += " ORDER BY c.created_at DESC LIMIT 50"
 	rows, err := db.DB.Query(sqlq, args...)

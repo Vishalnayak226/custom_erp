@@ -72,8 +72,8 @@ func GetLaborProductivity(tenantID, start, end string) ([]LaborProductivity, err
 		SELECT COALESCE(data->>'user_id', ''), COALESCE(data->>'task_type', ''), COUNT(*), MIN(created_at), MAX(created_at)
 		FROM %s.documents
 		WHERE doctype = 'TaskCompletionLog'
-		  AND ($1 = '' OR created_at >= $1::date)
-		  AND ($2 = '' OR created_at < ($2::date + interval '1 day'))
+		  AND ($1 = '' OR created_at >= public.erp_day_start($1::date))
+		  AND ($2 = '' OR created_at < public.erp_day_start($2::date + 1))
 		GROUP BY data->>'user_id', data->>'task_type'
 		ORDER BY data->>'user_id', data->>'task_type'`, schema), start, end)
 	if err != nil {

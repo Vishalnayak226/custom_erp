@@ -144,7 +144,7 @@ func loadDueAmortizationSchedules(schema, doctype, linkedIDField string) ([]amor
 		FROM %s.documents
 		WHERE doctype = $1 AND status IN ('Active', 'Approved') AND deleted_at IS NULL
 		  AND COALESCE(data->>'next_recognition_date', '') <> '' AND data->>'next_recognition_date' <= $2`,
-		linkedIDField, schema), doctype, time.Now().Format("2006-01-02"))
+		linkedIDField, schema), doctype, BusinessToday())
 	if err != nil {
 		return nil, err
 	}
@@ -355,7 +355,7 @@ func runRecurringBillingForSchema(schema string) {
 	}
 	rows.Close()
 
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	for _, c := range contracts {
 		var data map[string]interface{}
 		if err := json.Unmarshal([]byte(c.data), &data); err != nil {
@@ -499,7 +499,7 @@ func ResolvePriceForSKU(tenantID, priceListCode, sku, asOfDate string) (price fl
 		return 0, false, err
 	}
 	if asOfDate == "" {
-		asOfDate = time.Now().Format("2006-01-02")
+		asOfDate = BusinessToday()
 	}
 	// 'Superseded' is included deliberately: it means "no longer the open-
 	// ended current version," not "was never valid" - a date that falls

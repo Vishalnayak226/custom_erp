@@ -87,7 +87,7 @@ func createAssetsFromReceipt(tenantID, schema, grnID, locationCode, userID strin
 			vendor = strField(po, "vendor")
 		}
 	}
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	var ids []string
 	for _, l := range lines {
 		cost := 0.0

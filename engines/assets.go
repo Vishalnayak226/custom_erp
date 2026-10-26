@@ -184,7 +184,7 @@ func CapitalizeAssetWithLife(tenantID, assetID string, usefulLifeYears float64) 
 		return &ValidationError{Code: "ASSET-0271", Message: "useful_life_years must be a positive number to capitalise - depreciation cannot be calculated without it"}
 	}
 	if _, ok := data["capitalisation_date"].(string); !ok || data["capitalisation_date"] == "" {
-		data["capitalisation_date"] = time.Now().Format("2006-01-02")
+		data["capitalisation_date"] = BusinessToday()
 	}
 
 	if err := PostDoubleEntry(tenantID, "Asset", assetID, map[string]int64{"1400": cost}, map[string]int64{"2100": cost}, "", fmt.Sprintf("Asset:%s:CAPITALIZE", assetID)); err != nil {

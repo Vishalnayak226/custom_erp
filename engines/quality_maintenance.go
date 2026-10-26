@@ -460,7 +460,7 @@ func runMaintenanceSchedulingForSchema(schema string) {
 	}
 	rows.Close()
 
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	for _, s := range schedules {
 		var data map[string]interface{}
 		if err := json.Unmarshal([]byte(s.data), &data); err != nil {

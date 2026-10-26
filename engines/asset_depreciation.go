@@ -617,7 +617,7 @@ func DisposeAssetWithProceeds(tenantID, assetID, disposalType string, proceeds f
 	if err := PostDoubleEntryTx(tx, tenantID, schema, "Asset-Disposal", assetID, debits, credits, "", fmt.Sprintf("Asset:%s:DISPOSE", assetID)); err != nil {
 		return nil, err
 	}
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	data["disposal_type"] = disposalType
 	data["disposal_date"] = today
 	data["disposal_proceeds"] = PaiseToRupees(proceedsPaise)

@@ -30,11 +30,11 @@ func glRows(accountCond string) func(tenantID, schema string, p map[string]strin
 		var args []interface{}
 		if v := p["from"]; v != "" {
 			args = append(args, v)
-			q += fmt.Sprintf(" AND p.created_at >= $%d::date", len(args))
+			q += fmt.Sprintf(" AND p.created_at >= public.erp_day_start($%d::date)", len(args))
 		}
 		if v := p["to"]; v != "" {
 			args = append(args, v)
-			q += fmt.Sprintf(" AND p.created_at < $%d::date + 1", len(args))
+			q += fmt.Sprintf(" AND p.created_at < public.erp_day_start($%d::date + 1)", len(args))
 		}
 		rows, err := dbQuery(q+" ORDER BY p.account_code, p.created_at, p.posting_id LIMIT 50000", args...)
 		if err != nil {
@@ -120,12 +120,12 @@ func trialRows(typeCond string) func(tenantID, schema string, p map[string]strin
 			from = "1900-01-01"
 		}
 		if to == "" {
-			to = time.Now().Format("2006-01-02")
+			to = BusinessToday()
 		}
 		rows, err := dbQuery(fmt.Sprintf(`SELECT a.account_code, a.account_name, a.account_type,
-			COALESCE(SUM(p.debit - p.credit) FILTER (WHERE p.created_at < $1::date), 0),
-			COALESCE(SUM(p.debit) FILTER (WHERE p.created_at >= $1::date AND p.created_at < $2::date + 1), 0),
-			COALESCE(SUM(p.credit) FILTER (WHERE p.created_at >= $1::date AND p.created_at < $2::date + 1), 0)
+			COALESCE(SUM(p.debit - p.credit) FILTER (WHERE p.created_at < public.erp_day_start($1::date)), 0),
+			COALESCE(SUM(p.debit) FILTER (WHERE p.created_at >= public.erp_day_start($1::date) AND p.created_at < public.erp_day_start($2::date + 1)), 0),
+			COALESCE(SUM(p.credit) FILTER (WHERE p.created_at >= public.erp_day_start($1::date) AND p.created_at < public.erp_day_start($2::date + 1)), 0)
 			FROM %[1]s.gl_accounts a LEFT JOIN %[1]s.gl_postings p ON p.account_code = a.account_code
 			WHERE %[2]s GROUP BY 1, 2, 3 ORDER BY 1`, schema, typeCond), from, to)
 		if err != nil {
@@ -153,11 +153,11 @@ func trialRows(typeCond string) func(tenantID, schema string, p map[string]strin
 var catTrial = &catSource{Label: "GL account", Rows: trialRows("TRUE"), StoreField: "-", Cols: mergeCols(glCols, map[string]catFn{
 	"Opening Stock Qty": catHN("opening"), // the catalog's heading for the opening balance
 	"From Date":         func(r *catRow) interface{} { return r.p["from"] },
-	"To Date":           func(r *catRow) interface{} { return firstNonEmpty(r.p["to"], time.Now().Format("2006-01-02")) },
+	"To Date":           func(r *catRow) interface{} { return firstNonEmpty(r.p["to"], BusinessToday()) },
 })}
 
 var catBalanceSheet = &catSource{Label: "GL account", Rows: func(tenantID, schema string, p map[string]string) ([]*catRow, error) {
-	asOf := map[string]string{"from": "1900-01-01", "to": firstNonEmpty(p["to"], time.Now().Format("2006-01-02"))}
+	asOf := map[string]string{"from": "1900-01-01", "to": firstNonEmpty(p["to"], BusinessToday())}
 	rows, err := trialRows("a.account_type IN ('Asset', 'Liability', 'Equity')")(tenantID, schema, asOf)
 	for _, r := range rows {
 		if catStr(r.H["account_type"]) != "Asset" {
@@ -602,11 +602,11 @@ func assetDepreciation(r *catRow, inPeriod bool) float64 {
 		if inPeriod {
 			if v := r.p["from"]; v != "" {
 				args = append(args, v)
-				q += fmt.Sprintf(" AND created_at >= $%d::date", len(args))
+				q += fmt.Sprintf(" AND created_at >= public.erp_day_start($%d::date)", len(args))
 			}
 			if v := r.p["to"]; v != "" {
 				args = append(args, v)
-				q += fmt.Sprintf(" AND created_at < $%d::date + 1", len(args))
+				q += fmt.Sprintf(" AND created_at < public.erp_day_start($%d::date + 1)", len(args))
 			}
 		}
 		rows, err := dbQuery(q+" GROUP BY 1", args...)
@@ -657,9 +657,9 @@ func budgetActual(r *catRow) float64 {
 	}
 	var paise int64
 	rows, err := dbQuery(fmt.Sprintf(`SELECT COALESCE(SUM(debit - credit), 0) FROM %s.gl_postings WHERE account_code = $1
-		AND ($2 = '' OR cost_center = $2) AND created_at >= $3::date AND created_at < $4::date + 1`, r.lk.schema),
+		AND ($2 = '' OR cost_center = $2) AND created_at >= public.erp_day_start($3::date) AND created_at < public.erp_day_start($4::date + 1)`, r.lk.schema),
 		r.hs("account_code"), r.hs("cost_center"), firstNonEmpty(catDay(r.hv("period_start")), "1900-01-01"),
-		firstNonEmpty(catDay(r.hv("period_end")), time.Now().Format("2006-01-02")))
+		firstNonEmpty(catDay(r.hv("period_end")), BusinessToday()))
 	if err == nil {
 		if rows.Next() {
 			_ = rows.Scan(&paise)

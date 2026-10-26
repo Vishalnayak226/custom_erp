@@ -82,7 +82,7 @@ func processPIMExportSchedules(schema string) {
 	// (asyncReportWorkerBatchSize, report_export.go) - same fix shape as
 	// scheduled_reports.go/dashboard.go, so a LIMIT bounds actually-due
 	// schedules instead of an arbitrary slice of every Active one.
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	rows, err := db.DB.Query(fmt.Sprintf(
 		`SELECT id, data FROM %s.documents WHERE doctype = 'PIMExportSchedule' AND status = 'Active' AND deleted_at IS NULL
 		   AND data->>'next_run_date' IS NOT NULL AND data->>'next_run_date' != '' AND data->>'next_run_date' <= $1

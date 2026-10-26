@@ -266,7 +266,7 @@ func processPIMImportSchedules(schema string) {
 		data map[string]interface{}
 	}
 	var candidates []due
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	for rows.Next() {
 		var id, raw string
 		if sErr := rows.Scan(&id, &raw); sErr != nil {

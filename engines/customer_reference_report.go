@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 )
 
 // Stage 73.2.9 - customer reference on B2B sales. A business customer's own
@@ -26,13 +25,13 @@ func customerReferenceReport(tenantID string, params map[string]string) ([]map[s
 		from = "1900-01-01"
 	}
 	if to == "" {
-		to = time.Now().Format("2006-01-02")
+		to = BusinessToday()
 	}
 	ref, customer := strings.TrimSpace(params["customer_reference"]), strings.TrimSpace(params["customer"])
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, doctype, status, data, to_char(created_at, 'YYYY-MM-DD') FROM %s.documents
 		WHERE doctype IN ('SalesOrder', 'SalesInvoice') AND deleted_at IS NULL
 		  AND COALESCE(data->>'customer_reference', '') <> ''
-		  AND created_at >= $1::date AND created_at < ($2::date + 1)
+		  AND created_at >= public.erp_day_start($1::date) AND created_at < public.erp_day_start($2::date + 1)
 		  AND ($3 = '' OR data->>'customer_reference' ILIKE '%%' || $3 || '%%')
 		  AND ($4 = '' OR COALESCE(data->>'customer', data->>'customer_name', '') ILIKE '%%' || $4 || '%%')
 		ORDER BY data->>'customer_reference', created_at LIMIT 5000`, schema), from, to, ref, customer)

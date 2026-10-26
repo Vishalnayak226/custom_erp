@@ -90,7 +90,7 @@ func refundMethodsReport(tenantID string, p map[string]string) ([]map[string]int
 			ELSE 'Not recorded' END AS method,
 		COUNT(*), COALESCE(SUM((data->>'amount')::numeric), 0)::float8
 		FROM %s.documents WHERE doctype = 'RefundRequest' AND status = 'Processed' AND deleted_at IS NULL
-		  AND ($1 = '' OR updated_at >= $1::date) AND ($2 = '' OR updated_at < $2::date + 1)
+		  AND ($1 = '' OR updated_at >= public.erp_day_start($1::date)) AND ($2 = '' OR updated_at < public.erp_day_start($2::date + 1))
 		GROUP BY 1 ORDER BY 3 DESC`, schema), strings.TrimSpace(p["from"]), strings.TrimSpace(p["to"]))
 	if err != nil {
 		return nil, err
@@ -225,7 +225,7 @@ func PrepareStoreCreditTender(tenantID, role, customerID string, amountRupees fl
 	}
 	if uses := GetSettingInt(tenantID, SettingStoreCreditDailyUses); uses > 0 {
 		var today int
-		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.stored_value_ledger WHERE instrument_id = $1 AND event_type = $2 AND created_at::date = CURRENT_DATE`, schema),
+		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.stored_value_ledger WHERE instrument_id = $1 AND event_type = $2 AND public.erp_local_date(created_at) = public.erp_today()`, schema),
 			c.ID, SVEventRedeem).Scan(&today)
 		if today >= uses {
 			return nil, &ValidationError{Code: "POSOFF-1309", Message: fmt.Sprintf("this customer's store credit has paid %d bill(s) today - the most allowed", today)}

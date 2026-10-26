@@ -494,7 +494,7 @@ func IssueStoredValue(tenantID, user string, req StoredValueIssueRequest) (*Stor
 	if err := checkIssueAmount(p, amount); err != nil {
 		return nil, err
 	}
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	event := SVEventActivate
 	switch c.effectiveStatus(today) {
 	case SVStatusInactive:
@@ -592,7 +592,7 @@ func StoredValueBalance(tenantID, number string) (*StoredValueCardView, error) {
 		return nil, err
 	}
 	p, _ := LoadStoredValueProfile(tenantID, c.Profile)
-	return &StoredValueCardView{Masked: MaskCardNumber(number), Profile: c.Profile, Status: c.effectiveStatus(time.Now().Format("2006-01-02")),
+	return &StoredValueCardView{Masked: MaskCardNumber(number), Profile: c.Profile, Status: c.effectiveStatus(BusinessToday()),
 		Balance: PaiseToRupees(c.Balance), Funded: PaiseToRupees(c.Funded), ExpiresOn: c.ExpiresOn,
 		PartialAllowed: p.PartialAllowed, ReloadAllowed: p.ReloadAllowed}, nil
 }
@@ -647,7 +647,7 @@ func PrepareGiftCardTenders(tenantID string, reqs []GiftCardTenderRequest, duePa
 	if err != nil {
 		return nil, err
 	}
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	seen := map[string]bool{}
 	var total int64
 	out := make([]GiftCardTender, 0, len(reqs))
@@ -688,7 +688,7 @@ func PrepareGiftCardTenders(tenantID string, reqs []GiftCardTenderRequest, duePa
 func redeemGiftCardTendersTx(tx *sql.Tx, schema, tenantID, cartNumber, location, cashier, paymentMode string, tenders []GiftCardTender) error {
 	sorted := append([]GiftCardTender(nil), tenders...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].InstrumentID < sorted[j].InstrumentID })
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	for _, t := range sorted {
 		idem := "redeem|" + cartNumber + "|" + t.InstrumentID
 		var done bool
@@ -858,7 +858,7 @@ func storedValueLiabilityReport(tenantID string, params map[string]string) ([]ma
 		return nil, err
 	}
 	defer rows.Close()
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	want := strings.TrimSpace(params["status"])
 	out := []map[string]interface{}{}
 	for rows.Next() {
@@ -890,7 +890,7 @@ func storedValueLedgerReport(tenantID string, params map[string]string) ([]map[s
 		COALESCE(l.location, ''), COALESCE(l.user_name, ''), COALESCE(l.reason, '')
 		FROM %[1]s.stored_value_ledger l JOIN %[1]s.stored_value_instruments i ON i.instrument_id = l.instrument_id
 		WHERE ($1 = '' OR COALESCE(i.card_last4, right(i.card_number, 4)) = $1)
-		  AND ($2 = '' OR l.created_at >= $2::date) AND ($3 = '' OR l.created_at < $3::date + 1)
+		  AND ($2 = '' OR l.created_at >= public.erp_day_start($2::date)) AND ($3 = '' OR l.created_at < public.erp_day_start($3::date + 1))
 		ORDER BY l.created_at DESC, l.entry_id DESC LIMIT 5000`, schema),
 		strings.TrimSpace(params["card"]), strings.TrimSpace(params["from"]), strings.TrimSpace(params["to"]))
 	if err != nil {

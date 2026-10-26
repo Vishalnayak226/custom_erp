@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"custom_erp/db"
 )
@@ -135,7 +134,7 @@ func storeAppLookup(tenantID string, access StoreAccess, workingStore, code stri
 // Offers and a customer's contract list are the till's business, at billing.
 func storeAppReferencePrice(tenantID string, data map[string]interface{}, itemCode string) (float64, string) {
 	if list := strings.TrimSpace(GetSettingString(tenantID, "pos.default_price_list")); list != "" {
-		if p, found, _ := ResolvePriceForSKU(tenantID, list, itemCode, time.Now().Format("2006-01-02")); found && p > 0 {
+		if p, found, _ := ResolvePriceForSKU(tenantID, list, itemCode, BusinessToday()); found && p > 0 {
 			return p, PriceSourceDefaultList
 		}
 	}

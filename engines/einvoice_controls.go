@@ -263,7 +263,7 @@ func irpCheckAlerts(schema string) {
 			(state = 'UNKNOWN' AND updated_at < NOW() - INTERVAL '2 minutes')
 			OR (state = 'QUEUED' AND created_at < NOW() - INTERVAL '5 minutes')
 			OR (state IN ('ACKNOWLEDGED','CANCEL_PENDING','CANCEL_UNKNOWN') AND cancel_reason <> '' AND cancelled_at IS NULL AND ack_date < NOW() - INTERVAL '22 hours')
-			OR (state IN ('READY','QUEUED','REJECTED','UNKNOWN','BLOCKED_CONFIG') AND doc_date <= CURRENT_DATE - 7
+			OR (state IN ('READY','QUEUED','REJECTED','UNKNOWN','BLOCKED_CONFIG') AND doc_date <= public.erp_today() - 7
 				AND EXISTS (SELECT 1 FROM %s.irp_profiles p WHERE p.environment = d.environment AND p.gstin = d.gstin AND p.turnover_band = '10CR+')))
 		LIMIT 200`, irpRecordColumns, schema, schema), IRPEnvironment())
 	if err != nil {

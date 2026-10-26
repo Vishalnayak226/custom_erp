@@ -494,7 +494,7 @@ func applyDebitNoteToBill(tenantID, userID, billID, noteID string, noteTotal, ou
 	if gstLeg != 0 {
 		legs["1500"] = gstLeg
 	}
-	remaining := noteVendorPayment(data, entries, "Debit note", noteID, "", userID, time.Now().Format("2006-01-02"), legs, position, 0)
+	remaining := noteVendorPayment(data, entries, "Debit note", noteID, "", userID, BusinessToday(), legs, position, 0)
 	newStatus := "Matched"
 	if remaining <= 0 {
 		newStatus = "Paid"
@@ -650,7 +650,7 @@ func PayGRNStep(tenantID, userID, grnID string, in GRNPayInput) (*GRNStepView, e
 	}
 	date := strings.TrimSpace(in.Date)
 	if date == "" {
-		date = time.Now().Format("2006-01-02")
+		date = BusinessToday()
 	}
 	net := grnNetPayable(tenantID, data)
 	if net <= 0.004 {

@@ -327,7 +327,7 @@ func buildStatement(tenantID, txn, partyID string, d *PrintDocument) (string, er
 		}
 		d.Lines = append(d.Lines, row)
 	}
-	d.Number, d.Date = partyID, time.Now().Format("2006-01-02")
+	d.Number, d.Date = partyID, BusinessToday()
 	d.Fields["closing_balance"] = balance
 	d.Fields["balance_meaning"] = map[bool]string{true: "owed to us", false: "owed by us"}[txn == PrintTxnCustomerStatement]
 	specialPrintColumns(d, []genericPrintColumn{{Key: "closing_balance", Label: "Closing balance"}, {Key: "balance_meaning", Label: "Balance is"}},

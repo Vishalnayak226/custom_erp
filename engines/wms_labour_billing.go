@@ -573,7 +573,7 @@ func CaptureWarehouseTaskCharges(tenantID, taskID, userID string) error {
 	if err != nil {
 		return err
 	}
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	for _, code := range codes {
 		if stage42DataString(code, "trigger_event") != "Warehouse Task Completed" {
 			continue
@@ -696,7 +696,7 @@ func stage42InsertStorageSnapshot(schema, snapshotDate, owner, location, item st
 // Deterministic ids make a scheduled retry harmless.
 func CaptureStorageBalanceSnapshot(tenantID, snapshotDate, userID string) (int, error) {
 	if snapshotDate == "" {
-		snapshotDate = time.Now().Format("2006-01-02")
+		snapshotDate = BusinessToday()
 	}
 	if _, err := stage42ParseISODate(snapshotDate); err != nil {
 		return 0, fmt.Errorf("snapshot_date must use YYYY-MM-DD")
@@ -1009,7 +1009,7 @@ func stage42TaskMetrics(tenantID, start, end string) ([]stage42TaskMetric, error
 		SELECT COALESCE(data->>'task_type',''), COALESCE(data->>'location_code',''), COALESCE(data->>'user_id',''),
 		COALESCE((data->>'qty')::numeric, 0)
 		FROM %s.documents WHERE doctype = 'TaskCompletionLog' AND deleted_at IS NULL
-		AND ($1 = '' OR created_at >= $1::date) AND ($2 = '' OR created_at < ($2::date + interval '1 day'))`, schema), start, end)
+		AND ($1 = '' OR created_at >= public.erp_day_start($1::date)) AND ($2 = '' OR created_at < public.erp_day_start($2::date + 1))`, schema), start, end)
 	if err != nil {
 		return nil, err
 	}

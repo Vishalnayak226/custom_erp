@@ -242,7 +242,7 @@ func init() {
 			_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || jsonb_build_object('used_count', GREATEST(COALESCE((data->>'used_count')::int, 1) - 1, 0),
 				'status', 'Active', 'reinstated_from', $1::text), status = 'Active', updated_at = CURRENT_TIMESTAMP
 				WHERE doctype = 'Voucher' AND COALESCE(data->>'last_used_on', '') = $1 AND COALESCE((data->>'max_uses')::int, 0) = 1
-				  AND COALESCE(data->>'expiry_date', '9999-12-31') >= to_char(CURRENT_DATE, 'YYYY-MM-DD')`, schema), bill)
+				  AND COALESCE(data->>'expiry_date', '9999-12-31') >= to_char(public.erp_today(), 'YYYY-MM-DD')`, schema), bill)
 		}
 		// 101.11.3: a friend's first bill fully returned earns nothing.
 		_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.crm_referrals SET status = 'Cancelled', flag_reason = 'The first bill was returned' WHERE first_bill_id = $1 AND status = 'Waiting'`, schema), bill)
@@ -365,7 +365,7 @@ func RecordCRMReferral(tenantID, friendID, code, actor string) (*CRMReferral, er
 func crmReferralOnBill(schema string, ev crmEvent) {
 	tid, _ := tenantIDForSchema(schema)
 	days := GetSettingInt(tid, "sales.return_window_days")
-	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.crm_referrals SET first_bill_id = $2, qualifies_on = CURRENT_DATE + $3::int
+	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.crm_referrals SET first_bill_id = $2, qualifies_on = public.erp_today() + $3::int
 		WHERE friend_id = $1 AND status = 'Waiting' AND first_bill_id IS NULL`, schema), ev.CustomerID, ev.RefID, days)
 }
 
@@ -373,7 +373,7 @@ func crmReferralOnBill(schema string, ev crmEvent) {
 // window, once each (the reward's ledger reference is the referral id).
 func crmReleaseReferrals(schema string) {
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, referrer_id, first_bill_id, reward_points FROM %s.crm_referrals
-		WHERE status = 'Waiting' AND first_bill_id IS NOT NULL AND qualifies_on <= CURRENT_DATE`, schema))
+		WHERE status = 'Waiting' AND first_bill_id IS NOT NULL AND qualifies_on <= public.erp_today()`, schema))
 	if err != nil {
 		return
 	}

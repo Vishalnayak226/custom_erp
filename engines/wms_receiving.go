@@ -234,21 +234,38 @@ func PostGRNReceiptPart(tenantID, locationCode string, items []interface{}, user
 		}
 	}
 
+	// Stage 132.20 (user decision 2026-10-26): the receipt is one transaction -
+	// accepted stock, its stock ledger lines, the item cost and the GRN's GL
+	// entry, and the QC splits commit together, or the receipt is refused. They
+	// used to post in three steps, the costing and ledger writes best-effort, so
+	// a failure left stock received without its value or its ledger line.
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	if err := db.SetSearchPath(tx, schema); err != nil {
+		return nil, err
+	}
 	var negativeEvents []NegativeStockEvent
 	if len(acceptedItems) > 0 {
-		negativeEvents, err = PostInventoryLedgerWithVoucher(tenantID, locationCode, acceptedItems, false, "GRN", grnID, userID)
+		events, ledgerLines, err := PostInventoryLedgerWithVoucherTx(tx, schema, locationCode, acceptedItems, false)
 		if err != nil {
+			return events, err
+		}
+		negativeEvents = events
+		// Stage 85.B4: a goods receipt lands in its default location (Inward,
+		// say) rather than Main.
+		if err := applyReceiptDefaultTx(tx, schema, "Goods Receipt", locationCode, ledgerLines, docStockField(tx, schema, grnID, "stock_to")); err != nil {
+			return negativeEvents, err
+		}
+		if err := writeStockLedgerLinesInTx(tx, schema, locationCode, "GRN", grnID, userID, ledgerLines); err != nil {
 			return negativeEvents, err
 		}
 	}
 	if len(acceptedItems) > 0 || len(expenseOnly) > 0 {
-		// Stage 37.3: cost the receipt and post the GRN's real GL entry
-		// (Dr 1200 Inventory / Cr 2100 GRN Suspense) - see
-		// RecordGRNReceiptCosting's own comment for why this closes a
-		// previously-total gap (nothing has ever credited 2100) and why a
-		// failure here must never unwind stock that has already posted
-		// above, the identical "goods are already in the building" posture
-		// the batch/serial registration loops below already take.
+		// Stage 37.3: cost the receipt and post the GRN's GL entry (Dr 1200
+		// Inventory / Cr 2100 GRN Suspense) - see recordGRNReceiptCostingPartTx.
 		costingLines := make([]struct {
 			SKU string
 			Qty float64
@@ -268,59 +285,49 @@ func PostGRNReceiptPart(tenantID, locationCode string, items []interface{}, user
 				Qty float64
 			}{SKU: sku, Qty: qty})
 		}
-		recordGRNReceiptCostingPart(tenantID, schema, grnID, part, costingLines)
+		if err := recordGRNReceiptCostingPartTx(tx, tenantID, schema, grnID, part, costingLines); err != nil {
+			return negativeEvents, err
+		}
 	}
 
+	for _, s := range qcSplits {
+		onHandDelta := s.rejected + s.damaged
+		if _, err := tx.Exec(fmt.Sprintf(`
+			INSERT INTO %s.inventory_availability (sku, location_code, on_hand, available, qc_hold, damaged)
+			VALUES ($1, $2, $3, 0, $4, $5)
+			ON CONFLICT (sku, location_code) DO UPDATE SET
+				on_hand = %s.inventory_availability.on_hand + EXCLUDED.on_hand,
+				qc_hold = %s.inventory_availability.qc_hold + EXCLUDED.qc_hold,
+				damaged = %s.inventory_availability.damaged + EXCLUDED.damaged,
+				updated_at = CURRENT_TIMESTAMP`, schema, schema, schema, schema),
+			s.sku, locationCode, int(onHandDelta), int(s.rejected), int(s.damaged)); err != nil {
+			return negativeEvents, err
+		}
+		// 26.10.1: on_hand moved (into qc_hold/damaged, not available), so the
+		// stock ledger records it - one entry per bucket, tagged via ToStatus.
+		if s.rejected > 0 {
+			if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
+				ItemID: s.sku, WarehouseID: locationCode, Qty: s.rejected,
+				VoucherType: "GRN", VoucherID: grnID, UserID: userID, ToStatus: "QC-Hold",
+				IdempotencyKey: fmt.Sprintf("GRN:%s:%s:%s:rejected", grnID, locationCode, s.sku),
+			}); err != nil {
+				return negativeEvents, fmt.Errorf("stock ledger for %s rejected split: %w", s.sku, err)
+			}
+		}
+		if s.damaged > 0 {
+			if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
+				ItemID: s.sku, WarehouseID: locationCode, Qty: s.damaged,
+				VoucherType: "GRN", VoucherID: grnID, UserID: userID, ToStatus: "Damaged",
+				IdempotencyKey: fmt.Sprintf("GRN:%s:%s:%s:damaged", grnID, locationCode, s.sku),
+			}); err != nil {
+				return negativeEvents, fmt.Errorf("stock ledger for %s damaged split: %w", s.sku, err)
+			}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return negativeEvents, err
+	}
 	if len(qcSplits) > 0 {
-		tx, err := db.DB.Begin()
-		if err != nil {
-			return negativeEvents, err
-		}
-		defer tx.Rollback()
-		if err := db.SetSearchPath(tx, schema); err != nil {
-			return negativeEvents, err
-		}
-		for _, s := range qcSplits {
-			onHandDelta := s.rejected + s.damaged
-			if _, err := tx.Exec(fmt.Sprintf(`
-				INSERT INTO %s.inventory_availability (sku, location_code, on_hand, available, qc_hold, damaged)
-				VALUES ($1, $2, $3, 0, $4, $5)
-				ON CONFLICT (sku, location_code) DO UPDATE SET
-					on_hand = %s.inventory_availability.on_hand + EXCLUDED.on_hand,
-					qc_hold = %s.inventory_availability.qc_hold + EXCLUDED.qc_hold,
-					damaged = %s.inventory_availability.damaged + EXCLUDED.damaged,
-					updated_at = CURRENT_TIMESTAMP`, schema, schema, schema, schema),
-				s.sku, locationCode, int(onHandDelta), int(s.rejected), int(s.damaged)); err != nil {
-				return negativeEvents, err
-			}
-		}
-		if err := tx.Commit(); err != nil {
-			return negativeEvents, err
-		}
-		// 26.10.1: on_hand moved (into qc_hold/damaged, not available) for
-		// each of these lines, so the stock ledger records it too - two
-		// entries per line when both a rejected and a damaged split exist,
-		// each tagged with the bucket it landed in via ToStatus.
-		for _, s := range qcSplits {
-			if s.rejected > 0 {
-				if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
-					ItemID: s.sku, WarehouseID: locationCode, Qty: s.rejected,
-					VoucherType: "GRN", VoucherID: grnID, UserID: userID, ToStatus: "QC-Hold",
-					IdempotencyKey: fmt.Sprintf("GRN:%s:%s:%s:rejected", grnID, locationCode, s.sku),
-				}); lerr != nil {
-					LogSystemError(tenantID, "", "WARN", "PostGRNReceiptWithQC", fmt.Sprintf("stock ledger write failed for %s rejected split: %v", s.sku, lerr), "")
-				}
-			}
-			if s.damaged > 0 {
-				if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
-					ItemID: s.sku, WarehouseID: locationCode, Qty: s.damaged,
-					VoucherType: "GRN", VoucherID: grnID, UserID: userID, ToStatus: "Damaged",
-					IdempotencyKey: fmt.Sprintf("GRN:%s:%s:%s:damaged", grnID, locationCode, s.sku),
-				}); lerr != nil {
-					LogSystemError(tenantID, "", "WARN", "PostGRNReceiptWithQC", fmt.Sprintf("stock ledger write failed for %s damaged split: %v", s.sku, lerr), "")
-				}
-			}
-		}
 		LogAuditEvent(tenantID, userID, "WMS_GRN_QC_SPLIT", "SUCCESS",
 			fmt.Sprintf("Routed QC-sampled receipt qty to qc_hold/damaged buckets at %s for %d line(s)", locationCode, len(qcSplits)))
 	}

@@ -189,7 +189,7 @@ func SendJobWork(tenantID, id, userID, role string, transport ChallanDispatch) (
 		if err := DispatchDeliveryChallan(tenantID, dc, userID, transport); err != nil {
 			return status, err
 		}
-		data["sent_date"] = time.Now().Format("2006-01-02")
+		data["sent_date"] = BusinessToday()
 		data["statutory_due"] = statutoryReturnBy(strField(data, "sent_date"), truthy(data["capital_goods"]))
 		return "Sent", saveSubcontractOrder(tenantID, id, data, "Sent")
 	}
@@ -247,7 +247,7 @@ func SendJobWork(tenantID, id, userID, role string, transport ChallanDispatch) (
 			return newStatus, err
 		}
 		newStatus = "Sent"
-		data["sent_date"] = time.Now().Format("2006-01-02")
+		data["sent_date"] = BusinessToday()
 		data["statutory_due"] = statutoryReturnBy(strField(data, "sent_date"), truthy(data["capital_goods"]))
 	}
 	if err := saveSubcontractOrder(tenantID, id, data, newStatus); err != nil {
@@ -456,7 +456,7 @@ func ReceiveJobWork(tenantID, id, userID, role, key string, in []JobWorkReceiveL
 	newStatus := jobWorkStatusAfter(bal)
 	balRaw, _ := json.Marshal(bal)
 	evRaw, _ := json.Marshal(events)
-	data["jw_balance"], data["jw_events"], data["received_date"] = string(balRaw), string(evRaw), time.Now().Format("2006-01-02")
+	data["jw_balance"], data["jw_events"], data["received_date"] = string(balRaw), string(evRaw), BusinessToday()
 	raw, _ := json.Marshal(data)
 	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'SubcontractOrder' AND id = $3`, schema),
 		string(raw), newStatus, id); err != nil {
@@ -601,7 +601,7 @@ func ReceiveFromSubcontractor(tenantID, id, userID string, actualQty float64) er
 		return fmt.Errorf("subcontract receive failed: %v", err)
 	}
 	data["actual_received_qty"] = actualQty
-	data["received_date"] = time.Now().Format("2006-01-02")
+	data["received_date"] = BusinessToday()
 	return saveSubcontractOrder(tenantID, id, data, "Received")
 }
 

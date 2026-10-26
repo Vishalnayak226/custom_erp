@@ -159,7 +159,7 @@ func (b *crmSQLBuilder) compileRule(r *CRMSegmentRule, depth int) (string, error
 	}
 	switch r.Field {
 	case "spend", "visits", "avg_bill", "returns", "points", "days_since", "customer_days":
-		col := map[string]string{"customer_days": "(LOCALTIMESTAMP::date - cf.created_at::date)"}[r.Field]
+		col := map[string]string{"customer_days": "(LOCALTIMESTAMP::date - public.erp_local_date(cf.created_at))"}[r.Field]
 		if col == "" {
 			col = "cf." + r.Field
 		}
@@ -745,7 +745,7 @@ func ListCRMStaticLists(tenantID string) ([]CRMStaticList, error) {
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, name, source, COALESCE(to_char(expires_on, 'YYYY-MM-DD'), ''), row_count, matched_count,
-		(expires_on IS NOT NULL AND expires_on < CURRENT_DATE), COALESCE(created_by, ''), created_at FROM %s.crm_static_lists ORDER BY created_at DESC`, schema))
+		(expires_on IS NOT NULL AND expires_on < public.erp_today()), COALESCE(created_by, ''), created_at FROM %s.crm_static_lists ORDER BY created_at DESC`, schema))
 	if err != nil {
 		return nil, err
 	}

@@ -198,8 +198,8 @@ func GetStockLedgerReport(tenantID, sku, locationCode, voucherType, start, end s
 		       from_location_id, to_location_id, from_status, to_status, user_id
 		FROM card
 		WHERE ($3 = '' OR voucher_type = $3)
-		  AND ($4 = '' OR created_at >= $4::date)
-		  AND ($5 = '' OR created_at < ($5::date + interval '1 day'))
+		  AND ($4 = '' OR created_at >= public.erp_day_start($4::date))
+		  AND ($5 = '' OR created_at < public.erp_day_start($5::date + 1))
 		ORDER BY created_at ASC, id ASC LIMIT %d`, schema, reportSQLLimit(tenantID)),
 		sku, locationCode, voucherType, start, end)
 	if err != nil {
@@ -461,8 +461,8 @@ func GetReportPerformance(tenantID, start, end string) ([]ReportPerformance, err
 		       MAX(created_at)
 		FROM %s.documents
 		WHERE doctype = 'ReportRunLog'
-		  AND ($1 = '' OR created_at >= $1::date)
-		  AND ($2 = '' OR created_at < ($2::date + interval '1 day'))
+		  AND ($1 = '' OR created_at >= public.erp_day_start($1::date))
+		  AND ($2 = '' OR created_at < public.erp_day_start($2::date + 1))
 		GROUP BY data->>'report_id'
 		ORDER BY AVG((data->>'duration_ms')::numeric) DESC`, schema),
 		start, end)

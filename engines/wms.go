@@ -111,17 +111,18 @@ func PutawayToBin(tenantID, binCode, sku string, qty int, userID string) error {
 		return err
 	}
 
-	if err := tx.Commit(); err != nil {
-		return err
-	}
 	// 26.10.1: putaway never changes on_hand/available (the stock was already
 	// on-hand, unassigned, before this call) - a Qty 0 entry still records
 	// the physical move from unassigned stock into binCode.
-	if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
+	// Stage 132.20: the ledger line commits with the movement (it was written after, best-effort).
+	if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
 		ItemID: sku, WarehouseID: location, Qty: 0,
 		VoucherType: "Putaway", VoucherID: binCode, UserID: userID, ToLocationID: binCode,
-	}); lerr != nil {
-		LogSystemError(tenantID, "", "WARN", "PutawayToBin", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
+	}); err != nil {
+		return fmt.Errorf("stock ledger: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return err
 	}
 	LogAuditEvent(tenantID, userID, "WMS_PUTAWAY", "SUCCESS", fmt.Sprintf("Put away %d x %s into bin %s", qty, sku, binCode))
 	logTaskCompletion(tenantID, "Putaway", userID, location, binCode, float64(qty))
@@ -465,18 +466,19 @@ func TransitionBinStockConditionForOwner(tenantID, binCode, sku string, qty int,
 		}
 	}
 
-	if err := tx.Commit(); err != nil {
-		return err
-	}
 	// 26.10.1: Qty carries whatever moved in/out of the `available` bucket
 	// (0 when neither side of the transition is Good, e.g. Damaged -> RTV) -
 	// FromStatus/ToStatus are what make this entry meaningful either way.
-	if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
+	// Stage 132.20: the ledger line commits with the movement (it was written after, best-effort).
+	if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
 		ItemID: sku, WarehouseID: locationCode, Qty: float64(availabilityDelta),
 		VoucherType: "ConditionChange", VoucherID: binCode, UserID: userID,
 		ToLocationID: binCode, FromStatus: fromCondition, ToStatus: toCondition, OwnerID: movedOwner,
-	}); lerr != nil {
-		LogSystemError(tenantID, "", "WARN", "TransitionBinStockCondition", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
+	}); err != nil {
+		return fmt.Errorf("stock ledger: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return err
 	}
 	LogAuditEvent(tenantID, userID, "WMS_CONDITION_CHANGE", "SUCCESS",
 		fmt.Sprintf("Moved %d x %s in bin %s from %s to %s", qty, sku, binCode, fromCondition, toCondition))

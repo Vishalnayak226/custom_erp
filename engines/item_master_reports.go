@@ -194,7 +194,7 @@ func paidCarts(tenantID string, params map[string]string, extra string) ([]struc
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, to_char(created_at, 'YYYY-MM-DD'), data::text FROM %s.documents
 		WHERE doctype = 'POSCart' AND status = 'Paid' %s
-		  AND ($1 = '' OR created_at >= $1::date) AND ($2 = '' OR created_at < $2::date + 1)
+		  AND ($1 = '' OR created_at >= public.erp_day_start($1::date)) AND ($2 = '' OR created_at < public.erp_day_start($2::date + 1))
 		ORDER BY created_at DESC LIMIT 5000`, schema, extra), strings.TrimSpace(params["from"]), strings.TrimSpace(params["to"]))
 	if err != nil {
 		return nil, err

@@ -130,7 +130,14 @@ committing to a run.
    isn't a shortfall to silently zero out, it's a period nobody has
    regularized yet.
 2. Computes gross pay and statutory deductions from the salary structure
-   above.
+   above, less **loss of pay**: the days marked **Absent** on Attendance plus
+   approved **Unpaid** leave in the period (Stage 132.20). Basic, HRA and other
+   allowances - and the PF and ESI worked out on them - are paid for
+   *paid days ÷ calendar days*; PT stays the state's flat amount. A day with
+   nothing recorded counts as worked, so a business that does not mark
+   attendance every day is never docked by mistake. The payslip shows
+   `period_days`, `lop_days`, `paid_days`, `full_month_gross` and
+   `lop_amount`.
 3. Estimates TDS-on-salary via the same TDS engine vendor-invoice TDS
    uses, against a seeded `SALARY` TDS section (a flat, illustrative
    monthly-equivalent default — a real deployment retunes the threshold and

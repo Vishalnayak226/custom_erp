@@ -147,7 +147,7 @@ func resolvePIMCatalogIDByShareToken(tenantID, rawToken string) (catalogID strin
 		return "", err
 	}
 	digest := sha256.Sum256([]byte(rawToken))
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, COALESCE(data->>'share_token_hash',''), COALESCE(data->>'expiry_date','')
 		FROM %s.documents WHERE doctype = 'PIMCatalog' AND status = 'Active' AND deleted_at IS NULL`, schema))

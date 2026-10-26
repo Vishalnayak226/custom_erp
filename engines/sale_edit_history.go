@@ -168,7 +168,7 @@ func postSaleEditReport(tenantID string, params map[string]string) ([]map[string
 		from = "1900-01-01"
 	}
 	if to == "" {
-		to = time.Now().Format("2006-01-02")
+		to = BusinessToday()
 	}
 	docType := strings.TrimSpace(params["document_type"])
 	for dt, label := range postSaleDocLabels {
@@ -177,7 +177,7 @@ func postSaleEditReport(tenantID string, params map[string]string) ([]map[string
 		}
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT data, to_char(created_at, 'YYYY-MM-DD HH24:MI') FROM %s.documents
-		WHERE doctype = 'DocumentEditHistory' AND created_at >= $1::date AND created_at < ($2::date + 1)
+		WHERE doctype = 'DocumentEditHistory' AND created_at >= public.erp_day_start($1::date) AND created_at < public.erp_day_start($2::date + 1)
 		  AND ($3 = '' OR data->>'document_type' = $3) AND ($4 = '' OR data->>'document_id' = $4 OR data->>'document_number' ILIKE $4)
 		ORDER BY created_at DESC LIMIT 2000`, schema), from, to, docType, strings.TrimSpace(params["document_id"]))
 	if err != nil {

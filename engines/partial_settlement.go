@@ -727,7 +727,7 @@ func applyCreditNoteToInvoice(tx *sql.Tx, schema, tenantID, noteID, invoiceID, u
 	}
 	entries = append(entries, SettlementEntry{
 		Reference: noteID, Kind: settlementKindCreditNote, Amount: PaiseToRupees(applied),
-		Date: time.Now().Format("2006-01-02"), By: userID, PostingKey: key, RecordedAt: time.Now().UTC().Format(time.RFC3339),
+		Date: BusinessToday(), By: userID, PostingKey: key, RecordedAt: time.Now().UTC().Format(time.RFC3339),
 	})
 	remaining := outstanding - applied
 	data["settlements"] = entries

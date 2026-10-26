@@ -408,7 +408,7 @@ func CreateMRPChange(tenantID string, in MRPChangeInput, userID string) (string,
 	if err != nil {
 		return "", "", err
 	}
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	effective := strings.TrimSpace(in.EffectiveDate)
 	if effective == "" {
 		effective = today

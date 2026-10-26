@@ -617,7 +617,7 @@ func ListPIMTasks(tenantID string, filter PIMTaskFilter) (*PIMTaskListResult, er
 		// Compared as a date in SQL so "overdue" means the same thing to the
 		// database as it does to the row-level Overdue flag computed below.
 		where = append(where, "NULLIF(t.data->>'due_date', '') IS NOT NULL",
-			"(t.data->>'due_date')::date < CURRENT_DATE",
+			"(t.data->>'due_date')::date < public.erp_today()",
 			"t.status IN ('Open', 'In Progress', 'Blocked')")
 	}
 	if filter.ItemCode != "" {
@@ -661,7 +661,7 @@ func ListPIMTasks(tenantID string, filter PIMTaskFilter) (*PIMTaskListResult, er
 		 WHERE %s
 		 ORDER BY
 		   CASE WHEN NULLIF(t.data->>'due_date','') IS NOT NULL
-		         AND (t.data->>'due_date')::date < CURRENT_DATE
+		         AND (t.data->>'due_date')::date < public.erp_today()
 		         AND t.status IN ('Open','In Progress','Blocked') THEN 0 ELSE 1 END,
 		   NULLIF(t.data->>'due_date','')::date NULLS LAST,
 		   CASE COALESCE(t.data->>'priority','Normal') WHEN 'High' THEN 0 WHEN 'Normal' THEN 1 ELSE 2 END,

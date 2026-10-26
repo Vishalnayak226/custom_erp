@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 )
 
 // Stage 74.1.1 (BRD 4.9, FR-RSN-01..05): one governed reason-code catalogue.
@@ -86,7 +85,7 @@ func ResolveReasonCode(tenantID, code, category string) (ReasonSnapshot, error) 
 	if c := strField(data, "category"); c != category {
 		return s, &ValidationError{Code: "MASTER-0975", SubFor: category, Message: fmt.Sprintf("reason code %q is for %q, not %q", code, c, category)}
 	}
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	if from := strField(data, "effective_from"); from != "" && today < from {
 		return s, &ValidationError{Code: "MASTER-0975", SubFor: category, Message: fmt.Sprintf("reason code %q may be used from %s", code, from)}
 	}
@@ -208,7 +207,7 @@ func ListReasonCodes(tenantID, category string) ([]ReasonCodeOption, error) {
 	if err != nil {
 		return nil, err
 	}
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT COALESCE(data->>'code', id), COALESCE(data->>'description', ''), COALESCE(data->>'when_to_use', ''),
 		COALESCE(data->>'evidence_required', '') = 'Yes', COALESCE(data->>'loss_class', '')
 		FROM %s.documents WHERE doctype = 'ReasonCode' AND deleted_at IS NULL AND status = 'Active' AND data->>'category' = $1

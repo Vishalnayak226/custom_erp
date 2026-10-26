@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/lib/pq"
 )
@@ -199,7 +198,7 @@ func EvaluatePOSOffers(tenantID string, input OfferEvaluationInput) (*OfferEvalu
 		return rules[i].name < rules[j].name
 	})
 
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	remaining := gross
 
 	result.Gifts = evaluateGiftOffers(tenantID, rules, input.Lines, gross, tier, suppliedCodes, usedCodes, today)

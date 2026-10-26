@@ -104,7 +104,7 @@ func GetStorageBillingReport(tenantID, ownerID, start, end string) ([]StorageBil
 		if err := db.DB.QueryRow(fmt.Sprintf(`
 			SELECT COUNT(*) FROM %s.documents
 			WHERE doctype = 'TaskCompletionLog' AND data->>'location_code' = $1
-			  AND created_at >= $2::date AND created_at < ($3::date + interval '1 day')`, schema),
+			  AND created_at >= public.erp_day_start($2::date) AND created_at < public.erp_day_start($3::date + 1)`, schema),
 			r.LocationCode, start, end).Scan(&handlingTasks); err != nil {
 			handlingTasks = 0
 		}

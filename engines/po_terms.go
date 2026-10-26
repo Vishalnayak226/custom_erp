@@ -229,7 +229,7 @@ func docsBetween(tenantID, doctype string, p map[string]string) ([]reportDoc, er
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, created_at, data, status FROM %s.documents WHERE doctype = $1 AND deleted_at IS NULL
-		AND ($2 = '' OR created_at >= $2::date) AND ($3 = '' OR created_at < $3::date + 1) ORDER BY created_at DESC LIMIT 5000`, schema),
+		AND ($2 = '' OR created_at >= public.erp_day_start($2::date)) AND ($3 = '' OR created_at < public.erp_day_start($3::date + 1)) ORDER BY created_at DESC LIMIT 5000`, schema),
 		doctype, strings.TrimSpace(p["from"]), strings.TrimSpace(p["to"]))
 	if err != nil {
 		return nil, err

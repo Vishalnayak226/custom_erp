@@ -549,19 +549,19 @@ func RecordBatchPutaway(tenantID, binCode, sku, batchNo, condition string, qty i
 		binCode, sku, batchNo, condition, locationCode, qty); err != nil {
 		return err
 	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-
 	// Qty 0 for the same reason PutawayToBin writes a 0: no stock entered or
 	// left the building, the movement being recorded is an identity being
 	// attached to quantity that was already there.
-	if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
+	// Stage 132.20: the ledger line commits with the movement (it was written after, best-effort).
+	if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
 		ItemID: sku, WarehouseID: locationCode, Qty: 0,
 		VoucherType: "BatchPutaway", VoucherID: batchNo, UserID: userID, ToLocationID: binCode,
 		BatchNo: batchNo,
-	}); lerr != nil {
-		LogSystemError(tenantID, "", "WARN", "RecordBatchPutaway", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
+	}); err != nil {
+		return fmt.Errorf("stock ledger: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return err
 	}
 	LogAuditEvent(tenantID, userID, "WMS_BATCH_PUTAWAY", "SUCCESS",
 		fmt.Sprintf("Assigned %d x %s in bin %s to batch %s", qty, sku, binCode, batchNo))
@@ -620,16 +620,16 @@ func ConsumeBatchStock(tenantID, binCode, sku, batchNo, condition string, qty in
 		qty, binCode, sku, condition, batchNo); err != nil {
 		return err
 	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-
-	if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
+	// Stage 132.20: the ledger line commits with the movement (it was written after, best-effort).
+	if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
 		ItemID: sku, WarehouseID: locationCode, Qty: -float64(qty),
 		VoucherType: voucherType, VoucherID: voucherID, UserID: userID,
 		FromLocationID: binCode, BatchNo: batchNo,
-	}); lerr != nil {
-		LogSystemError(tenantID, "", "WARN", "ConsumeBatchStock", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
+	}); err != nil {
+		return fmt.Errorf("stock ledger: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return err
 	}
 	LogAuditEvent(tenantID, userID, "WMS_BATCH_CONSUME", "SUCCESS",
 		fmt.Sprintf("Consumed %d x %s from batch %s in bin %s (%s %s)", qty, sku, batchNo, binCode, voucherType, voucherID))

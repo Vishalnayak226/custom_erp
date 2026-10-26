@@ -324,7 +324,7 @@ func GetEntityTrialBalance(tenantID, startDate, endDate string) ([]map[string]in
 		SELECT COALESCE(p.entity, 'Unassigned') AS entity, p.account_code, a.account_name, a.account_type,
 		       COALESCE(SUM(p.debit), 0) AS total_debit, COALESCE(SUM(p.credit), 0) AS total_credit
 		FROM %s.gl_postings p JOIN %s.gl_accounts a ON a.account_code = p.account_code
-		WHERE p.created_at >= $1::date AND p.created_at < ($2::date + 1)
+		WHERE p.created_at >= public.erp_day_start($1::date) AND p.created_at < public.erp_day_start($2::date + 1)
 		GROUP BY COALESCE(p.entity, 'Unassigned'), p.account_code, a.account_name, a.account_type
 		ORDER BY entity, p.account_code`, schema, schema), startDate, endDate)
 	if err != nil {
@@ -406,7 +406,7 @@ func entityControlAccountBalance(schema, entity, accountCode, asOfDate, normalSi
 	var debitPaise, creditPaise int64
 	err := db.DB.QueryRow(fmt.Sprintf(`
 		SELECT COALESCE(SUM(debit), 0), COALESCE(SUM(credit), 0) FROM %s.gl_postings
-		WHERE entity = $1 AND account_code = $2 AND created_at < ($3::date + 1)`, schema),
+		WHERE entity = $1 AND account_code = $2 AND created_at < public.erp_day_start($3::date + 1)`, schema),
 		entity, accountCode, asOfDate).Scan(&debitPaise, &creditPaise)
 	if err != nil {
 		return 0, err

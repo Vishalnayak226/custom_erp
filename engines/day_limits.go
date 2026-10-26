@@ -325,7 +325,7 @@ func dayLimitRows(tenantID, query string, args []interface{}, row func(scan func
 
 func grnReceiptTimingReport(tenantID string, _ map[string]string) ([]map[string]interface{}, error) {
 	return dayLimitRows(tenantID, `SELECT COALESCE(data->>'code', id), COALESCE(data->>'po_id', ''), COALESCE(data->>'vendor', ''),
-		COALESCE(data->>'expected_delivery_date', ''), created_at::date::text, data->>'receipt_timing'
+		COALESCE(data->>'expected_delivery_date', ''), public.erp_local_date(created_at)::text, data->>'receipt_timing'
 		FROM {s}.documents WHERE doctype = 'GRN' AND deleted_at IS NULL AND COALESCE(data->>'receipt_timing', '') <> '' ORDER BY created_at DESC LIMIT 5000`, nil,
 		func(scan func(...interface{}) error) (map[string]interface{}, error) {
 			var grn, po, vendor, exp, rec, timing string
@@ -341,8 +341,8 @@ func grnNotBilledReport(tenantID string, _ map[string]string) ([]map[string]inte
 	if n <= 0 {
 		return []map[string]interface{}{}, nil
 	}
-	return dayLimitRows(tenantID, `SELECT COALESCE(g.data->>'code', g.id), COALESCE(g.data->>'vendor', ''), g.created_at::date::text,
-		(CURRENT_DATE - g.created_at::date), COALESCE(g.data->>'vendor_invoice_no', '')
+	return dayLimitRows(tenantID, `SELECT COALESCE(g.data->>'code', g.id), COALESCE(g.data->>'vendor', ''), public.erp_local_date(g.created_at)::text,
+		(public.erp_today() - public.erp_local_date(g.created_at)), COALESCE(g.data->>'vendor_invoice_no', '')
 		FROM {s}.documents g WHERE g.doctype = 'GRN' AND g.deleted_at IS NULL AND g.status IN ('Posted', 'Completed', 'Received')
 		  AND COALESCE(g.data->>'vendor_bill_id', '') = '' AND g.created_at < NOW() - make_interval(days => $1)
 		  AND NOT EXISTS (SELECT 1 FROM {s}.documents v WHERE v.doctype = 'VendorInvoice' AND v.deleted_at IS NULL AND v.data->>'grn_id' = g.id)
@@ -363,8 +363,8 @@ func transfersInTransitReport(tenantID string, _ map[string]string) ([]map[strin
 		return []map[string]interface{}{}, nil
 	}
 	return dayLimitRows(tenantID, `SELECT COALESCE(data->>'code', id), COALESCE(data->>'from_location', data->>'source_location', ''), COALESCE(data->>'to_location', data->>'destination_location', ''),
-		COALESCE(NULLIF(data->>'dispatched_at', '')::timestamptz, updated_at)::date::text,
-		(CURRENT_DATE - COALESCE(NULLIF(data->>'dispatched_at', '')::timestamptz, updated_at)::date)
+		(COALESCE(NULLIF(data->>'dispatched_at', '')::timestamptz, updated_at) AT TIME ZONE public.erp_business_tz())::date::text, -- 132.19: the business's date
+		(public.erp_today() - (COALESCE(NULLIF(data->>'dispatched_at', '')::timestamptz, updated_at) AT TIME ZONE public.erp_business_tz())::date)
 		FROM {s}.documents WHERE doctype = 'TransferOrder' AND deleted_at IS NULL AND status = 'Dispatched'
 		  AND COALESCE(NULLIF(data->>'dispatched_at', '')::timestamptz, updated_at) < NOW() - make_interval(days => $1)
 		ORDER BY 4 LIMIT 5000`, []interface{}{n},

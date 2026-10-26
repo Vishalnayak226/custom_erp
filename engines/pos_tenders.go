@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 )
 
 // Stage 73.1.6 - split tender at the till, and refunds back to the tender a
@@ -196,7 +195,7 @@ func refundGiftCardShareTx(tx *sql.Tx, tenantID, schema, cartNumber, refundReque
 	for i, t := range sorted {
 		weights[i] = t.AmountPaise
 	}
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	for i, share := range allocatePaise(sharePaise, weights) {
 		if share <= 0 {
 			continue

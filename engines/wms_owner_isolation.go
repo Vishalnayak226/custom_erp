@@ -901,15 +901,16 @@ func SetOwnerSliceQty(tenantID, binCode, sku, condition, owner string, qty int, 
 		binCode, sku, condition, owner, location, qty); err != nil {
 		return err
 	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
+	// Stage 132.20: the ledger line commits with the movement (it was written after, best-effort).
+	if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
 		ItemID: sku, WarehouseID: location, Qty: 0, VoucherType: "OwnerStockAssign",
 		VoucherID: fmt.Sprintf("CORRECT-%s-%d", binCode, time.Now().UnixNano()), UserID: userID,
 		ToLocationID: binCode, OwnerID: owner,
-	}); lerr != nil {
-		LogSystemError(tenantID, "", "WARN", "SetOwnerSliceQty", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
+	}); err != nil {
+		return fmt.Errorf("stock ledger: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return err
 	}
 	LogAuditEvent(tenantID, userID, "WMS_OWNER_STOCK_CORRECTED", "SUCCESS",
 		fmt.Sprintf("Owner %s's %s %s in bin %s: %d -> %d (%s)", owner, condition, sku, binCode, old, qty, reason))

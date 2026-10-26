@@ -278,13 +278,13 @@ func ledgerPeriodRows(tenantID, schema string, p map[string]string) ([]*catRow, 
 		from = "1900-01-01"
 	}
 	if to == "" {
-		to = time.Now().Format("2006-01-02")
+		to = BusinessToday()
 	}
 	q := fmt.Sprintf(`SELECT data->>'warehouse_id', data->>'item_id',
-		COALESCE(SUM((data->>'qty')::numeric) FILTER (WHERE created_at < $1::date), 0),
-		COALESCE(SUM((data->>'qty')::numeric) FILTER (WHERE created_at >= $1::date AND created_at < $2::date + 1 AND (data->>'qty')::numeric > 0), 0),
-		COALESCE(-SUM((data->>'qty')::numeric) FILTER (WHERE created_at >= $1::date AND created_at < $2::date + 1 AND (data->>'qty')::numeric < 0), 0),
-		COALESCE(SUM((data->>'qty')::numeric) FILTER (WHERE created_at < $2::date + 1), 0)
+		COALESCE(SUM((data->>'qty')::numeric) FILTER (WHERE created_at < public.erp_day_start($1::date)), 0),
+		COALESCE(SUM((data->>'qty')::numeric) FILTER (WHERE created_at >= public.erp_day_start($1::date) AND created_at < public.erp_day_start($2::date + 1) AND (data->>'qty')::numeric > 0), 0),
+		COALESCE(-SUM((data->>'qty')::numeric) FILTER (WHERE created_at >= public.erp_day_start($1::date) AND created_at < public.erp_day_start($2::date + 1) AND (data->>'qty')::numeric < 0), 0),
+		COALESCE(SUM((data->>'qty')::numeric) FILTER (WHERE created_at < public.erp_day_start($2::date + 1)), 0)
 		FROM %s.documents WHERE doctype = 'StockLedgerEntry' AND deleted_at IS NULL AND data->>'qty' ~ '^-?[0-9.]+$'`, schema)
 	args := []interface{}{from, to}
 	if v := strings.TrimSpace(p["location"]); v != "" {
@@ -318,7 +318,7 @@ var catLedgerPeriod = &catSource{Label: "Stock", Rows: ledgerPeriodRows, SKU: "s
 		"Inward Qty":        catHN("inward"),
 		"Outward Qty":       catHN("outward"),
 		"From Date":         func(r *catRow) interface{} { return firstNonEmpty(r.p["from"], "") },
-		"To Date":           func(r *catRow) interface{} { return firstNonEmpty(r.p["to"], time.Now().Format("2006-01-02")) },
+		"To Date":           func(r *catRow) interface{} { return firstNonEmpty(r.p["to"], BusinessToday()) },
 	})}
 
 // --- barcodes, counts, labels, MRP changes ---------------------------------
@@ -507,11 +507,11 @@ func auditChangeRows(doctypes []string, fields []string) func(tenantID, schema s
 		}
 		if v := p["from"]; v != "" {
 			args = append(args, v)
-			q += fmt.Sprintf(" AND created_at >= $%d::date", len(args))
+			q += fmt.Sprintf(" AND created_at >= public.erp_day_start($%d::date)", len(args))
 		}
 		if v := p["to"]; v != "" {
 			args = append(args, v)
-			q += fmt.Sprintf(" AND created_at < $%d::date + 1", len(args))
+			q += fmt.Sprintf(" AND created_at < public.erp_day_start($%d::date + 1)", len(args))
 		}
 		rows, err := dbQuery(q+" ORDER BY created_at DESC LIMIT 20000", args...)
 		if err != nil {

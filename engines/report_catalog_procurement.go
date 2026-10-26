@@ -228,7 +228,7 @@ func poExpired(r *catRow) (bool, string) {
 	if !poOpen(r) {
 		return false, ""
 	}
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	if v := catDay(r.hv("quote_valid_until")); v != "" && v < today {
 		return true, "Past the awarded quote's validity (" + v + ")"
 	}

@@ -160,11 +160,11 @@ func salesmanSalesReport(tenantID string, params map[string]string) ([]map[strin
 	}
 	if v := strings.TrimSpace(params["from"]); v != "" {
 		args = append(args, v)
-		q += fmt.Sprintf(" AND c.created_at >= $%d::date", len(args))
+		q += fmt.Sprintf(" AND c.created_at >= public.erp_day_start($%d::date)", len(args))
 	}
 	if v := strings.TrimSpace(params["to"]); v != "" {
 		args = append(args, v)
-		q += fmt.Sprintf(" AND c.created_at < ($%d::date + 1)", len(args))
+		q += fmt.Sprintf(" AND c.created_at < public.erp_day_start($%d::date + 1)", len(args))
 	}
 	q += " GROUP BY 1 ORDER BY 3 DESC"
 	rows, err := db.DB.Query(q, args...)

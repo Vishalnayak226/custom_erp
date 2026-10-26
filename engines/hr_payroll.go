@@ -98,20 +98,36 @@ func RunPayroll(tenantID, employeeID, periodFrom, periodTo, actorUserID string) 
 	if err != nil {
 		return "", err
 	}
-	found := false
-	for _, e := range export {
-		if e.EmployeeID == employeeID {
-			found = true
+	var att *PayrollExportEntry
+	for i := range export {
+		if export[i].EmployeeID == employeeID {
+			att = &export[i]
 			break
 		}
 	}
-	if !found {
+	if att == nil {
 		return "", &ValidationError{Code: "HRPAYR-0150", Message: fmt.Sprintf("no attendance is recorded for employee %s between %s and %s - regularize attendance before running payroll", employeeID, periodFrom, periodTo)}
 	}
 
 	sc, err := CalculateSalaryComponents(tenantID, employeeID)
 	if err != nil {
 		return "", err
+	}
+	// Stage 132.20 (user decision 2026-10-26): loss of pay only for the days
+	// marked Absent or on approved Unpaid leave - a day with nothing recorded
+	// counts as worked, so a client that does not mark daily attendance is
+	// not docked by mistake. Earnings and the PF / ESI worked out on them
+	// scale with the paid days; PT is the state's flat amount.
+	periodDays, lopDays := payrollPeriodDays(periodFrom, periodTo), float64(att.AbsentDays)+att.UnpaidLeaveDays
+	if lopDays > periodDays {
+		lopDays = periodDays
+	}
+	fullGross := sc.Gross
+	if periodDays > 0 && lopDays > 0 {
+		f := (periodDays - lopDays) / periodDays
+		sc.Basic, sc.HRA, sc.OtherAllowances = round2(sc.Basic*f), round2(sc.HRA*f), round2(sc.OtherAllowances*f)
+		sc.Gross = round2(sc.Basic + sc.HRA + sc.OtherAllowances)
+		sc.PF, sc.ESI = round2(sc.PF*f), round2(sc.ESI*f)
 	}
 
 	tdsAmount := 0.0
@@ -157,6 +173,9 @@ func RunPayroll(tenantID, employeeID, periodFrom, periodTo, actorUserID string) 
 		"gross_pay": sc.Gross, "pf_deduction": sc.PF, "esi_deduction": sc.ESI,
 		"pt_deduction": sc.PT, "tds_deduction": tdsAmount, "loan_deduction": loanDeduction,
 		"net_pay": netPay,
+		// 132.20: the paid days behind gross_pay.
+		"period_days": periodDays, "lop_days": lopDays, "paid_days": periodDays - lopDays,
+		"full_month_gross": fullGross, "lop_amount": round2(fullGross - sc.Gross),
 	}
 	marshaled, err := json.Marshal(payload)
 	if err != nil {
@@ -447,4 +466,15 @@ func GetMyEmployeeRecord(tenantID, userID string) (map[string]interface{}, error
 	}
 	d["id"] = id
 	return d, nil
+}
+
+// payrollPeriodDays (Stage 132.20) is the calendar days from periodFrom to
+// periodTo inclusive - the base loss-of-pay days are a share of.
+func payrollPeriodDays(periodFrom, periodTo string) float64 {
+	a, errA := time.Parse("2006-01-02", periodFrom)
+	b, errB := time.Parse("2006-01-02", periodTo)
+	if errA != nil || errB != nil || b.Before(a) {
+		return 0
+	}
+	return float64(int(b.Sub(a).Hours()/24) + 1)
 }

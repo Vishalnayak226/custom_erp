@@ -429,7 +429,7 @@ func DispatchDeliveryChallan(tenantID, id, userID string, in ChallanDispatch) er
 	patch := map[string]interface{}{"challan_balance": string(balRaw), "challan_events": string(events), "dispatched_at": time.Now().UTC().Format(time.RFC3339),
 		"dispatched_by": userID, "transport_mode": strings.TrimSpace(in.TransportMode), "lr_awb_no": strings.TrimSpace(in.LRAWBNo), "vehicle_no": strings.ToUpper(strings.TrimSpace(in.VehicleNo)),
 		"transporter_id": strings.TrimSpace(in.TransporterID), "transporter": strings.TrimSpace(in.Transporter),
-		"dispatch_date": firstNonEmpty(strings.TrimSpace(in.DispatchDate), time.Now().Format("2006-01-02"))}
+		"dispatch_date": firstNonEmpty(strings.TrimSpace(in.DispatchDate), BusinessToday())}
 	if in.Packages > 0 {
 		patch["package_count"] = in.Packages
 	}

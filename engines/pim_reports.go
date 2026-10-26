@@ -44,12 +44,12 @@ func ListPIMReport(tenantID, name string) ([]map[string]interface{}, error) {
 		// Stage 26.4.4: media whose expiry_date has passed (or has none set
 		// alongside a role that usually needs one, e.g. Certificate) but is
 		// still Active - a governance gap, not caught by anything above.
-		"media-expiry": fmt.Sprintf(`SELECT id AS media_id, COALESCE(data->>'item','') AS item_code, COALESCE(data->>'media_role','') AS media_role, COALESCE(data->>'expiry_date','') AS expiry_date FROM %s.documents WHERE doctype = 'ProductMedia' AND status = 'Active' AND deleted_at IS NULL AND COALESCE(data->>'expiry_date','') <> '' AND NULLIF(data->>'expiry_date','')::date <= CURRENT_DATE ORDER BY (data->>'expiry_date')::date ASC`, schema),
+		"media-expiry": fmt.Sprintf(`SELECT id AS media_id, COALESCE(data->>'item','') AS item_code, COALESCE(data->>'media_role','') AS media_role, COALESCE(data->>'expiry_date','') AS expiry_date FROM %s.documents WHERE doctype = 'ProductMedia' AND status = 'Active' AND deleted_at IS NULL AND COALESCE(data->>'expiry_date','') <> '' AND NULLIF(data->>'expiry_date','')::date <= public.erp_today() ORDER BY (data->>'expiry_date')::date ASC`, schema),
 		// Stage 26.4.5: content past its owner-set SLA due date that still
 		// hasn't reached Approved - a content-workflow health check, same
 		// shape as content-aging above but keyed off the SLA field instead
 		// of raw age.
-		"content-sla-breach": fmt.Sprintf(`SELECT id AS content_id, COALESCE(data->>'product_id','') AS item_code, COALESCE(data->>'owner','') AS owner, status, COALESCE(data->>'sla_due_date','') AS sla_due_date FROM %s.documents WHERE doctype = 'ProductContent' AND status NOT IN ('Approved') AND COALESCE(data->>'sla_due_date','') <> '' AND NULLIF(data->>'sla_due_date','')::date < CURRENT_DATE ORDER BY (data->>'sla_due_date')::date ASC`, schema),
+		"content-sla-breach": fmt.Sprintf(`SELECT id AS content_id, COALESCE(data->>'product_id','') AS item_code, COALESCE(data->>'owner','') AS owner, status, COALESCE(data->>'sla_due_date','') AS sla_due_date FROM %s.documents WHERE doctype = 'ProductContent' AND status NOT IN ('Approved') AND COALESCE(data->>'sla_due_date','') <> '' AND NULLIF(data->>'sla_due_date','')::date < public.erp_today() ORDER BY (data->>'sla_due_date')::date ASC`, schema),
 	}
 	query, ok := queries[name]
 	if !ok {

@@ -187,12 +187,10 @@ func PostInventoryLedger(tenantID string, locationCode string, items []interface
 
 // PostInventoryLedgerWithVoucher is PostInventoryLedger plus a StockLedgerEntry
 // per line (26.10.1), tagged with a real voucher_type/voucher_id/user_id
-// instead of PostInventoryLedger's generic fallback. Ledger writes happen
-// after the availability update has already committed and are best-effort -
-// a write failure is logged, never allowed to undo or fail a movement that
-// already posted, the same "already physically happened" reasoning
-// pos_checkout.go's recordOfflineSyncVariance uses for its own post-commit
-// bookkeeping.
+// instead of PostInventoryLedger's generic fallback. Stage 132.20 (user
+// decision 2026-10-26): the ledger lines are written in the movement's own
+// transaction - a failed ledger write refuses the movement, where it used to
+// commit the stock and log a warning for a line the Stock Ledger never showed.
 func PostInventoryLedgerWithVoucher(tenantID string, locationCode string, items []interface{}, allowNegative bool, voucherType, voucherID, userID string) ([]NegativeStockEvent, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -217,11 +215,26 @@ func PostInventoryLedgerWithVoucher(tenantID string, locationCode string, items 
 			return nil, err
 		}
 	}
+	if err := writeStockLedgerLinesInTx(tx, schema, locationCode, voucherType, voucherID, userID, ledgerLines); err != nil {
+		return nil, err
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
-	WriteStockLedgerLines(tenantID, locationCode, voucherType, voucherID, userID, ledgerLines)
 	return events, nil
+}
+
+// writeStockLedgerLinesInTx (Stage 132.20) writes a movement's ledger lines in
+// the movement's own transaction: a failure fails the caller, which rolls the
+// movement back - never a stock change the Stock Ledger does not show.
+// (WriteStockLedgerLinesTx is the command spine's, with its closed-period check.)
+func writeStockLedgerLinesInTx(tx *sql.Tx, schema, locationCode, voucherType, voucherID, userID string, lines []PostedStockLine) error {
+	for _, e := range stockLedgerEntriesFor(locationCode, voucherType, voucherID, userID, lines) {
+		if err := insertStockLedgerEntry(tx, schema, e); err != nil {
+			return fmt.Errorf("stock ledger for %s at %s: %w", e.ItemID, locationCode, err)
+		}
+	}
+	return nil
 }
 
 // PostedStockLine is one SKU/qty/lot movement PostInventoryLedgerWithVoucherTx

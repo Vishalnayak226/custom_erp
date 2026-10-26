@@ -410,7 +410,7 @@ func gstReturnControlTotals(tenantID string, params map[string]string, rows []ma
 	var lines int
 	if err := tx.QueryRow(fmt.Sprintf(`
 		SELECT COALESCE(SUM(credit - debit), 0), COUNT(*) FROM %s.gl_postings
-		WHERE account_code IN ('2200', '2201', '2202') AND created_at >= $1::date AND created_at < ($2::date + 1)`, schema),
+		WHERE account_code IN ('2200', '2201', '2202') AND created_at >= public.erp_day_start($1::date) AND created_at < public.erp_day_start($2::date + 1)`, schema),
 		start, end).Scan(&detailPaise, &lines); err != nil {
 		return nil, err
 	}
@@ -418,7 +418,7 @@ func gstReturnControlTotals(tenantID string, params map[string]string, rows []ma
 		var net int64
 		if err := tx.QueryRow(fmt.Sprintf(`
 			SELECT COALESCE(SUM(credit), 0) - COALESCE(SUM(debit), 0) FROM %s.gl_postings
-			WHERE account_code = $1 AND created_at >= $2::date AND created_at < ($3::date + 1)`, schema),
+			WHERE account_code = $1 AND created_at >= public.erp_day_start($2::date) AND created_at < public.erp_day_start($3::date + 1)`, schema),
 			account, start, end).Scan(&net); err != nil {
 			return nil, err
 		}

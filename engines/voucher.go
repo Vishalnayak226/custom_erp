@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 )
 
 // Stage 26.7.2: Voucher/coupon issuance + redemption. Voucher is a flat-
@@ -69,7 +68,7 @@ func stringField(data map[string]interface{}, key string) string {
 // customer it is restricted to, and (when channel is given) where it may be
 // used.
 func checkVoucherUsable(v Voucher, customerID, channel string) error {
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	if v.Status != "Active" {
 		return fmt.Errorf("voucher %q is not active (status: %s)", v.Code, v.Status)
 	}

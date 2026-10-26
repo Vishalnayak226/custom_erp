@@ -40,7 +40,7 @@ func scheduledTaxChange(data map[string]interface{}, today string) (rate float64
 // withTaxChangeInForce is data with a change in force applied, for
 // GetItemTaxInfo; data itself is not touched.
 func withTaxChangeInForce(data map[string]interface{}) map[string]interface{} {
-	rate, hsn, ok := scheduledTaxChange(data, time.Now().Format("2006-01-02"))
+	rate, hsn, ok := scheduledTaxChange(data, BusinessToday())
 	if !ok {
 		return data
 	}
@@ -86,7 +86,7 @@ func validateScheduledTaxChange(payload map[string]interface{}) error {
 // ApplyDueTaxChanges folds every change in force into its item's own fields,
 // for one client. Returns how many items changed.
 func ApplyDueTaxChanges(schema string) (int, error) {
-	today := time.Now().Format("2006-01-02")
+	today := BusinessToday()
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, data FROM %s.documents
 		WHERE doctype = 'Item' AND deleted_at IS NULL AND COALESCE(data->>'tax_change_from', '') <> '' AND data->>'tax_change_from' <= $1`, schema), today)
 	if err != nil {

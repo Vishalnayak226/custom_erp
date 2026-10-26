@@ -2,6 +2,7 @@ package engines
 
 import (
 	"custom_erp/db"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 )
@@ -37,6 +38,14 @@ import (
 // other into a wrong average the way a read-then-write in application code
 // could.
 func upsertItemCostReceipt(schema string, itemCode string, qty float64, valuePaise int64) error {
+	return upsertItemCostReceiptQ(db.DB, schema, itemCode, qty, valuePaise)
+}
+
+// upsertItemCostReceiptQ is upsertItemCostReceipt on a given executor - a
+// receipt's own transaction (Stage 132.20) or the pool.
+func upsertItemCostReceiptQ(q interface {
+	Exec(string, ...interface{}) (sql.Result, error)
+}, schema string, itemCode string, qty float64, valuePaise int64) error {
 	if qty <= 0 || valuePaise < 0 {
 		return nil
 	}
@@ -47,7 +56,7 @@ func upsertItemCostReceipt(schema string, itemCode string, qty float64, valuePai
 	// in the CASE expression) of the SAME placeholder is exactly what
 	// produced Postgres error 42P08 ("inconsistent types deduced") in this
 	// function's first draft.
-	_, err := db.DB.Exec(fmt.Sprintf(`
+	_, err := q.Exec(fmt.Sprintf(`
 		WITH input AS (SELECT $1::varchar AS item_code, $2::numeric AS qty, $3::bigint AS value_paise)
 		INSERT INTO %s.item_cost (item_code, cumulative_qty_received, cumulative_value_received_paise, avg_unit_cost_paise)
 		SELECT item_code, qty, value_paise, CASE WHEN qty = 0 THEN 0 ELSE (value_paise::numeric / qty)::bigint END FROM input
@@ -206,11 +215,35 @@ func RecordGRNReceiptCosting(tenantID, schema, grnID string, acceptedLines []str
 
 // recordGRNReceiptCostingPart is RecordGRNReceiptCosting for one child of a
 // receipt that posts in parts (Stage 94): the GL key carries the part, so the
-// second child's entry is not taken for a replay of the first.
+// second child's entry is not taken for a replay of the first. Best-effort, in
+// a transaction of its own: what PostGRNReceiptPart itself runs is the Tx
+// variant below, inside the receipt's transaction (Stage 132.20).
 func recordGRNReceiptCostingPart(tenantID, schema, grnID, part string, acceptedLines []struct {
 	SKU string
 	Qty float64
 }) {
+	tx, err := db.DB.Begin()
+	if err == nil {
+		defer tx.Rollback()
+		if err = recordGRNReceiptCostingPartTx(tx, tenantID, schema, grnID, part, acceptedLines); err == nil {
+			err = tx.Commit()
+		}
+	}
+	if err != nil {
+		LogSystemError(tenantID, "", "ERROR", "RecordGRNReceiptCosting",
+			fmt.Sprintf("GRN %s: receipt costing failed (stock already received, not rolled back): %v", grnID, err), "")
+	}
+}
+
+// recordGRNReceiptCostingPartTx costs the accepted lines (item_cost) and posts
+// the receipt's GL entry (Dr 1200 or the item's expense account / Cr 2100) in
+// the caller's transaction - an error fails the caller. A line whose base cost
+// cannot be resolved is still left uncosted with a warning, as before: that is
+// missing data on the PO / GRN, not a failure.
+func recordGRNReceiptCostingPartTx(tx *sql.Tx, tenantID, schema, grnID, part string, acceptedLines []struct {
+	SKU string
+	Qty float64
+}) error {
 	poID := grnPurchaseOrderID(schema, grnID)
 	// Stage 62: a priced GRN costs at the vendor's invoice rate (stamped on
 	// its lines, multi-PO aware); an older GRN still costs from its PO.
@@ -237,10 +270,8 @@ func recordGRNReceiptCostingPart(tenantID, schema, grnID, part string, acceptedL
 			expenseByAccount[policy.ExpenseAccount] += unitCostPaise * int64(line.Qty)
 			continue
 		}
-		if err := RecordStockReceiptCost(tenantID, line.SKU, line.Qty, unitCostPaise); err != nil {
-			LogSystemError(tenantID, "", "ERROR", "RecordGRNReceiptCosting",
-				fmt.Sprintf("GRN %s: RecordStockReceiptCost failed for %s: %v", grnID, line.SKU, err), "")
-			continue
+		if err := upsertItemCostReceiptQ(tx, schema, line.SKU, line.Qty, unitCostPaise*int64(line.Qty)); err != nil {
+			return fmt.Errorf("item cost for %s: %w", line.SKU, err)
 		}
 		totalValuePaise += unitCostPaise * int64(line.Qty)
 	}
@@ -255,18 +286,18 @@ func recordGRNReceiptCostingPart(tenantID, schema, grnID, part string, acceptedL
 		}
 	}
 	if totalValuePaise <= 0 {
-		return
+		return nil
 	}
 	key := fmt.Sprintf("GRN:%s:RECEIPT_COST", grnID)
 	if part != "" {
 		key = fmt.Sprintf("GRN:%s:RECEIPT_COST:%s", grnID, part)
 	}
-	if err := PostDoubleEntry(tenantID, "GRN", grnID,
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "GRN", grnID,
 		debits, map[string]int64{"2100": totalValuePaise},
 		"", key); err != nil {
-		LogSystemError(tenantID, "", "ERROR", "RecordGRNReceiptCosting",
-			fmt.Sprintf("GRN %s: GL posting failed (stock already received, not rolled back): %v", grnID, err), "")
+		return fmt.Errorf("receipt GL entry: %w", err)
 	}
+	return nil
 }
 
 // CreateLandedCostVoucher creates a Draft LandedCostVoucher referencing a

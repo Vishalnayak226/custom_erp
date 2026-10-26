@@ -181,16 +181,16 @@ func MoveBinStock(tenantID string, in BinMoveInput) error {
 			return err
 		}
 	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-
-	if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
+	// Stage 132.20: the ledger line commits with the movement (it was written after, best-effort).
+	if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
 		ItemID: in.SKU, WarehouseID: locationCode, Qty: 0,
 		VoucherType: in.VoucherType, VoucherID: fmt.Sprintf("%s-%s", in.FromBin, in.ToBin), UserID: in.UserID,
 		FromLocationID: in.FromBin, ToLocationID: in.ToBin, BatchNo: batchNo, OwnerID: movedOwner,
-	}); lerr != nil {
-		LogSystemError(tenantID, "", "WARN", "MoveBinStock", fmt.Sprintf("stock ledger write failed for %s: %v", in.SKU, lerr), "")
+	}); err != nil {
+		return fmt.Errorf("stock ledger: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return err
 	}
 	detail := fmt.Sprintf("Moved %d x %s from bin %s to bin %s", in.Qty, in.SKU, in.FromBin, in.ToBin)
 	if batchNo != "" {

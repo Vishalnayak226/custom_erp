@@ -293,7 +293,7 @@ func ResolveExchangeRate(tenantID, fromReference, toReference, onDate, rateType 
 		return &ExchangeRateResolution{FromCurrency: from.Code, ToCurrency: to.Code, Rate: 1, RateType: "Identity", Source: "System"}, nil
 	}
 	if strings.TrimSpace(onDate) == "" {
-		onDate = time.Now().UTC().Format("2006-01-02")
+		onDate = BusinessToday()
 	}
 	if err := validateISODate("Rate Date", onDate, true); err != nil {
 		return nil, err

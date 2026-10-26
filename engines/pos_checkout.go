@@ -470,6 +470,15 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 		return nil, fmt.Errorf("sale event could not be recorded: %v", err)
 	}
 
+	// Stage 132.20: the sale's stock ledger lines commit with it (they were
+	// written after it, best-effort, and a failure left the ledger short).
+	if err := writeStockLedgerLinesInTx(tx, schema, cart.Location, "POSInvoice", cartNumber, cashier, ledgerLines); err != nil {
+		return nil, err
+	}
+	if err := writeStockLedgerLinesInTx(tx, schema, cart.Location, "POSConsumption", cartNumber, cashier, consumptionLedger); err != nil {
+		return nil, err
+	}
+
 	if ownTx {
 		if err := tx.Commit(); err != nil {
 			return nil, err
@@ -482,8 +491,6 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	if cart.CustomerID != "" && !IsWalkInCustomer(tenantID, cart.CustomerID) {
 		RecordCRMEventForTenant(tenantID, cart.CustomerID, CRMEventBillPaid, cartNumber, map[string]interface{}{"store": cart.Location, "amount": outcome.SaleTotal})
 	}
-	WriteStockLedgerLines(tenantID, cart.Location, "POSInvoice", cartNumber, cashier, ledgerLines)
-	WriteStockLedgerLines(tenantID, cart.Location, "POSConsumption", cartNumber, cashier, consumptionLedger)
 	for _, ev := range consumptionNegative {
 		RecordItemException(tenantID, ItemExceptionInput{
 			ProcessType: ItemExceptionShortStock, SourceDoctype: "POSCart", SourceID: cartNumber,

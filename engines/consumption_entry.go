@@ -231,10 +231,13 @@ func PostConsumptionEntry(tenantID, userName string, req ConsumptionEntryRequest
 	if _, err := tx.Exec(fmt.Sprintf(`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, 'ConsumptionEntry', $2, 'Posted', $3)`, schema), id, raw, userName); err != nil {
 		return nil, err
 	}
+	// Stage 132.20: the ledger lines commit with the entry (they were written after it, best-effort).
+	if err := writeStockLedgerLinesInTx(tx, schema, req.Location, "ConsumptionEntry", id, userName, ledger); err != nil {
+		return nil, err
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
-	WriteStockLedgerLines(tenantID, req.Location, "ConsumptionEntry", id, userName, ledger)
 	return &ConsumptionEntryResult{ID: id, Number: pimString(data["code"]), Location: req.Location, Mode: req.Mode, Lines: lines, CostTotal: PaiseToRupees(costTotal)}, nil
 }
 
