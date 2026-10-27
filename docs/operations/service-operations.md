@@ -44,6 +44,7 @@ Check service readiness, error/latency percentiles, database connections/locks/s
 | Stale or failed backup | Verify scheduler, destination, key access and recent result | [Backup/restore procedure](backup_restore.md), then isolated drill |
 | Wrong business result | Contain the affected path with authorized controls; preserve evidence | Reconcile sale/stock/GL/provider state; do not repair via ad hoc SQL |
 | Unexpected external send | Verify environment/delivery controls and affected jobs | Preserve provider/command references; incident owner decides containment |
+| Disk filling / state growth | Run `cmd/stateforecast` (read-only) for the client and compare its 1/3/5-year projection with free disk | Retention settings and legal holds; [security weight budget](../security/security-weight-budget.md) §49.18.7 |
 
 Secrets, on-call contacts and customer hostnames stay in approved configuration/contact systems. This document names accountable roles only. Record incident execution separately from the reusable procedure.
 
@@ -63,7 +64,7 @@ Use the existing deployment/migration tooling from [deployment](../../deploy/REA
 
 Stop further release actions when an acceptance gate fails. Compare the failure with the pre-approved rollback triggers and compatibility assessment. Reverting a binary is safe only when the current schema and newly written data remain compatible. Do not undo additive migrations or restore a database casually: that can discard valid business activity and external outcomes.
 
-Choose the approved binary rollback, forward repair or recovery plan; preserve logs, backups and failed-artifact identity. If a restore is required, reconcile the data-loss window and provider state with the business owner. Record the resulting release, checks, outstanding risks and customer communication approval. A local test does not authorize production deployment.
+Choose the approved binary rollback, forward repair or recovery plan; preserve logs, backups and failed-artifact identity. Before restoring a rollback copy by hand, compare its version with `release/security-floor.txt`: a version below the floor carries a known, fixed vulnerability, so contain it (Activity Log → Security: sign out everyone, freeze exports) and record the security owner's decision until a fixed build is live - the deploy click reports this on its own for an automatic rollback (Stage 49.17.6). If a restore is required, reconcile the data-loss window and provider state with the business owner. Record the resulting release, checks, outstanding risks and customer communication approval. A local test does not authorize production deployment.
 
 ## Job and outbox recovery
 

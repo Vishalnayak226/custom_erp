@@ -431,7 +431,7 @@ func seededCredentialFindings() []BaselineFinding {
 	if db.DB == nil {
 		return nil
 	}
-	schemas, err := listTenantSchemas()
+	schemas, err := listRegisteredTenantSchemas()
 	if err != nil {
 		return nil
 	}
@@ -488,7 +488,7 @@ func storedConnectorCredentialFindings() []BaselineFinding {
 	if db.DB == nil || os.Getenv("CHANNEL_CREDENTIAL_KEY") != "" || keyringSuffixConfigured("CHANNEL_CREDENTIAL_KEY") {
 		return nil
 	}
-	schemas, err := listTenantSchemas()
+	schemas, err := listRegisteredTenantSchemas()
 	if err != nil {
 		return nil
 	}

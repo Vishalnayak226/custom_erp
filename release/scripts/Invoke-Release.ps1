@@ -707,6 +707,27 @@ foreach ($p in (Invoke-Git @('diff', '--name-only', $startHead, $newCommit))) {
         Copy-Item -LiteralPath $src -Destination $dst -Force; $synced++
     }
 }
+# G12b (2026-10-26): a cache-version bump G4 made in a file the tree keeps its
+# own copy of (held, or edited since the snapshot) is carried into that copy,
+# that one line only. 0.17.0 bumped VIEW_MODULE_VERSION to 66 in a held app.js
+# and the working copy stayed at 65 - its next release would have shipped 65
+# again, and browsers would have kept the old screens.
+$cacheLines = @(
+    @{ File = 'public/app.js'; Re = "const VIEW_MODULE_VERSION = '(\d+)';"; Fmt = "const VIEW_MODULE_VERSION = '{0}';" },
+    @{ File = 'public/index.html'; Re = 'app\.js\?v=(\d+)'; Fmt = 'app.js?v={0}' },
+    @{ File = 'public/index.html'; Re = 'styles\.css\?v=(\d+)'; Fmt = 'styles.css?v={0}' },
+    @{ File = 'public/index.html'; Re = 'qz-print\.js\?v=(\d+)'; Fmt = 'qz-print.js?v={0}' }
+)
+foreach ($c in $cacheLines) {
+    $dst = Join-Path $repo $c.File; $src = Join-Path $wt $c.File
+    if (-not (Test-Path -LiteralPath $dst) -or -not (Test-Path -LiteralPath $src)) { continue }
+    $committed = [regex]::Match((Read-Text $src), $c.Re); $mine = [regex]::Match((Read-Text $dst), $c.Re)
+    if (-not $committed.Success -or -not $mine.Success) { continue }
+    if ([int]$mine.Groups[1].Value -lt [int]$committed.Groups[1].Value) {
+        Write-Text $dst ([regex]::Replace((Read-Text $dst), $c.Re, ($c.Fmt -f $committed.Groups[1].Value)))
+        Note "$($c.File): $($c.Fmt -f $mine.Groups[1].Value) -> $($c.Fmt -f $committed.Groups[1].Value) carried into the shared tree's own copy"
+    }
+}
 & git -C $repo update-index -q --refresh 2>$null | Out-Null   # drop stat-only "modified" entries
 Note "$synced file(s) synced; tree changes left: $((Invoke-Git @('status', '--porcelain')).Where({ $_ }).Count)"
 

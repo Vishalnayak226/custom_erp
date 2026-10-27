@@ -825,8 +825,12 @@ function transactionsFor(doctype, doc) {
 export async function printTransactionDocument(doctype, id, opts = {}) {
   await tradeStylesReady;
   // Stage 130.17 (127.3.2): opts.only prints one transaction of the record
-  // that its own list does not offer (a receipt voucher, a statement).
-  const txns = opts.only && opts.txn ? [opts.txn] : transactionsFor(doctype, opts.doc);
+  // that its own list does not offer (a receipt voucher, a statement). So
+  // does a transaction marked only (BLD-041: Reprint passes the voucher's
+  // txn without opts.only, which printed the invoice format by the voucher's
+  // id and failed with 404).
+  const only = opts.only || TRANSACTIONS.some(t => t.key === opts.txn && t.only);
+  const txns = only && opts.txn ? [opts.txn] : transactionsFor(doctype, opts.doc);
   if (!txns.length) { await window.showCustomAlert?.(`${doctype} has no print layout.`, 'Print'); return; }
   const S = { txn: opts.txn && txns.includes(opts.txn) ? opts.txn : txns[0], store: '', templateId: '', data: null, images: false };
 

@@ -39,6 +39,7 @@ const { txnContext, txnTabs, txnRestorePane, sessionStore, txnStockFromTo, mount
 // variable rather than a flag plus a payload, so "is the till frozen" and
 // "what is it frozen showing" can never disagree.
 let posCompletedSale = null;
+let posStoreHook = null;
 
 // Stage 85.E6: the GST split of the last server quote, for the bar.
 let posGST = null;
@@ -264,7 +265,9 @@ function renderPOSView(container) {
   renderPOSCartTable();
   // Stage 85.A5: drawn before the top bar knew the working store - draw again
   // once it does, if it is not the store this till took.
-  document.addEventListener('erp:working-store', (e) => {
+  // BLD-045: drop the last visit's hook - unfired, it kept that whole screen alive.
+  document.removeEventListener('erp:working-store', posStoreHook);
+  document.addEventListener('erp:working-store', posStoreHook = (e) => {
     if (panel.isConnected && e.detail && e.detail.code && e.detail.code !== posLocation && currentView === 'pos') renderView('pos');
   }, { once: true });
   // Stage 53.12: the receipt header's records load once per store, before

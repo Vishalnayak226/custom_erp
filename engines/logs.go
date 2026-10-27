@@ -123,9 +123,9 @@ func logAuditEvent(tenantID, userID, action, status, details, correlationID stri
 	_ = tx.QueryRow(`SELECT checksum FROM audit_logs ORDER BY created_at DESC, id DESC LIMIT 1`).Scan(&prevChecksum)
 	checksum := auditChecksum(prevChecksum, userID, action, status, details)
 
-	query := `INSERT INTO audit_logs (user_id, action, status, details, checksum, created_at, signature, sig_version, correlation_id)
-	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
-	_, err = tx.Exec(query, userID, action, status, details, checksum, now, signature, AuditSigVersion, nullIfEmpty(correlationID))
+	query := `INSERT INTO audit_logs (user_id, action, status, details, checksum, created_at, signature, sig_version, correlation_id, sig_key)
+	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
+	_, err = tx.Exec(query, userID, action, status, details, checksum, now, signature, AuditSigVersion, nullIfEmpty(correlationID), auditSigningKeyFingerprint())
 	if err != nil {
 		noteAuditWriteFailure(tenantID, action, "cannot insert entry", err)
 		return

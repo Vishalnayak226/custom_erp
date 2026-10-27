@@ -45,6 +45,18 @@ function Remote([string]$cmd) {
 function Get-Live([string]$h) {
     try { return (Invoke-RestMethod -Uri "https://$h/api/v1/version" -TimeoutSec 20) } catch { return $null }
 }
+# Stage 49.17.6: release/security-floor.txt at $rev - the oldest release that
+# carries no known, fixed vulnerability. Returns @(version, what was fixed).
+function Get-SecurityFloor([string]$rev) {
+    $line = @(& git -C $repo show "$($rev):release/security-floor.txt" 2>$null) | Where-Object { $_ -match '^\d+\.\d+\.\d+ ' } | Select-Object -First 1
+    if (-not $line) { return $null }
+    $parts = $line -split ' ', 2
+    return @($parts[0], $parts[1])
+}
+function Test-BelowFloor([string]$version, $floor) {
+    if (-not $floor -or $version -notmatch '^\d+\.\d+\.\d+$') { return $false }
+    return ([version]$version) -lt ([version]$floor[0])
+}
 
 try {
 # ---------------------------------------------------------------- D0 preflight
@@ -67,6 +79,8 @@ if (-not $live) {
 }
 $liveCommit = "$($live.git_commit)"
 Note "live: $($live.version) ($liveCommit)"
+$floor = Get-SecurityFloor $target
+if (Test-BelowFloor "$($live.version)" $floor) { Note "SECURITY: production runs $($live.version), below the security floor $($floor[0]) ($($floor[1])) - this deploy closes it" }
 if ($target.StartsWith($liveCommit) -and $liveCommit.Length -ge 7) {
     Write-Host "Already live: $short is what production runs." -ForegroundColor Green
     if (-not $Check) { exit 0 }   # -Check still reports below whether the server config matches the repo
@@ -171,7 +185,15 @@ if ($relVer -notmatch '^\d+\.\d+\.\d+$') { Stop-Deploy "internal/server/VERSION 
 Note "release $relVer"
 $out = @(& (Join-Path $wt 'deploy\deploy.ps1') -Target $cfg.target -Version $relVer *>&1 | ForEach-Object { $s = "$_"; Write-Host "   $s"; $s })
 $out | Where-Object { $_ -match 'Release |\[apply\]|Applied|\[sync|\[cost-center\]|WARN|DEPLOY-|recorded|actions=' } | ForEach-Object { $report.Add("- $_") }
-if (-not ($out | Where-Object { $_.Trim() -eq 'DEPLOY-OK' })) { Stop-Deploy "deploy.ps1 did not report DEPLOY-OK (production stays on the previous build, or rolled back):`n$(($out | Select-Object -Last 15) -join "`n")" }
+if (-not ($out | Where-Object { $_.Trim() -eq 'DEPLOY-OK' })) {
+    # 49.17.6: a rollback that leaves a known, fixed vulnerability live is said
+    # out loud, with the containment to use until a fixed build is live.
+    $after = Get-Live $cfg.hosts[0]
+    if ($after -and (Test-BelowFloor "$($after.version)" $floor)) {
+        $report.Add("- **SECURITY:** production is back on $($after.version), below the security floor $($floor[0]) ($($floor[1])). Contain it now with Activity Log -> Security (sign out everyone / freeze exports) and record the security owner's decision here until a fixed build is live.")
+    }
+    Stop-Deploy "deploy.ps1 did not report DEPLOY-OK (production stays on the previous build, or rolled back):`n$(($out | Select-Object -Last 15) -join "`n")"
+}
 
 # ---------------------------------------------------------------- D4 verify
 Write-Gate 'D4 Every host answers with the new build'

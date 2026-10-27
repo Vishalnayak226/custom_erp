@@ -1,0 +1,8 @@
+# Stage 49.17.6: the oldest release production may run without a security
+# decision. Raise it in the release that fixes a vulnerability, with one line
+# saying what was fixed. Deploy.cmd reads it: a rollback (automatic or by hand)
+# that leaves production below it is reported as a known vulnerability, to be
+# contained with Activity Log -> Security's emergency controls and decided by
+# the security owner in the deploy report - never left silent.
+# Format: <version> <what the next version up fixed>
+0.14.0 MFA challenge token usable as a full session; one reset link setting two passwords (49.2.8)

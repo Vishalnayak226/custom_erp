@@ -199,6 +199,45 @@ func scorecardFiles(root, stamp string) map[string][]byte {
 		add("Security documents", fmt.Sprintf("%d documents", len(matches)), state, "`docs/security/*.md` front matter")
 	}
 
+	// Stage 49.17.5: the operating cadence, each activity judged by its own
+	// evidence file - nobody keeps a "last done" date by hand.
+	rows = append(rows, cadenceRows(root, days)...)
+
+	// Stage 49.17.7 / 49.17.8: assessments that still count, and lessons
+	// held by a regression test.
+	current, expiredCount, external := 0, 0, 0
+	for _, a := range assessments(root) {
+		if a.expires >= asOf {
+			current++
+		} else {
+			expiredCount++
+		}
+		if a.kind == "external" {
+			external++
+		}
+	}
+	state := "current"
+	if expiredCount > 0 || external == 0 {
+		state = fmt.Sprintf("attention: %d expired, %d external", expiredCount, external)
+	}
+	add("Assessments", fmt.Sprintf("%d current", current), state, "`docs/security/assessment-register.md`")
+	add("Security lessons", fmt.Sprintf("%d, each with a regression test", len(lessons(root))), "held by `TestStage49178EveryLessonHasALiveRegressionTest`", "`docs/security/security-lessons.md`")
+
+	// Stage 49.18.2: every store of security state and what bounds it.
+	swept, kept, memory := 0, 0, 0
+	for _, s := range engines.SecurityStateStores() {
+		switch {
+		case s.Kind == "memory":
+			memory++
+		case s.Cleanup != "":
+			swept++
+		default:
+			kept++
+		}
+	}
+	add("Bounded state", fmt.Sprintf("%d tables swept, %d kept as evidence or fixed-size, %d in-memory capped", swept, kept, memory),
+		"every state table registered (`TestStage49182EveryStateTableIsBounded`)", "`engines/bounded_state.go`")
+
 	add("Access recertification", "admins without 2FA, API keys to review", "live only", "Activity Log → Security")
 	add("Audit and data growth", "audit rows, lost audit writes, verifier failures", "live only", "Activity Log → Security")
 	add("User-reported security friction", "-", "not measured yet", "-")

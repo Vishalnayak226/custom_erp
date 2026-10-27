@@ -19,13 +19,21 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **190** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **192** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
-- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-13
+- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-16
 
 ## 2026-10-26
+
+**Stage 139 — ERP shortcuts: one Ctrl+K box, short codes, report numbers, standard keys** *(code + migration + docs, NOT COMMITTED - held in release/hold.txt)*
+
+The user asked for ERP shortcuts done the easy, best-practice way, a number for every report, and what else would make transactions easier. The plan (`docs/product/shortcuts-plan-2026-10-26.md`) was approved with "Build all of the above", with the shortcuts written up properly in the user help. Item detail: micro_checklist Stage 139.
+
+**"Build next 20 open items": Stage 49 finished, Stage 50's buildable packages** *(code + tests + docs, NOT COMMITTED - held in release/hold.txt)*
+
+The user asked for the next 20 open items. They were taken in tracker order after 49.17.4: the eleven left in Stage 49, then Stage 50's work packages that need no decision, host or real users (BLD-002, 028, 029, 032, 041, 044, 045, 053, 055). Four are fully done (49.18.3-49.18.6); the rest are built, with what is left written on each. Two packages (BLD-041 print pass, BLD-045 load time) ran as background agents. Release 0.17.0 (session erp-18) shipped while this was in progress, with this batch held.
 
 **"Build all" run, Stage 49: the next 20 items** *(code + tests + runbooks, released in 0.15.0 `21e7c99`)*
 
@@ -450,14 +458,4 @@ Closes 49.14.1 (plain-language/non-enumerating security UX — verified as the c
 **Deploy auto-rollback — deploy.ps1/remote_deploy.sh** *(tooling only)*
 
 Prompted by the user asking why the ERP wasn't opening: it wasn't actually down (verified `app.wholeops.in` live, 200, no console errors), but the screenshot they'd captured matched exactly the environment-caveat banner text baked into the currently-running `0e79425` binary, rendered with none of its CSS applied — consistent with the documented 2026-09-13 incident (`docs/ai_handover.md` §6) where a deploy hit `security_baseline.go`'s fail-fast gate, crash-looped the box for ~90s, and was rolled back **by hand** over SSH because `deploy.ps1` had no rollback logic at all. The user's actual ask: deploys must never leave the box broken unattended — auto-rollback on failure, always.
-
-**Stage 49.16 (partial) — customer security pack, third-party risk register, assurance evidence handling** *(docs only)*
-
-Closes 49.16.2 (already satisfied by §149's `verification-standards-matrix.md` — no second crosswalk document built), 49.16.3, 49.16.6, 49.16.7. Parent 49.16 stays open on 49.16.1/49.16.4/49.16.5, each deliberately not built: all three explicitly require qualified counsel/business-owner input as part of the item's own acceptance bar (47.16/48.6's gate for .1, a legal/business approval for .4, a market/cost judgment call for .5) — building parallel prose ahead of that would be exactly what 49.16.1's own text warns against.
-
-## 2026-09-13
-
-**Stage 49.10.1 — version-pinned verification matrix** *(docs only)*
-
-`docs/security/verification-standards-matrix.md`. Adopted OWASP ASVS 5.0.0 (17 chapters, ~350 requirements) and the 2025 CWE Top 25 — both fetched live via web search/fetch during this session rather than recalled from training data, specifically because a wrong requirement ID in a "point at something real" document is worse than not writing it. Mapped every ASVS chapter and every CWE Top-25 entry to either a real cited control already in this repository or an explicit open Stage/item number; nothing left as a bare, uncited gap.
 

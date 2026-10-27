@@ -134,7 +134,7 @@ func EncryptStoredValueCardsOnBoot() {
 	if db.DB == nil {
 		return
 	}
-	schemas, err := listTenantSchemas()
+	schemas, err := listRegisteredTenantSchemas()
 	if err != nil {
 		log.Printf("[GIFTCARD] could not list clients to seal card numbers: %v", err)
 		return

@@ -187,7 +187,7 @@ func StartQueueSaturationMonitor(ctx context.Context, pollInterval time.Duration
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas()
+				schemas, err := listRegisteredTenantSchemas()
 				if err != nil {
 					log.Printf("[QUEUE-MONITOR] failed to list tenant schemas: %v", redactAndBoundLogField(err.Error(), maxSystemErrorMessageBytes))
 					continue
@@ -266,7 +266,7 @@ func StartAlertMonitor(ctx context.Context, pollInterval, window time.Duration, 
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas()
+				schemas, err := listRegisteredTenantSchemas()
 				if err != nil {
 					log.Printf("[ALERT-MONITOR] failed to list tenant schemas: %v", err)
 					continue

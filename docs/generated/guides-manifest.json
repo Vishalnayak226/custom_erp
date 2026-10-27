@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": "cmd/gendocs",
   "generator_version": "stage48-v1",
-  "release": "0.17.0",
+  "release": "0.18.0",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "schema": "source registries",
   "tenant": "none",
@@ -88,7 +88,7 @@
     },
     {
       "path": "docs/kb/reference/release-notes-2.md",
-      "sha256": "27d2a22bc102a6202fc29cab6491bdfd905c3c595ba6f3117059b39045da54b4",
+      "sha256": "649b6e415ef4395fe799e8ac506d1fb280f498d768c202d3935df27b7e30a379",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -101,7 +101,7 @@
     },
     {
       "path": "docs/kb/reference/release-notes.md",
-      "sha256": "e36780e9538048a7641d8030837041c69fc6743499f5e1909292ce2db2d6c554",
+      "sha256": "f437a3e0cf61dba719a0f97a16297a4726a5108565629e2aa17d1457bf8078ce",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -178,8 +178,34 @@
       ]
     },
     {
+      "path": "docs/qa/generated/backlog-journey-map.md",
+      "sha256": "e294547314eb2888150ca26ec5c2ed41fab2e224b402f4fec692df883fd392e1",
+      "sources": [
+        "cmd/gendocs/*.go",
+        "engines/*.go",
+        "internal/server/*.go",
+        "docs/project_ledger.md",
+        "docs/governance/generation.json",
+        "docs/data/registry-snapshot.json",
+        "docs/data/business-definitions.json"
+      ]
+    },
+    {
       "path": "docs/qa/generated/page-inventory.md",
-      "sha256": "fc1fc55ec4c8fdb661669287220bcca14d629114df4cfbd503e7383124785b69",
+      "sha256": "894aa90e59ed3c2a57ea9fcfe592863d3fed83911c9c3879f8ee89f2ee9e3ec7",
+      "sources": [
+        "cmd/gendocs/*.go",
+        "engines/*.go",
+        "internal/server/*.go",
+        "docs/project_ledger.md",
+        "docs/governance/generation.json",
+        "docs/data/registry-snapshot.json",
+        "docs/data/business-definitions.json"
+      ]
+    },
+    {
+      "path": "docs/qa/generated/security-assurance-statement.md",
+      "sha256": "82d9fa3dc5084a96f9a9a4176b01ea3b766d3a6fe3c5fefe6d7a4bd0ea419f12",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -192,7 +218,7 @@
     },
     {
       "path": "docs/qa/generated/security-scorecard.md",
-      "sha256": "28329c1ebe9e9bad1ea690f393fc94d9b6f48b7fffab273b369fac4ff159b65a",
+      "sha256": "0f46d4f9a7ad2329569765d225115a2fc1f495b1d406ed9ef777dd53d5e173fc",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",

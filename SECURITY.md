@@ -26,14 +26,13 @@ this path.
 
 ## Supported versions
 
-There is no tagged release line yet (`git tag` is empty) — this project ships as one
-continuously-deployed line from `main`. **The only supported version is the commit
-currently deployed to production**, recorded in
-[docs/ai_handover.md](docs/ai_handover.md) §6. Once `v*` tags exist (the
-release-artifact pipeline in
-[docs/security/secure-development-lifecycle.md](docs/security/secure-development-lifecycle.md)
-§49.9.6 already builds from one), this section gets a real supported-versions table
-instead of a one-line placeholder.
+Releases are numbered (`internal/server/VERSION`, shown in the Control Panel's
+Releases table) and ship as one line from `main`. **Only the latest release
+receives security fixes**; there is no long-term support line. The supported
+version and configuration, the material known limits and the dated assurance
+scope are in the generated
+[security assurance statement](docs/qa/generated/security-assurance-statement.md),
+regenerated with every release so it cannot drift from the evidence it quotes.
 
 ## Reporting a vulnerability
 

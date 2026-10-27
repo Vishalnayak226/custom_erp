@@ -2,6 +2,8 @@
 
 User, 2026-10-26: *"We have to build erp shorcuts. Think and propose easy and best practice to follow. & Need report number as wel & Tell what else can be done for trasaction and access transaction to make user's life easy"*.
 
+**As built (2026-10-26, user: "Build all of the above"):** D1-D8 as recommended, extras a-h all built. Differences from the plan: 52 codes (the sample list plus `VI`, `JV`, `MI`, `DC`, `MS`, `CC`, `SOH`, `SL`, `PUT`, `PICK`, `PACK`, `SHIP`, `WAVE`, `GL`, `BR`, `FA`, `JW`, `QI`, `CRM`, `LOY`, `EI`, `HR`, admin codes; no `RCT`, `PSL`: no such screen) in `public/shortcut-codes.json`, not a TSV; bulk Print dropped (each print is its own dialog); the next step shows only once a document can move on (not a draft or awaiting approval); the PO's next step is its own Receive goods. Detail: micro_checklist Stage 139, ledger §297.
+
 **What exists today:** the top-bar search already suggests screens and record types (`buildGlobalSearchIndex`, `public/app.js`), every screen has a deep link and Back/Forward works (Stage 64.6), a few screens have their own keys (PO entry: Ctrl+D add design, Alt+R reset). **Missing:** a key to reach the search, reports and documents in that search, short codes, report numbers, one standard key set, recents, favourites.
 
 **The idea in one line:** one box (Ctrl+K) that opens anything - a screen by name, a transaction by short code, a report by number, a document by its number - plus one small key set that works the same on every screen.

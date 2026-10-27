@@ -69,10 +69,28 @@ func StartOutboxWorker(ctx context.Context, interval time.Duration) {
 	}()
 }
 
-// listTenantSchemas returns every schema registered in the tenant registry, including
-// tenant_default (seeded there for tenant_id 'default') and any tenant provisioned since.
+// listTenantSchemas returns the schemas of the tenants being served: registered
+// (tenant_default included) and operational - active, trial not over. A
+// suspended or trial-expired client is refused at sign-in, so the background
+// work done in its name (sends, postings, provider calls, queued jobs) waits
+// for it too and catches up on resume (BLD-028). Maintenance that must keep
+// running for every registered tenant - retention, audit evidence, security
+// detection - uses listRegisteredTenantSchemas instead.
 func listTenantSchemas(moduleKeys ...string) ([]string, error) {
-	rows, err := db.DB.Query("SELECT schema_name, MIN(tenant_id) FROM public.tenants GROUP BY schema_name ORDER BY schema_name")
+	return tenantSchemas(true, moduleKeys...)
+}
+
+// listRegisteredTenantSchemas returns every schema in the tenant registry,
+// suspended and deprovision-requested ones included. Only the maintenance
+// sweeps allowlisted in TestBLD028OnlyMaintenanceSweepsSeeEveryTenant use it.
+func listRegisteredTenantSchemas(moduleKeys ...string) ([]string, error) {
+	return tenantSchemas(false, moduleKeys...)
+}
+
+func tenantSchemas(operationalOnly bool, moduleKeys ...string) ([]string, error) {
+	rows, err := db.DB.Query(`SELECT schema_name, MIN(tenant_id),
+		bool_or(lifecycle_status = 'active' AND (trial_ends_at IS NULL OR trial_ends_at > NOW()))
+		FROM public.tenants GROUP BY schema_name ORDER BY schema_name`)
 	if err != nil {
 		return nil, err
 	}
@@ -86,8 +104,12 @@ func listTenantSchemas(moduleKeys ...string) ([]string, error) {
 	tenantOf := map[string]string{}
 	for rows.Next() {
 		var s, tenantID string
-		if err := rows.Scan(&s, &tenantID); err != nil {
+		var operational bool
+		if err := rows.Scan(&s, &tenantID, &operational); err != nil {
 			return nil, err
+		}
+		if operationalOnly && !operational {
+			continue
 		}
 		schemas = append(schemas, s)
 		tenantOf[s] = tenantID

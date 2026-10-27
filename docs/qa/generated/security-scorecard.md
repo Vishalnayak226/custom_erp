@@ -19,7 +19,17 @@ Evidence, not one number (Stage 49.17.4). Judged as of 2026-10-26, the newest da
 | Detections | 12 rules (6 page, 6 queue for review) | every rule fires in the drill test | `engines/security_detection.go`, `TestStage49118DetectionDrillCoversEveryRule` |
 | Tenant and access negative tests | 9 test functions | run in every release (G10) | `*redteam*_test.go`, `stage49_3*_test.go`, `stage49_4_7*_test.go` |
 | Restore drill | last logged 2026-08-07 | attention: last logged drill 80 days ago (monthly expected); `deploy/restore_drill.sh` now also checks ledgers and audit evidence | `docs/operations/restore_drill_log.md` |
-| Security documents | 15 documents | attention: past review_by - README.md, access-control-policy.md, assurance-evidence-handling.md, customer-security-pack.md, dependency-inventory.md, human-operations-and-social-engineering.md, risk_register.md, secure-development-lifecycle.md, third-party-risk-register.md, threat_model.md, verification-standards-matrix.md, vulnerability-disclosure-lifecycle.md | `docs/security/*.md` front matter |
+| Security documents | 19 documents | attention: past review_by - README.md, access-control-policy.md, assurance-evidence-handling.md, customer-security-pack.md, dependency-inventory.md, human-operations-and-social-engineering.md, risk_register.md, secure-development-lifecycle.md, third-party-risk-register.md, threat_model.md, verification-standards-matrix.md, vulnerability-disclosure-lifecycle.md | `docs/security/*.md` front matter |
+| Cadence: threat model review | last 2026-09-09 | current | `docs/security/threat_model.md` |
+| Cadence: risk register review | last 2026-09-09 | current | `docs/security/risk_register.md` |
+| Cadence: vendor review | last 2026-09-16 | current | `docs/security/third-party-risk-register.md` |
+| Cadence: access and detection review | never done | attention: due every 35 days, never logged | `docs/security/assessment-register.md` |
+| Cadence: tabletop exercise | never done | attention: due every 100 days, never logged | `docs/security/assessment-register.md` |
+| Cadence: program review | last 2026-09-11 | current | `docs/security/secure-development-lifecycle.md` |
+| Cadence: independent penetration test | never done | attention: due every 380 days, never logged | `docs/security/assessment-register.md` |
+| Assessments | 6 current | attention: 0 expired, 0 external | `docs/security/assessment-register.md` |
+| Security lessons | 10, each with a regression test | held by `TestStage49178EveryLessonHasALiveRegressionTest` | `docs/security/security-lessons.md` |
+| Bounded state | 16 tables swept, 18 kept as evidence or fixed-size, 4 in-memory capped | every state table registered (`TestStage49182EveryStateTableIsBounded`) | `engines/bounded_state.go` |
 | Access recertification | admins without 2FA, API keys to review | live only | Activity Log → Security |
 | Audit and data growth | audit rows, lost audit writes, verifier failures | live only | Activity Log → Security |
 | User-reported security friction | - | not measured yet | - |

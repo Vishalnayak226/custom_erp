@@ -113,7 +113,7 @@ func QuarantineStaleExternalDispatchJobs() {
 	if ExternalSideEffectsEnabled() {
 		return
 	}
-	schemas, err := listTenantSchemas()
+	schemas, err := listRegisteredTenantSchemas()
 	if err != nil {
 		log.Printf("[ENVIRONMENT] could not list tenant schemas for startup quarantine sweep: %v", err)
 		return

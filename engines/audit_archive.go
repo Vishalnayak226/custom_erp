@@ -175,6 +175,7 @@ type AuditArchiveRow struct {
 	Signature     string    `json:"signature,omitempty"`
 	SigVersion    string    `json:"sig_version,omitempty"`
 	Checksum      string    `json:"checksum,omitempty"`
+	SigKey        string    `json:"sig_key,omitempty"` // BLD-053; absent in older archives
 }
 
 // AuditArchiveManifest is the decrypted content of one archive file: the
@@ -354,7 +355,7 @@ func loadAuditRowsInRange(schema string, fromSeq, toSeq int64) ([]AuditArchiveRo
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id::text, seq, user_id, action, status, COALESCE(details,''),
 		       COALESCE(entity_type,''), COALESCE(entity_id,''), COALESCE(correlation_id,''),
-		       created_at, COALESCE(signature,''), COALESCE(sig_version,''), COALESCE(checksum,'')
+		       created_at, COALESCE(signature,''), COALESCE(sig_version,''), COALESCE(checksum,''), COALESCE(sig_key,'')
 		  FROM %s.audit_logs WHERE seq >= $1 AND seq <= $2 ORDER BY seq ASC`, schema), fromSeq, toSeq)
 	if err != nil {
 		return nil, err
@@ -364,7 +365,7 @@ func loadAuditRowsInRange(schema string, fromSeq, toSeq int64) ([]AuditArchiveRo
 	for rows.Next() {
 		var r AuditArchiveRow
 		if err := rows.Scan(&r.ID, &r.Seq, &r.UserID, &r.Action, &r.Status, &r.Details,
-			&r.EntityType, &r.EntityID, &r.CorrelationID, &r.CreatedAt, &r.Signature, &r.SigVersion, &r.Checksum); err != nil {
+			&r.EntityType, &r.EntityID, &r.CorrelationID, &r.CreatedAt, &r.Signature, &r.SigVersion, &r.Checksum, &r.SigKey); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -833,12 +834,12 @@ func RestoreAuditArchive(tenantID, archiveID, restoredBy string) (*AuditArchiveR
 	insertStmt := fmt.Sprintf(`
 		INSERT INTO %s.audit_logs
 			(id, seq, user_id, action, status, details, entity_type, entity_id,
-			 correlation_id, created_at, signature, sig_version, checksum)
-		VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, schema)
+			 correlation_id, created_at, signature, sig_version, checksum, sig_key)
+		VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`, schema)
 	for _, r := range manifest.Rows {
 		if _, err := tx.Exec(insertStmt, r.ID, r.Seq, r.UserID, r.Action, r.Status, nullIfEmpty(r.Details),
 			nullIfEmpty(r.EntityType), nullIfEmpty(r.EntityID), nullIfEmpty(r.CorrelationID),
-			r.CreatedAt, nullIfEmpty(r.Signature), nullIfEmpty(r.SigVersion), nullIfEmpty(r.Checksum)); err != nil {
+			r.CreatedAt, nullIfEmpty(r.Signature), nullIfEmpty(r.SigVersion), nullIfEmpty(r.Checksum), nullIfEmpty(r.SigKey)); err != nil {
 			return nil, fmt.Errorf("could not restore row %s (seq %d): %w", r.ID, r.Seq, err)
 		}
 	}
@@ -931,7 +932,7 @@ func StartAuditArchiveScheduler(ctx context.Context, interval time.Duration) {
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas()
+				schemas, err := listRegisteredTenantSchemas()
 				if err != nil {
 					log.Printf("[AUDIT-ARCHIVE] cannot list tenant schemas: %v", err)
 					continue

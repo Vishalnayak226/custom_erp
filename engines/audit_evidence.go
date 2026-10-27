@@ -95,6 +95,29 @@ func auditMACMatches(version, sig string, sign func(key []byte) string) bool {
 	return false
 }
 
+// auditKeyFingerprint names a signing key without revealing it: the first 8
+// hex characters of its SHA-256 (BLD-053). Stored in sig_key beside every
+// signature, so a row signed by a key that is no longer loaded is reported as
+// a key-custody problem, not as tampering.
+func auditKeyFingerprint(key []byte) string {
+	sum := sha256.Sum256(key)
+	return hex.EncodeToString(sum[:4])
+}
+
+// auditSigningKeyFingerprint is the fingerprint new evidence is signed under.
+func auditSigningKeyFingerprint() string { return auditKeyFingerprint(auditSigningKey.key) }
+
+// auditKeyLoaded reports whether a key with this fingerprint is in the
+// keyring that verifies version.
+func auditKeyLoaded(version, fingerprint string) bool {
+	for _, key := range auditVerifyKeys(version) {
+		if auditKeyFingerprint(key) == fingerprint {
+			return true
+		}
+	}
+	return false
+}
+
 // SignAuditRow produces a row's independent signature.
 //
 // Canonical field order is fixed and every field is length-prefixed, so no
@@ -154,10 +177,10 @@ func WriteAuditEvidenceTx(tx *sql.Tx, schema, tenantID string, ev AuditEvidence)
 	_, err := tx.Exec(fmt.Sprintf(`
 		INSERT INTO %s.audit_logs
 			(user_id, action, status, details, entity_type, entity_id, correlation_id,
-			 created_at, signature, sig_version)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, schema),
+			 created_at, signature, sig_version, sig_key)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`, schema),
 		ev.UserID, ev.Action, ev.Status, ev.Details, nullIfEmpty(ev.EntityType),
-		nullIfEmpty(ev.EntityID), nullIfEmpty(ev.CorrelationID), now, sig, AuditSigVersion)
+		nullIfEmpty(ev.EntityID), nullIfEmpty(ev.CorrelationID), now, sig, AuditSigVersion, auditSigningKeyFingerprint())
 	return err
 }
 
@@ -170,11 +193,16 @@ type AuditVerification struct {
 	// Signed/Unsigned is the coverage boundary 47.7.4 requires stated rather
 	// than papered over: the legacy rows are reported as out of coverage, not
 	// as passing.
-	SignedRows        int      `json:"signed_rows"`
-	UnsignedLegacy    int      `json:"unsigned_legacy_rows"`
-	CoverageFromSeq   int64    `json:"coverage_from_seq"`
-	Verified          int      `json:"verified_rows"`
-	TamperedRows      []string `json:"tampered_row_ids,omitempty"`
+	SignedRows      int      `json:"signed_rows"`
+	UnsignedLegacy  int      `json:"unsigned_legacy_rows"`
+	CoverageFromSeq int64    `json:"coverage_from_seq"`
+	Verified        int      `json:"verified_rows"`
+	TamperedRows    []string `json:"tampered_row_ids,omitempty"`
+	// BLD-053: evidence signed by a key that is not loaded cannot be checked
+	// either way. It is counted neither as verified nor as tampered;
+	// MissingKeys names the fingerprints to look for in key custody.
+	UnverifiableRows  int      `json:"unverifiable_rows"`
+	MissingKeys       []string `json:"missing_key_fingerprints,omitempty"`
 	CheckpointsOK     int      `json:"checkpoints_verified"`
 	CheckpointsBad    []string `json:"checkpoints_failed,omitempty"`
 	Intact            bool     `json:"intact"`
@@ -197,7 +225,8 @@ func VerifyAuditEvidence(tenantID string) (*AuditVerification, error) {
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, COALESCE(user_id,''), COALESCE(action,''), COALESCE(status,''),
 		       COALESCE(details,''), COALESCE(entity_type,''), COALESCE(entity_id,''),
-		       COALESCE(correlation_id,''), created_at, COALESCE(signature,''), COALESCE(sig_version,'')
+		       COALESCE(correlation_id,''), created_at, COALESCE(signature,''), COALESCE(sig_version,''),
+		       COALESCE(sig_key,'')
 		  FROM %s.audit_logs ORDER BY seq ASC`, schema))
 	if err != nil {
 		return nil, err
@@ -205,9 +234,9 @@ func VerifyAuditEvidence(tenantID string) (*AuditVerification, error) {
 	defer rows.Close()
 
 	for rows.Next() {
-		var id, userID, action, status, details, entType, entID, corr, sig, sigVer string
+		var id, userID, action, status, details, entType, entID, corr, sig, sigVer, sigKey string
 		var createdAt time.Time
-		if err := rows.Scan(&id, &userID, &action, &status, &details, &entType, &entID, &corr, &createdAt, &sig, &sigVer); err != nil {
+		if err := rows.Scan(&id, &userID, &action, &status, &details, &entType, &entID, &corr, &createdAt, &sig, &sigVer, &sigKey); err != nil {
 			return nil, err
 		}
 		out.TotalRows++
@@ -228,6 +257,12 @@ func VerifyAuditEvidence(tenantID string) (*AuditVerification, error) {
 			return signAuditRowWith(sigVer, key, tenantID, userID, action, status, details, entType, entID, corr, createdAt)
 		}) {
 			out.Verified++
+		} else if sigKey != "" && !auditKeyLoaded(sigVer, sigKey) {
+			// Signed by a key this process does not hold: it can be checked
+			// neither way, so it is neither verified nor called tampered.
+			out.Intact = false
+			out.UnverifiableRows++
+			out.noteMissingKey(sigKey)
 		} else {
 			out.Intact = false
 			if len(out.TamperedRows) < 50 {
@@ -249,13 +284,32 @@ func VerifyAuditEvidence(tenantID string) (*AuditVerification, error) {
 			"(their content is fixed at the seal, but their authorship cannot be proven retrospectively) "+
 			"and are deliberately NOT counted as verified.",
 		out.SignedRows, out.TotalRows, out.UnsignedLegacy)
+	if len(out.MissingKeys) > 0 {
+		out.CoverageStatement += fmt.Sprintf(
+			" %d rows are signed by audit key(s) %s, which this server does not hold, so they cannot be verified either way. "+
+				"If your key custody has a key with that fingerprint, load it as AUDIT_SIGNING_KEY_<n> and verify again; "+
+				"if it does not, treat these rows as tampered.",
+			out.UnverifiableRows, strings.Join(out.MissingKeys, ", "))
+	}
 	return out, nil
+}
+
+func (v *AuditVerification) noteMissingKey(fingerprint string) {
+	for _, k := range v.MissingKeys {
+		if k == fingerprint {
+			return
+		}
+	}
+	if len(v.MissingKeys) < 10 {
+		v.MissingKeys = append(v.MissingKeys, fingerprint)
+	}
 }
 
 func verifyCheckpoints(tenantID, schema string, out *AuditVerification) error {
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, from_seq, to_seq, row_count, unsigned_count, row_digest,
-		       COALESCE(prev_checkpoint_signature,''), signature, sig_version, archive_id
+		       COALESCE(prev_checkpoint_signature,''), signature, sig_version, archive_id,
+		       COALESCE(sig_key,'')
 		  FROM %s.audit_checkpoints ORDER BY to_seq ASC`, schema))
 	if err != nil {
 		return err
@@ -268,12 +322,13 @@ func verifyCheckpoints(tenantID, schema string, out *AuditVerification) error {
 		rowCount, unsignedCount      int
 		digest, prevSig, sig, sigVer string
 		archiveID                    sql.NullString
+		sigKey                       string
 	}
 	var checkpoints []cp
 	for rows.Next() {
 		var c cp
 		if err := rows.Scan(&c.id, &c.fromSeq, &c.toSeq, &c.rowCount, &c.unsignedCount,
-			&c.digest, &c.prevSig, &c.sig, &c.sigVer, &c.archiveID); err != nil {
+			&c.digest, &c.prevSig, &c.sig, &c.sigVer, &c.archiveID, &c.sigKey); err != nil {
 			return err
 		}
 		checkpoints = append(checkpoints, c)
@@ -291,7 +346,12 @@ func verifyCheckpoints(tenantID, schema string, out *AuditVerification) error {
 			return signCheckpointWith(c.sigVer, key, tenantID, c.fromSeq, c.toSeq, c.rowCount, c.unsignedCount, c.digest, c.prevSig)
 		}) {
 			out.Intact = false
-			out.CheckpointsBad = append(out.CheckpointsBad, c.id+" (signature)")
+			if c.sigKey != "" && !auditKeyLoaded(c.sigVer, c.sigKey) {
+				out.noteMissingKey(c.sigKey)
+				out.CheckpointsBad = append(out.CheckpointsBad, c.id+" (signed by key "+c.sigKey+", not loaded)")
+			} else {
+				out.CheckpointsBad = append(out.CheckpointsBad, c.id+" (signature)")
+			}
 			continue
 		}
 		// ...and does the window still contain what it said it did? This is
@@ -447,10 +507,10 @@ func WriteAuditCheckpoint(tenantID, kind string) (*AuditCheckpoint, error) {
 	if err := db.DB.QueryRow(fmt.Sprintf(`
 		INSERT INTO %s.audit_checkpoints
 			(from_seq, to_seq, row_count, unsigned_count, row_digest,
-			 prev_checkpoint_signature, signature, sig_version, kind)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id::text`, schema),
+			 prev_checkpoint_signature, signature, sig_version, kind, sig_key)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id::text`, schema),
 		fromSeq, maxSeq.Int64, rowCount, unsignedCount, digest,
-		nullIfEmpty(prevSig.String), sig, AuditSigVersion, kind).Scan(&cp.ID); err != nil {
+		nullIfEmpty(prevSig.String), sig, AuditSigVersion, kind, auditSigningKeyFingerprint()).Scan(&cp.ID); err != nil {
 		return nil, err
 	}
 	return cp, nil
@@ -540,8 +600,8 @@ func runAuditVerifyJob(ctx context.Context, schema string, job Job) (map[string]
 	}
 	if !result.Intact {
 		LogSystemError(tenantID, "", "CRITICAL", "audit.verify",
-			fmt.Sprintf("audit evidence FAILED verification: %d tampered row(s) %v, %d bad checkpoint(s) %v",
-				len(result.TamperedRows), result.TamperedRows, len(result.CheckpointsBad), result.CheckpointsBad), "")
+			fmt.Sprintf("audit evidence FAILED verification: %d tampered row(s) %v, %d bad checkpoint(s) %v, %d row(s) signed by key(s) not loaded %v",
+				len(result.TamperedRows), result.TamperedRows, len(result.CheckpointsBad), result.CheckpointsBad, result.UnverifiableRows, result.MissingKeys), "")
 	}
 	return map[string]interface{}{
 		"intact": result.Intact, "verified": result.Verified,
@@ -605,7 +665,7 @@ func StartAuditEvidenceScheduler(ctx context.Context, interval time.Duration) {
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas()
+				schemas, err := listRegisteredTenantSchemas()
 				if err != nil {
 					log.Printf("[AUDIT-EVIDENCE] cannot list tenant schemas: %v", err)
 					continue

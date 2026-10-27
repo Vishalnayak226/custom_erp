@@ -34,6 +34,10 @@ Stage 49's security program lives here.
 | [third-party-risk-register.md](third-party-risk-register.md) | Stage 49.16.6 — every outbound/inbound third party this system talks to, with criticality, evidence and exit/revocation plan per provider. | Hand-written. |
 | [assurance-evidence-handling.md](assurance-evidence-handling.md) | Stage 49.16.7 — how pentest/audit/questionnaire/incident/legal documents are classified, retained and shared, written before the first one exists. | Hand-written. |
 | [human-operations-and-social-engineering.md](human-operations-and-social-engineering.md) | Stage 49.14 — plain-language/privileged UX, floor/shared-device posture, support-has-no-backdoor (verified by the 49.1.4 scanner), governed break-glass, device baseline, training and personnel controls. Honest about what's not built yet at single-owner scale. | Hand-written. |
+| [operating-cadence.md](operating-cadence.md) | Stage 49.17.5 — what is reviewed, how often, by whom and where the proof lands; the scorecard marks each activity overdue from its own evidence file. |
+| [assessment-register.md](assessment-register.md) | Stage 49.17.7 — every challenge of this system's security, by whom, over what scope and until when it counts; only `external` rows are independent. |
+| [security-lessons.md](security-lessons.md) | Stage 49.17.8 — each incident, near miss or finding that taught something, with the regression test that now holds it (checked by `TestStage49178EveryLessonHasALiveRegressionTest`). |
+| [security-weight-budget.md](security-weight-budget.md) | Stage 49.18 — what the controls cost (measured), bounded state, one-event evidence, no client bloat, no infrastructure reflex, and the multi-year state forecast. |
 | This file | Index and regeneration instructions. | Hand-written. |
 
 ## Release artifacts (49.9.6–49.9.9)

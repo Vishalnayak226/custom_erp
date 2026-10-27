@@ -75,7 +75,8 @@ func provisionScratchAuditTenant(t *testing.T) (tenantID, schema string) {
 			sig_version VARCHAR(20),
 			entity_type VARCHAR(100),
 			entity_id VARCHAR(200),
-			correlation_id VARCHAR(100)
+			correlation_id VARCHAR(100),
+			sig_key VARCHAR(16)
 		)`,
 		`CREATE UNIQUE INDEX ON ` + schema + `.audit_logs (seq)`,
 		`CREATE TABLE ` + schema + `.audit_checkpoints (
@@ -90,7 +91,8 @@ func provisionScratchAuditTenant(t *testing.T) (tenantID, schema string) {
 			sig_version VARCHAR(20) NOT NULL,
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			kind VARCHAR(20) NOT NULL DEFAULT 'Periodic',
-			archive_id UUID
+			archive_id UUID,
+			sig_key VARCHAR(16)
 		)`,
 		`CREATE TABLE ` + schema + `.audit_retention_policy (
 			id SERIAL PRIMARY KEY,

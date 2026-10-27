@@ -2,7 +2,7 @@
 title: Release notes (part 2)
 section: Reference
 order: 26
-summary: Earlier releases, 2026-07-27 to 2026-09-13, continued from the release notes.
+summary: Earlier releases, 2026-07-27 to 2026-09-16, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,9 +19,19 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **86** earlier entries, 2026-07-27 to 2026-09-13.
+This page continues the [release notes](release-notes.md) with **88** earlier entries, 2026-07-27 to 2026-09-16.
+
+## 2026-09-16
+
+**Stage 49.16 (partial) — customer security pack, third-party risk register, assurance evidence handling** *(docs only)*
+
+Closes 49.16.2 (already satisfied by §149's `verification-standards-matrix.md` — no second crosswalk document built), 49.16.3, 49.16.6, 49.16.7. Parent 49.16 stays open on 49.16.1/49.16.4/49.16.5, each deliberately not built: all three explicitly require qualified counsel/business-owner input as part of the item's own acceptance bar (47.16/48.6's gate for .1, a legal/business approval for .4, a market/cost judgment call for .5) — building parallel prose ahead of that would be exactly what 49.16.1's own text warns against.
 
 ## 2026-09-13
+
+**Stage 49.10.1 — version-pinned verification matrix** *(docs only)*
+
+`docs/security/verification-standards-matrix.md`. Adopted OWASP ASVS 5.0.0 (17 chapters, ~350 requirements) and the 2025 CWE Top 25 — both fetched live via web search/fetch during this session rather than recalled from training data, specifically because a wrong requirement ID in a "point at something real" document is worse than not writing it. Mapped every ASVS chapter and every CWE Top-25 entry to either a real cited control already in this repository or an explicit open Stage/item number; nothing left as a bare, uncited gap.
 
 **Stage 49.15 — vulnerability disclosure, triage, remediation and security-update lifecycle** *(docs only)*
 

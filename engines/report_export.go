@@ -280,15 +280,10 @@ func SweepReportExportJobRetention(tenantID string) (int64, error) {
 	if retentionDays <= 0 {
 		retentionDays = 7
 	}
-	result, err := db.DB.Exec(fmt.Sprintf(`
-		DELETE FROM %s.documents
-		WHERE doctype = 'ReportExportJob' AND status IN ('Completed', 'Failed')
-		  AND updated_at < CURRENT_TIMESTAMP - ($1 || ' days')::interval`, schema), retentionDays)
-	if err != nil {
-		return 0, err
-	}
-	n, _ := result.RowsAffected()
-	return n, nil
+	// 49.18.2: batched, and nothing while the tenant is under legal hold.
+	return retentionDelete(tenantID, schema, "documents",
+		`doctype = 'ReportExportJob' AND status IN ('Completed', 'Failed')
+		  AND updated_at < CURRENT_TIMESTAMP - ($1 || ' days')::interval`, retentionDays)
 }
 
 // StartReportExportRetentionSweeper keeps ReportExportJob documents bounded
@@ -315,7 +310,7 @@ func StartReportExportRetentionSweeper(ctx context.Context, interval time.Durati
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas("reports")
+				schemas, err := listRegisteredTenantSchemas("reports")
 				if err != nil {
 					log.Printf("[REPORT_EXPORT-SWEEP] Failed to list tenant schemas: %v", err)
 					continue

@@ -5381,11 +5381,6 @@
               "level": 2,
               "text": "2026-09-16",
               "slug": "2026-09-16"
-            },
-            {
-              "level": 2,
-              "text": "2026-09-13",
-              "slug": "2026-09-13"
             }
           ]
         },
@@ -5394,7 +5389,7 @@
           "title": "Release notes (part 2)",
           "section": "Reference",
           "order": 26,
-          "summary": "Earlier releases, 2026-07-27 to 2026-09-13, continued from the release notes.",
+          "summary": "Earlier releases, 2026-07-27 to 2026-09-16, continued from the release notes.",
           "audience": "everyone",
           "last_verified": "2026-09-10",
           "owner": "documentation-maintainer",
@@ -5406,6 +5401,11 @@
           "applies_to": "source registries; not release acceptance",
           "source_path": "reference/release-notes-2.md",
           "headings": [
+            {
+              "level": 2,
+              "text": "2026-09-16",
+              "slug": "2026-09-16"
+            },
             {
               "level": 2,
               "text": "2026-09-13",

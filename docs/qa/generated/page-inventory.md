@@ -1526,7 +1526,7 @@ Settings → Configuration renders the settings registry by module, through the 
 | Manufacturing | 4 |
 | OMS | 4 |
 | PIM | 2 |
-| Platform | 19 |
+| Platform | 20 |
 | Point of Sale | 11 |
 | Printing | 6 |
 | Procurement | 17 |

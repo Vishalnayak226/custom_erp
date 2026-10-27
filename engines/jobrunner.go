@@ -543,15 +543,10 @@ func SweepJobRunnerRetention(tenantID string) (int64, error) {
 	if retentionDays <= 0 {
 		retentionDays = jobDefaultRetention
 	}
-	result, err := db.DB.Exec(fmt.Sprintf(`
-		DELETE FROM %s.async_jobs
-		WHERE status IN ('Succeeded', 'DeadLettered', 'Cancelled')
-		  AND completed_at < CURRENT_TIMESTAMP - ($1 || ' days')::interval`, schema), retentionDays)
-	if err != nil {
-		return 0, err
-	}
-	n, _ := result.RowsAffected()
-	return n, nil
+	// 49.18.2: batched, and nothing while the tenant is under legal hold.
+	return retentionDelete(tenantID, schema, "async_jobs",
+		`status IN ('Succeeded', 'DeadLettered', 'Cancelled')
+		  AND completed_at < CURRENT_TIMESTAMP - ($1 || ' days')::interval`, retentionDays)
 }
 
 // StartJobRunnerRetentionSweeper keeps async_jobs bounded - hourly, the same
@@ -571,7 +566,7 @@ func StartJobRunnerRetentionSweeper(ctx context.Context, interval time.Duration)
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas()
+				schemas, err := listRegisteredTenantSchemas()
 				if err != nil {
 					log.Printf("[JOBRUNNER-SWEEP] Failed to list tenant schemas: %v", err)
 					continue

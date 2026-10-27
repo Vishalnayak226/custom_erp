@@ -878,7 +878,7 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 				d.Party.Name, d.Party.Phone = strField(cart, "customer_name"), strField(cart, "customer_phone")
 			}
 			d.Fields["original_invoice_date"] = firstNonEmpty(strField(cart, "completed_at"), documentCreatedDate(tenantID, "POSCart", strField(data, "original_order_id")))
-			for k, v := range transferQtyBySKU(strField(cart, "items")) {
+			for k, v := range transferQtyBySKU(linesText(cart["items"])) {
 				originalQty[k] = v
 			}
 		}
@@ -888,7 +888,7 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 			d.Fields["refund_status"] = strField(refund, "status")
 		}
 		var lines []returnItemRecord
-		_ = json.Unmarshal([]byte(strField(data, "items")), &lines)
+		_ = json.Unmarshal([]byte(linesText(data["items"])), &lines)
 		for _, l := range lines {
 			// Shop prices include GST: the refund value is split back into
 			// taxable and tax at the item's rate.
@@ -1085,6 +1085,24 @@ func poOrderedQty(tenantID string, poIDs []string) map[string]float64 {
 
 // transferQtyBySKU sums a JSON line list's qty per SKU ([{sku, qty}, ...] -
 // the shape PO, transfer and cart lines share).
+// linesText is a document's line array as JSON text, whether it is stored as
+// text or as a JSON array. ReturnRequest and POSCart keep an array, which
+// strField reads as "" - so every customer Sales Return printed with no lines
+// and a 0.00 refund (found by the BLD-041 print pass).
+func linesText(v interface{}) string {
+	switch x := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return x
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
 func transferQtyBySKU(raw string) map[string]float64 {
 	out := map[string]float64{}
 	var lines []map[string]interface{}

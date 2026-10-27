@@ -5393,6 +5393,10 @@
       "path": "cmd/snapshot_tenant_config"
     },
     {
+      "name": "stateforecast",
+      "path": "cmd/stateforecast"
+    },
+    {
       "name": "surfacescan",
       "path": "cmd/surfacescan"
     },
@@ -5403,7 +5407,7 @@
   ],
   "migrations": {
     "base_schema_file": "db/migration.sql",
-    "incremental_files": 299,
+    "incremental_files": 300,
     "newest": [
       "migrations_stage98_3_store_email.sql",
       "migrations_stage98_4_printer_choice.sql",
@@ -5470,6 +5474,7 @@
         "cmd/minttoken/main.go",
         "cmd/releasebudget/main.go",
         "cmd/reset_mfa/main.go",
+        "cmd/stateforecast/main.go",
         "db/db.go",
         "engines/security_baseline.go"
       ]
@@ -5843,12 +5848,12 @@
   ],
   "totals": {
     "background_jobs": 41,
-    "cli_commands": 18,
+    "cli_commands": 19,
     "dependencies": 2,
     "direct_dependencies": 2,
     "environment_flags": 42,
     "environment_flags_security_critical": 14,
-    "incremental_migrations": 299,
+    "incremental_migrations": 300,
     "outbound_call_sites": 16,
     "routes": 846,
     "routes_integration_credential": 5,

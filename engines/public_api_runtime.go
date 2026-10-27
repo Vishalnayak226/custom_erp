@@ -542,18 +542,17 @@ func SweepPublicAPIRuntime(tenantID string) (idempotencyDeleted, logDeleted int6
 	if retentionDays <= 0 {
 		retentionDays = 30
 	}
-	result, err := db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.api_idempotency_keys
-		WHERE created_at < CURRENT_TIMESTAMP - ($1 || ' hours')::interval`, schema), retentionHours)
+	// 49.18.2: batched, and nothing while the tenant is under legal hold.
+	idempotencyDeleted, err = retentionDelete(tenantID, schema, "api_idempotency_keys",
+		`created_at < CURRENT_TIMESTAMP - ($1 || ' hours')::interval`, retentionHours)
 	if err != nil {
 		return 0, 0, err
 	}
-	idempotencyDeleted, _ = result.RowsAffected()
-	result, err = db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.api_request_log
-		WHERE created_at < CURRENT_TIMESTAMP - ($1 || ' days')::interval`, schema), retentionDays)
+	logDeleted, err = retentionDelete(tenantID, schema, "api_request_log",
+		`created_at < CURRENT_TIMESTAMP - ($1 || ' days')::interval`, retentionDays)
 	if err != nil {
 		return idempotencyDeleted, 0, err
 	}
-	logDeleted, _ = result.RowsAffected()
 	// Stage 38.2d: expired OAuth token digests go with the same sweep.
 	_, _ = SweepExpiredOAuthTokens(tenantID)
 	return idempotencyDeleted, logDeleted, nil
@@ -578,7 +577,7 @@ func StartPublicAPIRuntimeSweeper(ctx context.Context, interval time.Duration) {
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas()
+				schemas, err := listRegisteredTenantSchemas()
 				if err != nil {
 					log.Printf("[PUBLIC-API-SWEEP] Failed to list tenant schemas: %v", err)
 					continue

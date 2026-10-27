@@ -1201,9 +1201,12 @@ function posPrintGiftCardReceipt(r) {
   const browser = () => {
     const w = window.open('', '_blank', 'width=360,height=520');
     if (!w) { showCustomAlert(`${r.card} loaded with ${Number(r.amount).toFixed(2)}. Balance ${Number(r.balance).toFixed(2)}.`, 'Gift Card Issued'); return; }
-    w.document.write(`<!doctype html><title>Gift Card</title><body style="font-family:monospace; font-size:13px; padding:12px;">${slip}
-    <script>window.print();<\/script></body>`);
+    w.document.write(`<!doctype html><title>Gift Card</title><body style="font-family:monospace; font-size:13px; padding:12px;">${slip}</body>`);
     w.document.close();
+    // BLD-041: printed from here - the window inherits script-src 'self', so
+    // an inline print() in it was refused and the slip never printed.
+    w.focus();
+    w.print();
   };
   // Stage 127.2: on the receipt printer like the bill, no browser dialog once set up.
   import('./trade-docs.js' + new URL(import.meta.url).search)

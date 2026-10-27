@@ -44,6 +44,42 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 297. Stage 139 — ERP shortcuts: one Ctrl+K box, short codes, report numbers, standard keys (2026-10-26, code + migration + docs, NOT COMMITTED - held in release/hold.txt)
+
+The user asked for ERP shortcuts done the easy, best-practice way, a number for every report, and what else would make transactions easier. The plan (`docs/product/shortcuts-plan-2026-10-26.md`) was approved with "Build all of the above", with the shortcuts written up properly in the user help. Item detail: micro_checklist Stage 139.
+
+- **One box.** The top-bar search became the Ctrl+K box, moved out of the cold core into lazy `public/shortcuts.js` (core 182,956 -> 180,920 B). It opens screens, record lists and reports by name, a code (`PO`), a new record (`PO+`), number 42 of a kind (`PO 42`), a report by number (`R1001`), and any full document number, typed or scanned. The new `GET /api/v1/doc-find` names the record type by running that record's own GET, so permission, store and supplier scope apply as usual, and anything the person cannot open answers 404.
+- **Report numbers.** R + area digit + 3 digits, the same for every client, never reused: 459 (421 built, 38 waiting), from `docs/specs/reports/report_numbers.tsv` through `cmd/gencatalog`. Shown in the Reports menu, the picker, the run line, export file names and the KB report catalog.
+- **One key set.** It presses the screen's own buttons by their label, so every screen has it with no per-screen code: Alt+N, Ctrl+S, Ctrl+Enter, Ctrl+P, Ctrl+D, Ctrl+Delete, arrows/Enter/Space on lists, and Enter to the next field on New transaction pages. `?` shows the keys, codes and report numbers, a Guide link and a printable card. POS keeps its own keys.
+- **Less typing.** Favourites (the new `UserShortcut` record type, follows the person) and recents. An after-save bar: Print, New, Copy, next step. Copy on records and POs. Remembered store/location/payment drop-downs, scan to open, ticked-row Export/Submit/Delete, bulk Approve/Reject, saved views, kept drafts, and My work counts in the box.
+
+Found on the way:
+- The top box still redrew an open record list on every key (BLD-045 measured 1.1-2.8 s per key, relabelled as page 1 over the old rows). It is the Ctrl+K box only now; the list searches in its own box (with erp-aa, 50.20b).
+- Release 0.17.0 committed a held file's version bump without writing it back to the tree (`app.js` said '65' against HEAD's '66'). erp-18 added gate G12b.
+- `canCreateDoctype` means "may use the record form", so own-screen types (Stock Adjustment, Material Issue, Delivery Challan) need the plain create permission for `SA+`.
+- The shell's print CSS hides every page element except the four print areas: anything printed goes through one.
+- Tests that register throwaway reports leave them in the registry. The number test reads the startup set from TestMain.
+
+Verified: build, vet, `gencatalog -check`. The Stage 139 tests pass (numbers, append-only file, doc-find with a manager at another store refused, codes in both guides) on a fresh scratch DB (`custom_erp_s139`, 302 migrations from empty). The full engines suite passes (22 min). The full internal/server suite has two unrelated failures: erp-4b's held 49.18.1 cost test, and the cache version, fixed. Five Playwright walks on a scratch server against the dev data all pass, including as manager1: codes, the box, every key, star, Copy (PO and records), report number, document number, scan, remembered location, draft restore, Export, bulk Delete, Approvals ticks, Ctrl+P on a row, the printed card, and the Guide article. Not clicked live: the next-step button and an Approve/Reject run (no pending data to decide). Seen but not changed: the PO screen shows + New to a role without create permission (the server refuses the save).
+
+## 296. "Build next 20 open items": Stage 49 finished, Stage 50's buildable packages (2026-10-26, code + tests + docs, NOT COMMITTED - held in release/hold.txt)
+
+The user asked for the next 20 open items. They were taken in tracker order after 49.17.4: the eleven left in Stage 49, then Stage 50's work packages that need no decision, host or real users (BLD-002, 028, 029, 032, 041, 044, 045, 053, 055). Four are fully done (49.18.3-49.18.6); the rest are built, with what is left written on each. Two packages (BLD-041 print pass, BLD-045 load time) ran as background agents. Release 0.17.0 (session erp-18) shipped while this was in progress, with this batch held.
+
+The core is a security program that keeps itself honest. The scorecard judges an operating cadence from each review's own evidence file. An assessment register gives each review an expiry date. Each lesson names a regression test, and a test keeps that test alive. A generated assurance statement says plainly that no external assessment has been done. The deploy click reads a security floor and says out loud when a rollback puts a known-vulnerable build back. The weight ledger measures what the controls cost: an authenticated read p95 2.4 ms, an audit row ~445 bytes, a password guess 136 ms for an attacker. Three guards keep those costs in place: every state store registered with its bound, nothing loaded from another origin, and no cache or hash cost "optimized away".
+
+Found and fixed on the way:
+- a suspended or trial-expired client's campaigns, dunning mail, e-invoice submissions, webhooks and queued jobs kept running - workers now serve only operational clients (BLD-028);
+- retention sweeps deleted logs from a client under legal hold, and three logs (CleverTap sends, PIM publish payloads, system errors) had no sweep at all (49.18.2);
+- one client's burst took the shared database pool to 50 of 50. The per-client slot was taken after the database lookups, and every refusal wrote a log row. Now a 100-request burst peaks at 16 and the other client loses nothing (BLD-029);
+- a lost audit signing key would have looked like tampering on every row it signed - rows now carry the key's fingerprint and are reported as unverifiable, naming the key (BLD-053);
+- every customer Sales Return printed with no lines and a 0.00 refund; a voucher reprint failed with 404; the gift-card slip never printed because the CSP refused its inline print() (BLD-041);
+- a POS screen leak (each visit kept the whole previous screen alive), and paging re-rendered every row just to show "loading" (BLD-045).
+
+Also: a read-only multi-year state forecast (`cmd/stateforecast`), an import reconciliation campaign at 2,000 rows (BLD-032), a worker inventory held to the code with measured idle cost (BLD-044), the backlog mapped onto the 23 business journeys as a generated page (BLD-002), and the handover back under its 150-line budget (BLD-055). Three load-time levers wait on the user: the Windows 11 variable font, the top search box on record lists, and list column subsets.
+
+Detail: micro_checklist 49.17.5-49.18.7, erp-build-checklist BLD entries, and the run line at the top.
+
 ## 295. "Build all" run, Stage 49: the next 20 items (2026-10-26, code + tests + runbooks, released in 0.15.0 `21e7c99`)
 
 The user asked for the next 20 open items, to start once release 0.14.0 (`0bcac93`) was pushed. They were taken in tracker order from 49.11.2, leaving out the items that need legal advice, live drills, a decision or real users. Five are fully done (49.11.3, 49.11.8, 49.12.2, 49.12.6, 49.12.7); fifteen are built in part, with what is left written on each entry.

@@ -421,7 +421,7 @@ func StartSecurityDetectionSweep(ctx context.Context, interval time.Duration) {
 				if !IsSchedulerLeader() || db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas()
+				schemas, err := listRegisteredTenantSchemas()
 				if err != nil {
 					log.Printf("[SECURITY-DETECT] failed to list tenant schemas: %v", err)
 					continue

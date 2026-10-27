@@ -620,7 +620,13 @@ func registerStage282Settings() {
 		Key: "platform.integration_log_retention_days", Module: "Platform",
 		Label: "Integration and hook log retention", Type: SettingTypeInt, Default: "90", Unit: "days",
 		Min: settingBound(0), Max: settingBound(3650),
-		Description: "How long sent integration events, the integration event log and the extension hook call log are kept before the hourly sweep deletes them (Stage 47.18.3). Events not yet sent are never swept. 0 keeps everything (a hold).",
+		Description: "How long sent integration events, the integration event log, the extension hook call log, sent CleverTap events and the PIM channel publish log are kept before the hourly sweep deletes them (Stage 47.18.3, 49.18.2). Events not yet sent are never swept. 0 keeps everything (a hold).",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "platform.error_log_retention_days", Module: "Platform",
+		Label: "System error log retention", Type: SettingTypeInt, Default: "180", Unit: "days",
+		Min: settingBound(0), Max: settingBound(3650),
+		Description: "How long system error log rows (the Activity Log's errors) are kept before the hourly sweep deletes them (Stage 49.18.2). 0 keeps everything (a hold). A client under legal hold keeps every log whatever this says.",
 	})
 
 	// --- OMS Settlement Reconciliation (Stage 35.8) ---

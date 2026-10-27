@@ -84,7 +84,7 @@ func runPatchIntakeCycle() error {
 		return fmt.Errorf("failed to load policy rules: %w", err)
 	}
 
-	schemas, err := listTenantSchemas()
+	schemas, err := listRegisteredTenantSchemas()
 	if err != nil {
 		return fmt.Errorf("failed to list tenant schemas: %w", err)
 	}

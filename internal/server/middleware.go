@@ -227,6 +227,60 @@ type tenantConcurrencyLimiter struct {
 
 var tenantConcurrency = &tenantConcurrencyLimiter{inFlight: make(map[string]int), heavy: make(map[string]int)}
 
+// busyRefusals counts admission refusals per tenant. A refusal used to write
+// one system_error_logs row each (GLOBAL-0010 is log-required), so during a
+// flood every turned-away request still spent a shared pool connection - the
+// thing the refusal exists to protect (BLD-029: 85 refusals took the pool to
+// 50 of 50). Now one summary row per tenant per minute carries the count.
+var busyRefusals = struct {
+	sync.Mutex
+	pending map[string]int
+	logged  map[string]time.Time
+}{pending: map[string]int{}, logged: map[string]time.Time{}}
+
+const busyRefusalLogEvery = time.Minute
+
+// refuseBusy answers a request its tenant has no slot for: the same 503 body
+// writeAPIErrorGeneric gives GLOBAL-0010, logged as a per-minute summary.
+func refuseBusy(w http.ResponseWriter, r *http.Request, tenantID, message string) {
+	entry := errorCatalog["GLOBAL-0010"]
+	busyRefusals.Lock()
+	busyRefusals.pending[tenantID]++
+	count := 0
+	if time.Since(busyRefusals.logged[tenantID]) >= busyRefusalLogEvery {
+		count = busyRefusals.pending[tenantID]
+		busyRefusals.pending[tenantID] = 0
+		busyRefusals.logged[tenantID] = time.Now()
+		if len(busyRefusals.logged) > authStateLikeCap {
+			busyRefusals.logged = map[string]time.Time{tenantID: time.Now()}
+			busyRefusals.pending = map[string]int{}
+		}
+	}
+	busyRefusals.Unlock()
+	_, _, correlationID := resolvedContext(r)
+	if count > 0 {
+		engines.LogSystemError(tenantID, correlationID, entry.Severity, entry.Module,
+			fmt.Sprintf("[GLOBAL-0010] %d request(s) turned away in the last minute: this client is at its concurrency cap | last: %s %s", count, r.Method, r.URL.Path), "")
+	}
+	responseMessage := message
+	if entry.UserMessage != "" {
+		responseMessage = entry.UserMessage
+	}
+	w.Header().Set("Retry-After", "2")
+	writeResponse(w, http.StatusServiceUnavailable, apiErrorBody{
+		Error:         responseMessage,
+		UserAction:    entry.UserAction,
+		Code:          "GLOBAL-0010",
+		CorrelationID: correlationID,
+		Retryable:     entry.Retryable,
+		DisplayStyle:  entry.DisplayStyle,
+	})
+}
+
+// authStateLikeCap bounds the refusal bookkeeping like the other per-tenant
+// maps (49.18.2): one entry per tenant, cleared if it ever grows past this.
+const authStateLikeCap = 10000
+
 // isHeavyRead names the reads that may run long - report runs and exports.
 // 47.11.3: they may hold at most half of a tenant's slots, so a burst of them
 // cannot leave a sale, a receipt or a sign-in waiting to finish.
@@ -1058,6 +1112,28 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		scopeDoctype := ""
 		storeDevice := ""
 
+		// BLD-029: the per-tenant slot (24.30) is taken as soon as the tenant
+		// is known - for a session, right after its token names it - so a
+		// flood from one client is turned away before its requests spend
+		// shared pool connections on the sandbox, live-state and entitlement
+		// lookups below. Measured with the slot taken last: a 100-request
+		// burst from one client took the pool to 50 of 50 and kept another
+		// client waiting up to a second for a connection.
+		heavy := isHeavyRead(r)
+		admitted := false
+		admit := func() bool {
+			if !tenantConcurrency.acquireClass(tenantID, heavy, isPriorityRequest(r)) {
+				msg := "Too many concurrent requests in flight for this tenant - please retry shortly"
+				if heavy {
+					msg = "Reports and exports are busy for this business right now - this one did not run. Try again in a few seconds."
+				}
+				refuseBusy(w, r, tenantID, msg)
+				return false
+			}
+			admitted = true
+			return true
+		}
+
 		// Inspect Authorization Header
 		authHeader := r.Header.Get("Authorization")
 		if strings.HasPrefix(authHeader, "Bearer ") {
@@ -1103,6 +1179,11 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 					writeAPIError(w, r, "GLOBAL-0009", "")
 					return
 				}
+				// The token's tenant is final here (BLD-029).
+				if !admit() {
+					return
+				}
+				defer tenantConcurrency.release(tenantID, heavy)
 
 				// Sandbox expiry re-check (Stage 38.7), same reasoning as the
 				// live user-state re-check just below: a token minted before
@@ -1275,23 +1356,18 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			}
 		}
 
-		// 24.30: per-tenant concurrency quota, checked only now that
-		// tenantID is fully resolved (a token's own tenant claim, if
-		// present, already overrode the header/query-param/default value
-		// above). Rejects fast rather than letting an already-overloaded
-		// tenant's next request queue indefinitely for a shared pool
+		// 24.30: per-tenant concurrency quota. A session already holds its
+		// slot (taken right after its token, BLD-029); a request without a
+		// token takes it here, once tenantID is resolved from the host,
+		// header or default. Rejects fast rather than letting an
+		// already-overloaded tenant's next request queue for a shared pool
 		// connection another tenant needs too.
-		heavy := isHeavyRead(r)
-		if !tenantConcurrency.acquireClass(tenantID, heavy, isPriorityRequest(r)) {
-			w.Header().Set("Retry-After", "2")
-			msg := "Too many concurrent requests in flight for this tenant - please retry shortly"
-			if heavy {
-				msg = "Reports and exports are busy for this business right now - this one did not run. Try again in a few seconds."
+		if !admitted {
+			if !admit() {
+				return
 			}
-			writeAPIErrorGeneric(w, r, http.StatusServiceUnavailable, msg)
-			return
+			defer tenantConcurrency.release(tenantID, heavy)
 		}
-		defer tenantConcurrency.release(tenantID, heavy)
 
 		// Stage 73.1.9: a GL row posted while serving this request names its
 		// user and route (engines/posting_actor.go).

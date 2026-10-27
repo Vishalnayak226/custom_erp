@@ -921,19 +921,24 @@ func crmCheckAlerts(schema string) {
 }
 
 // crmApplyRetention deletes message records older than the client's retention
-// (D12, 24 months by default); consent evidence is not touched.
+// (D12, 24 months by default); consent evidence is not touched. 49.18.2:
+// batched through retentionDelete, and nothing while the client is on legal hold.
 func crmApplyRetention(schema string) {
 	months := GetSettingIntForSchema(schema, "crm.message_retention_months")
 	if months < 1 {
 		return
 	}
-	for _, q := range []string{
-		`DELETE FROM %s.crm_sends WHERE created_at < LOCALTIMESTAMP - make_interval(months => $1) AND status NOT IN ('Queued', 'Deferred', 'Sending')`,
-		`DELETE FROM %s.crm_pref_tokens WHERE created_at < LOCALTIMESTAMP - make_interval(months => $1)`,
-		`DELETE FROM %s.crm_events WHERE occurred_at < LOCALTIMESTAMP - make_interval(months => $1) AND processed_at IS NOT NULL`,
-		`DELETE FROM %s.crm_conversation_messages WHERE created_at < LOCALTIMESTAMP - make_interval(months => $1)`,
+	tenantID, err := tenantIDForSchema(schema)
+	if err != nil {
+		return
+	}
+	for _, q := range []struct{ table, where string }{
+		{"crm_sends", `created_at < LOCALTIMESTAMP - make_interval(months => $1) AND status NOT IN ('Queued', 'Deferred', 'Sending')`},
+		{"crm_pref_tokens", `created_at < LOCALTIMESTAMP - make_interval(months => $1)`},
+		{"crm_events", `occurred_at < LOCALTIMESTAMP - make_interval(months => $1) AND processed_at IS NOT NULL`},
+		{"crm_conversation_messages", `created_at < LOCALTIMESTAMP - make_interval(months => $1)`},
 	} {
-		if _, err := db.DB.Exec(fmt.Sprintf(q, schema), months); err != nil {
+		if _, err := retentionDelete(tenantID, schema, q.table, q.where, months); err != nil {
 			log.Printf("[CRM] retention in %s: %v", schema, err)
 		}
 	}

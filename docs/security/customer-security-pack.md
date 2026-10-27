@@ -153,9 +153,11 @@ code/CI dependencies) with criticality and evidence status for each.
 
 ## 9. Supported versions and residual/configuration risk
 
-**Supported versions:** see [SECURITY.md](../../SECURITY.md) — there is no
-tagged release line yet; the only supported version is the commit currently
-deployed to production. **Residual/configuration risks a customer should be
+**Supported versions:** only the latest numbered release receives security
+fixes - the current number, supported configuration, open risks and dated
+assurance scope are in the generated
+[security assurance statement](../qa/generated/security-assurance-statement.md),
+which is the current answer whenever this pack and it disagree. **Residual/configuration risks a customer should be
 aware of before go-live**, named rather than buried: MFA is available but not
 mandatory-by-default for every privileged role yet (tracked, `49.2.3`); CSRF/
 strict-CSP hardening is in progress, not complete (`47.8`/`49.4`); no

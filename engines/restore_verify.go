@@ -84,6 +84,11 @@ func VerifyRestoredDatabase() ([]RestoreCheck, error) {
 			if !v.Intact {
 				audit.Detail = fmt.Sprintf("%d row(s) and %d checkpoint(s) do not verify - tampered, or this server's audit signing key is not the one that wrote them",
 					len(v.TamperedRows), len(v.CheckpointsBad))
+				if len(v.MissingKeys) > 0 {
+					// BLD-053: say which key the restore host is missing.
+					audit.Detail += fmt.Sprintf("; %d row(s) are signed by key(s) %s, which this server does not hold - load them and verify again",
+						v.UnverifiableRows, strings.Join(v.MissingKeys, ", "))
+				}
 			}
 		}
 		out = append(out, audit)
