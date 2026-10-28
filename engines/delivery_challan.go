@@ -391,8 +391,10 @@ func DispatchDeliveryChallan(tenantID, id, userID string, in ChallanDispatch) er
 		}
 		bal = append(bal, b)
 		if returnable {
+			// Stage 135.17: the floor is Main (available less the client's own
+			// locations and hold codes), as for every other movement out.
 			res, err := tx.Exec(fmt.Sprintf(`UPDATE %s.inventory_availability SET available = available - $3, with_party = COALESCE(with_party, 0) + $3, updated_at = CURRENT_TIMESTAMP
-				WHERE sku = $1 AND location_code = $2 AND available >= $3`, schema), sku, location, qty)
+				WHERE sku = $1 AND location_code = $2 AND available - blocked - hold_qty >= $3`, schema), sku, location, qty)
 			if err != nil {
 				return err
 			}
@@ -725,6 +727,16 @@ func postChallanWriteOff(tenantID, writeOffID, approver string) error {
 		return err
 	}
 	kind := strField(wo, "kind")
+	// Stage 135.16: the units leave on_hand, so the stock ledger says so, in
+	// this transaction (it wrote nothing, and Stock Book vs Ledger drifted).
+	if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
+		ItemID: b.SKU, WarehouseID: location, Qty: float64(-qty),
+		VoucherType: ChallanWriteOffDoctype, VoucherID: writeOffID, UserID: approver,
+		FromStatus: "With party", ToStatus: kind, BatchNo: b.BatchNo,
+		IdempotencyKey: fmt.Sprintf("%s:%s:%s:%s", ChallanWriteOffDoctype, writeOffID, location, b.SKU),
+	}); err != nil {
+		return fmt.Errorf("stock ledger for %s: %w", b.SKU, err)
+	}
 	newSerial := "Lost"
 	if kind == challanKindKept {
 		b.Kept += qty

@@ -40,6 +40,10 @@ Jump straight to the thing you're trying to do.
 | Log in for the first time | §2 |
 | Watch a step-by-step Purchase Requisition example | [Process-video library](../sop-video/readme.md) |
 | Find a screen I can't see in the menu | §3 |
+| Open any screen, report or document fast (Ctrl+K, codes like `PO`, report numbers like `R1001`) | §3A |
+| See every keyboard shortcut, or print a shortcut card | §3A (press **?** on any screen) |
+| Copy a record or a purchase order instead of typing it again | §3A.6 |
+| Approve, reject, submit, export or delete many rows at once | §3A.6 |
 | **Ring up a sale** | §4 — read the prerequisites box first |
 | Open or close the till for a shift | §4.0 |
 | Find a product when I don't have its barcode | §4.1 step 1 |
@@ -204,7 +208,7 @@ The POS till is the exception: it opens ready to sell, and its **Sale** / **Retu
 | Sidebar entry | What lives inside |
 |---|---|
 | **Home** | Opens directly. This is where you land when you first sign in — see "Home, your landing screen" below. |
-| **POS** | POS / Billing (§4) · POS Profiles · Offline Sync Review · Offline Queue Gaps |
+| **POS** | POS / Billing (§4) · POS Profiles · Offline Sync Review · Offline Queue Gaps · Offline Sales (§4.12) |
 | **Financial Accounting** | Finance / GL · Approvals (§10) · Vendor Invoice · Payment Proposals · Bank Reconciliation · Debit / Credit Notes · Sales Invoice |
 | **OMS** | Orders (§9A) · Pending Orders (§9A.8) · Pick (§9A.9) · Pack (§9A.10) · Ship (§9A.11) · Returns · Settlements (§9A.12). OMS's own configuration — channel connectors, SKU mapping, bundles and its lists — is **Setup → OMS → OMS settings** (§9A.13). |
 | **CRM** | Customers · Loyalty · Campaigns · Vouchers · Service Tickets |
@@ -252,10 +256,10 @@ From your second visit onward you land back on whichever screen you were last us
 
 **Two search boxes, and they do different things:**
 
-- The **box at the very top of the window** finds *screens*. Type "purch" and it offers Purchase Order, Purchase Requisitions, and so on; pick one and it takes you there. It does **not** search your records.
+- The **box at the very top of the window** (**Ctrl+K**) opens things. Type "purch" and it offers Purchase Order, Purchase Requisitions and the purchase reports; pick one and it takes you there. It also takes a short code (`PO`), a report number (`R1001`) or a full document number (§3A). It does not filter the list you are on.
 - The **box just above a table**, on a screen, filters *that table's records*. This is how you find a particular vendor, item or invoice.
 
-At the top right of most list screens there are **New** and **Bulk Import** buttons, and each row has **Edit** and **Delete** icons. Any of these that your role can't use simply won't be shown.
+At the top right of most list screens there are **New** and **Bulk Import** buttons, and each row has **Copy**, **Edit** and **Delete** icons and a tick box (§3A.6). Any of these that your role can't use simply won't be shown.
 
 **When some rows of a Bulk Import fail**, the rows that were right are already saved — fix only the others:
 
@@ -265,6 +269,171 @@ At the top right of most list screens there are **New** and **Bulk Import** butt
 4. Click **Resume**. Just those rows are imported. The job then shows how many are still to fix and how many were fixed since; repeat for any that still fail.
 
 A row number that is not one of the job's open failed rows is refused, so a row cannot be imported twice.
+
+**Checking an import's totals.** Under the counts, the preview and the import result show **Totals**: for each number column, what was accepted out of what the file held (for example *Qty 5 of 10*). If a total is short, the missing amount is in the failed rows. **Rerun: nothing new** means every accepted row updated a record that was already there, so the file had been imported before. The import job keeps these totals.
+
+**Dates in a file are read day first** unless your admin has set another **Date order** (Admin Guide §B.3.0.2a). `03/02/2026`, `03-02-2026` and `3-Feb-2026` all mean 3 February 2026; `2026-02-03` works too. A date that only makes sense month first, such as `02/13/2026`, is refused with its row number. It is never swapped. Lists show dates as *03 Feb 2026*. With **month first**, `03/02/2026` is 2 March, `13/02/2026` is refused and lists show *Feb 03, 2026*; with **year first**, type `2026/02/03` and lists show *2026 Feb 03*. `2026-02-03` and a month written as a word (`3-Feb-2026`) work in every order.
+
+---
+
+## 3A. Keyboard Shortcuts and Quick Codes
+
+Press **?** on any screen (when you are not typing in a box) to see every key and code, with **Report numbers** (every report's number), **Guide** (this section, in the Knowledge Center) and **Print** (a shortcut card to keep by the keyboard). On a Mac, use **⌘** wherever this section says **Ctrl**. Hover over a button to see its key.
+
+### 3A.1 The search box: Ctrl+K
+
+**Ctrl+K** (or **/**) puts you in the search box at the top of the window. Type, then press **Enter** to open the first result, or **↑ ↓** to choose another. **Esc** closes it.
+
+| You type | What opens |
+|---|---|
+| A name, e.g. `purchase` | Matching screens, record lists and reports |
+| A code, e.g. `PO` | That screen (§3A.3) |
+| A code and `+`, e.g. `PO+` | A new record on that screen |
+| A code and a number, e.g. `PO 42` | Document number 42 of that kind; if several stores have a 42, you pick one |
+| A report number, e.g. `R1001` | That report (§3A.4) |
+| A full document number, e.g. `PO/HO/26-27/00103` | That document, shown in its record list |
+| Nothing (just Ctrl+K) | Your **Favourites**, your **My work** counts and your **Recent** screens |
+
+A code, number or document opens only if your role can open it from the menu; one you cannot open says "No document … that you can open".
+
+**Scan to open:** with the cursor outside any box, scan the barcode printed on a document. It opens as if you had typed its number.
+
+### 3A.2 Keys
+
+**Anywhere**
+
+| Key | Does |
+|---|---|
+| Ctrl+K or / | Search box |
+| ? | The list of keys and codes |
+| Alt+N | New record on this screen |
+| Esc | Close a dialog, menu or the search box |
+
+**Lists**
+
+| Key | Does |
+|---|---|
+| ↑ ↓ | Move between rows (the row you are on is highlighted) |
+| Enter | Open the row |
+| Space | Tick the row |
+
+**Forms and New pages**
+
+| Key | Does |
+|---|---|
+| Ctrl+S | Save |
+| Ctrl+Enter | Save and submit (Submit, Post or Send for approval, where the screen has one) |
+| Ctrl+P | Print the document |
+| Enter | Next field. On New transaction pages only; at the last field it moves to Save, and one more Enter saves |
+| Ctrl+D | Add a line (presses the screen's **Add line**, with what you typed) |
+| Ctrl+Delete | Remove the line the cursor is on (a box or button in that line) |
+
+**Kept for the browser and the till:** F1-F12, Ctrl+N, Ctrl+T, Ctrl+W and Alt+F / E / D do what your browser does with them. **POS / Billing** keeps its own keys (§4). In a picker or a notes box, Enter still picks or starts a new line.
+
+### 3A.3 Codes
+
+The same codes work for every company. A code shows only if your role has the screen.
+
+| Area | Code | Opens |
+|---|---|---|
+| Go to | `HOME` | Home |
+| Go to | `INB` | My work and approvals |
+| Go to | `RPT` | Reports |
+| Go to | `HELP` | Knowledge Center |
+| Sales | `POS` | POS / Billing |
+| Sales | `SO` | Sales Order |
+| Sales | `SI` | Sales Invoice |
+| Sales | `SR` | Sales Return |
+| Sales | `CN` | Credit Note |
+| Sales | `DN` | Debit Note |
+| Sales | `EI` | E-Invoice (IRN) |
+| Sales | `CUS` | Customers |
+| Sales | `CRM` | CRM |
+| Sales | `LOY` | Loyalty |
+| Buying | `PRQ` | Purchase Requisition |
+| Buying | `RFQ` | Request for Quotation |
+| Buying | `PO` | Purchase Order |
+| Buying | `ASN` | Advance Shipment Notice |
+| Buying | `GRN` | Goods Receipt |
+| Buying | `PR` | Purchase Return |
+| Buying | `VI` | Vendor Invoice |
+| Buying | `VEN` | Vendors |
+| Stock | `SOH` | Stock on Hand |
+| Stock | `SL` | Inventory Ledger |
+| Stock | `TO` | Stock Movement (Transfer Order) |
+| Stock | `SA` | Stock Adjustment |
+| Stock | `MRP` | MRP Change |
+| Stock | `MI` | Material Issue |
+| Stock | `DC` | Delivery Challan |
+| Stock | `MS` | Move Stock |
+| Stock | `CC` | Cycle Count |
+| Stock | `STK` | Sticker Printing |
+| Stock | `ITM` | Items |
+| Warehouse | `PUT` | Putaway |
+| Warehouse | `PICK` | Pick |
+| Warehouse | `PACK` | Pack |
+| Warehouse | `SHIP` | Ship |
+| Warehouse | `WAVE` | Wave / Batch Picking |
+| Money | `GL` | Finance / GL |
+| Money | `JV` | Journal Voucher |
+| Money | `PAY` | Payment Proposal |
+| Money | `BR` | Bank Reconciliation |
+| Money | `EXP` | Expense Claim |
+| Money | `FA` | Fixed Assets |
+| Making | `PRO` | Production Order |
+| Making | `JW` | Job Work |
+| Making | `QI` | Quality Inspection |
+| People | `HR` | HR |
+| Admin | `USR` | Users |
+| Admin | `ROLE` | Roles |
+| Admin | `CFG` | Configuration |
+| Admin | `NUM` | Number series (Prefix Configs) |
+
+### 3A.4 Report numbers
+
+Every report has a fixed number: **R**, then the area digit, then three digits. Sales Register is **R1001**. A number never changes and is never reused, and it is the same for every company, so you can tell anyone "run R3004".
+
+| Numbers | Area |
+|---|---|
+| R1xxx | Sales & POS |
+| R2xxx | Procurement & GRN |
+| R3xxx | Inventory, Stock Transfer, External Movement, Inventory Loss & Audit |
+| R4xxx | WMS |
+| R5xxx | Accounting, Finance, GST & Compliance, Expenses, Assets |
+| R6xxx | CRM, OMS, E-commerce & Integration, Service |
+| R7xxx | PIM, Manufacturing |
+| R8xxx | HR |
+| R9xxx | MIS, Master Data & Audit, Admin |
+
+The number shows beside the report's name in the **Reports** menu and the report picker, on the line above the results, and in the name of an exported file (`R1001-Sales-Register-2026-10-26.csv`). To look one up, press **?** and click **Report numbers**, or see the Knowledge Center's **Report catalog**, where every report's heading starts with its number.
+
+### 3A.5 Favourites, recent and after a save
+
+- **☆ beside a screen's title** adds it to your favourites (★); click again to remove it. Favourites come first when you press Ctrl+K, on any computer you sign in to.
+- **Recent** (in the empty Ctrl+K box) is the last 10 screens, reports and documents you opened in this browser.
+- **After you save**, a bar at the bottom of the screen offers **Print**, **New**, **Copy** and, once the document can move on (not while it is a draft or waiting for approval), the **next step**:
+
+| After | Next step |
+|---|---|
+| Purchase Requisition | Request for Quotation |
+| Request for Quotation | Purchase Order |
+| Purchase Order (approved) | Goods Receipt against that PO |
+| ASN | Goods Receipt |
+| Goods Receipt | Vendor Invoice |
+| Vendor Invoice | Payment Proposal |
+| Sales Order | Pick, then Pack, then Ship |
+
+The bar closes by itself after 15 seconds, or with **×**.
+
+### 3A.6 Less typing
+
+- **Copy a record:** the **Copy** icon on a record-list row, **Copy** on a Purchase Order in the PO list, or **Copy** in the after-save bar. You get a New form with the same details; the number, status and dates are not copied. Check it and save.
+- **Your last choice comes back:** a drop-down for store, location, warehouse, counter, salesman, cost centre or payment mode starts on what you last picked on that screen, in this browser. It is highlighted so you can see it was filled for you; change it if needed.
+- **Unsaved work is kept:** if the tab closes (or the computer restarts) while a New form has details in it, the form offers **Restore** or **Discard** next time. Only the form's own boxes are kept, not the rows of a line table.
+- **The columns of a record list:** a list shows up to eight of the record's main columns - its code, name and status first, then the required fields - so it opens quickly. Line tables and long notes stay off the list. Open the record to see every field; the search box above the table still searches every field you may see.
+- **Saved views:** on a record list, type a search in the box above the table, then pick **Save this search as a view…** in the views drop-down beside it. Pick the view later to run the same search; **Delete this view** removes it. Views are yours and follow you to any computer.
+- **Ticked rows on a record list:** tick rows (or the box in the heading for the whole page; **Space** ticks the row you are on). A bar shows how many are ticked, with **Export** (a CSV of the ticked rows), **Submit for approval** (where the list has that action) and **Delete**. Submit and Delete do up to 40 rows a run; anything that cannot be done is named in the message.
+- **Approvals:** on **My work → Approvals**, tick rows and click **Approve ticked** or **Reject ticked** (one reason for all). Each is decided exactly as if you had clicked its own button. A password reset is always decided on its own.
 
 ## 4. Making a Sale (POS / Billing)
 
@@ -352,7 +521,7 @@ Why it works this way: before, the cart silently emptied behind a dialog and the
 **Two other outcomes freeze the till the same way**, so you always know where you stand:
 
 - **Waiting for manager approval.** A large discount does not complete the sale. The panel says so in orange and offers no receipt — the money has not been collected and **the goods must not be handed over**. The sale sits as **Pending Approval** until a manager decides it from the **Approvals** screen.
-- **Queued offline.** If the connection is down, the sale is saved on the till and syncs automatically when the connection returns. The panel tells you so and warns you **not to ring it up again**.
+- **Queued offline.** If the connection is down, the sale is saved on the till and is sent automatically when the connection returns. The panel tells you so and warns you **not to ring it up again**. When it is sent, the till says *N offline sales sent for validation*: the sale is **not posted yet** — stock is not deducted and the bill is not made until a manager validates it on **POS → Offline Sales** (§4.12). **Scan every item** while offline: a line you searched for, typed or uploaded counts as *not scanned*, and a sale with such a line cannot be validated.
 
 ### 4.2 Offers and coupons at the till
 
@@ -385,6 +554,8 @@ A few things worth knowing:
 - **If a 58mm till roll prints text too wide**, tell your administrator to set **Label Width (mm)** to `58` on that Printer record.
 
 **If something goes wrong mid-sale** (a barcode doesn't scan, the system shows an error), read the message on screen — it tells you exactly what's wrong (e.g. "this item is already sold" or "not enough stock") rather than just "error."
+
+**Units reserved for online orders are not sold at the till.** If an online order has reserved units at your store, the till sells only the rest, and the message says how many more are *reserved for orders*. The stock shown at the till already leaves them out. To sell one anyway, the order has to be moved to another location first (OMS).
 
 ### 4.4 If prices changed while you were ringing up
 
@@ -428,7 +599,7 @@ The finished bill and the receipt show each gift card as its own line (*Gift car
 A return pays back **what the customer actually paid for those items**, the way they paid it. It is never the price on the tag when the bill had an offer, and never cash for something paid with points or a gift card.
 
 1. **Raise it at the till.** Open the **Return** tab on the POS screen and find the bill: scan or type the **bill number**, or type the customer's **mobile number** or name, and/or pick the **Bill date**, then click **Find Bill**. One match opens at once; several are listed to pick from. It looks at this store's bills; tick **All my stores** for a bill bought at another of your stores — the return is then taken here (the goods come back into this store's stock) and keeps the store that sold it. Each line shows what can still be returned and its price — the price after the bill's offer, e.g. a ₹1,000 shirt on a bill with 10% off shows **900.00**. **Return Location** is already filled with the till's store. Type the quantities coming back (or **Upload** a CSV of *Barcode, Qty* for a long bill) and click **Raise Return**.
-2. **A manager takes it from there** on **OMS → Returns**: **Approve** (if your business has turned on second-person approval, someone other than the person who raised the return must approve it, and its refund), then **Book Pickup** if a courier collects the goods (PIN code, contact name and pickup address; leave **Courier** blank and it is picked by PIN code from your courier service areas; the courier's account must be set up first, and if it was not, click Book Pickup again once it is), then **Receive Goods** when the items are physically back, then **Inspect**. Inspect opens one form with each item by name. Choose its condition from the list: Sellable, Damaged and Repairable are refunded; Missing, Wrong Item and Rejected are not. Optionally, type an item code to exchange it instead. Until the inspection, **Refund Eligible** shows the expected amount, marked *expected*.
+2. **A manager takes it from there** on **OMS → Returns**: **Approve** (if your business has turned on second-person approval, someone other than the person who raised the return must approve it, and its refund), then **Book Pickup** if a courier collects the goods (PIN code, contact name and pickup address; leave **Courier** blank and it is picked by PIN code from your courier service areas; the courier's account must be set up first, and if it was not, click Book Pickup again once it is; if the courier did not answer, click Book Pickup again - it asks the courier first, so the pickup is never booked twice, and a courier that cannot be asked opens **Unconfirmed booking** to resolve it, as on **OMS → Ship**, §9A.11), then **Receive Goods** when the items are physically back, then **Inspect**. Inspect opens one form with each item by name. Choose its condition from the list: Sellable, Damaged and Repairable are refunded; Missing, Wrong Item and Rejected are not. Optionally, type an item code to exchange it instead. Until the inspection, **Refund Eligible** shows the expected amount, marked *expected*.
 3. **Refund.** Click **Refund** on the return. For a till bill you are shown exactly where the money goes, for example *Card 333.33, Cash 410.00, UPI 66.66, 90 points back to the customer* — confirm to approve, and confirm again to pay. Reverse any card or UPI part on the terminal or payment app; cash comes out of the drawer. You are only asked *"How is the refund being paid?"* for a return with no till bill behind it (an online order).
 
 What happens to the customer's points, automatically:
@@ -495,6 +666,22 @@ These are India's rules. In another country your administrator sets that country
 
 For a long bill, click **More… → Upload lines (CSV)**. **Download template** gives a file with two columns, **Barcode** and **Qty**. Fill it in, pick it, and the till checks every code: it says how many lines are ready and lists any code that is not an item — those are not added. Click **Add lines** and they are rung up as if scanned. The same **Upload lines** is on the **Stock Transfer** form, and on the **Return** tab (it sets the quantities coming back for the bill you found).
 
+### 4.12 Offline Sales — validating sales rung up offline (store managers)
+
+A sale rung up while the till was offline is **held**, not posted, when it reaches the server. Nothing happens to stock, the books or the bill until a manager checks it here. Open **POS → Offline Sales** (store managers and administrators; a cashier does not see it).
+
+1. The list opens on **Pending** sales — when each was received, when the till sold it, the cart number, store, cashier, total, **Lines matched** (*2/3* = two of three lines check out) and status. Change the box at the top right to see **Validated**, **Rejected** or **All**. You see the stores you work at.
+2. Click a sale to open it. Each line shows the item, its **ERP barcode** (the item's barcode, its GTIN, its receipt-date barcodes — or its SKU when it has no barcode, since that is what its sticker prints), the code the till **Scanned**, and **Match**.
+   - **Yes** — the line was scanned with one of that item's own barcodes.
+   - **No** — the line was searched, typed or uploaded (*Not scanned*), or the scanned code is not that item's.
+3. **Validate** — only when every line says **Yes** (otherwise the button is greyed out, and the server refuses it anyway). The sale posts exactly as a normal sale: stock is deducted (it may go below zero — the goods already left the shop), the GL, payment and bill are made, as the cashier's sale at its store and in the till session it was rung up in. The sale shows **Validated** with its **Bill** number. It is priced at today's price — the till could not check prices offline.
+4. **Reject** — asks why; the reason is required. The sale is never posted and shows **Rejected** with the reason. Use it when the goods and the scans cannot be reconciled with the cashier.
+
+- **You cannot validate or reject a sale you rang up yourself** — another manager does it.
+- Each decision can be made once: a second click, or a second manager at the same moment, is told the sale is already decided. Both are written to the audit log.
+- A sale whose discount needs approval is sent on to **Approvals** when validated, as at the till.
+- Until it is validated, the cash for an offline sale is in the drawer but not in the session's expected cash — expect the till close to show it over by that amount.
+
 ## 5. Checking Stock
 
 1. Click **Inventory** in the sidebar.
@@ -555,13 +742,16 @@ difference goes for approval, with the first count shown beside it. A recount
 line nobody has counted yet is reported as *not counted yet* - it is never
 taken as a count of zero. Once a difference is approved it is posted to stock
 exactly once, together with the line's Posted status; a second click or a
-retry changes nothing.
+retry changes nothing. If so much stock has gone out since the count that the
+approved difference would take it below zero, posting is refused: count it again.
 
 **Finding old drift between the books and the movements.** **Reports → Inventory → Stock
 Book vs Ledger (drift finder)** compares each item's on-hand at each location
 with the total of its stock-ledger movements and lists where they differ, with
 a hint (for example a transfer dispatched before 9 October 2026 that never left
-the sending store's books). It changes nothing: settle each one with a count.
+the sending store's books). The same row checks that a store's own locations
+(Alteration, Display, ...) add up to what is set aside for them: **In own
+locations** must equal **Set aside (book)**. It changes nothing: settle each one with a count.
 To see the movements themselves, run **Reports → Inventory → Stock Ledger** for the item
 and location (each line names its voucher - GRN, transfer, sale, count).
 
@@ -698,7 +888,7 @@ The list's **Show** picks *Open returns*, *Due back in 7 days*, *Exceptions* (ov
 11. **Short-close.** If the vendor will not replace or send the rest, open **Balance**, choose a **Reason** (reason codes of type *Cancellation*), optionally a note, and click **Short-close**. The PO becomes **Closed**: it takes no more receipts and can no longer be edited. Any rejected or damaged goods still held are put on a **Draft purchase return** for that receipt - the claim on the vendor (its number is shown). Post it on **Procurement → Purchase Return** when the goods go back (§6.5).
 12. **Auto-cancel.** If your administrator set **Configuration → Procurement → Purchase Order auto-cancel** (for example 30 days), an Approved PO is closed automatically that many days after it was approved: with nothing received it becomes **Cancelled** and shows **Auto-cancelled** under its status (hover for the reason) — it can no longer be edited or sent to the vendor; partly received, the rest is short-closed exactly as in step 11 with the reason `AUTO-EXPIRY`. A PO that is fully received, still a Draft or waiting for approval is never touched. Raise a new PO for anything still needed.
 
-**Creating a PO from inside a Goods Receipt.** When the PO you want to receive against does not exist yet, the GRN's purchase-order picker offers to create one. That opens the plain **New Purchase Order** record form (not the order page above). On it, **Target Warehouse** and **Location** are pickers - start typing a store or warehouse name and choose it; **Inter-state Supply** and **Supply Type Overridden** are tick boxes. **Status** offers only Draft, Pending Approval and Closed: **Approved** and **Rejected** come only from the approval flow, so save it as **Draft** and send it for approval. Saving takes you back to the Goods Receipt; once the PO is approved, pick it there.
+**Creating a PO from inside a Goods Receipt.** When the PO you want to receive against does not exist yet, the GRN's purchase-order picker offers to create one. That opens the plain **New Purchase Order** record form (not the order page above). On it, **Target Warehouse** and **Location** are pickers - start typing a store or warehouse name and choose it; the **Inter-state Supply** and **Supply Type Overridden** tick boxes are ignored on save - the supply type is worked out from the vendor's and the store's states (§6.2). **Status** offers only Draft, Pending Approval and Closed: **Approved** and **Rejected** come only from the approval flow, so save it as **Draft** and send it for approval. Saving takes you back to the Goods Receipt; once the PO is approved, pick it there.
 
 #### 6.4 Completing missing barcodes at receipt
 
@@ -760,7 +950,7 @@ Until both a vendor and a billing address are picked, the banner just asks you t
 
 **Vendor with no GSTIN.** If the vendor you pick has no GSTIN on its record, a line under the header asks for it: *"Sharma Traders has no GSTIN — add it and it is saved on the vendor (optional)"*, with a box, **Save to vendor** and **Not now**. Type the 15-character GSTIN (small letters become capitals) and press Enter or click Save to vendor: it is saved on the vendor and the line goes away. A vendor with a GSTIN is never asked again, on any PO. It is optional: **Not now** hides the line for this PO only, and the next PO for that vendor asks again until it is filled. A GSTIN with a wrong check digit is pointed out under the box before anything is saved; a GSTIN from a different state than the vendor's **State** is refused with both states named, so correct whichever is wrong. If you are not allowed to change vendors, the line is not shown.
 
-You can also **Override** a derived answer when you know something the master records don't — a bill-to/ship-to split, for instance. Once you override, your choice sticks and later saves won't quietly undo it.
+**No override.** The supply type is always the one worked out from the two states — there is no tick to change it, on this page, the record form, an import or the API. If it is wrong, a state is wrong: correct the vendor's or the store's **State** (or GSTIN) and save the PO again. A PO whose **vendor has no state** (no State and no GSTIN) is not saved, not sent for approval, not made from an RFQ award or a supply proposal, and not imported: the message names the vendor — add its State on the vendor (or with **Save to vendor** on the banner), then save again. A store with no state still saves, as intra-state (CGST + SGST), and the banner asks for its state. POs saved before this keep their tax split until they are saved again.
 
 ### 6.3 Batches and expiry dates (for items that need them)
 
@@ -1045,7 +1235,7 @@ Once a PO is saved, add the product photos for what it orders: images for each *
 Many purchase orders — and the goods receipts of the bills that came with them — can be made in one go from one Excel file, instead of typing each PO and each receipt.
 
 1. On **Purchase Orders**, click **Upload from Excel**, then **Download template**. Open it in Excel; its **Start Here** sheet says how to fill it, and the **Example** sheet shows filled rows.
-2. **Vendors** sheet: each vendor you buy from, once — the **Vendor Name** and its **State** (from the list). City, GSTIN, phone and email only if you have them; the state is enough to charge CGST + SGST or IGST. A vendor already in Wholeops is found by its GSTIN or name and left as it is; a new one is made. A vendor that no purchase row uses is left out.
+2. **Vendors** sheet: each vendor you buy from, once — the **Vendor Name** and its **State** (from the list). City, GSTIN, phone and email only if you have them; the state is enough to charge CGST + SGST or IGST. A vendor already in Wholeops is found by its GSTIN or name and left as it is; a new one is made. If a vendor already in Wholeops has no state, the preview shows its PO as an error (*the vendor has no state*) - choose the State on that vendor, then upload again. A vendor that no purchase row uses is left out.
 3. **Purchase** sheet: one row for each design in each colour / size:
    - **PO Ref** — your name for the order; rows with the same PO Ref and vendor become **one PO**. **Store** — where the goods arrive (it must already be set up).
    - **Design No** (optional) — your own label to group rows: the same label on several rows is one design in several colours or sizes (`1, 1, 1`, `EI001`… anything). It only groups the rows of this file: Wholeops gives every design its own number (D00010…), and the same label in next month's file is a new design. Blank = the row is a design of its own. To **reorder** a design already in Wholeops, write its Wholeops design number; a colour it already has reuses that Combination ID, a new colour becomes a new combination. **Product Type** and **Category** make its item name; **HSN Code** comes from the list on the **Codes** sheet, and GST fills itself from it (the template's list is jewellery, chapter 71, all 3%).
@@ -1053,7 +1243,7 @@ Many purchase orders — and the goods receipts of the bills that came with them
    - **Photo** (optional) — the file name of the row's photo, as the client saved it (several: `a.jpg, b.jpg`). The photos themselves are sent with the file (step 5).
    - **Qty**, **Purchase Rate** (per piece, **including GST**) and **MRP** (the sticker price) are required.
    - Column **A (Check)** says **OK** or what to fix, and a required box turns red while it is empty.
-4. **When the goods and the bill arrive**: on the Purchase sheet, type the bill's **Vendor Invoice No** on its rows (and **Received Qty** only when it differs from Qty); on the **Bills** sheet, one row per bill with its **date** and **grand total**. The sheet checks the total against the rows (₹1).
+4. **When the goods and the bill arrive**: on the Purchase sheet, type the bill's **Vendor Invoice No** on its rows (and **Received Qty** only when it differs from Qty); on the **Bills** sheet, one row per bill with its **date** and **grand total**. The sheet checks the total against the rows (₹1). The date is an Excel date or typed in your **Date order** (day first unless your admin changed it - §3 "Dates in a file").
 5. Back on **Upload from Excel**: **Choose file**; if the file names photos, also **Choose photos** (or **Choose a photo folder**) — JPG, PNG, WebP or GIF, up to 10 MB each — then **Preview**. Nothing changes yet. A photo the file names but that was not chosen is marked ✗. The preview lists the vendors, the setup records it will make (categories, product types, item names, attribute values), each PO with its rows — *New design*, *New combination* or *Already there* — and each bill. Anything with a **Problem** is left out; fix it in the file and preview again.
 6. Click **Make … POs and receive … bills** and confirm. Each PO is saved (GST included), sent for approval and approved as you where your approval rules allow you to approve it; then each bill is received, verified, price-checked and posted with the MRPs in the file — stock goes up and the barcodes are issued.
 7. The result shows each PO's number and status and each bill's goods receipt. **Print stickers** on a received bill opens Sticker Printing with that receipt loaded.
@@ -1537,6 +1727,24 @@ You never have to format anything. Spaces, dashes, brackets and a leading `+91` 
 
 To change an existing one later, find it in the list (use the search box above the table if there are a lot) and click its row’s pencil **Edit** icon. You never need to delete and recreate a record to correct it.
 
+### 8.3 Price lists (Price List Version)
+
+A **Price List Version** is one dated set of prices, one row per SKU, for one price list (a code such as `RETAIL`). It prices nothing until it is approved.
+
+1. Open **Setup → Sales → Price List Version** and click **New Price List Version**.
+2. Leave **Version Code** blank — it is numbered for you (the very first time, choose its prefix and digits). Fill in **Price List** (the code), **Currency** and **Effective From**. Leave **Effective To** blank unless the prices end on a known date.
+3. Under **Prices**, click **+ Add Line** for each item and give its **SKU** and **Price**.
+4. Set **Status** to **Draft** and click **Save**.
+5. On the row, click the arrow button **Submit for Approval**. The status becomes **Pending Approval**.
+6. The approver opens **Approvals**, finds the **Price List Version** row and clicks **Approve** — or **Reject**, with a reason. As shipped an administrator approves; your administrator can change that in **Settings → Approval Rules** (record type **PriceListVersion**).
+
+Once approved:
+
+- **The till prices from it** from **Effective From** on: first the customer's **Contract price list** (on the customer's form), then the **Default price list** (Settings → Configuration → Point of Sale), then the item's own Sale Price, then its MRP. The Store app shows the Default price list's price; Shopify sells at the price list named on its channel's Shopify page.
+- **The older version steps aside.** An approved version of the same price list with no **Effective To** becomes **Superseded**, its **Effective To** set to the day before the new one starts. It still prices anything dated inside its own window.
+- **To change prices, make a new version.** Editing an approved one sends it back to **Pending Approval**, and it prices nothing until it is approved again.
+- **A rejected version** can be fixed: **Edit** it, set **Status** to **Draft**, **Save**, and submit it again.
+
 
 ![The Inventory screen: on hand against what is actually free to sell](img/inventory.png)
 
@@ -1566,7 +1774,7 @@ If a row is rejected, the message names the row number and the exact problem (fo
 
 Then run the **Competitor Price Gap** report (Section 9) to see where you stand.
 
-> **"Our Price" comes from what you actually sold at, not from a price list.** This system has no separate price-list master — the price is set on the sale itself. So the report shows the most recent price you actually transacted at for that item, and tells you which it came from (a POS sale or a sales order). **An item you have never sold shows "No price on file"** rather than a made-up figure — that is correct, not a fault. Ring one through, and the comparison appears.
+> **"Our Price" comes from what you actually sold at, not from a price list.** The report does not read price lists (§8.3) — it takes the price from your sales. So the report shows the most recent price you actually transacted at for that item, and tells you which it came from (a POS sale or a sales order). **An item you have never sold shows "No price on file"** rather than a made-up figure — that is correct, not a fault. Ring one through, and the comparison appears.
 
 ### 8a. Setting up PIM in order
 
@@ -1767,7 +1975,7 @@ If you save anyway with something malformed, the server refuses it and tells you
 **State is a list, not a box.** Every **State** field — on a vendor, a store, a legal entity, an order — is a dropdown of your Home country's states (India: the 28 states, 8 union territories and Other Territory). You pick the name; nobody types "KA" on one record and "Karnataka " on the next any more.
 
 - **The GSTIN picks the state for you.** Type a vendor's GSTIN and, as soon as it is complete and real, **State** switches to the state that GSTIN is registered in (its first two digits). If you then choose a different state, saving is refused with both names shown — the GSTIN is what the tax department registered, so fix whichever is wrong.
-- **A vendor's State is required.** With a GSTIN you never have to pick it; without one, choose it — it decides CGST + SGST or IGST on every purchase order (§6.2).
+- **A vendor's State is required.** With a GSTIN you never have to pick it; without one, choose it — it decides CGST + SGST or IGST on every purchase order (§6.2). This holds for every way a vendor is saved - the form, an import, the bulk purchase upload - and an administrator cannot make the field optional. A vendor saved before this without a state stays as it is, but cannot be saved again, or bought from on a purchase order, until its State is chosen.
 - **One GSTIN, one vendor.** Saving a second vendor with a GSTIN another vendor already has (in any letter case) is refused with *"Another vendor already has this GSTIN"* — use the existing vendor, so its purchases and payables stay in one place.
 - **A store takes its legal entity's state** when you leave it blank, and stores and legal entities show a read-only **State Code** (KA, MH, TN …) that the system fills in from the state.
 - A state saved before it was a list shows as *"… (not on the list - choose one)"* the next time you edit the record; pick the real one and save.
@@ -1928,7 +2136,7 @@ If an action is greyed out, the order has reached a status that closes it (Shipp
 3. **Accept it.** A channel order waits on **OMS → Pending Orders**: **Accept** sends it to Pick and tells the channel (§9A.8). A manual order skips this step.
 4. **Pick.** On **OMS → Pick** the order's task is waiting at the location holding the stock, expedited ones first. **Pick**, scan each unit, short-pick what cannot be found (§9A.9). Warehouses using wave or mobile picking do the same from those screens.
 5. **Pack, bill and label.** On **OMS → Pack**, scan each unit into the box, then **Pack, bill and label**: the package, the **OMS bill** (the customer's GST invoice) and the courier booking with its AWB are made in one go (§9A.10). Print the bill for the box and the label for the outside.
-6. **Ship.** On **OMS → Ship**, make the manifest for that courier and store, raise the **gate pass** for the vehicle, then **Hand over**. The booking becomes **Handed Over** and, when every task has dispatched, the order becomes **Shipped**. **In-Transit** and **Delivered** are later tracking steps on the same page. Handover takes the shipped quantity out of stock (§9A.11).
+6. **Ship.** On **OMS → Ship**, make the manifest for that courier and store, raise the **gate pass** for the vehicle, then **Hand over**. The booking becomes **Handed Over** and, when every task has dispatched, the order becomes **Shipped**. **In-Transit** and **Delivered** are later tracking steps on the same page. Handover takes the shipped quantity out of stock (§9A.11). If the location no longer holds what a task ships, the handover is refused (*mark the rest short first*): short-pick the missing units, then hand over.
 7. **The ERP bill.** Handing over makes the **ERP bill** — a posted Sales Invoice — from each parcel's OMS bill, carrying the OMS bill's number (§9A.10). You do not raise or post an invoice for these orders yourself. Settle it when the customer has paid. Notifications show what actually happened: **Queued** (waiting to be sent), **Retrying** (the provider could not be reached; it tries again), **Accepted** (the provider took it, delivery not yet confirmed), **Delivered** or **Failed** (the provider's own answer, or Failed after every retry), and **Skipped-…** when nothing was sent (no template, no channel set up, a sandbox client, or sending switched off). **Sent** appears only on notifications from before this change — it meant "tried", never "delivered". Tell a customer a message reached them only when it says **Delivered**.
 8. **Delivered.** Click **Delivered** on the booking (OMS → Ship, *On the way*) when the courier confirms delivery; that event moves the order to Delivered.
 
@@ -2038,12 +2246,13 @@ Then **Print bill** prints the OMS bill (its print dialog shows a preview first)
 
 - **Book the courier** — packed parcels with no courier. Check the **Pincode**, leave **Courier** blank for the first one that serves it (or type one), **Book**.
 - **Booked - make the manifest** — booked parcels, grouped by courier and store. **Print label** (or **View** to read it) for each; a parcel whose label was not printed is held out of the manifest. **Make manifest** groups the rest.
+- **Unconfirmed** next to an AWB means the courier did not answer after the booking was sent, so it may have the shipment. Nothing is ever booked twice: trying again first asks the courier by the booking's reference and keeps the AWB it already gave. A courier that cannot be asked refuses the retry until you click **Resolve**: find the reference on the courier's portal, then type the **AWB found** there, or tick **Not booked there** (the next try books it). Resolving needs permission to edit courier bookings and is recorded in the audit log.
 - **Manifests** — the open ones. **Gate pass** asks for the collecting vehicle's number and the driver, and issues the pass. **Hand over** dispatches every parcel on the manifest, closes the gate pass, makes each parcel's ERP bill and moves the order to **Shipped** once all its parcels have gone. Handed-over manifests are under **Handed over**.
 - **On the way** — parcels with the courier: **In transit**, **Delivered**, or **RTO** with the courier's reason. Delivered and returned ones are under **Delivered and returned**.
 
 ### 9A.12 Settlements
 
-**OMS → Settlements** is where marketplace payouts are reconciled: the payout list with **+ Reconcile Payout** (a payout you already have the figures for), and **Settlement Reconciliation** — **Import / View Settlement Lines** to bring in a marketplace's settlement file, **Run Auto-Reconcile** to match each line against what was billed, and the queue of lines outside tolerance with **Dispute**, **Resolve** and **Write Off**.
+**OMS → Settlements** is where marketplace payouts are reconciled: the payout list with **+ Reconcile Payout** (a payout you already have the figures for), and **Settlement Reconciliation** — **Import / View Settlement Lines** to bring in a marketplace's settlement file, **Run Auto-Reconcile** to match each line against what was billed, and the queue of lines outside tolerance with **Dispute**, **Resolve** and **Write Off**. A payout is reconciled once: **+ Reconcile Payout** with a Settlement ID already reconciled is refused, and each line is cleared once, however many times it is clicked.
 
 ### 9A.13 OMS settings
 
@@ -2362,6 +2571,10 @@ Birthday and Lapsed Customer campaigns set up earlier (**Setup → Campaign**, w
 | Completed | done | — | — |
 
 Material is issued once: issuing again is refused. **Report Partial** receives that many finished units and backflushes their packaging; the order stays open until everything is made, and reporting more than the order quantity is refused. Quality inspections for an order are on **Quality Inspections**; work sent out to a job worker is on **Job Work** (§9F.2a).
+
+**The BOM changed after the material was issued.** The completion that would close the order (**Complete (Receive FG)**, or the **Report Partial** that finishes it) is stopped: *the BOM was changed after this production order's material was issued*. To finish on the changed BOM, the screen asks **Reason to accept it** - type why (for example *cloth substituted, agreed with planning*) and OK: the change is accepted and the completion goes ahead. Cancel leaves the order as it is. Accepting needs permission to change Production Orders, and a reason; it is recorded on the order and in the audit log with who, when, the reason and each component's quantity per unit before and after. It cannot be ticked on the order's record form or set by an import.
+
+**What a finished unit is worth.** Finished goods come into stock at the cost of the material they used: their share of what **Issue Material** took out (at those items' average cost), plus the packaging backflushed for them. The last completion takes whatever is left. By-products come in at no cost. So a production run does not change the stock's total value, and **Inventory Valuation** still agrees with the Inventory Control account. **Record Actual Cost** feeds only the cost variance report; it does not change stock value.
 
 > **Whole units.** Stock moves in whole units. If a component's quantity per unit times the order quantity (with scrap) is not a whole number — for example 2.2 × 4 = 8.8 — the check and Issue Material round up to the next whole unit (9), so the job is never short. A backflushed component is rounded up on the running total, so partial completions never take more in all than the whole order would.
 

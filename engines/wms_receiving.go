@@ -2,6 +2,7 @@ package engines
 
 import (
 	"custom_erp/db"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -55,6 +56,35 @@ func PostGRNReceiptPart(tenantID, locationCode string, items []interface{}, user
 	if err != nil {
 		return nil, err
 	}
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	if err := db.SetSearchPath(tx, schema); err != nil {
+		return nil, err
+	}
+	negativeEvents, after, err := postGRNReceiptPartTx(tx, tenantID, schema, locationCode, items, userID, grnID, part)
+	if err != nil {
+		return negativeEvents, err
+	}
+	if err := tx.Commit(); err != nil {
+		return negativeEvents, err
+	}
+	after()
+	return negativeEvents, nil
+}
+
+// postGRNReceiptPartTx is PostGRNReceiptPart in the caller's transaction
+// (Stage 135.21): a step GRN's child posts its stock in the transaction that
+// holds the GRN's row lock and marks the child posted, so two posts of one
+// child at once cannot both pass the check. after is the work that must wait
+// for the commit - lots, serials and assets registered against stock that is
+// on hand - and the caller runs it once the transaction has committed.
+func postGRNReceiptPartTx(tx *sql.Tx, tenantID, schema, locationCode string, items []interface{}, userID, grnID, part string) ([]NegativeStockEvent, func(), error) {
+	if locationCode == "" || len(items) == 0 {
+		return nil, func() {}, nil
+	}
 
 	// acceptedItems is handed to the existing, already-tested
 	// PostInventoryLedger exactly as before - accepted stock is the only
@@ -66,6 +96,19 @@ func PostGRNReceiptPart(tenantID, locationCode string, items []interface{}, user
 		damaged  float64
 	}
 	var qcSplits []qcSplit
+	// Stage 135.16: one split per SKU. Its ledger keys are per GRN and SKU, so
+	// two lines of one SKU (two lots, say) written separately had the second
+	// swallowed as a replay of the first - on_hand took both, the ledger one.
+	addQCSplit := func(sku string, rejected, damaged float64) {
+		for i := range qcSplits {
+			if qcSplits[i].sku == sku {
+				qcSplits[i].rejected += rejected
+				qcSplits[i].damaged += damaged
+				return
+			}
+		}
+		qcSplits = append(qcSplits, qcSplit{sku: sku, rejected: rejected, damaged: damaged})
+	}
 	// 42.1.4: lots seen on this receipt, registered after the stock posts. A
 	// receipt of a batch-tracked item that names no lot is rejected below
 	// before anything is written, so this list only ever contains lots whose
@@ -124,7 +167,7 @@ func PostGRNReceiptPart(tenantID, locationCode string, items []interface{}, user
 		// damaged below, so a rejected asset can go back on a Purchase Return.
 		isAsset, err := isFixedAssetSKU(tenantID, sku)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if isAsset {
 			if accepted > 0 {
@@ -139,7 +182,7 @@ func PostGRNReceiptPart(tenantID, locationCode string, items []interface{}, user
 				assetLines = append(assetLines, line)
 			}
 			if rejected > 0 || damaged > 0 {
-				qcSplits = append(qcSplits, qcSplit{sku: sku, rejected: rejected, damaged: damaged})
+				addQCSplit(sku, rejected, damaged)
 			}
 			continue
 		}
@@ -162,7 +205,7 @@ func PostGRNReceiptPart(tenantID, locationCode string, items []interface{}, user
 		// before a single write below.
 		batchNo := strField(m, "batch_no")
 		if err := ValidateReceiptBatchLine(tenantID, sku, batchNo, strField(m, "expiry_date")); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		// A lot number typed against an item nobody asked to trace is kept
 		// rather than dropped - it costs nothing, and switching that item to
@@ -208,7 +251,7 @@ func PostGRNReceiptPart(tenantID, locationCode string, items []interface{}, user
 			}
 		}
 		if err := ValidateReceiptSerialLine(tenantID, sku, serialNumbers, accepted); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, sn := range serialNumbers {
 			receivedSerials = append(receivedSerials, receivedSerial{
@@ -230,7 +273,7 @@ func PostGRNReceiptPart(tenantID, locationCode string, items []interface{}, user
 			acceptedItems = append(acceptedItems, acceptedLine)
 		}
 		if rejected > 0 || damaged > 0 {
-			qcSplits = append(qcSplits, qcSplit{sku: sku, rejected: rejected, damaged: damaged})
+			addQCSplit(sku, rejected, damaged)
 		}
 	}
 
@@ -239,28 +282,22 @@ func PostGRNReceiptPart(tenantID, locationCode string, items []interface{}, user
 	// entry, and the QC splits commit together, or the receipt is refused. They
 	// used to post in three steps, the costing and ledger writes best-effort, so
 	// a failure left stock received without its value or its ledger line.
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-	if err := db.SetSearchPath(tx, schema); err != nil {
-		return nil, err
-	}
+	// (The transaction is the caller's - PostGRNReceiptPart's own, or a step
+	// GRN's, Stage 135.21.)
 	var negativeEvents []NegativeStockEvent
 	if len(acceptedItems) > 0 {
 		events, ledgerLines, err := PostInventoryLedgerWithVoucherTx(tx, schema, locationCode, acceptedItems, false)
 		if err != nil {
-			return events, err
+			return events, nil, err
 		}
 		negativeEvents = events
 		// Stage 85.B4: a goods receipt lands in its default location (Inward,
 		// say) rather than Main.
 		if err := applyReceiptDefaultTx(tx, schema, "Goods Receipt", locationCode, ledgerLines, docStockField(tx, schema, grnID, "stock_to")); err != nil {
-			return negativeEvents, err
+			return negativeEvents, nil, err
 		}
 		if err := writeStockLedgerLinesInTx(tx, schema, locationCode, "GRN", grnID, userID, ledgerLines); err != nil {
-			return negativeEvents, err
+			return negativeEvents, nil, err
 		}
 	}
 	if len(acceptedItems) > 0 || len(expenseOnly) > 0 {
@@ -286,7 +323,7 @@ func PostGRNReceiptPart(tenantID, locationCode string, items []interface{}, user
 			}{SKU: sku, Qty: qty})
 		}
 		if err := recordGRNReceiptCostingPartTx(tx, tenantID, schema, grnID, part, costingLines); err != nil {
-			return negativeEvents, err
+			return negativeEvents, nil, err
 		}
 	}
 
@@ -301,7 +338,7 @@ func PostGRNReceiptPart(tenantID, locationCode string, items []interface{}, user
 				damaged = %s.inventory_availability.damaged + EXCLUDED.damaged,
 				updated_at = CURRENT_TIMESTAMP`, schema, schema, schema, schema),
 			s.sku, locationCode, int(onHandDelta), int(s.rejected), int(s.damaged)); err != nil {
-			return negativeEvents, err
+			return negativeEvents, nil, err
 		}
 		// 26.10.1: on_hand moved (into qc_hold/damaged, not available), so the
 		// stock ledger records it - one entry per bucket, tagged via ToStatus.
@@ -311,7 +348,7 @@ func PostGRNReceiptPart(tenantID, locationCode string, items []interface{}, user
 				VoucherType: "GRN", VoucherID: grnID, UserID: userID, ToStatus: "QC-Hold",
 				IdempotencyKey: fmt.Sprintf("GRN:%s:%s:%s:rejected", grnID, locationCode, s.sku),
 			}); err != nil {
-				return negativeEvents, fmt.Errorf("stock ledger for %s rejected split: %w", s.sku, err)
+				return negativeEvents, nil, fmt.Errorf("stock ledger for %s rejected split: %w", s.sku, err)
 			}
 		}
 		if s.damaged > 0 {
@@ -320,64 +357,62 @@ func PostGRNReceiptPart(tenantID, locationCode string, items []interface{}, user
 				VoucherType: "GRN", VoucherID: grnID, UserID: userID, ToStatus: "Damaged",
 				IdempotencyKey: fmt.Sprintf("GRN:%s:%s:%s:damaged", grnID, locationCode, s.sku),
 			}); err != nil {
-				return negativeEvents, fmt.Errorf("stock ledger for %s damaged split: %w", s.sku, err)
+				return negativeEvents, nil, fmt.Errorf("stock ledger for %s damaged split: %w", s.sku, err)
 			}
 		}
 	}
-	if err := tx.Commit(); err != nil {
-		return negativeEvents, err
-	}
-	if len(qcSplits) > 0 {
-		LogAuditEvent(tenantID, userID, "WMS_GRN_QC_SPLIT", "SUCCESS",
-			fmt.Sprintf("Routed QC-sampled receipt qty to qc_hold/damaged buckets at %s for %d line(s)", locationCode, len(qcSplits)))
-	}
+	after := func() {
+		if len(qcSplits) > 0 {
+			LogAuditEvent(tenantID, userID, "WMS_GRN_QC_SPLIT", "SUCCESS",
+				fmt.Sprintf("Routed QC-sampled receipt qty to qc_hold/damaged buckets at %s for %d line(s)", locationCode, len(qcSplits)))
+		}
 
-	// 42.1.4: register the lots last, once the stock they describe has actually
-	// posted. The ordering matters and is the reason this is not folded into the
-	// loop above: every rejection this function can raise (a batch-tracked line
-	// with no lot number, short-dated goods) happens BEFORE any write, and every
-	// Batch document created here therefore describes stock that is now
-	// genuinely on hand.
-	//
-	// A failure here is logged rather than returned. The goods are in the
-	// building and the receipt has posted, so failing the caller would trip the
-	// GRN cancel-on-post-failure path in handlers_core_doc_engine.go and cancel
-	// a receipt whose stock had already moved - strictly worse than a batch
-	// master that has to be created by hand. The lot is still recoverable: the
-	// ledger entry carrying batch_no was written by the accepted-items post
-	// above regardless.
-	vendor := grnVendor(schema, grnID)
-	for _, rb := range receivedBatches {
-		rb.info.Vendor = vendor
-		rb.info.GRN = grnID
-		rb.info.Location = locationCode
-		if _, err := EnsureBatch(tenantID, rb.info, rb.acceptedQty, userID); err != nil {
-			LogSystemError(tenantID, "", "WARN", "PostGRNReceiptWithQC",
-				fmt.Sprintf("batch %s of %s could not be registered from GRN %s: %v", rb.info.BatchNo, rb.info.Item, grnID, err), "")
+		// 42.1.4: register the lots last, once the stock they describe has actually
+		// posted. The ordering matters and is the reason this is not folded into the
+		// loop above: every rejection this function can raise (a batch-tracked line
+		// with no lot number, short-dated goods) happens BEFORE any write, and every
+		// Batch document created here therefore describes stock that is now
+		// genuinely on hand.
+		//
+		// A failure here is logged rather than returned. The goods are in the
+		// building and the receipt has posted, so failing the caller would trip the
+		// GRN cancel-on-post-failure path in handlers_core_doc_engine.go and cancel
+		// a receipt whose stock had already moved - strictly worse than a batch
+		// master that has to be created by hand. The lot is still recoverable: the
+		// ledger entry carrying batch_no was written by the accepted-items post
+		// above regardless.
+		vendor := grnVendor(schema, grnID)
+		for _, rb := range receivedBatches {
+			rb.info.Vendor = vendor
+			rb.info.GRN = grnID
+			rb.info.Location = locationCode
+			if _, err := EnsureBatch(tenantID, rb.info, rb.acceptedQty, userID); err != nil {
+				LogSystemError(tenantID, "", "WARN", "PostGRNReceiptWithQC",
+					fmt.Sprintf("batch %s of %s could not be registered from GRN %s: %v", rb.info.BatchNo, rb.info.Item, grnID, err), "")
+			}
+		}
+		// 42.1.8: register the units last, same ordering and same logged-not-
+		// returned failure handling as the batch loop immediately above, and for
+		// the identical reason.
+		for _, rs := range receivedSerials {
+			rs.info.Vendor = vendor
+			if _, err := RegisterSerial(tenantID, rs.info, locationCode, "GRN", grnID, userID); err != nil {
+				LogSystemError(tenantID, "", "WARN", "PostGRNReceiptWithQC",
+					fmt.Sprintf("serial %s of %s could not be registered from GRN %s: %v", rs.info.SerialNo, rs.info.Item, grnID, err), "")
+			}
+		}
+
+		// Stage 57.8: logged, not returned, for the same reason as the two loops
+		// above - the rest of the receipt has posted, and failing here would
+		// cancel it. The ERROR names the GRN so the asset can be entered by hand.
+		if len(assetLines) > 0 {
+			if _, err := createAssetsFromReceipt(tenantID, schema, grnID, locationCode, userID, assetLines); err != nil {
+				LogSystemError(tenantID, "", "ERROR", "PostGRNReceiptWithQC",
+					fmt.Sprintf("GRN %s: fixed asset(s) could not be raised in the Fixed Assets module: %v", grnID, err), "")
+			}
 		}
 	}
-	// 42.1.8: register the units last, same ordering and same logged-not-
-	// returned failure handling as the batch loop immediately above, and for
-	// the identical reason.
-	for _, rs := range receivedSerials {
-		rs.info.Vendor = vendor
-		if _, err := RegisterSerial(tenantID, rs.info, locationCode, "GRN", grnID, userID); err != nil {
-			LogSystemError(tenantID, "", "WARN", "PostGRNReceiptWithQC",
-				fmt.Sprintf("serial %s of %s could not be registered from GRN %s: %v", rs.info.SerialNo, rs.info.Item, grnID, err), "")
-		}
-	}
-
-	// Stage 57.8: logged, not returned, for the same reason as the two loops
-	// above - the rest of the receipt has posted, and failing here would
-	// cancel it. The ERROR names the GRN so the asset can be entered by hand.
-	if len(assetLines) > 0 {
-		if _, err := createAssetsFromReceipt(tenantID, schema, grnID, locationCode, userID, assetLines); err != nil {
-			LogSystemError(tenantID, "", "ERROR", "PostGRNReceiptWithQC",
-				fmt.Sprintf("GRN %s: fixed asset(s) could not be raised in the Fixed Assets module: %v", grnID, err), "")
-		}
-	}
-
-	return negativeEvents, nil
+	return negativeEvents, after, nil
 }
 
 // grnVendor reads the supplier off a GRN so a batch registered from a receipt

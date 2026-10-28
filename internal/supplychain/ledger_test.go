@@ -87,6 +87,7 @@ func TestLedgerEntriesAreWellFormed(t *testing.T) {
 	validTypes := map[ComponentType]bool{
 		ComponentGoModuleDirect: true, ComponentGoModuleIndirect: true, ComponentGoToolchain: true,
 		ComponentCIAction: true, ComponentCITool: true, ComponentOSRunner: true, ComponentOSImage: true,
+		ComponentProcess: true,
 	}
 	for _, e := range ledger.Entries {
 		if seen[e.Name] {

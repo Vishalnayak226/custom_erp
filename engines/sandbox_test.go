@@ -67,6 +67,7 @@ func TestStage387SandboxTenants(t *testing.T) {
 		if _, err := db.DB.Exec("UPDATE public.tenants SET sandbox_expires_at = CURRENT_TIMESTAMP - INTERVAL '1 hour' WHERE tenant_id = $1", tenantID); err != nil {
 			t.Fatalf("force expiry: %v", err)
 		}
+		InvalidateTenantLifecycleCache(tenantID) // raw SQL bypasses the gate cache (49.18.8)
 		expired, err := IsSandboxExpired(tenantID)
 		if err != nil || !expired {
 			t.Fatalf("expected an expiry in the past to report expired=true, got %v, err=%v", expired, err)

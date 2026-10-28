@@ -119,7 +119,10 @@ func resolveOrderExpectedAmount(schema, orderID string) (float64, bool, error) {
 // write-off path posts money - so both stay identical in accounting shape.
 // postingKey is stable per line, so a re-run (or a caller retrying a dropped
 // response) can never double-post (PostDoubleEntry's own 24.5 idempotency).
-func postSettlementLineGL(tenantID, lineID string, gross, commission, shippingFee, otherFee, tds, tcs, expected, variance float64) error {
+// It posts in the caller's transaction, which holds the line's row lock
+// (withSettlementLineLocked), so the journal and the line's new status commit
+// together.
+func postSettlementLineGL(tx *sql.Tx, tenantID, schema, lineID string, gross, commission, shippingFee, otherFee, tds, tcs, expected, variance float64) error {
 	debits := map[string]int64{}
 	credits := map[string]int64{}
 	netPayout := gross - commission - shippingFee - otherFee - tds - tcs
@@ -144,20 +147,20 @@ func postSettlementLineGL(tenantID, lineID string, gross, commission, shippingFe
 	if len(debits) == 0 && len(credits) == 0 {
 		return nil
 	}
-	return PostDoubleEntry(tenantID, "MarketplaceSettlementLine", lineID, debits, credits, "",
+	return PostDoubleEntryTx(tx, tenantID, schema, "MarketplaceSettlementLine", lineID, debits, credits, "",
 		fmt.Sprintf("MarketplaceSettlementLine:%s:POST", lineID))
 }
 
 // applySettlementLineOutcome patches one line's data in place, used by every
 // terminal transition below (Matched/Variance/Invalid/WrittenOff) so the
 // jsonb shape stays identical regardless of which path set it.
-func applySettlementLineOutcome(schema, lineID string, patch map[string]interface{}) error {
+func applySettlementLineOutcome(tx *sql.Tx, schema, lineID string, patch map[string]interface{}) error {
 	marshaled, err := json.Marshal(patch)
 	if err != nil {
 		return err
 	}
 	status, _ := patch["match_status"].(string)
-	_, err = db.DB.Exec(fmt.Sprintf(
+	_, err = tx.Exec(fmt.Sprintf(
 		`UPDATE %s.documents SET data = data || $1::jsonb, status = COALESCE(NULLIF($2, ''), status), updated_at = CURRENT_TIMESTAMP
 		 WHERE id = $3 AND doctype = 'MarketplaceSettlementLine'`, schema),
 		marshaled, status, lineID)
@@ -183,32 +186,20 @@ func ReconcileMarketplaceSettlements(tenantID, userID string) (*SettlementReconc
 	}
 
 	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT id, COALESCE(data->>'channel',''), COALESCE(data->>'channel_order_id',''),
-		        COALESCE(data->>'gross_amount','0'), COALESCE(data->>'commission','0'),
-		        COALESCE(data->>'shipping_fee','0'), COALESCE(data->>'other_fee','0'),
-		        COALESCE(data->>'tds','0'), COALESCE(data->>'tcs','0'), COALESCE(data->>'net_payout','0')
-		 FROM %s.documents
+		`SELECT id FROM %s.documents
 		 WHERE doctype = 'MarketplaceSettlementLine' AND deleted_at IS NULL
 		   AND COALESCE(data->>'match_status', 'Unmatched') = 'Unmatched'`, schema))
 	if err != nil {
 		return nil, err
 	}
-	var lines []settlementLineRow
+	var lineIDs []string
 	for rows.Next() {
-		var l settlementLineRow
-		var gross, commission, shippingFee, otherFee, tds, tcs, netPayout string
-		if err := rows.Scan(&l.ID, &l.Channel, &l.ChannelOrderID, &gross, &commission, &shippingFee, &otherFee, &tds, &tcs, &netPayout); err != nil {
+		var id string
+		if err := rows.Scan(&id); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		l.GrossAmount = numFromInterface(gross)
-		l.Commission = numFromInterface(commission)
-		l.ShippingFee = numFromInterface(shippingFee)
-		l.OtherFee = numFromInterface(otherFee)
-		l.TDS = numFromInterface(tds)
-		l.TCS = numFromInterface(tcs)
-		l.NetPayout = numFromInterface(netPayout)
-		lines = append(lines, l)
+		lineIDs = append(lineIDs, id)
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
@@ -216,36 +207,68 @@ func ReconcileMarketplaceSettlements(tenantID, userID string) (*SettlementReconc
 	}
 
 	result := &SettlementReconcileResult{}
-	for _, l := range lines {
+	for _, id := range lineIDs {
 		result.Scanned++
+		outcome, err := reconcileSettlementLine(tenantID, schema, id, tolerance)
+		if err != nil {
+			return result, err
+		}
+		switch outcome {
+		case "Invalid":
+			result.Invalid++
+		case "Unresolved":
+			result.Unresolved++
+		case "Matched":
+			result.Matched++
+		case "Variance":
+			result.Variance++
+		}
+	}
+	LogAuditEvent(tenantID, userID, "SETTLEMENT_RECONCILE", "SUCCESS",
+		fmt.Sprintf("scanned=%d matched=%d variance=%d invalid=%d unresolved=%d", result.Scanned, result.Matched, result.Variance, result.Invalid, result.Unresolved))
+	return result, nil
+}
+
+// reconcileSettlementLine is one line of ReconcileMarketplaceSettlements,
+// read under its row lock and decided in one transaction (Stage 135.21): two
+// passes at once (the schedule and a button press) both read it Unmatched,
+// and the later one could put back a status a user had since moved on. A line
+// no longer Unmatched once locked is left alone (outcome "").
+func reconcileSettlementLine(tenantID, schema, lineID string, tolerance float64) (outcome string, err error) {
+	err = withSettlementLineLocked(schema, lineID, func(tx *sql.Tx, data map[string]interface{}) error {
+		if status, _ := data["match_status"].(string); status != "" && status != "Unmatched" {
+			return nil
+		}
+		l := settlementLineRow{ID: lineID,
+			Channel: pimString(data["channel"]), ChannelOrderID: pimString(data["channel_order_id"]),
+			GrossAmount: numFromInterface(data["gross_amount"]), Commission: numFromInterface(data["commission"]),
+			ShippingFee: numFromInterface(data["shipping_fee"]), OtherFee: numFromInterface(data["other_fee"]),
+			TDS: numFromInterface(data["tds"]), TCS: numFromInterface(data["tcs"]), NetPayout: numFromInterface(data["net_payout"])}
 		derivedNet := round2(l.GrossAmount - l.Commission - l.ShippingFee - l.OtherFee - l.TDS - l.TCS)
 		if math.Abs(derivedNet-round2(l.NetPayout)) > 0.01 {
-			if err := applySettlementLineOutcome(schema, l.ID, map[string]interface{}{
+			outcome = "Invalid"
+			return applySettlementLineOutcome(tx, schema, l.ID, map[string]interface{}{
 				"match_status": "Invalid",
 				"match_note":   fmt.Sprintf("gross (%.2f) minus reported deductions = %.2f, does not match reported net payout %.2f", l.GrossAmount, derivedNet, l.NetPayout),
-			}); err != nil {
-				return result, err
-			}
-			result.Invalid++
-			continue
+			})
 		}
 
 		orderID, found, err := resolveOrderIDFromChannelMapping(schema, l.Channel, l.ChannelOrderID)
 		if err != nil {
-			return result, err
+			return err
 		}
 		if !found {
-			result.Unresolved++
-			continue
+			outcome = "Unresolved"
+			return nil
 		}
 
 		expected, hasExpected, err := resolveOrderExpectedAmount(schema, orderID)
 		if err != nil {
-			return result, err
+			return err
 		}
 		if !hasExpected {
-			result.Unresolved++
-			continue
+			outcome = "Unresolved"
+			return nil
 		}
 
 		variance := round2(expected - l.GrossAmount)
@@ -255,41 +278,50 @@ func ReconcileMarketplaceSettlements(tenantID, userID string) (*SettlementReconc
 			"variance_amount": variance,
 		}
 		if math.Abs(variance) <= tolerance {
-			if err := postSettlementLineGL(tenantID, l.ID, l.GrossAmount, l.Commission, l.ShippingFee, l.OtherFee, l.TDS, l.TCS, expected, variance); err != nil {
-				return result, err
+			if err := postSettlementLineGL(tx, tenantID, schema, l.ID, l.GrossAmount, l.Commission, l.ShippingFee, l.OtherFee, l.TDS, l.TCS, expected, variance); err != nil {
+				return err
 			}
 			patch["match_status"] = "Matched"
 			patch["posted_at"] = time.Now().UTC().Format(time.RFC3339)
-			result.Matched++
+			outcome = "Matched"
 		} else {
 			patch["match_status"] = "Variance"
-			result.Variance++
+			outcome = "Variance"
 		}
-		if err := applySettlementLineOutcome(schema, l.ID, patch); err != nil {
-			return result, err
-		}
+		return applySettlementLineOutcome(tx, schema, l.ID, patch)
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil // deleted since the scan
 	}
-	LogAuditEvent(tenantID, userID, "SETTLEMENT_RECONCILE", "SUCCESS",
-		fmt.Sprintf("scanned=%d matched=%d variance=%d invalid=%d unresolved=%d", result.Scanned, result.Matched, result.Variance, result.Invalid, result.Unresolved))
-	return result, nil
+	return outcome, err
 }
 
-func fetchSettlementLine(tenantID, lineID string) (schema string, data map[string]interface{}, err error) {
-	schema, err = db.GetTenantSchema(tenantID)
+// withSettlementLineLocked runs fn on one settlement line read under its row
+// lock, and commits what fn wrote (Stage 135.21). Dispute, resolve and
+// write-off check the line's status and post and save in here, so a second
+// call waits, then sees the new status and is refused - read outside the
+// transaction, a write-off and a resolve could both pass, and the line's
+// saved outcome then disagreed with the one journal the key let through.
+func withSettlementLineLocked(schema, lineID string, fn func(tx *sql.Tx, data map[string]interface{}) error) error {
+	tx, err := db.DB.Begin()
 	if err != nil {
-		return "", nil, err
+		return err
 	}
+	defer tx.Rollback()
 	var dataBytes []byte
-	err = db.DB.QueryRow(fmt.Sprintf(
-		`SELECT data FROM %s.documents WHERE doctype = 'MarketplaceSettlementLine' AND id = $1 AND deleted_at IS NULL`, schema),
-		lineID).Scan(&dataBytes)
-	if err != nil {
-		return "", nil, fmt.Errorf("settlement line %s not found: %v", lineID, err)
+	if err := tx.QueryRow(fmt.Sprintf(
+		`SELECT data FROM %s.documents WHERE doctype = 'MarketplaceSettlementLine' AND id = $1 AND deleted_at IS NULL FOR UPDATE`, schema),
+		lineID).Scan(&dataBytes); err != nil {
+		return fmt.Errorf("settlement line %s not found: %w", lineID, err)
 	}
+	var data map[string]interface{}
 	if err := json.Unmarshal(dataBytes, &data); err != nil {
-		return "", nil, err
+		return err
 	}
-	return schema, data, nil
+	if err := fn(tx, data); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // RaiseSettlementDispute moves a held Variance line to Disputed, the
@@ -299,22 +331,24 @@ func fetchSettlementLine(tenantID, lineID string) (schema string, data map[strin
 // RejectReturnRequest ("Settlement" category, config-driven - no schema
 // change to ReasonCode itself).
 func RaiseSettlementDispute(tenantID, lineID, reasonCode, note, userID string) error {
-	schema, data, err := fetchSettlementLine(tenantID, lineID)
+	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
 	}
-	if data["match_status"] != "Variance" {
-		return fmt.Errorf("settlement line %s is not a held Variance (currently %v)", lineID, data["match_status"])
-	}
-	if err := requireActiveReasonCode(tenantID, reasonCode, "Settlement"); err != nil {
-		return err
-	}
-	return applySettlementLineOutcome(schema, lineID, map[string]interface{}{
-		"match_status":   "Disputed",
-		"dispute_reason": reasonCode,
-		"dispute_note":   note,
-		"disputed_by":    userID,
-		"disputed_at":    time.Now().UTC().Format(time.RFC3339),
+	return withSettlementLineLocked(schema, lineID, func(tx *sql.Tx, data map[string]interface{}) error {
+		if data["match_status"] != "Variance" {
+			return fmt.Errorf("settlement line %s is not a held Variance (currently %v)", lineID, data["match_status"])
+		}
+		if err := requireActiveReasonCode(tenantID, reasonCode, "Settlement"); err != nil {
+			return err
+		}
+		return applySettlementLineOutcome(tx, schema, lineID, map[string]interface{}{
+			"match_status":   "Disputed",
+			"dispute_reason": reasonCode,
+			"dispute_note":   note,
+			"disputed_by":    userID,
+			"disputed_at":    time.Now().UTC().Format(time.RFC3339),
+		})
 	})
 }
 
@@ -327,41 +361,43 @@ func ResolveSettlementDispute(tenantID, lineID string, correctedGrossAmount floa
 	if correctedGrossAmount < 0 {
 		return errors.New("corrected gross amount must not be negative")
 	}
-	schema, data, err := fetchSettlementLine(tenantID, lineID)
+	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
-	}
-	if data["match_status"] != "Disputed" {
-		return fmt.Errorf("settlement line %s is not Disputed (currently %v)", lineID, data["match_status"])
-	}
-	commission := numFromInterface(data["commission"])
-	shippingFee := numFromInterface(data["shipping_fee"])
-	otherFee := numFromInterface(data["other_fee"])
-	tds := numFromInterface(data["tds"])
-	tcs := numFromInterface(data["tcs"])
-	expected := numFromInterface(data["expected_amount"])
-	newNetPayout := round2(correctedGrossAmount - commission - shippingFee - otherFee - tds - tcs)
-	variance := round2(expected - correctedGrossAmount)
-
-	patch := map[string]interface{}{
-		"gross_amount":    correctedGrossAmount,
-		"net_payout":      newNetPayout,
-		"variance_amount": variance,
-		"resolved_by":     userID,
-		"resolved_at":     time.Now().UTC().Format(time.RFC3339),
 	}
 	tolerance := GetSettingFloat(tenantID, "oms.settlement_variance_tolerance")
 	if tolerance <= 0 {
 		tolerance = 2.0
 	}
-	if math.Abs(variance) <= tolerance {
-		if err := postSettlementLineGL(tenantID, lineID, correctedGrossAmount, commission, shippingFee, otherFee, tds, tcs, expected, variance); err != nil {
-			return err
+	return withSettlementLineLocked(schema, lineID, func(tx *sql.Tx, data map[string]interface{}) error {
+		if data["match_status"] != "Disputed" {
+			return fmt.Errorf("settlement line %s is not Disputed (currently %v)", lineID, data["match_status"])
 		}
-		patch["match_status"] = "Matched"
-		patch["posted_at"] = time.Now().UTC().Format(time.RFC3339)
-	}
-	return applySettlementLineOutcome(schema, lineID, patch)
+		commission := numFromInterface(data["commission"])
+		shippingFee := numFromInterface(data["shipping_fee"])
+		otherFee := numFromInterface(data["other_fee"])
+		tds := numFromInterface(data["tds"])
+		tcs := numFromInterface(data["tcs"])
+		expected := numFromInterface(data["expected_amount"])
+		newNetPayout := round2(correctedGrossAmount - commission - shippingFee - otherFee - tds - tcs)
+		variance := round2(expected - correctedGrossAmount)
+
+		patch := map[string]interface{}{
+			"gross_amount":    correctedGrossAmount,
+			"net_payout":      newNetPayout,
+			"variance_amount": variance,
+			"resolved_by":     userID,
+			"resolved_at":     time.Now().UTC().Format(time.RFC3339),
+		}
+		if math.Abs(variance) <= tolerance {
+			if err := postSettlementLineGL(tx, tenantID, schema, lineID, correctedGrossAmount, commission, shippingFee, otherFee, tds, tcs, expected, variance); err != nil {
+				return err
+			}
+			patch["match_status"] = "Matched"
+			patch["posted_at"] = time.Now().UTC().Format(time.RFC3339)
+		}
+		return applySettlementLineOutcome(tx, schema, lineID, patch)
+	})
 }
 
 // WriteOffSettlementVariance closes a Variance or Disputed line without
@@ -370,34 +406,36 @@ func ResolveSettlementDispute(tenantID, lineID string, correctedGrossAmount floa
 // Written Off (5270) absorb the gap between what was invoiced and what the
 // marketplace actually reported/paid.
 func WriteOffSettlementVariance(tenantID, lineID, reasonCode, userID string) error {
-	schema, data, err := fetchSettlementLine(tenantID, lineID)
+	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
 	}
-	status, _ := data["match_status"].(string)
-	if status != "Variance" && status != "Disputed" {
-		return fmt.Errorf("settlement line %s cannot be written off from status %q", lineID, status)
-	}
-	if err := requireActiveReasonCode(tenantID, reasonCode, "Settlement"); err != nil {
-		return err
-	}
-	gross := numFromInterface(data["gross_amount"])
-	commission := numFromInterface(data["commission"])
-	shippingFee := numFromInterface(data["shipping_fee"])
-	otherFee := numFromInterface(data["other_fee"])
-	tds := numFromInterface(data["tds"])
-	tcs := numFromInterface(data["tcs"])
-	expected := numFromInterface(data["expected_amount"])
-	variance := numFromInterface(data["variance_amount"])
+	return withSettlementLineLocked(schema, lineID, func(tx *sql.Tx, data map[string]interface{}) error {
+		status, _ := data["match_status"].(string)
+		if status != "Variance" && status != "Disputed" {
+			return fmt.Errorf("settlement line %s cannot be written off from status %q", lineID, status)
+		}
+		if err := requireActiveReasonCode(tenantID, reasonCode, "Settlement"); err != nil {
+			return err
+		}
+		gross := numFromInterface(data["gross_amount"])
+		commission := numFromInterface(data["commission"])
+		shippingFee := numFromInterface(data["shipping_fee"])
+		otherFee := numFromInterface(data["other_fee"])
+		tds := numFromInterface(data["tds"])
+		tcs := numFromInterface(data["tcs"])
+		expected := numFromInterface(data["expected_amount"])
+		variance := numFromInterface(data["variance_amount"])
 
-	if err := postSettlementLineGL(tenantID, lineID, gross, commission, shippingFee, otherFee, tds, tcs, expected, variance); err != nil {
-		return err
-	}
-	return applySettlementLineOutcome(schema, lineID, map[string]interface{}{
-		"match_status":     "WrittenOff",
-		"write_off_reason": reasonCode,
-		"write_off_by":     userID,
-		"posted_at":        time.Now().UTC().Format(time.RFC3339),
+		if err := postSettlementLineGL(tx, tenantID, schema, lineID, gross, commission, shippingFee, otherFee, tds, tcs, expected, variance); err != nil {
+			return err
+		}
+		return applySettlementLineOutcome(tx, schema, lineID, map[string]interface{}{
+			"match_status":     "WrittenOff",
+			"write_off_reason": reasonCode,
+			"write_off_by":     userID,
+			"posted_at":        time.Now().UTC().Format(time.RFC3339),
+		})
 	})
 }
 

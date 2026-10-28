@@ -38,7 +38,7 @@ func TestRFQToPOStage732(t *testing.T) {
 	insert("RFQ-X", "Item", "Active", map[string]interface{}{"code": "RFQ-X", "name": "Steel bolt", "hsn_code": "7318", "gst_rate": 18.0, "tax_treatment": "Taxable"})
 	insert("RFQ-TAPE", "Item", "Active", map[string]interface{}{"code": "RFQ-TAPE", "name": "Packing tape", "hsn_code": "3919", "gst_rate": 18.0, "tax_treatment": "Taxable"})
 	for _, v := range []string{"V1", "V2", "V3"} {
-		insert("VND-"+v, "Vendor", "Active", map[string]interface{}{"code": v, "name": "Vendor " + v})
+		insert("VND-"+v, "Vendor", "Active", map[string]interface{}{"code": v, "name": "Vendor " + v, "state": "Maharashtra"}) // 49.5.6b
 	}
 	insert("VND-OLD", "Vendor", "Inactive", map[string]interface{}{"code": "OLD", "name": "Old vendor"})
 	insert("UOM-RFQ-X", "UOMConversion", "Active", map[string]interface{}{"item": "RFQ-X", "from_uom": "Box", "to_uom": "Nos", "factor": 10})

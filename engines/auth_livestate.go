@@ -223,6 +223,7 @@ func ResetLiveUserStateCache() {
 	authStateMu.Lock()
 	authStateCache = map[string]authStateEntry{}
 	authStateMu.Unlock()
+	clearDoctypeModuleCache()
 }
 
 // invalidateLiveUserStatesForTenant drops every cached user state belonging to

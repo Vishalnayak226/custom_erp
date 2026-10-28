@@ -72,6 +72,7 @@ func handleSwitchWorkingStore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := engines.SignToken(userID, username, live.Role, tenantID, store, live.CredentialVersion)
+	engines.RecordSignIn(tenantID, userID) // 49.2.1a: a switch is the user working, not idle
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "token": token, "store": store})
 }
 

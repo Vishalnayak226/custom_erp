@@ -34,6 +34,9 @@ func handleBulkImport(w http.ResponseWriter, r *http.Request) {
 	// (e.g. handleCapitalizeAsset, handlePIMPublish).
 	userID := r.Header.Get("Resolved-User-ID")
 	role := r.Header.Get("Resolved-Role")
+	if !requireImportPermission(w, r, tenantID, role, doctype) {
+		return
+	}
 
 	if err := r.ParseMultipartForm(5 << 20); err != nil {
 		writeAPIError(w, r, "GLOBAL-0007", "")
@@ -103,6 +106,25 @@ func annotateImportResult(r *http.Request, res *engines.ImportResult, responseMa
 	responseMap["message"] = entry.UserMessage
 }
 
+// requireImportPermission (Stage 49.3.4): a CSV import adds and changes
+// records, so the role must hold create or update on the record type - the
+// import used to accept any signed-in role for any type. Which rows it may
+// then write is the engine's per-row check (screenImportWrites).
+func requireImportPermission(w http.ResponseWriter, r *http.Request, tenantID, role, doctype string) bool {
+	for _, action := range []string{"create", "update"} {
+		allowed, err := checkPermission(tenantID, role, doctype, action)
+		if err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+			return false
+		}
+		if allowed {
+			return true
+		}
+	}
+	writeAPIError(w, r, "GLOBAL-0011", "")
+	return false
+}
+
 // handlePIMImportPreview (Stage 15.2, V2 §6.2/§16 Phase 3): the same CSV
 // parse/validate/existence-check logic as handleBulkImport, run with
 // dryRun=true - nothing is written, giving the create/update/reject preview
@@ -112,6 +134,9 @@ func handlePIMImportPreview(w http.ResponseWriter, r *http.Request) {
 	doctype := r.PathValue("doctype")
 	userID := r.Header.Get("Resolved-User-ID")
 	role := r.Header.Get("Resolved-Role")
+	if !requireImportPermission(w, r, tenantID, role, doctype) {
+		return
+	}
 
 	if err := r.ParseMultipartForm(5 << 20); err != nil {
 		writeAPIError(w, r, "GLOBAL-0007", "")
@@ -425,7 +450,11 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		// (see storedPayload below) so FinalizePOSCheckout can allow the
 		// resulting stock to go negative instead of rejecting a sale whose
 		// goods already physically left the store.
+		// Stage 49.5.6a: such a sale is no longer posted here - it is held
+		// for validation (holdOfflineSale) and posts from POS > Offline Sales.
 		OfflineSynced bool `json:"offline_synced"`
+		// SoldAt (49.5.6a): when the till queued the sale, as it says.
+		SoldAt string `json:"sold_at"`
 		// QuoteVersion (Stage 47.2.4): the version of the quote the cashier's
 		// screen is showing. Checkout ALWAYS re-resolves prices server-side;
 		// this field only decides what happens when the re-resolved answer
@@ -466,6 +495,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 			SalePrice float64 `json:"sale_price"`
 			MRP       float64 `json:"mrp"`     // Stage 94.6: the MRP picked at the till
 			Barcode   string  `json:"barcode"` // Stage 94.6: the code scanned
+			Scanned   string  `json:"scanned"` // Stage 49.5.6a: scanned onto the cart ("" = searched)
 		} `json:"items"`
 	}
 
@@ -476,6 +506,15 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 
 	if req.CartNumber == "" || req.Location == "" || len(req.Items) == 0 {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'cart_number', 'location', and 'items' are required")
+		return
+	}
+
+	// Stage 49.5.6a: a sale the till sends as rung up offline is held for
+	// validation and posts only from POS > Offline Sales, whose Validate
+	// replays it through here (offlineReplayOf) - never at this call.
+	if req.OfflineSynced && offlineReplayOf(r) == nil {
+		raw, _ := json.Marshal(req)
+		holdOfflineSale(w, r, raw)
 		return
 	}
 
@@ -865,7 +904,9 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	// POST /api/v1/pos/session/open and /close, never spoofable through this
 	// endpoint since the session lookup below is keyed off the caller's own
 	// resolved identity, not anything in the request body.
-	sessionID, sessErr := engines.GetOpenSessionForCashier(tenantID, req.Location, cashier)
+	// Stage 49.5.6a: a validated offline sale posts into the session it was
+	// rung up in (recorded when it was held), which may be closed by now.
+	sessionID, sessErr := checkoutSession(r, tenantID, req.Location, cashier)
 	if sessErr != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to check cashier session")
 		return

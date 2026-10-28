@@ -70,9 +70,12 @@ nothing inside it, and your business only sees the modules it has licensed.
 
 This trips people up more than anything else in the interface.
 
-**The box at the very top of the window finds screens.** Type "purch" and it
-offers Purchase Order, Purchase Requisitions and so on. Pick one and it takes
-you there. It does not search your records.
+**The box at the very top of the window (Ctrl+K) opens things.** Type "purch"
+and it offers Purchase Order, Purchase Requisitions and the purchase reports.
+Pick one and it takes you there. It also takes a short code (`PO`), a report
+number (`R1001`) or a full document number - see
+[Keyboard shortcuts and quick codes](keyboard-shortcuts.md). It does not filter
+the list you are on.
 
 **The box just above a table filters that table's records.** This is how you
 find a particular vendor, item or invoice.

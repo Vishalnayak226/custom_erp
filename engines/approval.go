@@ -316,6 +316,47 @@ func SubmitterMayDecideOwn(tenantID, doctype, role string) bool {
 	return false
 }
 
+// madeApprovalRound (Stage 49.3.5) reports whether userID made the document's
+// current approval round other than by creating it: they changed it last, or
+// sent it for approval or changed it after approval since its last decision.
+// Asked only where SubmitterMayDecideOwn says the submitter may not decide.
+func madeApprovalRound(q interface {
+	QueryRow(string, ...interface{}) *sql.Row
+}, schema, doctype, docID, userID string) (bool, error) {
+	var made bool
+	err := q.QueryRow(fmt.Sprintf(`
+		SELECT COALESCE(d.updated_by, '') = $3 OR EXISTS (
+			SELECT 1 FROM %[1]s.approval_log l
+			WHERE l.doctype = $1 AND l.document_id = $2 AND l.actor_user_id = $3 AND l.action IN ('Submitted', 'Modified')
+			  AND l.id > COALESCE((SELECT MAX(x.id) FROM %[1]s.approval_log x
+				WHERE x.doctype = $1 AND x.document_id = $2 AND x.action IN ('Approved', 'Rejected')), 0))
+		FROM %[1]s.documents d WHERE d.doctype = $1 AND d.id = $2`, schema), doctype, docID, userID).Scan(&made)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	return made, err
+}
+
+// ApprovalDecidedStatuses (Stage 49.3.5) are written only by DecideApproval on
+// an approval-gated record type - never by a save, a bulk edit or an import.
+// Pending Approval is not among them: a save may still reach it.
+var ApprovalDecidedStatuses = []string{"Approved", "Rejected"}
+
+// decidedStatusWriteError is GLOBAL-0019 for a write outside the approval flow
+// that would move an approval-gated record into a decided status. Writing back
+// the status a record already has is not a move.
+func decidedStatusWriteError(gated bool, priorStatus, newStatus string) error {
+	if !gated || newStatus == priorStatus {
+		return nil
+	}
+	for _, s := range ApprovalDecidedStatuses {
+		if newStatus == s {
+			return &ValidationError{Code: "GLOBAL-0019", Message: fmt.Sprintf("Status %s is set only by the approval flow - save as Draft, then send it for approval.", newStatus)}
+		}
+	}
+	return nil
+}
+
 // DecideApproval approves or rejects a Pending Approval document. Enforces:
 //  1. Maker-checker segregation: the approver can never be the document's
 //     original creator - unless SubmitterMayDecideOwn (Stage 92), in which
@@ -373,10 +414,22 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 		return fmt.Errorf("document is not awaiting approval (current status: %s)", status)
 	}
 	selfDecision := actorUserID == createdBy
-	if selfDecision && !SubmitterMayDecideOwn(tenantID, doctype, actorRole) {
+	// Stage 49.3.5: where the submitter may not decide, neither may whoever
+	// last changed it or sent this round for approval - not only its creator.
+	maker := selfDecision
+	mayDecideOwn := SubmitterMayDecideOwn(tenantID, doctype, actorRole)
+	if !maker && !mayDecideOwn {
+		if maker, err = madeApprovalRound(tx, schema, doctype, docID, actorUserID); err != nil {
+			return err
+		}
+	}
+	if maker && !mayDecideOwn {
 		// Stage 84.3: coded, so the screen says another approver must decide
 		// instead of GLOBAL-0002's "Correct the field format".
 		msg := "maker-checker violation: you cannot approve or reject a document you submitted"
+		if !selfDecision {
+			msg = "maker-checker violation: you cannot approve or reject a document you changed or sent for approval"
+		}
 		if secondAdminDoctypes[doctype] {
 			msg += " - this one always needs a second admin"
 		}

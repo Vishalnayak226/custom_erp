@@ -146,6 +146,11 @@ func BulkUpdateDocuments(tenantID, doctype string, ids []string, field string, v
 		if field == "status" && value != nil {
 			newStatus = fmt.Sprintf("%v", value)
 		}
+		// Stage 49.3.5: field=status value=Approved used to approve every
+		// selected record with no checker at all.
+		if err := decidedStatusWriteError(isApprovalGated, priorStatus, newStatus); err != nil {
+			return nil, err
+		}
 		if priorStatus == "Approved" && isApprovalGated {
 			newStatus = "Pending Approval"
 			data["status"] = newStatus

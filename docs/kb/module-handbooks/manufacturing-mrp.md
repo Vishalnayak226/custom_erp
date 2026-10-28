@@ -95,9 +95,10 @@ everything below is edited on the BOM record itself under **Setup**.
    the order runs two checks the first partial batch does not:
    - **BOM variance** (`MFG-0276`): if the BOM has changed since material was
      issued, closing the order is refused until someone either re-plans it
-     or explicitly acknowledges the variance
-     (`POST /api/v1/manufacturing/acknowledge-bom-variance`) and proceeds
-     anyway.
+     or accepts the change with a reason
+     (`POST /api/v1/manufacturing/acknowledge-bom-variance`, Production
+     Order update permission; recorded on the order and in the audit log)
+     and proceeds anyway. A save or import cannot set it (49.5.6c).
    - **The QC gate**, if the BOM has QC Required set — see below.
 
    A completion that would push cumulative completed quantity past the

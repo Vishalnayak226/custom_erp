@@ -36,8 +36,8 @@ cannot use are not rendered at all. Nothing in the application lets you grant
 yourself access, which is deliberate. Ask an administrator.
 
 **Is a whole missing module also a permission?**
-Not always. A module missing from *everyone's* sidebar is usually an entitlement
-- something your business has not licensed. One missing from only your sidebar
+Not always. A module missing from *everyone's* sidebar is usually an entitlement -
+something your business has not licensed. One missing from only your sidebar
 is a permission. An administrator can tell the two apart under **Settings »
 Tenant Entitlements**.
 
@@ -48,8 +48,8 @@ That is a rate limit, not a lockout. Wait a minute.
 **I lost the phone with my authenticator.**
 Use a recovery code: on the sign-in screen, choose *Lost your phone? Use a
 recovery code*. Then set up a new device from **My Profile**. If you have lost
-both the phone and the codes, an administrator must reset your two-factor setup
-- nobody can look up an existing code for you, because only a fingerprint of
+both the phone and the codes, an administrator must reset your two-factor setup -
+nobody can look up an existing code for you, because only a fingerprint of
 each is stored.
 
 **Can I stay signed in?**

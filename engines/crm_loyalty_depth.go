@@ -363,8 +363,9 @@ func RecordCRMReferral(tenantID, friendID, code, actor string) (*CRMReferral, er
 
 // crmReferralOnBill notes the friend's first bill and when it qualifies.
 func crmReferralOnBill(schema string, ev crmEvent) {
-	tid, _ := tenantIDForSchema(schema)
-	days := GetSettingInt(tid, "sales.return_window_days")
+	// Stage 49.3.2: read from the schema itself - an unresolved client id
+	// would have read the default client's window.
+	days := GetSettingIntForSchema(schema, "sales.return_window_days")
 	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.crm_referrals SET first_bill_id = $2, qualifies_on = public.erp_today() + $3::int
 		WHERE friend_id = $1 AND status = 'Waiting' AND first_bill_id IS NULL`, schema), ev.CustomerID, ev.RefID, days)
 }

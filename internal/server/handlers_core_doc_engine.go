@@ -811,6 +811,13 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+		// Stage 49.5.6c: a key only the document's own action writes (a
+		// production order's BOM-change acceptance) is not set, changed or
+		// cleared by a save - the action-only statuses' rule, for a field.
+		if err := engines.CheckActionOnlyFields(tenantID, doctype, writeTarget, payload); err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
 
 		// 2. Server-side metadata validation engine check
 		err = engines.ValidateDocument(tenantID, doctype, payload)
@@ -913,13 +920,10 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// breakdown is stored on the document itself (no GL posting here -
 		// PO creation posts no GL entries in this system, GRN receipt does).
 		if doctype == "PurchaseOrder" {
-			// Stage 40.1: derive inter-state vs intra-state from the buying
-			// entity's and the vendor's states BEFORE the breakdown is
-			// computed, since that is what decides IGST vs CGST+SGST. Runs
-			// here rather than on the PO screen so the generic record form,
-			// the PR->PO conversion and any API caller all get it too. A
-			// maker's explicit override is respected - see ApplyPlaceOfSupply.
-			engines.ApplyPlaceOfSupply(tenantID, payload)
+			// Stage 40.1: inter-state vs intra-state is derived from the buying
+			// entity's and the vendor's states before the breakdown below.
+			// 49.5.6b: ValidateDocument did it above (ApplyPlaceOfSupply, after
+			// refusing a vendor with no state), so an import gets it too.
 			// Stage 110.2: a new PO carries its GST mode from the start.
 			engines.StampNewPOGSTMode(tenantID, payload)
 
@@ -1191,6 +1195,12 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// the row stayed deleted and never appeared anywhere.
 		// Stage 130.9 (72.D e): an edit records its editor and reason
 		// (updated_by / edit_reason), which the audit trigger reads.
+		// Stage 135.21: a create never lands on an existing goods receipt - a
+		// client-supplied id of one upserted over it and re-ran the create-only
+		// posting below (stock and item cost in twice, ledger and GL skipped
+		// as replays). Refused here, at the write, so two creates at once
+		// cannot both get through either.
+		createOverGRN := id == "" && doctype == "GRN"
 		query := fmt.Sprintf(`
 			INSERT INTO %s.documents (id, doctype, data, status, created_by, version)
 			VALUES ($1, $2, $3, $4, $5, 1)
@@ -1203,8 +1213,9 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				version = %s.documents.version + 1,
 				deleted_at = CASE WHEN $7::bool THEN NULL ELSE %s.documents.deleted_at END
 			WHERE %s.documents.doctype = EXCLUDED.doctype
-			  AND ($6::int IS NULL OR %s.documents.version = $6)`, schema, schema, schema, schema, schema)
-		result, err := db.DB.Exec(query, docID, doctype, payloadBytes, statusVal, userID, expectedVersion, id == "", strings.TrimSpace(editReason))
+			  AND ($6::int IS NULL OR %s.documents.version = $6)
+			  AND NOT $9::bool`, schema, schema, schema, schema, schema)
+		result, err := db.DB.Exec(query, docID, doctype, payloadBytes, statusVal, userID, expectedVersion, id == "", strings.TrimSpace(editReason), createOverGRN)
 		if err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
@@ -1212,6 +1223,8 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		if rowsAffected, _ := result.RowsAffected(); rowsAffected == 0 {
 			if expectedVersion != nil {
 				writeAPIErrorGeneric(w, r, http.StatusConflict, "This document was modified by someone else since you last loaded it - please refresh and try again")
+			} else if createOverGRN {
+				writeAPIErrorGeneric(w, r, http.StatusConflict, fmt.Sprintf("%q already exists - open that record to change it, or use a different number.", docID))
 			} else {
 				writeAPIErrorGeneric(w, r, http.StatusConflict, fmt.Sprintf("%q is already used by a different kind of record. Use a different code.", docID))
 			}
@@ -1498,38 +1511,10 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// checkPermission is engines.RoleMayOnDoctype - one copy, which the CSV
+// import's per-row check (Stage 49.3.4) reads too.
 func checkPermission(tenantID string, role string, doctype string, action string) (bool, error) {
-	if engines.HasFullAccess(role) {
-		return true, nil
-	}
-
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return false, err
-	}
-
-	column := ""
-	switch action {
-	case "read":
-		column = "allow_read"
-	case "create":
-		column = "allow_create"
-	case "update":
-		column = "allow_update"
-	case "delete":
-		column = "allow_delete"
-	default:
-		return false, fmt.Errorf("invalid permission action: %s", action)
-	}
-
-	var allowed bool
-	query := fmt.Sprintf("SELECT COALESCE(%s, false) FROM %s.role_permissions WHERE role = $1 AND doctype_name = $2", column, schema)
-	err = db.DB.QueryRow(query, role, doctype).Scan(&allowed)
-	if err == sql.ErrNoRows {
-		// Default: deny if no mapping rule exists
-		return false, nil
-	}
-	return allowed, err
+	return engines.RoleMayOnDoctype(tenantID, role, doctype, action)
 }
 
 func handleLabels(w http.ResponseWriter, r *http.Request) {
@@ -1936,17 +1921,19 @@ func handleGetDocTypeMeta(w http.ResponseWriter, r *http.Request) {
 }
 
 // approvalOnlyStatuses are reached only through SubmitForApproval/
-// DecideApproval on an approval-gated doctype, never by a plain save.
-var approvalOnlyStatuses = []string{"Approved", "Rejected"}
+// DecideApproval on an approval-gated doctype, never by a plain save - the
+// same list the bulk edit and the import are held to (Stage 49.3.5).
+var approvalOnlyStatuses = engines.ApprovalDecidedStatuses
 
 // actionOnlyStatuses (Stage 132.17) are set only by the document's own action
 // endpoint - the one that moves the stock or money the status stands for -
 // never by a plain save.
 var actionOnlyStatuses = map[string][]string{
-	"TransferOrder":   {"Packed", "Dispatched", "Partially Received", "Received", "Returned"}, // /transfer/pack, dispatch, receive, return
-	"ExpenseClaim":    {"Verified", "Paid"},                                                   // /expenses/verify, pay
-	"VendorInvoice":   {"Matched", "MismatchHold", "Paid"},                                    // /procurement/vendor-invoice/match, pay
-	"ProductionOrder": {"Material Issued", "In Process", "Completed"},                         // /manufacturing/issue-material, confirm-operation, complete
+	"TransferOrder":    {"Packed", "Dispatched", "Partially Received", "Received", "Returned"}, // /transfer/pack, dispatch, receive, return
+	"ExpenseClaim":     {"Verified", "Paid"},                                                   // /expenses/verify, pay
+	"VendorInvoice":    {"Matched", "MismatchHold", "Paid"},                                    // /procurement/vendor-invoice/match, pay
+	"ProductionOrder":  {"Material Issued", "In Process", "Completed"},                         // /manufacturing/issue-material, confirm-operation, complete
+	"PriceListVersion": {"Superseded"},                                                         // set when a newer version is approved (135.12)
 }
 
 func isActionOnlyStatus(doctype, s string) bool {

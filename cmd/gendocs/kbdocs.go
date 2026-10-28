@@ -222,7 +222,12 @@ func kbReportCatalog(stamp string) map[string]string {
 		var s strings.Builder
 		s.WriteString(fmt.Sprintf("## %s\n\n", category))
 		for _, definition := range rows {
-			s.WriteString(fmt.Sprintf("### %s\n\n", definition.Label))
+			// Stage 139.2: the number first - it is what people type in Ctrl+K.
+			if definition.Number != "" {
+				s.WriteString(fmt.Sprintf("### %s %s\n\n", definition.Number, definition.Label))
+			} else {
+				s.WriteString(fmt.Sprintf("### %s\n\n", definition.Label))
+			}
 			s.WriteString(fmt.Sprintf("**Report id:** `%s`\n\n", definition.ID))
 			if len(definition.Params) == 0 {
 				s.WriteString("**Parameters:** none - it runs as soon as you pick it.\n\n")
@@ -298,6 +303,9 @@ func kbReportCatalog(stamp string) map[string]string {
 		"Admin and Store Manager. They are masked rather than dropped, so the table has\n" +
 		"the same shape whoever runs it and a screenshot from one person lines up with a\n" +
 		"screenshot from another.\n\n")
+	b.WriteString("Each report's heading starts with its permanent number (R1001 is Sales Register).\n" +
+		"Type the number in the search box (Ctrl+K) to open the report - see\n" +
+		"[Keyboard shortcuts and quick codes](../getting-started/keyboard-shortcuts.md).\n\n")
 	if len(parts) > 1 {
 		b.WriteString(fmt.Sprintf("The list runs over **%d** pages. The contents below cover every category and\n"+
 			"open the right page.\n\n", len(parts)))

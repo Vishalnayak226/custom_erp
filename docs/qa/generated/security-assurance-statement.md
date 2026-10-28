@@ -7,11 +7,11 @@
 > **Generated 2026-09-10.** This page is produced from `internal/server/VERSION`, `docs/security/risk_register.md`, `docs/security/assessment-register.md`, `docs/security/security-lessons.md`, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-What is supported, how to report a problem, what is not yet true, and how far the evidence reaches - as of 2026-10-26 (Stage 49.17.8). Not a certification.
+What is supported, how to report a problem, what is not yet true, and how far the evidence reaches - as of 2026-10-28 (Stage 49.17.8). Not a certification.
 
 ## Supported version and configuration
 
-- **Version 0.18.0** (`internal/server/VERSION`). Only the latest release receives security fixes; there is no long-term support line.
+- **Version 0.19.0** (`internal/server/VERSION`). Only the latest release receives security fixes; there is no long-term support line.
 - **Configuration:** one Go binary and PostgreSQL behind a TLS reverse proxy (Caddy) on a Linux host, installed by `deploy/`; each client in its own database schema; the browser app served by the same binary from its own origin, loading nothing from any other. Nothing else is required: no CDN, WAF, SIEM or secrets service (49.18.5).
 - **Not supported:** other databases, running without TLS, sharing one schema between clients, or browser extensions that inject scripts into the app.
 

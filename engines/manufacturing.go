@@ -2,6 +2,7 @@ package engines
 
 import (
 	"custom_erp/db"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -83,6 +84,79 @@ func saveProductionOrderStatus(tenantID, orderID, newStatus string, data map[str
 	return err
 }
 
+// lockProductionOrderTx (Stage 135.19) reads a production order under its row
+// lock. Material issue and finished-goods receipt read the status, post stock
+// and save the new status in one transaction holding this lock, so two
+// concurrent calls cannot both pass the status check and both post - the
+// first commits, the second then sees the new status and stops.
+func lockProductionOrderTx(tx *sql.Tx, schema, orderID string) (map[string]interface{}, string, error) {
+	var dataStr, status string
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE doctype = 'ProductionOrder' AND id = $1 FOR UPDATE`, schema), orderID).Scan(&dataStr, &status); err != nil {
+		return nil, "", err
+	}
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+		return nil, "", err
+	}
+	return data, status, nil
+}
+
+// postProductionStockTx posts one production movement through the stock
+// choke point and writes its ledger lines in the same transaction. posting
+// ("ISSUE", "FINISH:2", ...) ends every line's idempotency key: keyed by order
+// and SKU alone, a second partial completion's ledger line was swallowed as a
+// replay of the first while its stock still moved (Stage 135.19).
+func postProductionStockTx(tx *sql.Tx, schema, location, orderID, posting string, items []interface{}) error {
+	_, lines, err := PostInventoryLedgerWithVoucherTx(tx, schema, location, items, false)
+	if err != nil {
+		return err
+	}
+	for _, e := range stockLedgerEntriesFor(location, "ProductionOrder", orderID, "", lines) {
+		e.IdempotencyKey += ":" + posting
+		if err := insertStockLedgerEntry(tx, schema, e); err != nil {
+			return fmt.Errorf("stock ledger for %s at %s: %w", e.ItemID, location, err)
+		}
+	}
+	return nil
+}
+
+// consumedValuePaiseTx (Stage 132.22) is what the consumption lines (qty < 0)
+// take out of stock at each SKU's moving-average cost. The finished good
+// carries that value in, so on-hand valuation keeps tying to GL 1200 Inventory
+// Control - production posts no GL of its own (material and finished good are
+// both in 1200). A SKU with no cost yet adds nothing.
+func consumedValuePaiseTx(tx *sql.Tx, schema string, lines []interface{}) (int64, error) {
+	var total int64
+	for _, l := range lines {
+		m, _ := l.(map[string]interface{})
+		sku, _ := m["sku"].(string)
+		qty := numFromInterface(m["qty"])
+		if sku == "" || qty >= 0 {
+			continue
+		}
+		var cost int64
+		err := tx.QueryRow(fmt.Sprintf(`SELECT avg_unit_cost_paise FROM %s.item_cost WHERE item_code = $1`, schema), sku).Scan(&cost)
+		if err == sql.ErrNoRows {
+			continue
+		}
+		if err != nil {
+			return 0, err
+		}
+		total += int64(math.Round(-qty * float64(cost)))
+	}
+	return total, nil
+}
+
+func saveProductionOrderStatusTx(tx *sql.Tx, schema, orderID, newStatus string, data map[string]interface{}) error {
+	data["status"] = newStatus
+	marshaled, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'ProductionOrder' AND id = $3`, schema), marshaled, newStatus, orderID)
+	return err
+}
+
 // IssueProductionMaterial implements the "Material Issue" step: looks up
 // the order's BOM, computes each component's required quantity
 // (component.qty * order quantity), and decrements them from inventory at
@@ -90,7 +164,17 @@ func saveProductionOrderStatus(tenantID, orderID, newStatus string, data map[str
 // 1/hardening_roadmap Phase 2.1's stock floor-check applies here too - an
 // order can't issue material it doesn't have).
 func IssueProductionMaterial(tenantID, orderID string) error {
-	data, status, err := fetchProductionOrder(tenantID, orderID)
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	// Stage 135.19: one transaction under the order's row lock.
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	data, status, err := lockProductionOrderTx(tx, schema, orderID)
 	if err != nil {
 		return fmt.Errorf("production order not found: %v", err)
 	}
@@ -136,14 +220,10 @@ func IssueProductionMaterial(tenantID, orderID string) error {
 	// ledger call - PostInventoryLedger is also used by checkout/GRN, which
 	// have no catalog code of their own for this scenario, so its error
 	// can't be changed without misattaching MANUFA-0143 to those callers too.
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return err
-	}
 	for _, c := range components {
 		required := wholeUnitsUp(c.Qty * orderQty)
 		var available float64
-		if errQ := db.DB.QueryRow(fmt.Sprintf(`SELECT available FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2`, schema), c.Sku, location).Scan(&available); errQ != nil {
+		if errQ := tx.QueryRow(fmt.Sprintf(`SELECT available FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2`, schema), c.Sku, location).Scan(&available); errQ != nil {
 			available = 0
 		}
 		if available < required {
@@ -160,9 +240,15 @@ func IssueProductionMaterial(tenantID, orderID string) error {
 	}
 	if len(items) > 0 {
 		// Stage 132.18: the stock ledger names the order (it read "StockAdjustment", no document).
-		if _, err := PostInventoryLedgerWithVoucher(tenantID, location, items, false, "ProductionOrder", orderID, ""); err != nil {
+		if err := postProductionStockTx(tx, schema, location, orderID, "ISSUE", items); err != nil {
 			return fmt.Errorf("material issue failed: %v", err)
 		}
+		// Stage 132.22: the issued material's value, handed to the finished good at completion.
+		issued, err := consumedValuePaiseTx(tx, schema, items)
+		if err != nil {
+			return fmt.Errorf("material issue cost: %v", err)
+		}
+		data["material_cost_paise"] = issued
 	}
 
 	// Stage 26.9.2: snapshot the exploded requirement as issued, so
@@ -177,7 +263,10 @@ func IssueProductionMaterial(tenantID, orderID string) error {
 		}
 	}
 
-	return saveProductionOrderStatus(tenantID, orderID, "Material Issued", data)
+	if err := saveProductionOrderStatusTx(tx, schema, orderID, "Material Issued", data); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // CompleteProductionOrder implements "Finished Goods Receipt": posts the

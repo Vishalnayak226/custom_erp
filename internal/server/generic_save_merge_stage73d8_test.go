@@ -72,7 +72,7 @@ func TestStage104POEditWithoutNumberFieldsSaves(t *testing.T) {
 	clean()
 	t.Cleanup(clean)
 	if _, err := db.DB.Exec(`INSERT INTO tenant_default.documents (id, doctype, data, status, created_by) VALUES
-		($1, 'Vendor', '{"code":"T104-VENDOR","name":"T104 Vendor"}', 'Active', 'admin'),
+		($1, 'Vendor', '{"code":"T104-VENDOR","name":"T104 Vendor","state":"Maharashtra"}', 'Active', 'admin'),
 		($2, 'PurchaseOrder', '{"code":"PO-T104-EDIT-1","po_number":"PO-T104-EDIT-1","vendor":"T104-VENDOR","vendor_id":"T104-VENDOR","location":"HO","target_warehouse":"HO","items":"[]","total_amount":0}', 'Draft', 'admin')`, vendorID, poID); err != nil {
 		t.Fatalf("seed: %v", err)
 	}

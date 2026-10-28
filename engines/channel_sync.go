@@ -417,6 +417,7 @@ func RunScheduledChannelSyncs(ctx context.Context, tenantID string) {
 	if err != nil {
 		return
 	}
+	ctx = withOutsideCallsSchema(ctx, schema) // 49.8.7a: the client's Outside calls switch
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype='Channel' AND status='Active' AND deleted_at IS NULL`, schema))
 	if err != nil {
 		return
@@ -476,7 +477,11 @@ func StartChannelSyncWorker(ctx context.Context, interval time.Duration) {
 					continue
 				}
 				for _, schema := range schemas {
-					RunScheduledChannelSyncs(ctx, schemaToTenantID(schema))
+					// Stage 49.3.2: an unresolved schema is skipped, not run
+					// as the default client's syncs a second time.
+					if tenantID := schemaToTenantID(schema); tenantID != "" {
+						RunScheduledChannelSyncs(ctx, tenantID)
+					}
 				}
 			}
 		}

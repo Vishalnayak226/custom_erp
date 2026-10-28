@@ -133,9 +133,9 @@ func DispatchNotification(tenantID, event, orderID string, extra map[string]stri
 			writeNotificationLog(schema, event, t.channel, orderID, t.id, "Skipped-Sandbox", "sandbox tenant - no real webhook call made")
 			continue
 		}
-		if !ExternalSideEffectsEnabled() {
-			log.Printf("[NOTIFY] external side effects are OFF - simulating dispatch of %q to %s (no real HTTP call made)", event, t.channel)
-			writeNotificationLog(schema, event, t.channel, orderID, t.id, "Skipped-SideEffectsOff", "external side effects disabled - no real webhook call made")
+		if ok, reason := OutsideCallsAllowed(schema); !ok { // 49.8.7a: the client's own switch too
+			log.Printf("[NOTIFY] %s - simulating dispatch of %q to %s (no real HTTP call made)", reason, event, t.channel)
+			writeNotificationLog(schema, event, t.channel, orderID, t.id, "Skipped-SideEffectsOff", reason+" - no real webhook call made")
 			continue
 		}
 
@@ -384,8 +384,8 @@ func deliverNotification(ctx context.Context, schema string, job Job) (map[strin
 	if isSandbox, _ := IsSandboxSchema(schema); isSandbox {
 		return map[string]interface{}{"simulated": true}, recordNotificationState(schema, logID, "Skipped-Sandbox", "system", "sandbox tenant - no real webhook call made", nil)
 	}
-	if !ExternalSideEffectsEnabled() {
-		return map[string]interface{}{"simulated": true}, recordNotificationState(schema, logID, "Skipped-SideEffectsOff", "system", "external side effects disabled - no real webhook call made", nil)
+	if ok, reason := OutsideCallsAllowed(schema); !ok {
+		return map[string]interface{}{"simulated": true}, recordNotificationState(schema, logID, "Skipped-SideEffectsOff", "system", reason+" - no real webhook call made", nil)
 	}
 	if err := validateWebhookURL(rawURL); err != nil {
 		detail := "channel webhook URL not allowed: " + err.Error()

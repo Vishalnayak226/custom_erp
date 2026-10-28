@@ -33,6 +33,10 @@ Admin and Store Manager. They are masked rather than dropped, so the table has
 the same shape whoever runs it and a screenshot from one person lines up with a
 screenshot from another.
 
+Each report's heading starts with its permanent number (R1001 is Sales Register).
+Type the number in the search box (Ctrl+K) to open the report - see
+[Keyboard shortcuts and quick codes](../getting-started/keyboard-shortcuts.md).
+
 The list runs over **3** pages. The contents below cover every category and
 open the right page.
 
@@ -67,7 +71,7 @@ open the right page.
 
 ## Accounting
 
-### AP Aging
+### R5015 AP Aging
 
 **Report id:** `cat-ap-aging`
 
@@ -79,7 +83,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### AR Aging
+### R5016 AR Aging
 
 **Report id:** `cat-ar-aging`
 
@@ -92,7 +96,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Accounting Audit Trail
+### R5034 Accounting Audit Trail
 
 **Report id:** `cat-accounting-audit-trail`
 
@@ -105,7 +109,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Balance Sheet
+### R5013 Balance Sheet
 
 **Report id:** `cat-balance-sheet`
 
@@ -118,7 +122,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Bank Reconciliation Report
+### R5027 Bank Reconciliation Report
 
 **Report id:** `cat-bank-reconciliation-report`
 
@@ -131,7 +135,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Budget vs Actual
+### R5032 Budget vs Actual
 
 **Report id:** `cat-budget-vs-actual`
 
@@ -141,7 +145,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Cash Flow Statement
+### R5014 Cash Flow Statement
 
 **Report id:** `cat-cash-flow-statement`
 
@@ -155,7 +159,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Cost Center P&L
+### R5031 Cost Center P&L
 
 **Report id:** `cat-cost-center-p-and-l`
 
@@ -169,7 +173,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Customer Ledger
+### R5018 Customer Ledger
 
 **Report id:** `cat-customer-ledger`
 
@@ -183,7 +187,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Debit / Credit Note Register
+### R5026 Debit / Credit Note Register
 
 **Report id:** `cat-debit-credit-note-register`
 
@@ -197,7 +201,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Depreciation Schedule
+### R5030 Depreciation Schedule
 
 **Report id:** `cat-depreciation-schedule`
 
@@ -212,7 +216,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Finance Approval Pending Report
+### R5021 Finance Approval Pending Report
 
 **Report id:** `cat-finance-approval-pending-report`
 
@@ -224,7 +228,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Fixed Asset Register
+### R5029 Fixed Asset Register
 
 **Report id:** `cat-fixed-asset-register`
 
@@ -239,7 +243,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### General Ledger
+### R5010 General Ledger
 
 **Report id:** `cat-general-ledger`
 
@@ -253,7 +257,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Intercompany Reconciliation
+### R5033 Intercompany Reconciliation
 
 **Report id:** `cat-intercompany-reconciliation`
 
@@ -266,7 +270,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Journal Voucher Register
+### R5025 Journal Voucher Register
 
 **Report id:** `cat-journal-voucher-register`
 
@@ -280,7 +284,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Payment Proposal Register
+### R5020 Payment Proposal Register
 
 **Report id:** `cat-payment-proposal-register`
 
@@ -294,7 +298,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Payment Register
+### R5023 Payment Register
 
 **Report id:** `cat-payment-register`
 
@@ -308,7 +312,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Period Close Checklist
+### R5035 Period Close Checklist
 
 **Report id:** `cat-period-close-checklist`
 
@@ -321,7 +325,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Profit & Loss Statement
+### R5012 Profit & Loss Statement
 
 **Report id:** `cat-profit-and-loss-statement`
 
@@ -335,7 +339,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Receipt Register
+### R5024 Receipt Register
 
 **Report id:** `cat-receipt-register`
 
@@ -349,7 +353,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Sales Invoice Accounting Register
+### R5022 Sales Invoice Accounting Register
 
 **Report id:** `cat-sales-invoice-accounting-register`
 
@@ -364,7 +368,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### TDS Register
+### R5028 TDS Register
 
 **Report id:** `cat-tds-register`
 
@@ -378,7 +382,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Trial Balance
+### R5011 Trial Balance
 
 **Report id:** `cat-trial-balance`
 
@@ -391,7 +395,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Vendor Invoice Register
+### R5019 Vendor Invoice Register
 
 **Report id:** `cat-vendor-invoice-register`
 
@@ -406,7 +410,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Vendor Ledger
+### R5017 Vendor Ledger
 
 **Report id:** `cat-vendor-ledger`
 
@@ -422,7 +426,7 @@ open the right page.
 
 ## Admin
 
-### Failed prints and fallbacks
+### R9027 Failed prints and fallbacks
 
 **Report id:** `print-failures`
 
@@ -435,7 +439,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Knowledge Center Feedback
+### R9022 Knowledge Center Feedback
 
 **Report id:** `help-article-feedback`
 
@@ -445,7 +449,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Missing regulatory print data
+### R9028 Missing regulatory print data
 
 **Report id:** `missing-regulatory-print-data`
 
@@ -455,7 +459,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Print and reprint audit
+### R9033 Print and reprint audit
 
 **Report id:** `print-reprint-audit`
 
@@ -468,7 +472,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Print template coverage
+### R9026 Print template coverage
 
 **Report id:** `print-template-coverage`
 
@@ -480,7 +484,7 @@ open the right page.
 
 ## Assets
 
-### Asset Register
+### R5079 Asset Register
 
 **Report id:** `asset-register`
 
@@ -492,7 +496,7 @@ open the right page.
 
 ## BI
 
-### Report Performance
+### R9032 Report Performance
 
 **Report id:** `report-performance`
 
@@ -507,7 +511,7 @@ open the right page.
 
 ## CRM
 
-### Birthday / Anniversary Campaign List
+### R6034 Birthday / Anniversary Campaign List
 
 **Report id:** `cat-birthday-anniversary-campaign-list`
 
@@ -517,7 +521,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### CRM Customer Summary
+### R6042 CRM Customer Summary
 
 **Report id:** `crm-customer-summary`
 
@@ -527,7 +531,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Campaign Performance
+### R6029 Campaign Performance
 
 **Report id:** `cat-campaign-performance`
 
@@ -541,7 +545,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Campaign ROI
+### R6039 Campaign ROI
 
 **Report id:** `campaign-roi`
 
@@ -551,7 +555,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Campaign Summary
+### R6045 Campaign Summary
 
 **Report id:** `crm-campaign-summary`
 
@@ -564,7 +568,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Clienteling Tasks
+### R6052 Clienteling Tasks
 
 **Report id:** `crm-clienteling`
 
@@ -577,7 +581,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Cohort Retention
+### R6041 Cohort Retention
 
 **Report id:** `cohort-retention`
 
@@ -587,7 +591,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Complaint / Service Case Register
+### R6036 Complaint / Service Case Register
 
 **Report id:** `cat-complaint-service-case-register`
 
@@ -601,7 +605,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Consent Audit
+### R6043 Consent Audit
 
 **Report id:** `crm-consent-audit`
 
@@ -614,7 +618,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Coupon / Voucher Usage Report
+### R6033 Coupon / Voucher Usage Report
 
 **Report id:** `cat-coupon-voucher-usage-report`
 
@@ -628,7 +632,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Coupon Use
+### R6050 Coupon Use
 
 **Report id:** `crm-coupon-use`
 
@@ -641,7 +645,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Credited Sales
+### R6048 Credited Sales
 
 **Report id:** `crm-credited-sales`
 
@@ -654,7 +658,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Customer 360
+### R6058 Customer 360
 
 **Report id:** `customer-360`
 
@@ -666,7 +670,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Customer 360 Summary
+### R6026 Customer 360 Summary
 
 **Report id:** `cat-customer-360-summary`
 
@@ -679,7 +683,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Customer Inactivity / Churn Report
+### R6038 Customer Inactivity / Churn Report
 
 **Report id:** `cat-customer-inactivity-churn-report`
 
@@ -689,7 +693,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Customer Lifetime Value
+### R6040 Customer Lifetime Value
 
 **Report id:** `customer-lifetime-value`
 
@@ -701,7 +705,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Customer Merge / Mobile Change Audit
+### R6037 Customer Merge / Mobile Change Audit
 
 **Report id:** `cat-customer-merge-mobile-change-audit`
 
@@ -714,7 +718,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Customer Segmentation Report
+### R6030 Customer Segmentation Report
 
 **Report id:** `cat-customer-segmentation-report`
 
@@ -724,7 +728,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Customers Sharing a Mobile Number
+### R6071 Customers Sharing a Mobile Number
 
 **Report id:** `customer-duplicate-phones`
 
@@ -734,7 +738,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Feedback and NPS
+### R6053 Feedback and NPS
 
 **Report id:** `crm-feedback`
 
@@ -747,7 +751,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Journey Performance
+### R6047 Journey Performance
 
 **Report id:** `crm-journey-performance`
 
@@ -760,7 +764,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Loyalty Ledger Summary
+### R6070 Loyalty Ledger Summary
 
 **Report id:** `loyalty-summary`
 
@@ -770,7 +774,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Loyalty Points Ledger
+### R6032 Loyalty Points Ledger
 
 **Report id:** `cat-loyalty-points-ledger`
 
@@ -784,7 +788,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Loyalty Points Liability
+### R6057 Loyalty Points Liability
 
 **Report id:** `points-liability`
 
@@ -794,7 +798,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Loyalty Points Movement
+### R6059 Loyalty Points Movement
 
 **Report id:** `loyalty-points-movement`
 
@@ -807,7 +811,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Message Cost
+### R6054 Message Cost
 
 **Report id:** `crm-message-cost`
 
@@ -820,7 +824,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Message Detail
+### R6046 Message Detail
 
 **Report id:** `crm-message-detail`
 
@@ -834,7 +838,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### RFM Customer Segmentation
+### R6056 RFM Customer Segmentation
 
 **Report id:** `rfm-segmentation`
 
@@ -844,7 +848,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### RFM and Lifecycle
+### R6049 RFM and Lifecycle
 
 **Report id:** `crm-rfm-lifecycle`
 
@@ -856,7 +860,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Repeat Purchase Report
+### R6031 Repeat Purchase Report
 
 **Report id:** `cat-repeat-purchase-report`
 
@@ -866,7 +870,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Sales Pipeline
+### R6055 Sales Pipeline
 
 **Report id:** `crm-pipeline`
 
@@ -878,7 +882,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Segment Members
+### R6044 Segment Members
 
 **Report id:** `crm-segment-members`
 
@@ -890,7 +894,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Service SLA
+### R6051 Service SLA
 
 **Report id:** `crm-service-sla`
 
@@ -905,7 +909,7 @@ open the right page.
 
 ## E-commerce & Integration
 
-### E-commerce Sales Order Item Detail
+### R6002 E-commerce Sales Order Item Detail
 
 **Report id:** `cat-e-commerce-sales-order-item-detail`
 
@@ -919,7 +923,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### E-commerce Sales Order Summary
+### R6001 E-commerce Sales Order Summary
 
 **Report id:** `cat-e-commerce-sales-order-summary`
 
@@ -933,7 +937,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### ERP vs Unicommerce Inventory Reconciliation - Itemwise
+### R6005 ERP vs Unicommerce Inventory Reconciliation - Itemwise
 
 **Report id:** `cat-erp-vs-unicommerce-inventory-reconciliation-itemwise`
 
@@ -945,7 +949,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### ERP vs Unicommerce Inventory Reconciliation - Summary
+### R6006 ERP vs Unicommerce Inventory Reconciliation - Summary
 
 **Report id:** `cat-erp-vs-unicommerce-inventory-reconciliation-summary`
 
@@ -957,7 +961,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Integration Retry / Failure Audit
+### R6011 Integration Retry / Failure Audit
 
 **Report id:** `cat-integration-retry-failure-audit`
 
@@ -970,7 +974,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Inventory Sync Log
+### R6007 Inventory Sync Log
 
 **Report id:** `cat-inventory-sync-log`
 
@@ -982,7 +986,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Marketplace Order Status Summary
+### R6009 Marketplace Order Status Summary
 
 **Report id:** `cat-marketplace-order-status-summary`
 
@@ -996,7 +1000,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Online Return Register
+### R6010 Online Return Register
 
 **Report id:** `cat-online-return-register`
 
@@ -1010,7 +1014,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Order Sync Log
+### R6008 Order Sync Log
 
 **Report id:** `cat-order-sync-log`
 
@@ -1024,7 +1028,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Outlet / Facility Mapping Summary
+### R6012 Outlet / Facility Mapping Summary
 
 **Report id:** `cat-outlet-facility-mapping-summary`
 
@@ -1036,7 +1040,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Pending Sales Order Stock
+### R6003 Pending Sales Order Stock
 
 **Report id:** `cat-pending-sales-order-stock`
 
@@ -1050,7 +1054,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Sales Order Integration Error
+### R6004 Sales Order Integration Error
 
 **Report id:** `cat-sales-order-integration-error`
 
@@ -1065,7 +1069,7 @@ open the right page.
 
 ## Exceptions
 
-### Failed Syncs
+### R9030 Failed Syncs
 
 **Report id:** `exception-failed-syncs`
 
@@ -1075,7 +1079,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Inactive Items With Stock
+### R9024 Inactive Items With Stock
 
 **Report id:** `inactive-items-with-stock`
 
@@ -1085,7 +1089,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Item Exceptions
+### R9025 Item Exceptions
 
 **Report id:** `item-exceptions`
 
@@ -1097,7 +1101,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Item Master Completeness
+### R9023 Item Master Completeness
 
 **Report id:** `item-master-completeness`
 
@@ -1107,7 +1111,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Negative Stock Flags
+### R9031 Negative Stock Flags
 
 **Report id:** `exception-negative-stock`
 
@@ -1117,7 +1121,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Stale Approvals
+### R9029 Stale Approvals
 
 **Report id:** `exception-stale-approvals`
 
@@ -1131,7 +1135,7 @@ open the right page.
 
 ## Expense Management
 
-### Accounting Export Report
+### R5046 Accounting Export Report
 
 **Report id:** `cat-accounting-export-report`
 
@@ -1145,7 +1149,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Approved Pending Payment
+### R5038 Approved Pending Payment
 
 **Report id:** `cat-approved-pending-payment`
 
@@ -1160,7 +1164,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Claims Pending Approval
+### R5037 Claims Pending Approval
 
 **Report id:** `cat-claims-pending-approval`
 
@@ -1175,7 +1179,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Department / Category / Month Summary
+### R5042 Department / Category / Month Summary
 
 **Report id:** `cat-department-category-month-summary`
 
@@ -1190,7 +1194,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Employee Expense Summary
+### R5043 Employee Expense Summary
 
 **Report id:** `cat-employee-expense-summary`
 
@@ -1205,7 +1209,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Expense Advance Settlement
+### R5045 Expense Advance Settlement
 
 **Report id:** `cat-expense-advance-settlement`
 
@@ -1220,7 +1224,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Expense Aging / SLA Report
+### R5041 Expense Aging / SLA Report
 
 **Report id:** `cat-expense-aging-sla-report`
 
@@ -1235,7 +1239,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Expense Claim Register
+### R5036 Expense Claim Register
 
 **Report id:** `cat-expense-claim-register`
 
@@ -1250,7 +1254,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Paid Claims Register
+### R5039 Paid Claims Register
 
 **Report id:** `cat-paid-claims-register`
 
@@ -1265,7 +1269,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Policy Violation / Exception Report
+### R5044 Policy Violation / Exception Report
 
 **Report id:** `cat-policy-violation-exception-report`
 
@@ -1280,7 +1284,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Rejected / Returned Claims
+### R5040 Rejected / Returned Claims
 
 **Report id:** `cat-rejected-returned-claims`
 
@@ -1297,7 +1301,7 @@ open the right page.
 
 ## Finance
 
-### Balance Sheet
+### R5060 Balance Sheet
 
 **Report id:** `balance-sheet`
 
@@ -1312,7 +1316,7 @@ open the right page.
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
-### Bank Book
+### R5078 Bank Book
 
 **Report id:** `bank-book`
 
@@ -1324,7 +1328,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Budget vs Actual
+### R5047 Budget vs Actual
 
 **Report id:** `budget-variance`
 
@@ -1337,7 +1341,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Cash Book
+### R5077 Cash Book
 
 **Report id:** `cash-book`
 
@@ -1347,7 +1351,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Cash Flow Forecast
+### R5049 Cash Flow Forecast
 
 **Report id:** `cash-flow-forecast`
 
@@ -1360,7 +1364,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Cash Flow Statement
+### R5061 Cash Flow Statement
 
 **Report id:** `cash-flow-statement`
 
@@ -1373,7 +1377,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Consolidated Trial Balance
+### R5071 Consolidated Trial Balance
 
 **Report id:** `consolidated-trial-balance`
 
@@ -1385,7 +1389,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Cost Center P&L
+### R5067 Cost Center P&L
 
 **Report id:** `cost-center-pl`
 
@@ -1398,7 +1402,7 @@ open the right page.
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
-### Deferred Revenue Roll-Forward
+### R5054 Deferred Revenue Roll-Forward
 
 **Report id:** `deferred-revenue-roll-forward`
 
@@ -1408,7 +1412,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Department P&L
+### R5068 Department P&L
 
 **Report id:** `department-pl`
 
@@ -1421,7 +1425,7 @@ open the right page.
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
-### Dunning Queue
+### R5048 Dunning Queue
 
 **Report id:** `dunning-queue`
 
@@ -1431,7 +1435,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### E-Invoice / IRN Status Register
+### R5056 E-Invoice / IRN Status Register
 
 **Report id:** `einvoice-irn-register`
 
@@ -1446,7 +1450,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### E-Invoice Error / Retry Report
+### R5057 E-Invoice Error / Retry Report
 
 **Report id:** `einvoice-errors`
 
@@ -1460,7 +1464,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Entity Trial Balance
+### R5069 Entity Trial Balance
 
 **Report id:** `entity-trial-balance`
 
@@ -1473,7 +1477,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### FX Gain/Loss Register
+### R5051 FX Gain/Loss Register
 
 **Report id:** `fx-gain-loss-register`
 
@@ -1487,7 +1491,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### GL Drill-down (by Account)
+### R5062 GL Drill-down (by Account)
 
 **Report id:** `gl-drilldown`
 
@@ -1499,7 +1503,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### GL Posting Review (by poster)
+### R5066 GL Posting Review (by poster)
 
 **Report id:** `gl-posting-review`
 
@@ -1512,7 +1516,7 @@ open the right page.
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
-### GST Return Summary
+### R5076 GST Return Summary
 
 **Report id:** `gst-return-summary`
 
@@ -1525,7 +1529,7 @@ open the right page.
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
-### General Journal (who posted what)
+### R5065 General Journal (who posted what)
 
 **Report id:** `gl-journal`
 
@@ -1541,7 +1545,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Gift Card Ledger
+### R5083 Gift Card Ledger
 
 **Report id:** `stored-value-ledger`
 
@@ -1555,7 +1559,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Gift Card Liability
+### R5082 Gift Card Liability
 
 **Report id:** `stored-value-liability`
 
@@ -1567,7 +1571,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### IRN Portal Manual Upload Report
+### R5058 IRN Portal Manual Upload Report
 
 **Report id:** `einvoice-manual-upload`
 
@@ -1581,7 +1585,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Input credit past its deadline
+### R5053 Input credit past its deadline
 
 **Report id:** `itc-past-deadline`
 
@@ -1591,7 +1595,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Intercompany Reconciliation
+### R5070 Intercompany Reconciliation
 
 **Report id:** `intercompany-reconciliation`
 
@@ -1603,7 +1607,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Open FX Exposure
+### R5050 Open FX Exposure
 
 **Report id:** `fx-open-item-exposure`
 
@@ -1616,7 +1620,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### POS Sale Reconciliation
+### R5072 POS Sale Reconciliation
 
 **Report id:** `pos-sale-reconciliation`
 
@@ -1629,7 +1633,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Payables Ageing
+### R5074 Payables Ageing
 
 **Report id:** `payables-ageing`
 
@@ -1639,7 +1643,7 @@ open the right page.
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
-### Prepaid Expense Roll-Forward
+### R5055 Prepaid Expense Roll-Forward
 
 **Report id:** `prepaid-expense-roll-forward`
 
@@ -1649,7 +1653,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Profit & Loss
+### R5059 Profit & Loss
 
 **Report id:** `profit-and-loss`
 
@@ -1665,7 +1669,7 @@ open the right page.
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
-### Project P&L (Job Costing)
+### R5073 Project P&L (Job Costing)
 
 **Report id:** `project-pl`
 
@@ -1678,7 +1682,7 @@ open the right page.
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
-### Receivables Ageing
+### R5075 Receivables Ageing
 
 **Report id:** `receivables-ageing`
 
@@ -1688,7 +1692,7 @@ open the right page.
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
-### Refunds by method
+### R5081 Refunds by method
 
 **Report id:** `refund-methods`
 
@@ -1701,7 +1705,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Statutory Audit Export (Full GL)
+### R5064 Statutory Audit Export (Full GL)
 
 **Report id:** `statutory-gl-export`
 
@@ -1714,7 +1718,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Store credit by customer
+### R5080 Store credit by customer
 
 **Report id:** `store-credit-liability`
 
@@ -1724,7 +1728,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Tax Ledger
+### R5063 Tax Ledger
 
 **Report id:** `tax-ledger`
 
@@ -1737,7 +1741,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Trial Balance in Presentation Currency
+### R5052 Trial Balance in Presentation Currency
 
 **Report id:** `trial-balance-presentation-currency`
 
@@ -1753,7 +1757,7 @@ open the right page.
 
 ## GST & Compliance
 
-### E-Invoice / IRN Status Register
+### R5004 E-Invoice / IRN Status Register
 
 **Report id:** `cat-e-invoice-irn-status-register`
 
@@ -1767,7 +1771,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### E-Invoice Error / Retry Report
+### R5005 E-Invoice Error / Retry Report
 
 **Report id:** `cat-e-invoice-error-retry-report`
 
@@ -1781,7 +1785,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### GST Bill Number / Document Series Audit
+### R5009 GST Bill Number / Document Series Audit
 
 **Report id:** `cat-gst-bill-number-document-series-audit`
 
@@ -1795,7 +1799,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### GST Document Tax Detail
+### R5007 GST Document Tax Detail
 
 **Report id:** `cat-gst-document-tax-detail`
 
@@ -1809,7 +1813,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### GSTR-1 B2B / B2C Summary
+### R5002 GSTR-1 B2B / B2C Summary
 
 **Report id:** `cat-gstr-1-b2b-b2c-summary`
 
@@ -1823,7 +1827,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### GSTR-1 HSN Summary
+### R5001 GSTR-1 HSN Summary
 
 **Report id:** `cat-gstr-1-hsn-summary`
 
@@ -1837,7 +1841,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### HSN Tax Summary
+### R5008 HSN Tax Summary
 
 **Report id:** `cat-hsn-tax-summary`
 
@@ -1851,7 +1855,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### IRN Portal Manual Upload Report
+### R5003 IRN Portal Manual Upload Report
 
 **Report id:** `cat-irn-portal-manual-upload-report`
 
@@ -1867,7 +1871,7 @@ open the right page.
 
 ## HR
 
-### Attendance Summary
+### R8018 Attendance Summary
 
 **Report id:** `attendance-summary`
 
@@ -1880,7 +1884,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Payroll Reconciliation (gross to bank to GL)
+### R8017 Payroll Reconciliation (gross to bank to GL)
 
 **Report id:** `payroll-reconciliation`
 
@@ -1895,7 +1899,7 @@ open the right page.
 
 ## HRMS
 
-### Attendance Register
+### R8002 Attendance Register
 
 **Report id:** `cat-attendance-register`
 
@@ -1910,7 +1914,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Attrition Report
+### R8011 Attrition Report
 
 **Report id:** `cat-attrition-report`
 
@@ -1923,7 +1927,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Employee Loan / Advance Register
+### R8009 Employee Loan / Advance Register
 
 **Report id:** `cat-employee-loan-advance-register`
 
@@ -1937,7 +1941,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Employee Master Register
+### R8001 Employee Master Register
 
 **Report id:** `cat-employee-master-register`
 
@@ -1952,7 +1956,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Employee Role / Access Mapping
+### R8016 Employee Role / Access Mapping
 
 **Report id:** `cat-employee-role-access-mapping`
 
@@ -1965,7 +1969,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Headcount Summary
+### R8010 Headcount Summary
 
 **Report id:** `cat-headcount-summary`
 
@@ -1978,7 +1982,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Late / Overtime Report
+### R8003 Late / Overtime Report
 
 **Report id:** `cat-late-overtime-report`
 
@@ -1993,7 +1997,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Leave Register
+### R8004 Leave Register
 
 **Report id:** `cat-leave-register`
 
@@ -2008,7 +2012,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Onboarding Checklist
+### R8013 Onboarding Checklist
 
 **Report id:** `cat-onboarding-checklist`
 
@@ -2022,7 +2026,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Payroll Register
+### R8006 Payroll Register
 
 **Report id:** `cat-payroll-register`
 
@@ -2036,7 +2040,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Performance Review Summary
+### R8014 Performance Review Summary
 
 **Report id:** `cat-performance-review-summary`
 
@@ -2050,7 +2054,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Salary Component Detail
+### R8007 Salary Component Detail
 
 **Report id:** `cat-salary-component-detail`
 
@@ -2064,7 +2068,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Shift / Roster Report
+### R8005 Shift / Roster Report
 
 **Report id:** `cat-shift-roster-report`
 
@@ -2078,7 +2082,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Statutory Deduction Summary
+### R8008 Statutory Deduction Summary
 
 **Report id:** `cat-statutory-deduction-summary`
 
@@ -2092,7 +2096,7 @@ open the right page.
 
 **Drill-down:** no.
 
-### Training / Certification Register
+### R8015 Training / Certification Register
 
 **Report id:** `cat-training-certification-register`
 

@@ -202,6 +202,14 @@ func PostDoubleEntryTx(tx *sql.Tx, tenantID, schema string, docType string, docI
 	}
 
 	if postingKey != "" {
+		// Stage 135.19: the key is not a unique index, so two transactions
+		// posting it at once could both find it absent and both insert. The
+		// lock (held to commit) makes the second wait, then see the first's
+		// rows and stop - one posting per key, whether or not the caller
+		// locked its document.
+		if _, err := tx.Exec(`SELECT pg_advisory_xact_lock(hashtext($1))`, "gl:"+schema+":"+postingKey); err != nil {
+			return err
+		}
 		var alreadyPosted bool
 		if err := tx.QueryRow(fmt.Sprintf(
 			`SELECT EXISTS(SELECT 1 FROM %s.gl_postings WHERE idempotency_key = $1)`, schema), postingKey).Scan(&alreadyPosted); err != nil {

@@ -2,6 +2,7 @@ package engines
 
 import (
 	"custom_erp/db"
+	"database/sql"
 	"fmt"
 )
 
@@ -183,4 +184,37 @@ func FilterFieldMetaForRole(tenantID, role, doctype string, fields []FieldMeta) 
 		out = append(out, field)
 	}
 	return out, nil
+}
+
+// RoleMayOnDoctype is the record-type permission check (role_permissions):
+// may this role read, create, update or delete this doctype at all. A role
+// with full access may; a role with no row may not. The HTTP layer's
+// checkPermission and the CSV import (Stage 49.3.4) both ask it here.
+func RoleMayOnDoctype(tenantID, role, doctype, action string) (bool, error) {
+	if HasFullAccess(role) {
+		return true, nil
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return false, err
+	}
+	column := ""
+	switch action {
+	case "read":
+		column = "allow_read"
+	case "create":
+		column = "allow_create"
+	case "update":
+		column = "allow_update"
+	case "delete":
+		column = "allow_delete"
+	default:
+		return false, fmt.Errorf("invalid permission action: %s", action)
+	}
+	var allowed bool
+	err = db.DB.QueryRow(fmt.Sprintf("SELECT COALESCE(%s, false) FROM %s.role_permissions WHERE role = $1 AND doctype_name = $2", column, schema), role, doctype).Scan(&allowed)
+	if err == sql.ErrNoRows {
+		return false, nil // default: deny if no mapping rule exists
+	}
+	return allowed, err
 }

@@ -7,13 +7,13 @@
 > **Generated 2026-09-10.** This page is produced from `docs/micro_checklist.md` open items, `docs/product/erp-build-checklist.md` JRN table, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-BLD-002: the 314 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
+BLD-002: the 336 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
 
 | Journey | Reference configuration | Owner | Open | Needs decision | Blocked |
 |---|---|---|---:|---:|---:|
 | JRN-01 POS/store | REF-RETAIL-IN | Store/finance; 47.2–47.4/47.6, Stage 31 | 9 | 2 | 0 |
 | JRN-02 OMS/order-to-cash | REF-RETAIL-IN, REF-WAREHOUSE-IN | OMS/operations; Stage 35 | 2 | 0 | 1 |
-| JRN-03 returns/refunds | REF-RETAIL-IN | Finance/store; 47.3/49.5 | 8 | 0 | 0 |
+| JRN-03 returns/refunds | REF-RETAIL-IN | Finance/store; 47.3/49.5 | 8 | 1 | 0 |
 | JRN-04 inventory | REF-RETAIL-IN, REF-WAREHOUSE-IN | Inventory controller; Stage 36/47.5 | 19 | 0 | 1 |
 | JRN-05 WMS | REF-WAREHOUSE-IN | Warehouse owner; Stage 36/47.6 | 0 | 0 | 0 |
 | JRN-06 warehouse billing/3PL | REF-WAREHOUSE-IN | Warehouse/finance; 47.5; mixed owner excluded | 0 | 0 | 0 |
@@ -31,12 +31,14 @@ BLD-002: the 314 open checklist items reconciled into the business journeys they
 | JRN-18 expenses | deferred - outside both | Finance/employee owner; existing expenses scope | 0 | 0 | 0 |
 | JRN-19 projects/service | deferred - outside both | Service/project owner; Experimental scope preserved | 0 | 0 | 0 |
 | JRN-20 reports/analysis | REF-RETAIL-IN, REF-WAREHOUSE-IN | Data/finance/QA; 26.10/47.10 | 1 | 0 | 0 |
-| JRN-21 platform/integrations | REF-RETAIL-IN, REF-WAREHOUSE-IN | Integrator/security; Stage 38/49.8 | 21 | 1 | 0 |
-| JRN-22 identity/approval/audit | REF-RETAIL-IN, REF-WAREHOUSE-IN | Tenant admin/security; 47.1/47.7/Stage 49 | 94 | 11 | 0 |
-| JRN-23 knowledge/implementation | REF-RETAIL-IN, REF-WAREHOUSE-IN | Documentation/implementation; Stage 39/47.15/48.7 | 36 | 0 | 1 |
-| Cross-journey acceptance and audits | - | - | 75 | 4 | 8 |
-| Engineering housekeeping | - | - | 17 | 4 | 0 |
-| Unmapped - place these stages | - | - | 0 | 0 | 0 |
+| JRN-21 platform/integrations | REF-RETAIL-IN, REF-WAREHOUSE-IN | Integrator/security; Stage 38/49.8 | 21 | 2 | 0 |
+| JRN-22 identity/approval/audit | REF-RETAIL-IN, REF-WAREHOUSE-IN | Tenant admin/security; 47.1/47.7/Stage 49 | 93 | 14 | 0 |
+| JRN-23 knowledge/implementation | REF-RETAIL-IN, REF-WAREHOUSE-IN | Documentation/implementation; Stage 39/47.15/48.7 | 34 | 0 | 1 |
+| Cross-journey acceptance and audits | - | - | 70 | 3 | 8 |
+| Engineering housekeeping | - | - | 15 | 3 | 0 |
+| Unmapped - place these stages | - | - | 32 | 1 | 0 |
+
+**Unmapped:** Stage 140 (28), Stage 141 (4) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
 
 ## JRN-01 POS/store
 
@@ -63,7 +65,7 @@ BLD-002: the 314 open checklist items reconciled into the business journeys they
 - **49.5.3** Workflow transition enforcement
 - **49.5.4** Abuse/fraud patterns
 - **49.5.5** Trusted totals and reconciliation
-- **49.5.6** Safe overrides
+- **49.5.6** Safe overrides *(decision)*
 - **49.5.7** Adversarial invariant tests
 
 ## JRN-04 inventory
@@ -145,7 +147,7 @@ BLD-002: the 314 open checklist items reconciled into the business journeys they
 - **49.8.2** Import/export safety
 - **49.8.5** Connector credential and scope
 - **49.8.6** Job/outbox boundary
-- **49.8.7** Egress and external-side-effect control
+- **49.8.7** Egress and external-side-effect control *(decision)*
 - **49.8.8** Integration abuse lab
 - **56.1** Boot on Railway with the security baseline in warn mode
 - **56.2** SB-015 — encrypted database link
@@ -170,13 +172,13 @@ BLD-002: the 314 open checklist items reconciled into the business journeys they
 - **49.0** Security charter, threat model and accountable risk register
 - **49.0.6** Risk register and acceptance authority *(decision)*
 - **49.2** Identity, authentication, recovery and machine identity
-- **49.2.1** Identity lifecycle
+- **49.2.1** Identity lifecycle *(decision)*
 - **49.2.3** MFA assurance tiers
 - **49.2.6** Machine/service identities
 - **49.2.7** OAuth2/API-key convergence
 - **49.3** Deny-by-default authorization, tenant isolation and segregation of duties
 - **49.3.1** One authorization contract
-- **49.3.2** No confused-deputy path
+- **49.3.2** No confused-deputy path *(decision)*
 - **49.3.3** Database isolation defense
 - **49.3.4** Object/field/action negative matrix
 - **49.3.5** SoD and maker-checker invariants
@@ -206,7 +208,7 @@ BLD-002: the 314 open checklist items reconciled into the business journeys they
 - **49.10.5** Resource-exhaustion tests
 - **49.10.6** Insider/red-team scenarios
 - **49.10.7** Independent penetration test and retest
-- **49.10.8** Finding discipline
+- **49.10.8** Finding discipline *(decision)*
 - **49.11** Security events, tamper evidence, detection and response-ready observability
 - **49.11.1** Event taxonomy
 - **49.11.2** High-quality event schema
@@ -254,7 +256,6 @@ BLD-002: the 314 open checklist items reconciled into the business journeys they
 - **49.18.1** Per-control before/after measurement:
 - **49.18.2** Bounded state everywhere
 - **49.18.7** Multi-year forecast and cleanup drill
-- **49.18.8** Cache the three lookups every request makes
 - **92.1** The submitter may approve or reject their own document
 - **92.2** Flows whose whole point is a second admin keep it, whatever the setting:
 - **92.3** My work → Approvals shows you your own submissions
@@ -295,8 +296,6 @@ BLD-002: the 314 open checklist items reconciled into the business journeys they
 - **83.2** Working-store switcher in the top bar
 - **91.4** Run it on app.wholeops.in and minn.wholeops.in *(blocked)*
 - **124.1** PO setup guide
-- **128.5** The first workbooks: app and minn
-- **128.5.1** Guide applies the workbooks on minn, then app
 - **138.1** Remove the product switcher
 
 ## Cross-journey acceptance and audits
@@ -320,7 +319,6 @@ BLD-002: the 314 open checklist items reconciled into the business journeys they
 - **50.17** Validate implemented ERP breadth end to end
 - **50.18** Decide optional domain expansion
 - **50.19** Scoped release and customer handoff
-- **50.20** BLD-045's three load-time follow-ups
 - **55.0F** Functional audit and repair gate
 - **55.2** Shared shell/list/form/Help contract
 - **55.3** Core/master data/industry setup
@@ -367,14 +365,10 @@ BLD-002: the 314 open checklist items reconciled into the business journeys they
 - **134.11** Railway staging *(blocked)*
 - **135.8** One connected organization, end to end
 - **135.9** Phases P02-P12 stay with their owners
-- **135.10** Decisions for the user *(decision)*
-- **135.12** Price List Version is in neither guide, and has no Submit for Approval action
-- **135.13** channel-connectors.md Shopify section may be stale
 - **135.15** Knowledge Center: a bullet's wrapped line falls out of its list
-- **135.16** Stock writers outside the posting choke point
-- **135.17** No check that store sub-locations add up
-- **135.18** A till can sell units held for an online order *(decision)*
-- **135.19** Concurrent production issue / finish, and the GL key
+- **135.24** A step GRN with a vendor credit note overpays by the note
+- **135.25** One marketplace order can be settled under two settlement IDs *(decision)*
+- **135.26** Two postings still commit apart from their document
 - **136.3** Production link rejections: Vendor on Product Family, Legal Entity on Location
 
 ## Engineering housekeeping
@@ -391,8 +385,41 @@ BLD-002: the 314 open checklist items reconciled into the business journeys they
 - **132.14** Guide as the client set-up operator
 - **132.15** What the ERP could add for Guide (to release)
 - **132.16** Future: a text helper that sets a client up
-- **132.18** Guide 100% ready
-- **132.19** The server's clock: prod dates by UTC *(decision)*
-- **132.20** The open Guide decisions, taken
+- **132.22** Finished goods came into stock with no cost
 - **132.3** Configuration screens
 - **132.4** Whole ERP, every screen and form, each role; production read-only pass when the user says
+
+## Unmapped
+
+- **140.12.1** Till close leaves cash advances out of expected cash
+- **140.12.2** X-report shows advance redemptions as "Gift Card"
+- **140.12.3** A return against a credit invoice is valued at 0
+- **140.12.4** A credit invoice moves no stock and books no cost of goods
+- **140.12.5** Customer receipts always go to cash
+- **140.12.6** Advances only at the till
+- **140.12.7** The customer ledger tells half the story
+- **140.12.8** Small sales gaps
+- **140.12.9** A Cashier can post and settle sales invoices
+- **140.12.10** A Cashier reads the whole trial balance through the report
+- **140.12.11** A till's cash shortage or excess never reaches the GL
+- **140.12.12** Accounts automation: card / UPI clearing
+- **140.12.13** No Day Book and no Z-report
+- **140.12.14** Period close does not look at tills
+- **140.12.15** A wave-picked order cannot be packed or billed
+- **140.12.16** Return check cannot find a shipped OMS order
+- **140.12.17** An own-website order without a connector stays in Push problems
+- **140.12.18** RTO and OMS returns need their own screens
+- **140.12.19** Picked units show up again as "waiting for put-away"
+- **140.12.20** Pickers do not see the rack
+- **140.12.21** Warehouse setup friction
+- **140.12.22** Ready-made Shopify, Amazon and Myntra templates
+- **140.12.23** A template cannot use one field in two columns
+- **140.12.24** Feed export limits
+- **140.12.25** Merchandisers cannot set up PIM
+- **140.12.26** WhatsApp and SMS are not ready on app
+- **140.12.27** Decisions from customer data
+- **140.13.1** Release, deploy, re-run Guide on app
+- **141.1** Where the Wholeops logo sits when a client's brand is on *(decision)*
+- **141.2** Real mockup images before building 141.1
+- **141.3** Refresh bugs
+- **141.4** Rate limit experience

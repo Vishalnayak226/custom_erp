@@ -24,13 +24,23 @@ import (
 // wants real delivery). ERP_DISABLE_EXTERNAL_SIDE_EFFECTS=1 is the emergency
 // kill switch and wins even in production.
 func ExternalSideEffectsEnabled() bool {
-	if os.Getenv("ERP_DISABLE_EXTERNAL_SIDE_EFFECTS") == "1" {
-		return false
-	}
-	if os.Getenv("ENV") == "production" {
-		return true
-	}
-	return os.Getenv("ERP_ENABLE_EXTERNAL_SIDE_EFFECTS") == "1"
+	return !ExternalSideEffectsKilled() && externalSideEffectsByEnvironment()
+}
+
+// externalSideEffectsByEnvironment is the environment's part on its own:
+// production, or a non-production run opted in (49.8.7a's connector gate
+// needs it apart from the emergency switch, which stops writes only there).
+func externalSideEffectsByEnvironment() bool {
+	return os.Getenv("ENV") == "production" || os.Getenv("ERP_ENABLE_EXTERNAL_SIDE_EFFECTS") == "1"
+}
+
+// ExternalSideEffectsKilled is the emergency switch on its own (49.8.7).
+// Connectors, couriers and extension hooks (outsideCallRefusal,
+// engines/outside_calls.go) read it apart from the rest: under it their
+// writes stop, while their reads still go so orders and tracking can be
+// reconciled.
+func ExternalSideEffectsKilled() bool {
+	return os.Getenv("ERP_DISABLE_EXTERNAL_SIDE_EFFECTS") == "1"
 }
 
 // EnvironmentBanner returns a short human string describing this instance's
@@ -41,10 +51,16 @@ func EnvironmentBanner() string {
 	if env == "" {
 		env = "development"
 	}
-	if ExternalSideEffectsEnabled() {
-		return fmt.Sprintf("LIVE (ENV=%s) - real email/webhook/ops-alert side effects are enabled", env)
+	// 49.8.7a: connectors, couriers and extension hooks follow the same
+	// switches as email and webhooks, and each client has its own
+	// Outside calls setting on top.
+	if ExternalSideEffectsKilled() {
+		return fmt.Sprintf("KILLED (ENV=%s) - ERP_DISABLE_EXTERNAL_SIDE_EFFECTS=1: no email, webhook, hook, ops alert or connector/courier write leaves this server; connector and courier reads still run", env)
 	}
-	return fmt.Sprintf("SIMULATED (ENV=%s) - email/webhook/ops-alert side effects are OFF; set ERP_ENABLE_EXTERNAL_SIDE_EFFECTS=1 to opt in", env)
+	if ExternalSideEffectsEnabled() {
+		return fmt.Sprintf("LIVE (ENV=%s) - outside calls are on: email, webhooks, extension hooks, connectors, couriers and ops alerts (a client can switch its own off: Platform > Outside calls)", env)
+	}
+	return fmt.Sprintf("SIMULATED (ENV=%s) - outside calls are OFF: email, webhooks, extension hooks, connectors, couriers and ops alerts (calls to localhost still go); set ERP_ENABLE_EXTERNAL_SIDE_EFFECTS=1 to opt in", env)
 }
 
 // LogEnvironmentBanner prints the banner once at startup, before any

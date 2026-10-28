@@ -175,7 +175,7 @@ Sections 1-6 are about the service being up. This section is for someone **attac
 ### 7.5 Malicious connector, webhook or poison job
 
 - **Signs:** *Background jobs giving up*; a webhook burst in the integration log.
-- **Contain:** disconnect the connector (Integrations); `ERP_DISABLE_EXTERNAL_SIDE_EFFECTS=true` stops every outbound effect on the server. Do not retry a poison job in a loop - Activity Log → Async Jobs shows it; fix the cause first.
+- **Contain:** disconnect the connector (Integrations); `ERP_DISABLE_EXTERNAL_SIDE_EFFECTS=1` (exactly `1`, then restart) stops every outbound effect on the server - email, webhooks, notification webhooks, phone alerts, CRM sends, extension hooks (a before-save hook then stops the save) and every connector or courier write (it waits, Queued, with CONN-0225); connector and courier reads still run so orders and tracking can be reconciled. For **one client** only: **Settings → Configuration → Platform → Outside calls** Off does the same for that client, no restart (password-reset mail and ops alerts still go). Do not retry a poison job in a loop - Activity Log → Async Jobs shows it; fix the cause first.
 - **Recover:** reconnect with a new credential; replay only the jobs you have read.
 
 ### 7.6 Data leaving (export burst)
@@ -187,9 +187,9 @@ Sections 1-6 are about the service being up. This section is for someone **attac
 
 ### 7.7 Till fraud
 
-- **Signs:** *Many cancels, voids or price overrides by one user*.
+- **Signs:** *Many cancels, voids or price overrides by one user*; *Many returns by one user*; *Many large bill discounts by one cashier*; *Many sales sent as offline by one cashier* (an offline sale skips the stock floor and the high-value cash check, so one sent while the till was online is a red flag).
 - **Contain:** the store manager reviews the bills with the cashier before the till closes; sign the cashier out if it continues.
-- **Keep:** the POS_BILL_CANCELLED / POS_SALE_VOIDED / POS_PRICE_OVERRIDE rows and the till session report.
+- **Keep:** the POS_BILL_CANCELLED / POS_SALE_VOIDED / POS_PRICE_OVERRIDE rows, the return requests, the bills with their discount reasons, and the till session report.
 
 ### 7.8 Audit evidence failed or stopped
 
@@ -231,3 +231,9 @@ Write one record per incident in a private incident folder - never in this repos
 | Closed when | every change item is done and verified |
 
 Blameless: the record asks what let it happen, not who. A reusable lesson goes into the right test, detection rule or runbook section without the incident's evidence.
+
+### 7.13 Finance and stock fraud (49.5.4)
+
+- **Signs:** *A vendor paid soon after its bank account changed* (urgent); *The same vendor invoice entered twice*; *Documents split to stay under an approval limit*; *A closed accounting period was reopened*; *An approval rule was deleted*; *Many configuration changes by one person*; *Many stock adjustments by one user*; *Many sales below zero stock at one store*.
+- **Contain:** bank change: hold further payments to that vendor and confirm the new account by calling the vendor on a number from an older bill, never one from the change request; if it is not theirs, ask the bank to recall the transfer at once. Duplicate bill: cancel the later one before it is paid. Split: send the pieces for the approval their total needs. Approval rule deleted or settings changed: put back what you did not expect. Stock: recount a few of the items before more adjustments post.
+- **Keep:** the EDIT_Vendor and PAY_VENDOR_INVOICE / GRN_VENDOR_PAYMENT rows, the bills and documents the alert names, the PERIOD_REOPENED / DELETE_APPROVAL_RULE / SETTINGS rows, the adjustment documents and the negative-stock records.

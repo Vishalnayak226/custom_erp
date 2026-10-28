@@ -19,11 +19,39 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **192** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **198** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
-- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-16
+- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-17
+
+## 2026-10-28
+
+**Stage 135.21-135.26 — every posting under its document's lock; provisioning seeds stock locations; PIM publishes to Shopify linked** *(code + tests + docs, NOT COMMITTED - held in release/hold.txt)*
+
+The user: *"Yes, Acknowledged all as recommened"* - build 135.21 and 135.23, route Shopify channels in PIM Publish through the Shopify page (135.22), and the 135.10 / 135.18 answers confirmed. Item detail: micro_checklist 135.21-135.26.
+
+**Stage 140 — Guide runs the whole organisation cycle on app as user, BA, audit, accounts and customer** *(live run + docs; no ERP code changed)*
+
+The user asked Guide to go through every module as each kind of user, on app.wholeops.in, and to end with two documents: the process, and the enhancements filed in the tracker module by module. Guide got a new suite, `orgcycle`, for the cycles its existing suites did not cover: a customer's sales, advances, credit invoices, receipts, credit note and return; a website order through Accept, rack pick, label, handover and an OMS return; Shopify, Amazon and Myntra templates; CRM segment and campaign; and a before-and-after reconciliation of every report that ties to the GL. Each cycle was rehearsed on a local copy of 0.18.0 until only real findings were left. The user then approved the listed writes, and Guide ran `orgcycle`, HR and the procurement / quality / service flows on the test store, and finally all 421 reports.
+
+## 2026-10-27
+
+**The approved follow-ups: one statement per request, a lighter font, eight list columns; 0.18.0 released and deployed** *(code + tests + docs, NOT COMMITTED)*
+
+The user approved the §296 batch and its five open decisions. The batch shipped in 0.18.0 (`9a008cf`), with the parallel sessions' finished work, and was deployed to app and minn after a verified backup. Before the deploy, the data-change scan learned a check it had missed: a background sweep that starts deleting a table it never touched (the retention sweep had gained three) now counts as a data change. Release G9 and Deploy D1 both list it, and the deploy waits for YES. The user answered YES.
+
+**"Build next 20 items": fourteen Stage 47 / 49 slices** *(code + tests + docs, NOT COMMITTED - held in release/hold.txt)*
+
+The user: *"Build next 20 items"*, then *"go ahead"*. Stages 47 / 49 / 50 had no unblocked item left in tracker order, so the run took the six not-started Stage 135 findings and the fourteen Stage 47 / 49 items earlier runs had passed over. Item detail: micro_checklist header of 2026-10-27 and each item's entry.
+
+**Stage 135.10-135.22 — decisions, stock integrity and locking** *(code + tests + docs, NOT COMMITTED - held in release/hold.txt)*
+
+The user: *"Build all. All recommended one is approved"* - the open Stage 135 items, with the recommended answers to 135.10 and 135.18. Item detail: micro_checklist 135.10-135.22.
+
+**Stage 128.5.1 — minn and app configured from their Setup Workbooks** *(live data through Guide + one engine fix, fix released and deployed in 0.18.0 `9a008cf`)*
+
+The user asked for minn's complete setup, then app's, with a record of what was done in an .md file (`Downloads\MansoorBusiness\client-setup-minn-and-app.md`). Item detail: micro_checklist 128.5.1.
 
 ## 2026-10-26
 
@@ -31,7 +59,7 @@ Newest first. Earlier entries continue on:
 
 The user asked for ERP shortcuts done the easy, best-practice way, a number for every report, and what else would make transactions easier. The plan (`docs/product/shortcuts-plan-2026-10-26.md`) was approved with "Build all of the above", with the shortcuts written up properly in the user help. Item detail: micro_checklist Stage 139.
 
-**"Build next 20 open items": Stage 49 finished, Stage 50's buildable packages** *(code + tests + docs, NOT COMMITTED - held in release/hold.txt)*
+**"Build next 20 open items": Stage 49 finished, Stage 50's buildable packages** *(code + tests + docs, released in 0.18.0 `9a008cf` and deployed 2026-10-27)*
 
 The user asked for the next 20 open items. They were taken in tracker order after 49.17.4: the eleven left in Stage 49, then Stage 50's work packages that need no decision, host or real users (BLD-002, 028, 029, 032, 041, 044, 045, 053, 055). Four are fully done (49.18.3-49.18.6); the rest are built, with what is left written on each. Two packages (BLD-041 print pass, BLD-045 load time) ran as background agents. Release 0.17.0 (session erp-18) shipped while this was in progress, with this batch held.
 
@@ -440,22 +468,4 @@ Executed the build checklist's next-thread prompt from §156: BLD-001's isolated
 **Stage 50 build checklist and new-thread handoff** *(planning only)*
 
 Prepared the detailed build and acceptance checklist at the user's request: 60 work packages in ten dependency-ordered waves, 23 business reference journeys and eight explicit candidate-domain decisions. Each work package identifies responsible roles, readiness/prerequisites, implementation scope and observable closure criteria. All 136 audit controls, nine defects, two verification findings, twelve package proposals, eight performance proposals and twelve Stage 48 parent gates are mapped. The live TODO now links the detailed queue through 50.11–50.19 and records only checklist preparation as complete (50.6b).
-
-**Stage 50.7 (partial) — AUD-01/AUD-02/AUD-05 fixed and verified** *(code + tests)*
-
-Three of the five release-impacting findings from §154's independent audit, each fixed at its actual root cause and verified against a live reproduction rather than by inspection alone. AUD-03/AUD-04 (deploy rollback / restart-failure recovery) are §151's active concurrent work and deliberately not touched here.
-
-## 2026-09-16
-
-**Stage 47.16.5 (partial) + 49.6.2 upgrade — automated payment-card-data scanner** *(code + tests)*
-
-Closes the technical half of 47.16.5 ("automated schema/log/attachment checks prohibit full PAN/CVV/PIN/track data") by extending 49.1.4's existing no-bypass scanner (`internal/securityscan/bypass.go`) with a new `payment-card-data` category, rather than building a second scanning mechanism — the same reuse-the-choke-point reasoning every prior Stage 49 item in this tree already follows. Matches card-PAN/CVV/track-data/PIN-block field and struct-tag shapes; deliberately excludes bare `pan`/`pan_number` because `engines/field_formats.go`'s `panPattern` is India's unrelated Income Tax PAN, a real field this codebase legitimately stores in the clear — a scanner that confused the two would either miss card data hidden behind a `pan_number`-style rename or produce a false positive on every GST-related doctype.
-
-**Stage 49.14 (partial) — secure human operations, support, devices, anti-social-engineering** *(docs only)*
-
-Closes 49.14.1 (plain-language/non-enumerating security UX — verified as the codebase's existing consistent convention, not newly introduced) and 49.14.4 (support has no invisible backdoor — proven by 49.1.4's already-executed bypass scanner, plus `engines/admin_password_reset.go`'s guided-diagnostics-over-impersonation pattern). Parent 49.14 stays open: 49.14.2 partial (49.2.4's dual-control/reauthentication half is built, the preview/diff/typed-confirmation half stays 49.3.6's unbuilt job); 49.14.3/49.14.5/49.14.6/49.14.7/49.14.8 each honestly not built, tied to a named product/security decision or a prerequisite (47.6.6's physical hardware, 49.2.1's identity lifecycle, 49.9.7's signing key, or simply a second person existing on what is today a single-contributor project) rather than to missing effort.
-
-**Deploy auto-rollback — deploy.ps1/remote_deploy.sh** *(tooling only)*
-
-Prompted by the user asking why the ERP wasn't opening: it wasn't actually down (verified `app.wholeops.in` live, 200, no console errors), but the screenshot they'd captured matched exactly the environment-caveat banner text baked into the currently-running `0e79425` binary, rendered with none of its CSS applied — consistent with the documented 2026-09-13 incident (`docs/ai_handover.md` §6) where a deploy hit `security_baseline.go`'s fail-fast gate, crash-looped the box for ~90s, and was rolled back **by hand** over SSH because `deploy.ps1` had no rollback logic at all. The user's actual ask: deploys must never leave the box broken unattended — auto-rollback on failure, always.
 

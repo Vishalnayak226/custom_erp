@@ -772,7 +772,12 @@ func crmEraseCustomer(schema, customerID string, data map[string]interface{}) er
 	if _, err := tx.Exec(fmt.Sprintf(`DELETE FROM %s.crm_conversation_messages WHERE conversation_id IN (SELECT id FROM %s.crm_conversations WHERE customer_id = $1)`, schema, schema), customerID); err != nil {
 		return err
 	}
-	tid, _ := tenantIDForSchema(schema)
+	// Stage 49.3.2: the client's own hash key, never the default client's -
+	// a suppression hashed with the wrong key never matches again.
+	tid, errTenant := tenantIDForSchema(schema)
+	if errTenant != nil {
+		return errTenant
+	}
 	for _, h := range crmPhoneHashes(tid, strField(data, "phone")) {
 		if err := crmSuppress(tx, schema, "phone", h, "erased"); err != nil {
 			return err

@@ -239,8 +239,9 @@ func sendDashboardDigestMail(tenantID, to, name, body, csvText string) (sent boo
 	if host == "" {
 		return false, ErrMailNotConfigured
 	}
-	if sandbox, _ := IsSandboxTenant(tenantID); sandbox || !ExternalSideEffectsEnabled() {
-		log.Printf("[DASHBOARD_DIGEST] email simulated (sandbox or side effects off): %q to %d recipient(s)", name, len(recipients))
+	ok, reason := OutsideCallsAllowedForTenant(tenantID) // 49.8.7a
+	if sandbox, _ := IsSandboxTenant(tenantID); sandbox || !ok {
+		log.Printf("[DASHBOARD_DIGEST] email simulated (%s): %q to %d recipient(s)", firstNonEmpty(reason, "sandbox client"), name, len(recipients))
 		return false, nil
 	}
 	port := os.Getenv("SMTP_PORT")

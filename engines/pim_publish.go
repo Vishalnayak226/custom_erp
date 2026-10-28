@@ -20,7 +20,9 @@ import (
 // calls its PublishProduct with the channel's stored credential. A channel
 // with no platform, "Generic" or an unrecognised one falls back to the stub
 // connector, which makes no outbound call and returns a fabricated
-// STUB-<item> external id - a stated fallback, not a real publish. Events
+// STUB-<item> external id - a stated fallback, not a real publish. A
+// Shopify channel goes through the Shopify page's publish instead
+// (publishOneShopifyJob, Stage 135.22), so its product is linked. Events
 // reuse the existing outbox (engines.PublishEvent, engines/outbox.go)
 // rather than a new system.
 
@@ -417,7 +419,14 @@ func processPublishQueue(schema string) {
 			continue
 		}
 
-		externalID, payload, publishErr := publishOneJob(tenantID, schema, connector, j.itemCode, j.channelCode)
+		var externalID string
+		var payload *ChannelProductPayload
+		var publishErr error
+		if strings.EqualFold(platform, "Shopify") {
+			externalID, payload, publishErr = publishOneShopifyJob(tenantID, schema, j.itemCode, j.channelCode)
+		} else {
+			externalID, payload, publishErr = publishOneJob(tenantID, schema, connector, j.itemCode, j.channelCode)
+		}
 		// CONN-0225 (Stage 25.6): a circuit-breaker-open error is the same
 		// shape as the allowConnectorCall rate-limit check just above - a
 		// transient, this-platform-is-busy-right-now condition, not a real
@@ -507,10 +516,42 @@ func publishOneJob(tenantID, schema string, connector ChannelConnector, itemCode
 		cred = map[string]string{}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(withOutsideCallsSchema(context.Background(), schema), 20*time.Second) // 49.8.7a
 	defer cancel()
 	externalID, err = connector.PublishProduct(ctx, cred, *payload)
 	return externalID, payload, err
+}
+
+// publishOneShopifyJob (Stage 135.22) sends an item on a Shopify channel the
+// way the Shopify page does: its design as one product with all its
+// variants, or the item alone, linked in shopify_links so price and stock
+// sync reach it and a re-publish updates the same product. The connector's
+// PublishProduct sends no product id, so it made a second, unlinked product
+// on every publish. The payload is still built and returned for the publish
+// log and the diff preview.
+func publishOneShopifyJob(tenantID, schema, itemCode, channelCode string) (string, *ChannelProductPayload, error) {
+	payload, err := BuildChannelPayload(tenantID, itemCode, channelCode)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to build channel payload: %v", err)
+	}
+	code := itemCode
+	var design string
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(NULLIF(data->>'family', ''), data->>'parent_product_code', '') FROM %s.documents WHERE doctype = 'Item' AND id = $1`, schema), itemCode).Scan(&design)
+	if design != "" {
+		code = design
+	}
+	ctx, cancel := context.WithTimeout(withOutsideCallsSchema(context.Background(), schema), 60*time.Second) // 49.8.7a
+	defer cancel()
+	res, err := PublishToShopify(ctx, tenantID, channelCode, []string{code}, "pim-publish")
+	if err != nil {
+		return "", payload, err
+	}
+	if len(res.Errors) > 0 {
+		return "", payload, fmt.Errorf("%s", strings.Join(res.Errors, "; "))
+	}
+	var productGID string
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT product_gid FROM %s.shopify_links WHERE channel = $1 AND sku = $2`, schema), channelCode, itemCode).Scan(&productGID)
+	return productGID, payload, nil
 }
 
 // PreviewChannelDiff (Stage 26.4.7: "per-channel diff preview before
@@ -663,7 +704,7 @@ func PullChannelState(tenantID, itemCode, channelCode string) (*ChannelDiffPrevi
 	if credErr != nil {
 		cred = map[string]string{}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(WithOutsideCallsTenant(context.Background(), tenantID), 20*time.Second) // 49.8.7a
 	defer cancel()
 	live, err := reader.FetchProductState(ctx, cred, externalID)
 	if err != nil {

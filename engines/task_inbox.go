@@ -79,6 +79,12 @@ func ListTaskInbox(tenantID string, scope TaskInboxScope) (*TaskInbox, error) {
 			if createdBy != "" && createdBy == scope.UserID && !SubmitterMayDecideOwn(tenantID, doctype, scope.Role) {
 				continue // maker-checker: someone else decides this one
 			}
+			// Stage 49.3.5: nor one they changed or sent for approval.
+			if scope.UserID != "" && !SubmitterMayDecideOwn(tenantID, doctype, scope.Role) {
+				if made, _ := madeApprovalRound(db.DB, schema, doctype, id, scope.UserID); made {
+					continue
+				}
+			}
 			amount := DocumentBaseAmount(doc)
 			required, err := RequiredApproverRoleForAmount(tenantID, doctype, amount)
 			if err != nil || (!HasFullAccess(scope.Role) && required != scope.Role) {

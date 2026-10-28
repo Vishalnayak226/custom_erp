@@ -14,6 +14,11 @@ const { txnPagedSection, txnRestorePane, txnDone } = await import('./txn-screen.
 const storeModule = () => loadViewModule('/view-store.js?v=1');
 
 const esc = (s) => window.escapeHTMLText(String(s ?? ''));
+// Stage 49.2.1: blank until the account next signs in.
+const signInWhen = (v) => {
+  const d = v ? new Date(v) : null;
+  return d && !Number.isNaN(d.getTime()) ? d.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '';
+};
 
 // Stage 93.9 (user, 2026-10-18): "People should be mapped. I want to mapped
 // from day one." Every user has a department from the Department list, beside
@@ -87,9 +92,9 @@ export async function renderUsersView(container) {
   list.className = 'table-panel';
   list.innerHTML = `
     <table>
-      <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Home store</th><th>Department</th><th>Stores</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Home store</th><th>Department</th><th>Stores</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead>
       <tbody>${users.length === 0
-        ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No users yet. Use <b>+ New User</b> to add the first one.</td></tr>`
+        ? `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No users yet. Use <b>+ New User</b> to add the first one.</td></tr>`
         : users.map(u => `
         <tr>
           <td style="font-weight:600;">${esc(u.username)}</td>
@@ -99,6 +104,7 @@ export async function renderUsersView(container) {
           <td>${u.department ? esc(deptName(u.department)) : (u.role === 'Supplier' ? '' : '<span class="badge badge-warning">Not set</span>')}${u.employee_id ? ' <span style="color:var(--text-muted);">· from HR</span>' : ''}</td>
           <td>${isAdminRoleName(u.role) ? 'All stores' : esc(store.storeAccessSummary(u.store_access, u.stores))}</td>
           <td><span class="badge ${u.status === 'Active' ? 'badge-success' : 'badge-secondary'}">${esc(u.status)}</span></td>
+          <td style="white-space:nowrap;">${esc(signInWhen(u.last_sign_in_at))}</td>
           <td>
             <button class="action-btn" ${actionAttrs('editUserStores', [u.id, u.username])}>Stores</button>
             ${u.role === 'Supplier' ? '' : `<button class="action-btn" ${actionAttrs('editUserDepartment', [u.id, u.username, u.department || '', u.employee_id || ''])}>Department</button>`}

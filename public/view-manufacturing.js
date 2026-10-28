@@ -286,10 +286,17 @@ async function reportPartialProductionCompletion(orderId) {
     await showCustomAlert('Enter a positive quantity.', 'Invalid Quantity');
     return;
   }
-  const res = await apiFetch('/api/v1/manufacturing/partial-complete', {
+  const send = () => apiFetch('/api/v1/manufacturing/partial-complete', {
     method: 'POST',
     body: JSON.stringify({ order_id: orderId, qty })
   });
+  let res = await send();
+  if (res && !res.ok) {
+    // The batch that closes the order meets MFG-0276 too (49.5.6c).
+    const next = await acceptBOMChange(orderId, res);
+    if (next === 'stop') return;
+    if (next === 'retry') res = await send();
+  }
   if (!res) return;
   if (!res.ok) {
     await showApiError(res, 'Failed to report partial completion.', 'Partial Completion Failed');
@@ -652,23 +659,32 @@ async function completeProductionOrder(orderId) {
   });
   if (!res) return;
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
     // Stage 26.9.2 (MFG-0276): the BOM changed after material was issued -
-    // offer to acknowledge the variance and retry, rather than a dead end.
-    if (data.code === 'MFG-0276') {
-      const ack = await showCustomConfirm(data.error + ' Acknowledge the variance and complete anyway?', 'BOM Changed Since Issue');
-      if (ack) {
-        const ackRes = await apiFetch('/api/v1/manufacturing/acknowledge-bom-variance', {
-          method: 'POST', body: JSON.stringify({ order_id: orderId })
-        });
-        if (ackRes && ackRes.ok) {
-          return completeProductionOrder(orderId);
-        }
-      }
-      return;
-    }
+    // offer to accept the change and retry, rather than a dead end.
+    const next = await acceptBOMChange(orderId, res);
+    if (next === 'retry') return completeProductionOrder(orderId);
+    if (next === 'stop') return;
     await showApiError(res, 'Failed to complete production order.', 'Completion Failed');
     return;
   }
   renderView('manufacturing');
+}
+
+// acceptBOMChange answers MFG-0276 (the BOM changed since the material was
+// issued). Stage 49.5.6c: accepting it takes a reason and is audited.
+// Returns 'retry', 'stop', or 'other' for any other error.
+async function acceptBOMChange(orderId, res) {
+  const data = await res.clone().json().catch(() => ({}));
+  if (data.code !== 'MFG-0276') return 'other';
+  const reason = await showCustomPrompt('BOM changed since the material was issued. Reason to accept it:', '', 'BOM Changed');
+  if (!reason || !reason.trim()) return 'stop';
+  const ackRes = await apiFetch('/api/v1/manufacturing/acknowledge-bom-variance', {
+    method: 'POST', body: JSON.stringify({ order_id: orderId, reason: reason.trim() })
+  });
+  if (!ackRes) return 'stop';
+  if (!ackRes.ok) {
+    await showApiError(ackRes, 'Could not accept the BOM change.', 'BOM Changed');
+    return 'stop';
+  }
+  return 'retry';
 }

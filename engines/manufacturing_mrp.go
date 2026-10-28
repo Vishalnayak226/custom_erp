@@ -150,21 +150,8 @@ func GetActiveBOMForItem(tenantID, parentItem, asOfDate string) (string, error) 
 	return id, err
 }
 
-// AcknowledgeBOMVariance lets a user explicitly accept that the BOM changed
-// after a production order's material was issued (MFG-0276) and proceed to
-// completion anyway, rather than being permanently blocked.
-func AcknowledgeBOMVariance(tenantID, orderID, actorUserID string) error {
-	data, status, err := fetchProductionOrder(tenantID, orderID)
-	if err != nil {
-		return fmt.Errorf("production order not found: %v", err)
-	}
-	data["bom_variance_acknowledged"] = true
-	if err := saveProductionOrderStatus(tenantID, orderID, status, data); err != nil {
-		return err
-	}
-	LogAuditEvent(tenantID, actorUserID, "PRODUCTION_ORDER_BOM_VARIANCE_ACK", "SUCCESS", fmt.Sprintf("BOM variance acknowledged for production order %s", orderID))
-	return nil
-}
+// AcknowledgeBOMVariance (accepting a BOM change, MFG-0276) is an action with
+// a reason and an audit row since 49.5.6c - engines/production_bom_variance.go.
 
 // ============================================================
 // 26.9.4: Scrap/yield + co/by-product output
@@ -359,7 +346,18 @@ func ConfirmOperation(tenantID, orderID string, seq int, actorUserID string) (ca
 // ReportPartialCompletion below (explicit partial qty), so both stay
 // behaviorally identical for a simple order that completes in one call.
 func finishProductionQty(tenantID, orderID string, qty float64) error {
-	data, status, err := fetchProductionOrder(tenantID, orderID)
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	// Stage 135.19: one transaction under the order's row lock, so two
+	// completions at once cannot both count against the same balance.
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	data, status, err := lockProductionOrderTx(tx, schema, orderID)
 	if err != nil {
 		return fmt.Errorf("production order not found: %v", err)
 	}
@@ -424,26 +422,50 @@ func finishProductionQty(tenantID, orderID string, qty float64) error {
 	// Stage 60.4: backflush components are consumed now, in proportion to the
 	// quantity finished, in the same ledger posting as the finished goods - so
 	// a shortage refuses the completion rather than leaving stock half-moved.
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return err
-	}
 	consumed, err := backflushLines(tenantID, schema, location, data, qty)
 	if err != nil {
 		return err
 	}
 	items = append(items, consumed...)
+	// Stage 132.22: the finished good comes in at the cost of the material it
+	// used - its share of what was issued (the last completion takes what is
+	// left, so rounding never strands value) plus this completion's backflush.
+	// By-products come in at no cost, the main product carries it all.
+	backflushPaise, err := consumedValuePaiseTx(tx, schema, consumed)
+	if err != nil {
+		return fmt.Errorf("finished goods cost: %v", err)
+	}
+	issued := int64(numFromInterface(data["material_cost_paise"]))
+	allocated := int64(numFromInterface(data["material_cost_allocated_paise"]))
+	share := issued - allocated
+	if !willClose && orderQty > 0 && share > 0 {
+		if part := int64(math.Round(float64(issued) * qty / orderQty)); part < share {
+			share = part
+		}
+	}
+	if value := share + backflushPaise; value > 0 {
+		if err := upsertItemCostReceiptQ(tx, schema, parentItem, qty, value); err != nil {
+			return fmt.Errorf("finished goods cost: %v", err)
+		}
+	}
+	data["material_cost_allocated_paise"] = allocated + share
 	// Stage 132.18: the stock ledger names the order (it read "StockAdjustment", no document).
-	if _, err := PostInventoryLedgerWithVoucher(tenantID, location, items, false, "ProductionOrder", orderID, ""); err != nil {
+	// Stage 135.19: each completion keys its own ledger lines.
+	completion := int(numFromInterface(data["completion_count"])) + 1
+	if err := postProductionStockTx(tx, schema, location, orderID, fmt.Sprintf("FINISH:%d", completion), items); err != nil {
 		return fmt.Errorf("finished goods receipt failed: %v", err)
 	}
 
 	data["completed_qty"] = newCompleted
+	data["completion_count"] = completion
 	newStatus := "In Process"
 	if willClose {
 		newStatus = "Completed"
 	}
-	return saveProductionOrderStatus(tenantID, orderID, newStatus, data)
+	if err := saveProductionOrderStatusTx(tx, schema, orderID, newStatus, data); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // ReportPartialCompletion (26.9.6) posts a partial finished-goods batch

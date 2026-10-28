@@ -640,6 +640,7 @@ async function addResolvedItemToPOSCart(sku, name, scanned) {
   const existing = posCart.find(line => line.sku === sku);
   if (existing) {
     existing.qty += 1;
+    if (!scanned) existing.scanned = ''; // 49.5.6a: scanned only if every add was
     existing.available = sellable;
     existing.withheld = withheld;
     existing.heldText = heldText;
@@ -649,7 +650,7 @@ async function addResolvedItemToPOSCart(sku, name, scanned) {
     // shape entirely - the till neither collects nor sends a cost.
     // Stage 94.6: the scanned code rides along - a receipt-date barcode
     // names the receipt, so the server knows the MRP printed on it.
-    posCart.push({ sku, name: name || sku, available: sellable, withheld, heldText, qty: 1, salePrice: 0, referencePrice: 0, priceSource: '', overrideId: '', unpriced: false, barcode: scanned && scanned !== sku ? String(scanned) : '' });
+    posCart.push({ sku, name: name || sku, available: sellable, withheld, heldText, qty: 1, salePrice: 0, referencePrice: 0, priceSource: '', overrideId: '', unpriced: false, barcode: scanned && scanned !== sku ? String(scanned) : '', scanned: scanned || '' });
   }
   if (skuInput) { skuInput.value = ''; skuInput.focus(); }
   if (errorEl) errorEl.classList.add('hidden');
@@ -1205,7 +1206,8 @@ async function submitPOSCheckoutInner() {
       qty: line.qty,
       sale_price: line.unpriced ? line.salePrice : 0,
       mrp: line.mrpPicked ? line.mrp : 0, // Stage 94.6
-      barcode: line.barcode || ''
+      barcode: line.barcode || '',
+      scanned: line.scanned || '' // 49.5.6a: checked on POS > Offline Sales
     }));
     const customerId = document.getElementById('pos-customer').value.trim();
     // Stage 30.2.5: the redemption travels with the sale and is burned

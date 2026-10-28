@@ -409,6 +409,7 @@ func StoreAppPINSignIn(tenantID, deviceToken, username, pin string) (*StoreAppPI
 	}
 	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.store_app_pins SET failed_count = 0, locked_until = NULL WHERE user_id = $1`, schema), id)
 	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.store_app_devices SET last_used_at = NOW(), last_user = $2 WHERE id = $1`, schema), device.ID, uname)
+	RecordSignIn(tenantID, id) // 49.2.1
 	LogAuditEvent(tenantID, uname, "LOGIN", "PIN_SUCCESS", fmt.Sprintf("Signed in with a PIN on phone %s at store %s", device.ID, device.Store))
 	idle := GetSettingInt(tenantID, SettingStoreAppPinIdle)
 	if idle <= 0 {

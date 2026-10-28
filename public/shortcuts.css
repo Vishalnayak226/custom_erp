@@ -1,0 +1,323 @@
+/* Stage 139: the Ctrl+K box, key hints, favourites, the after-save bar and
+   the "?" key list (shortcuts.js). Lazy, like kb.css / rf.css: nothing here
+   draws before shortcuts.js has loaded. */
+
+/* Global search suggestions (Stage 28.5, moved from styles.css) - the same
+   typeahead menu, with a second muted line naming what the hit is
+   ("Screen · Buying"). Built from the same tokens, so it themes itself. */
+.global-search-menu {
+  max-height: min(70vh, 460px);
+}
+
+.global-search-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  white-space: normal;
+  padding: 8px 12px;
+}
+
+.global-search-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.global-search-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Stays legible once the row is highlighted and the background flips to the
+   primary colour. */
+.global-search-item.active .global-search-meta,
+.global-search-item:hover .global-search-meta {
+  color: var(--on-primary);
+  opacity: 0.75;
+}
+
+.global-search-empty {
+  padding: 10px 12px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+/* The code or report number at the right of a result. */
+.sc-tag {
+  float: right;
+  margin-left: 12px;
+  padding: 0 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-family: var(--font-numeric, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.global-search-item.active .sc-tag,
+.global-search-item:hover .sc-tag {
+  color: var(--on-primary);
+  border-color: currentColor;
+}
+
+.sc-section {
+  padding: 8px 12px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.sc-foot {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-top: 1px solid var(--border-color);
+  background: var(--panel-bg);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.sc-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--primary-color);
+  cursor: pointer;
+}
+
+/* Favourite star beside a screen's title, on the title's line. */
+.sc-title-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sc-star {
+  margin-left: 8px;
+  border: 0;
+  background: none;
+  padding: 0 4px;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.sc-star:hover,
+.sc-star.on {
+  color: var(--warning-color);
+}
+
+/* The list row the arrow keys are on. */
+tr.sc-row > td {
+  background: var(--primary-light);
+}
+
+tr.sc-row > td:first-child {
+  box-shadow: inset 3px 0 0 var(--primary-color);
+}
+
+/* A drop-down filled with the person's last choice. */
+.sc-remembered {
+  border-color: var(--primary-color);
+  background-color: var(--primary-light);
+}
+
+.sc-views {
+  width: auto;
+  min-width: 140px;
+}
+
+/* "Unsaved entry from ..." above a New form. */
+.sc-draft {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--warning-soft-border);
+  border-radius: 6px;
+  background: var(--warning-soft-bg);
+  font-size: 13px;
+}
+
+.sc-draft > span {
+  flex: 1 1 auto;
+}
+
+/* After a save: Print · New · Copy · next step. */
+/* Bottom centre: the corner is the toasts'. */
+#sc-saved {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 1200;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  max-width: calc(100vw - 32px);
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-lg);
+  font-size: 13px;
+}
+
+#sc-saved[hidden] {
+  display: none;
+}
+
+.sc-saved-x {
+  border: 0;
+  background: none;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+/* "?" - the key list. */
+.sc-keys {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 6vh 16px 16px;
+  background: rgba(15, 23, 42, 0.45);
+  overflow-y: auto;
+}
+
+.sc-keys[hidden] {
+  display: none;
+}
+
+.sc-keys-panel {
+  width: min(920px, 100%);
+  padding: 20px 24px;
+  border-radius: 10px;
+  background: var(--panel-bg);
+  color: var(--text-main);
+  box-shadow: var(--shadow-lg);
+}
+
+.sc-keys-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.sc-keys-head h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.sc-keys-head span {
+  display: flex;
+  gap: 6px;
+}
+
+.sc-keys-sub {
+  margin: 18px 0 8px;
+  font-size: 14px;
+}
+
+.sc-keys-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px 24px;
+}
+
+.sc-keys-grid h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.sc-keys-grid dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 10px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.sc-keys-grid dd {
+  margin: 0;
+}
+
+.sc-keys-panel kbd {
+  display: inline-block;
+  min-width: 22px;
+  padding: 1px 6px;
+  border: 1px solid var(--border-color);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--surface-subtle);
+  font-family: var(--font-numeric, monospace);
+  font-size: 12px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Print: the key list as a card, black on white whatever the theme. It goes
+   to paper through #invoice-print-area (shortcuts.js). */
+.sc-keys-card {
+  flex: 1 0 100%;
+  width: 100%;
+}
+
+.sc-keys-card .sc-keys-panel {
+  width: 100%;
+  padding: 0;
+  box-shadow: none;
+  background: #fff;
+  color: #000;
+}
+
+.sc-keys-card .sc-keys-head span {
+  display: none;
+}
+
+.sc-keys-card .sc-keys-grid h3 {
+  color: #444;
+}
+
+.sc-keys-card kbd {
+  background: #fff;
+  border-color: #888;
+  color: #000;
+}
+
+/* A report's number at the right of its Reports menu entry. */
+.menu-code {
+  margin-left: auto;
+  padding-left: 10px;
+  font-family: var(--font-numeric, monospace);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Record lists: Copy joined Edit and Delete - the row's icons stay on one line. */
+.row-actions-cell {
+  white-space: nowrap;
+}

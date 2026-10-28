@@ -273,6 +273,29 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		return "", fmt.Errorf("failed to bring the new schema up to tenant_default: %v", err)
 	}
 
+	// Stage 135.23: the stock locations and their transaction defaults are
+	// configuration like the step 4 seeds, but their tables only arrive with
+	// the sync above, so a new client had none and Move Stock refused every
+	// move. Only the built-in locations are copied - a client's own (custom)
+	// locations are not a template - and a default naming one of those is
+	// left blank, which reads the same as no default.
+	for _, stmt := range []string{
+		`INSERT INTO %[1]s.stock_locations (code, name, bucket, sellable, applies_to, default_for_new, active, display_order, description)
+		 SELECT code, name, bucket, sellable, applies_to, default_for_new, active, display_order, description
+		   FROM tenant_default.stock_locations WHERE bucket <> 'custom'
+		 ON CONFLICT DO NOTHING`,
+		`INSERT INTO %[1]s.stock_location_defaults (txn_type, from_location, to_location)
+		 SELECT d.txn_type,
+		        CASE WHEN EXISTS (SELECT 1 FROM %[1]s.stock_locations l WHERE l.code = d.from_location) THEN d.from_location ELSE '' END,
+		        CASE WHEN EXISTS (SELECT 1 FROM %[1]s.stock_locations l WHERE l.code = d.to_location) THEN d.to_location ELSE '' END
+		   FROM tenant_default.stock_location_defaults d
+		 ON CONFLICT DO NOTHING`,
+	} {
+		if _, err = tx.Exec(fmt.Sprintf(stmt, schemaName)); err != nil {
+			return "", fmt.Errorf("failed to seed the stock locations: %v", err)
+		}
+	}
+
 	// 5. Create a unique admin account for this tenant with a freshly generated password.
 	password, err := generateRandomPassword()
 	if err != nil {

@@ -127,7 +127,8 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 		COALESCE(to_jsonb(u)->>'store_access', 'Inherit'), COALESCE((to_jsonb(u)->'stores')::text, '[]'),
 		COALESCE(to_jsonb(u)->>'department', ''),
 		COALESCE((SELECT e.id FROM %s.documents e WHERE e.doctype = 'Employee' AND e.deleted_at IS NULL AND e.data->>'user_id' = u.id
-		          ORDER BY (e.status = 'Active') DESC LIMIT 1), '')
+		          ORDER BY (e.status = 'Active') DESC LIMIT 1), ''),
+		COALESCE(to_jsonb(u)->>'last_sign_in_at', '')
 		FROM %s.users u WHERE %s ORDER BY username LIMIT %d`, schema, schema, engines.NotSupportUserSQL("u"), adminUserListCap))
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
@@ -137,8 +138,8 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 
 	users := []map[string]interface{}{}
 	for rows.Next() {
-		var id, username, email, userRole, status, locationCode, supplierCode, storeAccess, storesJSON, department, employeeID string
-		if err := rows.Scan(&id, &username, &email, &userRole, &status, &locationCode, &supplierCode, &storeAccess, &storesJSON, &department, &employeeID); err != nil {
+		var id, username, email, userRole, status, locationCode, supplierCode, storeAccess, storesJSON, department, employeeID, lastSignIn string
+		if err := rows.Scan(&id, &username, &email, &userRole, &status, &locationCode, &supplierCode, &storeAccess, &storesJSON, &department, &employeeID, &lastSignIn); err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -150,6 +151,8 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 			// Stage 93.9: the person's department, and the employee it comes
 			// from when HR links one.
 			"department": department, "employee_id": employeeID,
+			// Stage 49.2.1: "" until the account next signs in.
+			"last_sign_in_at": lastSignIn,
 		})
 	}
 	_ = json.NewEncoder(w).Encode(users)
@@ -468,6 +471,9 @@ func handleSetUserStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Status == "Active" {
+		engines.MarkUserReactivated(schema, req.ID) // 49.2.1: a fresh dormant window
+	}
 	if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET status = $1 WHERE id = $2`, schema), req.Status, req.ID); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to update user status")
 		return

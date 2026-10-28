@@ -5,7 +5,7 @@ order: 10
 summary: Open a till, ring up a sale with automatic offers and tax, take a return, print silently, and reconcile the drawer at close — all backed by the same server-side checks whether the till is online or not.
 audience: cashier, store manager, admin
 last_verified: 2026-09-02
-screens: [pos, module:pos, module:sales, doctype:offer, reports, approvals, configuration]
+screens: [pos, offline-sales, module:pos, module:sales, doctype:offer, reports, approvals, configuration]
 doc_id: DOC-446204194D
 type: procedure
 status: draft
@@ -230,11 +230,20 @@ gone through.
 - **A real rejection (not a network failure) is dropped**, with an alert
   naming the cart number — retrying a sale the server will never accept
   would otherwise block the queue forever over one bad cart.
-- **`offline_synced: true` is what lets a replayed sale push stock
-  negative** instead of being rejected outright — the goods already left
-  the store and the payment was already taken before the till ever saw a
-  connection again. `FinalizePOSCheckout` flags the resulting shortfall as
-  a `POSOfflineSyncVariance` record instead of silently absorbing it.
+- **A replayed sale is held, not posted** (49.5.6a). The server stores it
+  as a Pending offline sale and answers "held for validation", so the queue
+  drops it; no stock, bill or ledger entry is made yet. Any till could set
+  `offline_synced`, so the flag alone never posts a sale.
+- **A manager validates it on POS → Offline Sales.** Each line shows the
+  item's ERP barcode against the code scanned at the till; a line picked
+  by search counts as not scanned. **Validate** works only when every line
+  matches. It then posts the sale through the normal checkout as the
+  original cashier at their store, in the session that was open, and stock
+  may go negative because the goods already left. **Reject** needs a reason
+  and never posts. The validator can't be the cashier who rang the sale,
+  and it needs the `pos.offline_validate` capability (Admin and Store
+  Supervisor by default). Shortfalls are still flagged as
+  `POSOfflineSyncVariance` records.
 - **A small badge on the session bar** shows how many sales are still
   queued locally.
 - **A best-effort heartbeat** (`POST /api/v1/pos/offline-heartbeat`) fires
@@ -300,6 +309,8 @@ other registered report.
 | `POSOFF-0240` | Drawer variance at session close exceeds the configured tolerance without a reason given. |
 | `POSOFF-0241` | An offline-replayed cart hit a cart_number the server has in a state that isn't a clean replay (still Processing, or Failed from a prior partial attempt) — a genuine sync conflict, not an ordinary duplicate. |
 | `POSOFF-0243` | The Pine Labs payment terminal used for a card/UPI transaction isn't mapped or is inactive. |
+| `POSOFF-1361` | An offline sale can't be validated: a line wasn't scanned, or was scanned with a code that isn't that item's barcode. |
+| `POSOFF-1362` | An offline sale was already decided, is your own sale, or was rejected without a reason. |
 | `SALESR-0129` | Return attempted outside the configured return window. |
 | `SALESR-0130` | Return quantity, plus anything already returned against this order, exceeds what was sold. |
 | `SALESR-0131` | No original bill found for the order reference given. |
@@ -351,7 +362,8 @@ non-zero queued count, and confirm the browser actually shows online — the
 sync loop only runs when `navigator.onLine` is true, triggered by the
 browser's own `online` event plus a 30-second poll. A sale the server
 outright rejects (not a connectivity problem) is dropped with an alert
-naming the cart number, not retried forever.
+naming the cart number, not retried forever. Once synced, a sale waits on
+**POS → Offline Sales** until a manager validates it; stock moves only then.
 
 **"Print receipt?" doesn't go straight to the printer.** QZ Tray isn't
 installed/running on this PC, or no Active Printer has **Default For** set

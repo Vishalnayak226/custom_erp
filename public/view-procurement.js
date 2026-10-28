@@ -46,10 +46,19 @@ async function renderApprovalsView(container) {
   const items = await res.json();
   const panel = document.createElement('div');
   panel.className = 'table-panel';
+  // Stage 139.6e: tick rows to decide them together. A password reset is
+  // decided alone - its one-time password shows only to whoever approves it.
+  const bulkable = item => item.doctype !== 'PasswordResetRequest';
   let html = `
+    <div class="bulk-edit-bar hidden" id="appr-bulk" style="padding:10px 16px;margin:0;">
+      <span id="appr-bulk-count"></span>
+      <button class="btn btn-sm btn-primary" data-appr-bulk="Approved">Approve ticked</button>
+      <button class="btn btn-sm btn-outline" data-appr-bulk="Rejected">Reject ticked</button>
+    </div>
     <table>
       <thead>
         <tr>
+          <th style="width:36px;">${(items || []).some(bulkable) ? '<input type="checkbox" aria-label="Tick every row" data-appr-all>' : ''}</th>
           <th>Record Type</th>
           <th>Document</th>
           <th>Amount</th>
@@ -60,7 +69,7 @@ async function renderApprovalsView(container) {
       <tbody>
   `;
   if (!items || items.length === 0) {
-    html += `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">Nothing awaiting approval.</td></tr>`;
+    html += `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Nothing awaiting approval.</td></tr>`;
   }
   (items || []).forEach(item => {
     const amount = item.total_amount ?? item.amount ?? '';
@@ -68,6 +77,7 @@ async function renderApprovalsView(container) {
     const reference = item.code || item.name || item.id;
     html += `
       <tr>
+        <td>${bulkable(item) ? `<input type="checkbox" aria-label="Tick ${escapeHTMLText(reference)}" data-appr-pick data-doctype="${escapeHTMLText(item.doctype)}" data-id="${escapeHTMLText(item.id)}" data-ref="${escapeHTMLText(reference)}">` : ''}</td>
         <td>${escapeHTMLText(getDoctypeLabel(item.doctype))}</td>
         <td>${escapeHTMLText(reference)}${reference !== item.id ? `<div class="text-muted" style="font-size:11px;">Record ${escapeHTMLText(item.id)}</div>` : ''}</td>
         <td>${amount !== '' ? Number(amount).toLocaleString() : ''}</td>
@@ -82,6 +92,51 @@ async function renderApprovalsView(container) {
   html += `</tbody></table>`;
   panel.innerHTML = html;
   container.appendChild(panel);
+  const picks = () => [...panel.querySelectorAll('[data-appr-pick]:checked')];
+  const syncBar = () => {
+    const n = picks().length;
+    panel.querySelector('#appr-bulk').classList.toggle('hidden', n === 0);
+    panel.querySelector('#appr-bulk-count').textContent = `${n} ticked`;
+  };
+  panel.addEventListener('change', (e) => {
+    if (e.target.matches('[data-appr-all]')) panel.querySelectorAll('[data-appr-pick]').forEach(b => { b.checked = e.target.checked; });
+    if (e.target.matches('[data-appr-all], [data-appr-pick]')) syncBar();
+  });
+  panel.querySelectorAll('[data-appr-bulk]').forEach(btn => btn.addEventListener('click', () =>
+    guardAgainstDoubleSubmit(btn, 'Working...', () => decideApprovalsTogether(btn.dataset.apprBulk, picks().map(b => b.dataset)))));
+}
+
+// Up to 40 at a time: each decision is its own request through the same
+// /approval/decide (same checks, same audit trail), one after another, and
+// the per-session request budget is 60 a minute.
+const BULK_DECISION_LIMIT = 40;
+async function decideApprovalsTogether(decision, picked) {
+  const todo = picked.slice(0, BULK_DECISION_LIMIT);
+  if (!todo.length) return;
+  let comment = '';
+  if (decision === 'Rejected') {
+    const reason = await showCustomPrompt(`Reason for rejecting ${todo.length} (optional):`);
+    if (reason === null) return;
+    comment = reason || '';
+  } else if (!(await showCustomConfirm(`Approve ${todo.length} ticked ${todo.length === 1 ? 'document' : 'documents'}?`, 'Approve ticked'))) {
+    return;
+  }
+  let done = 0;
+  const failed = [];
+  for (const p of todo) {
+    const res = await apiFetch('/api/v1/approval/decide', {
+      method: 'POST',
+      body: JSON.stringify({ doctype: p.doctype, document_id: p.id, decision, comment })
+    });
+    if (res && res.ok) done++;
+    else failed.push(p.ref);
+  }
+  const verb = decision === 'Approved' ? 'approved' : 'rejected';
+  const more = picked.length > todo.length ? ` ${picked.length - todo.length} more were ticked - tick them and run it again.` : '';
+  showToast(failed.length
+    ? `${done} ${verb}. Not done: ${failed.slice(0, 5).join(', ')}${failed.length > 5 ? '…' : ''}.${more}`
+    : `${done} ${verb}.${more}`, { variant: failed.length ? 'warning' : 'success', ms: 8000 });
+  renderView('approvals');
 }
 
 // BLD-036: guards Approve/Reject the same way the generic form and PO
@@ -211,7 +266,6 @@ function newPODraft() {
     // '' means "inherit the tenant default", which the first preview response
     // resolves and displays - the screen never hardcodes Exclusive itself.
     gst_mode: '',
-    interstate: false, interstate_override: false,
     lines: [],
     // Stage 65.1: the entry row at the top of the composer; Add moves it into lines.
     entry: newPOEntry(),
@@ -337,6 +391,7 @@ async function renderPurchaseOrdersView(container) {
           ${po.status === 'Approved' ? `<button class="action-btn" ${actionAttrs('startGRNFromPO', [po.id])}>Receive goods</button>` : ''}
           ${po.status === 'Approved' || po.status === 'Closed' ? `<button class="action-btn" ${actionAttrs('showPOBalance', [po.id])}>Balance</button>` : ''}
           ${live ? `<button class="action-btn" ${actionAttrs('amendPurchaseOrder', [po.id])}>Edit</button>` : ''}
+          ${canCreateDoctype('PurchaseOrder') ? `<button class="action-btn" title="A new PO with the same vendor, terms and lines" ${actionAttrs('copyPurchaseOrder', [po.id])}>Copy</button>` : ''}
           <button class="action-btn" ${actionAttrs('printPurchaseOrder', [po.id])}>Print</button>
           ${po.status !== 'Cancelled' && lineCount > 0 ? `<button class="action-btn" ${actionAttrs('openPOImages', [po.id])}>Images</button>` : ''}
           ${po.status !== 'Draft' && po.status !== 'Cancelled' ? `<button class="action-btn" ${actionAttrs('sendPurchaseOrderToVendor', [po.id])}>Send to Vendor</button>` : ''}
@@ -1739,16 +1794,15 @@ function poDraftPayload(d) {
     gst_mode: d.gst_mode,
     expected_delivery_date: d.expected_delivery_date || '',
     // Stage 130.16 (74.3.2): the commercial terms.
-    ...Object.fromEntries(PO_TERM_KEYS.map(k => [k, d[k] || ''])),
-    interstate: d.interstate,
-    interstate_override: d.interstate_override
+    // 49.5.6b: no interstate / override - the server derives the supply type.
+    ...Object.fromEntries(PO_TERM_KEYS.map(k => [k, d[k] || '']))
   };
 }
 
-// renderPOSupplyBanner shows what the two addresses decided, and offers the
-// override. This is the visible half of "interstate is worked out from the
-// addresses": if it cannot be worked out, the banner says exactly which
-// master is missing a GSTIN rather than silently defaulting to intra-state.
+// renderPOSupplyBanner shows what the two addresses decided. This is the
+// visible half of "interstate is worked out from the addresses": if it cannot
+// be worked out, the banner says exactly which master is missing a GSTIN
+// rather than silently defaulting to intra-state. 49.5.6b: no override.
 function renderPOSupplyBanner() {
   const el = document.getElementById('po-supply-banner');
   if (!el) return;
@@ -1764,30 +1818,11 @@ function renderPOSupplyBanner() {
   if (!pos.derived) {
     renderPOStateAsks(el, pos);
     return;
-  } else {
-    const kind = pos.interstate ? 'Inter-state' : 'Intra-state';
-    const tax = pos.interstate ? 'IGST' : 'CGST + SGST';
-    el.className = `po-supply-banner ${d.interstate_override ? 'po-supply-warn' : 'po-supply-ok'}`;
-    el.innerHTML = `
-      <span><strong>${kind} (${tax})</strong> &mdash; vendor in ${escapeHTMLText(pos.vendor_state_label || '?')}, billing address in ${escapeHTMLText(pos.buyer_state_label || '?')}.</span>
-      <label class="po-override"><input type="checkbox" id="po-interstate-override" ${d.interstate_override ? 'checked' : ''}> Override</label>
-      ${d.interstate_override ? `<label class="po-override"><input type="checkbox" id="po-interstate" ${d.interstate ? 'checked' : ''}> Inter-state (IGST)</label>` : ''}`;
   }
-
-  const overrideBox = document.getElementById('po-interstate-override');
-  if (overrideBox) overrideBox.addEventListener('change', (e) => {
-    d.interstate_override = e.target.checked;
-    // Seed the manual flag from what was derived, so ticking Override does
-    // not flip the tax treatment as a side effect of opening the control.
-    if (d.interstate_override && pos.derived) d.interstate = pos.interstate;
-    runPOPreview();
-  });
-  const interBox = document.getElementById('po-interstate');
-  if (interBox) interBox.addEventListener('change', (e) => {
-    d.interstate = e.target.checked;
-    if (pos && pos.derived) d.interstate_override = true;
-    runPOPreview();
-  });
+  const kind = pos.interstate ? 'Inter-state' : 'Intra-state';
+  const tax = pos.interstate ? 'IGST' : 'CGST + SGST';
+  el.className = 'po-supply-banner po-supply-ok';
+  el.innerHTML = `<span><strong>${kind} (${tax})</strong> &mdash; vendor in ${escapeHTMLText(pos.vendor_state_label || '?')}, billing address in ${escapeHTMLText(pos.buyer_state_label || '?')}.</span>`;
 }
 
 // renderPOStateAsks: the supply type could not be worked out. Stage 126.2
@@ -2002,6 +2037,8 @@ async function savePurchaseOrderInner() {
   poPreview = null;
   // To History, where the saved PO's next steps are (Submit, Print, Send).
   showPOPage('history');
+  // Stage 139: the after-save bar (shortcuts.js), as txnDone() raises it.
+  window.dispatchEvent(new CustomEvent('erp:txn-done', { detail: { screenId: 'po-composer' } }));
 }
 
 // amendPurchaseOrder (the History row's Edit) loads an existing PO back into
@@ -2011,7 +2048,7 @@ async function savePurchaseOrderInner() {
 // because the screen had no form worth reusing. It does now - and a prompt
 // chain could never have edited the lines, which is the thing an amendment is
 // usually about.
-window.amendPurchaseOrder = async function(poId) {
+window.amendPurchaseOrder = async function(poId, { copy = false } = {}) {
   const res = await apiFetch(`/api/v1/doc/PurchaseOrder/${encodeURIComponent(poId)}`);
   if (!res) return;
   if (!res.ok) {
@@ -2031,8 +2068,6 @@ window.amendPurchaseOrder = async function(poId) {
     gst_mode: record.gst_mode || '',
     expected_delivery_date: record.expected_delivery_date || '',
     ...Object.fromEntries(PO_TERM_KEYS.map(k => [k, record[k] || ''])),
-    interstate: !!record.interstate,
-    interstate_override: !!record.interstate_override,
     lines: lines.length ? lines.map(l => ({
       sku: l.sku || '', qty: l.qty ?? '', rate: l.rate ?? '', mrp: l.mrp ?? ''
     })) : [],
@@ -2041,12 +2076,18 @@ window.amendPurchaseOrder = async function(poId) {
     status: record.status,
     version: typeof record.version === 'number' ? record.version : null
   };
+  // Stage 139.6b: Copy is the same load as a new draft - no id, number,
+  // status or delivery date, so Save makes a new PO from the same vendor,
+  // store, terms and lines.
+  if (copy) Object.assign(poDraft, { id: '', po_number: '', expected_delivery_date: '', wasApproved: false, status: undefined, version: null });
   poPreview = null;
   // Stage 65.8 (the user: "Edit of everything ... like a brand new po screen.
   // But PO number will be same"): the New page, every field editable, number
   // fixed. The composer runs its own preview once rendered.
   showPOPage('new');
 };
+
+window.copyPurchaseOrder = (poId) => window.amendPurchaseOrder(poId, { copy: true });
 
 // ---------------------------------------------------------------------------
 // Printed PO and vendor dispatch (Stage 40.1; designed prints Stage 63)
@@ -3337,7 +3378,7 @@ async function loadGRNItemsFromPOInner() {
   const rates = {};
   const prevRes = await apiFetch('/api/v1/procurement/purchase-order/preview', {
     method: 'POST',
-    body: JSON.stringify({ vendor: poVendor, vendor_id: poVendor, location: po.location || '', target_warehouse: po.target_warehouse || '', items: po.items || '[]', gst_mode: po.gst_mode || '', interstate: !!po.interstate, interstate_override: !!po.interstate_override })
+    body: JSON.stringify({ vendor: poVendor, vendor_id: poVendor, location: po.location || '', target_warehouse: po.target_warehouse || '', items: po.items || '[]', gst_mode: po.gst_mode || '' })
   });
   if (prevRes && prevRes.ok) {
     const prev = await prevRes.json();

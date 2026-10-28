@@ -103,6 +103,9 @@ func Run() {
 	engines.StartQueueSaturationMonitor(workerCtx, 30*time.Second)
 	// Stage 49.11.4: security detections over the audit log, every 5 minutes.
 	engines.StartSecurityDetectionSweep(workerCtx, 5*time.Minute)
+	// Stage 49.2.1 / 49.2.6: dormant accounts and unused API credentials,
+	// hourly; both off until a client's admin picks a period.
+	engines.StartIdentityLifecycleSweep(workerCtx, 1*time.Hour)
 
 	// Start Backup Freshness Monitor (Stage 43.2) - hourly check that a
 	// nightly backup actually exists and is under 36h old. 36 rather than 24
@@ -452,6 +455,8 @@ func registerRoutes() {
 	http.HandleFunc("/api/v1/doc/{doctype}", apiMiddleware(handleGenericDoc))
 	http.HandleFunc("/api/v1/doc/{doctype}/{id}", apiMiddleware(handleGenericDoc))
 	http.HandleFunc("POST /api/v1/doc/{doctype}/{id}/reactivate", apiMiddleware(handleReactivateMasterDocument))
+	// Stage 139.3: which record type holds a document number (Ctrl+K, a scan).
+	http.HandleFunc("GET /api/v1/doc-find", apiMiddleware(handleDocFind))
 
 	// Availability & Reservation APIs
 	http.HandleFunc("GET /api/v1/availability", apiMiddleware(handleGetAvailability))
@@ -729,6 +734,11 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/pos/session/close", apiMiddleware(handlePOSSessionClose))
 	http.HandleFunc("GET /api/v1/pos/session/current", apiMiddleware(handlePOSSessionCurrent))
 	http.HandleFunc("POST /api/v1/pos/offline-heartbeat", apiMiddleware(handlePOSOfflineHeartbeat))
+	// Stage 49.5.6a: offline sales held for validation (POS > Offline Sales).
+	http.HandleFunc("GET /api/v1/pos/offline-sales", apiMiddleware(handleListOfflineSales))
+	http.HandleFunc("GET /api/v1/pos/offline-sales/{id}", apiMiddleware(handleGetOfflineSale))
+	http.HandleFunc("POST /api/v1/pos/offline-sales/{id}/validate", apiMiddleware(handleValidateOfflineSale))
+	http.HandleFunc("POST /api/v1/pos/offline-sales/{id}/reject", apiMiddleware(handleRejectOfflineSale))
 	// Stage 30.7: read-only offer preview for the POS cart. Checkout
 	// re-evaluates server-side regardless, so this never sets the price.
 	http.HandleFunc("POST /api/v1/pos/offers/preview", apiMiddleware(handlePOSOffersPreview))
@@ -1369,6 +1379,7 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/marketplace/couriers/{provider}/awb", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleCourierAllocateAWB))))
 	http.HandleFunc("POST /api/v1/marketplace/couriers/{provider}/pickup", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleCourierPickup))))
 	http.HandleFunc("POST /api/v1/marketplace/couriers/{provider}/cancel", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleCourierCancel))))
+	http.HandleFunc("POST /api/v1/marketplace/couriers/{provider}/resolve", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleCourierResolveBooking)))) // 47.11.8a
 	http.HandleFunc("GET /api/v1/marketplace/couriers/rates", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleCourierRates))))
 	http.HandleFunc("POST /api/v1/integration/courier/{provider}/tracking", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleCourierTrackingWebhook))))
 	http.HandleFunc("POST /api/v1/marketplace/ndr/{id}/resolve", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleNDRResolve))))
@@ -1684,13 +1695,8 @@ func runHTTPServer(cancelWorkers context.CancelFunc) {
 	// mux, so it covers the SPA shell and the static files too - a browser
 	// asks for those first, and they never pass through apiMiddleware. It is
 	// inert unless TENANT_BASE_DOMAIN is set.
-	srv := &http.Server{
-		Addr:         host + ":" + port,
-		Handler:      staticAssetCache(compressResponses(securityHeaders(tenantHostGate(apiMethodNotAllowed(http.DefaultServeMux))))),
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 60 * time.Second,
-		IdleTimeout:  120 * time.Second,
-	}
+	// 49.10.5: the connection bounds live in server_limits.go.
+	srv := newHTTPServer(host+":"+port, staticAssetCache(compressResponses(securityHeaders(tenantHostGate(apiMethodNotAllowed(http.DefaultServeMux))))))
 
 	// 24.15: graceful shutdown - SIGINT/SIGTERM stops accepting new
 	// connections, lets in-flight requests finish (bounded by the context

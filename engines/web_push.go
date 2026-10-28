@@ -425,8 +425,8 @@ func deliverWebPush(ctx context.Context, schema string, job Job) (map[string]int
 		recordWebPushOutcome(schema, subID, false, "sandbox client - not sent")
 		return map[string]interface{}{"simulated": true}, nil
 	}
-	if !ExternalSideEffectsEnabled() {
-		recordWebPushOutcome(schema, subID, false, "external side effects are off on this server - not sent")
+	if ok, reason := OutsideCallsAllowed(schema); !ok { // 49.8.7a
+		recordWebPushOutcome(schema, subID, false, reason+" - not sent")
 		return map[string]interface{}{"simulated": true}, nil
 	}
 	if err := webPushEndpointAllowed(endpoint); err != nil {

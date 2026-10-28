@@ -59,6 +59,7 @@ gate tests by name so they're visible in the CI log without reading a full
 | `TestNoWorkflowActionIsUnpinned` | Any `uses: owner/repo@ref` line in any `.github/workflows/*.yml` file has a ref that is not a full 40-character commit SHA — applies to every action in every workflow, not just the ones reviewed for Stage 49.9. |
 | `TestDependencyLedgerCoversWorkflowActions` | A GitHub Action is referenced in a workflow with no matching `ci_action` ledger entry, independent of whether it happens to be pinned. |
 | `TestLedgerEntriesAreWellFormed` | A ledger entry has an unrecognised `type`, a duplicate `name`, or an empty version/owner/purpose/provenance. |
+| `TestStage47184ArchitectureExceptionGate` | An entry added since the gate opened (2026-10-27) has no complete `architecture_gate`, a newcomer copies the `grandfathered` marker, a field argues from habit ("enterprise systems normally use it") or the bottleneck has no measurement; or a process the deployment starts (a `deploy/*.service` unit or a unit it wants, Caddy, a compose service, a `deploy/install_*_cron.sh` job) has no `process` entry. |
 
 What is **not** automatically enforced, and why:
 
@@ -107,7 +108,15 @@ occasion it's cleared, or when a new CI-only tool/action is added:
 5. **Add a ledger entry** with every field filled — an empty field fails
    `TestLedgerEntriesAreWellFormed` and an entry missing entirely fails
    `TestDependencyLedgerCoversGoModules` / `TestDependencyLedgerCoversWorkflowActions`.
-6. **Pin it.** A Go module is already pinned by `go.sum`'s content hash. A
+6. **Pass the architecture exception gate (Stage 47.18.4).** A new
+   dependency or process carries an `architecture_gate` in its entry:
+   `measured_bottleneck` (with the number that was measured),
+   `failure_mode_benefit`, `resource_budget`, `ops_budget`,
+   `security_budget`, `license_budget`, `migration_rollback`, `removal_plan`
+   and `date`. "Enterprise systems normally use it" is not evidence and fails
+   the test. Entries that were here when the gate opened say `grandfathered`;
+   that list is frozen in `internal/supplychain/gate.go`.
+7. **Pin it.** A Go module is already pinned by `go.sum`'s content hash. A
    GitHub Action must be pinned to the full commit SHA behind the release
    tag you intend to use (`git ls-remote https://github.com/<owner>/<repo>
    refs/tags/<tag>` gives it) — `TestNoWorkflowActionIsUnpinned` refuses an

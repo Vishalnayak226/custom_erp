@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"custom_erp/db"
+	"database/sql"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -29,6 +30,9 @@ type ImportResult struct {
 	CreatedIDs []string `json:"created_ids,omitempty"`
 	UpdatedIDs []string `json:"updated_ids,omitempty"`
 	DryRun     bool     `json:"dry_run"`
+	// Stage 47.13.3: what the file held against what was posted.
+	Controls *ImportControlTotals `json:"control_totals,omitempty"`
+	controls *importControls
 
 	// Stage 55.11: the source header and failed rows' original cells, kept
 	// for the ImportJob so its failed rows can be resumed (import_resume.go).
@@ -294,6 +298,9 @@ func runDocDataImportContext(ctx context.Context, tenantID, doctype, userID, rol
 	if err != nil {
 		return nil, err
 	}
+	// Stage 47.13.3: the file's Number columns, read before validation
+	// touches a row.
+	result.controls = newImportControls(lk.validation.fields, docRows)
 	for batchStart := 0; batchStart < len(docRows); batchStart += batchRows {
 		// Checked between batches, never inside one. importBatch owns its own
 		// transaction, so stopping here leaves every already-committed batch
@@ -337,6 +344,7 @@ func runDocDataImportContext(ctx context.Context, tenantID, doctype, userID, rol
 		}
 	}
 
+	finishImportControls(result)
 	return result, nil
 }
 
@@ -353,6 +361,18 @@ type importLookups struct {
 	isMaster       bool
 	isMasterErr    error
 	itemDefaults   *ItemDefaultsMemo // Stage 89: one import's item-name / category lookups
+	rules          importWriteRules
+}
+
+// importWriteRules (Stage 49.3.4 / 49.3.5) are what the file's rows may do to
+// the records they name: add or change records of this type (asked only for an
+// operator's role, as the field restrictions are), and whether the type is
+// approval-gated. Applied by screenImportWrites.
+type importWriteRules struct {
+	checkRole            bool
+	mayCreate, mayUpdate bool
+	gated                bool
+	err                  error
 }
 
 func newImportLookups(tenantID, schema, doctype, role string) (*importLookups, error) {
@@ -368,6 +388,13 @@ func newImportLookups(tenantID, schema, doctype, role string) (*importLookups, e
 		lk.permissions, lk.permissionsErr = fieldPermissions(tenantID, role, doctype)
 	}
 	lk.isMaster, lk.isMasterErr = IsMasterDoctype(tenantID, doctype)
+	lk.rules.gated, lk.rules.err = IsApprovalGated(tenantID, doctype)
+	if role != "" && lk.rules.err == nil {
+		lk.rules.checkRole = true
+		if lk.rules.mayCreate, lk.rules.err = RoleMayOnDoctype(tenantID, role, doctype, "create"); lk.rules.err == nil {
+			lk.rules.mayUpdate, lk.rules.err = RoleMayOnDoctype(tenantID, role, doctype, "update")
+		}
+	}
 	return lk, nil
 }
 
@@ -377,6 +404,71 @@ func (lk *importLookups) masterDoctype() (bool, error) { return lk.isMaster, lk.
 type importWrite struct {
 	rowNumber int
 	id, data  string
+	status    string // the row's own status value, if it carries one (49.3.5)
+}
+
+// screenImportWrites (Stage 49.3.4 / 49.3.5) refuses the rows of a batch the
+// importer may not write, with one query for the records they name: adding a
+// record needs create permission and changing one needs update (an operator's
+// role only), a row never claims a decided status (Approved / Rejected) of an
+// approval-gated type, and an approved record is changed on screen - where it
+// goes back for approval - not rewritten by a file.
+func screenImportWrites(tx *sql.Tx, doctype string, rules importWriteRules, writes []importWrite, result *ImportResult) []importWrite {
+	if len(writes) == 0 {
+		return writes
+	}
+	if rules.err != nil {
+		for _, w := range writes {
+			recordImportError(result, w.rowNumber, fmt.Sprintf("could not check what this import may write: %v", rules.err))
+		}
+		return nil
+	}
+	ids := make([]string, len(writes))
+	for i, w := range writes {
+		ids[i] = w.id
+	}
+	existing := map[string]string{} // id -> status, this doctype only
+	rows, err := tx.Query(`SELECT id, COALESCE(status, '') FROM documents WHERE doctype = $1 AND id = ANY($2::text[])`, doctype, pq.Array(ids))
+	if err == nil {
+		for rows.Next() {
+			var id, status string
+			if err = rows.Scan(&id, &status); err != nil {
+				break
+			}
+			existing[id] = status
+		}
+		if err == nil {
+			err = rows.Err()
+		}
+		rows.Close()
+	}
+	if err != nil {
+		for _, w := range writes {
+			recordImportError(result, w.rowNumber, fmt.Sprintf("could not check the records this import names: %v", err))
+		}
+		return nil
+	}
+	kept := writes[:0]
+	for _, w := range writes {
+		prior, isUpdate := existing[w.id]
+		switch {
+		case rules.checkRole && !isUpdate && !rules.mayCreate:
+			recordImportError(result, w.rowNumber, fmt.Sprintf("your role may not add %s records", doctype))
+		case rules.checkRole && isUpdate && !rules.mayUpdate:
+			recordImportError(result, w.rowNumber, fmt.Sprintf("%q already exists and your role may not change %s records", w.id, doctype))
+		case rules.gated && isUpdate && prior == "Approved":
+			recordImportError(result, w.rowNumber, fmt.Sprintf("%q is Approved - change it on screen, where it goes back for approval", w.id))
+		default:
+			if w.status != "" {
+				if verr := decidedStatusWriteError(rules.gated, prior, w.status); verr != nil {
+					recordImportError(result, w.rowNumber, verr.Error())
+					continue
+				}
+			}
+			kept = append(kept, w)
+		}
+	}
+	return kept
 }
 
 // prefetchLinks answers every Link value in one batch with one query per
@@ -669,8 +761,10 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 			recordImportError(result, rowNumber, fmt.Sprintf("Failed to marshal JSON payload: %v", mErr))
 			continue
 		}
-		writes = append(writes, importWrite{rowNumber: rowNumber, id: id, data: string(marshaled)})
+		writes = append(writes, importWrite{rowNumber: rowNumber, id: id, data: string(marshaled), status: strings.TrimSpace(strField(docData, "status"))})
 	}
+	writes = screenImportWrites(tx, doctype, lk.rules, writes, result)
+	writes = screenActionOnlyImportFields(tx, doctype, writes, result) // 49.5.6c
 
 	// 49.4.4a: the batch's valid rows go in one statement instead of an
 	// EXISTS query plus an upsert per row. RETURNING reports which ids were
@@ -727,6 +821,7 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 			}
 			result.SuccessRows++
 			batchSuccessCount++
+			result.controls.accept(w.rowNumber - 2) // row 2 is docRows[0]
 			if created {
 				result.CreatedIDs = append(result.CreatedIDs, w.id)
 			} else {
@@ -789,6 +884,9 @@ func RecordImportJob(tenantID, doctype string, res *ImportResult, createdBy stri
 	}
 	for k, v := range importJobSourceFields(res) {
 		data[k] = v // Stage 55.11: failed rows kept for resume
+	}
+	if res.Controls != nil {
+		data["control_totals"] = res.Controls // Stage 47.13.3
 	}
 	marshaled, err := json.Marshal(data)
 	if err != nil {

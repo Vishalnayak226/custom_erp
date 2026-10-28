@@ -58,11 +58,22 @@ Every provider implements one `CourierAdapter` interface:
 it calls whichever adapter `courierAdapter(provider)` resolves, and the five
 functions below are the real entry points, all in `engines/courier.go`:
 
-- **`AllocateCourierAWB`** — claims the booking (an atomic UPDATE so two
-  concurrent allocation attempts for the same booking can't both mint a
-  real, billable AWB), calls the adapter, and only writes `provider_awb`
-  once the provider has actually accepted the shipment. A failed call
-  releases the claim, leaving the booking retryable.
+- **`AllocateCourierAWB`** — claims the booking under a row lock and saves
+  its reference (the booking id, sent to the courier as its order
+  reference) before calling, so two attempts can't both mint a real,
+  billable AWB, and only writes `provider_awb` once the provider has
+  accepted the shipment. Nothing is booked twice (47.11.8a):
+  - nothing reached the courier (DNS, refused, TLS, kill switch) - the
+    claim is released and a retry is plain;
+  - the request may have reached it (timeout, drop, 5xx, no AWB in the
+    answer) - the booking is marked **uncertain** and keeps its claim. A
+    retry first asks the courier by the reference (Delhivery and
+    Shiprocket can be asked) and adopts the AWB it finds, booking only if
+    the courier has none. If the courier can't be asked, the retry is
+    refused with INTEGR-4718 until someone uses **Resolve** on OMS → Ship
+    (enter the AWB from the courier's portal, or mark it not booked).
+  - The database allows one AWB per courier per live booking and one live
+    AWB per parcel.
 - **`ScheduleCourierPickup`** / **`CancelCourierShipment`** — need an
   existing `provider_awb` on the booking first.
 - **`ShopCourierRates`** — calls every requested provider's `Rates`,

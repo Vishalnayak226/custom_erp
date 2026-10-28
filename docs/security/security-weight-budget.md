@@ -31,17 +31,17 @@ the tests log fresh numbers on every run and fail on the budgets.
 
 | Control | Measured | Budget | Test |
 |---|---|---|---|
-| Authenticated read through `securityHeaders` + `apiMiddleware` | p50 1.8-2.7 ms, p95 2.4-3.3 ms, p99 3.2-4.4 ms | p95 adds ≤ 25 ms | `TestStage49181AuthenticatedRequestCost` |
-| Database statements per authenticated read, counted on the request's own goroutine | 3: sandbox expiry, doctype → module, module entitlement - none cached | ≤ 3 | same |
+| Authenticated read through `securityHeaders` + `apiMiddleware` | p50 0.74 ms, p95 1.2 ms, p99 1.6 ms (49.18.8; was p50 1.8-2.7 ms) | p95 adds ≤ 25 ms | `TestStage49181AuthenticatedRequestCost` |
+| Database statements per authenticated read, counted on the request's own goroutine | 1: the module entitlement, read fresh on purpose (was 3 before 49.18.8) | ≤ 1 (+0.5 headroom for a cache refresh) | same |
 | One signed audit row | p50 1.7 ms, p95 2.9 ms to write; ~445 bytes (~435 KiB per 1,000 events before indexes) | p95 ≤ 50 ms; ≤ 1.5 KiB a row | `TestStage49181AuditAndPasswordCost` |
 | One password guess (bcrypt cost 10) | ~136 ms - the same for an offline attacker | ≥ 10 ms | same |
 | Idle server, one client, all modules on | 180 database transactions a minute, 11 pooled connections | measured (BLD-044) | live measurement, see BLD-044 |
 | Same, worker modules switched off | 122 a minute (-32%) | measured | same |
 
-The three per-request statements are the next lever: the sandbox expiry reads the same
-`public.tenants` row the tenant gate already caches, and the doctype → module and module
-entitlement answers change rarely. Caching them with invalidation on change is a freshness
-decision on an authorization path (49.18.6), so it is recorded here, not done silently.
+49.18.8 (2026-10-27) took two of the three: the sandbox expiry reads the tenant-gate
+entry already cached per request (both sandbox writers invalidate it) and the doctype's
+module is cached (`doctype_meta.module_key` changes only in migrations). The module
+entitlement stays a fresh read, so a module switched off is refused on the next request.
 
 ## 49.18.2 Bounded state everywhere
 

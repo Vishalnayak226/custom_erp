@@ -146,6 +146,8 @@ func TestStage49118DetectionDrillCoversEveryRule(t *testing.T) {
 		t.Fatalf("seed stand-in checkpoint: %v", err)
 	}
 	defer db.DB.Exec(`DELETE FROM tenant_default.audit_checkpoints WHERE row_digest = $1`, "drill49118-"+s)
+	// Stage 49.5.4: the business records behind the document-reading rules.
+	defer seedAbuseDrill(t, s, actor)()
 
 	began := time.Now()
 	fired, err := RunSecurityDetections(tenant, time.Now())

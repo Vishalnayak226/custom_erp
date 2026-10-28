@@ -35,7 +35,7 @@ Procurement & GRN to WMS.
 
 ## Procurement & GRN
 
-### Cancelled PO Register
+### R2010 Cancelled PO Register
 
 **Report id:** `cat-cancelled-po-register`
 
@@ -50,7 +50,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Expired PO Report
+### R2011 Expired PO Report
 
 **Report id:** `cat-expired-po-report`
 
@@ -65,7 +65,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### GRN Barcode Generation Register
+### R2024 GRN Barcode Generation Register
 
 **Report id:** `cat-grn-barcode-generation-register`
 
@@ -79,7 +79,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### GRN Cancelled Register
+### R2023 GRN Cancelled Register
 
 **Report id:** `cat-grn-cancelled-register`
 
@@ -94,7 +94,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### GRN Itemwise Detail
+### R2021 GRN Itemwise Detail
 
 **Report id:** `cat-grn-itemwise-detail`
 
@@ -109,7 +109,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### GRN PO / Invoice Variance
+### R2022 GRN PO / Invoice Variance
 
 **Report id:** `cat-grn-po-invoice-variance`
 
@@ -124,7 +124,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### GRN QC / Rejection Exception
+### R2025 GRN QC / Rejection Exception
 
 **Report id:** `cat-grn-qc-rejection-exception`
 
@@ -139,7 +139,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### GRN Register
+### R2020 GRN Register
 
 **Report id:** `cat-grn-register`
 
@@ -154,7 +154,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### GRN vs Vendor Invoice Reconciliation
+### R2027 GRN vs Vendor Invoice Reconciliation
 
 **Report id:** `cat-grn-vs-vendor-invoice-reconciliation`
 
@@ -169,7 +169,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### PO Amendment History
+### R2009 PO Amendment History
 
 **Report id:** `cat-po-amendment-history`
 
@@ -182,7 +182,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### PO Approval Pending Report
+### R2008 PO Approval Pending Report
 
 **Report id:** `cat-po-approval-pending-report`
 
@@ -197,7 +197,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### PO vs GRN Status
+### R2012 PO vs GRN Status
 
 **Report id:** `cat-po-vs-grn-status`
 
@@ -212,7 +212,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Pending / Open PO Report
+### R2005 Pending / Open PO Report
 
 **Report id:** `cat-pending-open-po-report`
 
@@ -227,7 +227,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Pending GRN / Open Receipt
+### R2026 Pending GRN / Open Receipt
 
 **Report id:** `cat-pending-grn-open-receipt`
 
@@ -242,7 +242,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Pending PO with Image
+### R2006 Pending PO with Image
 
 **Report id:** `cat-pending-po-with-image`
 
@@ -257,7 +257,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Pending PO with Variant Image
+### R2007 Pending PO with Variant Image
 
 **Report id:** `cat-pending-po-with-variant-image`
 
@@ -272,7 +272,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Purchase Itemwise Detail
+### R2015 Purchase Itemwise Detail
 
 **Report id:** `cat-purchase-itemwise-detail`
 
@@ -287,7 +287,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Purchase Order Itemwise Detail
+### R2004 Purchase Order Itemwise Detail
 
 **Report id:** `cat-purchase-order-itemwise-detail`
 
@@ -302,7 +302,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Purchase Order Register
+### R2003 Purchase Order Register
 
 **Report id:** `cat-purchase-order-register`
 
@@ -317,7 +317,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Purchase Register
+### R2014 Purchase Register
 
 **Report id:** `cat-purchase-register`
 
@@ -332,7 +332,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Purchase Requisition Register
+### R2001 Purchase Requisition Register
 
 **Report id:** `cat-purchase-requisition-register`
 
@@ -345,7 +345,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Purchase Return Itemwise Detail
+### R2017 Purchase Return Itemwise Detail
 
 **Report id:** `cat-purchase-return-itemwise-detail`
 
@@ -359,7 +359,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Purchase Return Register
+### R2016 Purchase Return Register
 
 **Report id:** `cat-purchase-return-register`
 
@@ -373,7 +373,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### RFQ / Quotation Comparison
+### R2002 RFQ / Quotation Comparison
 
 **Report id:** `cat-rfq-quotation-comparison`
 
@@ -386,7 +386,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Vendor Credit Note Register
+### R2019 Vendor Credit Note Register
 
 **Report id:** `cat-vendor-credit-note-register`
 
@@ -400,7 +400,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Vendor Debit Note Register
+### R2018 Vendor Debit Note Register
 
 **Report id:** `cat-vendor-debit-note-register`
 
@@ -414,7 +414,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Vendor Performance Summary
+### R2013 Vendor Performance Summary
 
 **Report id:** `cat-vendor-performance-summary`
 
@@ -431,7 +431,7 @@ Procurement & GRN to WMS.
 
 ## Sales
 
-### Competitor Price Gap
+### R1026 Competitor Price Gap
 
 **Report id:** `competitor-price-gap`
 
@@ -446,7 +446,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Customer Advance Register
+### R1028 Customer Advance Register
 
 **Report id:** `advance-register`
 
@@ -459,7 +459,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Customer Ledger
+### R1024 Customer Ledger
 
 **Report id:** `customer-ledger`
 
@@ -471,7 +471,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Customer advances outstanding (ageing)
+### R1032 Customer advances outstanding (ageing)
 
 **Report id:** `advance-outstanding-ageing`
 
@@ -481,7 +481,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Gift With Purchase Register
+### R1025 Gift With Purchase Register
 
 **Report id:** `gwp-issue-register`
 
@@ -494,7 +494,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Post-Sale Edit History
+### R1031 Post-Sale Edit History
 
 **Report id:** `post-sale-edit-history`
 
@@ -509,7 +509,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Sales Register
+### R1027 Sales Register
 
 **Report id:** `sales-register`
 
@@ -519,7 +519,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Sales by Customer Reference
+### R1023 Sales by Customer Reference
 
 **Report id:** `sales-by-customer-reference`
 
@@ -534,7 +534,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Salesman-wise Sales
+### R1030 Salesman-wise Sales
 
 **Report id:** `salesman-sales`
 
@@ -548,7 +548,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Tender-wise Sales
+### R1029 Tender-wise Sales
 
 **Report id:** `tender-sales`
 
@@ -564,7 +564,7 @@ Procurement & GRN to WMS.
 
 ## Sales & POS
 
-### B2B Sales Register
+### R1019 B2B Sales Register
 
 **Report id:** `cat-b2b-sales-register`
 
@@ -579,7 +579,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Cancelled / Void Bill Register
+### R1013 Cancelled / Void Bill Register
 
 **Report id:** `cat-cancelled-void-bill-register`
 
@@ -593,7 +593,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Credit Note Register
+### R1017 Credit Note Register
 
 **Report id:** `cat-credit-note-register`
 
@@ -608,7 +608,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Customer Advance Itemwise Detail
+### R1015 Customer Advance Itemwise Detail
 
 **Report id:** `cat-customer-advance-itemwise-detail`
 
@@ -622,7 +622,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Customer Advance Summary
+### R1014 Customer Advance Summary
 
 **Report id:** `cat-customer-advance-summary`
 
@@ -636,7 +636,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Customer Advance Utilization
+### R1016 Customer Advance Utilization
 
 **Report id:** `cat-customer-advance-utilization`
 
@@ -650,7 +650,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Export / International Sales Register
+### R1020 Export / International Sales Register
 
 **Report id:** `cat-export-international-sales-register`
 
@@ -665,7 +665,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Gift Card / Voucher Register
+### R1018 Gift Card / Voucher Register
 
 **Report id:** `cat-gift-card-voucher-register`
 
@@ -679,7 +679,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Net Sales Summary
+### R1005 Net Sales Summary
 
 **Report id:** `cat-net-sales-summary`
 
@@ -693,7 +693,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Sales Bill Edit Audit Report
+### R1012 Sales Bill Edit Audit Report
 
 **Report id:** `cat-sales-bill-edit-audit-report`
 
@@ -707,7 +707,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Sales Counter Summary
+### R1009 Sales Counter Summary
 
 **Report id:** `cat-sales-counter-summary`
 
@@ -721,7 +721,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Sales Design Image Register
+### R1021 Sales Design Image Register
 
 **Report id:** `cat-sales-design-image-register`
 
@@ -735,7 +735,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Sales Discount Analysis
+### R1010 Sales Discount Analysis
 
 **Report id:** `cat-sales-discount-analysis`
 
@@ -749,7 +749,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Sales Itemwise Detail
+### R1002 Sales Itemwise Detail
 
 **Report id:** `cat-sales-itemwise-detail`
 
@@ -763,7 +763,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Sales Margin Analysis
+### R1011 Sales Margin Analysis
 
 **Report id:** `cat-sales-margin-analysis`
 
@@ -777,7 +777,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Sales Register
+### R1001 Sales Register
 
 **Report id:** `cat-sales-register`
 
@@ -792,7 +792,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Sales Return Itemwise Detail
+### R1004 Sales Return Itemwise Detail
 
 **Report id:** `cat-sales-return-itemwise-detail`
 
@@ -806,7 +806,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Sales Return Register
+### R1003 Sales Return Register
 
 **Report id:** `cat-sales-return-register`
 
@@ -820,7 +820,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Sales Tender Detail
+### R1007 Sales Tender Detail
 
 **Report id:** `cat-sales-tender-detail`
 
@@ -834,7 +834,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Sales Tender Summary
+### R1006 Sales Tender Summary
 
 **Report id:** `cat-sales-tender-summary`
 
@@ -848,7 +848,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Sales Variant Image Register
+### R1022 Sales Variant Image Register
 
 **Report id:** `cat-sales-variant-image-register`
 
@@ -862,7 +862,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Salesman Sales Summary
+### R1008 Salesman Sales Summary
 
 **Report id:** `cat-salesman-sales-summary`
 
@@ -878,7 +878,7 @@ Procurement & GRN to WMS.
 
 ## Service
 
-### Service SLA Breaches
+### R6072 Service SLA Breaches
 
 **Report id:** `service-sla-breaches`
 
@@ -890,7 +890,7 @@ Procurement & GRN to WMS.
 
 ## Stock Transfer
 
-### Transfer Approval / Cancellation Audit
+### R3042 Transfer Approval / Cancellation Audit
 
 **Report id:** `cat-transfer-approval-cancellation-audit`
 
@@ -904,7 +904,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Transfer Barcode Traceability
+### R3039 Transfer Barcode Traceability
 
 **Report id:** `cat-transfer-barcode-traceability`
 
@@ -919,7 +919,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Transfer GST / E-Way Control
+### R3040 Transfer GST / E-Way Control
 
 **Report id:** `cat-transfer-gst-e-way-control`
 
@@ -934,7 +934,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Transfer In Itemwise Detail
+### R3037 Transfer In Itemwise Detail
 
 **Report id:** `cat-transfer-in-itemwise-detail`
 
@@ -948,7 +948,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Transfer In Register
+### R3036 Transfer In Register
 
 **Report id:** `cat-transfer-in-register`
 
@@ -962,7 +962,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Transfer In-Transit Aging
+### R3038 Transfer In-Transit Aging
 
 **Report id:** `cat-transfer-in-transit-aging`
 
@@ -977,7 +977,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Transfer Out Itemwise Detail
+### R3035 Transfer Out Itemwise Detail
 
 **Report id:** `cat-transfer-out-itemwise-detail`
 
@@ -992,7 +992,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Transfer Out Register
+### R3034 Transfer Out Register
 
 **Report id:** `cat-transfer-out-register`
 
@@ -1007,7 +1007,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Transfer Shortage / Excess Exception
+### R3041 Transfer Shortage / Excess Exception
 
 **Report id:** `cat-transfer-shortage-excess-exception`
 
@@ -1023,7 +1023,7 @@ Procurement & GRN to WMS.
 
 ## WMS
 
-### 3PL Storage & Handling Billing
+### R4033 3PL Storage & Handling Billing
 
 **Report id:** `3pl-storage-billing`
 
@@ -1037,7 +1037,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### 3PL Storage Billing v2
+### R4043 3PL Storage Billing v2
 
 **Report id:** `storage-billing-v2`
 
@@ -1051,7 +1051,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Appointment Calendar Report
+### R4024 Appointment Calendar Report
 
 **Report id:** `cat-appointment-calendar-report`
 
@@ -1066,7 +1066,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Batch Movement History (Recall)
+### R4032 Batch Movement History (Recall)
 
 **Report id:** `batch-movement-history`
 
@@ -1079,7 +1079,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Batch Near-Expiry Watchlist
+### R4030 Batch Near-Expiry Watchlist
 
 **Report id:** `batch-near-expiry`
 
@@ -1091,7 +1091,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Batch Stock Inquiry
+### R4031 Batch Stock Inquiry
 
 **Report id:** `batch-stock-inquiry`
 
@@ -1105,7 +1105,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Bin Inventory Report
+### R4006 Bin Inventory Report
 
 **Report id:** `cat-bin-inventory-report`
 
@@ -1117,7 +1117,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Bin Replenishment Report
+### R4012 Bin Replenishment Report
 
 **Report id:** `cat-bin-replenishment-report`
 
@@ -1131,7 +1131,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Bin Stock Aging
+### R4020 Bin Stock Aging
 
 **Report id:** `cat-bin-stock-aging`
 
@@ -1143,7 +1143,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Bin Stock Reconciliation
+### R4034 Bin Stock Reconciliation
 
 **Report id:** `bin-stock-reconciliation`
 
@@ -1157,7 +1157,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Bin Utilization / Condition Report
+### R4010 Bin Utilization / Condition Report
 
 **Report id:** `cat-bin-utilization-condition-report`
 
@@ -1170,7 +1170,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Clean-Location Consolidation Suggestions
+### R4049 Clean-Location Consolidation Suggestions
 
 **Report id:** `consolidation-suggestions`
 
@@ -1182,7 +1182,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Cross-Facility Inventory Inquiry
+### R4035 Cross-Facility Inventory Inquiry
 
 **Report id:** `cross-facility-stock`
 
@@ -1194,7 +1194,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Cycle Count Register
+### R4018 Cycle Count Register
 
 **Report id:** `cat-cycle-count-register`
 
@@ -1208,7 +1208,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Cycle Count Variance Report
+### R4019 Cycle Count Variance Report
 
 **Report id:** `cat-cycle-count-variance-report`
 
@@ -1222,7 +1222,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Dispatch / Shipment Register
+### R4017 Dispatch / Shipment Register
 
 **Report id:** `cat-dispatch-shipment-register`
 
@@ -1236,7 +1236,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Dock Door Utilization
+### R4023 Dock Door Utilization
 
 **Report id:** `cat-dock-door-utilization`
 
@@ -1251,7 +1251,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Facility Roll-Up Inventory Inquiry
+### R4036 Facility Roll-Up Inventory Inquiry
 
 **Report id:** `facility-rollup`
 
@@ -1263,7 +1263,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Inbound / ASN Register
+### R4001 Inbound / ASN Register
 
 **Report id:** `cat-inbound-asn-register`
 
@@ -1277,7 +1277,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Inbound QC Exception
+### R4003 Inbound QC Exception
 
 **Report id:** `cat-inbound-qc-exception`
 
@@ -1291,7 +1291,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### LPN / Carton / Pallet Register
+### R4011 LPN / Carton / Pallet Register
 
 **Report id:** `cat-lpn-carton-pallet-register`
 
@@ -1304,7 +1304,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Labor Productivity
+### R4046 Labor Productivity
 
 **Report id:** `labor-productivity`
 
@@ -1317,7 +1317,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Labour Cost
+### R4042 Labour Cost
 
 **Report id:** `labor-cost`
 
@@ -1330,7 +1330,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Labour Enterprise Productivity
+### R4037 Labour Enterprise Productivity
 
 **Report id:** `labor-enterprise-productivity`
 
@@ -1343,7 +1343,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Labour Facility Performance
+### R4038 Labour Facility Performance
 
 **Report id:** `labor-facility-performance`
 
@@ -1356,7 +1356,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Labour Standards Audit
+### R4041 Labour Standards Audit
 
 **Report id:** `labor-standards-audit`
 
@@ -1366,7 +1366,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Labour Task Productivity
+### R4039 Labour Task Productivity
 
 **Report id:** `labor-task-productivity`
 
@@ -1379,7 +1379,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Labour User Performance
+### R4040 Labour User Performance
 
 **Report id:** `labor-user-performance`
 
@@ -1392,7 +1392,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Location Movement Register
+### R4007 Location Movement Register
 
 **Report id:** `cat-location-movement-register`
 
@@ -1406,7 +1406,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Lot / Serial / Barcode Traceability
+### R4021 Lot / Serial / Barcode Traceability
 
 **Report id:** `cat-lot-serial-barcode-traceability`
 
@@ -1420,7 +1420,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Owner Stock Exceptions (3PL)
+### R4044 Owner Stock Exceptions (3PL)
 
 **Report id:** `owner-stock-exceptions`
 
@@ -1430,7 +1430,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Owner Stock Inquiry (3PL)
+### R4045 Owner Stock Inquiry (3PL)
 
 **Report id:** `owner-stock-inquiry`
 
@@ -1444,7 +1444,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Packing Report
+### R4016 Packing Report
 
 **Report id:** `cat-packing-report`
 
@@ -1458,7 +1458,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Pick List Report
+### R4013 Pick List Report
 
 **Report id:** `cat-pick-list-report`
 
@@ -1472,7 +1472,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Picking Exception Report
+### R4015 Picking Exception Report
 
 **Report id:** `cat-picking-exception-report`
 
@@ -1486,7 +1486,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Putaway Completion Report
+### R4005 Putaway Completion Report
 
 **Report id:** `cat-putaway-completion-report`
 
@@ -1500,7 +1500,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Putaway Pending Report
+### R4004 Putaway Pending Report
 
 **Report id:** `cat-putaway-pending-report`
 
@@ -1514,7 +1514,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### RF / Mobile Picking Productivity
+### R4022 RF / Mobile Picking Productivity
 
 **Report id:** `cat-rf-mobile-picking-productivity`
 
@@ -1528,7 +1528,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Receiving / GRN Detail
+### R4002 Receiving / GRN Detail
 
 **Report id:** `cat-receiving-grn-detail`
 
@@ -1542,7 +1542,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Serial Movement History
+### R4029 Serial Movement History
 
 **Report id:** `serial-movement-history`
 
@@ -1555,7 +1555,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Serial Number Inquiry
+### R4028 Serial Number Inquiry
 
 **Report id:** `serial-inquiry`
 
@@ -1569,7 +1569,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Slotting / Re-Slotting Suggestions
+### R4047 Slotting / Re-Slotting Suggestions
 
 **Report id:** `slotting-suggestions`
 
@@ -1581,7 +1581,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Unslotting Suggestions (discontinued items)
+### R4048 Unslotting Suggestions (discontinued items)
 
 **Report id:** `unslotting-suggestions`
 
@@ -1593,7 +1593,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### WMS Stock Transfer Execution Report
+### R4008 WMS Stock Transfer Execution Report
 
 **Report id:** `cat-wms-stock-transfer-execution-report`
 
@@ -1607,7 +1607,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Warehouse Cockpit KPI Summary
+### R4009 Warehouse Cockpit KPI Summary
 
 **Report id:** `cat-warehouse-cockpit-kpi-summary`
 
@@ -1619,7 +1619,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Warehouse Inventory Accuracy Summary
+### R4027 Warehouse Inventory Accuracy Summary
 
 **Report id:** `cat-warehouse-inventory-accuracy-summary`
 
@@ -1633,7 +1633,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Warehouse SLA / Throughput Summary
+### R4026 Warehouse SLA / Throughput Summary
 
 **Report id:** `cat-warehouse-sla-throughput-summary`
 
@@ -1647,7 +1647,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Wave / Batch Picking Report
+### R4014 Wave / Batch Picking Report
 
 **Report id:** `cat-wave-batch-picking-report`
 
@@ -1661,7 +1661,7 @@ Procurement & GRN to WMS.
 
 **Drill-down:** no.
 
-### Yard / Trailer Board Report
+### R4025 Yard / Trailer Board Report
 
 **Report id:** `cat-yard-trailer-board-report`
 

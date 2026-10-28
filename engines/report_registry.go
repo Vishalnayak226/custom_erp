@@ -70,6 +70,10 @@ type ReportDefinition struct {
 	HasControlTotals bool   `json:"has_control_totals"`
 	Question         string `json:"question,omitempty"`
 	Description      string `json:"description,omitempty"`
+	// Number (Stage 139.2) is the report's permanent number, R1001: filled
+	// from reportNumbers (docs/specs/reports/report_numbers.tsv), never set
+	// by a report.
+	Number string `json:"number,omitempty"`
 	// StoreKey (Stage 75.3.3) is the row field carrying the store, for store
 	// scope; empty = the first store-named column, "-" = no store dimension.
 	StoreKey string `json:"-"`
@@ -104,10 +108,14 @@ func ListReportDefinitions() []ReportDefinition {
 		if q, ok := reportQuestions[id]; ok {
 			def.Question, def.Description = q.Question, q.Description
 		}
+		def.Number = reportNumbers[id]
 		out = append(out, def)
 	}
 	return out
 }
+
+// ReportNumber is a report's permanent number (R1001), or "" for none.
+func ReportNumber(id string) string { return reportNumbers[id] }
 
 // reportFullVisibilityRoles see every column in full; any other role gets
 // Sensitive-flagged columns redacted in place (Stage 20.39, matching the

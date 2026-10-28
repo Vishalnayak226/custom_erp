@@ -819,6 +819,11 @@ func AwardRFQ(tenantID, rfqID, quoteID, userID, storeCode string, opts AwardOpti
 		"quote_valid_until": str(quote, "valid_until"), "source_rfq_id": rfqID, "source_quote_id": quoteID,
 		"source_requisition_id": str(rfq, "source_requisition_id"), "status": "Draft",
 	}
+	// 49.5.6b: not for a vendor with no state; the supply type is derived.
+	if err := RequirePOVendorState(tenantID, po); err != nil {
+		return nil, err
+	}
+	ApplyPlaceOfSupply(tenantID, po)
 	pb, _ := json.Marshal(po)
 	if _, err := tx.Exec(fmt.Sprintf(
 		`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, 'PurchaseOrder', $2, 'Draft', $3)`, schema),

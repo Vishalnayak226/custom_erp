@@ -148,7 +148,12 @@ func TestStage49181AuthenticatedRequestCost(t *testing.T) {
 	for text, times := range counter.seen {
 		t.Logf("  %.2f per request: %s", float64(times)/counted, text)
 	}
-	if perRequest > 3 {
-		t.Errorf("%.2f database statements per authenticated read - over the budget of 3; something stopped being cached", perRequest)
+	// 49.18.8: the sandbox row and the doctype's module are cached; the
+	// module entitlement is read fresh on purpose, so one statement remains.
+	// The half-statement headroom absorbs a cache refresh during a slow run
+	// (the release runs five test jobs side by side - an exact budget failed
+	// once there); one new query per request still fails it.
+	if perRequest > 1.5 {
+		t.Errorf("%.2f database statements per authenticated read - over the budget of 1 (the fresh entitlement read); something stopped being cached", perRequest)
 	}
 }

@@ -104,6 +104,9 @@ func handleConfirmProductionOperation(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "operation_confirmed", "capacity_warning": warning})
 }
 
+// handleAcknowledgeBOMVariance accepts a production order's BOM change
+// (MFG-0276) so it can be finished. Stage 49.5.6c: the one way to set it - it
+// needs Production Order update permission and a reason, and is audited.
 func handleAcknowledgeBOMVariance(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	userID := r.Header.Get("Resolved-User-ID")
@@ -111,18 +114,29 @@ func handleAcknowledgeBOMVariance(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
+	allowed, err := checkPermission(tenantID, r.Header.Get("Resolved-Role"), "ProductionOrder", "update")
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to check permissions")
+		return
+	}
+	if !allowed {
+		writeAPIError(w, r, "GLOBAL-0011", "")
+		return
+	}
 	var req struct {
 		OrderID string `json:"order_id"`
+		Reason  string `json:"reason"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.OrderID == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'order_id' is required")
 		return
 	}
-	if err := engines.AcknowledgeBOMVariance(tenantID, req.OrderID, userID); err != nil {
+	ack, err := engines.AcknowledgeBOMVariance(tenantID, req.OrderID, userID, req.Reason)
+	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "bom_variance_acknowledged"})
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "bom_variance_acknowledged", "acknowledgement": ack})
 }
 
 func handleRecordActualProductionCost(w http.ResponseWriter, r *http.Request) {

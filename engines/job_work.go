@@ -282,18 +282,73 @@ type JobWorkReceiveLine struct {
 	Reason            string   `json:"reason"`
 }
 
+// lockSubcontractOrderTx (Stage 135.21) reads a job work order under its row
+// lock. A receipt or a charge checks the order's balance and saves it in one
+// transaction holding this lock, so two at once cannot both pass the check -
+// the second waits, then sees what the first did.
+func lockSubcontractOrderTx(tx *sql.Tx, schema, id string) (map[string]interface{}, string, error) {
+	var dataStr, status string
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE doctype = 'SubcontractOrder' AND id = $1 FOR UPDATE`, schema), id).Scan(&dataStr, &status); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, "", &ValidationError{Code: "MANUFA-0142", Message: fmt.Sprintf("subcontract order %s not found", id)}
+		}
+		return nil, "", err
+	}
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+		return nil, "", err
+	}
+	return data, status, nil
+}
+
+// writeJobWorkLedgerTx writes one receipt's stock ledger lines, posting
+// ("RECEIVE:2:1" - receipt 2, line 1) ending each key: keyed by order and SKU
+// alone, a second receipt's line was swallowed as a replay of the first while
+// its stock still moved (Stage 135.21, as production's 135.19).
+func writeJobWorkLedgerTx(tx *sql.Tx, schema, location, id, userID, posting string, lines []PostedStockLine) error {
+	if err := rejectIfCurrentPeriodClosed(tx, schema, "SubcontractOrder", id, ""); err != nil {
+		return err
+	}
+	for _, e := range stockLedgerEntriesFor(location, "SubcontractOrder", id, userID, lines) {
+		e.IdempotencyKey += ":" + posting
+		if err := insertStockLedgerEntry(tx, schema, e); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ReceiveJobWork takes a partial return against the order's lines. key makes
 // a retry harmless.
 func ReceiveJobWork(tenantID, id, userID, role, key string, in []JobWorkReceiveLine) (string, error) {
-	data, status, err := fetchSubcontractOrder(tenantID, id)
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return "", err
+	}
+	// Stage 135.21: one transaction under the order's row lock. Read outside
+	// it, two receipts at once both passed the balance check, both moved
+	// stock, and the later save dropped the earlier one's balance.
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+	if err := db.SetSearchPath(tx, schema); err != nil {
+		return "", err
+	}
+	data, status, err := lockSubcontractOrderTx(tx, schema, id)
 	if err != nil {
 		return "", err
 	}
 	key = strings.TrimSpace(key)
 	bal, events := jobWorkState(data)
+	receipt := 1 // this receipt's number on the order, for its ledger keys
 	for _, e := range events {
 		if key != "" && e.Key == key {
 			return status, nil
+		}
+		if e.Kind == "receive" {
+			receipt++
 		}
 	}
 	dcID := strField(data, "challan_id")
@@ -378,25 +433,21 @@ func ReceiveJobWork(tenantID, id, userID, role, key string, in []JobWorkReceiveL
 		}
 		evLines = append(evLines, ev)
 	}
-	// (1) The same item back, through the challan's own return.
+	// (1) The same item back, through the challan's own return (its own
+	// transaction, keyed, so a retry after a failure below does not take the
+	// goods back twice). A receipt with no key is keyed by its number on the
+	// order - "jw:<order>:" alone made every keyless receipt after the first
+	// a replay, its goods never put back.
 	if len(sameItem) > 0 {
-		if _, err := ReceiveChallanReturn(tenantID, dcID, userID, "jw:"+id+":"+key, sameItem); err != nil {
+		returnKey := "jw:" + id + ":" + key
+		if key == "" {
+			returnKey = fmt.Sprintf("jw:%s:#%d", id, receipt)
+		}
+		if _, err := ReceiveChallanReturn(tenantID, dcID, userID, returnKey, sameItem); err != nil {
 			return status, err
 		}
 	}
-	// (2) Transformations, with the order, in one transaction.
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return status, err
-	}
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return status, err
-	}
-	defer tx.Rollback()
-	if err := db.SetSearchPath(tx, schema); err != nil {
-		return status, err
-	}
+	// (2) Transformations, with the order, in the order's transaction.
 	location := strField(data, "location")
 	type costIn struct {
 		sku       string
@@ -413,7 +464,8 @@ func ReceiveJobWork(tenantID, id, userID, role, key string, in []JobWorkReceiveL
 			WHERE sku = $1 AND location_code = $2`, schema), c.line.SKU, location, c.consumed); err != nil {
 			return status, err
 		}
-		if err := WriteStockLedgerLinesTx(tx, schema, location, "SubcontractOrder", id, userID, "",
+		posting := fmt.Sprintf("RECEIVE:%d:%d", receipt, c.line.LineNo)
+		if err := writeJobWorkLedgerTx(tx, schema, location, id, userID, posting,
 			[]PostedStockLine{{SKU: c.line.SKU, Qty: -c.consumed, BatchNo: c.line.BatchNo}}); err != nil {
 			return status, err
 		}
@@ -422,7 +474,7 @@ func ReceiveJobWork(tenantID, id, userID, role, key string, in []JobWorkReceiveL
 			if err != nil {
 				return status, err
 			}
-			if err := WriteStockLedgerLinesTx(tx, schema, location, "SubcontractOrder", id, userID, "", ledger); err != nil {
+			if err := writeJobWorkLedgerTx(tx, schema, location, id, userID, posting, ledger); err != nil {
 				return status, err
 			}
 			if c.outRej > 0 {
@@ -462,13 +514,17 @@ func ReceiveJobWork(tenantID, id, userID, role, key string, in []JobWorkReceiveL
 		string(raw), newStatus, id); err != nil {
 		return status, err
 	}
-	if err := tx.Commit(); err != nil {
-		return status, err
-	}
+	// The output's cost, in the same transaction (it was written after the
+	// commit, so the stock could arrive without its value).
 	for _, c := range costsIn {
 		if c.unitPaise > 0 {
-			_ = RecordStockReceiptCost(tenantID, c.sku, float64(c.qty), c.unitPaise)
+			if err := upsertItemCostReceiptQ(tx, schema, c.sku, float64(c.qty), c.unitPaise*int64(c.qty)); err != nil {
+				return status, err
+			}
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		return status, err
 	}
 	for _, wo := range autoWriteOffs {
 		if err := postChallanWriteOff(tenantID, wo, userID); err != nil {
@@ -588,6 +644,21 @@ func ReceiveFromSubcontractor(tenantID, id, userID string, actualQty float64) er
 			[]JobWorkReceiveLine{{LineNo: bal[0].LineNo, AcceptedQty: bal[0].Open() - bal[0].PendingLoss, OutputQty: &out}})
 		return err
 	}
+	// Stage 135.21: an order sent the old way - the status check, its output's
+	// stock and the Received status in one transaction under the order's row
+	// lock, so two receipts at once cannot both bring the output in.
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if data, status, err = lockSubcontractOrderTx(tx, schema, id); err != nil {
+		return err
+	}
 	if status != "Sent" {
 		return &ValidationError{Code: "MANUFA-0142", Message: fmt.Sprintf("only a Sent subcontract order can be received (current status: %s)", status)}
 	}
@@ -597,12 +668,25 @@ func ReceiveFromSubcontractor(tenantID, id, userID string, actualQty float64) er
 		return &ValidationError{Code: "MANUFA-0142", Message: "received_item_id, location, and a positive received qty are required to receive a subcontract order"}
 	}
 	items := []interface{}{map[string]interface{}{"sku": sku, "qty": actualQty}}
-	if _, err := PostInventoryLedgerWithVoucher(tenantID, location, items, false, "SubcontractOrder", id, userID); err != nil {
+	_, lines, err := PostInventoryLedgerWithVoucherTx(tx, schema, location, items, false)
+	if err == nil {
+		err = writeStockLedgerLinesInTx(tx, schema, location, "SubcontractOrder", id, userID, lines)
+	}
+	if err != nil {
 		return fmt.Errorf("subcontract receive failed: %v", err)
 	}
 	data["actual_received_qty"] = actualQty
 	data["received_date"] = BusinessToday()
-	return saveSubcontractOrder(tenantID, id, data, "Received")
+	data["status"] = "Received"
+	marshaled, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = $1, status = 'Received', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'SubcontractOrder' AND id = $2`, schema),
+		marshaled, id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // PostJobWorkCharge books the job worker's processing bill: Dr job-work
@@ -613,7 +697,19 @@ func PostJobWorkCharge(tenantID, id, userID, billNo string, amount float64) erro
 	if billNo == "" || amount <= 0 {
 		return jobWorkFail("enter the job worker's bill number and amount")
 	}
-	data, _, err := fetchSubcontractOrder(tenantID, id)
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	// Stage 135.21: the bill check, its GL and the order's balance in one
+	// transaction under the order's row lock. Read outside it, two bills at
+	// once each saved the balance it had read, and one bill's share was lost.
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	data, _, err := lockSubcontractOrderTx(tx, schema, id)
 	if err != nil {
 		return err
 	}
@@ -642,19 +738,20 @@ func PostJobWorkCharge(tenantID, id, userID, billNo string, amount float64) erro
 	}
 	location := strField(data, "location")
 	acc := ResolvePostingAccounts(tenantID, PostingEventJobworkCharge, PostingContext{LegalEntity: locationLegalEntity(tenantID, location)}, accountJobworkCharge, AccountAPSuspense)
-	if err := PostDoubleEntry(tenantID, "SubcontractOrder", id, map[string]int64{acc.Debit: paise}, map[string]int64{acc.Credit: paise}, "", "JobWorkCharge:"+id+":"+billNo); err != nil {
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "SubcontractOrder", id, map[string]int64{acc.Debit: paise}, map[string]int64{acc.Credit: paise}, "", "JobWorkCharge:"+id+":"+billNo); err != nil {
 		return err
 	}
 	events = append(events, challanEvent{Key: billNo, Kind: "charge", At: time.Now().UTC().Format(time.RFC3339), By: userID,
 		Lines: []map[string]interface{}{{"bill_no": billNo, "amount": amount}}})
 	balRaw, _ := json.Marshal(bal)
 	evRaw, _ := json.Marshal(events)
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
+	patch, _ := json.Marshal(map[string]interface{}{"jw_balance": string(balRaw), "jw_events": string(evRaw),
+		"processing_charges": round2(numFromInterface(data["processing_charges"]) + amount)})
+	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || $1::jsonb, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'SubcontractOrder' AND id = $2`, schema),
+		string(patch), id); err != nil {
 		return err
 	}
-	if err := mergeDocData(schema, "SubcontractOrder", id, map[string]interface{}{"jw_balance": string(balRaw), "jw_events": string(evRaw),
-		"processing_charges": round2(numFromInterface(data["processing_charges"]) + amount)}); err != nil {
+	if err := tx.Commit(); err != nil {
 		return err
 	}
 	LogAuditEvent(tenantID, userID, "JOB_WORK_CHARGE", "SUCCESS", fmt.Sprintf("%s: bill %s %.2f", id, billNo, amount))

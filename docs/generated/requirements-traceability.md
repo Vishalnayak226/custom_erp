@@ -41,10 +41,10 @@ These requirements apply to every capability and configuration below: [docs/requ
 ## CAP-WMS — Warehouse operations
 
 - Requirements: [docs/requirements/modules/wms.md#fr-wms-001](../../docs/requirements/modules/wms.md#fr-wms-001), [docs/requirements/modules/wms.md#fr-wms-002](../../docs/requirements/modules/wms.md#fr-wms-002), [docs/requirements/modules/wms.md#fr-wms-003](../../docs/requirements/modules/wms.md#fr-wms-003)
-- Design/control: [engines/wms_owner_stock.go](../../engines/wms_owner_stock.go), [engines/wms_single_owner.go](../../engines/wms_single_owner.go)
-- Automated tests: [engines/stage47_a05_owner_allocation_redteam_test.go](../../engines/stage47_a05_owner_allocation_redteam_test.go), [engines/wms_single_owner_test.go](../../engines/wms_single_owner_test.go)
+- Design/control: [engines/wms_owner_stock.go](../../engines/wms_owner_stock.go), [engines/wms_single_owner.go](../../engines/wms_single_owner.go), [engines/wms_owner_isolation.go](../../engines/wms_owner_isolation.go)
+- Automated tests: [engines/stage47_a05_owner_allocation_redteam_test.go](../../engines/stage47_a05_owner_allocation_redteam_test.go), [engines/wms_single_owner_test.go](../../engines/wms_single_owner_test.go), [engines/wms_owner_isolation_test.go](../../engines/wms_owner_isolation_test.go)
 - User help: [docs/kb/module-handbooks/inventory-wms-operations.md](../../docs/kb/module-handbooks/inventory-wms-operations.md)
-- Work items: 47.5, 47.6, 42
+- Work items: 47.5, 47.6, 42, 59
 - Verification/review: 2026-09-10 / 2026-10-09
 - Signed release evidence: pending
 

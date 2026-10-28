@@ -28,6 +28,14 @@ import (
 const connectorMaxResponseBytes = 32 << 20
 
 func doConnectorRequest(ctx context.Context, timeout time.Duration, method, url string, headers map[string]string, body []byte, breakerKey string) (status int, respBody []byte, err error) {
+	// 49.8.7 / 49.8.7a: the emergency switch, the client's Outside calls
+	// setting and development each stop the call before it leaves
+	// (outsideCallRefusal says which calls, and why). The refusal is
+	// CONN-0225, the code a publish job already treats as "stay Queued,
+	// untouched", so pending work goes out once the switch is back on.
+	if reason := outsideCallRefusal(outsideCallsSchemaFrom(ctx), method, url); reason != "" {
+		return 0, nil, &ValidationError{Code: "CONN-0225", Message: fmt.Sprintf("%s - nothing was sent to %q; it goes once they are switched back on", reason, breakerKey)}
+	}
 	if !circuitBreakerAllow(breakerKey) {
 		// CONN-0225 (Stage 25.6): "Channel API rate limited" - the closest
 		// real match this codebase has (a genuine per-platform-response-code

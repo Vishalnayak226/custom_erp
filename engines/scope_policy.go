@@ -229,6 +229,7 @@ var doctypeScopes = map[string]DoctypeScope{
 var personalViewDoctypes = map[string]bool{
 	"DashboardLayout": true, "OMSSavedView": true,
 	"ReportColumnProfile": true, "ReportFilterPreset": true,
+	"UserShortcut": true, // Stage 139: favourites and saved views, read back by owner
 }
 
 // globalScopeGrants is capability -> roles holding it, beyond Super Admin

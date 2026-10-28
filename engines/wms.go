@@ -762,11 +762,23 @@ func PostCycleCountAdjustment(tenantID, lineID, userID string) error {
 		return fmt.Errorf("cycle count line %s cannot post: a variance root-cause reason code is required first (see SetCycleCountVarianceReason)", lineID)
 	}
 
+	// Stage 135.16: the variance was measured against the book at count time.
+	// A book that has since fallen so far that the variance takes it below
+	// zero means the count is stale: refuse, rather than floor on_hand at zero
+	// while the ledger line below records the full variance.
+	var onHand int
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT on_hand FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2 FOR UPDATE`, schema),
+		sku, location).Scan(&onHand); err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	if onHand+variance < 0 {
+		return fmt.Errorf("cycle count line %s cannot post: %s at %s has %d on hand now, and its variance of %d would take that below zero - stock moved since the count, so count it again", lineID, sku, location, onHand, variance)
+	}
 	if _, err := tx.Exec(fmt.Sprintf(`
 		INSERT INTO %s.inventory_availability (sku, location_code, on_hand, available)
 		VALUES ($1, $2, $3, $3)
 		ON CONFLICT (sku, location_code) DO UPDATE SET
-			on_hand = GREATEST(0, %s.inventory_availability.on_hand + $3),
+			on_hand = %s.inventory_availability.on_hand + $3,
 			available = GREATEST(0, %s.inventory_availability.available + $3),
 			updated_at = CURRENT_TIMESTAMP`, schema, schema, schema),
 		sku, location, variance); err != nil {

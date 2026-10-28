@@ -11,7 +11,7 @@ Maturity is scoped to the configurations below. Source and test-file links are i
 | ID | Industry / country | Deployment / devices | Owner model | Limit |
 |---|---|---|---|---|
 | REF-RETAIL-IN | single/multi-store retail / India | one Go service + PostgreSQL; tenant schemas / desktop browser; mobile/RF not certified | retailer-owned stock | Preview evaluation; tenant-role migration, deployment controls and release acceptance remain required. |
-| REF-WAREHOUSE-IN | wholesale distribution with dedicated-owner warehouses / India | one Go service + PostgreSQL; tenant schemas / browser/RF candidate; physical verification pending | one stock owner per warehouse; Stage 47.5 single_owner guard | Preview evaluation of the selected single-owner configuration; deployment and release acceptance required. mixed_unsupported mode provides no allocation/picking isolation and is outside supported use. |
+| REF-WAREHOUSE-IN | wholesale distribution with dedicated-owner warehouses / India | one Go service + PostgreSQL; tenant schemas / browser/RF candidate; physical verification pending | one stock owner per warehouse; Stage 47.5 single_owner guard | Preview evaluation of the selected single-owner configuration; deployment and release acceptance required. Mixed-owner mode (Stage 59, owner isolation in allocation, picking and movements) is built but not part of this reference configuration's evaluation. |
 
 ## Capability status
 
@@ -21,7 +21,7 @@ Module keys link this product register to the executable module catalog. The reg
 |---|---|---|---|---|
 | CAP-POS — Point of sale | sales | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | store-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
 | CAP-RET — Returns and refunds | sales, oms | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | store-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
-| CAP-WMS — Warehouse operations | wms, stickers, inventory | Experimental / REF-RETAIL-IN, REF-WAREHOUSE-IN | warehouse-process-owner | Single-owner-per-warehouse guard implemented; mixed-owner operation explicitly unsupported. Physical device, deployment and qualified release acceptance remain open. |
+| CAP-WMS — Warehouse operations | wms, stickers, inventory | Experimental / REF-RETAIL-IN, REF-WAREHOUSE-IN | warehouse-process-owner | Single-owner-per-warehouse guard implemented (47.5). Mixed-owner warehouses are a supported setting since Stage 59: orders, allocation, availability and every bin movement carry the owner, with an owner-stock exception report. Physical device, deployment and qualified release acceptance remain open. |
 | CAP-OMS — Order management | oms | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | order-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
 | CAP-PIM — Product and master data | pim, master_data | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | data-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
 | CAP-BUY — Procurement | procurement, rfq | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | procurement-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |

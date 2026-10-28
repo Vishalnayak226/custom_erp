@@ -251,8 +251,11 @@ func purgeSettledCommandClaims(schema string) {
 		WHERE status IN ('Completed', 'Failed')
 		  AND completed_at < CURRENT_TIMESTAMP - $1::interval`, schema),
 		fmt.Sprintf("%d days", commandClaimRetentionDays)); err != nil {
-		LogSystemError(schemaToTenantID(schema), "", "WARN", "purgeSettledCommandClaims",
-			fmt.Sprintf("%s: %v", schema, err), "")
+		// Stage 49.3.2: on the client's own log, never the default client's.
+		if tenantID := schemaToTenantID(schema); tenantID != "" {
+			LogSystemError(tenantID, "", "WARN", "purgeSettledCommandClaims",
+				fmt.Sprintf("%s: %v", schema, err), "")
+		}
 	}
 }
 

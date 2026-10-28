@@ -15,9 +15,4 @@ Content-Type: application/json
 <p>That last row matters: a server error is never cached. If the server failed, you are entitled to try again and get a real answer.</p>
 <aside class="kb-admonition kb-admonition-note" role="note"><p class="kb-admonition-title">Note</p><p>Keys expire after the tenant&#39;s configured retention window (24 hours by default). After that the same key value is treated as a brand new request, so do not rely on a key from last week to deduplicate today&#39;s call.</p></aside>
 <h2 id="practical-advice">Practical advice <a class="kb-anchor" href="#practical-advice" aria-label="Copy link to this section">#</a></h2>
-<ul><li>Derive the key from your own order identifier, not from a timestamp. Then a</li></ul>
-<p>crash-and-restart retry naturally reuses the same key.</p>
-<ul><li>Store the key alongside your record of the operation, so a retry after a</li></ul>
-<p>process restart can find it.</p>
-<ul><li>Do not include the key in a hash of the request. The server already compares</li></ul>
-<p>the request itself, and a key that changes with the body defeats the purpose.</p>
+<ul><li>Derive the key from your own order identifier, not from a timestamp. Then a crash-and-restart retry naturally reuses the same key.</li><li>Store the key alongside your record of the operation, so a retry after a process restart can find it.</li><li>Do not include the key in a hash of the request. The server already compares the request itself, and a key that changes with the body defeats the purpose.</li></ul>

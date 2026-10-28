@@ -244,6 +244,10 @@ func ApproveSupplyProposals(tenantID, userID, storeCode string, in ApprovePropos
 		if vendorName, ok = vendorNameOf(tenantID, in.Vendor); !ok || strings.TrimSpace(in.Vendor) == "" {
 			return nil, proposalErr("choose an active vendor for the purchase order")
 		}
+		// 49.5.6b: before a number is taken - not for a vendor with no state.
+		if err := RequirePOVendorState(tenantID, map[string]interface{}{"vendor": in.Vendor}); err != nil {
+			return nil, err
+		}
 	}
 	if in.Action == ProposalTransfer {
 		if strings.TrimSpace(in.FromLocation) == "" {
@@ -343,11 +347,13 @@ func ApproveSupplyProposals(tenantID, userID, storeCode string, in ApprovePropos
 			target[p.id] = numbers[0]
 		}
 		itemsJSON, _ := json.Marshal(items)
-		if err := insert(numbers[0], "PurchaseOrder", map[string]interface{}{
+		po := map[string]interface{}{
 			"code": numbers[0], "po_number": numbers[0], "vendor": in.Vendor, "vendor_id": in.Vendor, "location": location,
 			"target_warehouse": location, "items": string(itemsJSON), "total_amount": round2(total), "gst_mode": GSTModeExclusive,
 			"source_proposal_ids": strings.Join(ids, ","), "status": "Draft",
-		}); err != nil {
+		}
+		ApplyPlaceOfSupply(tenantID, po) // 49.5.6b: the supply type is derived
+		if err := insert(numbers[0], "PurchaseOrder", po); err != nil {
 			return nil, err
 		}
 		res.Doctype, res.Documents = "PurchaseOrder", []string{numbers[0]}

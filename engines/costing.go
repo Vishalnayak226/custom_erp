@@ -91,14 +91,22 @@ func RecordStockReceiptCost(tenantID, itemCode string, qty float64, unitCostPais
 // without changing the average - a stated, logged limitation rather than a
 // silent no-op or a fabricated per-unit rate.
 func ApplyLandedCostCharge(tenantID, itemCode string, chargeAmountPaise int64) error {
-	if chargeAmountPaise <= 0 {
-		return nil
-	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
 	}
-	_, err = db.DB.Exec(fmt.Sprintf(`
+	return applyLandedCostChargeQ(db.DB, schema, itemCode, chargeAmountPaise)
+}
+
+// applyLandedCostChargeQ is ApplyLandedCostCharge on a given executor - the
+// voucher's own transaction (Stage 135.21) or the pool.
+func applyLandedCostChargeQ(q interface {
+	Exec(string, ...interface{}) (sql.Result, error)
+}, schema, itemCode string, chargeAmountPaise int64) error {
+	if chargeAmountPaise <= 0 {
+		return nil
+	}
+	_, err := q.Exec(fmt.Sprintf(`
 		INSERT INTO %s.item_cost (item_code, cumulative_qty_received, cumulative_value_received_paise, avg_unit_cost_paise)
 		VALUES ($1, 0, $2, 0)
 		ON CONFLICT (item_code) DO UPDATE SET
@@ -364,8 +372,21 @@ func ApplyLandedCostVoucher(tenantID, voucherID, userID string) error {
 	if err != nil {
 		return err
 	}
-	data, status, err := fetchDocData(tenantID, "LandedCostVoucher", voucherID)
+	// Stage 135.21: one transaction under the voucher's row lock - the status
+	// check, the items' cost, the GL and the Applied status. Checked outside
+	// it, two applies at once both passed and each raised the cost again.
+	tx, err := db.DB.Begin()
 	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var dataStr, status string
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE doctype = 'LandedCostVoucher' AND id = $1 AND deleted_at IS NULL FOR UPDATE`, schema),
+		voucherID).Scan(&dataStr, &status); err != nil {
+		return err
+	}
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
 		return err
 	}
 	if status == "Applied" {
@@ -442,12 +463,12 @@ func ApplyLandedCostVoucher(tenantID, voucherID, userID string) error {
 			share = totalChargePaise * b.baseValue / totalBaseValue
 		}
 		allocated += share
-		if err := ApplyLandedCostCharge(tenantID, b.sku, share); err != nil {
+		if err := applyLandedCostChargeQ(tx, schema, b.sku, share); err != nil {
 			return fmt.Errorf("applying landed cost to %s: %v", b.sku, err)
 		}
 	}
 
-	if err := PostDoubleEntry(tenantID, "LandedCostVoucher", voucherID,
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "LandedCostVoucher", voucherID,
 		map[string]int64{"1200": totalChargePaise}, map[string]int64{"2110": totalChargePaise},
 		"", fmt.Sprintf("LandedCostVoucher:%s:APPLY", voucherID)); err != nil {
 		return fmt.Errorf("GL posting failed, voucher not applied: %v", err)
@@ -458,10 +479,12 @@ func ApplyLandedCostVoucher(tenantID, voucherID, userID string) error {
 	if err != nil {
 		return err
 	}
-	_, err = db.DB.Exec(fmt.Sprintf(
+	if _, err := tx.Exec(fmt.Sprintf(
 		`UPDATE %s.documents SET data = $1, status = 'Applied', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'LandedCostVoucher' AND id = $2`, schema),
-		marshaled, voucherID)
-	return err
+		marshaled, voucherID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // ValidateLandedCostVoucherDocument runs at ValidateDocument's shared exit,
@@ -523,9 +546,9 @@ func GetInventoryValuation(tenantID string) ([]map[string]interface{}, error) {
 		}
 		out = append(out, map[string]interface{}{
 			"sku": sku, "qty_on_hand": qty,
-			"unit_cost": PaiseToRupees(unitCostPaise),
+			"unit_cost":   PaiseToRupees(unitCostPaise),
 			"total_value": PaiseToRupees(unitCostPaise * qty),
-			"costed": unitCostPaise > 0,
+			"costed":      unitCostPaise > 0,
 		})
 	}
 	if out == nil {

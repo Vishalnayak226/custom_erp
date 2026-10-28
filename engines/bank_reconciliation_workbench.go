@@ -634,30 +634,29 @@ func MatchPOSPayout(tenantID, lineID, clearingAccount string, fee float64, actor
 	if err != nil {
 		return err
 	}
-	// Validate under the line lock, then post (PostDoubleEntry runs its own
-	// transaction), then pair. The posting key makes a retry after a failed
-	// pairing find the same posting instead of booking the payout twice.
+	// Validate, post and pair in one transaction under the line lock (Stage
+	// 135.21). Posted and paired in two later transactions that never
+	// re-checked the line, a second call that had passed the check matched it
+	// again over the first, fee and method included. Now it waits, then finds
+	// the line Matched and is refused.
 	tx, err := db.DB.Begin()
 	if err != nil {
 		return err
 	}
+	defer tx.Rollback()
 	line, err := lockBankLine(tx, schema, lineID)
 	if err != nil {
-		tx.Rollback()
 		return err
 	}
 	if line.status == "Matched" || line.status == "Explained" {
-		tx.Rollback()
 		return &ValidationError{Code: "FIN-0512", Message: fmt.Sprintf("this line is already %s", line.status)}
 	}
 	if line.drCr != "Credit" {
-		tx.Rollback()
 		return &ValidationError{Code: "FIN-0516", Message: "a card / UPI payout is money in - match it to a Credit line"}
 	}
 	key := fmt.Sprintf("BankStatementLine:%s:POS_PAYOUT", lineID)
 	var alreadyPosted bool
 	if err := tx.QueryRow(fmt.Sprintf(`SELECT EXISTS(SELECT 1 FROM %s.gl_postings WHERE idempotency_key = $1)`, schema), key).Scan(&alreadyPosted); err != nil {
-		tx.Rollback()
 		return err
 	}
 	feePaise := RupeesToPaise(fee)
@@ -665,49 +664,38 @@ func MatchPOSPayout(tenantID, lineID, clearingAccount string, fee float64, actor
 		var clearingPaise int64
 		if err := tx.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(debit), 0) - COALESCE(SUM(credit), 0) FROM %s.gl_postings WHERE account_code = $1`, schema),
 			clearingAccount).Scan(&clearingPaise); err != nil {
-			tx.Rollback()
 			return err
 		}
 		if line.amountPaise+feePaise > clearingPaise {
-			tx.Rollback()
 			return &ValidationError{Code: "FIN-0513", Message: fmt.Sprintf("the payout plus fee (%.2f) is more than the %.2f still in clearing account %s - check the date range or the fee",
 				PaiseToRupees(line.amountPaise+feePaise), PaiseToRupees(clearingPaise), clearingAccount)}
 		}
 	}
-	tx.Rollback()
 
 	debits := map[string]int64{line.glAccount: line.amountPaise}
 	if feePaise > 0 {
 		debits["5230"] = feePaise
 	}
 	credits := map[string]int64{clearingAccount: line.amountPaise + feePaise}
-	if err := PostDoubleEntry(tenantID, "BankStatementLine", lineID, debits, credits, line.txnDate, key); err != nil {
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "BankStatementLine", lineID, debits, credits, line.txnDate, key); err != nil {
 		return err
 	}
 
-	tx2, err := db.DB.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx2.Rollback()
-	if _, err := lockBankLine(tx2, schema, lineID); err != nil {
-		return err
-	}
 	var postingID string
-	if err := tx2.QueryRow(fmt.Sprintf(`SELECT posting_id FROM %s.gl_postings WHERE idempotency_key = $1 AND account_code = $2 AND debit > 0 LIMIT 1`, schema),
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT posting_id FROM %s.gl_postings WHERE idempotency_key = $1 AND account_code = $2 AND debit > 0 LIMIT 1`, schema),
 		key, line.glAccount).Scan(&postingID); err != nil {
 		return fmt.Errorf("payout posted but its bank entry was not found: %v", err)
 	}
-	if _, err := tx2.Exec(fmt.Sprintf(`UPDATE %s.gl_postings SET matched_statement_line_id = $1 WHERE posting_id = $2`, schema), lineID, postingID); err != nil {
+	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.gl_postings SET matched_statement_line_id = $1 WHERE posting_id = $2`, schema), lineID, postingID); err != nil {
 		return err
 	}
 	method := map[string]string{"1101": "payout:card", "1102": "payout:upi"}[clearingAccount]
 	patch := matchedPatch(method, actor, 0)
 	patch["payout_fee"] = fee
-	if err := patchBankLine(tx2, schema, lineID, patch); err != nil {
+	if err := patchBankLine(tx, schema, lineID, patch); err != nil {
 		return err
 	}
-	if err := tx2.Commit(); err != nil {
+	if err := tx.Commit(); err != nil {
 		return err
 	}
 	LogAuditEvent(tenantID, actor, "BANK_PAYOUT_MATCHED", "SUCCESS", fmt.Sprintf("Statement line %s booked as a %s payout from %s (fee %.2f) and matched", lineID, method, clearingAccount, fee))

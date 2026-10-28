@@ -35,12 +35,13 @@ pipeline that queues, retries and logs a publish attempt never has to know
 which platform it's actually talking to. This ERP ships two families built
 on that interface:
 
-- **The PIM catalogue connectors** — Shopify, BigCommerce, Magento/Adobe
+- **The PIM catalogue connectors** — BigCommerce and Magento/Adobe
   Commerce — push one Item's approved content out to a storefront. This is
-  the older, catalogue-only half.
-- **The omnichannel connector SDK** — Amazon, Flipkart, WooCommerce, and a
-  set of private-contract marketplaces (Myntra, Meesho, Ajio, Nykaa) and
-  quick-commerce platforms (Blinkit, Zepto, Swiggy Instamart) — adds pulling
+  the older, catalogue-only half (a Shopify channel's PIM publish goes
+  through the Shopify page's publish instead, see the Shopify section).
+- **The omnichannel connector SDK** — Shopify, Amazon, Flipkart,
+  WooCommerce, and a set of private-contract marketplaces (Myntra, Meesho,
+  Ajio, Nykaa) and quick-commerce platforms (Blinkit, Zepto, Swiggy Instamart) — adds pulling
   orders in and pushing inventory/order-status out, on top of the same
   catalogue publish. Registering one of these connectors registers it into
   *both* the omnichannel registry and the older publish registry
@@ -69,7 +70,8 @@ steps, all in `engines/pim_publish.go`:
 3. **Background worker** (`StartPublishQueueWorker` / `processPublishQueue`).
    A ticker picks up to 10 `Queued` rows per tenant schema per tick, resolves
    the right connector by the channel's `platform` field
-   (`resolveConnector`), and calls it.
+   (`resolveConnector`), and calls it. A Shopify channel is the exception:
+   its job goes through the Shopify page's publish (below).
 4. **Connector call**, rate-limited two ways before the platform is ever
    touched: a per-channel token bucket (`allowConnectorCall`, sized by the
    connector's own declared `RateLimit()`) and a per-platform circuit breaker
@@ -149,9 +151,29 @@ the staged resource to the product — a media failure logs but does not fail
 the publish, since the product itself already saved. `RateLimit()` returns a
 conservative static floor (20/minute); the live GraphQL cost/throttle status
 is parsed and logged on every call for visibility, though the bucket itself
-does not yet adapt to it. Each ERP Item publishes as its own standalone
-Shopify product — grouping an ERP parent+variant family into one Shopify
-product with real Shopify variants is explicitly out of scope for this pass.
+does not yet adapt to it.
+
+Products go out from the channel's **Shopify page** (Stage 99,
+`PublishToShopify` in `engines/shopify_sync.go`), by **design**: a design
+becomes one Shopify product with its sizes / colours as real Shopify options
+and variants (SKU, barcode, price, MRP as the compare-at price, weight). An
+Item in no design goes as a product of its own. Publishing again updates the
+same product through the links kept in `shopify_links` — never a duplicate;
+an inactive Item drops out of its product and an inactive design is
+archived. Pictures go up with the first publish only: the design's, then
+each variant's own main picture, attached to that variant. **Link existing
+Shopify products** links a shop that already sells the Items, by SKU, else
+barcode. The whole page: the [Shopify](shopify.md) handbook and Admin Guide
+§B.3.20.
+
+The PIM screen's item-level **Publish** on a Shopify channel takes the same
+route: the queue worker publishes the Item's design (all its variants), or
+the Item alone if it is in no design, through `PublishToShopify`, so the
+product is linked and its price and stock stay in step. The publish log
+records the linked Shopify product. PIM's channel attribute mappings
+(metafields, tags, product type) are not sent on this route - the Shopify
+page's publish sends title, description, brand, HSN, options, variants and
+pictures.
 
 ## BigCommerce
 
@@ -332,9 +354,9 @@ assuming the whole publish failed.
 
 **An Amazon/Flipkart/marketplace order never showed up in OMS → Orders.**
 Confirm the channel's connector declares `PullOrders` (its connector health
-row only shows a **Pull orders** button when it does) and that button has actually
-been run — pulling is on-demand from that button, not automatic on a timer,
-except for Magento Open Source's poll worker.
+row only shows a **Pull orders** button when it does). An active channel is
+also pulled on its own every sync interval (the channel's **Sync Interval
+(Minutes)**), so check its last sync run before pulling by hand.
 
 **A marketplace order is stuck as an "Unmapped SKU exception."** The
 channel's SKU on the order has no `ChannelSKUMapping` to an ERP item yet.
@@ -355,11 +377,10 @@ existing **Settings → Configuration → Integrations** pattern already used fo
 Labs and Unicommerce — is the natural next step, flagged in
 `docs/micro_checklist.md`.
 
-Shopify variant grouping (an ERP parent+variant family becoming one Shopify
-product with real Shopify-side variants), Magento/Adobe Commerce's own IMS
-OAuth token refresh, and a fully adaptive (rather than static-floor) rate
-budget for Shopify are all stated, deliberate scope cuts in the connector
-code itself, not gaps found during this pass.
+Magento/Adobe Commerce's own IMS OAuth token refresh and a fully adaptive
+(rather than static-floor) rate budget for Shopify are both stated,
+deliberate scope cuts in the connector code itself, not gaps found during
+this pass.
 
 See also [Courier Integrations](courier-integrations.md) for the shipping
 side of a channel order once it's in the ERP.

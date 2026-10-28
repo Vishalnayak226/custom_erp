@@ -82,6 +82,12 @@ function Get-DataChangeFindings {
             $findings.Add([pscustomobject]@{ Kind = 'backfill on migrate'; File = $path; Line = 0; Text = $text.Trim() })
         } elseif ($path -notmatch '_test\.go$' -and $text -match 'time\.NewTicker\(|time\.Tick\(') {
             $findings.Add([pscustomobject]@{ Kind = 'new background job'; File = $path; Line = 0; Text = $text.Trim() })
+        } elseif ($path -notmatch '_test\.go$' -and ($text -match 'retentionDelete\(|DELETE\s+FROM' -or
+                ($path -eq 'engines/integration_log_retention.go' -and $text -match '^\s*\{"[a-z_]+",'))) {
+            # 2026-10-27 (49.18.2): a sweep that starts deleting a table it never
+            # touched (or deletes differently) changes client data at its first
+            # tick after the deploy, with no migration to show for it.
+            $findings.Add([pscustomobject]@{ Kind = 'sweep deletes'; File = $path; Line = 0; Text = $text.Trim() })
         }
     }
     return , $findings.ToArray()

@@ -19,7 +19,7 @@ applies_to: source registries; not release acceptance
 
 # Error code reference
 
-Every refusal in this application carries a code. There are **567** of them,
+Every refusal in this application carries a code. There are **574** of them,
 across **75** areas. This page is produced from the running catalog, so it
 cannot describe a code the application does not have, or miss one it does.
 
@@ -76,12 +76,12 @@ open the right page.
 - [Goods Receipt / GRN](#goods-receipt-grn) - 8 codes
 - [HR & Payroll](#hr-payroll) - 2 codes
 - [HR / Payroll](#hr-payroll) - 14 codes
-- [Integration / API](#integration-api) - 9 codes
+- [Integration / API](#integration-api) - 10 codes
 - [Integrations](#integrations) - 1 codes
 - [Inventory](#inventory) - 10 codes
 - [Inventory / Warehouse](#inventory-warehouse) - 29 codes
 - [Item Master](#item-master) - 2 codes
-- [Manufacturing / Production](error-code-reference-2.md#manufacturing-production) - 13 codes
+- [Manufacturing / Production](error-code-reference-2.md#manufacturing-production) - 16 codes
 - [Master Data](error-code-reference-2.md#master-data) - 43 codes
 - [Mobile App / Device](error-code-reference-2.md#mobile-app-device) - 7 codes
 - [Notifications](error-code-reference-2.md#notifications) - 6 codes
@@ -90,13 +90,13 @@ open the right page.
 - [Order Management](error-code-reference-2.md#order-management) - 9 codes
 - [PIM](error-code-reference-2.md#pim) - 6 codes
 - [PIM / Product Publishing](error-code-reference-2.md#pim-product-publishing) - 8 codes
-- [POS / Billing](error-code-reference-2.md#pos-billing) - 39 codes
+- [POS / Billing](error-code-reference-2.md#pos-billing) - 41 codes
 - [POS / Offline & Cash Drawer](error-code-reference-2.md#pos-offline-cash-drawer) - 8 codes
 - [Patch / Bug Governance](error-code-reference-2.md#patch-bug-governance) - 3 codes
 - [Payments](error-code-reference-2.md#payments) - 7 codes
 - [Planning](error-code-reference-2.md#planning) - 1 codes
 - [Procurement / RFQ](error-code-reference-2.md#procurement-rfq) - 6 codes
-- [Purchase Order](error-code-reference-2.md#purchase-order) - 17 codes
+- [Purchase Order](error-code-reference-2.md#purchase-order) - 18 codes
 - [Purchase Return](error-code-reference-2.md#purchase-return) - 1 codes
 - [Purchase Return / RTV](error-code-reference-2.md#purchase-return-rtv) - 5 codes
 - [Quality & Maintenance](error-code-reference-2.md#quality-maintenance) - 6 codes
@@ -552,6 +552,7 @@ open the right page.
 | `INTEGR-0167` | Integration timeout | External service did not respond in time. Please retry. | Correct details or retry. Contact admin if repeated. | High | 503 |
 | `INTEGR-0168` | Integration authentication failed | External service authentication failed. Please contact administrator. | Correct details or retry. Contact admin if repeated. | High | 401 |
 | `INTEGR-0169` | Invalid API response | Invalid response received from external service. Please retry or contact support. | Correct details or retry. Contact admin if repeated. | High | 422 |
+| `INTEGR-4718` | Courier booking not confirmed - the courier may already have it and cannot be asked | This courier booking is not confirmed - the courier may already have it. | Find the reference below on the courier's portal, then enter its AWB, or mark it not booked to try again. | High | 409 |
 
 ## Integrations
 

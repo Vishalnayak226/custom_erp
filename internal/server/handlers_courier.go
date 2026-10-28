@@ -3,6 +3,7 @@ package server
 import (
 	"custom_erp/engines"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -50,10 +51,52 @@ func handleCourierAllocateAWB(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := engines.AllocateCourierAWB(r.Context(), r.Header.Get("Resolved-Tenant-ID"), r.PathValue("provider"), req.BookingID, req)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeCourierError(w, r, err)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(result)
+}
+
+// writeCourierError (47.11.8): a courier that could not be reached or did not
+// answer is reported as engines.CourierUnreachableCode - 503, retryable, with
+// the engine's line on whether anything may have been sent. Every other
+// failure keeps the 422 and message these handlers always gave. 47.11.8a: a
+// booking the courier may already have, with no way to ask it, is
+// engines.CourierUnconfirmedCode (409) with the reference to look up.
+func writeCourierError(w http.ResponseWriter, r *http.Request, err error) {
+	var verr *engines.ValidationError
+	if errors.As(err, &verr) && (verr.Code == engines.CourierUnreachableCode || verr.Code == engines.CourierUnconfirmedCode) {
+		writeAPIErrorDetail(w, r, verr.Code, "", verr.Message)
+		return
+	}
+	writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+}
+
+// handleCourierResolveBooking (47.11.8a) settles a booking the courier may or
+// may not have made, from its portal: outcome "booked" with the AWB found
+// there, or "not_booked" so the next attempt books. Booking's own route gates
+// plus update on LogisticsBooking; audited by the engine.
+func handleCourierResolveBooking(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		BookingID string `json:"booking_id"`
+		Outcome   string `json:"outcome"`
+		AWB       string `json:"awb"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.BookingID == "" || req.Outcome == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "booking_id and outcome are required")
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if ok, err := engines.RoleMayOnDoctype(tenantID, r.Header.Get("Resolved-Role"), "LogisticsBooking", "update"); err != nil || !ok {
+		writeAPIError(w, r, "GLOBAL-0011", "")
+		return
+	}
+	awb, err := engines.ResolveUnconfirmedCourierBooking(tenantID, r.PathValue("provider"), req.BookingID, req.Outcome, req.AWB, r.Header.Get("Resolved-User-ID"))
+	if err != nil {
+		writeCourierError(w, r, err)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "resolved", "booking_id": req.BookingID, "outcome": strings.ToLower(strings.TrimSpace(req.Outcome)), "awb": awb})
 }
 
 func handleCourierPickup(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +116,7 @@ func handleCourierPickup(w http.ResponseWriter, r *http.Request) {
 	}
 	ref, err := engines.ScheduleCourierPickup(r.Context(), r.Header.Get("Resolved-Tenant-ID"), r.PathValue("provider"), req.BookingID, req.PickupName, pickupAt)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeCourierError(w, r, err)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "scheduled", "pickup_reference": ref})
@@ -88,7 +131,7 @@ func handleCourierCancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := engines.CancelCourierShipment(r.Context(), r.Header.Get("Resolved-Tenant-ID"), r.PathValue("provider"), req.BookingID); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeCourierError(w, r, err)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "cancelled", "booking_id": req.BookingID})

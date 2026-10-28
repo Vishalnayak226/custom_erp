@@ -228,9 +228,12 @@ func DispatchTransferOrderWith(tenantID, transferOrderID, userID string, picks [
 		if err := drawFromDefaultFromTx(tx, schema, "Transfer Out", fromWarehouse, []interface{}{map[string]interface{}{"sku": line.Sku, "qty": -line.Qty}}, docStockField(tx, schema, transferOrderID, "stock_from")); err != nil {
 			return err
 		}
+		// Stage 135.17: Main stock - available less the client's own locations
+		// and hold codes - the same floor as every other movement out (the
+		// "From" location was moved into Main just above).
 		var available int
 		if err := tx.QueryRow(fmt.Sprintf(
-			`SELECT available FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2 FOR UPDATE`, schema),
+			`SELECT available - blocked - hold_qty FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2 FOR UPDATE`, schema),
 			line.Sku, fromWarehouse).Scan(&available); err != nil {
 			if err == sql.ErrNoRows {
 				return &ValidationError{Code: "STOCKT-0112", Message: fmt.Sprintf("insufficient stock for SKU %s at %s: no inventory record", line.Sku, fromWarehouse)}

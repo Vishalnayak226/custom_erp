@@ -79,8 +79,9 @@ func SendDocumentEmail(tenantID, userID string, d PrintDocument, m DocumentMail)
 		subject = strings.TrimSpace(d.Title + " " + d.Number)
 	}
 	audit := fmt.Sprintf("txn=%s number=%s to=%s", d.Transaction, d.Number, strings.Join(recipients, ","))
-	if sandbox, _ := IsSandboxTenant(tenantID); sandbox || !ExternalSideEffectsEnabled() {
-		log.Printf("[DOCUMENT-MAIL] simulated (sandbox or side effects off): %s", audit)
+	ok, reason := OutsideCallsAllowedForTenant(tenantID) // 49.8.7a
+	if sandbox, _ := IsSandboxTenant(tenantID); sandbox || !ok {
+		log.Printf("[DOCUMENT-MAIL] simulated (%s): %s", firstNonEmpty(reason, "sandbox client"), audit)
 		LogAuditEvent(tenantID, userID, "DOCUMENT_SENT", "SIMULATED", audit)
 		return recipients, true, nil
 	}

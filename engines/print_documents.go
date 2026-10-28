@@ -777,7 +777,7 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 		d.Fields["tenders"] = firstNonEmpty(strings.Join(tenderText, " · "), strField(data, "payment_mode"))
 		d.Fields["return_policy"] = strings.TrimSpace(GetSettingString(tenantID, SettingReceiptReturnPolicy))
 		if _, _, at, errT := fetchPrintableDocument(tenantID, "POSCart", id); errT == nil && !at.IsZero() {
-			d.Fields["bill_datetime"] = at.Format("02-01-2006 15:04")
+			d.Fields["bill_datetime"] = at.Format(ClientDateLayout(tenantID) + " 15:04") // 47.14.2a: the client's date order
 		}
 		var lines []map[string]interface{}
 		if raw, ok := data["items"].([]interface{}); ok {
@@ -970,7 +970,7 @@ func (d *PrintDocument) addIRNFields(tenantID, doctype, id string) {
 		d.Fields["irn"], d.Fields["irn_ack_no"] = e.IRN, e.AckNo
 		d.Fields["irn_signed_qr"] = e.SignedQR
 		if e.AckDate != nil {
-			d.Fields["irn_ack_date"] = e.AckDate.Format("02-01-2006 15:04")
+			d.Fields["irn_ack_date"] = e.AckDate.Format(ClientDateLayout(tenantID) + " 15:04") // 47.14.2a
 		}
 	case "", IRPStateNotRequired, IRPStateCancelled:
 	default:

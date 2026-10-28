@@ -178,15 +178,22 @@ against whatever was really in force on its date.
 Price List Version is a **Setup → Sales** list (the generic list and form;
 there is no tab for it on the PIM screen).
 
-1. Open **Setup → Sales → Price List Version** and click **+ New**.
-2. Fill in **Version Code**, **Price List** (the price-list code, e.g.
-   `RETAIL`), **Currency**, **Effective From**, and **Effective To** (blank =
-   open-ended). Add one row per SKU to **Prices** (**SKU**, **Price**).
-3. Set **Status** to **Pending Approval** and save. The form does not offer
-   **Approved** — only the approval flow sets it.
-4. A different user with the approving role (HR/Admin by default) approves
-   it in **Approvals**. Approving it supersedes the older open-ended version
-   of the same price list.
+1. Open **Setup → Sales → Price List Version** and click **New Price List
+   Version**.
+2. Leave **Version Code** blank (it is numbered on save). Fill in **Price
+   List** (the price-list code, e.g. `RETAIL`), **Currency**, **Effective
+   From**, and **Effective To** (blank = open-ended). Add one row per SKU to
+   **Prices** (**SKU**, **Price**).
+3. Set **Status** to **Draft** and save.
+4. Click the row's **Submit for Approval** (arrow) button. The status becomes
+   **Pending Approval**.
+5. The approver (an administrator by default; **Settings → Approval Rules**,
+   record type `PriceListVersion`) approves it in **Approvals**. Approving it
+   supersedes the older open-ended version of the same price list.
+
+Editing an approved version sends it back to **Pending Approval**, and it
+prices nothing until approved again — make a new version to change prices.
+A rejected version is edited back to **Draft** and submitted again.
 
 ### Where a price list is used
 
@@ -213,7 +220,9 @@ channel require, say, a primary image or a specific field even when PIM
 core doesn't. **Validation Rules** (`ChannelValidationRule`) go further:
 Min Images / Max Title Length / Required Tag rules evaluated at publish-
 readiness time, checked before a publish attempt reaches the connector at
-all.
+all. On a Shopify channel the publish goes through the Shopify page's
+publish: the item's design goes as one linked product with all its
+variants, and the field mappings are not sent.
 
 ## Supplier submissions
 
@@ -287,9 +296,8 @@ From** is not in the future, and that the code matches the customer's
 ## What is not here yet
 
 **Price lists have no screen of their own** — they are kept on the generic
-**Setup → Sales → Price List Version** list and form, with no Submit for
-Approval button (set **Status** to **Pending Approval** instead). Purchase
-orders do not price from them.
+**Setup → Sales → Price List Version** list and form (see "Make a price list
+version" above). Purchase orders do not price from them.
 
 **Bulk media/asset operations for a Price List's supporting documents** and
 similar cross-cutting DAM features are covered in the Media Library tab,

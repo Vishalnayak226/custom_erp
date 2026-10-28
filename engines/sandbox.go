@@ -72,6 +72,7 @@ func ProvisionSandboxTenant(appVersion string, ttlDays int) (tenantID, schemaNam
 		WHERE tenant_id = $2`, ttlDays, tenantID); err != nil {
 		return "", "", "", fmt.Errorf("provisioned but failed to flag %s as a sandbox: %v", tenantID, err)
 	}
+	InvalidateTenantLifecycleCache(tenantID)
 	return tenantID, schemaName, adminPassword, nil
 }
 
@@ -103,12 +104,9 @@ func IsSandboxSchema(schema string) (bool, error) {
 // session re-check (apiMiddleware), so an expired sandbox locks out both new
 // logins and any session already in progress, not just the next login.
 func IsSandboxExpired(tenantID string) (bool, error) {
-	var isSandbox bool
-	var expiresAt *time.Time
-	err := db.DB.QueryRow(`SELECT is_sandbox, sandbox_expires_at FROM public.tenants WHERE tenant_id = $1`, tenantID).Scan(&isSandbox, &expiresAt)
-	if err != nil {
-		return false, nil
-	}
+	// Stage 49.18.8: from the cached tenant gate row - this runs on every
+	// authenticated request; the expiry is compared with now on each call.
+	isSandbox, expiresAt := tenantGateSandbox(tenantID)
 	if !isSandbox || expiresAt == nil {
 		return false, nil
 	}
@@ -186,7 +184,11 @@ func ResetSandboxTenant(tenantID string, ttlDays int) error {
 	if _, err := tx.Exec(`UPDATE public.tenants SET sandbox_expires_at = CURRENT_TIMESTAMP + ($1 || ' days')::interval WHERE tenant_id = $2`, ttlDays, tenantID); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	InvalidateTenantLifecycleCache(tenantID)
+	return nil
 }
 
 // DeleteSandboxTenant permanently drops a sandbox's schema and its registry

@@ -100,11 +100,26 @@ func spFixture(t *testing.T) string {
 			{"sku": spSKUB, "qty": 2, "picked_qty": 2, "packed_qty": 2, "short_qty": 0},
 		},
 	})
+	// Stage 135.16: handover takes stock through the posting choke point and
+	// refuses to ship units the location does not hold, so the shelf has them.
+	for sku, qty := range map[string]int{spSKU: 10, spSKUB: 2} {
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available) VALUES ($1, $2, $3, $3)", sku, spLocation, qty); err != nil {
+			t.Fatalf("stock %s: %v", sku, err)
+		}
+	}
 	return schema
 }
 
 func spCleanup(t *testing.T, schema string) {
 	t.Helper()
+	for _, stmt := range []string{
+		`DELETE FROM ` + schema + `.inventory_availability WHERE location_code = $1`,
+		`DELETE FROM ` + schema + `.documents WHERE doctype = 'StockLedgerEntry' AND data->>'warehouse_id' = $1`,
+	} {
+		if _, err := db.DB.Exec(stmt, spLocation); err != nil {
+			t.Fatalf("cleanup stock: %v", err)
+		}
+	}
 	// Children first, then the fixtures they point at.
 	for _, stmt := range []string{
 		`DELETE FROM ` + schema + `.documents WHERE doctype = 'CreditNote' AND data->>'sales_order_id' = $1`,

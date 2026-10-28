@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"custom_erp/db"
+	"custom_erp/engines"
 )
 
 // Stage 129: the Bulk Purchase Upload - the template reads, rows and their
@@ -20,7 +21,7 @@ var bpTestPurchaseHead = []string{"Check", "PO Ref *", "Vendor *", "Store *", "D
 
 func bpRunFile(t *testing.T, c *swCaller, file []byte, apply bool) *bpResult {
 	t.Helper()
-	vendors, lines, bills, attrs, err := bpRead(file)
+	vendors, lines, bills, attrs, err := bpRead(file, engines.ClientDateOrder(c.tenantID))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +44,7 @@ func bpRunFile(t *testing.T, c *swCaller, file []byte, apply bool) *bpResult {
 }
 
 func TestBulkPurchaseTemplateReads(t *testing.T) {
-	vendors, lines, bills, attrs, err := bpRead(bulkPurchaseTemplate)
+	vendors, lines, bills, attrs, err := bpRead(bulkPurchaseTemplate, engines.DateOrderDMY)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +76,7 @@ func TestBulkPurchaseReadsRowsAsTyped(t *testing.T) {
 			{"OK", "INV1", "V One", "46315", "180"},
 		},
 	}, "Purchase", "Bills")
-	_, lines, bills, attrs, err := bpRead(file)
+	_, lines, bills, attrs, err := bpRead(file, engines.DateOrderDMY)
 	if err != nil {
 		t.Fatal(err)
 	}

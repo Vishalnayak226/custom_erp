@@ -170,6 +170,8 @@ export function txnOnPage(screenId, fn) { pageHandlers[screenId] = fn; }
 export function txnDone(screenId) {
   const screen = document.getElementById(screenId);
   if (screen && screen.dataset.landing) window.txnShowPane(`${screenId}:${screen.dataset.landing}`);
+  // Stage 139: the after-save bar (Print · New · Copy · next step, shortcuts.js).
+  window.dispatchEvent(new CustomEvent('erp:txn-done', { detail: { screenId } }));
 }
 
 // txnRestorePane puts a re-rendered screen on its page: a paged screen on the

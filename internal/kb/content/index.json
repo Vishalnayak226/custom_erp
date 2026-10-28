@@ -177,6 +177,80 @@
           ]
         },
         {
+          "slug": "keyboard-shortcuts",
+          "title": "Keyboard shortcuts and quick codes",
+          "section": "Getting Started",
+          "order": 4,
+          "summary": "Ctrl+K opens anything - a screen, a code like PO or GRN, a report number like R1001, or a document number. Plus the keys that work on every screen.",
+          "audience": "everyone",
+          "screens": [
+            "home",
+            "reports",
+            "doctype-table"
+          ],
+          "last_verified": "2026-10-26",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Keyboard shortcuts and quick codes",
+          "prerequisites": "Signed-in account; each code opens only screens your role can already open",
+          "applies_to": "source documentation; scoped release acceptance required",
+          "source_path": "getting-started/keyboard-shortcuts.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "The search box: Ctrl+K",
+              "slug": "the-search-box-ctrl-k"
+            },
+            {
+              "level": 2,
+              "text": "Keys",
+              "slug": "keys"
+            },
+            {
+              "level": 3,
+              "text": "Anywhere",
+              "slug": "anywhere"
+            },
+            {
+              "level": 3,
+              "text": "Lists",
+              "slug": "lists"
+            },
+            {
+              "level": 3,
+              "text": "Forms and New pages",
+              "slug": "forms-and-new-pages"
+            },
+            {
+              "level": 2,
+              "text": "Codes",
+              "slug": "codes"
+            },
+            {
+              "level": 2,
+              "text": "Report numbers",
+              "slug": "report-numbers"
+            },
+            {
+              "level": 2,
+              "text": "Favourites and recent",
+              "slug": "favourites-and-recent"
+            },
+            {
+              "level": 2,
+              "text": "After you save",
+              "slug": "after-you-save"
+            },
+            {
+              "level": 2,
+              "text": "Less typing",
+              "slug": "less-typing"
+            }
+          ]
+        },
+        {
           "slug": "first-order",
           "title": "Your first order, end to end",
           "section": "Getting Started",
@@ -757,6 +831,7 @@
           "audience": "cashier, store manager, admin",
           "screens": [
             "pos",
+            "offline-sales",
             "module:pos",
             "module:sales",
             "doctype:offer",
@@ -2951,133 +3026,133 @@
             },
             {
               "level": 3,
-              "text": "AP Aging",
-              "slug": "ap-aging"
+              "text": "R5015 AP Aging",
+              "slug": "r5015-ap-aging"
             },
             {
               "level": 3,
-              "text": "AR Aging",
-              "slug": "ar-aging"
+              "text": "R5016 AR Aging",
+              "slug": "r5016-ar-aging"
             },
             {
               "level": 3,
-              "text": "Accounting Audit Trail",
-              "slug": "accounting-audit-trail"
+              "text": "R5034 Accounting Audit Trail",
+              "slug": "r5034-accounting-audit-trail"
             },
             {
               "level": 3,
-              "text": "Balance Sheet",
-              "slug": "balance-sheet"
+              "text": "R5013 Balance Sheet",
+              "slug": "r5013-balance-sheet"
             },
             {
               "level": 3,
-              "text": "Bank Reconciliation Report",
-              "slug": "bank-reconciliation-report"
+              "text": "R5027 Bank Reconciliation Report",
+              "slug": "r5027-bank-reconciliation-report"
             },
             {
               "level": 3,
-              "text": "Budget vs Actual",
-              "slug": "budget-vs-actual"
+              "text": "R5032 Budget vs Actual",
+              "slug": "r5032-budget-vs-actual"
             },
             {
               "level": 3,
-              "text": "Cash Flow Statement",
-              "slug": "cash-flow-statement"
+              "text": "R5014 Cash Flow Statement",
+              "slug": "r5014-cash-flow-statement"
             },
             {
               "level": 3,
-              "text": "Cost Center P\u0026L",
-              "slug": "cost-center-p-l"
+              "text": "R5031 Cost Center P\u0026L",
+              "slug": "r5031-cost-center-p-l"
             },
             {
               "level": 3,
-              "text": "Customer Ledger",
-              "slug": "customer-ledger"
+              "text": "R5018 Customer Ledger",
+              "slug": "r5018-customer-ledger"
             },
             {
               "level": 3,
-              "text": "Debit / Credit Note Register",
-              "slug": "debit-credit-note-register"
+              "text": "R5026 Debit / Credit Note Register",
+              "slug": "r5026-debit-credit-note-register"
             },
             {
               "level": 3,
-              "text": "Depreciation Schedule",
-              "slug": "depreciation-schedule"
+              "text": "R5030 Depreciation Schedule",
+              "slug": "r5030-depreciation-schedule"
             },
             {
               "level": 3,
-              "text": "Finance Approval Pending Report",
-              "slug": "finance-approval-pending-report"
+              "text": "R5021 Finance Approval Pending Report",
+              "slug": "r5021-finance-approval-pending-report"
             },
             {
               "level": 3,
-              "text": "Fixed Asset Register",
-              "slug": "fixed-asset-register"
+              "text": "R5029 Fixed Asset Register",
+              "slug": "r5029-fixed-asset-register"
             },
             {
               "level": 3,
-              "text": "General Ledger",
-              "slug": "general-ledger"
+              "text": "R5010 General Ledger",
+              "slug": "r5010-general-ledger"
             },
             {
               "level": 3,
-              "text": "Intercompany Reconciliation",
-              "slug": "intercompany-reconciliation"
+              "text": "R5033 Intercompany Reconciliation",
+              "slug": "r5033-intercompany-reconciliation"
             },
             {
               "level": 3,
-              "text": "Journal Voucher Register",
-              "slug": "journal-voucher-register"
+              "text": "R5025 Journal Voucher Register",
+              "slug": "r5025-journal-voucher-register"
             },
             {
               "level": 3,
-              "text": "Payment Proposal Register",
-              "slug": "payment-proposal-register"
+              "text": "R5020 Payment Proposal Register",
+              "slug": "r5020-payment-proposal-register"
             },
             {
               "level": 3,
-              "text": "Payment Register",
-              "slug": "payment-register"
+              "text": "R5023 Payment Register",
+              "slug": "r5023-payment-register"
             },
             {
               "level": 3,
-              "text": "Period Close Checklist",
-              "slug": "period-close-checklist"
+              "text": "R5035 Period Close Checklist",
+              "slug": "r5035-period-close-checklist"
             },
             {
               "level": 3,
-              "text": "Profit \u0026 Loss Statement",
-              "slug": "profit-loss-statement"
+              "text": "R5012 Profit \u0026 Loss Statement",
+              "slug": "r5012-profit-loss-statement"
             },
             {
               "level": 3,
-              "text": "Receipt Register",
-              "slug": "receipt-register"
+              "text": "R5024 Receipt Register",
+              "slug": "r5024-receipt-register"
             },
             {
               "level": 3,
-              "text": "Sales Invoice Accounting Register",
-              "slug": "sales-invoice-accounting-register"
+              "text": "R5022 Sales Invoice Accounting Register",
+              "slug": "r5022-sales-invoice-accounting-register"
             },
             {
               "level": 3,
-              "text": "TDS Register",
-              "slug": "tds-register"
+              "text": "R5028 TDS Register",
+              "slug": "r5028-tds-register"
             },
             {
               "level": 3,
-              "text": "Trial Balance",
-              "slug": "trial-balance"
+              "text": "R5011 Trial Balance",
+              "slug": "r5011-trial-balance"
             },
             {
               "level": 3,
-              "text": "Vendor Invoice Register",
-              "slug": "vendor-invoice-register"
+              "text": "R5019 Vendor Invoice Register",
+              "slug": "r5019-vendor-invoice-register"
             },
             {
               "level": 3,
-              "text": "Vendor Ledger",
-              "slug": "vendor-ledger"
+              "text": "R5017 Vendor Ledger",
+              "slug": "r5017-vendor-ledger"
             },
             {
               "level": 2,
@@ -3086,28 +3161,28 @@
             },
             {
               "level": 3,
-              "text": "Failed prints and fallbacks",
-              "slug": "failed-prints-and-fallbacks"
+              "text": "R9027 Failed prints and fallbacks",
+              "slug": "r9027-failed-prints-and-fallbacks"
             },
             {
               "level": 3,
-              "text": "Knowledge Center Feedback",
-              "slug": "knowledge-center-feedback"
+              "text": "R9022 Knowledge Center Feedback",
+              "slug": "r9022-knowledge-center-feedback"
             },
             {
               "level": 3,
-              "text": "Missing regulatory print data",
-              "slug": "missing-regulatory-print-data"
+              "text": "R9028 Missing regulatory print data",
+              "slug": "r9028-missing-regulatory-print-data"
             },
             {
               "level": 3,
-              "text": "Print and reprint audit",
-              "slug": "print-and-reprint-audit"
+              "text": "R9033 Print and reprint audit",
+              "slug": "r9033-print-and-reprint-audit"
             },
             {
               "level": 3,
-              "text": "Print template coverage",
-              "slug": "print-template-coverage"
+              "text": "R9026 Print template coverage",
+              "slug": "r9026-print-template-coverage"
             },
             {
               "level": 2,
@@ -3116,8 +3191,8 @@
             },
             {
               "level": 3,
-              "text": "Asset Register",
-              "slug": "asset-register"
+              "text": "R5079 Asset Register",
+              "slug": "r5079-asset-register"
             },
             {
               "level": 2,
@@ -3126,8 +3201,8 @@
             },
             {
               "level": 3,
-              "text": "Report Performance",
-              "slug": "report-performance"
+              "text": "R9032 Report Performance",
+              "slug": "r9032-report-performance"
             },
             {
               "level": 2,
@@ -3136,168 +3211,168 @@
             },
             {
               "level": 3,
-              "text": "Birthday / Anniversary Campaign List",
-              "slug": "birthday-anniversary-campaign-list"
+              "text": "R6034 Birthday / Anniversary Campaign List",
+              "slug": "r6034-birthday-anniversary-campaign-list"
             },
             {
               "level": 3,
-              "text": "CRM Customer Summary",
-              "slug": "crm-customer-summary"
+              "text": "R6042 CRM Customer Summary",
+              "slug": "r6042-crm-customer-summary"
             },
             {
               "level": 3,
-              "text": "Campaign Performance",
-              "slug": "campaign-performance"
+              "text": "R6029 Campaign Performance",
+              "slug": "r6029-campaign-performance"
             },
             {
               "level": 3,
-              "text": "Campaign ROI",
-              "slug": "campaign-roi"
+              "text": "R6039 Campaign ROI",
+              "slug": "r6039-campaign-roi"
             },
             {
               "level": 3,
-              "text": "Campaign Summary",
-              "slug": "campaign-summary"
+              "text": "R6045 Campaign Summary",
+              "slug": "r6045-campaign-summary"
             },
             {
               "level": 3,
-              "text": "Clienteling Tasks",
-              "slug": "clienteling-tasks"
+              "text": "R6052 Clienteling Tasks",
+              "slug": "r6052-clienteling-tasks"
             },
             {
               "level": 3,
-              "text": "Cohort Retention",
-              "slug": "cohort-retention"
+              "text": "R6041 Cohort Retention",
+              "slug": "r6041-cohort-retention"
             },
             {
               "level": 3,
-              "text": "Complaint / Service Case Register",
-              "slug": "complaint-service-case-register"
+              "text": "R6036 Complaint / Service Case Register",
+              "slug": "r6036-complaint-service-case-register"
             },
             {
               "level": 3,
-              "text": "Consent Audit",
-              "slug": "consent-audit"
+              "text": "R6043 Consent Audit",
+              "slug": "r6043-consent-audit"
             },
             {
               "level": 3,
-              "text": "Coupon / Voucher Usage Report",
-              "slug": "coupon-voucher-usage-report"
+              "text": "R6033 Coupon / Voucher Usage Report",
+              "slug": "r6033-coupon-voucher-usage-report"
             },
             {
               "level": 3,
-              "text": "Coupon Use",
-              "slug": "coupon-use"
+              "text": "R6050 Coupon Use",
+              "slug": "r6050-coupon-use"
             },
             {
               "level": 3,
-              "text": "Credited Sales",
-              "slug": "credited-sales"
+              "text": "R6048 Credited Sales",
+              "slug": "r6048-credited-sales"
             },
             {
               "level": 3,
-              "text": "Customer 360",
-              "slug": "customer-360"
+              "text": "R6058 Customer 360",
+              "slug": "r6058-customer-360"
             },
             {
               "level": 3,
-              "text": "Customer 360 Summary",
-              "slug": "customer-360-summary"
+              "text": "R6026 Customer 360 Summary",
+              "slug": "r6026-customer-360-summary"
             },
             {
               "level": 3,
-              "text": "Customer Inactivity / Churn Report",
-              "slug": "customer-inactivity-churn-report"
+              "text": "R6038 Customer Inactivity / Churn Report",
+              "slug": "r6038-customer-inactivity-churn-report"
             },
             {
               "level": 3,
-              "text": "Customer Lifetime Value",
-              "slug": "customer-lifetime-value"
+              "text": "R6040 Customer Lifetime Value",
+              "slug": "r6040-customer-lifetime-value"
             },
             {
               "level": 3,
-              "text": "Customer Merge / Mobile Change Audit",
-              "slug": "customer-merge-mobile-change-audit"
+              "text": "R6037 Customer Merge / Mobile Change Audit",
+              "slug": "r6037-customer-merge-mobile-change-audit"
             },
             {
               "level": 3,
-              "text": "Customer Segmentation Report",
-              "slug": "customer-segmentation-report"
+              "text": "R6030 Customer Segmentation Report",
+              "slug": "r6030-customer-segmentation-report"
             },
             {
               "level": 3,
-              "text": "Customers Sharing a Mobile Number",
-              "slug": "customers-sharing-a-mobile-number"
+              "text": "R6071 Customers Sharing a Mobile Number",
+              "slug": "r6071-customers-sharing-a-mobile-number"
             },
             {
               "level": 3,
-              "text": "Feedback and NPS",
-              "slug": "feedback-and-nps"
+              "text": "R6053 Feedback and NPS",
+              "slug": "r6053-feedback-and-nps"
             },
             {
               "level": 3,
-              "text": "Journey Performance",
-              "slug": "journey-performance"
+              "text": "R6047 Journey Performance",
+              "slug": "r6047-journey-performance"
             },
             {
               "level": 3,
-              "text": "Loyalty Ledger Summary",
-              "slug": "loyalty-ledger-summary"
+              "text": "R6070 Loyalty Ledger Summary",
+              "slug": "r6070-loyalty-ledger-summary"
             },
             {
               "level": 3,
-              "text": "Loyalty Points Ledger",
-              "slug": "loyalty-points-ledger"
+              "text": "R6032 Loyalty Points Ledger",
+              "slug": "r6032-loyalty-points-ledger"
             },
             {
               "level": 3,
-              "text": "Loyalty Points Liability",
-              "slug": "loyalty-points-liability"
+              "text": "R6057 Loyalty Points Liability",
+              "slug": "r6057-loyalty-points-liability"
             },
             {
               "level": 3,
-              "text": "Loyalty Points Movement",
-              "slug": "loyalty-points-movement"
+              "text": "R6059 Loyalty Points Movement",
+              "slug": "r6059-loyalty-points-movement"
             },
             {
               "level": 3,
-              "text": "Message Cost",
-              "slug": "message-cost"
+              "text": "R6054 Message Cost",
+              "slug": "r6054-message-cost"
             },
             {
               "level": 3,
-              "text": "Message Detail",
-              "slug": "message-detail"
+              "text": "R6046 Message Detail",
+              "slug": "r6046-message-detail"
             },
             {
               "level": 3,
-              "text": "RFM Customer Segmentation",
-              "slug": "rfm-customer-segmentation"
+              "text": "R6056 RFM Customer Segmentation",
+              "slug": "r6056-rfm-customer-segmentation"
             },
             {
               "level": 3,
-              "text": "RFM and Lifecycle",
-              "slug": "rfm-and-lifecycle"
+              "text": "R6049 RFM and Lifecycle",
+              "slug": "r6049-rfm-and-lifecycle"
             },
             {
               "level": 3,
-              "text": "Repeat Purchase Report",
-              "slug": "repeat-purchase-report"
+              "text": "R6031 Repeat Purchase Report",
+              "slug": "r6031-repeat-purchase-report"
             },
             {
               "level": 3,
-              "text": "Sales Pipeline",
-              "slug": "sales-pipeline"
+              "text": "R6055 Sales Pipeline",
+              "slug": "r6055-sales-pipeline"
             },
             {
               "level": 3,
-              "text": "Segment Members",
-              "slug": "segment-members"
+              "text": "R6044 Segment Members",
+              "slug": "r6044-segment-members"
             },
             {
               "level": 3,
-              "text": "Service SLA",
-              "slug": "service-sla"
+              "text": "R6051 Service SLA",
+              "slug": "r6051-service-sla"
             },
             {
               "level": 2,
@@ -3306,63 +3381,63 @@
             },
             {
               "level": 3,
-              "text": "E-commerce Sales Order Item Detail",
-              "slug": "e-commerce-sales-order-item-detail"
+              "text": "R6002 E-commerce Sales Order Item Detail",
+              "slug": "r6002-e-commerce-sales-order-item-detail"
             },
             {
               "level": 3,
-              "text": "E-commerce Sales Order Summary",
-              "slug": "e-commerce-sales-order-summary"
+              "text": "R6001 E-commerce Sales Order Summary",
+              "slug": "r6001-e-commerce-sales-order-summary"
             },
             {
               "level": 3,
-              "text": "ERP vs Unicommerce Inventory Reconciliation - Itemwise",
-              "slug": "erp-vs-unicommerce-inventory-reconciliation-itemwise"
+              "text": "R6005 ERP vs Unicommerce Inventory Reconciliation - Itemwise",
+              "slug": "r6005-erp-vs-unicommerce-inventory-reconciliation-itemwise"
             },
             {
               "level": 3,
-              "text": "ERP vs Unicommerce Inventory Reconciliation - Summary",
-              "slug": "erp-vs-unicommerce-inventory-reconciliation-summary"
+              "text": "R6006 ERP vs Unicommerce Inventory Reconciliation - Summary",
+              "slug": "r6006-erp-vs-unicommerce-inventory-reconciliation-summary"
             },
             {
               "level": 3,
-              "text": "Integration Retry / Failure Audit",
-              "slug": "integration-retry-failure-audit"
+              "text": "R6011 Integration Retry / Failure Audit",
+              "slug": "r6011-integration-retry-failure-audit"
             },
             {
               "level": 3,
-              "text": "Inventory Sync Log",
-              "slug": "inventory-sync-log"
+              "text": "R6007 Inventory Sync Log",
+              "slug": "r6007-inventory-sync-log"
             },
             {
               "level": 3,
-              "text": "Marketplace Order Status Summary",
-              "slug": "marketplace-order-status-summary"
+              "text": "R6009 Marketplace Order Status Summary",
+              "slug": "r6009-marketplace-order-status-summary"
             },
             {
               "level": 3,
-              "text": "Online Return Register",
-              "slug": "online-return-register"
+              "text": "R6010 Online Return Register",
+              "slug": "r6010-online-return-register"
             },
             {
               "level": 3,
-              "text": "Order Sync Log",
-              "slug": "order-sync-log"
+              "text": "R6008 Order Sync Log",
+              "slug": "r6008-order-sync-log"
             },
             {
               "level": 3,
-              "text": "Outlet / Facility Mapping Summary",
-              "slug": "outlet-facility-mapping-summary"
+              "text": "R6012 Outlet / Facility Mapping Summary",
+              "slug": "r6012-outlet-facility-mapping-summary"
             },
             {
               "level": 3,
-              "text": "Pending Sales Order Stock",
-              "slug": "pending-sales-order-stock"
+              "text": "R6003 Pending Sales Order Stock",
+              "slug": "r6003-pending-sales-order-stock"
             },
             {
               "level": 3,
-              "text": "Sales Order Integration Error",
-              "slug": "sales-order-integration-error"
+              "text": "R6004 Sales Order Integration Error",
+              "slug": "r6004-sales-order-integration-error"
             },
             {
               "level": 2,
@@ -3371,33 +3446,33 @@
             },
             {
               "level": 3,
-              "text": "Failed Syncs",
-              "slug": "failed-syncs"
+              "text": "R9030 Failed Syncs",
+              "slug": "r9030-failed-syncs"
             },
             {
               "level": 3,
-              "text": "Inactive Items With Stock",
-              "slug": "inactive-items-with-stock"
+              "text": "R9024 Inactive Items With Stock",
+              "slug": "r9024-inactive-items-with-stock"
             },
             {
               "level": 3,
-              "text": "Item Exceptions",
-              "slug": "item-exceptions"
+              "text": "R9025 Item Exceptions",
+              "slug": "r9025-item-exceptions"
             },
             {
               "level": 3,
-              "text": "Item Master Completeness",
-              "slug": "item-master-completeness"
+              "text": "R9023 Item Master Completeness",
+              "slug": "r9023-item-master-completeness"
             },
             {
               "level": 3,
-              "text": "Negative Stock Flags",
-              "slug": "negative-stock-flags"
+              "text": "R9031 Negative Stock Flags",
+              "slug": "r9031-negative-stock-flags"
             },
             {
               "level": 3,
-              "text": "Stale Approvals",
-              "slug": "stale-approvals"
+              "text": "R9029 Stale Approvals",
+              "slug": "r9029-stale-approvals"
             },
             {
               "level": 2,
@@ -3406,58 +3481,58 @@
             },
             {
               "level": 3,
-              "text": "Accounting Export Report",
-              "slug": "accounting-export-report"
+              "text": "R5046 Accounting Export Report",
+              "slug": "r5046-accounting-export-report"
             },
             {
               "level": 3,
-              "text": "Approved Pending Payment",
-              "slug": "approved-pending-payment"
+              "text": "R5038 Approved Pending Payment",
+              "slug": "r5038-approved-pending-payment"
             },
             {
               "level": 3,
-              "text": "Claims Pending Approval",
-              "slug": "claims-pending-approval"
+              "text": "R5037 Claims Pending Approval",
+              "slug": "r5037-claims-pending-approval"
             },
             {
               "level": 3,
-              "text": "Department / Category / Month Summary",
-              "slug": "department-category-month-summary"
+              "text": "R5042 Department / Category / Month Summary",
+              "slug": "r5042-department-category-month-summary"
             },
             {
               "level": 3,
-              "text": "Employee Expense Summary",
-              "slug": "employee-expense-summary"
+              "text": "R5043 Employee Expense Summary",
+              "slug": "r5043-employee-expense-summary"
             },
             {
               "level": 3,
-              "text": "Expense Advance Settlement",
-              "slug": "expense-advance-settlement"
+              "text": "R5045 Expense Advance Settlement",
+              "slug": "r5045-expense-advance-settlement"
             },
             {
               "level": 3,
-              "text": "Expense Aging / SLA Report",
-              "slug": "expense-aging-sla-report"
+              "text": "R5041 Expense Aging / SLA Report",
+              "slug": "r5041-expense-aging-sla-report"
             },
             {
               "level": 3,
-              "text": "Expense Claim Register",
-              "slug": "expense-claim-register"
+              "text": "R5036 Expense Claim Register",
+              "slug": "r5036-expense-claim-register"
             },
             {
               "level": 3,
-              "text": "Paid Claims Register",
-              "slug": "paid-claims-register"
+              "text": "R5039 Paid Claims Register",
+              "slug": "r5039-paid-claims-register"
             },
             {
               "level": 3,
-              "text": "Policy Violation / Exception Report",
-              "slug": "policy-violation-exception-report"
+              "text": "R5044 Policy Violation / Exception Report",
+              "slug": "r5044-policy-violation-exception-report"
             },
             {
               "level": 3,
-              "text": "Rejected / Returned Claims",
-              "slug": "rejected-returned-claims"
+              "text": "R5040 Rejected / Returned Claims",
+              "slug": "r5040-rejected-returned-claims"
             },
             {
               "level": 2,
@@ -3466,183 +3541,183 @@
             },
             {
               "level": 3,
-              "text": "Balance Sheet",
-              "slug": "balance-sheet-2"
+              "text": "R5060 Balance Sheet",
+              "slug": "r5060-balance-sheet"
             },
             {
               "level": 3,
-              "text": "Bank Book",
-              "slug": "bank-book"
+              "text": "R5078 Bank Book",
+              "slug": "r5078-bank-book"
             },
             {
               "level": 3,
-              "text": "Budget vs Actual",
-              "slug": "budget-vs-actual-2"
+              "text": "R5047 Budget vs Actual",
+              "slug": "r5047-budget-vs-actual"
             },
             {
               "level": 3,
-              "text": "Cash Book",
-              "slug": "cash-book"
+              "text": "R5077 Cash Book",
+              "slug": "r5077-cash-book"
             },
             {
               "level": 3,
-              "text": "Cash Flow Forecast",
-              "slug": "cash-flow-forecast"
+              "text": "R5049 Cash Flow Forecast",
+              "slug": "r5049-cash-flow-forecast"
             },
             {
               "level": 3,
-              "text": "Cash Flow Statement",
-              "slug": "cash-flow-statement-2"
+              "text": "R5061 Cash Flow Statement",
+              "slug": "r5061-cash-flow-statement"
             },
             {
               "level": 3,
-              "text": "Consolidated Trial Balance",
-              "slug": "consolidated-trial-balance"
+              "text": "R5071 Consolidated Trial Balance",
+              "slug": "r5071-consolidated-trial-balance"
             },
             {
               "level": 3,
-              "text": "Cost Center P\u0026L",
-              "slug": "cost-center-p-l-2"
+              "text": "R5067 Cost Center P\u0026L",
+              "slug": "r5067-cost-center-p-l"
             },
             {
               "level": 3,
-              "text": "Deferred Revenue Roll-Forward",
-              "slug": "deferred-revenue-roll-forward"
+              "text": "R5054 Deferred Revenue Roll-Forward",
+              "slug": "r5054-deferred-revenue-roll-forward"
             },
             {
               "level": 3,
-              "text": "Department P\u0026L",
-              "slug": "department-p-l"
+              "text": "R5068 Department P\u0026L",
+              "slug": "r5068-department-p-l"
             },
             {
               "level": 3,
-              "text": "Dunning Queue",
-              "slug": "dunning-queue"
+              "text": "R5048 Dunning Queue",
+              "slug": "r5048-dunning-queue"
             },
             {
               "level": 3,
-              "text": "E-Invoice / IRN Status Register",
-              "slug": "e-invoice-irn-status-register"
+              "text": "R5056 E-Invoice / IRN Status Register",
+              "slug": "r5056-e-invoice-irn-status-register"
             },
             {
               "level": 3,
-              "text": "E-Invoice Error / Retry Report",
-              "slug": "e-invoice-error-retry-report"
+              "text": "R5057 E-Invoice Error / Retry Report",
+              "slug": "r5057-e-invoice-error-retry-report"
             },
             {
               "level": 3,
-              "text": "Entity Trial Balance",
-              "slug": "entity-trial-balance"
+              "text": "R5069 Entity Trial Balance",
+              "slug": "r5069-entity-trial-balance"
             },
             {
               "level": 3,
-              "text": "FX Gain/Loss Register",
-              "slug": "fx-gain-loss-register"
+              "text": "R5051 FX Gain/Loss Register",
+              "slug": "r5051-fx-gain-loss-register"
             },
             {
               "level": 3,
-              "text": "GL Drill-down (by Account)",
-              "slug": "gl-drill-down-by-account"
+              "text": "R5062 GL Drill-down (by Account)",
+              "slug": "r5062-gl-drill-down-by-account"
             },
             {
               "level": 3,
-              "text": "GL Posting Review (by poster)",
-              "slug": "gl-posting-review-by-poster"
+              "text": "R5066 GL Posting Review (by poster)",
+              "slug": "r5066-gl-posting-review-by-poster"
             },
             {
               "level": 3,
-              "text": "GST Return Summary",
-              "slug": "gst-return-summary"
+              "text": "R5076 GST Return Summary",
+              "slug": "r5076-gst-return-summary"
             },
             {
               "level": 3,
-              "text": "General Journal (who posted what)",
-              "slug": "general-journal-who-posted-what"
+              "text": "R5065 General Journal (who posted what)",
+              "slug": "r5065-general-journal-who-posted-what"
             },
             {
               "level": 3,
-              "text": "Gift Card Ledger",
-              "slug": "gift-card-ledger"
+              "text": "R5083 Gift Card Ledger",
+              "slug": "r5083-gift-card-ledger"
             },
             {
               "level": 3,
-              "text": "Gift Card Liability",
-              "slug": "gift-card-liability"
+              "text": "R5082 Gift Card Liability",
+              "slug": "r5082-gift-card-liability"
             },
             {
               "level": 3,
-              "text": "IRN Portal Manual Upload Report",
-              "slug": "irn-portal-manual-upload-report"
+              "text": "R5058 IRN Portal Manual Upload Report",
+              "slug": "r5058-irn-portal-manual-upload-report"
             },
             {
               "level": 3,
-              "text": "Input credit past its deadline",
-              "slug": "input-credit-past-its-deadline"
+              "text": "R5053 Input credit past its deadline",
+              "slug": "r5053-input-credit-past-its-deadline"
             },
             {
               "level": 3,
-              "text": "Intercompany Reconciliation",
-              "slug": "intercompany-reconciliation-2"
+              "text": "R5070 Intercompany Reconciliation",
+              "slug": "r5070-intercompany-reconciliation"
             },
             {
               "level": 3,
-              "text": "Open FX Exposure",
-              "slug": "open-fx-exposure"
+              "text": "R5050 Open FX Exposure",
+              "slug": "r5050-open-fx-exposure"
             },
             {
               "level": 3,
-              "text": "POS Sale Reconciliation",
-              "slug": "pos-sale-reconciliation"
+              "text": "R5072 POS Sale Reconciliation",
+              "slug": "r5072-pos-sale-reconciliation"
             },
             {
               "level": 3,
-              "text": "Payables Ageing",
-              "slug": "payables-ageing"
+              "text": "R5074 Payables Ageing",
+              "slug": "r5074-payables-ageing"
             },
             {
               "level": 3,
-              "text": "Prepaid Expense Roll-Forward",
-              "slug": "prepaid-expense-roll-forward"
+              "text": "R5055 Prepaid Expense Roll-Forward",
+              "slug": "r5055-prepaid-expense-roll-forward"
             },
             {
               "level": 3,
-              "text": "Profit \u0026 Loss",
-              "slug": "profit-loss"
+              "text": "R5059 Profit \u0026 Loss",
+              "slug": "r5059-profit-loss"
             },
             {
               "level": 3,
-              "text": "Project P\u0026L (Job Costing)",
-              "slug": "project-p-l-job-costing"
+              "text": "R5073 Project P\u0026L (Job Costing)",
+              "slug": "r5073-project-p-l-job-costing"
             },
             {
               "level": 3,
-              "text": "Receivables Ageing",
-              "slug": "receivables-ageing"
+              "text": "R5075 Receivables Ageing",
+              "slug": "r5075-receivables-ageing"
             },
             {
               "level": 3,
-              "text": "Refunds by method",
-              "slug": "refunds-by-method"
+              "text": "R5081 Refunds by method",
+              "slug": "r5081-refunds-by-method"
             },
             {
               "level": 3,
-              "text": "Statutory Audit Export (Full GL)",
-              "slug": "statutory-audit-export-full-gl"
+              "text": "R5064 Statutory Audit Export (Full GL)",
+              "slug": "r5064-statutory-audit-export-full-gl"
             },
             {
               "level": 3,
-              "text": "Store credit by customer",
-              "slug": "store-credit-by-customer"
+              "text": "R5080 Store credit by customer",
+              "slug": "r5080-store-credit-by-customer"
             },
             {
               "level": 3,
-              "text": "Tax Ledger",
-              "slug": "tax-ledger"
+              "text": "R5063 Tax Ledger",
+              "slug": "r5063-tax-ledger"
             },
             {
               "level": 3,
-              "text": "Trial Balance in Presentation Currency",
-              "slug": "trial-balance-in-presentation-currency"
+              "text": "R5052 Trial Balance in Presentation Currency",
+              "slug": "r5052-trial-balance-in-presentation-currency"
             },
             {
               "level": 2,
@@ -3651,43 +3726,43 @@
             },
             {
               "level": 3,
-              "text": "E-Invoice / IRN Status Register",
-              "slug": "e-invoice-irn-status-register-2"
+              "text": "R5004 E-Invoice / IRN Status Register",
+              "slug": "r5004-e-invoice-irn-status-register"
             },
             {
               "level": 3,
-              "text": "E-Invoice Error / Retry Report",
-              "slug": "e-invoice-error-retry-report-2"
+              "text": "R5005 E-Invoice Error / Retry Report",
+              "slug": "r5005-e-invoice-error-retry-report"
             },
             {
               "level": 3,
-              "text": "GST Bill Number / Document Series Audit",
-              "slug": "gst-bill-number-document-series-audit"
+              "text": "R5009 GST Bill Number / Document Series Audit",
+              "slug": "r5009-gst-bill-number-document-series-audit"
             },
             {
               "level": 3,
-              "text": "GST Document Tax Detail",
-              "slug": "gst-document-tax-detail"
+              "text": "R5007 GST Document Tax Detail",
+              "slug": "r5007-gst-document-tax-detail"
             },
             {
               "level": 3,
-              "text": "GSTR-1 B2B / B2C Summary",
-              "slug": "gstr-1-b2b-b2c-summary"
+              "text": "R5002 GSTR-1 B2B / B2C Summary",
+              "slug": "r5002-gstr-1-b2b-b2c-summary"
             },
             {
               "level": 3,
-              "text": "GSTR-1 HSN Summary",
-              "slug": "gstr-1-hsn-summary"
+              "text": "R5001 GSTR-1 HSN Summary",
+              "slug": "r5001-gstr-1-hsn-summary"
             },
             {
               "level": 3,
-              "text": "HSN Tax Summary",
-              "slug": "hsn-tax-summary"
+              "text": "R5008 HSN Tax Summary",
+              "slug": "r5008-hsn-tax-summary"
             },
             {
               "level": 3,
-              "text": "IRN Portal Manual Upload Report",
-              "slug": "irn-portal-manual-upload-report-2"
+              "text": "R5003 IRN Portal Manual Upload Report",
+              "slug": "r5003-irn-portal-manual-upload-report"
             },
             {
               "level": 2,
@@ -3696,13 +3771,13 @@
             },
             {
               "level": 3,
-              "text": "Attendance Summary",
-              "slug": "attendance-summary"
+              "text": "R8018 Attendance Summary",
+              "slug": "r8018-attendance-summary"
             },
             {
               "level": 3,
-              "text": "Payroll Reconciliation (gross to bank to GL)",
-              "slug": "payroll-reconciliation-gross-to-bank-to-gl"
+              "text": "R8017 Payroll Reconciliation (gross to bank to GL)",
+              "slug": "r8017-payroll-reconciliation-gross-to-bank-to-gl"
             },
             {
               "level": 2,
@@ -3711,78 +3786,78 @@
             },
             {
               "level": 3,
-              "text": "Attendance Register",
-              "slug": "attendance-register"
+              "text": "R8002 Attendance Register",
+              "slug": "r8002-attendance-register"
             },
             {
               "level": 3,
-              "text": "Attrition Report",
-              "slug": "attrition-report"
+              "text": "R8011 Attrition Report",
+              "slug": "r8011-attrition-report"
             },
             {
               "level": 3,
-              "text": "Employee Loan / Advance Register",
-              "slug": "employee-loan-advance-register"
+              "text": "R8009 Employee Loan / Advance Register",
+              "slug": "r8009-employee-loan-advance-register"
             },
             {
               "level": 3,
-              "text": "Employee Master Register",
-              "slug": "employee-master-register"
+              "text": "R8001 Employee Master Register",
+              "slug": "r8001-employee-master-register"
             },
             {
               "level": 3,
-              "text": "Employee Role / Access Mapping",
-              "slug": "employee-role-access-mapping"
+              "text": "R8016 Employee Role / Access Mapping",
+              "slug": "r8016-employee-role-access-mapping"
             },
             {
               "level": 3,
-              "text": "Headcount Summary",
-              "slug": "headcount-summary"
+              "text": "R8010 Headcount Summary",
+              "slug": "r8010-headcount-summary"
             },
             {
               "level": 3,
-              "text": "Late / Overtime Report",
-              "slug": "late-overtime-report"
+              "text": "R8003 Late / Overtime Report",
+              "slug": "r8003-late-overtime-report"
             },
             {
               "level": 3,
-              "text": "Leave Register",
-              "slug": "leave-register"
+              "text": "R8004 Leave Register",
+              "slug": "r8004-leave-register"
             },
             {
               "level": 3,
-              "text": "Onboarding Checklist",
-              "slug": "onboarding-checklist"
+              "text": "R8013 Onboarding Checklist",
+              "slug": "r8013-onboarding-checklist"
             },
             {
               "level": 3,
-              "text": "Payroll Register",
-              "slug": "payroll-register"
+              "text": "R8006 Payroll Register",
+              "slug": "r8006-payroll-register"
             },
             {
               "level": 3,
-              "text": "Performance Review Summary",
-              "slug": "performance-review-summary"
+              "text": "R8014 Performance Review Summary",
+              "slug": "r8014-performance-review-summary"
             },
             {
               "level": 3,
-              "text": "Salary Component Detail",
-              "slug": "salary-component-detail"
+              "text": "R8007 Salary Component Detail",
+              "slug": "r8007-salary-component-detail"
             },
             {
               "level": 3,
-              "text": "Shift / Roster Report",
-              "slug": "shift-roster-report"
+              "text": "R8005 Shift / Roster Report",
+              "slug": "r8005-shift-roster-report"
             },
             {
               "level": 3,
-              "text": "Statutory Deduction Summary",
-              "slug": "statutory-deduction-summary"
+              "text": "R8008 Statutory Deduction Summary",
+              "slug": "r8008-statutory-deduction-summary"
             },
             {
               "level": 3,
-              "text": "Training / Certification Register",
-              "slug": "training-certification-register"
+              "text": "R8015 Training / Certification Register",
+              "slug": "r8015-training-certification-register"
             }
           ]
         },
@@ -3818,213 +3893,213 @@
             },
             {
               "level": 3,
-              "text": "Backflush Consumption",
-              "slug": "backflush-consumption"
+              "text": "R3069 Backflush Consumption",
+              "slug": "r3069-backflush-consumption"
             },
             {
               "level": 3,
-              "text": "Barcode Reprint / Label History",
-              "slug": "barcode-reprint-label-history"
+              "text": "R3020 Barcode Reprint / Label History",
+              "slug": "r3020-barcode-reprint-label-history"
             },
             {
               "level": 3,
-              "text": "Barcode-wise Cost \u0026 MRP Report",
-              "slug": "barcode-wise-cost-mrp-report"
+              "text": "R3009 Barcode-wise Cost \u0026 MRP Report",
+              "slug": "r3009-barcode-wise-cost-mrp-report"
             },
             {
               "level": 3,
-              "text": "Batch Lookup \u0026 Ageing",
-              "slug": "batch-lookup-ageing"
+              "text": "R3080 Batch Lookup \u0026 Ageing",
+              "slug": "r3080-batch-lookup-ageing"
             },
             {
               "level": 3,
-              "text": "Consumption by cost centre",
-              "slug": "consumption-by-cost-centre"
+              "text": "R3071 Consumption by cost centre",
+              "slug": "r3071-consumption-by-cost-centre"
             },
             {
               "level": 3,
-              "text": "Current Stock",
-              "slug": "current-stock"
+              "text": "R3076 Current Stock",
+              "slug": "r3076-current-stock"
             },
             {
               "level": 3,
-              "text": "Current Stock Barcode Detail",
-              "slug": "current-stock-barcode-detail"
+              "text": "R3003 Current Stock Barcode Detail",
+              "slug": "r3003-current-stock-barcode-detail"
             },
             {
               "level": 3,
-              "text": "Current Stock Itemwise Detail",
-              "slug": "current-stock-itemwise-detail"
+              "text": "R3002 Current Stock Itemwise Detail",
+              "slug": "r3002-current-stock-itemwise-detail"
             },
             {
               "level": 3,
-              "text": "Current Stock Summary",
-              "slug": "current-stock-summary"
+              "text": "R3001 Current Stock Summary",
+              "slug": "r3001-current-stock-summary"
             },
             {
               "level": 3,
-              "text": "Current Stock with Image",
-              "slug": "current-stock-with-image"
+              "text": "R3013 Current Stock with Image",
+              "slug": "r3013-current-stock-with-image"
             },
             {
               "level": 3,
-              "text": "Delivery challan register",
-              "slug": "delivery-challan-register"
+              "text": "R3062 Delivery challan register",
+              "slug": "r3062-delivery-challan-register"
             },
             {
               "level": 3,
-              "text": "Demand Forecast (Trend)",
-              "slug": "demand-forecast-trend"
+              "text": "R3073 Demand Forecast (Trend)",
+              "slug": "r3073-demand-forecast-trend"
             },
             {
               "level": 3,
-              "text": "E-way bill register",
-              "slug": "e-way-bill-register"
+              "text": "R3064 E-way bill register",
+              "slug": "r3064-e-way-bill-register"
             },
             {
               "level": 3,
-              "text": "Goods In Receiving",
-              "slug": "goods-in-receiving"
+              "text": "R3065 Goods In Receiving",
+              "slug": "r3065-goods-in-receiving"
             },
             {
               "level": 3,
-              "text": "Goods out on challan, by party",
-              "slug": "goods-out-on-challan-by-party"
+              "text": "R3063 Goods out on challan, by party",
+              "slug": "r3063-goods-out-on-challan-by-party"
             },
             {
               "level": 3,
-              "text": "Inventory Matrix Summary",
-              "slug": "inventory-matrix-summary"
+              "text": "R3012 Inventory Matrix Summary",
+              "slug": "r3012-inventory-matrix-summary"
             },
             {
               "level": 3,
-              "text": "Inventory Valuation",
-              "slug": "inventory-valuation"
+              "text": "R3060 Inventory Valuation",
+              "slug": "r3060-inventory-valuation"
             },
             {
               "level": 3,
-              "text": "Inventory by Location Summary",
-              "slug": "inventory-by-location-summary"
+              "text": "R3011 Inventory by Location Summary",
+              "slug": "r3011-inventory-by-location-summary"
             },
             {
               "level": 3,
-              "text": "Item Classification Register",
-              "slug": "item-classification-register"
+              "text": "R3068 Item Classification Register",
+              "slug": "r3068-item-classification-register"
             },
             {
               "level": 3,
-              "text": "MRP Change Register",
-              "slug": "mrp-change-register"
+              "text": "R3019 MRP Change Register",
+              "slug": "r3019-mrp-change-register"
             },
             {
               "level": 3,
-              "text": "Material issue and return register",
-              "slug": "material-issue-and-return-register"
+              "text": "R3072 Material issue and return register",
+              "slug": "r3072-material-issue-and-return-register"
             },
             {
               "level": 3,
-              "text": "Negative Stock Exception",
-              "slug": "negative-stock-exception"
+              "text": "R3018 Negative Stock Exception",
+              "slug": "r3018-negative-stock-exception"
             },
             {
               "level": 3,
-              "text": "Non-Valuated Stock",
-              "slug": "non-valuated-stock"
+              "text": "R3070 Non-Valuated Stock",
+              "slug": "r3070-non-valuated-stock"
             },
             {
               "level": 3,
-              "text": "Pegged Demand \u0026 Supply",
-              "slug": "pegged-demand-supply"
+              "text": "R3075 Pegged Demand \u0026 Supply",
+              "slug": "r3075-pegged-demand-supply"
             },
             {
               "level": 3,
-              "text": "Physical Stock Count Register",
-              "slug": "physical-stock-count-register"
+              "text": "R3016 Physical Stock Count Register",
+              "slug": "r3016-physical-stock-count-register"
             },
             {
               "level": 3,
-              "text": "Physical Stock Variance Report",
-              "slug": "physical-stock-variance-report"
+              "text": "R3017 Physical Stock Variance Report",
+              "slug": "r3017-physical-stock-variance-report"
             },
             {
               "level": 3,
-              "text": "Reorder Suggestions (Configured)",
-              "slug": "reorder-suggestions-configured"
+              "text": "R3074 Reorder Suggestions (Configured)",
+              "slug": "r3074-reorder-suggestions-configured"
             },
             {
               "level": 3,
-              "text": "Stock Ageing (by GRN batch)",
-              "slug": "stock-ageing-by-grn-batch"
+              "text": "R3081 Stock Ageing (by GRN batch)",
+              "slug": "r3081-stock-ageing-by-grn-batch"
             },
             {
               "level": 3,
-              "text": "Stock Aging",
-              "slug": "stock-aging"
+              "text": "R3007 Stock Aging",
+              "slug": "r3007-stock-aging"
             },
             {
               "level": 3,
-              "text": "Stock Book vs Ledger (drift finder)",
-              "slug": "stock-book-vs-ledger-drift-finder"
+              "text": "R3079 Stock Book vs Ledger (drift finder)",
+              "slug": "r3079-stock-book-vs-ledger-drift-finder"
             },
             {
               "level": 3,
-              "text": "Stock Details - Period Wise",
-              "slug": "stock-details-period-wise"
+              "text": "R3004 Stock Details - Period Wise",
+              "slug": "r3004-stock-details-period-wise"
             },
             {
               "level": 3,
-              "text": "Stock Ledger",
-              "slug": "stock-ledger"
+              "text": "R3005 Stock Ledger",
+              "slug": "r3005-stock-ledger"
             },
             {
               "level": 3,
-              "text": "Stock Ledger",
-              "slug": "stock-ledger-2"
+              "text": "R3078 Stock Ledger",
+              "slug": "r3078-stock-ledger"
             },
             {
               "level": 3,
-              "text": "Stock Ledger - Category Summary",
-              "slug": "stock-ledger-category-summary"
+              "text": "R3006 Stock Ledger - Category Summary",
+              "slug": "r3006-stock-ledger-category-summary"
             },
             {
               "level": 3,
-              "text": "Stock Movement History",
-              "slug": "stock-movement-history"
+              "text": "R3010 Stock Movement History",
+              "slug": "r3010-stock-movement-history"
             },
             {
               "level": 3,
-              "text": "Stock Valuation Summary",
-              "slug": "stock-valuation-summary"
+              "text": "R3008 Stock Valuation Summary",
+              "slug": "r3008-stock-valuation-summary"
             },
             {
               "level": 3,
-              "text": "Stock adjustment register",
-              "slug": "stock-adjustment-register"
+              "text": "R3066 Stock adjustment register",
+              "slug": "r3066-stock-adjustment-register"
             },
             {
               "level": 3,
-              "text": "Stock by Location",
-              "slug": "stock-by-location"
+              "text": "R3077 Stock by Location",
+              "slug": "r3077-stock-by-location"
             },
             {
               "level": 3,
-              "text": "Stock losses by reason and store",
-              "slug": "stock-losses-by-reason-and-store"
+              "text": "R3067 Stock losses by reason and store",
+              "slug": "r3067-stock-losses-by-reason-and-store"
             },
             {
               "level": 3,
-              "text": "Transfer shortages by reason",
-              "slug": "transfer-shortages-by-reason"
+              "text": "R3082 Transfer shortages by reason",
+              "slug": "r3082-transfer-shortages-by-reason"
             },
             {
               "level": 3,
-              "text": "Transfers in transit too long",
-              "slug": "transfers-in-transit-too-long"
+              "text": "R3061 Transfers in transit too long",
+              "slug": "r3061-transfers-in-transit-too-long"
             },
             {
               "level": 3,
-              "text": "Unique Design Inventory Summary",
-              "slug": "unique-design-inventory-summary"
+              "text": "R3021 Unique Design Inventory Summary",
+              "slug": "r3021-unique-design-inventory-summary"
             },
             {
               "level": 2,
@@ -4033,53 +4108,53 @@
             },
             {
               "level": 3,
-              "text": "Ageing Inventory Value",
-              "slug": "ageing-inventory-value"
+              "text": "R9019 Ageing Inventory Value",
+              "slug": "r9019-ageing-inventory-value"
             },
             {
               "level": 3,
-              "text": "Category Performance Summary",
-              "slug": "category-performance-summary"
+              "text": "R9015 Category Performance Summary",
+              "slug": "r9015-category-performance-summary"
             },
             {
               "level": 3,
-              "text": "Daily Business Summary",
-              "slug": "daily-business-summary"
+              "text": "R9012 Daily Business Summary",
+              "slug": "r9012-daily-business-summary"
             },
             {
               "level": 3,
-              "text": "Fast / Slow Moving Stock",
-              "slug": "fast-slow-moving-stock"
+              "text": "R9017 Fast / Slow Moving Stock",
+              "slug": "r9017-fast-slow-moving-stock"
             },
             {
               "level": 3,
-              "text": "Gross Margin Summary",
-              "slug": "gross-margin-summary"
+              "text": "R9016 Gross Margin Summary",
+              "slug": "r9016-gross-margin-summary"
             },
             {
               "level": 3,
-              "text": "Inventory Turnover Summary",
-              "slug": "inventory-turnover-summary"
+              "text": "R9020 Inventory Turnover Summary",
+              "slug": "r9020-inventory-turnover-summary"
             },
             {
               "level": 3,
-              "text": "Management Stock \u0026 Sales Summary",
-              "slug": "management-stock-sales-summary"
+              "text": "R9021 Management Stock \u0026 Sales Summary",
+              "slug": "r9021-management-stock-sales-summary"
             },
             {
               "level": 3,
-              "text": "Sales vs Target",
-              "slug": "sales-vs-target"
+              "text": "R9013 Sales vs Target",
+              "slug": "r9013-sales-vs-target"
             },
             {
               "level": 3,
-              "text": "Stock Cover Report",
-              "slug": "stock-cover-report"
+              "text": "R9018 Stock Cover Report",
+              "slug": "r9018-stock-cover-report"
             },
             {
               "level": 3,
-              "text": "Store Performance / Ranking",
-              "slug": "store-performance-ranking"
+              "text": "R9014 Store Performance / Ranking",
+              "slug": "r9014-store-performance-ranking"
             },
             {
               "level": 2,
@@ -4088,108 +4163,108 @@
             },
             {
               "level": 3,
-              "text": "BOM Costing Report",
-              "slug": "bom-costing-report"
+              "text": "R7018 BOM Costing Report",
+              "slug": "r7018-bom-costing-report"
             },
             {
               "level": 3,
-              "text": "BOM Register",
-              "slug": "bom-register"
+              "text": "R7017 BOM Register",
+              "slug": "r7017-bom-register"
             },
             {
               "level": 3,
-              "text": "Batch / Lot Traceability",
-              "slug": "batch-lot-traceability"
+              "text": "R7031 Batch / Lot Traceability",
+              "slug": "r7031-batch-lot-traceability"
             },
             {
               "level": 3,
-              "text": "Job work cost, yield and wastage",
-              "slug": "job-work-cost-yield-and-wastage"
+              "text": "R7034 Job work cost, yield and wastage",
+              "slug": "r7034-job-work-cost-yield-and-wastage"
             },
             {
               "level": 3,
-              "text": "Job work outstanding (qty and weight)",
-              "slug": "job-work-outstanding-qty-and-weight"
+              "text": "R7033 Job work outstanding (qty and weight)",
+              "slug": "r7033-job-work-outstanding-qty-and-weight"
             },
             {
               "level": 3,
-              "text": "MRP Suggestions",
-              "slug": "mrp-suggestions"
+              "text": "R7029 MRP Suggestions",
+              "slug": "r7029-mrp-suggestions"
             },
             {
               "level": 3,
-              "text": "Material Issue / Consumption Report",
-              "slug": "material-issue-consumption-report"
+              "text": "R7021 Material Issue / Consumption Report",
+              "slug": "r7021-material-issue-consumption-report"
             },
             {
               "level": 3,
-              "text": "Material Usage Variance",
-              "slug": "material-usage-variance"
+              "text": "R7022 Material Usage Variance",
+              "slug": "r7022-material-usage-variance"
             },
             {
               "level": 3,
-              "text": "Production Capacity Schedule",
-              "slug": "production-capacity-schedule"
+              "text": "R7040 Production Capacity Schedule",
+              "slug": "r7040-production-capacity-schedule"
             },
             {
               "level": 3,
-              "text": "Production Cost Variance",
-              "slug": "production-cost-variance"
+              "text": "R7035 Production Cost Variance",
+              "slug": "r7035-production-cost-variance"
             },
             {
               "level": 3,
-              "text": "Production Order Register",
-              "slug": "production-order-register"
+              "text": "R7019 Production Order Register",
+              "slug": "r7019-production-order-register"
             },
             {
               "level": 3,
-              "text": "Production Order Status",
-              "slug": "production-order-status"
+              "text": "R7041 Production Order Status",
+              "slug": "r7041-production-order-status"
             },
             {
               "level": 3,
-              "text": "Production Receipt / Completion",
-              "slug": "production-receipt-completion"
+              "text": "R7023 Production Receipt / Completion",
+              "slug": "r7023-production-receipt-completion"
             },
             {
               "level": 3,
-              "text": "Production Schedule",
-              "slug": "production-schedule"
+              "text": "R7027 Production Schedule",
+              "slug": "r7027-production-schedule"
             },
             {
               "level": 3,
-              "text": "Quality Inspection Report",
-              "slug": "quality-inspection-report"
+              "text": "R7025 Quality Inspection Report",
+              "slug": "r7025-quality-inspection-report"
             },
             {
               "level": 3,
-              "text": "Rework / Rejection Report",
-              "slug": "rework-rejection-report"
+              "text": "R7026 Rework / Rejection Report",
+              "slug": "r7026-rework-rejection-report"
             },
             {
               "level": 3,
-              "text": "Standard vs Actual Cost",
-              "slug": "standard-vs-actual-cost"
+              "text": "R7032 Standard vs Actual Cost",
+              "slug": "r7032-standard-vs-actual-cost"
             },
             {
               "level": 3,
-              "text": "Subcontracting / Job Work Report",
-              "slug": "subcontracting-job-work-report"
+              "text": "R7030 Subcontracting / Job Work Report",
+              "slug": "r7030-subcontracting-job-work-report"
             },
             {
               "level": 3,
-              "text": "Work Center Capacity / Load",
-              "slug": "work-center-capacity-load"
+              "text": "R7028 Work Center Capacity / Load",
+              "slug": "r7028-work-center-capacity-load"
             },
             {
               "level": 3,
-              "text": "Work In Process Report",
-              "slug": "work-in-process-report"
+              "text": "R7020 Work In Process Report",
+              "slug": "r7020-work-in-process-report"
             },
             {
               "level": 3,
-              "text": "Yield / Scrap Analysis",
-              "slug": "yield-scrap-analysis"
+              "text": "R7024 Yield / Scrap Analysis",
+              "slug": "r7024-yield-scrap-analysis"
             },
             {
               "level": 2,
@@ -4198,58 +4273,58 @@
             },
             {
               "level": 3,
-              "text": "Approval History Report",
-              "slug": "approval-history-report"
+              "text": "R9007 Approval History Report",
+              "slug": "r9007-approval-history-report"
             },
             {
               "level": 3,
-              "text": "Backdated Entry Report",
-              "slug": "backdated-entry-report"
+              "text": "R9010 Backdated Entry Report",
+              "slug": "r9010-backdated-entry-report"
             },
             {
               "level": 3,
-              "text": "Item Master Register",
-              "slug": "item-master-register"
+              "text": "R9001 Item Master Register",
+              "slug": "r9001-item-master-register"
             },
             {
               "level": 3,
-              "text": "Master Data Change Audit",
-              "slug": "master-data-change-audit"
+              "text": "R9004 Master Data Change Audit",
+              "slug": "r9004-master-data-change-audit"
             },
             {
               "level": 3,
-              "text": "Report Download Audit",
-              "slug": "report-download-audit"
+              "text": "R9009 Report Download Audit",
+              "slug": "r9009-report-download-audit"
             },
             {
               "level": 3,
-              "text": "Role Permission Audit",
-              "slug": "role-permission-audit"
+              "text": "R9006 Role Permission Audit",
+              "slug": "r9006-role-permission-audit"
             },
             {
               "level": 3,
-              "text": "Store / Location Master Register",
-              "slug": "store-location-master-register"
+              "text": "R9002 Store / Location Master Register",
+              "slug": "r9002-store-location-master-register"
             },
             {
               "level": 3,
-              "text": "Transaction Cancellation Audit",
-              "slug": "transaction-cancellation-audit"
+              "text": "R9011 Transaction Cancellation Audit",
+              "slug": "r9011-transaction-cancellation-audit"
             },
             {
               "level": 3,
-              "text": "User Access Matrix Report",
-              "slug": "user-access-matrix-report"
+              "text": "R9005 User Access Matrix Report",
+              "slug": "r9005-user-access-matrix-report"
             },
             {
               "level": 3,
-              "text": "User Activity Log",
-              "slug": "user-activity-log"
+              "text": "R9008 User Activity Log",
+              "slug": "r9008-user-activity-log"
             },
             {
               "level": 3,
-              "text": "Vendor Master Register",
-              "slug": "vendor-master-register"
+              "text": "R9003 Vendor Master Register",
+              "slug": "r9003-vendor-master-register"
             },
             {
               "level": 2,
@@ -4258,128 +4333,128 @@
             },
             {
               "level": 3,
-              "text": "ATP / Promise Inventory Report",
-              "slug": "atp-promise-inventory-report"
+              "text": "R6023 ATP / Promise Inventory Report",
+              "slug": "r6023-atp-promise-inventory-report"
             },
             {
               "level": 3,
-              "text": "Allocation Pending",
-              "slug": "allocation-pending"
+              "text": "R6064 Allocation Pending",
+              "slug": "r6064-allocation-pending"
             },
             {
               "level": 3,
-              "text": "Channel Order Reconciliation",
-              "slug": "channel-order-reconciliation"
+              "text": "R6024 Channel Order Reconciliation",
+              "slug": "r6024-channel-order-reconciliation"
             },
             {
               "level": 3,
-              "text": "Courier Performance",
-              "slug": "courier-performance"
+              "text": "R6068 Courier Performance",
+              "slug": "r6068-courier-performance"
             },
             {
               "level": 3,
-              "text": "Fulfilment Status Report",
-              "slug": "fulfilment-status-report"
+              "text": "R6016 Fulfilment Status Report",
+              "slug": "r6016-fulfilment-status-report"
             },
             {
               "level": 3,
-              "text": "OMS Exception Queue",
-              "slug": "oms-exception-queue"
+              "text": "R6060 OMS Exception Queue",
+              "slug": "r6060-oms-exception-queue"
             },
             {
               "level": 3,
-              "text": "OMS Integration Error / Retry",
-              "slug": "oms-integration-error-retry"
+              "text": "R6025 OMS Integration Error / Retry",
+              "slug": "r6025-oms-integration-error-retry"
             },
             {
               "level": 3,
-              "text": "OMS Reconciliation Variance",
-              "slug": "oms-reconciliation-variance"
+              "text": "R6061 OMS Reconciliation Variance",
+              "slug": "r6061-oms-reconciliation-variance"
             },
             {
               "level": 3,
-              "text": "Order Aging",
-              "slug": "order-aging"
+              "text": "R6062 Order Aging",
+              "slug": "r6062-order-aging"
             },
             {
               "level": 3,
-              "text": "Order Allocation / Reservation Report",
-              "slug": "order-allocation-reservation-report"
+              "text": "R6015 Order Allocation / Reservation Report",
+              "slug": "r6015-order-allocation-reservation-report"
             },
             {
               "level": 3,
-              "text": "Order Cancellation Report",
-              "slug": "order-cancellation-report"
+              "text": "R6019 Order Cancellation Report",
+              "slug": "r6019-order-cancellation-report"
             },
             {
               "level": 3,
-              "text": "Order Line Detail",
-              "slug": "order-line-detail"
+              "text": "R6014 Order Line Detail",
+              "slug": "r6014-order-line-detail"
             },
             {
               "level": 3,
-              "text": "Order Register",
-              "slug": "order-register"
+              "text": "R6013 Order Register",
+              "slug": "r6013-order-register"
             },
             {
               "level": 3,
-              "text": "Order to Invoice Reconciliation",
-              "slug": "order-to-invoice-reconciliation"
+              "text": "R6022 Order to Invoice Reconciliation",
+              "slug": "r6022-order-to-invoice-reconciliation"
             },
             {
               "level": 3,
-              "text": "Orphaned Channel Orders (pre-35.1 intake)",
-              "slug": "orphaned-channel-orders-pre-35-1-intake"
+              "text": "R6069 Orphaned Channel Orders (pre-35.1 intake)",
+              "slug": "r6069-orphaned-channel-orders-pre-35-1-intake"
             },
             {
               "level": 3,
-              "text": "Pending Order / SLA Aging",
-              "slug": "pending-order-sla-aging"
+              "text": "R6018 Pending Order / SLA Aging",
+              "slug": "r6018-pending-order-sla-aging"
             },
             {
               "level": 3,
-              "text": "Refund Status Report",
-              "slug": "refund-status-report"
+              "text": "R6021 Refund Status Report",
+              "slug": "r6021-refund-status-report"
             },
             {
               "level": 3,
-              "text": "Reserved Stock",
-              "slug": "reserved-stock"
+              "text": "R6067 Reserved Stock",
+              "slug": "r6067-reserved-stock"
             },
             {
               "level": 3,
-              "text": "Return / RTO Register",
-              "slug": "return-rto-register"
+              "text": "R6020 Return / RTO Register",
+              "slug": "r6020-return-rto-register"
             },
             {
               "level": 3,
-              "text": "Return Aging",
-              "slug": "return-aging"
+              "text": "R6066 Return Aging",
+              "slug": "r6066-return-aging"
             },
             {
               "level": 3,
-              "text": "SLA Breach",
-              "slug": "sla-breach"
+              "text": "R6063 SLA Breach",
+              "slug": "r6063-sla-breach"
             },
             {
               "level": 3,
-              "text": "Settlement Variance Queue",
-              "slug": "settlement-variance-queue"
+              "text": "R6074 Settlement Variance Queue",
+              "slug": "r6074-settlement-variance-queue"
             },
             {
               "level": 3,
-              "text": "Split Shipment Report",
-              "slug": "split-shipment-report"
+              "text": "R6017 Split Shipment Report",
+              "slug": "r6017-split-shipment-report"
             },
             {
               "level": 3,
-              "text": "Stock Mismatch",
-              "slug": "stock-mismatch"
+              "text": "R6065 Stock Mismatch",
+              "slug": "r6065-stock-mismatch"
             },
             {
               "level": 3,
-              "text": "Unsettled Marketplace Orders",
-              "slug": "unsettled-marketplace-orders"
+              "text": "R6073 Unsettled Marketplace Orders",
+              "slug": "r6073-unsettled-marketplace-orders"
             },
             {
               "level": 2,
@@ -4388,23 +4463,23 @@
             },
             {
               "level": 3,
-              "text": "PIM Overdue Tasks",
-              "slug": "pim-overdue-tasks"
+              "text": "R7038 PIM Overdue Tasks",
+              "slug": "r7038-pim-overdue-tasks"
             },
             {
               "level": 3,
-              "text": "PIM Product Group Readiness",
-              "slug": "pim-product-group-readiness"
+              "text": "R7036 PIM Product Group Readiness",
+              "slug": "r7036-pim-product-group-readiness"
             },
             {
               "level": 3,
-              "text": "PIM Stalled Workflow Runs",
-              "slug": "pim-stalled-workflow-runs"
+              "text": "R7039 PIM Stalled Workflow Runs",
+              "slug": "r7039-pim-stalled-workflow-runs"
             },
             {
               "level": 3,
-              "text": "PIM Task Workload by Assignee",
-              "slug": "pim-task-workload-by-assignee"
+              "text": "R7037 PIM Task Workload by Assignee",
+              "slug": "r7037-pim-task-workload-by-assignee"
             },
             {
               "level": 2,
@@ -4413,83 +4488,83 @@
             },
             {
               "level": 3,
-              "text": "Attribute Definition Report",
-              "slug": "attribute-definition-report"
+              "text": "R7006 Attribute Definition Report",
+              "slug": "r7006-attribute-definition-report"
             },
             {
               "level": 3,
-              "text": "Attribute Group Report",
-              "slug": "attribute-group-report"
+              "text": "R7007 Attribute Group Report",
+              "slug": "r7007-attribute-group-report"
             },
             {
               "level": 3,
-              "text": "Category / Attribute Mapping Report",
-              "slug": "category-attribute-mapping-report"
+              "text": "R7013 Category / Attribute Mapping Report",
+              "slug": "r7013-category-attribute-mapping-report"
             },
             {
               "level": 3,
-              "text": "Channel Publication Error Report",
-              "slug": "channel-publication-error-report"
+              "text": "R7012 Channel Publication Error Report",
+              "slug": "r7012-channel-publication-error-report"
             },
             {
               "level": 3,
-              "text": "Channel Publication Status",
-              "slug": "channel-publication-status"
+              "text": "R7011 Channel Publication Status",
+              "slug": "r7011-channel-publication-status"
             },
             {
               "level": 3,
-              "text": "Channel Readiness Report",
-              "slug": "channel-readiness-report"
+              "text": "R7010 Channel Readiness Report",
+              "slug": "r7010-channel-readiness-report"
             },
             {
               "level": 3,
-              "text": "Duplicate SKU / Barcode Exception",
-              "slug": "duplicate-sku-barcode-exception"
+              "text": "R7014 Duplicate SKU / Barcode Exception",
+              "slug": "r7014-duplicate-sku-barcode-exception"
             },
             {
               "level": 3,
-              "text": "Family Attribute Mapping Report",
-              "slug": "family-attribute-mapping-report"
+              "text": "R7008 Family Attribute Mapping Report",
+              "slug": "r7008-family-attribute-mapping-report"
             },
             {
               "level": 3,
-              "text": "Media / Image Coverage Report",
-              "slug": "media-image-coverage-report"
+              "text": "R7009 Media / Image Coverage Report",
+              "slug": "r7009-media-image-coverage-report"
             },
             {
               "level": 3,
-              "text": "Missing Attribute Report",
-              "slug": "missing-attribute-report"
+              "text": "R7004 Missing Attribute Report",
+              "slug": "r7004-missing-attribute-report"
             },
             {
               "level": 3,
-              "text": "PIM Workbench Queue",
-              "slug": "pim-workbench-queue"
+              "text": "R7003 PIM Workbench Queue",
+              "slug": "r7003-pim-workbench-queue"
             },
             {
               "level": 3,
-              "text": "Price / Inventory Publish Status",
-              "slug": "price-inventory-publish-status"
+              "text": "R7016 Price / Inventory Publish Status",
+              "slug": "r7016-price-inventory-publish-status"
             },
             {
               "level": 3,
-              "text": "Product Change Audit",
-              "slug": "product-change-audit"
+              "text": "R7015 Product Change Audit",
+              "slug": "r7015-product-change-audit"
             },
             {
               "level": 3,
-              "text": "Product Completeness Report",
-              "slug": "product-completeness-report"
+              "text": "R7002 Product Completeness Report",
+              "slug": "r7002-product-completeness-report"
             },
             {
               "level": 3,
-              "text": "Product Family / Variant Matrix",
-              "slug": "product-family-variant-matrix"
+              "text": "R7005 Product Family / Variant Matrix",
+              "slug": "r7005-product-family-variant-matrix"
             },
             {
               "level": 3,
-              "text": "Product Master Report",
-              "slug": "product-master-report"
+              "text": "R7001 Product Master Report",
+              "slug": "r7001-product-master-report"
             },
             {
               "level": 2,
@@ -4498,93 +4573,93 @@
             },
             {
               "level": 3,
-              "text": "GRN Corrections Log",
-              "slug": "grn-corrections-log"
+              "text": "R2036 GRN Corrections Log",
+              "slug": "r2036-grn-corrections-log"
             },
             {
               "level": 3,
-              "text": "GRN Payments",
-              "slug": "grn-payments"
+              "text": "R2038 GRN Payments",
+              "slug": "r2038-grn-payments"
             },
             {
               "level": 3,
-              "text": "GRN Register",
-              "slug": "grn-register"
+              "text": "R2046 GRN Register",
+              "slug": "r2046-grn-register"
             },
             {
               "level": 3,
-              "text": "GRN Register - every line, every step",
-              "slug": "grn-register-every-line-every-step"
+              "text": "R2032 GRN Register - every line, every step",
+              "slug": "r2032-grn-register-every-line-every-step"
             },
             {
               "level": 3,
-              "text": "Goods Receipts Waiting",
-              "slug": "goods-receipts-waiting"
+              "text": "R2035 Goods Receipts Waiting",
+              "slug": "r2035-goods-receipts-waiting"
             },
             {
               "level": 3,
-              "text": "Goods receipt discrepancies by vendor",
-              "slug": "goods-receipt-discrepancies-by-vendor"
+              "text": "R2040 Goods receipt discrepancies by vendor",
+              "slug": "r2040-goods-receipt-discrepancies-by-vendor"
             },
             {
               "level": 3,
-              "text": "Goods receipts not billed",
-              "slug": "goods-receipts-not-billed"
+              "text": "R2031 Goods receipts not billed",
+              "slug": "r2031-goods-receipts-not-billed"
             },
             {
               "level": 3,
-              "text": "Goods received not invoiced (GRNI)",
-              "slug": "goods-received-not-invoiced-grni"
+              "text": "R2042 Goods received not invoiced (GRNI)",
+              "slug": "r2042-goods-received-not-invoiced-grni"
             },
             {
               "level": 3,
-              "text": "Invoice vs GRN Differences",
-              "slug": "invoice-vs-grn-differences"
+              "text": "R2033 Invoice vs GRN Differences",
+              "slug": "r2033-invoice-vs-grn-differences"
             },
             {
               "level": 3,
-              "text": "Late and early receipts",
-              "slug": "late-and-early-receipts"
+              "text": "R2030 Late and early receipts",
+              "slug": "r2030-late-and-early-receipts"
             },
             {
               "level": 3,
-              "text": "Open Purchase Commitments",
-              "slug": "open-purchase-commitments"
+              "text": "R2045 Open Purchase Commitments",
+              "slug": "r2045-open-purchase-commitments"
             },
             {
               "level": 3,
-              "text": "PO expected delivery and terms",
-              "slug": "po-expected-delivery-and-terms"
+              "text": "R2039 PO expected delivery and terms",
+              "slug": "r2039-po-expected-delivery-and-terms"
             },
             {
               "level": 3,
-              "text": "PO vs GRN Price Variance",
-              "slug": "po-vs-grn-price-variance"
+              "text": "R2037 PO vs GRN Price Variance",
+              "slug": "r2037-po-vs-grn-price-variance"
             },
             {
               "level": 3,
-              "text": "Purchase Price Changes",
-              "slug": "purchase-price-changes"
+              "text": "R2034 Purchase Price Changes",
+              "slug": "r2034-purchase-price-changes"
             },
             {
               "level": 3,
-              "text": "RFQ Comparison Export",
-              "slug": "rfq-comparison-export"
+              "text": "R2047 RFQ Comparison Export",
+              "slug": "r2047-rfq-comparison-export"
             },
             {
               "level": 3,
-              "text": "Rejections and Returns by Reason",
-              "slug": "rejections-and-returns-by-reason"
+              "text": "R2043 Rejections and Returns by Reason",
+              "slug": "r2043-rejections-and-returns-by-reason"
             },
             {
               "level": 3,
-              "text": "Vendor Ledger",
-              "slug": "vendor-ledger"
+              "text": "R2044 Vendor Ledger",
+              "slug": "r2044-vendor-ledger"
             },
             {
               "level": 3,
-              "text": "Vendor document and transport register",
-              "slug": "vendor-document-and-transport-register"
+              "text": "R2041 Vendor document and transport register",
+              "slug": "r2041-vendor-document-and-transport-register"
             }
           ]
         },
@@ -4620,138 +4695,138 @@
             },
             {
               "level": 3,
-              "text": "Cancelled PO Register",
-              "slug": "cancelled-po-register"
+              "text": "R2010 Cancelled PO Register",
+              "slug": "r2010-cancelled-po-register"
             },
             {
               "level": 3,
-              "text": "Expired PO Report",
-              "slug": "expired-po-report"
+              "text": "R2011 Expired PO Report",
+              "slug": "r2011-expired-po-report"
             },
             {
               "level": 3,
-              "text": "GRN Barcode Generation Register",
-              "slug": "grn-barcode-generation-register"
+              "text": "R2024 GRN Barcode Generation Register",
+              "slug": "r2024-grn-barcode-generation-register"
             },
             {
               "level": 3,
-              "text": "GRN Cancelled Register",
-              "slug": "grn-cancelled-register"
+              "text": "R2023 GRN Cancelled Register",
+              "slug": "r2023-grn-cancelled-register"
             },
             {
               "level": 3,
-              "text": "GRN Itemwise Detail",
-              "slug": "grn-itemwise-detail"
+              "text": "R2021 GRN Itemwise Detail",
+              "slug": "r2021-grn-itemwise-detail"
             },
             {
               "level": 3,
-              "text": "GRN PO / Invoice Variance",
-              "slug": "grn-po-invoice-variance"
+              "text": "R2022 GRN PO / Invoice Variance",
+              "slug": "r2022-grn-po-invoice-variance"
             },
             {
               "level": 3,
-              "text": "GRN QC / Rejection Exception",
-              "slug": "grn-qc-rejection-exception"
+              "text": "R2025 GRN QC / Rejection Exception",
+              "slug": "r2025-grn-qc-rejection-exception"
             },
             {
               "level": 3,
-              "text": "GRN Register",
-              "slug": "grn-register"
+              "text": "R2020 GRN Register",
+              "slug": "r2020-grn-register"
             },
             {
               "level": 3,
-              "text": "GRN vs Vendor Invoice Reconciliation",
-              "slug": "grn-vs-vendor-invoice-reconciliation"
+              "text": "R2027 GRN vs Vendor Invoice Reconciliation",
+              "slug": "r2027-grn-vs-vendor-invoice-reconciliation"
             },
             {
               "level": 3,
-              "text": "PO Amendment History",
-              "slug": "po-amendment-history"
+              "text": "R2009 PO Amendment History",
+              "slug": "r2009-po-amendment-history"
             },
             {
               "level": 3,
-              "text": "PO Approval Pending Report",
-              "slug": "po-approval-pending-report"
+              "text": "R2008 PO Approval Pending Report",
+              "slug": "r2008-po-approval-pending-report"
             },
             {
               "level": 3,
-              "text": "PO vs GRN Status",
-              "slug": "po-vs-grn-status"
+              "text": "R2012 PO vs GRN Status",
+              "slug": "r2012-po-vs-grn-status"
             },
             {
               "level": 3,
-              "text": "Pending / Open PO Report",
-              "slug": "pending-open-po-report"
+              "text": "R2005 Pending / Open PO Report",
+              "slug": "r2005-pending-open-po-report"
             },
             {
               "level": 3,
-              "text": "Pending GRN / Open Receipt",
-              "slug": "pending-grn-open-receipt"
+              "text": "R2026 Pending GRN / Open Receipt",
+              "slug": "r2026-pending-grn-open-receipt"
             },
             {
               "level": 3,
-              "text": "Pending PO with Image",
-              "slug": "pending-po-with-image"
+              "text": "R2006 Pending PO with Image",
+              "slug": "r2006-pending-po-with-image"
             },
             {
               "level": 3,
-              "text": "Pending PO with Variant Image",
-              "slug": "pending-po-with-variant-image"
+              "text": "R2007 Pending PO with Variant Image",
+              "slug": "r2007-pending-po-with-variant-image"
             },
             {
               "level": 3,
-              "text": "Purchase Itemwise Detail",
-              "slug": "purchase-itemwise-detail"
+              "text": "R2015 Purchase Itemwise Detail",
+              "slug": "r2015-purchase-itemwise-detail"
             },
             {
               "level": 3,
-              "text": "Purchase Order Itemwise Detail",
-              "slug": "purchase-order-itemwise-detail"
+              "text": "R2004 Purchase Order Itemwise Detail",
+              "slug": "r2004-purchase-order-itemwise-detail"
             },
             {
               "level": 3,
-              "text": "Purchase Order Register",
-              "slug": "purchase-order-register"
+              "text": "R2003 Purchase Order Register",
+              "slug": "r2003-purchase-order-register"
             },
             {
               "level": 3,
-              "text": "Purchase Register",
-              "slug": "purchase-register"
+              "text": "R2014 Purchase Register",
+              "slug": "r2014-purchase-register"
             },
             {
               "level": 3,
-              "text": "Purchase Requisition Register",
-              "slug": "purchase-requisition-register"
+              "text": "R2001 Purchase Requisition Register",
+              "slug": "r2001-purchase-requisition-register"
             },
             {
               "level": 3,
-              "text": "Purchase Return Itemwise Detail",
-              "slug": "purchase-return-itemwise-detail"
+              "text": "R2017 Purchase Return Itemwise Detail",
+              "slug": "r2017-purchase-return-itemwise-detail"
             },
             {
               "level": 3,
-              "text": "Purchase Return Register",
-              "slug": "purchase-return-register"
+              "text": "R2016 Purchase Return Register",
+              "slug": "r2016-purchase-return-register"
             },
             {
               "level": 3,
-              "text": "RFQ / Quotation Comparison",
-              "slug": "rfq-quotation-comparison"
+              "text": "R2002 RFQ / Quotation Comparison",
+              "slug": "r2002-rfq-quotation-comparison"
             },
             {
               "level": 3,
-              "text": "Vendor Credit Note Register",
-              "slug": "vendor-credit-note-register"
+              "text": "R2019 Vendor Credit Note Register",
+              "slug": "r2019-vendor-credit-note-register"
             },
             {
               "level": 3,
-              "text": "Vendor Debit Note Register",
-              "slug": "vendor-debit-note-register"
+              "text": "R2018 Vendor Debit Note Register",
+              "slug": "r2018-vendor-debit-note-register"
             },
             {
               "level": 3,
-              "text": "Vendor Performance Summary",
-              "slug": "vendor-performance-summary"
+              "text": "R2013 Vendor Performance Summary",
+              "slug": "r2013-vendor-performance-summary"
             },
             {
               "level": 2,
@@ -4760,53 +4835,53 @@
             },
             {
               "level": 3,
-              "text": "Competitor Price Gap",
-              "slug": "competitor-price-gap"
+              "text": "R1026 Competitor Price Gap",
+              "slug": "r1026-competitor-price-gap"
             },
             {
               "level": 3,
-              "text": "Customer Advance Register",
-              "slug": "customer-advance-register"
+              "text": "R1028 Customer Advance Register",
+              "slug": "r1028-customer-advance-register"
             },
             {
               "level": 3,
-              "text": "Customer Ledger",
-              "slug": "customer-ledger"
+              "text": "R1024 Customer Ledger",
+              "slug": "r1024-customer-ledger"
             },
             {
               "level": 3,
-              "text": "Customer advances outstanding (ageing)",
-              "slug": "customer-advances-outstanding-ageing"
+              "text": "R1032 Customer advances outstanding (ageing)",
+              "slug": "r1032-customer-advances-outstanding-ageing"
             },
             {
               "level": 3,
-              "text": "Gift With Purchase Register",
-              "slug": "gift-with-purchase-register"
+              "text": "R1025 Gift With Purchase Register",
+              "slug": "r1025-gift-with-purchase-register"
             },
             {
               "level": 3,
-              "text": "Post-Sale Edit History",
-              "slug": "post-sale-edit-history"
+              "text": "R1031 Post-Sale Edit History",
+              "slug": "r1031-post-sale-edit-history"
             },
             {
               "level": 3,
-              "text": "Sales Register",
-              "slug": "sales-register"
+              "text": "R1027 Sales Register",
+              "slug": "r1027-sales-register"
             },
             {
               "level": 3,
-              "text": "Sales by Customer Reference",
-              "slug": "sales-by-customer-reference"
+              "text": "R1023 Sales by Customer Reference",
+              "slug": "r1023-sales-by-customer-reference"
             },
             {
               "level": 3,
-              "text": "Salesman-wise Sales",
-              "slug": "salesman-wise-sales"
+              "text": "R1030 Salesman-wise Sales",
+              "slug": "r1030-salesman-wise-sales"
             },
             {
               "level": 3,
-              "text": "Tender-wise Sales",
-              "slug": "tender-wise-sales"
+              "text": "R1029 Tender-wise Sales",
+              "slug": "r1029-tender-wise-sales"
             },
             {
               "level": 2,
@@ -4815,113 +4890,113 @@
             },
             {
               "level": 3,
-              "text": "B2B Sales Register",
-              "slug": "b2b-sales-register"
+              "text": "R1019 B2B Sales Register",
+              "slug": "r1019-b2b-sales-register"
             },
             {
               "level": 3,
-              "text": "Cancelled / Void Bill Register",
-              "slug": "cancelled-void-bill-register"
+              "text": "R1013 Cancelled / Void Bill Register",
+              "slug": "r1013-cancelled-void-bill-register"
             },
             {
               "level": 3,
-              "text": "Credit Note Register",
-              "slug": "credit-note-register"
+              "text": "R1017 Credit Note Register",
+              "slug": "r1017-credit-note-register"
             },
             {
               "level": 3,
-              "text": "Customer Advance Itemwise Detail",
-              "slug": "customer-advance-itemwise-detail"
+              "text": "R1015 Customer Advance Itemwise Detail",
+              "slug": "r1015-customer-advance-itemwise-detail"
             },
             {
               "level": 3,
-              "text": "Customer Advance Summary",
-              "slug": "customer-advance-summary"
+              "text": "R1014 Customer Advance Summary",
+              "slug": "r1014-customer-advance-summary"
             },
             {
               "level": 3,
-              "text": "Customer Advance Utilization",
-              "slug": "customer-advance-utilization"
+              "text": "R1016 Customer Advance Utilization",
+              "slug": "r1016-customer-advance-utilization"
             },
             {
               "level": 3,
-              "text": "Export / International Sales Register",
-              "slug": "export-international-sales-register"
+              "text": "R1020 Export / International Sales Register",
+              "slug": "r1020-export-international-sales-register"
             },
             {
               "level": 3,
-              "text": "Gift Card / Voucher Register",
-              "slug": "gift-card-voucher-register"
+              "text": "R1018 Gift Card / Voucher Register",
+              "slug": "r1018-gift-card-voucher-register"
             },
             {
               "level": 3,
-              "text": "Net Sales Summary",
-              "slug": "net-sales-summary"
+              "text": "R1005 Net Sales Summary",
+              "slug": "r1005-net-sales-summary"
             },
             {
               "level": 3,
-              "text": "Sales Bill Edit Audit Report",
-              "slug": "sales-bill-edit-audit-report"
+              "text": "R1012 Sales Bill Edit Audit Report",
+              "slug": "r1012-sales-bill-edit-audit-report"
             },
             {
               "level": 3,
-              "text": "Sales Counter Summary",
-              "slug": "sales-counter-summary"
+              "text": "R1009 Sales Counter Summary",
+              "slug": "r1009-sales-counter-summary"
             },
             {
               "level": 3,
-              "text": "Sales Design Image Register",
-              "slug": "sales-design-image-register"
+              "text": "R1021 Sales Design Image Register",
+              "slug": "r1021-sales-design-image-register"
             },
             {
               "level": 3,
-              "text": "Sales Discount Analysis",
-              "slug": "sales-discount-analysis"
+              "text": "R1010 Sales Discount Analysis",
+              "slug": "r1010-sales-discount-analysis"
             },
             {
               "level": 3,
-              "text": "Sales Itemwise Detail",
-              "slug": "sales-itemwise-detail"
+              "text": "R1002 Sales Itemwise Detail",
+              "slug": "r1002-sales-itemwise-detail"
             },
             {
               "level": 3,
-              "text": "Sales Margin Analysis",
-              "slug": "sales-margin-analysis"
+              "text": "R1011 Sales Margin Analysis",
+              "slug": "r1011-sales-margin-analysis"
             },
             {
               "level": 3,
-              "text": "Sales Register",
-              "slug": "sales-register-2"
+              "text": "R1001 Sales Register",
+              "slug": "r1001-sales-register"
             },
             {
               "level": 3,
-              "text": "Sales Return Itemwise Detail",
-              "slug": "sales-return-itemwise-detail"
+              "text": "R1004 Sales Return Itemwise Detail",
+              "slug": "r1004-sales-return-itemwise-detail"
             },
             {
               "level": 3,
-              "text": "Sales Return Register",
-              "slug": "sales-return-register"
+              "text": "R1003 Sales Return Register",
+              "slug": "r1003-sales-return-register"
             },
             {
               "level": 3,
-              "text": "Sales Tender Detail",
-              "slug": "sales-tender-detail"
+              "text": "R1007 Sales Tender Detail",
+              "slug": "r1007-sales-tender-detail"
             },
             {
               "level": 3,
-              "text": "Sales Tender Summary",
-              "slug": "sales-tender-summary"
+              "text": "R1006 Sales Tender Summary",
+              "slug": "r1006-sales-tender-summary"
             },
             {
               "level": 3,
-              "text": "Sales Variant Image Register",
-              "slug": "sales-variant-image-register"
+              "text": "R1022 Sales Variant Image Register",
+              "slug": "r1022-sales-variant-image-register"
             },
             {
               "level": 3,
-              "text": "Salesman Sales Summary",
-              "slug": "salesman-sales-summary"
+              "text": "R1008 Salesman Sales Summary",
+              "slug": "r1008-salesman-sales-summary"
             },
             {
               "level": 2,
@@ -4930,8 +5005,8 @@
             },
             {
               "level": 3,
-              "text": "Service SLA Breaches",
-              "slug": "service-sla-breaches"
+              "text": "R6072 Service SLA Breaches",
+              "slug": "r6072-service-sla-breaches"
             },
             {
               "level": 2,
@@ -4940,48 +5015,48 @@
             },
             {
               "level": 3,
-              "text": "Transfer Approval / Cancellation Audit",
-              "slug": "transfer-approval-cancellation-audit"
+              "text": "R3042 Transfer Approval / Cancellation Audit",
+              "slug": "r3042-transfer-approval-cancellation-audit"
             },
             {
               "level": 3,
-              "text": "Transfer Barcode Traceability",
-              "slug": "transfer-barcode-traceability"
+              "text": "R3039 Transfer Barcode Traceability",
+              "slug": "r3039-transfer-barcode-traceability"
             },
             {
               "level": 3,
-              "text": "Transfer GST / E-Way Control",
-              "slug": "transfer-gst-e-way-control"
+              "text": "R3040 Transfer GST / E-Way Control",
+              "slug": "r3040-transfer-gst-e-way-control"
             },
             {
               "level": 3,
-              "text": "Transfer In Itemwise Detail",
-              "slug": "transfer-in-itemwise-detail"
+              "text": "R3037 Transfer In Itemwise Detail",
+              "slug": "r3037-transfer-in-itemwise-detail"
             },
             {
               "level": 3,
-              "text": "Transfer In Register",
-              "slug": "transfer-in-register"
+              "text": "R3036 Transfer In Register",
+              "slug": "r3036-transfer-in-register"
             },
             {
               "level": 3,
-              "text": "Transfer In-Transit Aging",
-              "slug": "transfer-in-transit-aging"
+              "text": "R3038 Transfer In-Transit Aging",
+              "slug": "r3038-transfer-in-transit-aging"
             },
             {
               "level": 3,
-              "text": "Transfer Out Itemwise Detail",
-              "slug": "transfer-out-itemwise-detail"
+              "text": "R3035 Transfer Out Itemwise Detail",
+              "slug": "r3035-transfer-out-itemwise-detail"
             },
             {
               "level": 3,
-              "text": "Transfer Out Register",
-              "slug": "transfer-out-register"
+              "text": "R3034 Transfer Out Register",
+              "slug": "r3034-transfer-out-register"
             },
             {
               "level": 3,
-              "text": "Transfer Shortage / Excess Exception",
-              "slug": "transfer-shortage-excess-exception"
+              "text": "R3041 Transfer Shortage / Excess Exception",
+              "slug": "r3041-transfer-shortage-excess-exception"
             },
             {
               "level": 2,
@@ -4990,248 +5065,248 @@
             },
             {
               "level": 3,
-              "text": "3PL Storage \u0026 Handling Billing",
-              "slug": "3pl-storage-handling-billing"
+              "text": "R4033 3PL Storage \u0026 Handling Billing",
+              "slug": "r4033-3pl-storage-handling-billing"
             },
             {
               "level": 3,
-              "text": "3PL Storage Billing v2",
-              "slug": "3pl-storage-billing-v2"
+              "text": "R4043 3PL Storage Billing v2",
+              "slug": "r4043-3pl-storage-billing-v2"
             },
             {
               "level": 3,
-              "text": "Appointment Calendar Report",
-              "slug": "appointment-calendar-report"
+              "text": "R4024 Appointment Calendar Report",
+              "slug": "r4024-appointment-calendar-report"
             },
             {
               "level": 3,
-              "text": "Batch Movement History (Recall)",
-              "slug": "batch-movement-history-recall"
+              "text": "R4032 Batch Movement History (Recall)",
+              "slug": "r4032-batch-movement-history-recall"
             },
             {
               "level": 3,
-              "text": "Batch Near-Expiry Watchlist",
-              "slug": "batch-near-expiry-watchlist"
+              "text": "R4030 Batch Near-Expiry Watchlist",
+              "slug": "r4030-batch-near-expiry-watchlist"
             },
             {
               "level": 3,
-              "text": "Batch Stock Inquiry",
-              "slug": "batch-stock-inquiry"
+              "text": "R4031 Batch Stock Inquiry",
+              "slug": "r4031-batch-stock-inquiry"
             },
             {
               "level": 3,
-              "text": "Bin Inventory Report",
-              "slug": "bin-inventory-report"
+              "text": "R4006 Bin Inventory Report",
+              "slug": "r4006-bin-inventory-report"
             },
             {
               "level": 3,
-              "text": "Bin Replenishment Report",
-              "slug": "bin-replenishment-report"
+              "text": "R4012 Bin Replenishment Report",
+              "slug": "r4012-bin-replenishment-report"
             },
             {
               "level": 3,
-              "text": "Bin Stock Aging",
-              "slug": "bin-stock-aging"
+              "text": "R4020 Bin Stock Aging",
+              "slug": "r4020-bin-stock-aging"
             },
             {
               "level": 3,
-              "text": "Bin Stock Reconciliation",
-              "slug": "bin-stock-reconciliation"
+              "text": "R4034 Bin Stock Reconciliation",
+              "slug": "r4034-bin-stock-reconciliation"
             },
             {
               "level": 3,
-              "text": "Bin Utilization / Condition Report",
-              "slug": "bin-utilization-condition-report"
+              "text": "R4010 Bin Utilization / Condition Report",
+              "slug": "r4010-bin-utilization-condition-report"
             },
             {
               "level": 3,
-              "text": "Clean-Location Consolidation Suggestions",
-              "slug": "clean-location-consolidation-suggestions"
+              "text": "R4049 Clean-Location Consolidation Suggestions",
+              "slug": "r4049-clean-location-consolidation-suggestions"
             },
             {
               "level": 3,
-              "text": "Cross-Facility Inventory Inquiry",
-              "slug": "cross-facility-inventory-inquiry"
+              "text": "R4035 Cross-Facility Inventory Inquiry",
+              "slug": "r4035-cross-facility-inventory-inquiry"
             },
             {
               "level": 3,
-              "text": "Cycle Count Register",
-              "slug": "cycle-count-register"
+              "text": "R4018 Cycle Count Register",
+              "slug": "r4018-cycle-count-register"
             },
             {
               "level": 3,
-              "text": "Cycle Count Variance Report",
-              "slug": "cycle-count-variance-report"
+              "text": "R4019 Cycle Count Variance Report",
+              "slug": "r4019-cycle-count-variance-report"
             },
             {
               "level": 3,
-              "text": "Dispatch / Shipment Register",
-              "slug": "dispatch-shipment-register"
+              "text": "R4017 Dispatch / Shipment Register",
+              "slug": "r4017-dispatch-shipment-register"
             },
             {
               "level": 3,
-              "text": "Dock Door Utilization",
-              "slug": "dock-door-utilization"
+              "text": "R4023 Dock Door Utilization",
+              "slug": "r4023-dock-door-utilization"
             },
             {
               "level": 3,
-              "text": "Facility Roll-Up Inventory Inquiry",
-              "slug": "facility-roll-up-inventory-inquiry"
+              "text": "R4036 Facility Roll-Up Inventory Inquiry",
+              "slug": "r4036-facility-roll-up-inventory-inquiry"
             },
             {
               "level": 3,
-              "text": "Inbound / ASN Register",
-              "slug": "inbound-asn-register"
+              "text": "R4001 Inbound / ASN Register",
+              "slug": "r4001-inbound-asn-register"
             },
             {
               "level": 3,
-              "text": "Inbound QC Exception",
-              "slug": "inbound-qc-exception"
+              "text": "R4003 Inbound QC Exception",
+              "slug": "r4003-inbound-qc-exception"
             },
             {
               "level": 3,
-              "text": "LPN / Carton / Pallet Register",
-              "slug": "lpn-carton-pallet-register"
+              "text": "R4011 LPN / Carton / Pallet Register",
+              "slug": "r4011-lpn-carton-pallet-register"
             },
             {
               "level": 3,
-              "text": "Labor Productivity",
-              "slug": "labor-productivity"
+              "text": "R4046 Labor Productivity",
+              "slug": "r4046-labor-productivity"
             },
             {
               "level": 3,
-              "text": "Labour Cost",
-              "slug": "labour-cost"
+              "text": "R4042 Labour Cost",
+              "slug": "r4042-labour-cost"
             },
             {
               "level": 3,
-              "text": "Labour Enterprise Productivity",
-              "slug": "labour-enterprise-productivity"
+              "text": "R4037 Labour Enterprise Productivity",
+              "slug": "r4037-labour-enterprise-productivity"
             },
             {
               "level": 3,
-              "text": "Labour Facility Performance",
-              "slug": "labour-facility-performance"
+              "text": "R4038 Labour Facility Performance",
+              "slug": "r4038-labour-facility-performance"
             },
             {
               "level": 3,
-              "text": "Labour Standards Audit",
-              "slug": "labour-standards-audit"
+              "text": "R4041 Labour Standards Audit",
+              "slug": "r4041-labour-standards-audit"
             },
             {
               "level": 3,
-              "text": "Labour Task Productivity",
-              "slug": "labour-task-productivity"
+              "text": "R4039 Labour Task Productivity",
+              "slug": "r4039-labour-task-productivity"
             },
             {
               "level": 3,
-              "text": "Labour User Performance",
-              "slug": "labour-user-performance"
+              "text": "R4040 Labour User Performance",
+              "slug": "r4040-labour-user-performance"
             },
             {
               "level": 3,
-              "text": "Location Movement Register",
-              "slug": "location-movement-register"
+              "text": "R4007 Location Movement Register",
+              "slug": "r4007-location-movement-register"
             },
             {
               "level": 3,
-              "text": "Lot / Serial / Barcode Traceability",
-              "slug": "lot-serial-barcode-traceability"
+              "text": "R4021 Lot / Serial / Barcode Traceability",
+              "slug": "r4021-lot-serial-barcode-traceability"
             },
             {
               "level": 3,
-              "text": "Owner Stock Exceptions (3PL)",
-              "slug": "owner-stock-exceptions-3pl"
+              "text": "R4044 Owner Stock Exceptions (3PL)",
+              "slug": "r4044-owner-stock-exceptions-3pl"
             },
             {
               "level": 3,
-              "text": "Owner Stock Inquiry (3PL)",
-              "slug": "owner-stock-inquiry-3pl"
+              "text": "R4045 Owner Stock Inquiry (3PL)",
+              "slug": "r4045-owner-stock-inquiry-3pl"
             },
             {
               "level": 3,
-              "text": "Packing Report",
-              "slug": "packing-report"
+              "text": "R4016 Packing Report",
+              "slug": "r4016-packing-report"
             },
             {
               "level": 3,
-              "text": "Pick List Report",
-              "slug": "pick-list-report"
+              "text": "R4013 Pick List Report",
+              "slug": "r4013-pick-list-report"
             },
             {
               "level": 3,
-              "text": "Picking Exception Report",
-              "slug": "picking-exception-report"
+              "text": "R4015 Picking Exception Report",
+              "slug": "r4015-picking-exception-report"
             },
             {
               "level": 3,
-              "text": "Putaway Completion Report",
-              "slug": "putaway-completion-report"
+              "text": "R4005 Putaway Completion Report",
+              "slug": "r4005-putaway-completion-report"
             },
             {
               "level": 3,
-              "text": "Putaway Pending Report",
-              "slug": "putaway-pending-report"
+              "text": "R4004 Putaway Pending Report",
+              "slug": "r4004-putaway-pending-report"
             },
             {
               "level": 3,
-              "text": "RF / Mobile Picking Productivity",
-              "slug": "rf-mobile-picking-productivity"
+              "text": "R4022 RF / Mobile Picking Productivity",
+              "slug": "r4022-rf-mobile-picking-productivity"
             },
             {
               "level": 3,
-              "text": "Receiving / GRN Detail",
-              "slug": "receiving-grn-detail"
+              "text": "R4002 Receiving / GRN Detail",
+              "slug": "r4002-receiving-grn-detail"
             },
             {
               "level": 3,
-              "text": "Serial Movement History",
-              "slug": "serial-movement-history"
+              "text": "R4029 Serial Movement History",
+              "slug": "r4029-serial-movement-history"
             },
             {
               "level": 3,
-              "text": "Serial Number Inquiry",
-              "slug": "serial-number-inquiry"
+              "text": "R4028 Serial Number Inquiry",
+              "slug": "r4028-serial-number-inquiry"
             },
             {
               "level": 3,
-              "text": "Slotting / Re-Slotting Suggestions",
-              "slug": "slotting-re-slotting-suggestions"
+              "text": "R4047 Slotting / Re-Slotting Suggestions",
+              "slug": "r4047-slotting-re-slotting-suggestions"
             },
             {
               "level": 3,
-              "text": "Unslotting Suggestions (discontinued items)",
-              "slug": "unslotting-suggestions-discontinued-items"
+              "text": "R4048 Unslotting Suggestions (discontinued items)",
+              "slug": "r4048-unslotting-suggestions-discontinued-items"
             },
             {
               "level": 3,
-              "text": "WMS Stock Transfer Execution Report",
-              "slug": "wms-stock-transfer-execution-report"
+              "text": "R4008 WMS Stock Transfer Execution Report",
+              "slug": "r4008-wms-stock-transfer-execution-report"
             },
             {
               "level": 3,
-              "text": "Warehouse Cockpit KPI Summary",
-              "slug": "warehouse-cockpit-kpi-summary"
+              "text": "R4009 Warehouse Cockpit KPI Summary",
+              "slug": "r4009-warehouse-cockpit-kpi-summary"
             },
             {
               "level": 3,
-              "text": "Warehouse Inventory Accuracy Summary",
-              "slug": "warehouse-inventory-accuracy-summary"
+              "text": "R4027 Warehouse Inventory Accuracy Summary",
+              "slug": "r4027-warehouse-inventory-accuracy-summary"
             },
             {
               "level": 3,
-              "text": "Warehouse SLA / Throughput Summary",
-              "slug": "warehouse-sla-throughput-summary"
+              "text": "R4026 Warehouse SLA / Throughput Summary",
+              "slug": "r4026-warehouse-sla-throughput-summary"
             },
             {
               "level": 3,
-              "text": "Wave / Batch Picking Report",
-              "slug": "wave-batch-picking-report"
+              "text": "R4014 Wave / Batch Picking Report",
+              "slug": "r4014-wave-batch-picking-report"
             },
             {
               "level": 3,
-              "text": "Yard / Trailer Board Report",
-              "slug": "yard-trailer-board-report"
+              "text": "R4025 Yard / Trailer Board Report",
+              "slug": "r4025-yard-trailer-board-report"
             }
           ]
         },
@@ -5252,6 +5327,16 @@
           "applies_to": "source registries; not release acceptance",
           "source_path": "reference/release-notes.md",
           "headings": [
+            {
+              "level": 2,
+              "text": "2026-10-28",
+              "slug": "2026-10-28"
+            },
+            {
+              "level": 2,
+              "text": "2026-10-27",
+              "slug": "2026-10-27"
+            },
             {
               "level": 2,
               "text": "2026-10-26",
@@ -5376,11 +5461,6 @@
               "level": 2,
               "text": "2026-09-17",
               "slug": "2026-09-17"
-            },
-            {
-              "level": 2,
-              "text": "2026-09-16",
-              "slug": "2026-09-16"
             }
           ]
         },
@@ -5389,7 +5469,7 @@
           "title": "Release notes (part 2)",
           "section": "Reference",
           "order": 26,
-          "summary": "Earlier releases, 2026-07-27 to 2026-09-16, continued from the release notes.",
+          "summary": "Earlier releases, 2026-07-27 to 2026-09-17, continued from the release notes.",
           "audience": "everyone",
           "last_verified": "2026-09-10",
           "owner": "documentation-maintainer",
@@ -5401,6 +5481,11 @@
           "applies_to": "source registries; not release acceptance",
           "source_path": "reference/release-notes-2.md",
           "headings": [
+            {
+              "level": 2,
+              "text": "2026-09-17",
+              "slug": "2026-09-17"
+            },
             {
               "level": 2,
               "text": "2026-09-16",
@@ -6346,6 +6431,9 @@
     "doctype-builder": [
       "journey-admin"
     ],
+    "doctype-table": [
+      "keyboard-shortcuts"
+    ],
     "doctype:batch": [
       "traceability-batch-serial"
     ],
@@ -6493,7 +6581,8 @@
     ],
     "home": [
       "custom-dashboards",
-      "finding-your-way-around"
+      "finding-your-way-around",
+      "keyboard-shortcuts"
     ],
     "hr": [
       "hr-payroll"
@@ -6551,6 +6640,9 @@
       "procurement"
     ],
     "module:sales": [
+      "pos-operations"
+    ],
+    "offline-sales": [
       "pos-operations"
     ],
     "oms": [
@@ -6627,6 +6719,7 @@
       "what-is-this-system",
       "finding-your-way-around",
       "journey-category-manager",
+      "keyboard-shortcuts",
       "open-a-shop-and-make-your-first-sale",
       "journey-finance"
     ],
@@ -6712,5 +6805,5 @@
       "wms-start-here"
     ]
   },
-  "article_count": 58
+  "article_count": 59
 }

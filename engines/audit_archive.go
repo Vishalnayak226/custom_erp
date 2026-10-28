@@ -896,6 +896,9 @@ func runAuditArchiveJob(ctx context.Context, schema string, job Job) (map[string
 		return nil, err
 	}
 	tenantID := schemaToTenantID(schema)
+	if tenantID == "" { // Stage 49.3.2: never the default client's audit log
+		return nil, fmt.Errorf("no client is registered for %s", schema)
+	}
 	// false: the scheduled pass never overrides maxRowsPerArchiveWindow -
 	// see that constant's comment for why an unattended run must not process
 	// an unbounded window silently.
@@ -945,6 +948,9 @@ func StartAuditArchiveScheduler(ctx context.Context, interval time.Duration) {
 						continue
 					}
 					tenantID := schemaToTenantID(schema)
+					if tenantID == "" { // Stage 49.3.2: not queued on the default client
+						continue
+					}
 					if _, err := EnqueueJob(tenantID, AuditArchiveJobType, nil,
 						fmt.Sprintf("audit-archive:%s:%s", tenantID, stamp)); err != nil {
 						log.Printf("[AUDIT-ARCHIVE] %s: could not enqueue archive: %v", schema, err)

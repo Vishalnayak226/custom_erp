@@ -40,7 +40,7 @@ Stage 135.6, read from source on 2026-10-25 (functions under `engines/` unless n
 |---|---|---|---|
 | Tenant, user, role, scope | `public.tenants` → `tenant_<x>` schema (`db.GetTenantSchema`); `users`, `roles`, `role_permissions` per schema | Tenant lifecycle; Settings → Users / Roles | `routeCapabilities` + `checkRouteCapability` (`internal/server`, run by `apiMiddleware`); `ResolveSessionScope` / `ScopeForDoctype` (`scope_policy.go`) |
 | Item, variant, UOM | `Item` documents (variants are Items: `family`, `parent_product_code`, `variant_option_values`); `ProductFamily`, `ItemAttribute`; `UOMConversion` | Generic document save with `ValidateItemVariantUniqueness` / `PrepareItemVariantCode` (`pim.go`); `ConvertUOMQty` (`uom.go`) | No separate variant table exists; PIM enrichment writes the same Item |
-| Physical quantity per item and location | `inventory_availability` (sku, location_code): on_hand, available, reserved, blocked, hold_qty, qc_hold, damaged, in_transit, inward, rtv, with_party | `PostInventoryLedgerWithVoucherTx` (`inventory.go`; locks rows in SKU order, refuses going below available − blocked − hold_qty) | `StockLedgerEntry` documents (movement history); `stock_location_balance`; `bin_stock` (see below) |
+| Physical quantity per item and location | `inventory_availability` (sku, location_code): on_hand, available, reserved, blocked, hold_qty, qc_hold, damaged, in_transit, inward, rtv, with_party | `PostInventoryLedgerWithVoucherTx` (`inventory.go`; locks rows in SKU order, refuses going below available − blocked − hold_qty, and for a till sale also less reserved) | `StockLedgerEntry` documents (movement history); `stock_location_balance`; `bin_stock` (see below) |
 | Custody and condition | `hold_qty` + `Hold` documents (`placeHoldTx`); `Batch`, `SerialNumber`; `warehouse_owner` (one owner per warehouse) | `wms_holds.go`, `EnsureBatch`, `RegisterSerial`, `AssignWarehouseOwner` | `bin_stock_batch`, `bin_stock_owner` ≤ `bin_stock` |
 | Customer commitment | `SalesOrder` / `SalesOrderLine` documents; `inventory_reservation` (+ `reserved` on availability) | `CreateSalesOrder` → `ResolveAllocationPlan` → `CreateReservation`; `ReleaseOrderToFulfillment` (FulfillmentTask); dispatch in `TransitionTaskStatus` | `bin_allocation` (a pick task's bin / lot / owner hold against `bin_stock`, not a second reservation) |
 | Posted money and period | `gl_postings`; `accounting_periods` | `PostDoubleEntryTx` (`finance.go`): balance check, `rejectIfCurrentPeriodClosed`, idempotency key, insert | Subledgers feed it: POS, sales invoice (AR), vendor invoice / GRN post (AP), GRN costing, payroll, cycle count; `item_cost` is a moving average per item, not per location |
@@ -62,12 +62,14 @@ Fixed in Stage 135.6, with `TestStage135ReservationReleasedExactlyOnce`:
 - Cancelling an order lowered `reserved` but left its reservation row. The sweeper then released the row again and ate another order's reservation (`CancelOrder` now calls `releaseLineReservationAtLocation`).
 - A POS card authorization's holds were deleted without lowering `reserved`, so those units stayed reserved for good (`releasePOSReservations` now deletes and lowers in one statement).
 
-Open (recorded as 135.16-135.19 in the build tracker):
+Closed in Stage 135.16-135.20 (2026-10-27):
 
-- `PostInventoryLedgerWithVoucherTx` is not the only writer of `inventory_availability`. Dispatch, transfer out and receive, return QC, the GRN QC split, cycle count, bundles, delivery challans, holds and `MoveStock` write it directly. Several write their `StockLedgerEntry` after commit. Return-QC restock and `MoveStock` write none, so `StockBookVsLedger` can show drift that is not a lost unit.
-- No check that `stock_location_balance` adds up to `blocked`.
-- The POS and ledger floor (available − blocked − hold_qty) does not subtract `reserved`, so a till can sell units held for an online order; dispatch then floors on_hand at zero.
-- Production issue and finish read the order's status without a lock and post stock with no voucher key, so two concurrent calls each post. The GL idempotency check is check-then-insert on a non-unique key, which is safe only when the caller locks the document.
+- Every writer that changes on_hand writes its `StockLedgerEntry` in the same transaction. Dispatch now goes through `PostInventoryLedgerWithVoucherTx` (it floored on_hand at zero), the challan write-off writes its row (it wrote none), and a stale cycle count is refused instead of floored. Holds, `MoveStock` and challan out / back move units between buckets without changing on_hand, so they need no ledger row (`StockMove` is MoveStock's record).
+- Stock Book vs Ledger also compares `stock_location_balance` with `blocked`. Returnable challans and transfers now floor at available − blocked − hold_qty.
+- A till sale's floor also subtracts `reserved` (user decision: a store sale respects online reservations at its location).
+- Production issue and finish post under the order's row lock with a ledger key per posting. `PostDoubleEntryTx` takes an advisory lock on the posting key, so one key posts once. `ApplyReturnQC` re-checks its status under the request's row lock.
+
+Still open (135.21): about 15 other posting paths read their document's status outside the posting transaction. The GL cannot double, but their stock, valuation or balances can.
 
 ## Return lifecycle
 

@@ -41,27 +41,9 @@ func PostGRNChildStep(tenantID, userID, storeCode, grnID, childKey string, in GR
 	if err != nil {
 		return nil, err
 	}
-	if g.step() != GRNStepPriced {
+	if err := g.childPostable(childKey); err != nil {
 		g.tx.Rollback()
-		if g.step() == GRNStepPosted {
-			return nil, &ValidationError{Code: "GOODSR-0944", Message: "this goods receipt is already posted"}
-		}
-		return nil, &ValidationError{Code: "GOODSR-0944", Message: "run the price check first (step 3)"}
-	}
-	children := grnChildren(g.data)
-	ci := -1
-	for i, c := range children {
-		if c.Key == childKey {
-			ci = i
-		}
-	}
-	if ci < 0 {
-		g.tx.Rollback()
-		return nil, &ValidationError{Code: "GLOBAL-0002", SubFor: "Child", Message: fmt.Sprintf("there is no child %s on this receipt", childKey)}
-	}
-	if children[ci].Status == GRNStepPosted {
-		g.tx.Rollback()
-		return nil, &ValidationError{Code: "GOODSR-0944", Message: fmt.Sprintf("child %s is already posted", childKey)}
+		return nil, err
 	}
 	location := strField(g.data, "location")
 	var mine []map[string]interface{}
@@ -118,6 +100,27 @@ func PostGRNChildStep(tenantID, userID, storeCode, grnID, childKey string, in GR
 		return nil, err
 	}
 
+	// Stage 135.21: the child's stock posts in the transaction that marks it
+	// posted, under the GRN's row lock, and the child is checked again there.
+	// The MRPs above commit on their own (kept if the posting fails), so two
+	// posts of one child at once both passed the check above, and each posted
+	// its stock, QC split and cost - and a second last child, a second bill.
+	g, err = loadStepGRN(tenantID, grnID)
+	if err != nil {
+		return nil, err
+	}
+	if err := g.childPostable(childKey); err != nil {
+		g.tx.Rollback()
+		return nil, err
+	}
+	location = strField(g.data, "location")
+	mine = nil
+	for _, l := range g.lines {
+		if strField(l, "child") == childKey {
+			mine = append(mine, l)
+		}
+	}
+
 	// Post the child's stock through the one receipt posting every GRN uses.
 	items := make([]interface{}, 0, len(mine))
 	for _, l := range mine {
@@ -129,23 +132,15 @@ func PostGRNChildStep(tenantID, userID, storeCode, grnID, childKey string, in GR
 		c["accepted_qty"] = grnStepAccepted(l)
 		items = append(items, c)
 	}
-	if _, err := PostGRNReceiptPart(tenantID, location, items, userID, grnID, childKey); err != nil {
+	_, afterReceipt, err := postGRNReceiptPartTx(g.tx, tenantID, g.schema, location, items, userID, grnID, childKey)
+	if err != nil {
+		g.tx.Rollback()
 		return nil, &ValidationError{Code: "GOODSR-0944", Message: fmt.Sprintf("child %s could not be posted to stock at %s (%v) - nothing was posted; check the location is active and post again", childKey, location, err)}
-	}
-	EnsureReceiptBarcodes(tenantID, grnID, items)
-	for _, l := range mine {
-		if mrp := numFromInterface(l["mrp"]); mrp > 0 {
-			setItemLatestMRP(tenantID, strField(l, "sku"), mrp) // D2: Item MRP shows the latest
-		}
 	}
 
 	// Mark the child posted; the last one posts the GRN.
-	g, err = loadStepGRN(tenantID, grnID)
-	if err != nil {
-		return nil, err
-	}
 	stamp := now.UTC().Format(time.RFC3339)
-	children = grnChildren(g.data)
+	children := grnChildren(g.data)
 	allPosted := true
 	for i := range children {
 		if children[i].Key == childKey {
@@ -173,6 +168,13 @@ func PostGRNChildStep(tenantID, userID, storeCode, grnID, childKey string, in GR
 	if err := g.save(tenantID, userID, GRNStepPosted, fmt.Sprintf("Child %s posted", childKey)); err != nil {
 		return nil, err
 	}
+	afterReceipt()
+	EnsureReceiptBarcodes(tenantID, grnID, items)
+	for _, l := range mine {
+		if mrp := numFromInterface(l["mrp"]); mrp > 0 {
+			setItemLatestMRP(tenantID, strField(l, "sku"), mrp) // D2: Item MRP shows the latest
+		}
+	}
 	if tx, err := db.DB.Begin(); err == nil {
 		_ = db.SetSearchPath(tx, g.schema)
 		_ = PublishEvent(tx, g.schema, "inventory.stock_changed", map[string]interface{}{"grn_id": grnID, "location": location, "child": childKey})
@@ -185,6 +187,26 @@ func PostGRNChildStep(tenantID, userID, storeCode, grnID, childKey string, in GR
 		finalizeStepGRN(tenantID, userID, storeCode, grnID)
 	}
 	return GetGRNStepView(tenantID, grnID)
+}
+
+// childPostable refuses posting childKey unless the GRN is at the MRP step and
+// the child is on it, not yet posted.
+func (g *stepGRN) childPostable(childKey string) error {
+	if g.step() != GRNStepPriced {
+		if g.step() == GRNStepPosted {
+			return &ValidationError{Code: "GOODSR-0944", Message: "this goods receipt is already posted"}
+		}
+		return &ValidationError{Code: "GOODSR-0944", Message: "run the price check first (step 3)"}
+	}
+	for _, c := range grnChildren(g.data) {
+		if c.Key == childKey {
+			if c.Status == GRNStepPosted {
+				return &ValidationError{Code: "GOODSR-0944", Message: fmt.Sprintf("child %s is already posted", childKey)}
+			}
+			return nil
+		}
+	}
+	return &ValidationError{Code: "GLOBAL-0002", SubFor: "Child", Message: fmt.Sprintf("there is no child %s on this receipt", childKey)}
 }
 
 // setItemLatestMRP keeps Item.mrp at the latest received MRP (D2).
@@ -621,8 +643,28 @@ var grnPayModes = map[string]string{"cash": "Cash", "bank": "Bank", "upi": "UPI"
 // through the existing part-payment engine, then any credit-note extra.
 // Payments post to Cash / Bank (1100), as every vendor payment does.
 func PayGRNStep(tenantID, userID, grnID string, in GRNPayInput) (*GRNStepView, error) {
-	data, _, err := fetchDocData(tenantID, "GRN", grnID)
+	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
+		return nil, err
+	}
+	// Stage 135.21: a GRN's payments go one at a time, under its row lock -
+	// what is due is checked, paid and recorded on the GRN while it is held.
+	// Read outside it, two payments at once both passed the check against
+	// the same balance (a credit-note extra could be paid twice), and the
+	// later save dropped the earlier payment from the GRN. The bill part pays
+	// in the bill's own transaction, keyed by the reference, so a retry after
+	// a failure here does not pay it twice.
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	var dataStr string
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT data FROM %s.documents WHERE doctype = 'GRN' AND id = $1 AND deleted_at IS NULL FOR UPDATE`, schema), grnID).Scan(&dataStr); err != nil {
+		return nil, err
+	}
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
 		return nil, err
 	}
 	if !IsGRNStepFlow(data) || strField(data, "grn_step") != GRNStepPosted {
@@ -645,6 +687,7 @@ func PayGRNStep(tenantID, userID, grnID string, in GRNPayInput) (*GRNStepView, e
 	}
 	for _, p := range grnPayments(data) {
 		if p.Reference == ref {
+			tx.Rollback()
 			return GetGRNStepView(tenantID, grnID) // a retry of a payment already made
 		}
 	}
@@ -697,7 +740,7 @@ func PayGRNStep(tenantID, userID, grnID string, in GRNPayInput) (*GRNStepView, e
 	}
 	if pay.ExtraPart > 0 {
 		p := RupeesToPaise(pay.ExtraPart)
-		if err := PostDoubleEntry(tenantID, "GRN", grnID, map[string]int64{"2100": p}, map[string]int64{"1100": p}, date,
+		if err := PostDoubleEntryTx(tx, tenantID, schema, "GRN", grnID, map[string]int64{"2100": p}, map[string]int64{"1100": p}, date,
 			fmt.Sprintf("GRN:%s:PAY:%s", grnID, ref)); err != nil {
 			return nil, fmt.Errorf("the credit-note part of the payment (%.2f) could not be booked: %v", pay.ExtraPart, err)
 		}
@@ -715,10 +758,12 @@ func PayGRNStep(tenantID, userID, grnID string, in GRNPayInput) (*GRNStepView, e
 	if remaining <= 0.004 {
 		data["payment_status"] = "Paid"
 	}
-	schema, _ := db.GetTenantSchema(tenantID)
 	patch := map[string]interface{}{"grn_payments": data["grn_payments"], "paid_amount": data["paid_amount"], "payment_status": data["payment_status"]}
 	b, _ := json.Marshal(patch)
-	if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || $1::jsonb, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'GRN' AND id = $2`, schema), string(b), grnID); err != nil {
+	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || $1::jsonb, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'GRN' AND id = $2`, schema), string(b), grnID); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	LogAuditEvent(tenantID, userID, "GRN_VENDOR_PAYMENT", "SUCCESS", fmt.Sprintf("GRN %s: paid %.2f by %s (%s), TDS %.2f", grnID, pay.Amount, mode, ref, pay.TDS))

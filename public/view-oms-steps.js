@@ -510,6 +510,26 @@ async function finishPack(task, orders, opts, out, say) {
 
 const liveBooking = (b) => !['Cancelled', 'RTO'].includes(b.status);
 
+// 47.11.8a: the courier did not answer after the booking was sent, so it may
+// have it. Resolve records the AWB its portal shows, or Not booked so the next
+// try books (the server refuses a retry until then when it cannot ask).
+const courierUnconfirmed = (b) => b.awb_booking_state === 'uncertain' && !b.provider_awb;
+
+export async function resolveCourierBooking(b) {
+  const { posFormDialog } = await import('./view-pos-extras.js' + Q);
+  const id = b.code || b.id, courier = b.awb_booking_provider || b.carrier || '';
+  const picked = await posFormDialog('Unconfirmed booking', `Find ${b.courier_reference || id} on the ${courier} portal.`,
+    '<div class="form-group"><label class="form-label" for="cr-awb">AWB found</label><input id="cr-awb" class="form-input" autocomplete="off"></div>'
+    + '<label class="form-label"><input type="checkbox" id="cr-none"> Not booked there</label>',
+    (el) => ({ awb: el.querySelector('#cr-awb').value.trim(), none: el.querySelector('#cr-none').checked }));
+  if (!picked) return false;
+  if (!picked.none && !picked.awb) { await showCustomAlert('Enter the AWB, or tick Not booked there.', 'Unconfirmed booking'); return false; }
+  const r = await post(`/api/v1/marketplace/couriers/${encodeURIComponent(courier)}/resolve`, { booking_id: id, outcome: picked.none ? 'not_booked' : 'booked', awb: picked.none ? '' : picked.awb });
+  if (r.error) { await showCustomAlert(r.error, 'Unconfirmed booking'); return false; }
+  showToast(picked.none ? 'Marked not booked. Book again.' : `AWB ${picked.awb} saved.`, { variant: 'success' });
+  return true;
+}
+
 async function renderShip(container) {
   await stepBar(container, 'Ship', 'ship');
   const [tasks, bookings, manifests, passes, orders] = await Promise.all([
@@ -568,13 +588,17 @@ async function renderShip(container) {
         <div class="oms-console-head"><h3>${esc(g.carrier || 'No courier')} at ${esc(g.loc || 'no location')} <span class="text-muted">(${g.rows.length})</span></h3>
           ${g.loc ? `<button type="button" class="btn btn-primary btn-sm" data-manifest-carrier="${esc(g.carrier)}" data-manifest-loc="${esc(g.loc)}">Make manifest</button>` : '<span class="text-muted">Booked without a task - cannot be manifested</span>'}</div>
         <div class="table-wrapper"><table><thead><tr><th>Booking</th><th>Order</th><th>AWB</th><th>Label</th><th></th></tr></thead>
-        <tbody>${g.rows.map(b => `<tr><td class="oms-mono">${esc(b.code || b.id)}</td><td>${orderCell(b.order_id, orders[b.order_id])}</td><td class="oms-mono">${esc(b.awb_number || '')}</td>
+        <tbody>${g.rows.map(b => `<tr><td class="oms-mono">${esc(b.code || b.id)}</td><td>${orderCell(b.order_id, orders[b.order_id])}</td><td class="oms-mono">${esc(b.awb_number || '')}${courierUnconfirmed(b) ? ' <span class="badge badge-warning">Unconfirmed</span>' : ''}</td>
           <td>${b.label_generated_at ? '<span class="badge badge-success">Printed</span>' : '<span class="badge badge-warning">Not printed</span>'}</td>
           <td class="oms-step-actions"><button type="button" class="action-btn" data-label-print="${esc(b.code || b.id)}">Print label</button>
-            <button type="button" class="action-btn" data-label-view="${esc(b.code || b.id)}">View</button></td></tr>`).join('')}</tbody></table></div>
+            <button type="button" class="action-btn" data-label-view="${esc(b.code || b.id)}">View</button>${courierUnconfirmed(b) ? ` <button type="button" class="action-btn" data-courier-resolve="${esc(b.code || b.id)}">Resolve</button>` : ''}</td></tr>`).join('')}</tbody></table></div>
       </div>`).join('')}`);
   manifestable.querySelectorAll('[data-label-print]').forEach(btn => btn.addEventListener('click', async () => { await window.printShippingLabel(btn.dataset.labelPrint); }));
   manifestable.querySelectorAll('[data-label-view]').forEach(btn => btn.addEventListener('click', () => window.viewShippingLabel(btn.dataset.labelView)));
+  manifestable.querySelectorAll('[data-courier-resolve]').forEach(btn => btn.addEventListener('click', async () => {
+    const b = awaiting.find(x => (x.code || x.id) === btn.dataset.courierResolve);
+    if (b && await resolveCourierBooking(b)) again('ship');
+  }));
   manifestable.querySelectorAll('[data-manifest-carrier]').forEach(btn => btn.addEventListener('click', async () => {
     btn.disabled = true;
     const r = await post('/api/v1/marketplace/logistics/manifest', { courier: btn.dataset.manifestCarrier, location_code: btn.dataset.manifestLoc });

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	_ "embed"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -1293,11 +1294,23 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			// No token and this isn't one of the explicit public routes: reject.
 			writeAPIError(w, r, "GLOBAL-0009", "")
 			return
+		} else if !hostTenantOK && tenantID != "default" {
+			// 49.3.2a: without a session the client id is whatever the caller
+			// put in X-Tenant-ID or ?tenant_id= (a hostname was already checked
+			// by tenantHostGate). An unregistered one - a mistyped client code
+			// at sign-in - is refused rather than served as the default client.
+			if _, err := engines.TenantIsOperational(tenantID); errors.Is(err, engines.ErrTenantNotRegistered) {
+				writeAPIError(w, r, "SAAS-0188", "No client is registered with that client code - check it and try again.")
+				return
+			}
 		}
 
 		// Attach Resolved Context fields (Resolved-Correlation-ID was already
 		// set at the top of this function, before rate-limit/auth could reject).
 		r.Header.Set("Resolved-Tenant-ID", tenantID)
+		// 49.8.7a: a connector, courier or hook this request calls out to
+		// obeys this client's own Outside calls switch (engines/outside_calls.go).
+		r = r.WithContext(engines.WithOutsideCallsTenant(r.Context(), tenantID))
 		r.Header.Set("Resolved-User-ID", userID)
 		r.Header.Set("Resolved-Username", username)
 		// Stage 40.3: canonicalise the role once, here, so a token minted

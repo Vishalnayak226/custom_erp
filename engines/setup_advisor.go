@@ -103,6 +103,8 @@ type LocalizationInfo struct {
 	// rule the server uses, instead of keeping a second hardcoded list that
 	// would drift the first time a token is added on one side only.
 	PhoneFieldTokens []string `json:"phone_field_tokens"`
+	// DateOrder (47.14.2a) is the order the browser shows dates in.
+	DateOrder string `json:"date_order"`
 }
 
 // GetLocalizationInfo resolves the tenant's configured country into everything
@@ -114,5 +116,6 @@ func GetLocalizationInfo(tenantID string) LocalizationInfo {
 		Rule:             PhoneRuleFor(iso),
 		Countries:        PhoneCountries(),
 		PhoneFieldTokens: append([]string(nil), phoneFieldTokens...),
+		DateOrder:        ClientDateOrder(tenantID),
 	}
 }

@@ -365,7 +365,11 @@ func validateJSONEnvelope(raw []byte, maxString int) string {
 				if len(stack) >= envelopeMaxJSONDepth {
 					return fmt.Sprintf("The request body nests JSON more than %d levels deep.", envelopeMaxJSONDepth)
 				}
-				stack = append(stack, &frame{object: v == '{', expectKey: v == '{', keys: map[string]struct{}{}})
+				f := &frame{object: v == '{', expectKey: v == '{'}
+				if f.object {
+					f.keys = map[string]struct{}{} // 49.10.5: a list has no keys; a map per "[" made 2 MiB of nested lists cost 70 MB
+				}
+				stack = append(stack, f)
 			case '}', ']':
 				stack = stack[:len(stack)-1]
 				if problem := valueSeen(); problem != "" {

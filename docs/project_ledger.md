@@ -44,6 +44,68 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 303. Stage 135.21-135.26 — every posting under its document's lock; provisioning seeds stock locations; PIM publishes to Shopify linked (2026-10-28, code + tests + docs, NOT COMMITTED - held in release/hold.txt)
+
+The user: *"Yes, Acknowledged all as recommened"* - build 135.21 and 135.23, route Shopify channels in PIM Publish through the Shopify page (135.22), and the 135.10 / 135.18 answers confirmed. Item detail: micro_checklist 135.21-135.26.
+
+- **135.21 Postings locked.** Every path the 135.19 audit listed now locks its document, re-checks the status and posts in one transaction: GRN child post and payment, landed cost, job-work receipt and charge, payslip, loan, expense claim, POS payout match, marketplace settlement, settlement lines and the reconcile pass, asset capitalisation, FX revaluation, JV and intercompany post / retry. Found on the way: a create naming an existing GRN's id posted its stock again (now refused at the write); job-work receipts with no key, and second receipts of the same SKU, lost their goods or ledger lines as replays.
+- **135.23 Stock locations at a new client.** `ProvisionTenantSchema` copies the built-in locations and defaults after the schema sync; a backfill migration fills clients created since Stage 85.2 whose tables are empty (a data change - Deploy asks).
+- **135.22 PIM Publish on Shopify.** The worker publishes the item's design (or the item) through `PublishToShopify`, so the product is linked and synced; PIM's field mappings are not sent there.
+- **Found, recorded:** 135.24 (step GRN with a vendor credit note overpays by the note), 135.25 (one order settled under two settlement IDs - decision, recommended: refuse), 135.26 (bill part of a GRN payment and the job-work challan return still commit apart).
+- **Way of working.** Two sub-agents took 135.21 on disjoint files (stock / costing, finance / HR); each proved its tests on the old code with `git show HEAD:` copies (`go test -overlay`), so the shared tree was not touched; erp-d3, building in some of the same files, was told which lines to keep.
+
+Verified: 18 new tests, each failing on the old code (16 concurrency, the provisioning and the Shopify one); the agents' area runs (107 tests) green; migrate from empty on fresh `custom_erp_s135c` applies the backfill; the full suite on copies of that database: see handover §6.
+
+## 302. Stage 140 — Guide runs the whole organisation cycle on app as user, BA, audit, accounts and customer (2026-10-28, live run + docs; no ERP code changed)
+
+The user asked Guide to go through every module as each kind of user, on app.wholeops.in, and to end with two documents: the process, and the enhancements filed in the tracker module by module. Guide got a new suite, `orgcycle`, for the cycles its existing suites did not cover: a customer's sales, advances, credit invoices, receipts, credit note and return; a website order through Accept, rack pick, label, handover and an OMS return; Shopify, Amazon and Myntra templates; CRM segment and campaign; and a before-and-after reconciliation of every report that ties to the GL. Each cycle was rehearsed on a local copy of 0.18.0 until only real findings were left. The user then approved the listed writes, and Guide ran `orgcycle`, HR and the procurement / quality / service flows on the test store, and finally all 421 reports.
+
+Everything reconciled. Till bills answered in under 200 ms, the trial balance balances, and the only gap is the known production cost (132.22). The run found 27 improvements, filed as 140.12. Among them: the till close leaves cash advances out of its expected cash; a return against a credit invoice is valued at nothing; a credit invoice moves no stock; a wave-picked order can never be billed; picked units reappear as waiting for put-away; a Cashier can post invoices and read the trial balance; and WhatsApp and SMS have no sender on app. Three need a decision.
+
+Detail: micro_checklist Stage 140; process record `docs/qa/guide-org-cycle-2026-10-27.md`.
+
+## 301. The approved follow-ups: one statement per request, a lighter font, eight list columns; 0.18.0 released and deployed (2026-10-27, code + tests + docs, NOT COMMITTED)
+
+The user approved the §296 batch and its five open decisions. The batch shipped in 0.18.0 (`9a008cf`), with the parallel sessions' finished work, and was deployed to app and minn after a verified backup. Before the deploy, the data-change scan learned a check it had missed: a background sweep that starts deleting a table it never touched (the retention sweep had gained three) now counts as a data change. Release G9 and Deploy D1 both list it, and the deploy waits for YES. The user answered YES.
+
+Then the follow-ups. Each request's three uncached lookups became one. The sandbox expiry now comes from the tenant-gate row already cached per request, and a doctype's module is cached. The module entitlement is deliberately still read fresh, so a module switched off is refused on the next request: a blanket 30-second cache would have broken that and about 20 tests. An authenticated read is now p50 0.74 ms. Windows 11's 1.85 MB variable font is out of the font stack, worth about a second of first paint under BLD-045's throttled profile. Lists show up to eight key columns instead of every field: the Item list went from 44 columns to 8. The top search box was settled by Stage 139: it is now the Ctrl+K box and leaves open lists alone. The cost budget got headroom after an exact budget failed once under the release's parallel test jobs.
+
+Detail: micro_checklist 49.18.8 and 50.20.
+
+## 300. "Build next 20 items": fourteen Stage 47 / 49 slices (2026-10-27, code + tests + docs, NOT COMMITTED - held in release/hold.txt)
+
+The user: *"Build next 20 items"*, then *"go ahead"*. Stages 47 / 49 / 50 had no unblocked item left in tracker order, so the run took the six not-started Stage 135 findings and the fourteen Stage 47 / 49 items earlier runs had passed over. Item detail: micro_checklist header of 2026-10-27 and each item's entry.
+
+- **Stage 135 (135.12-135.19) was built twice.** Session erp-f9 took the same items the same morning and landed first in the main tree. Its version stays; this run ported none of its own 135 code. Three fixes erp-f9 lacked went to it for 135.16 / 135.21: the GRN QC split and return QC same-SKU ledger rows, and the landed-cost lock.
+- **Security holes found and fixed.** CSV import checked no record-type permission, so any role could create or overwrite any record type (49.3.4). PIM bulk edit approved content with no checker, a submitter or last editor could approve their own round, and imports could rewrite Approved records (49.3.5). A job with no client id acted on the default client, and failed lookups sent sweeps there (49.3.2). A CRM mail server was dialled unguarded, and the kill switch did not stop connectors or couriers (49.8.7). The stock floor trusted `allow_negative` in line data (49.5.6, latent).
+- **Controls added.** Dormant-account and unused-API-key sweeps, both off by default (49.2.1 / 49.2.6, one additive migration). 11 business-abuse detections (49.5.4). Import control totals (47.13.3). Day-first dates that are never swapped (47.14.2). A dependency and process gate (47.18.4). A finding register with a test (49.10.8). Bounded courier outages (47.11.8). Header and slow-client limits, plus login and JSON memory bounds (49.10.5).
+- **Way of working.** Seven sub-agents, each scoping read-only first. erp-aa's release was waiting on a quiet tree, so everything was built in the worktree `%TEMP%\erp-n20-wt` (HEAD plus the uncommitted tree). The work was then three-way merged into the main tree (79 files, no conflicts).
+
+Verified: about 60 new tests; full suite on fresh `custom_erp_n20full` in the worktree, green except `TestAttackSurfaceManifestIsCurrent` (one new sweep and one migration, which G6 regenerates) and the worktree-only CRLF checksum case; 135.12 / 135.15 clicked through in Chromium (scratch :8277). Needs the user: see the header's list.
+
+## 299. Stage 135.10-135.22 — decisions, stock integrity and locking (2026-10-27, code + tests + docs, NOT COMMITTED - held in release/hold.txt)
+
+The user: *"Build all. All recommended one is approved"* - the open Stage 135 items, with the recommended answers to 135.10 and 135.18. Item detail: micro_checklist 135.10-135.22.
+
+- **Decisions (135.10, 135.18).** Full ERP, PIM, WMS and OMS sell on their own, the rest are add-ons; ≥90% new-user target; RPO ≤24 h, RTO ≤4 h; external acceptance at the pilot. A store sale respects online reservations. The earlier recommendation text was not in the repo, so these are recorded as recommended here for the user to confirm.
+- **Stock (135.16-135.18).** Most writers already wrote their ledger rows in-transaction (Stage 132). Dispatch now goes through the posting choke point, the challan write-off writes its row, and a stale count is refused instead of floored. Stock Book vs Ledger checks own locations against blocked. The till's floor subtracts reserved.
+- **Locking (135.19-135.20).** Production issue / finish run under the order lock with a key per posting; a second partial completion's ledger line had been swallowed. The GL takes an advisory lock per key. The audit (one sub-agent) found 15 unlocked posting paths. Return QC fixed (8 concurrent submissions applied 8x on the old code); the rest are 135.21.
+- **UI / docs (135.12, 135.13, 135.15).** Price List Version gets Submit for Approval, and Superseded becomes action-only. The Shopify article was rewritten. The KB converter keeps wrapped lines and nested lists inside their items (34 articles).
+- **Parallel session.** erp-d3 built the same items in its own worktree and kept these versions in the tree. Its same-SKU-on-two-lines ledger fix (GRN QC split, return QC) was ported, and its other findings are recorded as 135.21 / 135.23.
+- **Way of working.** Another session's release ran mid-build: the code was built and tested in a HEAD worktree, then copied into held paths. Two helper sub-agents did 135.12 and 135.13 / 135.15.
+
+Verified: seven new `TestStage135*` tests (six fail on the old code; the seventh covers the new report columns); full suite on fresh `custom_erp_s135full` (the db CRLF and attack-surface failures were worktree line endings, and both pass in the tree); the package fixture now stocks what it ships; 135.12 clicked through in Chromium.
+
+## 298. Stage 128.5.1 — minn and app configured from their Setup Workbooks (2026-10-27, live data through Guide + one engine fix, fix released and deployed in 0.18.0 `9a008cf`)
+
+The user asked for minn's complete setup, then app's, with a record of what was done in an .md file (`Downloads\MansoorBusiness\client-setup-minn-and-app.md`). Item detail: micro_checklist 128.5.1.
+
+- **How.** Guide drove each live site (minn through app's Control Panel handoff as `wholeops-support`, so no client password was used), with writes allowed only on `/setup-workbook/apply`. On each site: preview, correct the file, apply, then preview again. minn is now 58/58 unchanged and app 61/61. The user's files were left as they were, and the corrected copies are `-v2` / `-v3`.
+- **What the previews caught.** A misspelt location type. Item names on categories the file never creates (held for the user). A legal-entity row copied into app without a GSTIN. Two stores whose PO/GRN numbers broke GST's 16-character limit: BLR HSR's automatic short code BLRH, and JP Nagar with no short code, which falls back to its store code. Fixed with short codes HSR / JPN.
+- **Bug.** `PrepareHSNCode` ran before the generic save merges in the stored record, so a description-only HSN update was refused "HSN/SAC code is required". An update that does not send `hsn` now keeps it. New test `TestPrepareHSNCodePartialUpdate`.
+
+Verified: build, vet, and the HSN + Setup Workbook tests. Live, the re-preview on each site reads every row unchanged.
+
 ## 297. Stage 139 — ERP shortcuts: one Ctrl+K box, short codes, report numbers, standard keys (2026-10-26, code + migration + docs, NOT COMMITTED - held in release/hold.txt)
 
 The user asked for ERP shortcuts done the easy, best-practice way, a number for every report, and what else would make transactions easier. The plan (`docs/product/shortcuts-plan-2026-10-26.md`) was approved with "Build all of the above", with the shortcuts written up properly in the user help. Item detail: micro_checklist Stage 139.
@@ -62,7 +124,7 @@ Found on the way:
 
 Verified: build, vet, `gencatalog -check`. The Stage 139 tests pass (numbers, append-only file, doc-find with a manager at another store refused, codes in both guides) on a fresh scratch DB (`custom_erp_s139`, 302 migrations from empty). The full engines suite passes (22 min). The full internal/server suite has two unrelated failures: erp-4b's held 49.18.1 cost test, and the cache version, fixed. Five Playwright walks on a scratch server against the dev data all pass, including as manager1: codes, the box, every key, star, Copy (PO and records), report number, document number, scan, remembered location, draft restore, Export, bulk Delete, Approvals ticks, Ctrl+P on a row, the printed card, and the Guide article. Not clicked live: the next-step button and an Approve/Reject run (no pending data to decide). Seen but not changed: the PO screen shows + New to a role without create permission (the server refuses the save).
 
-## 296. "Build next 20 open items": Stage 49 finished, Stage 50's buildable packages (2026-10-26, code + tests + docs, NOT COMMITTED - held in release/hold.txt)
+## 296. "Build next 20 open items": Stage 49 finished, Stage 50's buildable packages (2026-10-26, code + tests + docs, released in 0.18.0 `9a008cf` and deployed 2026-10-27)
 
 The user asked for the next 20 open items. They were taken in tracker order after 49.17.4: the eleven left in Stage 49, then Stage 50's work packages that need no decision, host or real users (BLD-002, 028, 029, 032, 041, 044, 045, 053, 055). Four are fully done (49.18.3-49.18.6); the rest are built, with what is left written on each. Two packages (BLD-041 print pass, BLD-045 load time) ran as background agents. Release 0.17.0 (session erp-18) shipped while this was in progress, with this batch held.
 

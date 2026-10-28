@@ -123,15 +123,10 @@ func PreviewPurchaseOrder(tenantID string, payload map[string]interface{}) (POPr
 		Lines:          make([]POLinePreview, 0, len(lines)),
 	}
 
-	// A maker's explicit override wins over the derivation, exactly as it does
-	// on save - otherwise the preview would show one supply type and the saved
-	// document another.
-	interstate := out.PlaceOfSupply.Interstate
-	if truthy(payload["interstate_override"]) {
-		interstate = truthy(payload["interstate"])
-	} else if !out.PlaceOfSupply.Derived {
-		interstate = truthy(payload["interstate"])
-	}
+	// The derivation decides, exactly as on save (ApplyPlaceOfSupply, 49.5.6b) -
+	// otherwise the preview would show one supply type and the saved document
+	// another.
+	interstate := out.PlaceOfSupply.Derived && out.PlaceOfSupply.Interstate
 	out.Breakdown.Interstate = interstate
 	inclusive := out.GSTMode != GSTModeExclusive
 	designs := map[string]map[string]string{}

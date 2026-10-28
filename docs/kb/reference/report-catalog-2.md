@@ -37,7 +37,7 @@ Inventory to Procurement.
 
 ## Inventory
 
-### Backflush Consumption
+### R3069 Backflush Consumption
 
 **Report id:** `backflush-consumption`
 
@@ -51,7 +51,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Barcode Reprint / Label History
+### R3020 Barcode Reprint / Label History
 
 **Report id:** `cat-barcode-reprint-label-history`
 
@@ -65,7 +65,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Barcode-wise Cost & MRP Report
+### R3009 Barcode-wise Cost & MRP Report
 
 **Report id:** `cat-barcode-wise-cost-and-mrp-report`
 
@@ -77,7 +77,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Batch Lookup & Ageing
+### R3080 Batch Lookup & Ageing
 
 **Report id:** `batch-ageing`
 
@@ -91,7 +91,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Consumption by cost centre
+### R3071 Consumption by cost centre
 
 **Report id:** `consumption-by-cost-centre`
 
@@ -104,7 +104,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Current Stock
+### R3076 Current Stock
 
 **Report id:** `current-stock`
 
@@ -114,7 +114,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Current Stock Barcode Detail
+### R3003 Current Stock Barcode Detail
 
 **Report id:** `cat-current-stock-barcode-detail`
 
@@ -126,7 +126,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Current Stock Itemwise Detail
+### R3002 Current Stock Itemwise Detail
 
 **Report id:** `cat-current-stock-itemwise-detail`
 
@@ -138,7 +138,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Current Stock Summary
+### R3001 Current Stock Summary
 
 **Report id:** `cat-current-stock-summary`
 
@@ -150,7 +150,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Current Stock with Image
+### R3013 Current Stock with Image
 
 **Report id:** `cat-current-stock-with-image`
 
@@ -162,7 +162,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Delivery challan register
+### R3062 Delivery challan register
 
 **Report id:** `delivery-challan-register`
 
@@ -175,7 +175,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Demand Forecast (Trend)
+### R3073 Demand Forecast (Trend)
 
 **Report id:** `demand-forecast`
 
@@ -189,7 +189,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### E-way bill register
+### R3064 E-way bill register
 
 **Report id:** `ewaybill-register`
 
@@ -202,7 +202,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Goods In Receiving
+### R3065 Goods In Receiving
 
 **Report id:** `grn-in-receiving`
 
@@ -214,7 +214,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Goods out on challan, by party
+### R3063 Goods out on challan, by party
 
 **Report id:** `challan-outstanding-returnables`
 
@@ -224,7 +224,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Inventory Matrix Summary
+### R3012 Inventory Matrix Summary
 
 **Report id:** `cat-inventory-matrix-summary`
 
@@ -236,7 +236,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Inventory Valuation
+### R3060 Inventory Valuation
 
 **Report id:** `inventory-valuation`
 
@@ -246,7 +246,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Inventory by Location Summary
+### R3011 Inventory by Location Summary
 
 **Report id:** `cat-inventory-by-location-summary`
 
@@ -258,7 +258,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Item Classification Register
+### R3068 Item Classification Register
 
 **Report id:** `item-classification-register`
 
@@ -271,7 +271,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### MRP Change Register
+### R3019 MRP Change Register
 
 **Report id:** `cat-mrp-change-register`
 
@@ -284,7 +284,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Material issue and return register
+### R3072 Material issue and return register
 
 **Report id:** `material-issue-register`
 
@@ -297,7 +297,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Negative Stock Exception
+### R3018 Negative Stock Exception
 
 **Report id:** `cat-negative-stock-exception`
 
@@ -309,7 +309,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Non-Valuated Stock
+### R3070 Non-Valuated Stock
 
 **Report id:** `non-valuated-stock`
 
@@ -319,7 +319,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Pegged Demand & Supply
+### R3075 Pegged Demand & Supply
 
 **Report id:** `pegged-demand-supply`
 
@@ -332,7 +332,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Physical Stock Count Register
+### R3016 Physical Stock Count Register
 
 **Report id:** `cat-physical-stock-count-register`
 
@@ -347,7 +347,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Physical Stock Variance Report
+### R3017 Physical Stock Variance Report
 
 **Report id:** `cat-physical-stock-variance-report`
 
@@ -361,7 +361,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Reorder Suggestions (Configured)
+### R3074 Reorder Suggestions (Configured)
 
 **Report id:** `reorder-suggestions`
 
@@ -375,7 +375,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Stock Ageing (by GRN batch)
+### R3081 Stock Ageing (by GRN batch)
 
 **Report id:** `stock-ageing`
 
@@ -387,7 +387,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Stock Aging
+### R3007 Stock Aging
 
 **Report id:** `cat-stock-aging`
 
@@ -399,7 +399,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Stock Book vs Ledger (drift finder)
+### R3079 Stock Book vs Ledger (drift finder)
 
 **Report id:** `stock-book-vs-ledger`
 
@@ -409,11 +409,11 @@ Inventory to Procurement.
 - **Location (optional)** (`location`) - text, optional
 - **Include rows that agree** (`all`) - select, optional, one of: No,Yes
 
-**Columns:** Item · Location · On hand (book) · Ledger total · Difference · Ledger lines · What it suggests
+**Columns:** Item · Location · On hand (book) · Ledger total · Difference · Ledger lines · In own locations · Set aside (book) · What it suggests
 
 **Drill-down:** no.
 
-### Stock Details - Period Wise
+### R3004 Stock Details - Period Wise
 
 **Report id:** `cat-stock-details-period-wise`
 
@@ -427,7 +427,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Stock Ledger
+### R3005 Stock Ledger
 
 **Report id:** `cat-stock-ledger`
 
@@ -441,7 +441,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Stock Ledger
+### R3078 Stock Ledger
 
 **Report id:** `stock-ledger`
 
@@ -457,7 +457,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Stock Ledger - Category Summary
+### R3006 Stock Ledger - Category Summary
 
 **Report id:** `cat-stock-ledger-category-summary`
 
@@ -471,7 +471,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Stock Movement History
+### R3010 Stock Movement History
 
 **Report id:** `cat-stock-movement-history`
 
@@ -485,7 +485,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Stock Valuation Summary
+### R3008 Stock Valuation Summary
 
 **Report id:** `cat-stock-valuation-summary`
 
@@ -497,7 +497,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Stock adjustment register
+### R3066 Stock adjustment register
 
 **Report id:** `inventory-adjustment-register`
 
@@ -510,7 +510,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Stock by Location
+### R3077 Stock by Location
 
 **Report id:** `stock-by-location`
 
@@ -522,7 +522,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Stock losses by reason and store
+### R3067 Stock losses by reason and store
 
 **Report id:** `inventory-loss-by-reason`
 
@@ -535,7 +535,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Transfer shortages by reason
+### R3082 Transfer shortages by reason
 
 **Report id:** `transfer-shortage-by-reason`
 
@@ -548,7 +548,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Transfers in transit too long
+### R3061 Transfers in transit too long
 
 **Report id:** `transfers-in-transit-long`
 
@@ -558,7 +558,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Unique Design Inventory Summary
+### R3021 Unique Design Inventory Summary
 
 **Report id:** `cat-unique-design-inventory-summary`
 
@@ -572,7 +572,7 @@ Inventory to Procurement.
 
 ## MIS & Management
 
-### Ageing Inventory Value
+### R9019 Ageing Inventory Value
 
 **Report id:** `cat-ageing-inventory-value`
 
@@ -586,7 +586,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Category Performance Summary
+### R9015 Category Performance Summary
 
 **Report id:** `cat-category-performance-summary`
 
@@ -600,7 +600,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Daily Business Summary
+### R9012 Daily Business Summary
 
 **Report id:** `cat-daily-business-summary`
 
@@ -614,7 +614,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Fast / Slow Moving Stock
+### R9017 Fast / Slow Moving Stock
 
 **Report id:** `cat-fast-slow-moving-stock`
 
@@ -628,7 +628,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Gross Margin Summary
+### R9016 Gross Margin Summary
 
 **Report id:** `cat-gross-margin-summary`
 
@@ -642,7 +642,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Inventory Turnover Summary
+### R9020 Inventory Turnover Summary
 
 **Report id:** `cat-inventory-turnover-summary`
 
@@ -656,7 +656,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Management Stock & Sales Summary
+### R9021 Management Stock & Sales Summary
 
 **Report id:** `cat-management-stock-and-sales-summary`
 
@@ -670,7 +670,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Sales vs Target
+### R9013 Sales vs Target
 
 **Report id:** `cat-sales-vs-target`
 
@@ -684,7 +684,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Stock Cover Report
+### R9018 Stock Cover Report
 
 **Report id:** `cat-stock-cover-report`
 
@@ -698,7 +698,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Store Performance / Ranking
+### R9014 Store Performance / Ranking
 
 **Report id:** `cat-store-performance-ranking`
 
@@ -714,7 +714,7 @@ Inventory to Procurement.
 
 ## Manufacturing
 
-### BOM Costing Report
+### R7018 BOM Costing Report
 
 **Report id:** `cat-bom-costing-report`
 
@@ -727,7 +727,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### BOM Register
+### R7017 BOM Register
 
 **Report id:** `cat-bom-register`
 
@@ -740,7 +740,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Batch / Lot Traceability
+### R7031 Batch / Lot Traceability
 
 **Report id:** `cat-batch-lot-traceability`
 
@@ -754,7 +754,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Job work cost, yield and wastage
+### R7034 Job work cost, yield and wastage
 
 **Report id:** `job-work-yield`
 
@@ -764,7 +764,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Job work outstanding (qty and weight)
+### R7033 Job work outstanding (qty and weight)
 
 **Report id:** `job-work-outstanding`
 
@@ -774,7 +774,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### MRP Suggestions
+### R7029 MRP Suggestions
 
 **Report id:** `cat-mrp-suggestions`
 
@@ -789,7 +789,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Material Issue / Consumption Report
+### R7021 Material Issue / Consumption Report
 
 **Report id:** `cat-material-issue-consumption-report`
 
@@ -803,7 +803,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Material Usage Variance
+### R7022 Material Usage Variance
 
 **Report id:** `cat-material-usage-variance`
 
@@ -817,7 +817,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Production Capacity Schedule
+### R7040 Production Capacity Schedule
 
 **Report id:** `production-capacity-schedule`
 
@@ -827,7 +827,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Production Cost Variance
+### R7035 Production Cost Variance
 
 **Report id:** `production_cost_variance`
 
@@ -837,7 +837,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Production Order Register
+### R7019 Production Order Register
 
 **Report id:** `cat-production-order-register`
 
@@ -852,7 +852,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Production Order Status
+### R7041 Production Order Status
 
 **Report id:** `production-order-status`
 
@@ -862,7 +862,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Production Receipt / Completion
+### R7023 Production Receipt / Completion
 
 **Report id:** `cat-production-receipt-completion`
 
@@ -877,7 +877,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Production Schedule
+### R7027 Production Schedule
 
 **Report id:** `cat-production-schedule`
 
@@ -892,7 +892,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Quality Inspection Report
+### R7025 Quality Inspection Report
 
 **Report id:** `cat-quality-inspection-report`
 
@@ -907,7 +907,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Rework / Rejection Report
+### R7026 Rework / Rejection Report
 
 **Report id:** `cat-rework-rejection-report`
 
@@ -922,7 +922,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Standard vs Actual Cost
+### R7032 Standard vs Actual Cost
 
 **Report id:** `cat-standard-vs-actual-cost`
 
@@ -937,7 +937,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Subcontracting / Job Work Report
+### R7030 Subcontracting / Job Work Report
 
 **Report id:** `cat-subcontracting-job-work-report`
 
@@ -951,7 +951,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Work Center Capacity / Load
+### R7028 Work Center Capacity / Load
 
 **Report id:** `cat-work-center-capacity-load`
 
@@ -965,7 +965,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Work In Process Report
+### R7020 Work In Process Report
 
 **Report id:** `cat-work-in-process-report`
 
@@ -980,7 +980,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Yield / Scrap Analysis
+### R7024 Yield / Scrap Analysis
 
 **Report id:** `cat-yield-scrap-analysis`
 
@@ -997,7 +997,7 @@ Inventory to Procurement.
 
 ## Master Data & Audit
 
-### Approval History Report
+### R9007 Approval History Report
 
 **Report id:** `cat-approval-history-report`
 
@@ -1011,7 +1011,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Backdated Entry Report
+### R9010 Backdated Entry Report
 
 **Report id:** `cat-backdated-entry-report`
 
@@ -1026,7 +1026,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Item Master Register
+### R9001 Item Master Register
 
 **Report id:** `cat-item-master-register`
 
@@ -1040,7 +1040,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Master Data Change Audit
+### R9004 Master Data Change Audit
 
 **Report id:** `cat-master-data-change-audit`
 
@@ -1053,7 +1053,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Report Download Audit
+### R9009 Report Download Audit
 
 **Report id:** `cat-report-download-audit`
 
@@ -1066,7 +1066,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Role Permission Audit
+### R9006 Role Permission Audit
 
 **Report id:** `cat-role-permission-audit`
 
@@ -1076,7 +1076,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Store / Location Master Register
+### R9002 Store / Location Master Register
 
 **Report id:** `cat-store-location-master-register`
 
@@ -1091,7 +1091,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Transaction Cancellation Audit
+### R9011 Transaction Cancellation Audit
 
 **Report id:** `cat-transaction-cancellation-audit`
 
@@ -1105,7 +1105,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### User Access Matrix Report
+### R9005 User Access Matrix Report
 
 **Report id:** `cat-user-access-matrix-report`
 
@@ -1117,7 +1117,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### User Activity Log
+### R9008 User Activity Log
 
 **Report id:** `cat-user-activity-log`
 
@@ -1130,7 +1130,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Vendor Master Register
+### R9003 Vendor Master Register
 
 **Report id:** `cat-vendor-master-register`
 
@@ -1146,7 +1146,7 @@ Inventory to Procurement.
 
 ## OMS
 
-### ATP / Promise Inventory Report
+### R6023 ATP / Promise Inventory Report
 
 **Report id:** `cat-atp-promise-inventory-report`
 
@@ -1158,7 +1158,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Allocation Pending
+### R6064 Allocation Pending
 
 **Report id:** `allocation-pending`
 
@@ -1168,7 +1168,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Channel Order Reconciliation
+### R6024 Channel Order Reconciliation
 
 **Report id:** `cat-channel-order-reconciliation`
 
@@ -1182,7 +1182,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Courier Performance
+### R6068 Courier Performance
 
 **Report id:** `courier-performance`
 
@@ -1192,7 +1192,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Fulfilment Status Report
+### R6016 Fulfilment Status Report
 
 **Report id:** `cat-fulfilment-status-report`
 
@@ -1206,7 +1206,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### OMS Exception Queue
+### R6060 OMS Exception Queue
 
 **Report id:** `oms-exception-queue`
 
@@ -1216,7 +1216,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### OMS Integration Error / Retry
+### R6025 OMS Integration Error / Retry
 
 **Report id:** `cat-oms-integration-error-retry`
 
@@ -1229,7 +1229,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### OMS Reconciliation Variance
+### R6061 OMS Reconciliation Variance
 
 **Report id:** `oms-reconciliation-variance`
 
@@ -1239,7 +1239,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Order Aging
+### R6062 Order Aging
 
 **Report id:** `order-aging`
 
@@ -1249,7 +1249,7 @@ Inventory to Procurement.
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
-### Order Allocation / Reservation Report
+### R6015 Order Allocation / Reservation Report
 
 **Report id:** `cat-order-allocation-reservation-report`
 
@@ -1263,7 +1263,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Order Cancellation Report
+### R6019 Order Cancellation Report
 
 **Report id:** `cat-order-cancellation-report`
 
@@ -1277,7 +1277,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Order Line Detail
+### R6014 Order Line Detail
 
 **Report id:** `cat-order-line-detail`
 
@@ -1291,7 +1291,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Order Register
+### R6013 Order Register
 
 **Report id:** `cat-order-register`
 
@@ -1305,7 +1305,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Order to Invoice Reconciliation
+### R6022 Order to Invoice Reconciliation
 
 **Report id:** `cat-order-to-invoice-reconciliation`
 
@@ -1319,7 +1319,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Orphaned Channel Orders (pre-35.1 intake)
+### R6069 Orphaned Channel Orders (pre-35.1 intake)
 
 **Report id:** `orphaned-channel-orders`
 
@@ -1329,7 +1329,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Pending Order / SLA Aging
+### R6018 Pending Order / SLA Aging
 
 **Report id:** `cat-pending-order-sla-aging`
 
@@ -1343,7 +1343,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Refund Status Report
+### R6021 Refund Status Report
 
 **Report id:** `cat-refund-status-report`
 
@@ -1357,7 +1357,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Reserved Stock
+### R6067 Reserved Stock
 
 **Report id:** `reserved-stock`
 
@@ -1367,7 +1367,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Return / RTO Register
+### R6020 Return / RTO Register
 
 **Report id:** `cat-return-rto-register`
 
@@ -1381,7 +1381,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Return Aging
+### R6066 Return Aging
 
 **Report id:** `return-aging`
 
@@ -1391,7 +1391,7 @@ Inventory to Procurement.
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
-### SLA Breach
+### R6063 SLA Breach
 
 **Report id:** `sla-breach`
 
@@ -1403,7 +1403,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Settlement Variance Queue
+### R6074 Settlement Variance Queue
 
 **Report id:** `oms-settlement-variance`
 
@@ -1413,7 +1413,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Split Shipment Report
+### R6017 Split Shipment Report
 
 **Report id:** `cat-split-shipment-report`
 
@@ -1427,7 +1427,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Stock Mismatch
+### R6065 Stock Mismatch
 
 **Report id:** `stock-mismatch`
 
@@ -1437,7 +1437,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Unsettled Marketplace Orders
+### R6073 Unsettled Marketplace Orders
 
 **Report id:** `oms-unsettled-settlements`
 
@@ -1449,7 +1449,7 @@ Inventory to Procurement.
 
 ## PIM
 
-### PIM Overdue Tasks
+### R7038 PIM Overdue Tasks
 
 **Report id:** `pim-task-overdue`
 
@@ -1461,7 +1461,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### PIM Product Group Readiness
+### R7036 PIM Product Group Readiness
 
 **Report id:** `pim-product-group-readiness`
 
@@ -1473,7 +1473,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### PIM Stalled Workflow Runs
+### R7039 PIM Stalled Workflow Runs
 
 **Report id:** `pim-workflow-stalled`
 
@@ -1483,7 +1483,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### PIM Task Workload by Assignee
+### R7037 PIM Task Workload by Assignee
 
 **Report id:** `pim-task-workload`
 
@@ -1495,7 +1495,7 @@ Inventory to Procurement.
 
 ## PIM / PIMS
 
-### Attribute Definition Report
+### R7006 Attribute Definition Report
 
 **Report id:** `cat-attribute-definition-report`
 
@@ -1508,7 +1508,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Attribute Group Report
+### R7007 Attribute Group Report
 
 **Report id:** `cat-attribute-group-report`
 
@@ -1521,7 +1521,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Category / Attribute Mapping Report
+### R7013 Category / Attribute Mapping Report
 
 **Report id:** `cat-category-attribute-mapping-report`
 
@@ -1534,7 +1534,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Channel Publication Error Report
+### R7012 Channel Publication Error Report
 
 **Report id:** `cat-channel-publication-error-report`
 
@@ -1544,7 +1544,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Channel Publication Status
+### R7011 Channel Publication Status
 
 **Report id:** `cat-channel-publication-status`
 
@@ -1554,7 +1554,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Channel Readiness Report
+### R7010 Channel Readiness Report
 
 **Report id:** `cat-channel-readiness-report`
 
@@ -1564,7 +1564,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Duplicate SKU / Barcode Exception
+### R7014 Duplicate SKU / Barcode Exception
 
 **Report id:** `cat-duplicate-sku-barcode-exception`
 
@@ -1574,7 +1574,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Family Attribute Mapping Report
+### R7008 Family Attribute Mapping Report
 
 **Report id:** `cat-family-attribute-mapping-report`
 
@@ -1587,7 +1587,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Media / Image Coverage Report
+### R7009 Media / Image Coverage Report
 
 **Report id:** `cat-media-image-coverage-report`
 
@@ -1601,7 +1601,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Missing Attribute Report
+### R7004 Missing Attribute Report
 
 **Report id:** `cat-missing-attribute-report`
 
@@ -1611,7 +1611,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### PIM Workbench Queue
+### R7003 PIM Workbench Queue
 
 **Report id:** `cat-pim-workbench-queue`
 
@@ -1625,7 +1625,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Price / Inventory Publish Status
+### R7016 Price / Inventory Publish Status
 
 **Report id:** `cat-price-inventory-publish-status`
 
@@ -1635,7 +1635,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Product Change Audit
+### R7015 Product Change Audit
 
 **Report id:** `cat-product-change-audit`
 
@@ -1648,7 +1648,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Product Completeness Report
+### R7002 Product Completeness Report
 
 **Report id:** `cat-product-completeness-report`
 
@@ -1662,7 +1662,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Product Family / Variant Matrix
+### R7005 Product Family / Variant Matrix
 
 **Report id:** `cat-product-family-variant-matrix`
 
@@ -1676,7 +1676,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Product Master Report
+### R7001 Product Master Report
 
 **Report id:** `cat-product-master-report`
 
@@ -1692,7 +1692,7 @@ Inventory to Procurement.
 
 ## Procurement
 
-### GRN Corrections Log
+### R2036 GRN Corrections Log
 
 **Report id:** `grn-corrections`
 
@@ -1705,7 +1705,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### GRN Payments
+### R2038 GRN Payments
 
 **Report id:** `grn-payments`
 
@@ -1718,7 +1718,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### GRN Register
+### R2046 GRN Register
 
 **Report id:** `grn-register`
 
@@ -1728,7 +1728,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### GRN Register - every line, every step
+### R2032 GRN Register - every line, every step
 
 **Report id:** `grn-line-register`
 
@@ -1742,7 +1742,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Goods Receipts Waiting
+### R2035 Goods Receipts Waiting
 
 **Report id:** `grn-waiting`
 
@@ -1752,7 +1752,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Goods receipt discrepancies by vendor
+### R2040 Goods receipt discrepancies by vendor
 
 **Report id:** `grn-discrepancy-by-vendor`
 
@@ -1765,7 +1765,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Goods receipts not billed
+### R2031 Goods receipts not billed
 
 **Report id:** `grn-not-billed`
 
@@ -1775,7 +1775,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Goods received not invoiced (GRNI)
+### R2042 Goods received not invoiced (GRNI)
 
 **Report id:** `grni`
 
@@ -1788,7 +1788,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Invoice vs GRN Differences
+### R2033 Invoice vs GRN Differences
 
 **Report id:** `grn-invoice-differences`
 
@@ -1802,7 +1802,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Late and early receipts
+### R2030 Late and early receipts
 
 **Report id:** `grn-receipt-timing`
 
@@ -1812,7 +1812,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Open Purchase Commitments
+### R2045 Open Purchase Commitments
 
 **Report id:** `po-commitments`
 
@@ -1822,7 +1822,7 @@ Inventory to Procurement.
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
-### PO expected delivery and terms
+### R2039 PO expected delivery and terms
 
 **Report id:** `po-delivery-and-terms`
 
@@ -1835,7 +1835,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### PO vs GRN Price Variance
+### R2037 PO vs GRN Price Variance
 
 **Report id:** `grn-po-variance`
 
@@ -1849,7 +1849,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Purchase Price Changes
+### R2034 Purchase Price Changes
 
 **Report id:** `grn-price-changes`
 
@@ -1863,7 +1863,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### RFQ Comparison Export
+### R2047 RFQ Comparison Export
 
 **Report id:** `rfq-comparison`
 
@@ -1875,7 +1875,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Rejections and Returns by Reason
+### R2043 Rejections and Returns by Reason
 
 **Report id:** `rejections-by-reason`
 
@@ -1889,7 +1889,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Vendor Ledger
+### R2044 Vendor Ledger
 
 **Report id:** `vendor-ledger`
 
@@ -1901,7 +1901,7 @@ Inventory to Procurement.
 
 **Drill-down:** no.
 
-### Vendor document and transport register
+### R2041 Vendor document and transport register
 
 **Report id:** `vendor-document-transport-register`
 

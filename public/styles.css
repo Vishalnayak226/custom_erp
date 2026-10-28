@@ -8,8 +8,8 @@
    fonts.gstatic.com - each one blocking, each one to a third party.
 
    The replacement is the platform's own UI font, which is what a premium
-   native app actually uses: San Francisco on Apple devices, Segoe UI Variable
-   on Windows 11, Roboto on Android. Zero bytes, zero requests, no FOUT, and
+   native app actually uses: San Francisco on Apple devices, Segoe UI
+   on Windows, Roboto on Android. Zero bytes, zero requests, no FOUT, and
    text renders in the first paint instead of after it. It also let the
    Content-Security-Policy drop its two Google Fonts exceptions
    (internal/server/middleware.go), so the app now loads no third-party
@@ -32,10 +32,12 @@
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
   --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.04);
   /* The platform UI font, best-first. -apple-system/BlinkMacSystemFont resolve
-     to San Francisco; "Segoe UI Variable Text" is Windows 11's refreshed UI
-     face (Segoe UI behind it for Windows 10). Inter is kept last-but-one so a
-     machine that happens to have it installed still uses it. */
-  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Inter, sans-serif;
+     to San Francisco; Segoe UI on Windows. Inter is kept last-but-one so a
+     machine that happens to have it installed still uses it. 50.20 (user,
+     2026-10-27): not "Segoe UI Variable Text" - Windows 11's 1.85 MB variable
+     face is built once per weight inside the first layout, and dropping it
+     took first paint from 2.4 s to 1.4 s in BLD-045's interleaved pairs. */
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Inter, sans-serif;
   /* Tabular figures for money columns, so digits line up down a column. */
   --font-numeric: "SF Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   --sidebar-width: 270px;
@@ -1544,45 +1546,6 @@ tr:hover td {
 .typeahead-item:hover {
   background-color: var(--primary-color);
   color: var(--on-primary);
-}
-
-/* Global search suggestions (Stage 28.5) - the same typeahead menu, with a
-   second muted line naming what the hit is ("Screen · Buying"). Built from
-   the same tokens, so it themes itself along with everything else. */
-.global-search-menu {
-  max-height: 340px;
-}
-
-.global-search-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  white-space: normal;
-  padding: 8px 12px;
-}
-
-.global-search-label {
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.global-search-meta {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-/* Stays legible once the row is highlighted and the background flips to the
-   primary colour. */
-.global-search-item.active .global-search-meta,
-.global-search-item:hover .global-search-meta {
-  color: var(--on-primary);
-  opacity: 0.75;
-}
-
-.global-search-empty {
-  padding: 10px 12px;
-  font-size: 12.5px;
-  color: var(--text-muted);
 }
 
 /* Toggle Switch */

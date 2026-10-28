@@ -34,7 +34,8 @@ import (
 )
 
 // LedgerSchemaVersion is bumped whenever Ledger's shape changes.
-const LedgerSchemaVersion = 1
+// 2 (Stage 47.18.4): process entries, grandfathered and architecture_gate.
+const LedgerSchemaVersion = 2
 
 // ComponentType classifies one dependency ledger entry into the four
 // categories 49.9.4 asks for: direct/transitive/tool/OS.
@@ -48,6 +49,9 @@ const (
 	ComponentCITool           ComponentType = "ci_tool"
 	ComponentOSRunner         ComponentType = "os_runner"
 	ComponentOSImage          ComponentType = "os_container_image"
+	// ComponentProcess (Stage 47.18.4) is a process the deployment runs beside
+	// the server: a systemd unit, the reverse proxy, a compose service, a cron job.
+	ComponentProcess ComponentType = "process"
 )
 
 // LedgerEntry is one inventoried component: owner/purpose/license/
@@ -62,6 +66,10 @@ type LedgerEntry struct {
 	License    string        `json:"license"`
 	Provenance string        `json:"provenance"`
 	Note       string        `json:"note,omitempty"`
+	// Stage 47.18.4: an entry that was in the ledger when the architecture
+	// gate opened says so here; every later one carries Gate instead.
+	Grandfathered string            `json:"grandfathered,omitempty"`
+	Gate          *ArchitectureGate `json:"architecture_gate,omitempty"`
 }
 
 // Ledger is the whole committed inventory: docs/security/dependency-ledger.json.

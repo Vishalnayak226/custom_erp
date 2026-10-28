@@ -177,7 +177,8 @@ func TestPurchaseOrderPreviewAndPrint(t *testing.T) {
 		}
 	})
 
-	t.Run("an explicit override beats the derivation", func(t *testing.T) {
+	// Stage 49.5.6b: a client's override no longer beats the derivation.
+	t.Run("a client override does not beat the derivation", func(t *testing.T) {
 		p, err := PreviewPurchaseOrder(tenantID, map[string]interface{}{
 			"items":  itemsJSON(map[string]interface{}{"sku": skuA, "qty": 10, "rate": 450.0}),
 			"vendor": vendorKA, "location": locationX,
@@ -186,17 +187,12 @@ func TestPurchaseOrderPreviewAndPrint(t *testing.T) {
 		if err != nil {
 			t.Fatalf("preview: %v", err)
 		}
-		if p.Breakdown.IGST != 0 || p.Breakdown.CGST == 0 {
-			t.Fatalf("override to intra-state ignored: %+v", p.Breakdown)
-		}
-		// The derivation is still reported, so the banner can show what the
-		// masters actually say while honouring the override.
-		if !p.PlaceOfSupply.Interstate {
-			t.Error("the underlying derivation should still report inter-state")
+		if p.Breakdown.IGST == 0 || p.Breakdown.CGST != 0 || !p.Breakdown.Interstate {
+			t.Fatalf("a client override to intra-state was honoured: %+v", p.Breakdown)
 		}
 	})
 
-	t.Run("ApplyPlaceOfSupply stamps the payload but respects an override", func(t *testing.T) {
+	t.Run("ApplyPlaceOfSupply stamps the payload and ignores an override", func(t *testing.T) {
 		payload := map[string]interface{}{"location": locationX, "vendor": vendorKA}
 		ApplyPlaceOfSupply(tenantID, payload)
 		if payload["interstate"] != true {
@@ -208,8 +204,8 @@ func TestPurchaseOrderPreviewAndPrint(t *testing.T) {
 
 		overridden := map[string]interface{}{"location": locationX, "vendor": vendorKA, "interstate": false, "interstate_override": true}
 		ApplyPlaceOfSupply(tenantID, overridden)
-		if overridden["interstate"] != false {
-			t.Errorf("override was overwritten by the derivation: %#v", overridden["interstate"])
+		if overridden["interstate"] != true || overridden["interstate_override"] != false {
+			t.Errorf("a client override survived: interstate %#v, interstate_override %#v", overridden["interstate"], overridden["interstate_override"])
 		}
 	})
 

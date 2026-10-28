@@ -2,7 +2,7 @@
 title: Release notes (part 2)
 section: Reference
 order: 26
-summary: Earlier releases, 2026-07-27 to 2026-09-16, continued from the release notes.
+summary: Earlier releases, 2026-07-27 to 2026-09-17, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,9 +19,27 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **88** earlier entries, 2026-07-27 to 2026-09-16.
+This page continues the [release notes](release-notes.md) with **92** earlier entries, 2026-07-27 to 2026-09-17.
+
+## 2026-09-17
+
+**Stage 50.7 (partial) — AUD-01/AUD-02/AUD-05 fixed and verified** *(code + tests)*
+
+Three of the five release-impacting findings from §154's independent audit, each fixed at its actual root cause and verified against a live reproduction rather than by inspection alone. AUD-03/AUD-04 (deploy rollback / restart-failure recovery) are §151's active concurrent work and deliberately not touched here.
 
 ## 2026-09-16
+
+**Stage 47.16.5 (partial) + 49.6.2 upgrade — automated payment-card-data scanner** *(code + tests)*
+
+Closes the technical half of 47.16.5 ("automated schema/log/attachment checks prohibit full PAN/CVV/PIN/track data") by extending 49.1.4's existing no-bypass scanner (`internal/securityscan/bypass.go`) with a new `payment-card-data` category, rather than building a second scanning mechanism — the same reuse-the-choke-point reasoning every prior Stage 49 item in this tree already follows. Matches card-PAN/CVV/track-data/PIN-block field and struct-tag shapes; deliberately excludes bare `pan`/`pan_number` because `engines/field_formats.go`'s `panPattern` is India's unrelated Income Tax PAN, a real field this codebase legitimately stores in the clear — a scanner that confused the two would either miss card data hidden behind a `pan_number`-style rename or produce a false positive on every GST-related doctype.
+
+**Stage 49.14 (partial) — secure human operations, support, devices, anti-social-engineering** *(docs only)*
+
+Closes 49.14.1 (plain-language/non-enumerating security UX — verified as the codebase's existing consistent convention, not newly introduced) and 49.14.4 (support has no invisible backdoor — proven by 49.1.4's already-executed bypass scanner, plus `engines/admin_password_reset.go`'s guided-diagnostics-over-impersonation pattern). Parent 49.14 stays open: 49.14.2 partial (49.2.4's dual-control/reauthentication half is built, the preview/diff/typed-confirmation half stays 49.3.6's unbuilt job); 49.14.3/49.14.5/49.14.6/49.14.7/49.14.8 each honestly not built, tied to a named product/security decision or a prerequisite (47.6.6's physical hardware, 49.2.1's identity lifecycle, 49.9.7's signing key, or simply a second person existing on what is today a single-contributor project) rather than to missing effort.
+
+**Deploy auto-rollback — deploy.ps1/remote_deploy.sh** *(tooling only)*
+
+Prompted by the user asking why the ERP wasn't opening: it wasn't actually down (verified `app.wholeops.in` live, 200, no console errors), but the screenshot they'd captured matched exactly the environment-caveat banner text baked into the currently-running `0e79425` binary, rendered with none of its CSS applied — consistent with the documented 2026-09-13 incident (`docs/ai_handover.md` §6) where a deploy hit `security_baseline.go`'s fail-fast gate, crash-looped the box for ~90s, and was rolled back **by hand** over SSH because `deploy.ps1` had no rollback logic at all. The user's actual ask: deploys must never leave the box broken unattended — auto-rollback on failure, always.
 
 **Stage 49.16 (partial) — customer security pack, third-party risk register, assurance evidence handling** *(docs only)*
 

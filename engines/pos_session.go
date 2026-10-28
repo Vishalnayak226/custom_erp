@@ -233,7 +233,7 @@ func detectOfflineQueueGap(tenantID, schema, sessionID string) (missing []string
 			cartNumber).Scan(&exists); err != nil {
 			return nil, err
 		}
-		if !exists {
+		if !exists && !offlineSaleHeld(schema, cartNumber) { // 49.5.6a: held for validation arrived too
 			missing = append(missing, cartNumber)
 		}
 	}

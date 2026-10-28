@@ -370,5 +370,6 @@ func handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	role := r.Header.Get("Resolved-Role")
 	locationCode := r.Header.Get("Resolved-Location")
 	newToken := engines.SignToken(userID, username, role, tenantID, locationCode, newCredentialVersion)
+	engines.RecordSignIn(tenantID, userID) // 49.2.1a
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "token": newToken})
 }

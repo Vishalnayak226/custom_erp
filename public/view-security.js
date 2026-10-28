@@ -87,6 +87,7 @@ export async function renderSecurityPane(target) {
     <div class="table-panel" style="margin-top:16px; padding:16px; min-height:0;">
       <h3 style="font-size:16px; font-weight:600; margin-bottom:8px;">To review</h3>
       <p style="font-size:13px;"><strong>Admins without 2FA:</strong> ${p.admins_without_2fa.length ? p.admins_without_2fa.map(esc).join(', ') : 'none'}</p>
+      <p style="font-size:13px;"><strong>No sign-in for ${esc(p.dormant_days)} days${p.dormant_auto_disable ? ' (auto-disable on)' : ''}:</strong> ${(p.dormant_accounts || []).length ? p.dormant_accounts.map(a => esc(a.username)).join(', ') : 'none'}</p>
       <p style="font-size:13px;"><strong>API keys:</strong> ${p.credentials.length ? p.credentials.map(c => `${esc(c.name)} (${esc(c.why)})`).join(', ') : 'none to review'}</p>
       <p style="font-size:13px;"><strong>Jobs given up (7 days):</strong> ${esc(p.dead_lettered_jobs_7d)}</p>
     </div>

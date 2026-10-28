@@ -179,10 +179,13 @@ func CreateIntercompanyTransaction(tenantID, transactionDate, narration, fromEnt
 	return id, nil
 }
 
-func fetchIntercompanyTransaction(schema, id string) (data map[string]interface{}, status string, err error) {
+// lockIntercompanyTransactionTx reads the document under its row lock (Stage
+// 135.21) - posting reads the status and saves the new one in the same
+// transaction.
+func lockIntercompanyTransactionTx(tx *sql.Tx, schema, id string) (data map[string]interface{}, status string, err error) {
 	var dataStr string
-	if err := db.DB.QueryRow(fmt.Sprintf(
-		`SELECT data, status FROM %s.documents WHERE doctype = 'IntercompanyTransaction' AND id = $1`, schema), id).
+	if err := tx.QueryRow(fmt.Sprintf(
+		`SELECT data, status FROM %s.documents WHERE doctype = 'IntercompanyTransaction' AND id = $1 FOR UPDATE`, schema), id).
 		Scan(&dataStr, &status); err != nil {
 		return nil, "", fmt.Errorf("intercompany transaction not found: %v", err)
 	}
@@ -192,13 +195,13 @@ func fetchIntercompanyTransaction(schema, id string) (data map[string]interface{
 	return data, status, nil
 }
 
-func updateIntercompanyTransactionData(schema, id, status string, data map[string]interface{}) error {
+func updateIntercompanyTransactionData(tx *sql.Tx, schema, id, status string, data map[string]interface{}) error {
 	data["status"] = status
 	marshaled, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
-	_, err = db.DB.Exec(fmt.Sprintf(
+	_, err = tx.Exec(fmt.Sprintf(
 		`UPDATE %s.documents SET data = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'IntercompanyTransaction' AND id = $3`, schema),
 		marshaled, status, id)
 	return err
@@ -216,23 +219,28 @@ func updateIntercompanyTransactionData(schema, id, status string, data map[strin
 //
 // These MUST be two separate calls: PostingOptions.Entity is a whole-posting
 // dimension (like CostCenter/Department), and the two legs need two
-// different entities. That makes the pair non-atomic across one database
-// transaction - PostDoubleEntry owns its own tx.Begin()/Commit() per call.
-// Rather than invent compensating-reversal machinery, this follows
-// JournalVoucher's own accepted shape for a failed post: log loudly, leave
-// the document in a named, retryable, non-silent state, and let
-// RetryPostApprovedIntercompanyTransaction re-attempt. Both legs' postingKey
-// is scoped to this document+leg, so a retry after the FROM leg already
-// succeeded is a no-op on that leg (idempotency check inside
-// PostDoubleEntry) and only the TO leg is genuinely re-attempted -
-// "Partially Posted" is a real, visible state, not a silent gap.
+// different entities. Both legs' postingKey is scoped to this document+leg.
+//
+// Stage 135.21: the two calls now run in one transaction holding the
+// document's row lock, with the status read under it, so this and a retry (or
+// two retries) at once cannot both post - the second waits, then finds it
+// Posted. A failed leg leaves neither posted and the document Approved,
+// logged and retryable. "Partially Posted" was the state the two separately
+// committed legs could leave; a document already in it still retries, its
+// FROM leg a no-op under its key and only the TO leg posting.
 func postApprovedIntercompanyTransaction(tenantID, id string) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		LogSystemError(tenantID, "", "ERROR", "postApprovedIntercompanyTransaction", fmt.Sprintf("transaction %s: %v", id, err), "")
 		return
 	}
-	data, status, err := fetchIntercompanyTransaction(schema, id)
+	tx, err := db.DB.Begin()
+	if err != nil {
+		LogSystemError(tenantID, "", "ERROR", "postApprovedIntercompanyTransaction", fmt.Sprintf("transaction %s: %v", id, err), "")
+		return
+	}
+	defer tx.Rollback()
+	data, status, err := lockIntercompanyTransactionTx(tx, schema, id)
 	if err != nil {
 		LogSystemError(tenantID, "", "ERROR", "postApprovedIntercompanyTransaction", err.Error(), "")
 		return
@@ -240,7 +248,18 @@ func postApprovedIntercompanyTransaction(tenantID, id string) {
 	if status != "Approved" && status != "Partially Posted" {
 		return
 	}
+	if err := postIntercompanyTransactionTx(tx, tenantID, schema, id, data); err != nil {
+		LogSystemError(tenantID, "", "ERROR", "postApprovedIntercompanyTransaction", err.Error(), "")
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		LogSystemError(tenantID, "", "ERROR", "postApprovedIntercompanyTransaction", fmt.Sprintf("transaction %s: %v", id, err), "")
+	}
+}
 
+// postIntercompanyTransactionTx posts both legs and marks the document Posted
+// in the caller's transaction, which holds the document's row lock.
+func postIntercompanyTransactionTx(tx *sql.Tx, tenantID, schema, id string, data map[string]interface{}) error {
 	transactionDate, _ := data["transaction_date"].(string)
 	fromEntity := pimString(data["from_entity"])
 	fromAccount := pimString(data["from_account_code"])
@@ -249,63 +268,57 @@ func postApprovedIntercompanyTransaction(tenantID, id string) {
 	amountRupees, _ := parityNumber(data["amount"])
 	amountPaise := RupeesToPaise(amountRupees)
 	if amountPaise <= 0 {
-		LogSystemError(tenantID, "", "ERROR", "postApprovedIntercompanyTransaction", fmt.Sprintf("transaction %s has a non-positive amount, not posted", id), "")
-		return
+		return fmt.Errorf("transaction %s has a non-positive amount, not posted", id)
 	}
 
-	fromErr := PostDoubleEntry(tenantID, "IntercompanyTransaction", id,
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "IntercompanyTransaction", id,
 		map[string]int64{"1700": amountPaise},
 		map[string]int64{fromAccount: amountPaise},
 		transactionDate, fmt.Sprintf("IntercompanyTransaction:%s:FROM", id),
-		PostingOptions{Entity: fromEntity})
-	if fromErr != nil {
-		LogSystemError(tenantID, "", "ERROR", "postApprovedIntercompanyTransaction",
-			fmt.Sprintf("transaction %s: FROM leg (entity %s) failed: %v", id, fromEntity, fromErr), "")
-		return
+		PostingOptions{Entity: fromEntity}); err != nil {
+		return fmt.Errorf("transaction %s: FROM leg (entity %s) failed, nothing posted: %v", id, fromEntity, err)
 	}
 
-	toErr := PostDoubleEntry(tenantID, "IntercompanyTransaction", id,
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "IntercompanyTransaction", id,
 		map[string]int64{toAccount: amountPaise},
 		map[string]int64{"2500": amountPaise},
 		transactionDate, fmt.Sprintf("IntercompanyTransaction:%s:TO", id),
-		PostingOptions{Entity: toEntity})
-	if toErr != nil {
-		LogSystemError(tenantID, "", "ERROR", "postApprovedIntercompanyTransaction",
-			fmt.Sprintf("transaction %s: FROM leg posted but TO leg (entity %s) failed: %v - retry via RetryPostApprovedIntercompanyTransaction", id, toEntity, toErr), "")
-		if err := updateIntercompanyTransactionData(schema, id, "Partially Posted", data); err != nil {
-			LogSystemError(tenantID, "", "ERROR", "postApprovedIntercompanyTransaction", fmt.Sprintf("transaction %s: failed to record Partially Posted: %v", id, err), "")
-		}
-		return
+		PostingOptions{Entity: toEntity}); err != nil {
+		return fmt.Errorf("transaction %s: TO leg (entity %s) failed, nothing posted: %v - retry via RetryPostApprovedIntercompanyTransaction", id, toEntity, err)
 	}
 
-	if err := updateIntercompanyTransactionData(schema, id, "Posted", data); err != nil {
-		LogSystemError(tenantID, "", "ERROR", "postApprovedIntercompanyTransaction", fmt.Sprintf("transaction %s posted to GL but status update failed: %v", id, err), "")
+	if err := updateIntercompanyTransactionData(tx, schema, id, "Posted", data); err != nil {
+		return fmt.Errorf("transaction %s not posted - status update failed: %v", id, err)
 	}
+	return nil
 }
 
 // RetryPostApprovedIntercompanyTransaction re-attempts posting an Approved or
-// Partially Posted transaction, the RetryPostApprovedJournalVoucher precedent.
+// Partially Posted transaction, the RetryPostApprovedJournalVoucher precedent:
+// the status is checked under the row lock in the posting's own transaction,
+// so of two retries at once one posts and the other is refused.
 func RetryPostApprovedIntercompanyTransaction(tenantID, id string) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
 	}
-	_, status, err := fetchIntercompanyTransaction(schema, id)
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	data, status, err := lockIntercompanyTransactionTx(tx, schema, id)
 	if err != nil {
 		return err
 	}
 	if status != "Approved" && status != "Partially Posted" {
 		return fmt.Errorf("only an Approved or Partially Posted intercompany transaction can be retried (current status: %s)", status)
 	}
-	postApprovedIntercompanyTransaction(tenantID, id)
-	_, newStatus, err := fetchIntercompanyTransaction(schema, id)
-	if err != nil {
-		return err
+	if err := postIntercompanyTransactionTx(tx, tenantID, schema, id, data); err != nil {
+		LogSystemError(tenantID, "", "ERROR", "postApprovedIntercompanyTransaction", err.Error(), "")
+		return fmt.Errorf("posting is still incomplete (status: %s)", status)
 	}
-	if newStatus != "Posted" {
-		return fmt.Errorf("posting is still incomplete (status: %s)", newStatus)
-	}
-	return nil
+	return tx.Commit()
 }
 
 // GetEntityTrialBalance groups gl_postings by entity (Stage 37.2.1's report

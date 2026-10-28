@@ -694,8 +694,8 @@ func SyncCRMWhatsAppTemplate(tenantID, templateID string) (*CRMTemplate, error) 
 	if s.cfg("waba_id") == "" {
 		return nil, crmErr(CRMCodeSender, "the WhatsApp sender needs its business account (WABA) ID to read template approvals")
 	}
-	if !ExternalSideEffectsEnabled() {
-		return nil, crmErr(CRMCodeSender, "this server does not call outside services (external side effects are off), so WhatsApp cannot be asked")
+	if ok, reason := OutsideCallsAllowed(schema); !ok { // 49.8.7a
+		return nil, crmErr(CRMCodeSender, "%s, so WhatsApp cannot be asked", reason)
 	}
 	base := strings.TrimRight(firstNonEmpty(s.cfg("graph_base"), "https://graph.facebook.com"), "/")
 	endpoint := fmt.Sprintf("%s/%s/%s/message_templates?name=%s", base, firstNonEmpty(s.cfg("api_version"), "v21.0"),
@@ -744,7 +744,11 @@ func crmSendEmail(ctx context.Context, s *crmSenderRow, d crmDispatch) (crmProvi
 	fromName := firstNonEmpty(s.cfg("from_name"), d.FromName)
 	msg := crmBuildEmail(from, fromName, s.cfg("reply_to"), d)
 	addr := net.JoinHostPort(host, port)
-	conn, err := (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, "tcp", addr)
+	dial := (&net.Dialer{Timeout: 10 * time.Second}).DialContext
+	if s.cfg("host") != "" {
+		dial = outboundDial // 49.8.7: a sender's own mail server is client-typed; SMTP_HOST is the operator's
+	}
+	conn, err := dial(ctx, "tcp", addr)
 	if err != nil {
 		return crmProviderResult{}, &errCRMNotSent{msg: "mail server not reached: " + err.Error()}
 	}

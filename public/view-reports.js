@@ -31,16 +31,16 @@ async function fillReportsMenu(flyout) {
   const res = await apiFetch('/api/v1/reports/catalog');
   if (!res || !res.ok) throw new Error('report catalog unavailable');
   const areas = {};
-  const add = (area, id, label) => {
+  const add = (area, id, label, number = '') => {
     const list = areas[area] = areas[area] || [];
-    if (!list.some(r => r.label === label)) list.push({ id, label });
+    if (!list.some(r => r.label === label)) list.push({ id, label, number });
   };
   REPORT_TABS.filter(t => REPORT_TAB_AREAS[t.id]).forEach(t => add(REPORT_TAB_AREAS[t.id], t.id, t.label));
-  (await res.json()).forEach(d => add(d.category || 'Other', d.id, d.label));
+  (await res.json()).forEach(d => add(d.category || 'Other', d.id, d.label, d.number));
   const rank = area => (REPORT_AREA_ORDER.indexOf(area) + 1) || 99;
   const rows = Object.keys(areas).sort((a, b) => rank(a) - rank(b) || a.localeCompare(b)).map(area =>
     `<li class="has-subflyout"><a class="menu-item submenu-parent">${escapeHTMLText(area)}</a><ul class="menu-subflyout">${areas[area].map(r =>
-      `<li><a class="menu-item" id="menu-report-${escapeHTMLText(r.id)}" data-go="reports:${escapeHTMLText(r.id)}" data-like="menu-reports"><span>${escapeHTMLText(r.label)}</span></a></li>`).join('')}</ul></li>`).join('');
+      `<li><a class="menu-item" id="menu-report-${escapeHTMLText(r.id)}" data-go="reports:${escapeHTMLText(r.id)}" data-like="menu-reports"><span>${escapeHTMLText(r.label)}</span>${r.number ? `<span class="menu-code">${escapeHTMLText(r.number)}</span>` : ''}</a></li>`).join('')}</ul></li>`).join('');
   flyout.lastElementChild.insertAdjacentHTML('beforebegin', rows);
   // Stage 100: custom dashboards sit under the Dashboard.
   flyout.firstElementChild.insertAdjacentHTML('afterend', '<li><a class="menu-item" id="menu-report-dashboards" data-go="reports:dashboards" data-like="menu-reports"><span>Custom dashboards</span></a></li>');
@@ -652,7 +652,7 @@ async function renderReportCatalogPanel(panel) {
 
   // Stage 55.20: each report's business question is its option's tooltip and
   // is searchable, so "who owes us" finds Receivables Ageing.
-  const optionFor = d => `<option value="${escapeHTMLText(d.id)}" ${d.id === reportCatalogSelectedId ? 'selected' : ''} title="${escapeHTMLText(d.question || '')}">${escapeHTMLText(d.label)}${d.question ? ` - ${escapeHTMLText(d.question)}` : ''}</option>`;
+  const optionFor = d => `<option value="${escapeHTMLText(d.id)}" ${d.id === reportCatalogSelectedId ? 'selected' : ''} title="${escapeHTMLText(d.question || '')}">${d.number ? `${escapeHTMLText(d.number)} · ` : ''}${escapeHTMLText(d.label)}${d.question ? ` - ${escapeHTMLText(d.question)}` : ''}</option>`;
   panel.innerHTML = `
     <div style="padding: 16px; display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; border-bottom: 1px solid var(--border-color);">
       <div class="form-group" style="margin-bottom: 0; min-width: 200px;">
@@ -697,7 +697,7 @@ async function renderReportCatalogPanel(panel) {
     let first = null;
     select.querySelectorAll('option').forEach(o => {
       const d = reportCatalogDefs.find(x => x.id === o.value);
-      const hay = d ? `${d.label} ${d.question || ''} ${d.description || ''} ${d.category || ''}`.toLowerCase() : '';
+      const hay = d ? `${d.number || ''} ${d.label} ${d.question || ''} ${d.description || ''} ${d.category || ''}`.toLowerCase() : '';
       const show = !q || q.split(/\s+/).every(w => hay.includes(w));
       o.hidden = !show;
       if (show && !first) first = o;
@@ -974,7 +974,7 @@ function renderReportRunSummary(def, params, result) {
   const labelOf = k => ((def.params || []).find(p => p.key === k) || {}).label || k;
   const filters = Object.entries(params).map(([k, v]) => `${labelOf(k)}: ${v}`).join(' · ') || 'no filters';
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  el.textContent = `${def.label} - ${filters} - ${(result.rows || []).length} row(s) - run ${new Date().toLocaleString('en-IN')} (${tz}) - amounts in INR`;
+  el.textContent = `${def.number ? `${def.number} ` : ''}${def.label} - ${filters} - ${(result.rows || []).length} row(s) - run ${new Date().toLocaleString('en-IN')} (${tz}) - amounts in INR`;
 }
 
 // Stage 73.2.19: detail = summary = ledger, with its cut-off.
@@ -1015,10 +1015,10 @@ async function renderMyReportExports() {
       <td><small>${escapeHTMLText(Object.entries(j.params || {}).map(([k, v]) => `${k}=${v}`).join(', ') || '-')}</small></td>
       <td>${escapeHTMLText(reportCellText(j.created_at))}</td>
       <td><span class="badge ${j.status === 'Completed' ? 'badge-success' : j.status === 'Failed' ? 'badge-danger' : 'badge-secondary'}">${escapeHTMLText(j.status)}</span>${j.code ? ` <small>${escapeHTMLText(j.code)}</small>` : ''}</td>
-      <td>${j.status === 'Completed' ? `<button class="action-btn" data-export-download="${escapeHTMLText(j.id)}">Download CSV</button>` : ''}
+      <td>${j.status === 'Completed' ? `<button class="action-btn" data-export-download="${escapeHTMLText(j.id)}" data-report-id="${escapeHTMLText(j.report_id || '')}">Download CSV</button>` : ''}
           ${j.status === 'Pending' ? `<button class="action-btn" data-export-cancel="${escapeHTMLText(j.id)}">Cancel</button>` : ''}</td></tr>`).join('')}
     </tbody></table>`;
-  body.querySelectorAll('[data-export-download]').forEach(b => b.addEventListener('click', () => downloadReportExportCSV(b.dataset.exportDownload)));
+  body.querySelectorAll('[data-export-download]').forEach(b => b.addEventListener('click', () => downloadReportExportCSV(b.dataset.exportDownload, b.dataset.reportId)));
   body.querySelectorAll('[data-export-cancel]').forEach(b => b.addEventListener('click', async () => {
     const r = await apiFetch(`/api/v1/reports/export/${encodeURIComponent(b.dataset.exportCancel)}/cancel`, { method: 'POST', body: '{}' });
     if (!r) return;
@@ -1384,14 +1384,14 @@ async function pollReportExportJob(jobId, statusEl) {
     return;
   }
   statusEl.innerHTML = `<p><button class="action-btn" id="rc-download-btn">Download CSV</button></p>`;
-  document.getElementById('rc-download-btn').addEventListener('click', () => downloadReportExportCSV(jobId));
+  document.getElementById('rc-download-btn').addEventListener('click', () => downloadReportExportCSV(jobId, reportCatalogSelectedId));
 }
 
 // This endpoint requires the same Bearer-token auth as every other API call
 // (apiMiddleware has no query-string-token fallback), so a plain <a href>
 // opened in a new tab can't authenticate itself - fetch the CSV through the
 // normal authenticated apiFetch() and hand the browser a Blob URL instead.
-async function downloadReportExportCSV(jobId) {
+async function downloadReportExportCSV(jobId, reportId = '') {
   const res = await apiFetch(`/api/v1/reports/export/${jobId}?download=1`);
   if (!res) return;
   if (!res.ok) {
@@ -1402,7 +1402,9 @@ async function downloadReportExportCSV(jobId) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${jobId}.csv`;
+  // Stage 139.2: R1001-Sales-Register-2026-10-26.csv, not the job's id.
+  const def = reportCatalogDefs.find(d => d.id === reportId);
+  a.download = def ? `${[def.number, def.label].filter(Boolean).join('-').replace(/[^A-Za-z0-9]+/g, '-')}-${new Date().toISOString().slice(0, 10)}.csv` : `${jobId}.csv`;
   document.body.appendChild(a);
   a.click();
   a.remove();

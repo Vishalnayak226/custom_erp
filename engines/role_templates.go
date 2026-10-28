@@ -110,7 +110,7 @@ var roleTemplates = []RoleTemplate{
 		Capabilities: []string{
 			"audit.logs", "system.logs", "finance.statements",
 			"assets.manage", "hr.payroll", "expenses.manage",
-			"pos.price_override", "returns.exception",
+			"pos.price_override", "returns.exception", "pos.offline_validate",
 		},
 		GlobalScopes: []ScopeDimension{ScopeLocation, ScopeSelf, ScopeOwner, ScopeEntity},
 	},
@@ -122,7 +122,7 @@ var roleTemplates = []RoleTemplate{
 		Modules: allModules(AccessManage),
 		Capabilities: []string{
 			"audit.logs", "finance.statements", "assets.manage", "hr.payroll",
-			"expenses.manage", "pos.price_override", "returns.exception",
+			"expenses.manage", "pos.price_override", "returns.exception", "pos.offline_validate",
 		},
 		GlobalScopes: []ScopeDimension{ScopeLocation, ScopeSelf, ScopeOwner, ScopeEntity},
 	},
@@ -150,7 +150,8 @@ var roleTemplates = []RoleTemplate{
 		// pos.price_override (Stage 47.2.3) is this template's own summary
 		// line made enforceable - "approves overrides and returns" was true
 		// on paper before there was a command to hold.
-		Capabilities: []string{"finance.statements", "assets.manage", "expenses.manage", "pos.price_override", "returns.exception"},
+		// pos.offline_validate (Stage 49.5.6a): posts or rejects the till's offline sales.
+		Capabilities: []string{"finance.statements", "assets.manage", "expenses.manage", "pos.price_override", "returns.exception", "pos.offline_validate"},
 		GlobalScopes: []ScopeDimension{ScopeOwner},
 	},
 	{

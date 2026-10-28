@@ -125,6 +125,53 @@ var securityDetectionRules = []SecurityDetectionRule{
 		Owner: "Platform operator", Threshold: 1, WindowMinutes: 180, DedupMinutes: 240,
 		FirstResponse: "The hourly checkpoint job is not running: check the job runner and the scheduler leader. A silent verifier is a failed control.",
 		Runbook:       runbookDoc + " §7.8", special: detectAuditCheckpointOverdue},
+
+	// Stage 49.5.4: business abuse and fraud patterns (security_detection_abuse.go).
+	{Key: "refund_burst", Title: "Many returns by one user", Severity: DetectionReview,
+		Owner: "Store manager", Threshold: 10, WindowMinutes: 60, DedupMinutes: 240,
+		FirstResponse: "Check the returns against the original bills and the goods actually back on the shelf, with the user and their manager.",
+		Runbook:       runbookDoc + " §7.7", special: detectRefundBurst},
+	{Key: "manual_discount_burst", Title: "Many large bill discounts by one cashier", Severity: DetectionReview,
+		Owner: "Store manager", Threshold: 10, WindowMinutes: 60, DedupMinutes: 240,
+		FirstResponse: "Read the reasons on the bills with the cashier; a discount no customer asked for is money taken.",
+		Runbook:       runbookDoc + " §7.7", special: detectManualDiscountBurst},
+	{Key: "offline_sale_burst", Title: "Many sales sent as offline by one cashier", Severity: DetectionReview,
+		Owner: "Store manager", Threshold: 20, WindowMinutes: 60, DedupMinutes: 240,
+		FirstResponse: "Check the till was really offline then (network, POS_OFFLINE_QUEUE_GAP rows); a sale sent as offline waits on POS > Offline Sales and, once validated, skips the stock floor and the cash limit.",
+		Runbook:       runbookDoc + " §7.7", special: detectOfflineSaleBurst},
+	{Key: "stock_adjustment_burst", Title: "Many stock adjustments by one user", Severity: DetectionReview,
+		Owner: "Inventory controller", Threshold: 10, WindowMinutes: 60, DedupMinutes: 240,
+		FirstResponse: "Recount a few of the adjusted items; a write-off can hide a theft as easily as fix a count.",
+		Runbook:       runbookDoc + " §7.13", actions: []string{"POST_INVENTORY_ADJUSTMENT", "REVERSE_INVENTORY_ADJUSTMENT"}, byActor: true},
+	{Key: "negative_stock_burst", Title: "Many sales below zero stock at one store", Severity: DetectionReview,
+		Owner: "Store manager", Threshold: 5, WindowMinutes: 60, DedupMinutes: 240,
+		FirstResponse: "Count the items named in the negative-stock records; receive what came in unbooked, or find where the goods went.",
+		Runbook:       runbookDoc + " §7.13", special: detectNegativeStockBurst},
+	{Key: "vendor_bank_then_paid", Title: "A vendor paid soon after its bank account changed", Severity: DetectionUrgent,
+		Owner: "Finance controller", Threshold: 1, WindowMinutes: 3 * 24 * 60, DedupMinutes: 24 * 60,
+		FirstResponse: "Hold further payments to this vendor. Confirm the new account by calling the vendor on a number from an older bill, not from the change request; if it is not theirs, ask the bank to recall the transfer.",
+		Runbook:       runbookDoc + " §7.13", special: detectVendorBankThenPaid},
+	{Key: "duplicate_vendor_invoice", Title: "The same vendor invoice entered twice", Severity: DetectionReview,
+		Owner: "Accounts payable", Threshold: 2, WindowMinutes: 24 * 60, DedupMinutes: 24 * 60,
+		FirstResponse: "Open the bills for this vendor and number; if they are one invoice, cancel the later one before it is paid.",
+		Runbook:       runbookDoc + " §7.13", special: detectDuplicateVendorInvoice},
+	{Key: "threshold_split", Title: "Documents split to stay under an approval limit", Severity: DetectionReview,
+		Owner: "Finance controller", Threshold: 2, WindowMinutes: 24 * 60, DedupMinutes: 24 * 60,
+		FirstResponse: "Open the documents together; if they are one purchase cut in pieces, send them for the approval their total needs.",
+		Runbook:       runbookDoc + " §7.13", special: detectThresholdSplit},
+	{Key: "period_reopened", Title: "A closed accounting period was reopened", Severity: DetectionReview,
+		Owner: "Finance controller", Threshold: 1, WindowMinutes: 60, DedupMinutes: 60,
+		FirstResponse: "Confirm the reason with the approver, and review every posting dated in that period until it is closed again.",
+		Runbook:       runbookDoc + " §7.13", actions: []string{"PERIOD_REOPENED"}, byActor: true},
+	{Key: "approval_rule_removed", Title: "An approval rule was deleted", Severity: DetectionReview,
+		Owner: "Client owner", Threshold: 1, WindowMinutes: 60, DedupMinutes: 60,
+		FirstResponse: "Confirm with the person who deleted it; until it is back, documents in that band need no approval.",
+		Runbook:       runbookDoc + " §7.13", actions: []string{"DELETE_APPROVAL_RULE"}, byActor: true},
+	{Key: "config_change_burst", Title: "Many configuration changes by one person", Severity: DetectionReview,
+		Owner: "Client owner", Threshold: 15, WindowMinutes: 30, DedupMinutes: 120,
+		FirstResponse: "Confirm the changes with the person who made them; undo any you did not expect.",
+		Runbook:       runbookDoc + " §7.13", actions: []string{"SETTINGS", "SAVE_APPROVAL_RULE", "UPDATE_PREFIX_CONFIG",
+			"API_CREDENTIAL_ISSUED", "API_CREDENTIAL_ROTATED", "API_CREDENTIAL_LIMITS_SET"}, byActor: true},
 }
 
 // SecurityDetectionRules returns the rule catalog (for the Security pane and
@@ -284,7 +331,8 @@ func detectDisabledUserActivity(schema string, now time.Time, rule SecurityDetec
 		  AND a.created_at > COALESCE((
 		        SELECT MAX(s.created_at) FROM %[1]s.audit_logs s
 		        WHERE s.action = 'USER_MANAGEMENT' AND s.status = 'USER_STATUS_CHANGED'
-		          AND s.details = 'Set user ' || u.id::text || ' status to ' || u.status), 'infinity'::timestamp)
+		          AND (s.details = 'Set user ' || u.id::text || ' status to ' || u.status
+		               OR starts_with(s.details, 'Set user ' || u.id::text || ' status to ' || u.status || ' - '))), 'infinity'::timestamp)
 		GROUP BY u.username`, schema), utcStamp(since))
 	if err != nil {
 		return nil, err
@@ -427,7 +475,12 @@ func StartSecurityDetectionSweep(ctx context.Context, interval time.Duration) {
 					continue
 				}
 				for _, schema := range schemas {
-					if _, err := RunSecurityDetections(schemaToTenantID(schema), time.Now()); err != nil {
+					tenantID := schemaToTenantID(schema)
+					if tenantID == "" { // Stage 49.3.2: never the default client's detections
+						log.Printf("[SECURITY-DETECT] %s: no client is registered for it", schema)
+						continue
+					}
+					if _, err := RunSecurityDetections(tenantID, time.Now()); err != nil {
 						log.Printf("[SECURITY-DETECT] %s: %v", schema, err)
 					}
 				}

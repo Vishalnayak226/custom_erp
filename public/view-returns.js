@@ -236,8 +236,26 @@ async function openReversePickupDialog(row) {
     await showCustomAlert('Enter the 6-digit PIN code - the courier is chosen by it.', 'Book Pickup');
     return;
   }
-  const result = await postReturnAction(`/api/v1/returns/${encodeURIComponent(row.id)}/reverse-pickup`, picked);
-  if (result) showToast(`Pickup booked as ${result.booking_id}${result.awb ? `, AWB ${result.awb}` : ''}.`, { variant: 'success' });
+  const res = await apiFetch(`/api/v1/returns/${encodeURIComponent(row.id)}/reverse-pickup`, { method: 'POST', body: JSON.stringify(picked) });
+  if (!res) return;
+  if (!res.ok) {
+    // 47.11.8a: the courier may already have this pickup - resolve it from its portal.
+    const code = await res.clone().json().then(b => b && b.code, () => '');
+    await showApiError(res, 'That step could not be completed.');
+    if (code === 'INTEGR-4718') await resolveReturnPickup(row.id);
+    return;
+  }
+  const result = await res.json().catch(() => ({}));
+  showToast(`Pickup booked as ${result.booking_id}${result.awb ? `, AWB ${result.awb}` : ''}.`, { variant: 'success' });
+}
+
+async function resolveReturnPickup(returnID) {
+  const res = await apiFetch(`/api/v1/doc/LogisticsBooking?q=${encodeURIComponent(returnID)}&q_fields=return_request_id&limit=5`);
+  const rows = res && res.ok ? await res.json().catch(() => []) : [];
+  const b = (Array.isArray(rows) ? rows : []).find(x => x.return_request_id === returnID && x.awb_booking_state === 'uncertain');
+  if (!b) return;
+  const { resolveCourierBooking } = await import('./view-oms-steps.js' + new URL(import.meta.url).search);
+  await resolveCourierBooking(b);
 }
 
 // openReturnQCDialog is the inspection step: a disposition per line, and

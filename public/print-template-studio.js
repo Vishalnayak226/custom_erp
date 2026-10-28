@@ -34,7 +34,7 @@ const INSERTS = [
 ];
 const TYPE_LABEL = { text: 'Text', field: 'Field', block: 'Block', table: 'Items table', taxSummary: 'Tax summary', totals: 'Totals', image: 'Image', line: 'Line', box: 'Box', pageNo: 'Page number', qr: 'QR code' };
 const PAGES_LABEL = { first: 'first page', last: 'last page', all: 'every page' };
-const FORMATS = [['text', 'Text'], ['money', 'Money (1,23,456.00)'], ['qty', 'Quantity'], ['percent', 'Percent'], ['date', 'Date (dd-mm-yyyy)'], ['image', 'Picture']];
+const FORMATS = [['text', 'Text'], ['money', 'Money (1,23,456.00)'], ['qty', 'Quantity'], ['percent', 'Percent'], ['date', 'Date (Date order setting)'], ['image', 'Picture']];
 
 let S = null; // the open studio
 

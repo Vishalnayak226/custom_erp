@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 )
 
 // Module describes one row of the global public.modules catalog.
@@ -415,10 +417,41 @@ func ListModules() ([]Module, error) {
 // registration time the way the fixed module routes are. Missing metadata
 // and unassigned modules fail closed; custom types use their explicit core
 // default from the existing schema rather than an implicit access bypass.
+// doctypeModuleCache (Stage 49.18.8): which module a doctype belongs to,
+// asked on every doctype request. doctype_meta.module_key changes only in a
+// migration - the doctype upserts never touch it - so a cache sharing the
+// live-state window is safe. The entitlement read that follows stays fresh:
+// switching a module off still takes effect on the very next request.
+type doctypeModuleEntry struct {
+	module string
+	at     time.Time
+}
+
+var (
+	doctypeModuleMu    sync.RWMutex
+	doctypeModuleCache = map[string]doctypeModuleEntry{}
+)
+
+func clearDoctypeModuleCache() {
+	doctypeModuleMu.Lock()
+	doctypeModuleCache = map[string]doctypeModuleEntry{}
+	doctypeModuleMu.Unlock()
+}
+
 func ModuleForDoctype(tenantID string, doctype string) (string, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return "", err
+	}
+	key := schema + "|" + doctype
+	ttl := authStateCacheTTL()
+	if ttl > 0 {
+		doctypeModuleMu.RLock()
+		e, ok := doctypeModuleCache[key]
+		doctypeModuleMu.RUnlock()
+		if ok && time.Since(e.at) < ttl {
+			return e.module, nil
+		}
 	}
 
 	query := fmt.Sprintf("SELECT COALESCE(module_key, '') FROM %s.doctype_meta WHERE name = $1", schema)
@@ -432,6 +465,14 @@ func ModuleForDoctype(tenantID string, doctype string) (string, error) {
 	}
 	if moduleKey == "" {
 		return "", &ValidationError{Code: "SAAS-0191", Message: "Document type has no registered module"}
+	}
+	if ttl > 0 {
+		doctypeModuleMu.Lock()
+		if len(doctypeModuleCache) >= authStateCacheMaxEntries {
+			doctypeModuleCache = map[string]doctypeModuleEntry{}
+		}
+		doctypeModuleCache[key] = doctypeModuleEntry{module: moduleKey, at: time.Now()}
+		doctypeModuleMu.Unlock()
 	}
 	return moduleKey, nil
 }

@@ -698,6 +698,24 @@ func ProcessMarketplaceSettlement(tenantID string, channel string, settlementID 
 		return err
 	}
 
+	// Stage 135.21: the whole settlement - orders, journal, settlement record -
+	// is one transaction holding a lock on the settlement id, and a settlement
+	// whose journal is already posted is refused. The orders used to be
+	// committed first and nothing checked for a repeat, so a second call
+	// settled them again, and one sent with other amounts overwrote the saved
+	// settlement while the journal kept the first call's.
+	postingKey := fmt.Sprintf("MarketplaceSettlement:%s:RECONCILE", settlementID)
+	if _, err := tx.Exec(`SELECT pg_advisory_xact_lock(hashtext($1))`, "mktsettle:"+schema+":"+settlementID); err != nil {
+		return err
+	}
+	var reconciled bool
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT EXISTS(SELECT 1 FROM %s.gl_postings WHERE idempotency_key = $1)`, schema), postingKey).Scan(&reconciled); err != nil {
+		return err
+	}
+	if reconciled {
+		return fmt.Errorf("settlement %s has already been reconciled", settlementID)
+	}
+
 	// 2. Reconcile matched orders
 	for _, orderID := range orderIDs {
 		// Fetch the document and transition its status to 'Settled'
@@ -718,13 +736,7 @@ func ProcessMarketplaceSettlement(tenantID string, channel string, settlementID 
 		}
 	}
 
-	// 3. Commit order reconciliation updates
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-
-	// 4. Post balanced GL accounting entries
+	// 3. Post balanced GL accounting entries
 	// Debit: Cash/Bank (1100) -> netPayout
 	// Debit: Commission Expense (5200) -> commission
 	// Credit: Accounts Receivable (1300) -> totalSale
@@ -736,12 +748,12 @@ func ProcessMarketplaceSettlement(tenantID string, channel string, settlementID 
 		"1300": totalSale,
 	}
 
-	err = PostDoubleEntry(tenantID, "MarketplaceSettlement", settlementID, PaiseMap(debits), PaiseMap(credits), "", fmt.Sprintf("MarketplaceSettlement:%s:RECONCILE", settlementID))
+	err = PostDoubleEntryTx(tx, tenantID, schema, "MarketplaceSettlement", settlementID, PaiseMap(debits), PaiseMap(credits), "", postingKey)
 	if err != nil {
 		return fmt.Errorf("failed to write settlement GL postings: %v", err)
 	}
 
-	// 5. Save the MarketplaceSettlement document
+	// 4. Save the MarketplaceSettlement document
 	settlementDoc := map[string]interface{}{
 		"code":        settlementID,
 		"channel":     channel,
@@ -764,8 +776,10 @@ func ProcessMarketplaceSettlement(tenantID string, channel string, settlementID 
 			data = EXCLUDED.data, 
 			status = EXCLUDED.status, 
 			updated_at = CURRENT_TIMESTAMP`, schema)
-	_, err = db.DB.Exec(query, settlementID, settlementBytes)
-	return err
+	if _, err := tx.Exec(query, settlementID, settlementBytes); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // SeedReceivableBalance seeds Accounts Receivable for test transactions

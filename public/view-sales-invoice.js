@@ -39,6 +39,7 @@ export async function renderSalesInvoiceEntry(container, onDone) {
       ${field('si-date', 'Invoice date', 150, `type="date" value="${new Date().toISOString().slice(0, 10)}"`)}
       ${field('si-pos', 'Place of supply (state code)', 120, 'maxlength="2" placeholder="e.g. 29"')}
       ${field('si-due', 'Due date', 150, 'type="date"')}${field('si-ref', 'Customer reference', 150, 'placeholder="their PO no"')}
+      ${field('si-challan', 'Delivery challan', 150, 'placeholder="if already sent"')}
     </div>
     <div class="txn-hint" data-si="supply" style="margin-bottom:10px;"></div>
     <div class="table-wrapper"><table><thead><tr><th>Item</th><th>HSN</th><th class="num">Qty</th><th class="num">Rate (before GST)</th><th class="num">GST %</th><th class="num">Taxable</th><th class="num">GST</th><th class="num">Amount</th><th></th></tr></thead><tbody data-si="lines"></tbody></table></div>
@@ -119,7 +120,7 @@ export async function renderSalesInvoiceEntry(container, onDone) {
     btn.disabled = true;
     const res = await apiFetch('/api/v1/doc/SalesInvoice', { method: 'POST', body: JSON.stringify({
       customer: v('#si-customer'), customer_gstin: g.toUpperCase(), location: v('#si-store'), invoice_date: v('#si-date'), place_of_supply: v('#si-pos'),
-      due_date: v('#si-due'), customer_reference: v('#si-ref'), interstate: interstate(),
+      due_date: v('#si-due'), customer_reference: v('#si-ref'), delivery_challan: v('#si-challan'), interstate: interstate(),
       items: JSON.stringify(S.lines.map(l => ({ sku: l.sku, item_name: l.name, hsn_code: l.hsn, qty: num(l.qty), rate: num(l.rate), gst_rate: num(l.gst_rate), taxable: l.taxable, tax: l.tax, amount: r2(l.taxable + l.tax) }))),
       taxable_amount: S.totals.taxable, cgst: S.totals.cgst, sgst: S.totals.sgst, igst: S.totals.igst, total_tax: S.totals.tax, total_amount: S.totals.total, status: 'Draft' }) });
     btn.disabled = false;

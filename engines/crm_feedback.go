@@ -306,14 +306,17 @@ func SubmitCRMFeedback(tenantID, token string, score int, comment string) (*CRMF
 		return nil, err
 	}
 	if n, _ := res.RowsAffected(); n == 1 && score <= low {
-		tid, _ := tenantIDForSchema(schema)
-		desc := fmt.Sprintf("Feedback score %d of %d on bill %s.", score, hi, crmBillNumber(schema, billID))
-		if comment != "" {
-			desc += " The customer wrote: " + comment
-		}
-		ticket, err := CreateCRMTicket(tid, "feedback", CRMTicketInput{CustomerID: customerID, BillID: billID, Store: store, Channel: "Feedback", Description: desc, Priority: "High"})
-		if err == nil {
-			_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.crm_feedback SET ticket_id = $2 WHERE id = $1`, schema), id, ticket)
+		// Stage 49.3.2: the ticket is this client's - never the default
+		// client's, which an unresolved "" would have opened it on.
+		if tid, errTenant := tenantIDForSchema(schema); errTenant == nil {
+			desc := fmt.Sprintf("Feedback score %d of %d on bill %s.", score, hi, crmBillNumber(schema, billID))
+			if comment != "" {
+				desc += " The customer wrote: " + comment
+			}
+			ticket, err := CreateCRMTicket(tid, "feedback", CRMTicketInput{CustomerID: customerID, BillID: billID, Store: store, Channel: "Feedback", Description: desc, Priority: "High"})
+			if err == nil {
+				_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.crm_feedback SET ticket_id = $2 WHERE id = $1`, schema), id, ticket)
+			}
 		}
 		_ = RecordCRMEvent(schema, customerID, CRMEventFeedbackLow, id, map[string]interface{}{"score": score, "bill": billID})
 	}

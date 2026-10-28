@@ -1,0 +1,64 @@
+{
+  "_": "Stage 139.3: the short codes typed in the Ctrl+K box. Fixed for every client, never reused. code = 2-4 capital letters; menu = the sidebar entry it opens (its permissions apply); setup = a record list opened instead; doctype = the record type a number after the code looks up (SO 42); next = the code offered after a save (PO -> GRN). TestShortcutCodes checks this file; USER_GUIDE section 3A lists every code.",
+  "codes": [
+    { "code": "HOME", "name": "Home", "area": "Go to", "menu": "menu-home" },
+    { "code": "INB", "name": "My work and approvals", "area": "Go to", "menu": "menu-approvals" },
+    { "code": "RPT", "name": "Reports", "area": "Go to", "menu": "menu-reports" },
+    { "code": "HELP", "name": "Knowledge Center", "area": "Go to", "menu": "menu-knowledge-center" },
+
+    { "code": "POS", "name": "POS / Billing", "area": "Sales", "menu": "menu-pos", "doctype": "POSInvoice" },
+    { "code": "SO", "name": "Sales Order", "area": "Sales", "menu": "menu-oms", "doctype": "SalesOrder", "next": "PICK" },
+    { "code": "SI", "name": "Sales Invoice", "area": "Sales", "menu": "menu-sales-invoices", "doctype": "SalesInvoice" },
+    { "code": "SR", "name": "Sales Return", "area": "Sales", "menu": "menu-returns", "doctype": "SalesReturn" },
+    { "code": "CN", "name": "Credit Note", "area": "Sales", "menu": "menu-finance-notes", "doctype": "CreditNote" },
+    { "code": "DN", "name": "Debit Note", "area": "Sales", "menu": "menu-finance-notes", "doctype": "DebitNote" },
+    { "code": "EI", "name": "E-Invoice (IRN)", "area": "Sales", "menu": "menu-einvoice" },
+    { "code": "CUS", "name": "Customers", "area": "Sales", "menu": "menu-customers", "doctype": "Customer" },
+    { "code": "CRM", "name": "CRM", "area": "Sales", "menu": "menu-crm" },
+    { "code": "LOY", "name": "Loyalty", "area": "Sales", "menu": "menu-loyalty" },
+
+    { "code": "PRQ", "name": "Purchase Requisition", "area": "Buying", "menu": "menu-purchase-requisitions", "doctype": "PurchaseRequisition", "next": "RFQ" },
+    { "code": "RFQ", "name": "Request for Quotation", "area": "Buying", "menu": "menu-rfq", "doctype": "RFQ", "next": "PO" },
+    { "code": "PO", "name": "Purchase Order", "area": "Buying", "menu": "menu-purchase-orders", "doctype": "PurchaseOrder", "next": "GRN" },
+    { "code": "ASN", "name": "Advance Shipment Notice", "area": "Buying", "menu": "menu-asn", "doctype": "ASN", "next": "GRN" },
+    { "code": "GRN", "name": "Goods Receipt", "area": "Buying", "menu": "menu-grn", "doctype": "GRN", "next": "VI" },
+    { "code": "PR", "name": "Purchase Return", "area": "Buying", "menu": "menu-purchase-returns", "doctype": "PurchaseReturn" },
+    { "code": "VI", "name": "Vendor Invoice", "area": "Buying", "menu": "menu-vendor-invoices", "doctype": "VendorInvoice", "next": "PAY" },
+    { "code": "VEN", "name": "Vendors", "area": "Buying", "menu": "menu-vendors", "doctype": "Vendor" },
+
+    { "code": "SOH", "name": "Stock on Hand", "area": "Stock", "menu": "menu-inventory" },
+    { "code": "SL", "name": "Inventory Ledger", "area": "Stock", "menu": "menu-inventory-ledger" },
+    { "code": "TO", "name": "Stock Movement (Transfer Order)", "area": "Stock", "menu": "menu-transfers", "doctype": "TransferOrder" },
+    { "code": "SA", "name": "Stock Adjustment", "area": "Stock", "menu": "menu-inventory-adjustments", "doctype": "InventoryAdjustment" },
+    { "code": "MRP", "name": "MRP Change", "area": "Stock", "menu": "menu-inventory-mrp", "doctype": "MRPChange" },
+    { "code": "MI", "name": "Material Issue", "area": "Stock", "menu": "menu-inventory-materials", "doctype": "MaterialIssue" },
+    { "code": "DC", "name": "Delivery Challan", "area": "Stock", "menu": "menu-inventory-challans", "doctype": "DeliveryChallan" },
+    { "code": "MS", "name": "Move Stock", "area": "Stock", "menu": "menu-stock-moves", "doctype": "StockMove" },
+    { "code": "CC", "name": "Cycle Count", "area": "Stock", "menu": "menu-cycle-count" },
+    { "code": "STK", "name": "Sticker Printing", "area": "Stock", "menu": "menu-stickers" },
+    { "code": "ITM", "name": "Items", "area": "Stock", "setup": "Item", "doctype": "Item" },
+
+    { "code": "PUT", "name": "Putaway", "area": "Warehouse", "menu": "menu-putaway" },
+    { "code": "PICK", "name": "Pick", "area": "Warehouse", "menu": "menu-oms-pick", "next": "PACK" },
+    { "code": "PACK", "name": "Pack", "area": "Warehouse", "menu": "menu-oms-pack", "next": "SHIP" },
+    { "code": "SHIP", "name": "Ship", "area": "Warehouse", "menu": "menu-oms-ship" },
+    { "code": "WAVE", "name": "Wave / Batch Picking", "area": "Warehouse", "menu": "menu-wave-picking" },
+
+    { "code": "GL", "name": "Finance / GL", "area": "Money", "menu": "menu-finance" },
+    { "code": "JV", "name": "Journal Voucher", "area": "Money", "menu": "menu-journal-vouchers", "doctype": "JournalVoucher" },
+    { "code": "PAY", "name": "Payment Proposal", "area": "Money", "menu": "menu-payment-proposals", "doctype": "PaymentProposal" },
+    { "code": "BR", "name": "Bank Reconciliation", "area": "Money", "menu": "menu-bank-reconciliation" },
+    { "code": "EXP", "name": "Expense Claim", "area": "Money", "menu": "menu-expenses", "doctype": "ExpenseClaim" },
+    { "code": "FA", "name": "Fixed Assets", "area": "Money", "menu": "menu-assets", "doctype": "Asset" },
+
+    { "code": "PRO", "name": "Production Order", "area": "Making", "menu": "menu-manufacturing", "doctype": "ProductionOrder" },
+    { "code": "JW", "name": "Job Work", "area": "Making", "menu": "menu-mfg-subcontracting", "doctype": "SubcontractOrder" },
+    { "code": "QI", "name": "Quality Inspection", "area": "Making", "menu": "menu-mfg-quality", "doctype": "QualityInspection" },
+    { "code": "HR", "name": "HR", "area": "People", "menu": "menu-hr" },
+
+    { "code": "USR", "name": "Users", "area": "Admin", "menu": "menu-users" },
+    { "code": "ROLE", "name": "Roles", "area": "Admin", "menu": "menu-roles" },
+    { "code": "CFG", "name": "Configuration", "area": "Admin", "menu": "menu-configuration" },
+    { "code": "NUM", "name": "Number series (Prefix Configs)", "area": "Admin", "menu": "menu-prefix-configs" }
+  ]
+}

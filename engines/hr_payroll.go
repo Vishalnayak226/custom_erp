@@ -206,8 +206,17 @@ func PostPayslipToGL(tenantID, payslipID, actorUserID string) error {
 	if err != nil {
 		return err
 	}
+	// Stage 135.21: the payslip is read under its row lock and posted, its
+	// loans reduced and itself marked Posted in this one transaction. Read
+	// outside it, two posts at once both saw Draft: the journal is keyed, the
+	// loan deduction is not, so the loan came down twice.
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 	var dataStr, status string
-	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE doctype = 'Payslip' AND id = $1`, schema), payslipID).Scan(&dataStr, &status); err != nil {
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE doctype = 'Payslip' AND id = $1 FOR UPDATE`, schema), payslipID).Scan(&dataStr, &status); err != nil {
 		return fmt.Errorf("payslip not found: %v", err)
 	}
 	if status != "Draft" {
@@ -225,11 +234,6 @@ func PostPayslipToGL(tenantID, payslipID, actorUserID string) error {
 		return &ValidationError{Code: "HRPAYR-0155", Message: fmt.Sprintf("employee %s has no bank account on file - add bank details before disbursing salary", employeeID)}
 	}
 
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
 	if err := db.SetSearchPath(tx, schema); err != nil {
 		return err
 	}
@@ -272,7 +276,7 @@ func PostPayslipToGL(tenantID, payslipID, actorUserID string) error {
 		delete(credits, "2400")
 	}
 	debits := map[string]int64{"5500": gross}
-	if err := PostDoubleEntry(tenantID, "Payslip", payslipID, debits, credits, periodTo, fmt.Sprintf("Payslip:%s:POST", payslipID)); err != nil {
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "Payslip", payslipID, debits, credits, periodTo, fmt.Sprintf("Payslip:%s:POST", payslipID)); err != nil {
 		return fmt.Errorf("GL posting failed, payslip not marked Posted: %v", err)
 	}
 
@@ -310,8 +314,17 @@ func DisburseEmployeeLoan(tenantID, loanID, actorUserID string) error {
 	if err != nil {
 		return err
 	}
+	// Stage 135.21: read, posted and saved under the loan's row lock in one
+	// transaction, so a second disbursal waits, then finds it Active and stops
+	// - before, it could also reset outstanding_balance to the principal after
+	// a payslip had already reduced it.
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 	var dataStr, status string
-	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE doctype = 'EmployeeLoan' AND id = $1`, schema), loanID).Scan(&dataStr, &status); err != nil {
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE doctype = 'EmployeeLoan' AND id = $1 FOR UPDATE`, schema), loanID).Scan(&dataStr, &status); err != nil {
 		return fmt.Errorf("loan not found: %v", err)
 	}
 	if status == "Active" || status == "Closed" {
@@ -328,7 +341,7 @@ func DisburseEmployeeLoan(tenantID, loanID, actorUserID string) error {
 
 	debits := map[string]int{"1600": principal}
 	credits := map[string]int{"1100": principal}
-	if err := PostDoubleEntry(tenantID, "EmployeeLoan", loanID, PaiseMap(debits), PaiseMap(credits), "", fmt.Sprintf("EmployeeLoan:%s:DISBURSE", loanID)); err != nil {
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "EmployeeLoan", loanID, PaiseMap(debits), PaiseMap(credits), "", fmt.Sprintf("EmployeeLoan:%s:DISBURSE", loanID)); err != nil {
 		return fmt.Errorf("GL posting failed, loan not disbursed: %v", err)
 	}
 
@@ -338,7 +351,10 @@ func DisburseEmployeeLoan(tenantID, loanID, actorUserID string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = $1, status = 'Active', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'EmployeeLoan' AND id = $2`, schema), marshaled, loanID); err != nil {
+	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = $1, status = 'Active', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'EmployeeLoan' AND id = $2`, schema), marshaled, loanID); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
 		return err
 	}
 	LogAuditEvent(tenantID, actorUserID, "EMPLOYEE_LOAN_DISBURSED", "SUCCESS", fmt.Sprintf("Loan %s disbursed, principal %d", loanID, principal))

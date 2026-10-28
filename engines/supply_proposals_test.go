@@ -49,7 +49,7 @@ func TestSupplyProposalsStage73218(t *testing.T) {
 	}{{"SP-TEE", 120}, {"SP-CAP", 60}, {"SP-KIT", 0}, {"SP-CLOTH", 15}} {
 		insert("ITEM-"+i.sku, "Item", "Active", map[string]interface{}{"code": i.sku, "name": i.sku + " item", "standard_cost": i.cost})
 	}
-	insert("SP-VEND", "Vendor", "Active", map[string]interface{}{"code": "SP-VEND", "name": "Proposal Vendor"})
+	insert("SP-VEND", "Vendor", "Active", map[string]interface{}{"code": "SP-VEND", "name": "Proposal Vendor", "state": "Maharashtra"}) // 49.5.6b
 	insert("BOM-SP-KIT", "BOM", "Active", map[string]interface{}{"parent_item": "SP-KIT", "is_default": "Yes",
 		"components": `[{"sku":"SP-CLOTH","qty":2}]`})
 	stock("SP-TEE", wh, 2)     // safety 10 -> reorder 8

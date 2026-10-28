@@ -266,7 +266,13 @@ type tenantGateEntry struct {
 	// trialEndsAt (Stage 65.6) is compared on every read, not at fetch time,
 	// so a trial that runs out inside the cache window still stops on time.
 	trialEndsAt *time.Time
-	fetchedAt   time.Time
+	// Stage 49.18.8: the sandbox flag and expiry sit on the same registry row,
+	// so the middleware's per-request sandbox check reads them from here
+	// instead of querying the row again. Compared on every read, like the
+	// trial end.
+	isSandbox        bool
+	sandboxExpiresAt *time.Time
+	fetchedAt        time.Time
 }
 
 var (
@@ -312,8 +318,9 @@ func TenantIsOperational(tenantID string) (bool, error) {
 	}
 
 	var status string
-	var trialEnds sql.NullTime
-	err := db.DB.QueryRow(`SELECT lifecycle_status, trial_ends_at FROM public.tenants WHERE tenant_id = $1`, canonical).Scan(&status, &trialEnds)
+	var trialEnds, sandboxExpires sql.NullTime
+	var isSandbox bool
+	err := db.DB.QueryRow(`SELECT lifecycle_status, trial_ends_at, COALESCE(is_sandbox, FALSE), sandbox_expires_at FROM public.tenants WHERE tenant_id = $1`, canonical).Scan(&status, &trialEnds, &isSandbox, &sandboxExpires)
 	switch {
 	case err == sql.ErrNoRows:
 		cacheTenantGate(canonical, tenantGateEntry{registered: false}, ttl)
@@ -332,8 +339,41 @@ func TenantIsOperational(tenantID string) (bool, error) {
 	if trialEnds.Valid {
 		trialEndsAt = &trialEnds.Time
 	}
-	cacheTenantGate(canonical, tenantGateEntry{operational: operational, registered: true, trialEndsAt: trialEndsAt}, ttl)
+	entry := tenantGateEntry{operational: operational, registered: true, trialEndsAt: trialEndsAt, isSandbox: isSandbox}
+	if sandboxExpires.Valid {
+		entry.sandboxExpiresAt = &sandboxExpires.Time
+	}
+	cacheTenantGate(canonical, entry, ttl)
 	return operational && !trialOver(trialEndsAt), nil
+}
+
+// tenantGateSandbox is the tenant's sandbox flag and expiry from the gate
+// entry TenantIsOperational keeps (49.18.8) - refreshed by that call when the
+// entry is stale, read straight from the row when the cache is off.
+func tenantGateSandbox(tenantID string) (bool, *time.Time) {
+	canonical := tenantID
+	if canonical == "" {
+		canonical = "default"
+	}
+	if db.DB == nil {
+		return false, nil
+	}
+	if authStateCacheTTL() > 0 {
+		if _, err := TenantIsOperational(canonical); err == nil || errors.Is(err, ErrTenantNotRegistered) {
+			tenantGateMu.RLock()
+			entry, ok := tenantGateCache[canonical]
+			tenantGateMu.RUnlock()
+			if ok {
+				return entry.isSandbox, entry.sandboxExpiresAt
+			}
+		}
+	}
+	var isSandbox bool
+	var expires sql.NullTime
+	if err := db.DB.QueryRow(`SELECT COALESCE(is_sandbox, FALSE), sandbox_expires_at FROM public.tenants WHERE tenant_id = $1`, canonical).Scan(&isSandbox, &expires); err != nil || !expires.Valid {
+		return isSandbox, nil
+	}
+	return isSandbox, &expires.Time
 }
 
 func cacheTenantGate(tenantID string, entry tenantGateEntry, ttl time.Duration) {

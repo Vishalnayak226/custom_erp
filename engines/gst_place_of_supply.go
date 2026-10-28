@@ -246,11 +246,13 @@ func ResolvePlaceOfSupply(tenantID, locationCode, vendorID string) PlaceOfSupply
 // ApplyPlaceOfSupply stamps the derived supply type onto a PurchaseOrder
 // payload in place, and returns what it derived.
 //
-// It respects an explicit human override: once interstate_override is set on
-// the document, the derivation is reported but never overwrites `interstate`.
-// That is what makes the checkbox on the PO screen meaningful - a maker who
-// knows about a bill-to/ship-to split that the two master records do not
-// capture can still say so, and their choice survives the next save.
+// Stage 49.5.6b: the derivation always decides. A client's `interstate` and
+// `interstate_override` are ignored - the override column stays for the POs
+// saved before, and is stored false - so the GST split is never a maker's
+// tick. A vendor with no state is refused before this runs
+// (RequirePOVendorState); a store whose state is not recorded leaves the
+// supply underived, and the PO is intra-state until it is (the PO screen asks
+// for the store's state).
 func ApplyPlaceOfSupply(tenantID string, payload map[string]interface{}) PlaceOfSupply {
 	location, _ := payload["location"].(string)
 	vendor, _ := payload["vendor"].(string)
@@ -260,13 +262,8 @@ func ApplyPlaceOfSupply(tenantID string, payload map[string]interface{}) PlaceOf
 
 	pos := ResolvePlaceOfSupply(tenantID, location, vendor)
 	payload["place_of_supply"] = pos.Summary()
-
-	if truthy(payload["interstate_override"]) {
-		return pos
-	}
-	if pos.Derived {
-		payload["interstate"] = pos.Interstate
-	}
+	payload["interstate"] = pos.Derived && pos.Interstate
+	payload["interstate_override"] = false
 	return pos
 }
 

@@ -160,10 +160,17 @@ async function renderDocTableView(container) {
       ${currentDoctype === 'Item' ? `<button class="btn btn-outline" id="pim-group-actions-btn" title="Act on a saved Product Group instead of hand-picking rows">Group Actions</button>` : ''}
       ${isPIMBulkEditDoctype() ? `<div class="bulk-edit-bar hidden" id="pim-bulk-edit-bar"><span id="pim-bulk-selection-count">0 selected</span><button class="btn btn-outline" id="pim-bulk-edit-button" disabled>Edit Selected</button>${currentDoctype === 'ProductContent' ? `<button class="btn btn-primary" id="pim-bulk-approve-button" disabled>Approve Selected</button><button class="btn btn-outline" id="pim-bulk-reject-button" disabled>Reject Selected</button>` : ''}</div>` : ''}
     </div>
+    ${!isPIMBulkEditDoctype() && currentDoctype !== 'PasswordResetRequest' ? `<div class="bulk-edit-bar hidden" id="doc-bulk-bar" style="padding:0 16px 10px;">
+      <span id="doc-bulk-count">0 ticked</span>
+      <button class="btn btn-outline btn-sm" data-doc-bulk="export">Export</button>
+      ${GENERIC_SUBMIT_DOCTYPES.has(currentDoctype) && canUpdateDoctype(currentDoctype) ? '<button class="btn btn-outline btn-sm" data-doc-bulk="submit">Submit for approval</button>' : ''}
+      ${canDeleteDoctype(currentDoctype) ? '<button class="btn btn-outline btn-sm" data-doc-bulk="delete">Delete</button>' : ''}
+    </div>` : ''}
     <div class="table-wrapper" id="doc-table-wrapper"></div>
     <div class="pagination" id="doc-table-pagination"></div>
   `;
   container.appendChild(panel);
+  panel.querySelectorAll('[data-doc-bulk]').forEach(b => b.addEventListener('click', () => runDocBulk(b.dataset.docBulk, b)));
   panel.querySelector('#doc-table-search')?.addEventListener('input', handleTableSearch);
   panel.querySelector('#pim-group-actions-btn')?.addEventListener('click', openPIMProductGroupActionsModal);
   panel.querySelector('#pim-bulk-edit-button')?.addEventListener('click', openPIMBulkEditModal);
@@ -213,7 +220,18 @@ async function refreshDocTablePage() {
   const focusedId = document.activeElement && document.activeElement.id;
 
   docTableLoading = true;
-  renderDocTable();
+  // BLD-045: the rows on screen stay until the new page arrives; only the
+  // pager and the selection boxes (a search clears the selection) change.
+  const wrapper = document.getElementById('doc-table-wrapper');
+  if (wrapper && wrapper.querySelector('tbody')) {
+    const boxes = [...wrapper.querySelectorAll('[data-pim-doc-id]')];
+    boxes.forEach(b => { b.checked = bulkSelectedDocIDs.has(b.dataset.pimDocId); });
+    const all = wrapper.querySelector('[data-pim-select-page]');
+    if (all) all.checked = boxes.length > 0 && boxes.every(b => b.checked);
+    renderDocTablePager();
+  } else {
+    renderDocTable();
+  }
 
   const params = docTableListParams(page, search);
   const dataRes = await apiFetch(`/api/v1/doc/${doctype}?${params.toString()}`);
@@ -246,27 +264,51 @@ async function refreshDocTablePage() {
   }
 }
 
+// 50.20 (c), user 2026-10-27: a list shows a record's key columns, not every
+// field - the Item list drew all 44 (2,200 cells a page, about 1.3 s a render
+// under BLD-045's throttled profile). Identifier, names and status first,
+// then mandatory fields, then the rest in form order, up to LIST_MAX_COLUMNS;
+// line tables, JSON and long text never. Shown in form order; the record
+// itself still opens with every field, and search still covers them all.
+const LIST_MAX_COLUMNS = 8;
+const LIST_SKIP_TYPES = new Set(['JSONTable', 'JSONMap', 'JSON', 'Text']);
+function listColumns() {
+  const fields = state.activeDocFields || [];
+  if (fields.length <= LIST_MAX_COLUMNS) return fields;
+  const rank = f => {
+    const n = String(f.fieldname || '').toLowerCase();
+    if (n === 'code' || n === 'id') return 0;
+    if (/(^|_)(name|title)$/.test(n)) return 1;
+    if (n === 'status') return 2;
+    return f.mandatory ? 3 : 4;
+  };
+  const picked = fields.map((f, i) => ({ f, i }))
+    .filter(x => !LIST_SKIP_TYPES.has(x.f.fieldtype))
+    .sort((a, b) => rank(a.f) - rank(b.f) || a.i - b.i)
+    .slice(0, LIST_MAX_COLUMNS)
+    .sort((a, b) => a.i - b.i)
+    .map(x => x.f);
+  return picked.length ? picked : fields.slice(0, LIST_MAX_COLUMNS);
+}
+
 function renderDocTable() {
   const wrapper = document.getElementById('doc-table-wrapper');
-  const paginator = document.getElementById('doc-table-pagination');
   if (!wrapper) return;
 
   // BLD-034: state.docData is already exactly one page of server-filtered/
   // paginated rows (see refreshDocTablePage/renderDocTableView) - no more
   // client-side filtering or slicing over a locally-fetched batch here.
   const items = state.docData;
-  const total = state.docTotal;
-  const pages = Math.max(1, Math.ceil(total / itemsPerPage));
-  const start = (currentTablePage - 1) * itemsPerPage;
-  const end = Math.min(start + items.length, total);
-  const bulkEditingEnabled = isPIMBulkEditDoctype();
+  // Stage 139.6e: every list ticks rows (PIM's bulk edit, or the bulk bar).
+  const bulkEditingEnabled = currentDoctype !== 'PasswordResetRequest';
+  const cols = listColumns();
 
   let tableHTML = `
     <table>
       <thead>
         <tr>
           ${bulkEditingEnabled ? `<th style="width: 42px;"><input type="checkbox" aria-label="Select all visible records" data-pim-select-page ${items.length > 0 && items.every(item => bulkSelectedDocIDs.has(item.id)) ? 'checked' : ''}></th>` : ''}
-          ${state.activeDocFields.map(f => `<th>${escapeHTMLText(getTranslatedLabel(f.label))}</th>`).join('')}
+          ${cols.map(f => `<th>${escapeHTMLText(getTranslatedLabel(f.label))}</th>`).join('')}
           ${currentDoctype === 'PurchaseRequisition' ? '<th>Next document</th>' : ''}
           <th class="row-actions-cell" style="text-align: right;">Actions</th>
         </tr>
@@ -284,14 +326,14 @@ function renderDocTable() {
     const emptyMsg = currentSearchQuery
       ? `No ${label} records match &ldquo;${escapeHTMLText(currentSearchQuery)}&rdquo;. Clear the search box above to see all of them.`
       : `No ${label} records yet. Use <b>New ${label}</b> above to create the first one, or <b>Bulk Import</b> to load a CSV.`;
-    tableHTML += `<tr><td colspan="${state.activeDocFields.length + 1 + (bulkEditingEnabled ? 1 : 0) + (currentDoctype === 'PurchaseRequisition' ? 1 : 0)}" class="text-center py-8 text-muted">${emptyMsg}</td></tr>`;
+    tableHTML += `<tr><td colspan="${cols.length + 1 + (bulkEditingEnabled ? 1 : 0) + (currentDoctype === 'PurchaseRequisition' ? 1 : 0)}" class="text-center py-8 text-muted">${emptyMsg}</td></tr>`;
   } else {
     items.forEach(row => {
       tableHTML += `<tr>`;
       if (bulkEditingEnabled) {
         tableHTML += `<td><input type="checkbox" aria-label="Select ${escapeHTMLText(row.id)}" data-pim-doc-id="${escapeHTMLText(row.id)}" ${bulkSelectedDocIDs.has(row.id) ? 'checked' : ''}></td>`;
       }
-      state.activeDocFields.forEach(f => {
+      cols.forEach(f => {
         const val = row[f.fieldname] || '';
         if (f.fieldname === 'status') {
           const cls = val === 'Active' ? 'badge-success' : 'badge-secondary';
@@ -310,6 +352,9 @@ function renderDocTable() {
             ? lines.map(l => (l && typeof l === 'object') ? [l[key] ?? Object.values(l)[0], l.quantity ?? l.qty].filter(v => v !== undefined && v !== '').join(' × ') : String(l)).join(', ')
             : String(val);
           tableHTML += `<td title="${escapeHTMLText(text)}">${escapeHTMLText(Array.isArray(lines) && text.length > 60 ? `${lines.length} lines` : text)}</td>`;
+        } else if (f.fieldtype === 'Date' && val) {
+          // Stage 47.14.2: "03 Feb 2026", never a 03/02 that reads both ways.
+          tableHTML += `<td>${copyableCell(formatDay(val), val)}</td>`;
         } else {
           tableHTML += `<td>${copyableCell(val, val)}</td>`;
         }
@@ -369,7 +414,8 @@ function renderDocTable() {
         // Stage 26.8.8/26.8.10: Appraisal/Grievance are the same "flat
         // doctype, only the submit-for-approval action is bespoke" shape
         // QualityInspection already uses above.
-        : (currentDoctype === 'Appraisal' || currentDoctype === 'Grievance' || currentDoctype === 'HoldReleaseRequest' || currentDoctype === 'SupplierSubmission') && row.status === 'Draft'
+        // 135.12: PriceListVersion too - this list is its only screen.
+        : (currentDoctype === 'Appraisal' || currentDoctype === 'Grievance' || currentDoctype === 'HoldReleaseRequest' || currentDoctype === 'SupplierSubmission' || currentDoctype === 'PriceListVersion') && row.status === 'Draft'
         ? `<button class="action-btn" title="Submit for Approval" aria-label="Submit ${escapeHTMLText(row.id)} for approval" style="margin-right:4px;" data-doc-action="submit-document" data-doc-id="${escapeHTMLText(row.id)}" data-doctype="${escapeHTMLText(currentDoctype)}">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
            </button>`
@@ -407,6 +453,10 @@ function renderDocTable() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </button>` : ''}
           ${prActions}
+          ${currentDoctype !== 'PasswordResetRequest' && canCreateDoctype(currentDoctype) ? `
+          <button class="action-btn" title="Copy: a new record with these details" aria-label="Copy ${escapeHTMLText(row.id)}" style="margin-right:4px;" data-doc-action="copy" data-doc-id="${escapeHTMLText(row.id)}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>` : ''}
           ${currentDoctype !== 'PasswordResetRequest' && canUpdateDoctype(currentDoctype) ? `
           <button class="action-btn" title="Edit" aria-label="Edit ${escapeHTMLText(row.id)}" style="margin-right:4px;" data-doc-action="edit" data-doc-id="${escapeHTMLText(row.id)}">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -452,6 +502,7 @@ function renderDocTable() {
         case 'share-pim-catalog': window.openPIMCatalogShareModal?.(id, button.dataset.docName); break;
         case 'shopify-setup': loadViewModule('./view-shopify.js').then(m => m.renderShopifyPage(document.getElementById('view-root'), id)).catch(() => showToast('The Shopify page could not load. Refresh and try again.', { variant: 'error' })); break;
         case 'taxonomy-history': window.viewTaxonomyHistory?.(id); break;
+        case 'copy': window.copyRecord?.(currentDoctype, id); break;
         case 'edit': window.editDocRecord?.(id); break;
         case 'delete': window.deleteDocRecord?.(id); break;
       }
@@ -463,7 +514,19 @@ function renderDocTable() {
     });
   }
   updatePIMBulkEditBar();
+  renderDocTablePager();
+}
 
+// BLD-045: the pager on its own, so a search or page change can show
+// "loading" without rebuilding all 50 rows first (that doubled the render
+// cost of every search keystroke burst and every page click).
+function renderDocTablePager() {
+  const paginator = document.getElementById('doc-table-pagination');
+  if (!paginator) return;
+  const total = state.docTotal;
+  const pages = Math.max(1, Math.ceil(total / itemsPerPage));
+  const start = (currentTablePage - 1) * itemsPerPage;
+  const end = Math.min(start + state.docData.length, total);
   paginator.innerHTML = `
     <span>Showing ${total === 0 ? 0 : start + 1}-${end} of ${total}${docTableLoading ? ' — loading…' : ''}</span>
     <div class="pagination-buttons">
@@ -493,6 +556,11 @@ function visibleDocTableItems() {
 }
 
 function updatePIMBulkEditBar() {
+  const generic = document.getElementById('doc-bulk-bar');
+  if (generic) {
+    generic.classList.toggle('hidden', bulkSelectedDocIDs.size === 0);
+    document.getElementById('doc-bulk-count').textContent = `${bulkSelectedDocIDs.size} ticked`;
+  }
   const bar = document.getElementById('pim-bulk-edit-bar');
   const count = document.getElementById('pim-bulk-selection-count');
   const button = document.getElementById('pim-bulk-edit-button');
@@ -542,16 +610,72 @@ window.bulkDecideProductContent = async function(decision) {
 window.togglePIMBulkDocSelection = function(id, selected) {
   if (selected) bulkSelectedDocIDs.add(id);
   else bulkSelectedDocIDs.delete(id);
+  const row = visibleDocTableItems().find(r => r.id === id);
+  if (row) bulkSelectedRows.set(id, row);
   updatePIMBulkEditBar();
 };
 
 window.togglePIMBulkPageSelection = function(selected) {
   visibleDocTableItems().forEach(row => {
-    if (selected) bulkSelectedDocIDs.add(row.id);
+    if (selected) { bulkSelectedDocIDs.add(row.id); bulkSelectedRows.set(row.id, row); }
     else bulkSelectedDocIDs.delete(row.id);
   });
   renderDocTable();
 };
+
+// Stage 139.6e: what can be done to every ticked row of a record list. Export
+// is the ticked rows as a CSV (rows ticked on other pages included); Submit
+// and Delete go through the same endpoint as the row's own button, one row
+// after another - up to 40 a run, as the session's request budget is 60 a
+// minute.
+const GENERIC_SUBMIT_DOCTYPES = new Set(['Appraisal', 'Grievance', 'HoldReleaseRequest', 'SupplierSubmission', 'QualityInspection', 'PurchaseRequisition']);
+const bulkSelectedRows = new Map();
+const BULK_RUN_LIMIT = 40;
+async function runDocBulk(kind, button) {
+  const ids = [...bulkSelectedDocIDs];
+  if (!ids.length) return;
+  const label = getDoctypeLabel(currentDoctype);
+  if (kind === 'export') {
+    const fields = state.activeDocFields;
+    const cell = v => {
+      const s = v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
+      return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = [['ID', ...fields.map(f => getTranslatedLabel(f.label))],
+      ...ids.map(id => bulkSelectedRows.get(id) || { id }).map(r => [r.id, ...fields.map(f => r[f.fieldname])])];
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + lines.map(l => l.map(cell).join(',')).join('\r\n')], { type: 'text/csv' }));
+    a.download = `${label.replace(/[^A-Za-z0-9]+/g, '-')}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    return;
+  }
+  const todo = ids.slice(0, BULK_RUN_LIMIT);
+  const verb = kind === 'delete' ? 'Delete' : 'Submit for approval';
+  const rest = ids.length - todo.length;
+  if (!await showCustomConfirm(`${verb}: ${todo.length} ticked ${label} record${todo.length === 1 ? '' : 's'}?${rest ? ` The other ${rest} can be done in a second run.` : ''}`, verb)) return;
+  button.disabled = true;
+  let done = 0;
+  const failed = [];
+  try {
+    for (const id of todo) {
+      const res = kind === 'delete'
+        ? await apiFetch(`/api/v1/doc/${encodeURIComponent(currentDoctype)}/${encodeURIComponent(id)}`, { method: 'DELETE' })
+        : await apiFetch('/api/v1/approval/submit', { method: 'POST', body: JSON.stringify({ doctype: currentDoctype, document_id: id }) });
+      if (res && res.ok) done++;
+      else failed.push(id);
+    }
+  } finally {
+    button.disabled = false;
+  }
+  const did = kind === 'delete' ? 'deleted' : 'submitted for approval';
+  showToast(failed.length
+    ? `${done} ${did}. Not done: ${failed.slice(0, 5).join(', ')}${failed.length > 5 ? '…' : ''} - open one to see why.`
+    : `${done} ${did}.`, { variant: failed.length ? 'warning' : 'success', ms: 8000 });
+  renderView('doctype-table');
+}
 
 // submitRequisitionForApproval (Stage 26.3.2) posts through the same
 // generic /api/v1/approval/submit endpoint submitPOForApproval/

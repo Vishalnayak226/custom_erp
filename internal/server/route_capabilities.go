@@ -223,6 +223,7 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/hr/payroll-export":                                 {LevelAuthenticated, "hr.payroll"},
 	"GET /api/v1/hr/salary-components":                              {LevelAuthenticated, "hr.payroll"},
 	"GET /api/v1/import/{doctype}/template":                         {LevelAuthenticated, "import.default"},
+	"GET /api/v1/doc-find":                                          {LevelAuthenticated, "doc.default"},      // Stage 139.3
 	"GET /api/v1/inbox":                                             {LevelAuthenticated, "approval.default"}, // Stage 73.3.3
 	"GET /api/v1/integration/logs":                                  {LevelAuthenticated, "integration.default"},
 	"GET /api/v1/jobs":                                              {LevelAuthenticated, "jobs.default"},
@@ -640,6 +641,7 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/marketplace/couriers/{provider}/cancel":           {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/marketplace/couriers/{provider}/credentials":      {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/marketplace/couriers/{provider}/pickup":           {LevelAuthenticated, "oms.default"},
+	"POST /api/v1/marketplace/couriers/{provider}/resolve":          {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/marketplace/logistics/book":                       {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/marketplace/logistics/manifest":                   {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/marketplace/logistics/manifest/handover":          {LevelAuthenticated, "oms.default"},
@@ -771,6 +773,10 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/inventory/attribute-value":                        {LevelAuthenticated, "doc.default"},       // Stage 89, ItemAttribute update/create in handler
 	"POST /api/v1/pos/price-override":                               {LevelAuthenticated, "pos.price_override"},
 	"POST /api/v1/pos/offline-heartbeat":                            {LevelAuthenticated, "pos.default"},
+	"GET /api/v1/pos/offline-sales":                                 {LevelAuthenticated, "pos.offline_validate"},
+	"GET /api/v1/pos/offline-sales/{id}":                            {LevelAuthenticated, "pos.offline_validate"},
+	"POST /api/v1/pos/offline-sales/{id}/validate":                  {LevelAuthenticated, "pos.offline_validate"},
+	"POST /api/v1/pos/offline-sales/{id}/reject":                    {LevelAuthenticated, "pos.offline_validate"},
 	"POST /api/v1/pos/session/close":                                {LevelAuthenticated, "pos.default"},
 	"POST /api/v1/pos/session/open":                                 {LevelAuthenticated, "pos.default"},
 	"POST /api/v1/print/qz/log":                                     {LevelAuthenticated, "stickers.default"},
@@ -1023,6 +1029,7 @@ var restrictedCapabilities = []string{
 	"audit.logs", "system.logs", "finance.statements",
 	"assets.manage", "hr.payroll", "expenses.manage",
 	"pos.price_override",
+	"pos.offline_validate", // Stage 49.5.6a: POS > Offline Sales, new routes
 }
 
 var capabilityRoleAllowlist = func() map[string][]string {

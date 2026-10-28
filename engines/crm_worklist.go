@@ -701,10 +701,11 @@ func ListCRMHolds(tenantID string, f map[string]string) ([]CRMHoldRequest, error
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	tid, _ := tenantIDForSchema(schema)
 	for i := range out {
 		if access, err := crmFullStoreAccess(); err == nil {
-			if stock, _, err := storeAppStock(tid, schema, access, out[i].Store, out[i].ItemCode); err == nil {
+			// Stage 49.3.2: the caller's own client - a schema lookup that
+			// failed used to hand "" (the default client's stores) on.
+			if stock, _, err := storeAppStock(tenantID, schema, access, out[i].Store, out[i].ItemCode); err == nil {
 				for _, st := range stock {
 					if st.Store == out[i].Store {
 						v := float64(st.Available)

@@ -334,7 +334,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '67';
+const VIEW_MODULE_VERSION = '68';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -400,6 +400,7 @@ const LAZY_VIEW_MODULES = {
   stickers: ['view-printing.js', 'renderStickersView', 'Sticker Printing'],
   // Stage 127.6: every document printed, by the client's modules; print it again.
   reprint: ['view-reprint.js', 'renderReprintView', 'Reprint'],
+  'offline-sales': ['view-offline-sales.js', 'renderOfflineSalesView', 'Offline Sales', 'txn-screen.css'], // 49.5.6a
   hr: ['view-hr.js', 'renderHRView', 'HR'],
   assets: ['view-assets.js', 'renderAssetsView', 'Fixed Assets'],
   transfers: ['view-transfers.js', 'renderTransfersView', 'Stock Movement', 'txn-screen.css'],
@@ -990,6 +991,8 @@ async function apiFetchOnce(url, options = {}, retried = false) {
     return null;
   }
   if (!response.ok && isRead) lastLoadFailure = { status: response.status, at: Date.now() };
+  // Stage 139: a saved write, for shortcuts.js's after-save bar.
+  if (!isRead && response.ok) dispatchEvent(new CustomEvent('erp:write', { detail: { url, method: options.method, response } }));
 
   return response;
 }
@@ -3531,11 +3534,12 @@ async function init() {
     fetchLocalization()
   ]);
   applyProductPathRouting();
+  // BLD-045: before the first view, not after - off production this banner is the LCP.
+  fetchAndRenderEnvironmentBanner();
   const scrollAtUnload = loadNavScroll();
   await restoreLastView();
   restoreNavScroll(scrollAtUnload);
   fetchAndApplyProfile();
-  fetchAndRenderEnvironmentBanner();
   loadAppVersion();
   loadViewModule('/view-store.js?v=1').then(m => m.mountStoreSwitch()).catch(() => {});
 }
@@ -3553,7 +3557,7 @@ async function fetchAndRenderEnvironmentBanner() {
     if (!res || !res.ok) return;
     const data = await res.json();
     if (data.external_side_effects) return;
-    const fullText = `SIMULATED ENVIRONMENT (${data.env}) - email, webhook and ops-alert delivery are OFF`;
+    const fullText = `SIMULATED ENVIRONMENT (${data.env}) - outside calls are OFF`;
     try {
       if (localStorage.getItem(ENV_BANNER_DISMISSED_KEY) === fullText) return;
     } catch (e) { /* storage blocked: just show it */ }
@@ -3661,6 +3665,7 @@ const MENU_PERMISSION_MAP = {
   'menu-pos-profiles': { doctypes: ['POSProfile'] },
   'menu-pos-offline-sync': { doctypes: ['POSOfflineSyncVariance'] },
   'menu-pos-offline-gaps': { doctypes: ['POSOfflineQueueGap'] },
+  'menu-pos-offline-sales': { capability: 'pos.offline_validate' }, // 49.5.6a
 
   'menu-finance': { modules: ['Finance'] },
   'menu-approvals': { open: true },
@@ -3959,6 +3964,12 @@ const MENU_MODULE_MAP = {
     "module": "sales",
     "views": [
       "pos"
+    ]
+  },
+  "menu-pos-offline-sales": {
+    "module": "sales",
+    "views": [
+      "offline-sales"
     ]
   },
   "menu-finance": {
@@ -4432,10 +4443,13 @@ function renderSidebarSubmenu() {
     !document.querySelector(`.sidebar-menu [data-doctype="${d.name}"]`));
   const needle = setupMenuFilter.trim().toLowerCase();
   const groupOf = d => SETUP_PRINTING.includes(d.name) ? 'Printing' : d.module === 'Inventory' && !SETUP_INVENTORY_ERP.includes(d.name) ? 'WMS' : (d.module || 'Other');
+  // BLD-045: each label once; the sort below rebuilt both labels per comparison.
+  const labels = new Map();
+  const label = d => labels.get(d) || labels.set(d, String(getDoctypeLabel(d.name))).get(d);
   const matches = d =>
     !needle ||
     d.name.toLowerCase().includes(needle) ||
-    String(getDoctypeLabel(d.name)).toLowerCase().includes(needle) ||
+    label(d).toLowerCase().includes(needle) ||
     groupOf(d).toLowerCase().includes(needle);
 
   // The filter row is a <li> so it is a legal child of the <ul>, but it holds
@@ -4465,7 +4479,6 @@ function renderSidebarSubmenu() {
     }
   });
 
-  const label = d => String(getDoctypeLabel(d.name));
   const entry = d => `<li><a class="submenu-item" data-view="${escapeHTMLText(d.name)}">${escapeHTMLText(label(d))}</a></li>`;
   const byModule = {};
   visible.filter(matches).forEach(d => (byModule[groupOf(d)] = byModule[groupOf(d)] || []).push(d));
@@ -4874,16 +4887,9 @@ function setupEventListeners() {
     }
   });
 
-  const globalSearch = document.getElementById('global-search');
-  globalSearch.addEventListener('input', (e) => {
-    currentSearchQuery = e.target.value.toLowerCase();
-    currentTablePage = 1;
-    if (currentView === 'doctype-table') {
-      renderDocTable();
-      saveNavState();
-    }
-  });
-  setupGlobalSearchSuggest(globalSearch);
+  // Stage 139: the top box is the Ctrl+K box only; a record list searches in
+  // its own box (handleTableSearch), so typing here no longer redraws a list.
+  loadViewModule('./shortcuts.js').catch(e => console.error('[139] shortcuts', e));
 
   // Refresh (Stage 53.17: was labelled "Sync"). Re-fetches the two things that
   // go stale when an administrator changes a label or a doctype field, and
@@ -5563,186 +5569,8 @@ function setupModuleFlyouts() {
   }
 }
 
-// Global search (top bar). It used to filter only the table you already had
-// open, so on any screen that isn't a record table
-// typing did nothing whatsoever, despite the placeholder offering to search
-// menus and record types. It now also suggests every destination the query
-// matches: each sidebar entry (including the ones tucked inside a module
-// flyout, which are otherwise only reachable by hovering the right module)
-// and each registered record type. The table filtering it already did is
-// untouched and still happens alongside.
-//
-// Picking a suggestion dispatches a click on the real sidebar element
-// wherever one exists, so routing, permission filtering and active-item
-// highlighting all keep living in exactly one place rather than being
-// duplicated here. The dropdown reuses .typeahead-menu/.typeahead-item, the
-// same vocabulary attachTypeahead() already renders.
-const GLOBAL_SEARCH_LIMIT = 12;
-
-function buildGlobalSearchIndex() {
-  const entries = [];
-  const seen = new Set();
-  const isHidden = el => el.classList.contains('perm-hidden') || el.classList.contains('module-hidden');
-
-  document.querySelectorAll('.sidebar-menu .menu-item-container').forEach(li => {
-    if (isHidden(li)) return;
-    const group = li.querySelector(':scope > .menu-item-group');
-    const moduleLabel = group ? group.textContent.trim() : '';
-    const anchors = group
-      ? [...li.querySelectorAll('.menu-flyout li:not(.has-subflyout)')]
-          .filter(row => !row.closest('.perm-hidden, .module-hidden'))
-          .map(row => row.querySelector('.menu-item, .submenu-item'))
-          .filter(Boolean)
-      : [li.querySelector(':scope > .menu-item')].filter(Boolean);
-    anchors.forEach(a => {
-      const label = a.textContent.trim();
-      if (!label) return;
-      const key = 'nav:' + (a.id || `${moduleLabel}/${label}`);
-      if (seen.has(key)) return;
-      seen.add(key);
-      seen.add('label:' + label.toLowerCase());
-      entries.push({ kind: 'Screen', label, context: moduleLabel, el: a });
-    });
-  });
-
-  (state.activeDoctypes || []).forEach(d => {
-    const key = 'doc:' + d.name;
-    // A record type the sidebar already lists as a screen (the Setup module's
-    // Master Definition submenu lists many) would otherwise appear twice
-    // under the same name - keep the screen, which navigates the same place.
-    if (seen.has('label:' + getDoctypeLabel(d.name).toLowerCase())) return;
-    if (seen.has(key)) return;
-    seen.add(key);
-    entries.push({
-      kind: 'Record type',
-      label: getDoctypeLabel(d.name),
-      context: d.module || '',
-      doctype: d.name,
-      raw: d.name
-    });
-  });
-
-  return entries;
-}
-
-function matchGlobalSearch(entries, query) {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return [];
-  const scored = [];
-  entries.forEach(entry => {
-    const label = entry.label.toLowerCase();
-    const hay = `${label} ${entry.context} ${entry.raw || ''}`.toLowerCase();
-    const hayIdx = hay.indexOf(needle);
-    if (hayIdx < 0) return;
-    const labelIdx = label.indexOf(needle);
-    // A hit on the entry's own name beats one on its module; an earlier hit
-    // beats a later one. Keeps "buy" surfacing Buying's screens above a
-    // record type that merely mentions it.
-    const rank = labelIdx === 0 ? 0 : labelIdx > 0 ? 20 : 100;
-    scored.push({ entry, score: rank + Math.min(hayIdx, 19) });
-  });
-  scored.sort((a, b) => a.score - b.score || a.entry.label.localeCompare(b.entry.label));
-  return scored.slice(0, GLOBAL_SEARCH_LIMIT).map(s => s.entry);
-}
-
-function setupGlobalSearchSuggest(inputEl) {
-  if (!inputEl || inputEl.dataset.suggestBound) return;
-  inputEl.dataset.suggestBound = '1';
-  inputEl.setAttribute('autocomplete', 'off');
-
-  let menu = null;
-  let results = [];
-  let activeIndex = -1;
-
-  const onDocMouseDown = (e) => {
-    if (menu && !menu.contains(e.target) && e.target !== inputEl) close();
-  };
-
-  function close() {
-    if (menu) { menu.remove(); menu = null; }
-    document.removeEventListener('mousedown', onDocMouseDown, true);
-    results = [];
-    activeIndex = -1;
-  }
-
-  function highlight(idx) {
-    if (!menu) return;
-    const rows = menu.querySelectorAll('.typeahead-item');
-    rows.forEach(r => r.classList.remove('active'));
-    if (idx >= 0 && rows[idx]) {
-      rows[idx].classList.add('active');
-      rows[idx].scrollIntoView({ block: 'nearest' });
-    }
-    activeIndex = idx;
-  }
-
-  function pick(entry) {
-    close();
-    inputEl.value = '';
-    currentSearchQuery = '';
-    currentTablePage = 1;
-    inputEl.blur();
-    if (entry.el) {
-      // The sidebar's own handler owns this destination - let it run.
-      entry.el.click();
-      return;
-    }
-    closeSubmenus();
-    currentDoctype = entry.doctype;
-    renderView('doctype-table');
-  }
-
-  function render(query) {
-    close();
-    results = matchGlobalSearch(buildGlobalSearchIndex(), query);
-    if (!query.trim()) return;
-
-    menu = document.createElement('div');
-    menu.className = 'typeahead-menu global-search-menu';
-    const rect = inputEl.getBoundingClientRect();
-    menu.style.left = `${Math.round(rect.left)}px`;
-    menu.style.top = `${Math.round(rect.bottom + 6)}px`;
-    menu.style.width = `${Math.round(Math.max(rect.width, 280))}px`;
-
-    if (results.length === 0) {
-      const empty = document.createElement('div');
-      empty.className = 'global-search-empty';
-      empty.textContent = `No menu or record type matches "${query.trim()}"`;
-      menu.appendChild(empty);
-    } else {
-      results.forEach((entry) => {
-        const row = document.createElement('div');
-        row.className = 'typeahead-item global-search-item';
-        const label = document.createElement('span');
-        label.className = 'global-search-label';
-        label.textContent = entry.label;
-        const meta = document.createElement('span');
-        meta.className = 'global-search-meta';
-        meta.textContent = entry.context ? `${entry.kind} · ${entry.context}` : entry.kind;
-        row.appendChild(label);
-        row.appendChild(meta);
-        row.addEventListener('mousedown', (e) => { e.preventDefault(); pick(entry); });
-        menu.appendChild(row);
-      });
-    }
-    document.body.appendChild(menu);
-    document.addEventListener('mousedown', onDocMouseDown, true);
-  }
-
-  inputEl.addEventListener('input', () => render(inputEl.value));
-  inputEl.addEventListener('focus', () => { if (inputEl.value.trim()) render(inputEl.value); });
-  inputEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { close(); return; }
-    if (!menu || results.length === 0) return;
-    if (e.key === 'ArrowDown') { e.preventDefault(); highlight(Math.min(activeIndex + 1, results.length - 1)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); highlight(Math.max(activeIndex - 1, 0)); }
-    else if (e.key === 'Enter') {
-      e.preventDefault();
-      pick(results[activeIndex >= 0 ? activeIndex : 0]);
-    }
-  });
-  window.addEventListener('resize', close);
-}
+// Global search (top bar): the Ctrl+K box lives in shortcuts.js (Stage 139),
+// loaded once signed in - screens, codes, report numbers, documents.
 
 // Maps a static view name to the sidebar menu item that represents it, for
 // restoring the correct highlighted item after a refresh. doctype-table is
@@ -5903,9 +5731,6 @@ async function restoreLastView() {
   currentTablePage = page;
   restoreActiveMenuState(view, doctype);
   await renderView(view);
-
-  const searchBox = document.getElementById('global-search');
-  if (searchBox) searchBox.value = view === 'doctype-table' ? searchQuery : '';
 }
 
 // Router
@@ -6059,6 +5884,7 @@ async function renderViewContent(view, root) {
 
 // Translate labels in DOM dynamically
 function translateDOM() {
+  if (!Object.keys(state.labels).length) return; // BLD-045: nothing to swap, skip the page walk
   const elements = document.querySelectorAll('.page-title, .page-subtitle, .card-title, .card-desc, th, td, label, span, h1, h2, h3, a');
   elements.forEach(el => {
     if (el.children.length === 0 && el.textContent.trim() !== '') {
@@ -6882,7 +6708,7 @@ async function trySyncOfflineQueue() {
         response = await fetch('/api/v1/checkout', {
           method: 'POST',
           headers,
-          body: JSON.stringify({ ...entry.payload, offline_synced: true })
+          body: JSON.stringify({ ...entry.payload, offline_synced: true, sold_at: entry.queuedAt }) // 49.5.6a: held for validation
         });
       } catch (err) {
         stoppedForReconnect = true;
@@ -6904,7 +6730,7 @@ async function trySyncOfflineQueue() {
   } finally {
     saveOfflineQueue(stoppedForReconnect ? queue.slice(i) : []);
     offlineSyncInFlight = false;
-    if (syncedCount > 0) showToast(`${syncedCount} offline sale${syncedCount === 1 ? '' : 's'} synced.`, { variant: 'success' });
+    if (syncedCount > 0) showToast(`${syncedCount} offline sale${syncedCount === 1 ? '' : 's'} sent for validation.`, { variant: 'success' });
   }
 }
 
@@ -6955,7 +6781,20 @@ function batchCellHTML(line) {
     else if (days <= 7) badge = `<span class="badge badge-danger">${days}d left</span>`;
     else if (days <= 30) badge = `<span class="badge badge-warning">${days}d left</span>`;
   }
-  return `<strong>${safeBatch}</strong><br><small class="text-muted">${escapeHTMLText(expiry)}</small> ${badge}`;
+  return `<strong>${safeBatch}</strong><br><small class="text-muted">${escapeHTMLText(formatDay(expiry))}</small> ${badge}`;
+}
+
+// Stage 47.14.2: "03 Feb 2026" from "2026-02-03" (or an ISO date-time) - the
+// month as a word, so 03/02 can never read as 2 March. Built from the ISO
+// parts, not toLocaleDateString (see formatReleaseDate). Anything else is
+// returned as given. 47.14.2a: in the client's date order (Feb 03, 2026 /
+// 2026 Feb 03).
+const FORMAT_DAY_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function formatDay(value) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value ?? ''));
+  if (!m || Number(m[2]) < 1 || Number(m[2]) > 12) return value == null ? '' : String(value);
+  const mon = FORMAT_DAY_MONTHS[Number(m[2]) - 1], order = state.localization?.date_order;
+  return order === 'MDY' ? `${mon} ${m[3]}, ${m[1]}` : order === 'YMD' ? `${m[1]} ${mon} ${m[3]}` : `${m[3]} ${mon} ${m[1]}`;
 }
 
 
@@ -7413,6 +7252,7 @@ window.handleBulkImportSubmit = async function(e) {
       <div>Created: ${(result.created_ids || []).length}</div>
       <div>Updated: ${(result.updated_ids || []).length}</div>
       <div>Failed Rows: ${result.failed_rows}</div>
+      ${importTotalsHTML(result)}
     `;
 
     if (result.errors && result.errors.length > 0) {
@@ -7446,6 +7286,15 @@ window.handleBulkImportSubmit = async function(e) {
     summary.innerHTML = `<strong>Import Failed:</strong> Server returned an error processing the CSV request.`;
   }
 };
+
+// Stage 47.13.3: each Number column's total, accepted of the file's
+// ("Qty 5 of 10"), and a rerun that added nothing new.
+function importTotalsHTML(result) {
+  const c = result && result.control_totals;
+  if (!c) return '';
+  const cols = (c.columns || []).map(col => `${escapeHTMLText(col.label || col.field)} ${escapeHTMLText(Number(col.accepted).toLocaleString('en-IN'))} of ${escapeHTMLText(Number(col.read).toLocaleString('en-IN'))}`);
+  return `${cols.length ? `<div>Totals: ${cols.join(' · ')}</div>` : ''}${c.rerun ? '<div>Rerun: nothing new</div>' : ''}`;
+}
 
 // Preview (Stage 15.2): dry-run of the same file - nothing is written,
 // shows the create/update/reject breakdown before the user commits.
@@ -7483,6 +7332,7 @@ window.handleBulkImportPreview = async function() {
     <div>Would Create: ${(result.created_ids || []).length}</div>
     <div>Would Update: ${(result.updated_ids || []).length}</div>
     <div>Would Reject: ${escapeHTMLText(result.failed_rows)}</div>
+    ${importTotalsHTML(result)}
   `;
   if (result.errors && result.errors.length > 0) {
     html += `<div style="font-weight:600; margin-top:12px;">Row Errors:</div><ul style="padding-left:16px; margin-top:4px;">`;

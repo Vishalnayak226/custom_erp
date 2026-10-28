@@ -1,0 +1,466 @@
+# Stage 139.2: every report's permanent number - R + area digit + 3 digits, the same for every client.
+# Areas: 1 Sales & POS, 2 Procurement, 3 Inventory, 4 WMS, 5 Finance, 6 CRM & Commerce, 7 PIM & Manufacturing, 8 HR, 9 MIS, Master Data & Audit.
+# A number is never changed or reused: a new report takes the next free number in its area (append a line); a retired one keeps its line.
+number	report_id	report	area
+R1001	cat-sales-register	Sales Register	Sales & POS
+R1002	cat-sales-itemwise-detail	Sales Itemwise Detail	Sales & POS
+R1003	cat-sales-return-register	Sales Return Register	Sales & POS
+R1004	cat-sales-return-itemwise-detail	Sales Return Itemwise Detail	Sales & POS
+R1005	cat-net-sales-summary	Net Sales Summary	Sales & POS
+R1006	cat-sales-tender-summary	Sales Tender Summary	Sales & POS
+R1007	cat-sales-tender-detail	Sales Tender Detail	Sales & POS
+R1008	cat-salesman-sales-summary	Salesman Sales Summary	Sales & POS
+R1009	cat-sales-counter-summary	Sales Counter Summary	Sales & POS
+R1010	cat-sales-discount-analysis	Sales Discount Analysis	Sales & POS
+R1011	cat-sales-margin-analysis	Sales Margin Analysis	Sales & POS
+R1012	cat-sales-bill-edit-audit-report	Sales Bill Edit Audit Report	Sales & POS
+R1013	cat-cancelled-void-bill-register	Cancelled / Void Bill Register	Sales & POS
+R1014	cat-customer-advance-summary	Customer Advance Summary	Sales & POS
+R1015	cat-customer-advance-itemwise-detail	Customer Advance Itemwise Detail	Sales & POS
+R1016	cat-customer-advance-utilization	Customer Advance Utilization	Sales & POS
+R1017	cat-credit-note-register	Credit Note Register	Sales & POS
+R1018	cat-gift-card-voucher-register	Gift Card / Voucher Register	Sales & POS
+R1019	cat-b2b-sales-register	B2B Sales Register	Sales & POS
+R1020	cat-export-international-sales-register	Export / International Sales Register	Sales & POS
+R1021	cat-sales-design-image-register	Sales Design Image Register	Sales & POS
+R1022	cat-sales-variant-image-register	Sales Variant Image Register	Sales & POS
+R3001	cat-current-stock-summary	Current Stock Summary	Inventory
+R3002	cat-current-stock-itemwise-detail	Current Stock Itemwise Detail	Inventory
+R3003	cat-current-stock-barcode-detail	Current Stock Barcode Detail	Inventory
+R3004	cat-stock-details-period-wise	Stock Details - Period Wise	Inventory
+R3005	cat-stock-ledger	Stock Ledger	Inventory
+R3006	cat-stock-ledger-category-summary	Stock Ledger - Category Summary	Inventory
+R3007	cat-stock-aging	Stock Aging	Inventory
+R3008	cat-stock-valuation-summary	Stock Valuation Summary	Inventory
+R3009	cat-barcode-wise-cost-and-mrp-report	Barcode-wise Cost & MRP Report	Inventory
+R3010	cat-stock-movement-history	Stock Movement History	Inventory
+R3011	cat-inventory-by-location-summary	Inventory by Location Summary	Inventory
+R3012	cat-inventory-matrix-summary	Inventory Matrix Summary	Inventory
+R3013	cat-current-stock-with-image	Current Stock with Image	Inventory
+R3014	cat-bulk-stock-upload-register	Bulk Stock Upload Register	Inventory
+R3015	cat-bulk-stock-upload-item-detail	Bulk Stock Upload Item Detail	Inventory
+R3016	cat-physical-stock-count-register	Physical Stock Count Register	Inventory
+R3017	cat-physical-stock-variance-report	Physical Stock Variance Report	Inventory
+R3018	cat-negative-stock-exception	Negative Stock Exception	Inventory
+R3019	cat-mrp-change-register	MRP Change Register	Inventory
+R3020	cat-barcode-reprint-label-history	Barcode Reprint / Label History	Inventory
+R3021	cat-unique-design-inventory-summary	Unique Design Inventory Summary	Inventory
+R3022	cat-wastage-entry-register	Wastage Entry Register	Inventory Loss & Audit
+R3023	cat-wastage-itemwise-detail	Wastage Itemwise Detail	Inventory Loss & Audit
+R3024	cat-damage-entry-register	Damage Entry Register	Inventory Loss & Audit
+R3025	cat-damage-itemwise-detail	Damage Itemwise Detail	Inventory Loss & Audit
+R3026	cat-wastage-reason-analysis	Wastage Reason Analysis	Inventory Loss & Audit
+R3027	cat-wastage-value-impact	Wastage Value Impact	Inventory Loss & Audit
+R3028	cat-damage-reason-analysis	Damage Reason Analysis	Inventory Loss & Audit
+R3029	cat-damage-value-impact	Damage Value Impact	Inventory Loss & Audit
+R3030	cat-stock-adjustment-register	Stock Adjustment Register	Inventory Loss & Audit
+R3031	cat-stock-adjustment-itemwise-detail	Stock Adjustment Itemwise Detail	Inventory Loss & Audit
+R3032	cat-stock-adjustment-approval-audit	Stock Adjustment Approval Audit	Inventory Loss & Audit
+R3033	cat-stock-adjustment-reason-analysis	Stock Adjustment Reason Analysis	Inventory Loss & Audit
+R2001	cat-purchase-requisition-register	Purchase Requisition Register	Procurement & GRN
+R2002	cat-rfq-quotation-comparison	RFQ / Quotation Comparison	Procurement & GRN
+R2003	cat-purchase-order-register	Purchase Order Register	Procurement & GRN
+R2004	cat-purchase-order-itemwise-detail	Purchase Order Itemwise Detail	Procurement & GRN
+R2005	cat-pending-open-po-report	Pending / Open PO Report	Procurement & GRN
+R2006	cat-pending-po-with-image	Pending PO with Image	Procurement & GRN
+R2007	cat-pending-po-with-variant-image	Pending PO with Variant Image	Procurement & GRN
+R2008	cat-po-approval-pending-report	PO Approval Pending Report	Procurement & GRN
+R2009	cat-po-amendment-history	PO Amendment History	Procurement & GRN
+R2010	cat-cancelled-po-register	Cancelled PO Register	Procurement & GRN
+R2011	cat-expired-po-report	Expired PO Report	Procurement & GRN
+R2012	cat-po-vs-grn-status	PO vs GRN Status	Procurement & GRN
+R2013	cat-vendor-performance-summary	Vendor Performance Summary	Procurement & GRN
+R2014	cat-purchase-register	Purchase Register	Procurement & GRN
+R2015	cat-purchase-itemwise-detail	Purchase Itemwise Detail	Procurement & GRN
+R2016	cat-purchase-return-register	Purchase Return Register	Procurement & GRN
+R2017	cat-purchase-return-itemwise-detail	Purchase Return Itemwise Detail	Procurement & GRN
+R2018	cat-vendor-debit-note-register	Vendor Debit Note Register	Procurement & GRN
+R2019	cat-vendor-credit-note-register	Vendor Credit Note Register	Procurement & GRN
+R2020	cat-grn-register	GRN Register	Procurement & GRN
+R2021	cat-grn-itemwise-detail	GRN Itemwise Detail	Procurement & GRN
+R2022	cat-grn-po-invoice-variance	GRN PO / Invoice Variance	Procurement & GRN
+R2023	cat-grn-cancelled-register	GRN Cancelled Register	Procurement & GRN
+R2024	cat-grn-barcode-generation-register	GRN Barcode Generation Register	Procurement & GRN
+R2025	cat-grn-qc-rejection-exception	GRN QC / Rejection Exception	Procurement & GRN
+R2026	cat-pending-grn-open-receipt	Pending GRN / Open Receipt	Procurement & GRN
+R2027	cat-grn-vs-vendor-invoice-reconciliation	GRN vs Vendor Invoice Reconciliation	Procurement & GRN
+R2028	cat-receipt-note-register	Receipt Note Register	Procurement & GRN
+R2029	cat-receipt-note-itemwise-detail	Receipt Note Itemwise Detail	Procurement & GRN
+R3034	cat-transfer-out-register	Transfer Out Register	Stock Transfer
+R3035	cat-transfer-out-itemwise-detail	Transfer Out Itemwise Detail	Stock Transfer
+R3036	cat-transfer-in-register	Transfer In Register	Stock Transfer
+R3037	cat-transfer-in-itemwise-detail	Transfer In Itemwise Detail	Stock Transfer
+R3038	cat-transfer-in-transit-aging	Transfer In-Transit Aging	Stock Transfer
+R3039	cat-transfer-barcode-traceability	Transfer Barcode Traceability	Stock Transfer
+R3040	cat-transfer-gst-e-way-control	Transfer GST / E-Way Control	Stock Transfer
+R3041	cat-transfer-shortage-excess-exception	Transfer Shortage / Excess Exception	Stock Transfer
+R3042	cat-transfer-approval-cancellation-audit	Transfer Approval / Cancellation Audit	Stock Transfer
+R3043	cat-delivery-note-register	Delivery Note Register	External Movement
+R3044	cat-delivery-note-itemwise-detail	Delivery Note Itemwise Detail	External Movement
+R3045	cat-delivery-note-return-register	Delivery Note Return Register	External Movement
+R3046	cat-delivery-note-return-item-detail	Delivery Note Return Item Detail	External Movement
+R3047	cat-delivery-note-pending-return-aging	Delivery Note Pending Return Aging	External Movement
+R3048	cat-job-work-outward-register	Job Work Outward Register	External Movement
+R3049	cat-job-work-outward-item-detail	Job Work Outward Item Detail	External Movement
+R3050	cat-job-work-inward-register	Job Work Inward Register	External Movement
+R3051	cat-job-work-inward-item-detail	Job Work Inward Item Detail	External Movement
+R3052	cat-job-work-pending-return-aging	Job Work Pending Return Aging	External Movement
+R3053	cat-job-work-barcode-traceability	Job Work Barcode Traceability	External Movement
+R3054	cat-job-work-shortage-excess-exception	Job Work Shortage / Excess Exception	External Movement
+R3055	cat-material-issue-register	Material Issue Register	External Movement
+R3056	cat-material-issue-item-detail	Material Issue Item Detail	External Movement
+R3057	cat-material-receipt-register	Material Receipt Register	External Movement
+R3058	cat-material-receipt-item-detail	Material Receipt Item Detail	External Movement
+R3059	cat-mi-mr-reclassification-traceability	MI-MR Reclassification Traceability	External Movement
+R5001	cat-gstr-1-hsn-summary	GSTR-1 HSN Summary	GST & Compliance
+R5002	cat-gstr-1-b2b-b2c-summary	GSTR-1 B2B / B2C Summary	GST & Compliance
+R5003	cat-irn-portal-manual-upload-report	IRN Portal Manual Upload Report	GST & Compliance
+R5004	cat-e-invoice-irn-status-register	E-Invoice / IRN Status Register	GST & Compliance
+R5005	cat-e-invoice-error-retry-report	E-Invoice Error / Retry Report	GST & Compliance
+R5006	cat-e-way-bill-register	E-Way Bill Register	GST & Compliance
+R5007	cat-gst-document-tax-detail	GST Document Tax Detail	GST & Compliance
+R5008	cat-hsn-tax-summary	HSN Tax Summary	GST & Compliance
+R5009	cat-gst-bill-number-document-series-audit	GST Bill Number / Document Series Audit	GST & Compliance
+R6001	cat-e-commerce-sales-order-summary	E-commerce Sales Order Summary	E-commerce & Integration
+R6002	cat-e-commerce-sales-order-item-detail	E-commerce Sales Order Item Detail	E-commerce & Integration
+R6003	cat-pending-sales-order-stock	Pending Sales Order Stock	E-commerce & Integration
+R6004	cat-sales-order-integration-error	Sales Order Integration Error	E-commerce & Integration
+R6005	cat-erp-vs-unicommerce-inventory-reconciliation-itemwise	ERP vs Unicommerce Inventory Reconciliation - Itemwise	E-commerce & Integration
+R6006	cat-erp-vs-unicommerce-inventory-reconciliation-summary	ERP vs Unicommerce Inventory Reconciliation - Summary	E-commerce & Integration
+R6007	cat-inventory-sync-log	Inventory Sync Log	E-commerce & Integration
+R6008	cat-order-sync-log	Order Sync Log	E-commerce & Integration
+R6009	cat-marketplace-order-status-summary	Marketplace Order Status Summary	E-commerce & Integration
+R6010	cat-online-return-register	Online Return Register	E-commerce & Integration
+R6011	cat-integration-retry-failure-audit	Integration Retry / Failure Audit	E-commerce & Integration
+R6012	cat-outlet-facility-mapping-summary	Outlet / Facility Mapping Summary	E-commerce & Integration
+R9001	cat-item-master-register	Item Master Register	Master Data & Audit
+R9002	cat-store-location-master-register	Store / Location Master Register	Master Data & Audit
+R9003	cat-vendor-master-register	Vendor Master Register	Master Data & Audit
+R9004	cat-master-data-change-audit	Master Data Change Audit	Master Data & Audit
+R9005	cat-user-access-matrix-report	User Access Matrix Report	Master Data & Audit
+R9006	cat-role-permission-audit	Role Permission Audit	Master Data & Audit
+R9007	cat-approval-history-report	Approval History Report	Master Data & Audit
+R9008	cat-user-activity-log	User Activity Log	Master Data & Audit
+R9009	cat-report-download-audit	Report Download Audit	Master Data & Audit
+R9010	cat-backdated-entry-report	Backdated Entry Report	Master Data & Audit
+R9011	cat-transaction-cancellation-audit	Transaction Cancellation Audit	Master Data & Audit
+R9012	cat-daily-business-summary	Daily Business Summary	MIS & Management
+R9013	cat-sales-vs-target	Sales vs Target	MIS & Management
+R9014	cat-store-performance-ranking	Store Performance / Ranking	MIS & Management
+R9015	cat-category-performance-summary	Category Performance Summary	MIS & Management
+R9016	cat-gross-margin-summary	Gross Margin Summary	MIS & Management
+R9017	cat-fast-slow-moving-stock	Fast / Slow Moving Stock	MIS & Management
+R9018	cat-stock-cover-report	Stock Cover Report	MIS & Management
+R9019	cat-ageing-inventory-value	Ageing Inventory Value	MIS & Management
+R9020	cat-inventory-turnover-summary	Inventory Turnover Summary	MIS & Management
+R9021	cat-management-stock-and-sales-summary	Management Stock & Sales Summary	MIS & Management
+R6013	cat-order-register	Order Register	OMS
+R6014	cat-order-line-detail	Order Line Detail	OMS
+R6015	cat-order-allocation-reservation-report	Order Allocation / Reservation Report	OMS
+R6016	cat-fulfilment-status-report	Fulfilment Status Report	OMS
+R6017	cat-split-shipment-report	Split Shipment Report	OMS
+R6018	cat-pending-order-sla-aging	Pending Order / SLA Aging	OMS
+R6019	cat-order-cancellation-report	Order Cancellation Report	OMS
+R6020	cat-return-rto-register	Return / RTO Register	OMS
+R6021	cat-refund-status-report	Refund Status Report	OMS
+R6022	cat-order-to-invoice-reconciliation	Order to Invoice Reconciliation	OMS
+R6023	cat-atp-promise-inventory-report	ATP / Promise Inventory Report	OMS
+R6024	cat-channel-order-reconciliation	Channel Order Reconciliation	OMS
+R6025	cat-oms-integration-error-retry	OMS Integration Error / Retry	OMS
+R7001	cat-product-master-report	Product Master Report	PIM / PIMS
+R7002	cat-product-completeness-report	Product Completeness Report	PIM / PIMS
+R7003	cat-pim-workbench-queue	PIM Workbench Queue	PIM / PIMS
+R7004	cat-missing-attribute-report	Missing Attribute Report	PIM / PIMS
+R7005	cat-product-family-variant-matrix	Product Family / Variant Matrix	PIM / PIMS
+R7006	cat-attribute-definition-report	Attribute Definition Report	PIM / PIMS
+R7007	cat-attribute-group-report	Attribute Group Report	PIM / PIMS
+R7008	cat-family-attribute-mapping-report	Family Attribute Mapping Report	PIM / PIMS
+R7009	cat-media-image-coverage-report	Media / Image Coverage Report	PIM / PIMS
+R7010	cat-channel-readiness-report	Channel Readiness Report	PIM / PIMS
+R7011	cat-channel-publication-status	Channel Publication Status	PIM / PIMS
+R7012	cat-channel-publication-error-report	Channel Publication Error Report	PIM / PIMS
+R7013	cat-category-attribute-mapping-report	Category / Attribute Mapping Report	PIM / PIMS
+R7014	cat-duplicate-sku-barcode-exception	Duplicate SKU / Barcode Exception	PIM / PIMS
+R7015	cat-product-change-audit	Product Change Audit	PIM / PIMS
+R7016	cat-price-inventory-publish-status	Price / Inventory Publish Status	PIM / PIMS
+R5010	cat-general-ledger	General Ledger	Accounting
+R5011	cat-trial-balance	Trial Balance	Accounting
+R5012	cat-profit-and-loss-statement	Profit & Loss Statement	Accounting
+R5013	cat-balance-sheet	Balance Sheet	Accounting
+R5014	cat-cash-flow-statement	Cash Flow Statement	Accounting
+R5015	cat-ap-aging	AP Aging	Accounting
+R5016	cat-ar-aging	AR Aging	Accounting
+R5017	cat-vendor-ledger	Vendor Ledger	Accounting
+R5018	cat-customer-ledger	Customer Ledger	Accounting
+R5019	cat-vendor-invoice-register	Vendor Invoice Register	Accounting
+R5020	cat-payment-proposal-register	Payment Proposal Register	Accounting
+R5021	cat-finance-approval-pending-report	Finance Approval Pending Report	Accounting
+R5022	cat-sales-invoice-accounting-register	Sales Invoice Accounting Register	Accounting
+R5023	cat-payment-register	Payment Register	Accounting
+R5024	cat-receipt-register	Receipt Register	Accounting
+R5025	cat-journal-voucher-register	Journal Voucher Register	Accounting
+R5026	cat-debit-credit-note-register	Debit / Credit Note Register	Accounting
+R5027	cat-bank-reconciliation-report	Bank Reconciliation Report	Accounting
+R5028	cat-tds-register	TDS Register	Accounting
+R5029	cat-fixed-asset-register	Fixed Asset Register	Accounting
+R5030	cat-depreciation-schedule	Depreciation Schedule	Accounting
+R5031	cat-cost-center-p-and-l	Cost Center P&L	Accounting
+R5032	cat-budget-vs-actual	Budget vs Actual	Accounting
+R5033	cat-intercompany-reconciliation	Intercompany Reconciliation	Accounting
+R5034	cat-accounting-audit-trail	Accounting Audit Trail	Accounting
+R5035	cat-period-close-checklist	Period Close Checklist	Accounting
+R5036	cat-expense-claim-register	Expense Claim Register	Expense Management
+R5037	cat-claims-pending-approval	Claims Pending Approval	Expense Management
+R5038	cat-approved-pending-payment	Approved Pending Payment	Expense Management
+R5039	cat-paid-claims-register	Paid Claims Register	Expense Management
+R5040	cat-rejected-returned-claims	Rejected / Returned Claims	Expense Management
+R5041	cat-expense-aging-sla-report	Expense Aging / SLA Report	Expense Management
+R5042	cat-department-category-month-summary	Department / Category / Month Summary	Expense Management
+R5043	cat-employee-expense-summary	Employee Expense Summary	Expense Management
+R5044	cat-policy-violation-exception-report	Policy Violation / Exception Report	Expense Management
+R5045	cat-expense-advance-settlement	Expense Advance Settlement	Expense Management
+R5046	cat-accounting-export-report	Accounting Export Report	Expense Management
+R6026	cat-customer-360-summary	Customer 360 Summary	CRM
+R6027	cat-lead-register	Lead Register	CRM
+R6028	cat-opportunity-pipeline	Opportunity Pipeline	CRM
+R6029	cat-campaign-performance	Campaign Performance	CRM
+R6030	cat-customer-segmentation-report	Customer Segmentation Report	CRM
+R6031	cat-repeat-purchase-report	Repeat Purchase Report	CRM
+R6032	cat-loyalty-points-ledger	Loyalty Points Ledger	CRM
+R6033	cat-coupon-voucher-usage-report	Coupon / Voucher Usage Report	CRM
+R6034	cat-birthday-anniversary-campaign-list	Birthday / Anniversary Campaign List	CRM
+R6035	cat-customer-feedback-nps-report	Customer Feedback / NPS Report	CRM
+R6036	cat-complaint-service-case-register	Complaint / Service Case Register	CRM
+R6037	cat-customer-merge-mobile-change-audit	Customer Merge / Mobile Change Audit	CRM
+R6038	cat-customer-inactivity-churn-report	Customer Inactivity / Churn Report	CRM
+R8001	cat-employee-master-register	Employee Master Register	HRMS
+R8002	cat-attendance-register	Attendance Register	HRMS
+R8003	cat-late-overtime-report	Late / Overtime Report	HRMS
+R8004	cat-leave-register	Leave Register	HRMS
+R8005	cat-shift-roster-report	Shift / Roster Report	HRMS
+R8006	cat-payroll-register	Payroll Register	HRMS
+R8007	cat-salary-component-detail	Salary Component Detail	HRMS
+R8008	cat-statutory-deduction-summary	Statutory Deduction Summary	HRMS
+R8009	cat-employee-loan-advance-register	Employee Loan / Advance Register	HRMS
+R8010	cat-headcount-summary	Headcount Summary	HRMS
+R8011	cat-attrition-report	Attrition Report	HRMS
+R8012	cat-recruitment-pipeline	Recruitment Pipeline	HRMS
+R8013	cat-onboarding-checklist	Onboarding Checklist	HRMS
+R8014	cat-performance-review-summary	Performance Review Summary	HRMS
+R8015	cat-training-certification-register	Training / Certification Register	HRMS
+R8016	cat-employee-role-access-mapping	Employee Role / Access Mapping	HRMS
+R7017	cat-bom-register	BOM Register	Manufacturing
+R7018	cat-bom-costing-report	BOM Costing Report	Manufacturing
+R7019	cat-production-order-register	Production Order Register	Manufacturing
+R7020	cat-work-in-process-report	Work In Process Report	Manufacturing
+R7021	cat-material-issue-consumption-report	Material Issue / Consumption Report	Manufacturing
+R7022	cat-material-usage-variance	Material Usage Variance	Manufacturing
+R7023	cat-production-receipt-completion	Production Receipt / Completion	Manufacturing
+R7024	cat-yield-scrap-analysis	Yield / Scrap Analysis	Manufacturing
+R7025	cat-quality-inspection-report	Quality Inspection Report	Manufacturing
+R7026	cat-rework-rejection-report	Rework / Rejection Report	Manufacturing
+R7027	cat-production-schedule	Production Schedule	Manufacturing
+R7028	cat-work-center-capacity-load	Work Center Capacity / Load	Manufacturing
+R7029	cat-mrp-suggestions	MRP Suggestions	Manufacturing
+R7030	cat-subcontracting-job-work-report	Subcontracting / Job Work Report	Manufacturing
+R7031	cat-batch-lot-traceability	Batch / Lot Traceability	Manufacturing
+R7032	cat-standard-vs-actual-cost	Standard vs Actual Cost	Manufacturing
+R4001	cat-inbound-asn-register	Inbound / ASN Register	WMS
+R4002	cat-receiving-grn-detail	Receiving / GRN Detail	WMS
+R4003	cat-inbound-qc-exception	Inbound QC Exception	WMS
+R4004	cat-putaway-pending-report	Putaway Pending Report	WMS
+R4005	cat-putaway-completion-report	Putaway Completion Report	WMS
+R4006	cat-bin-inventory-report	Bin Inventory Report	WMS
+R4007	cat-location-movement-register	Location Movement Register	WMS
+R4008	cat-wms-stock-transfer-execution-report	WMS Stock Transfer Execution Report	WMS
+R4009	cat-warehouse-cockpit-kpi-summary	Warehouse Cockpit KPI Summary	WMS
+R4010	cat-bin-utilization-condition-report	Bin Utilization / Condition Report	WMS
+R4011	cat-lpn-carton-pallet-register	LPN / Carton / Pallet Register	WMS
+R4012	cat-bin-replenishment-report	Bin Replenishment Report	WMS
+R4013	cat-pick-list-report	Pick List Report	WMS
+R4014	cat-wave-batch-picking-report	Wave / Batch Picking Report	WMS
+R4015	cat-picking-exception-report	Picking Exception Report	WMS
+R4016	cat-packing-report	Packing Report	WMS
+R4017	cat-dispatch-shipment-register	Dispatch / Shipment Register	WMS
+R4018	cat-cycle-count-register	Cycle Count Register	WMS
+R4019	cat-cycle-count-variance-report	Cycle Count Variance Report	WMS
+R4020	cat-bin-stock-aging	Bin Stock Aging	WMS
+R4021	cat-lot-serial-barcode-traceability	Lot / Serial / Barcode Traceability	WMS
+R4022	cat-rf-mobile-picking-productivity	RF / Mobile Picking Productivity	WMS
+R4023	cat-dock-door-utilization	Dock Door Utilization	WMS
+R4024	cat-appointment-calendar-report	Appointment Calendar Report	WMS
+R4025	cat-yard-trailer-board-report	Yard / Trailer Board Report	WMS
+R4026	cat-warehouse-sla-throughput-summary	Warehouse SLA / Throughput Summary	WMS
+R4027	cat-warehouse-inventory-accuracy-summary	Warehouse Inventory Accuracy Summary	WMS
+R5047	budget-variance	Budget vs Actual	Finance
+R5048	dunning-queue	Dunning Queue	Finance
+R5049	cash-flow-forecast	Cash Flow Forecast	Finance
+R6039	campaign-roi	Campaign ROI	CRM
+R3060	inventory-valuation	Inventory Valuation	Inventory
+R6040	customer-lifetime-value	Customer Lifetime Value	CRM
+R6041	cohort-retention	Cohort Retention	CRM
+R6042	crm-customer-summary	CRM Customer Summary	CRM
+R6043	crm-consent-audit	Consent Audit	CRM
+R6044	crm-segment-members	Segment Members	CRM
+R6045	crm-campaign-summary	Campaign Summary	CRM
+R6046	crm-message-detail	Message Detail	CRM
+R6047	crm-journey-performance	Journey Performance	CRM
+R6048	crm-credited-sales	Credited Sales	CRM
+R6049	crm-rfm-lifecycle	RFM and Lifecycle	CRM
+R6050	crm-coupon-use	Coupon Use	CRM
+R6051	crm-service-sla	Service SLA	CRM
+R6052	crm-clienteling	Clienteling Tasks	CRM
+R6053	crm-feedback	Feedback and NPS	CRM
+R6054	crm-message-cost	Message Cost	CRM
+R6055	crm-pipeline	Sales Pipeline	CRM
+R6056	rfm-segmentation	RFM Customer Segmentation	CRM
+R6057	points-liability	Loyalty Points Liability	CRM
+R6058	customer-360	Customer 360	CRM
+R5050	fx-open-item-exposure	Open FX Exposure	Finance
+R5051	fx-gain-loss-register	FX Gain/Loss Register	Finance
+R5052	trial-balance-presentation-currency	Trial Balance in Presentation Currency	Finance
+R1023	sales-by-customer-reference	Sales by Customer Reference	Sales
+R2030	grn-receipt-timing	Late and early receipts	Procurement
+R2031	grn-not-billed	Goods receipts not billed	Procurement
+R3061	transfers-in-transit-long	Transfers in transit too long	Inventory
+R5053	itc-past-deadline	Input credit past its deadline	Finance
+R5054	deferred-revenue-roll-forward	Deferred Revenue Roll-Forward	Finance
+R5055	prepaid-expense-roll-forward	Prepaid Expense Roll-Forward	Finance
+R3062	delivery-challan-register	Delivery challan register	Inventory
+R3063	challan-outstanding-returnables	Goods out on challan, by party	Inventory
+R5056	einvoice-irn-register	E-Invoice / IRN Status Register	Finance
+R5057	einvoice-errors	E-Invoice Error / Retry Report	Finance
+R5058	einvoice-manual-upload	IRN Portal Manual Upload Report	Finance
+R3064	ewaybill-register	E-way bill register	Inventory
+R5059	profit-and-loss	Profit & Loss	Finance
+R5060	balance-sheet	Balance Sheet	Finance
+R5061	cash-flow-statement	Cash Flow Statement	Finance
+R5062	gl-drilldown	GL Drill-down (by Account)	Finance
+R1024	customer-ledger	Customer Ledger	Sales
+R5063	tax-ledger	Tax Ledger	Finance
+R5064	statutory-gl-export	Statutory Audit Export (Full GL)	Finance
+R5065	gl-journal	General Journal (who posted what)	Finance
+R5066	gl-posting-review	GL Posting Review (by poster)	Finance
+R5067	cost-center-pl	Cost Center P&L	Finance
+R5068	department-pl	Department P&L	Finance
+R2032	grn-line-register	GRN Register - every line, every step	Procurement
+R2033	grn-invoice-differences	Invoice vs GRN Differences	Procurement
+R2034	grn-price-changes	Purchase Price Changes	Procurement
+R2035	grn-waiting	Goods Receipts Waiting	Procurement
+R2036	grn-corrections	GRN Corrections Log	Procurement
+R2037	grn-po-variance	PO vs GRN Price Variance	Procurement
+R2038	grn-payments	GRN Payments	Procurement
+R3065	grn-in-receiving	Goods In Receiving	Inventory
+R9022	help-article-feedback	Knowledge Center Feedback	Admin
+R5069	entity-trial-balance	Entity Trial Balance	Finance
+R5070	intercompany-reconciliation	Intercompany Reconciliation	Finance
+R5071	consolidated-trial-balance	Consolidated Trial Balance	Finance
+R3066	inventory-adjustment-register	Stock adjustment register	Inventory
+R3067	inventory-loss-by-reason	Stock losses by reason and store	Inventory
+R3068	item-classification-register	Item Classification Register	Inventory
+R9023	item-master-completeness	Item Master Completeness	Exceptions
+R3069	backflush-consumption	Backflush Consumption	Inventory
+R1025	gwp-issue-register	Gift With Purchase Register	Sales
+R3070	non-valuated-stock	Non-Valuated Stock	Inventory
+R9024	inactive-items-with-stock	Inactive Items With Stock	Exceptions
+R9025	item-exceptions	Item Exceptions	Exceptions
+R7033	job-work-outstanding	Job work outstanding (qty and weight)	Manufacturing
+R7034	job-work-yield	Job work cost, yield and wastage	Manufacturing
+R6059	loyalty-points-movement	Loyalty Points Movement	CRM
+R7035	production_cost_variance	Production Cost Variance	Manufacturing
+R1026	competitor-price-gap	Competitor Price Gap	Sales
+R3071	consumption-by-cost-centre	Consumption by cost centre	Inventory
+R3072	material-issue-register	Material issue and return register	Inventory
+R6060	oms-exception-queue	OMS Exception Queue	OMS
+R6061	oms-reconciliation-variance	OMS Reconciliation Variance	OMS
+R6062	order-aging	Order Aging	OMS
+R6063	sla-breach	SLA Breach	OMS
+R6064	allocation-pending	Allocation Pending	OMS
+R6065	stock-mismatch	Stock Mismatch	OMS
+R6066	return-aging	Return Aging	OMS
+R6067	reserved-stock	Reserved Stock	OMS
+R6068	courier-performance	Courier Performance	OMS
+R6069	orphaned-channel-orders	Orphaned Channel Orders (pre-35.1 intake)	OMS
+R8017	payroll-reconciliation	Payroll Reconciliation (gross to bank to GL)	HR
+R7036	pim-product-group-readiness	PIM Product Group Readiness	PIM
+R7037	pim-task-workload	PIM Task Workload by Assignee	PIM
+R7038	pim-task-overdue	PIM Overdue Tasks	PIM
+R7039	pim-workflow-stalled	PIM Stalled Workflow Runs	PIM
+R3073	demand-forecast	Demand Forecast (Trend)	Inventory
+R3074	reorder-suggestions	Reorder Suggestions (Configured)	Inventory
+R3075	pegged-demand-supply	Pegged Demand & Supply	Inventory
+R7040	production-capacity-schedule	Production Capacity Schedule	Manufacturing
+R2039	po-delivery-and-terms	PO expected delivery and terms	Procurement
+R2040	grn-discrepancy-by-vendor	Goods receipt discrepancies by vendor	Procurement
+R2041	vendor-document-transport-register	Vendor document and transport register	Procurement
+R2042	grni	Goods received not invoiced (GRNI)	Procurement
+R5072	pos-sale-reconciliation	POS Sale Reconciliation	Finance
+R9026	print-template-coverage	Print template coverage	Admin
+R9027	print-failures	Failed prints and fallbacks	Admin
+R9028	missing-regulatory-print-data	Missing regulatory print data	Admin
+R5073	project-pl	Project P&L (Job Costing)	Finance
+R2043	rejections-by-reason	Rejections and Returns by Reason	Procurement
+R3076	current-stock	Current Stock	Inventory
+R1027	sales-register	Sales Register	Sales
+R2044	vendor-ledger	Vendor Ledger	Procurement
+R5074	payables-ageing	Payables Ageing	Finance
+R2045	po-commitments	Open Purchase Commitments	Procurement
+R5075	receivables-ageing	Receivables Ageing	Finance
+R5076	gst-return-summary	GST Return Summary	Finance
+R2046	grn-register	GRN Register	Procurement
+R5077	cash-book	Cash Book	Finance
+R5078	bank-book	Bank Book	Finance
+R5079	asset-register	Asset Register	Assets
+R6070	loyalty-summary	Loyalty Ledger Summary	CRM
+R7041	production-order-status	Production Order Status	Manufacturing
+R2047	rfq-comparison	RFQ Comparison Export	Procurement
+R3077	stock-by-location	Stock by Location	Inventory
+R1028	advance-register	Customer Advance Register	Sales
+R1029	tender-sales	Tender-wise Sales	Sales
+R1030	salesman-sales	Salesman-wise Sales	Sales
+R6071	customer-duplicate-phones	Customers Sharing a Mobile Number	CRM
+R3078	stock-ledger	Stock Ledger	Inventory
+R9029	exception-stale-approvals	Stale Approvals	Exceptions
+R9030	exception-failed-syncs	Failed Syncs	Exceptions
+R8018	attendance-summary	Attendance Summary	HR
+R9031	exception-negative-stock	Negative Stock Flags	Exceptions
+R9032	report-performance	Report Performance	BI
+R1031	post-sale-edit-history	Post-Sale Edit History	Sales
+R4028	serial-inquiry	Serial Number Inquiry	WMS
+R4029	serial-movement-history	Serial Movement History	WMS
+R6072	service-sla-breaches	Service SLA Breaches	Service
+R6073	oms-unsettled-settlements	Unsettled Marketplace Orders	OMS
+R6074	oms-settlement-variance	Settlement Variance Queue	OMS
+R3079	stock-book-vs-ledger	Stock Book vs Ledger (drift finder)	Inventory
+R5080	store-credit-liability	Store credit by customer	Finance
+R5081	refund-methods	Refunds by method	Finance
+R5082	stored-value-liability	Gift Card Liability	Finance
+R5083	stored-value-ledger	Gift Card Ledger	Finance
+R4030	batch-near-expiry	Batch Near-Expiry Watchlist	WMS
+R4031	batch-stock-inquiry	Batch Stock Inquiry	WMS
+R4032	batch-movement-history	Batch Movement History (Recall)	WMS
+R3080	batch-ageing	Batch Lookup & Ageing	Inventory
+R3081	stock-ageing	Stock Ageing (by GRN batch)	Inventory
+R1032	advance-outstanding-ageing	Customer advances outstanding (ageing)	Sales
+R3082	transfer-shortage-by-reason	Transfer shortages by reason	Inventory
+R9033	print-reprint-audit	Print and reprint audit	Admin
+R4033	3pl-storage-billing	3PL Storage & Handling Billing	WMS
+R4034	bin-stock-reconciliation	Bin Stock Reconciliation	WMS
+R4035	cross-facility-stock	Cross-Facility Inventory Inquiry	WMS
+R4036	facility-rollup	Facility Roll-Up Inventory Inquiry	WMS
+R4037	labor-enterprise-productivity	Labour Enterprise Productivity	WMS
+R4038	labor-facility-performance	Labour Facility Performance	WMS
+R4039	labor-task-productivity	Labour Task Productivity	WMS
+R4040	labor-user-performance	Labour User Performance	WMS
+R4041	labor-standards-audit	Labour Standards Audit	WMS
+R4042	labor-cost	Labour Cost	WMS
+R4043	storage-billing-v2	3PL Storage Billing v2	WMS
+R4044	owner-stock-exceptions	Owner Stock Exceptions (3PL)	WMS
+R4045	owner-stock-inquiry	Owner Stock Inquiry (3PL)	WMS
+R4046	labor-productivity	Labor Productivity	WMS
+R4047	slotting-suggestions	Slotting / Re-Slotting Suggestions	WMS
+R4048	unslotting-suggestions	Unslotting Suggestions (discontinued items)	WMS
+R4049	consolidation-suggestions	Clean-Location Consolidation Suggestions	WMS
+R1033	z-report	Z-report (till close)	Sales & POS
+R5084	day-book	Day Book	Finance
+R5085	customer-receipts	Customer receipts	Finance

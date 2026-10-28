@@ -260,6 +260,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	// own DEFAULT (db/migrations_stage24_security.sql), so an unassigned
 	// user behaves exactly as before rather than losing access.
 	token := engines.SignToken(u.ID, u.Username, u.Role, tenantID, u.LocationCode, u.CredentialVersion)
+	engines.RecordSignIn(tenantID, u.ID) // 49.2.1: dormant-account clock
 
 	engines.LogAuditEventCtx(r.Context(), tenantID, u.Username, "LOGIN", "SUCCESS", fmt.Sprintf("User logged in successfully with role %s", u.Role))
 
@@ -373,6 +374,7 @@ func handleMFAActivate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token := engines.SignToken(userID, username, role, tenantID, locationCode, credentialVersion)
+	engines.RecordSignIn(tenantID, userID) // 49.2.1
 	engines.LogAuditEventCtx(r.Context(), tenantID, username, "LOGIN", "MFA_ENROLLED_AND_VERIFIED", "TOTP enrollment completed and verified")
 	if len(recoveryCodes) > 0 {
 		engines.LogAuditEventCtx(r.Context(), tenantID, username, "LOGIN", "MFA_RECOVERY_CODES_ISSUED",
@@ -487,6 +489,7 @@ func handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := engines.SignToken(userID, username, role, tenantID, locationCode, credentialVersion)
+	engines.RecordSignIn(tenantID, userID) // 49.2.1
 
 	remaining := 0
 	if usedRecoveryCode {

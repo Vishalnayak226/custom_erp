@@ -3,6 +3,7 @@ package engines
 import (
 	"custom_erp/db"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -413,15 +414,30 @@ func TransitionTaskStatus(tenantID string, taskID string, newStatus string) erro
 				shipped = 0
 			}
 
-			// Deduct stock and release reserve
+			// Release the line's whole reservation, then take the shipped
+			// units off stock through the posting choke point (Stage 135.16).
+			// It used to floor on_hand at zero, so units a till had already
+			// sold "shipped" again and the ledger line disagreed with the book;
+			// now a shortage refuses the dispatch until the line is shorted.
 			if _, err = tx.Exec(fmt.Sprintf(`
 				UPDATE %s.inventory_availability
-				SET on_hand = GREATEST(0, on_hand - $1),
-				    available = GREATEST(0, available - $1),
-				    reserved = GREATEST(0, reserved - $4),
-				    updated_at = CURRENT_TIMESTAMP
-				WHERE sku = $2 AND location_code = $3`, schema), shipped, sku, locationCode, qty); err != nil {
+				SET reserved = GREATEST(0, reserved - $1), updated_at = CURRENT_TIMESTAMP
+				WHERE sku = $2 AND location_code = $3`, schema), qty, sku, locationCode); err != nil {
 				return err
+			}
+			// An item that keeps no stock (service, non-stock) has none to take.
+			policy, _, known := ItemPolicyForSKU(tenantID, sku)
+			if shipped > 0 && (!known || policy.Tracked()) {
+				_, posted, perr := PostInventoryLedgerWithVoucherTx(tx, schema, locationCode,
+					[]interface{}{map[string]interface{}{"sku": sku, "qty": -shipped}}, false)
+				var short *InsufficientStockError
+				if errors.As(perr, &short) {
+					return fmt.Errorf("cannot dispatch: only %d of %s at %s for %d to ship - mark the rest short first", short.Available, sku, locationCode, shipped)
+				}
+				if perr != nil {
+					return perr
+				}
+				ledgerLines = append(ledgerLines, posted...)
 			}
 			if lineID != "" {
 				// The reservation is now fulfilled, not released: the
@@ -435,7 +451,6 @@ func TransitionTaskStatus(tenantID string, taskID string, newStatus string) erro
 				}
 			}
 			if shipped > 0 {
-				ledgerLines = append(ledgerLines, PostedStockLine{SKU: sku, Qty: -shipped})
 				cogsPaise += int64(shipped) * ResolveCOGSUnitCostPaise(tenantID, sku, itemStandardCostRupees(tenantID, sku))
 			}
 		}

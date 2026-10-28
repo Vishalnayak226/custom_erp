@@ -60,8 +60,22 @@ var loginAbuse = struct {
 	byName  map[string]*loginWatchEntry // name -> addresses failed
 }{backoff: map[string]*loginBackoffEntry{}, byAddr: map[string]*loginWatchEntry{}, byName: map[string]*loginWatchEntry{}}
 
+// loginNameMax is users.username's width, VARCHAR(100): no longer name can
+// belong to an account. Keying on the whole name let one failed sign-in keep
+// a name of up to the request envelope's 1 MiB string in memory, three times
+// over (49.10.5) - 50,000 of them before the cap below cleared anything.
+const loginNameMax = 100
+
 func loginNameKey(tenantID, username string) string {
-	return tenantID + "\x00" + strings.ToLower(strings.TrimSpace(username))
+	name := strings.TrimSpace(username)
+	if len(name) > loginNameMax {
+		name = name[:loginNameMax]
+	}
+	name = strings.ToLower(name)
+	if len(name) > loginNameMax {
+		name = name[:loginNameMax] // lower-casing can lengthen a few letters
+	}
+	return tenantID + "\x00" + name
 }
 
 // loginBackoffWait is how long this name and address must still wait.

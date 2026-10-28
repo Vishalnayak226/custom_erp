@@ -5,11 +5,11 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"custom_erp/db"
-	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	neturl "net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -31,6 +31,7 @@ type CourierAdapter interface {
 type CourierShipmentRequest struct {
 	BookingID          string `json:"booking_id"`
 	OrderID            string `json:"order_id"`
+	Reference          string `json:"reference,omitempty"` // 47.11.8a: set by AllocateCourierAWB, the same on every retry
 	RemoteShipmentID   string `json:"remote_shipment_id,omitempty"`
 	OriginPincode      string `json:"origin_pincode"`
 	DestinationPincode string `json:"destination_pincode"`
@@ -136,8 +137,12 @@ func courierCredentials(tenantID, provider string) (map[string]string, error) {
 }
 
 // AllocateCourierAWB replaces the internal placeholder AWB only after the
-// provider has accepted the shipment. A failed call leaves the booking fully
-// retryable and does not partially update its workflow state.
+// provider has accepted the shipment. 47.11.8a: nothing is booked twice. The
+// attempt - a claim under the row lock (two calls at once cannot both reach
+// the courier) and the booking's reference, sent as the courier's order id -
+// is saved before the call; a call that may have reached the courier keeps
+// the claim as uncertain, and the next attempt asks the courier by that
+// reference before booking (courier_booking_guard.go).
 func AllocateCourierAWB(ctx context.Context, tenantID, provider, bookingID string, req CourierShipmentRequest) (CourierAWB, error) {
 	adapter, err := courierAdapter(provider)
 	if err != nil {
@@ -147,76 +152,49 @@ func AllocateCourierAWB(ctx context.Context, tenantID, provider, bookingID strin
 	if err != nil {
 		return CourierAWB{}, fmt.Errorf("%s credentials pending: %w", provider, err)
 	}
-	schema, data, status, err := fetchLogisticsBooking(tenantID, bookingID)
-	if err != nil {
-		return CourierAWB{}, err
+	lookup, canLookup := adapter.(CourierBookingLookup)
+	claim, existing, err := claimCourierBooking(tenantID, provider, bookingID, req.RemoteShipmentID, canLookup)
+	if err != nil || existing.AWB != "" {
+		return existing, err
 	}
-	if status != "AWB Assigned" {
-		return CourierAWB{}, fmt.Errorf("booking %s cannot allocate an AWB from status %q", bookingID, status)
-	}
-	if existing := courierDataString(data, "provider_awb"); existing != "" {
-		return CourierAWB{AWB: existing, TrackingNumber: courierDataString(data, "tracking_number"), RemoteShipmentID: courierDataString(data, "remote_shipment_id")}, nil
-	}
-	// Claim the booking before calling the provider. Without this, two
-	// concurrent calls for the same booking (a UI double-click, or a client
-	// retrying a request that timed out but actually succeeded) both read
-	// provider_awb as empty and both allocate a real, billable AWB at the
-	// courier - the second UPDATE below would then silently overwrite the
-	// first's AWB, orphaning a live shipment the ERP no longer references.
-	// Only one of two concurrent UPDATEs can flip this empty-to-non-empty
-	// marker; Postgres row-locking on the UPDATE serializes the race.
-	var claimed bool
-	err = db.DB.QueryRow(fmt.Sprintf(`UPDATE %s.documents SET data = data || jsonb_build_object('awb_allocation_claimed_at', $1::text)
-		WHERE id = $2 AND doctype = 'LogisticsBooking'
-		  AND COALESCE(data->>'provider_awb','') = '' AND COALESCE(data->>'awb_allocation_claimed_at','') = ''
-		RETURNING true`, schema), time.Now().UTC().Format(time.RFC3339Nano), bookingID).Scan(&claimed)
-	if err == sql.ErrNoRows {
-		if _, refetched, _, refetchErr := fetchLogisticsBooking(tenantID, bookingID); refetchErr == nil {
-			if existing := courierDataString(refetched, "provider_awb"); existing != "" {
-				return CourierAWB{AWB: existing, TrackingNumber: courierDataString(refetched, "tracking_number"), RemoteShipmentID: courierDataString(refetched, "remote_shipment_id")}, nil
-			}
-		}
-		return CourierAWB{}, fmt.Errorf("booking %s AWB allocation is already in progress; retry shortly", bookingID)
-	}
-	if err != nil {
-		return CourierAWB{}, err
-	}
-	releaseClaim := func() {
-		_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data - 'awb_allocation_claimed_at' WHERE id = $1 AND doctype = 'LogisticsBooking'`, schema), bookingID)
-	}
-	req.BookingID = bookingID
+	data := claim.data
+	req.BookingID, req.Reference = bookingID, claim.ref
 	if req.OrderID == "" {
 		req.OrderID = courierDataString(data, "order_id")
 	}
 	if req.DestinationPincode == "" {
 		req.DestinationPincode = courierDataString(data, "destination_pincode")
 	}
-	if req.RemoteShipmentID == "" {
-		req.RemoteShipmentID = courierDataString(data, "remote_shipment_id")
+	if stored := courierDataString(data, "remote_shipment_id"); stored != "" {
+		req.RemoteShipmentID = stored // the attempt's own, on every retry
 	}
-	awb, err := adapter.AllocateAWB(ctx, cred, req)
+	if ctx.Err() != nil {
+		claim.undo(bookingID)
+		return CourierAWB{}, ctx.Err()
+	}
+	if claim.lookupFirst {
+		found, ok, lerr := lookup.FindBooking(ctx, cred, req)
+		if lerr != nil || (ok && strings.TrimSpace(found.AWB) == "") {
+			markCourierUncertain(claim.schema, bookingID)
+			return CourierAWB{}, courierLookupFailed(provider, claim.ref, lerr)
+		}
+		if ok {
+			if found.RemoteShipmentID == "" {
+				found.RemoteShipmentID = req.RemoteShipmentID
+			}
+			return recordCourierAWB(tenantID, claim.schema, provider, bookingID, found, "COURIER_AWB_ADOPTED", "system", nil)
+		}
+		// The courier confirms it has none: book it.
+	}
+	traced, wrote := courierTracedContext(ctx)
+	awb, err := adapter.AllocateAWB(traced, cred, req)
+	if err == nil && strings.TrimSpace(awb.AWB) == "" {
+		err = fmt.Errorf("%s answered without an AWB: %w", provider, errCourierNoAWB)
+	}
 	if err != nil {
-		releaseClaim()
-		return CourierAWB{}, err
+		return CourierAWB{}, settleFailedCourierBooking(tenantID, claim, provider, bookingID, canLookup, wrote.Load(), err)
 	}
-	awb.AWB = strings.TrimSpace(awb.AWB)
-	if awb.AWB == "" {
-		releaseClaim()
-		return CourierAWB{}, fmt.Errorf("%s returned an empty AWB", provider)
-	}
-	if awb.TrackingNumber == "" {
-		awb.TrackingNumber = awb.AWB
-	}
-	patch, _ := json.Marshal(map[string]interface{}{
-		"carrier": provider, "awb_number": awb.AWB, "provider_awb": awb.AWB,
-		"tracking_number": awb.TrackingNumber, "remote_shipment_id": awb.RemoteShipmentID,
-		"provider_charge_paise": awb.ChargePaise, "awb_allocated_at": time.Now().UTC().Format(time.RFC3339),
-	})
-	_, err = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = (data - 'awb_allocation_claimed_at') || $1::jsonb, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND doctype = 'LogisticsBooking'`, schema), patch, bookingID)
-	if err == nil {
-		LogAuditEvent(tenantID, "system", "COURIER_AWB_ALLOCATED", "SUCCESS", fmt.Sprintf("booking=%s provider=%s awb=%s", bookingID, provider, awb.AWB))
-	}
-	return awb, err
+	return recordCourierAWB(tenantID, claim.schema, provider, bookingID, awb, "COURIER_AWB_ALLOCATED", "system", nil)
 }
 
 func ScheduleCourierPickup(ctx context.Context, tenantID, provider, bookingID, pickupName string, pickupAt time.Time) (string, error) {
@@ -242,7 +220,7 @@ func ScheduleCourierPickup(ctx context.Context, tenantID, provider, bookingID, p
 	remoteID := courierDataString(data, "remote_shipment_id")
 	ref, err := adapter.SchedulePickup(ctx, cred, CourierPickupRequest{AWBs: []string{awb}, RemoteShipmentIDs: []string{remoteID}, PickupName: pickupName, PickupAt: pickupAt})
 	if err != nil {
-		return "", err
+		return "", courierCallFailed(provider, err)
 	}
 	_, err = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || jsonb_build_object('pickup_reference',$1::text,'pickup_scheduled_at',$2::text), updated_at=CURRENT_TIMESTAMP WHERE id=$3 AND doctype='LogisticsBooking'`, schema), ref, pickupAt.UTC().Format(time.RFC3339), bookingID)
 	return ref, err
@@ -269,10 +247,38 @@ func CancelCourierShipment(ctx context.Context, tenantID, provider, bookingID st
 		return fmt.Errorf("booking %s has no provider AWB", bookingID)
 	}
 	if err := adapter.CancelShipment(ctx, cred, awb); err != nil {
-		return err
+		return courierCallFailed(provider, err)
 	}
 	_, err = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data=data || jsonb_build_object('courier_cancelled_at',$1), updated_at=CURRENT_TIMESTAMP WHERE id=$2 AND doctype='LogisticsBooking'`, schema), time.Now().UTC().Format(time.RFC3339), bookingID)
 	return err
+}
+
+// CourierUnreachableCode is the code a courier call that never got a usable
+// answer is reported with: INTEGR-0167, 503 and retryable (47.11.8).
+const CourierUnreachableCode = "INTEGR-0167"
+
+// courierCallFailed (47.11.8) turns a courier that could not be reached, did
+// not answer, or answered with its own server error into CourierUnreachableCode
+// with the one line the operator needs: whether anything may have been sent,
+// and what to do next. The raw transport error (an address, a socket message)
+// is not shown. Every other failure - the courier refusing the shipment, a
+// breaker or switched-off refusal, the caller leaving - is returned as it was.
+func courierCallFailed(provider string, err error) error {
+	if err == nil || errors.Is(err, context.Canceled) {
+		return err
+	}
+	var httpErr *ConnectorHTTPError
+	if errors.As(err, &httpErr) && httpErr.Status >= 500 {
+		return &ValidationError{Code: CourierUnreachableCode, Message: fmt.Sprintf("%s is not working right now (HTTP %d) - nothing was recorded here. Try again shortly.", provider, httpErr.Status)}
+	}
+	var urlErr *neturl.Error
+	if !errors.As(err, &urlErr) {
+		return err
+	}
+	if _, notSent := crmClassifyHTTPError(urlErr).(*errCRMNotSent); notSent {
+		return &ValidationError{Code: CourierUnreachableCode, Message: fmt.Sprintf("%s could not be reached - nothing was sent and nothing was changed here. Try again shortly.", provider)}
+	}
+	return &ValidationError{Code: CourierUnreachableCode, Message: fmt.Sprintf("%s did not answer - nothing was recorded here, but it may have received the request. Check %s for this booking before trying again.", provider, provider)}
 }
 
 // ShopCourierRates calls every requested configured adapter and returns only

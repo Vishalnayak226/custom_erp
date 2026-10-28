@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -130,7 +131,15 @@ func EnforceUTF8Encoding() error {
 // path), but this is cheap, stdlib-only defense-in-depth.
 var validSchemaNameRe = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
-// GetTenantSchema resolves the tenant schema name based on tenant_id
+// ErrUnknownTenant is GetTenantSchema's answer for a client id that is not
+// registered in public.tenants.
+var ErrUnknownTenant = errors.New("no client is registered with this id")
+
+// GetTenantSchema resolves the tenant schema name based on tenant_id. "" and
+// "default" are the default client's own id. Any other id must be registered:
+// 49.3.2a (user, 2026-10-28: "Fix it") - an unregistered one used to fall back
+// to tenant_default, so a mistyped client code at sign-in, a stale client id
+// in a browser or a purged client's id quietly acted on the default client.
 func GetTenantSchema(tenantID string) (string, error) {
 	if tenantID == "" || tenantID == "default" {
 		return "tenant_default", nil
@@ -138,7 +147,7 @@ func GetTenantSchema(tenantID string) (string, error) {
 	var schemaName string
 	err := DB.QueryRow("SELECT schema_name FROM public.tenants WHERE tenant_id = $1", tenantID).Scan(&schemaName)
 	if err == sql.ErrNoRows {
-		return "tenant_default", nil // Fallback to default
+		return "", ErrUnknownTenant
 	} else if err != nil {
 		return "", err
 	}

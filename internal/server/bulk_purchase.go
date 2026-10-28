@@ -257,18 +257,21 @@ func bpPhotoNames(s string) []string {
 	return out
 }
 
-// bpDate reads a date cell: an Excel date number or a typed date.
-func bpDate(s string) (string, error) {
+// bpDate reads a date cell: an Excel date number or a typed date, read in
+// the client's date order (47.14.2a: engines.ParseDateInOrder, as imports).
+func bpDate(s, order string) (string, error) {
 	s = strings.TrimSpace(s)
 	if f, err := strconv.ParseFloat(s, 64); err == nil && f > 20000 && f < 80000 {
 		return time.Date(1899, 12, 30, 0, 0, 0, 0, time.UTC).AddDate(0, 0, int(f)).Format("2006-01-02"), nil
 	}
-	for _, layout := range []string{"2006-01-02", "02-01-2006", "2-1-2006", "02/01/2006", "2/1/2006", "02-Jan-2006", "2-Jan-2006", "02 Jan 2006", "2 Jan 2006", "2006/01/02"} {
-		if t, err := time.Parse(layout, s); err == nil {
-			return t.Format("2006-01-02"), nil
-		}
+	if iso, err := engines.ParseDateInOrder(s, order); err == nil && len(iso) >= 10 {
+		return iso[:10], nil
 	}
-	return "", fmt.Errorf("%q is not a date - type it like 20-10-2026", s)
+	example := map[string]string{engines.DateOrderMDY: "10-20-2026", engines.DateOrderYMD: "2026-10-20"}[order]
+	if example == "" {
+		example = "20-10-2026"
+	}
+	return "", fmt.Errorf("%q is not a date - type it like %s", s, example)
 }
 
 func bpWhole(s, what string) (int, error) {
@@ -280,8 +283,8 @@ func bpWhole(s, what string) (int, error) {
 }
 
 // bpRead reads the three sheets. A sheet that is missing is empty; the
-// Purchase sheet is required.
-func bpRead(file []byte) ([]*bpVendorIn, []*bpLine, []*bpBillIn, []bpAttrCol, error) {
+// Purchase sheet is required. dateOrder is the client's date order (bpDate).
+func bpRead(file []byte, dateOrder string) ([]*bpVendorIn, []*bpLine, []*bpBillIn, []bpAttrCol, error) {
 	tables, _, err := swParse(file, bpHeaderWords())
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -404,7 +407,7 @@ func bpRead(file []byte) ([]*bpVendorIn, []*bpLine, []*bpBillIn, []bpAttrCol, er
 				probs = append(probs, "missing: "+strings.Join(miss, ", "))
 			}
 			if date != "" {
-				if d, err := bpDate(date); err != nil {
+				if d, err := bpDate(date, dateOrder); err != nil {
 					probs = append(probs, err.Error())
 				} else {
 					b.Date = d
@@ -1567,8 +1570,11 @@ func (b *bpRun) doPOs(pos []*bpPO) {
 		}
 		if !b.apply {
 			if po.out.Action == "new" {
-				if ps := engines.ResolvePlaceOfSupply(b.sw.c.tenantID, po.storeID, po.vendorID); po.vendorID != "" && !ps.Derived {
-					po.out.Message = "CGST + SGST or IGST cannot be worked out (the vendor or the store has no state) - it will be saved as within the state; check the PO"
+				// 49.5.6b: Apply would refuse a PO for a vendor with no state.
+				if err := engines.RequirePOVendorState(b.sw.c.tenantID, map[string]interface{}{"vendor": po.vendorID}); err != nil {
+					b.failPO(po, "the vendor has no state - add its State on the vendor in Wholeops, then upload again")
+				} else if ps := engines.ResolvePlaceOfSupply(b.sw.c.tenantID, po.storeID, po.vendorID); po.vendorID != "" && !ps.Derived {
+					po.out.Message = "CGST + SGST or IGST cannot be worked out (the store has no state) - it will be saved as within the state; check the PO"
 				}
 			}
 			continue
@@ -1581,8 +1587,7 @@ func (b *bpRun) doPOs(pos []*bpPO) {
 			raw, _ := json.Marshal(items)
 			id, err := b.saveDoc("PurchaseOrder", map[string]interface{}{
 				"vendor": po.vendorID, "vendor_id": po.vendorID, "location": po.storeID, "target_warehouse": po.storeID,
-				"items": string(raw), "gst_mode": "Inclusive", "interstate": false, "interstate_override": false,
-				"total_amount": 0, "status": "Draft", "upload_ref": po.ref,
+				"items": string(raw), "gst_mode": "Inclusive", "total_amount": 0, "status": "Draft", "upload_ref": po.ref,
 			})
 			if err != nil {
 				b.failPO(po, "the PO could not be saved: "+err.Error())
@@ -1971,7 +1976,7 @@ func bpPrepare(w http.ResponseWriter, r *http.Request, apply bool) (*bpRun, []by
 	if !ok {
 		return nil, nil, "", nil, false
 	}
-	vendors, lines, bills, attrs, err := bpRead(file)
+	vendors, lines, bills, attrs, err := bpRead(file, engines.ClientDateOrder(r.Header.Get("Resolved-Tenant-ID")))
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return nil, nil, "", nil, false

@@ -123,8 +123,11 @@ export function formatValue(v, fmt) {
     case 'qty': return isNaN(Number(v)) ? String(v) : qtyFmt.format(Number(v));
     case 'percent': return isNaN(Number(v)) ? String(v) : `${qtyFmt.format(Number(v))}%`;
     case 'date': {
+      // 47.14.2a: dd-mm-yyyy, mm-dd-yyyy or yyyy-mm-dd - the client's date order.
       const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v));
-      return m ? `${m[3]}-${m[2]}-${m[1]}` : String(v);
+      if (!m) return String(v);
+      const order = typeof state !== 'undefined' ? state.localization?.date_order : '';
+      return order === 'MDY' ? `${m[2]}-${m[3]}-${m[1]}` : order === 'YMD' ? `${m[1]}-${m[2]}-${m[3]}` : `${m[3]}-${m[2]}-${m[1]}`;
     }
     default:
       return typeof v === 'boolean' ? (v ? 'Yes' : 'No') : String(v);

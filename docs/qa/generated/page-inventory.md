@@ -11,10 +11,10 @@ Stage 135.5. Each front-end file, the screens the shell routes to it, and each A
 
 | Count | |
 |---|---|
-| Front-end files with screens or API calls | 76 |
-| Screens in the shell registry | 66 |
-| File-to-route actions | 884 |
-| Registered `/api` routes | 833 |
+| Front-end files with screens or API calls | 78 |
+| Screens in the shell registry | 67 |
+| File-to-route actions | 896 |
+| Registered `/api` routes | 839 |
 | Routes no front-end file calls | 186 |
 | Calls matching no route | 2 |
 
@@ -22,7 +22,7 @@ Stage 135.5. Each front-end file, the screens the shell routes to it, and each A
 
 ### `public/app.js`
 
-Screens: home (`#/view/home`; help: Finding your way around, verified 2026-09-24; Custom dashboards, verified 2026-10-22), profile (`#/view/profile`; help: Your first sign-in, verified 2026-08-12; Security, Roles & Approvals, verified 2026-09-03).  
+Screens: home (`#/view/home`; help: Finding your way around, verified 2026-09-24; Keyboard shortcuts and quick codes, verified 2026-10-26; Custom dashboards, verified 2026-10-22), profile (`#/view/profile`; help: Your first sign-in, verified 2026-08-12; Security, Roles & Approvals, verified 2026-09-03).  
 Owners: Shared contract across M01–M30. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -34,6 +34,7 @@ Owners: Shared contract across M01–M30. Live inspection: not recorded.
 | GET | `/api/v1/availability` | `handleGetAvailability` |  | signed-in: availability.default | every signed-in role |
 | GET | `/api/v1/branding` | `handleBranding` |  | public: version.default | anyone |
 | POST | `/api/v1/checkout` | `handleCheckout` |  | signed-in: checkout.default | every signed-in role |
+| GET | `/api/v1/doc-find` | `handleDocFind` |  | signed-in: doc.default | every signed-in role |
 | GET | `/api/v1/doc/{doctype}/meta` | `handleGetDocTypeMeta` |  | signed-in: doc.default | every signed-in role |
 | ANY | `/api/v1/doc/{doctype}/{id}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
 | ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
@@ -179,6 +180,19 @@ Owners: not in the plan's table. Live inspection: not recorded.
 | GET | `/api/v1/branding/logo` | `handleBrandingLogo` |  | public: version.default | anyone |
 | GET | `/api/v1/branding` | `handleBranding` |  | public: version.default | anyone |
 | GET | `/api/v1/version` | `handleVersion` |  | public: version.default | anyone |
+
+### `public/shortcuts.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| GET | `/api/v1/doc-find` | `handleDocFind` |  | signed-in: doc.default | every signed-in role |
+| GET | `/api/v1/doc/{doctype}/meta` | `handleGetDocTypeMeta` |  | signed-in: doc.default | every signed-in role |
+| ANY | `/api/v1/doc/{doctype}/{id}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
+| ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
+| GET | `/api/v1/inbox` | `handleTaskInbox` |  | signed-in: approval.default | every signed-in role |
+| GET | `/api/v1/reports/catalog` | `handleReportCatalog` | reports | signed-in: reports.default | every signed-in role |
 
 ### `public/sticker-engine.js`
 
@@ -528,7 +542,7 @@ Owners: M25, M26. Live inspection: not recorded.
 
 ### `public/view-documents.js`
 
-Screens: Records (`#/view/doctype-table`; help: 13 articles, chosen by record type), Doctype Builder (`#/view/doctype-builder`; help: A day as an administrator, verified 2026-08-17).  
+Screens: Records (`#/view/doctype-table`; help: 14 articles, chosen by record type), Doctype Builder (`#/view/doctype-builder`; help: A day as an administrator, verified 2026-08-17).  
 Owners: Shared contract across M01–M30. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -842,6 +856,18 @@ Owners: M02, M14. Live inspection: not recorded.
 | GET | `/api/v1/master-codes/{doctype}/clean` | `handleMasterCodeClean` |  | admin: admin.master-codes | Super Admin, Admin |
 | POST | `/api/v1/master-codes/{doctype}/clean` | `handleMasterCodeClean` |  | admin: admin.master-codes | Super Admin, Admin |
 
+### `public/view-offline-sales.js`
+
+Screens: Offline Sales (`#/view/offline-sales`; help: Point of Sale, verified 2026-09-02).  
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| POST | `/api/v1/pos/offline-sales/{id}/reject` | `handleRejectOfflineSale` |  | signed-in: pos.offline_validate | Super Admin, Admin, Administrator, Store Supervisor |
+| POST | `/api/v1/pos/offline-sales/{id}/validate` | `handleValidateOfflineSale` |  | signed-in: pos.offline_validate | Super Admin, Admin, Administrator, Store Supervisor |
+| GET | `/api/v1/pos/offline-sales/{id}` | `handleGetOfflineSale` |  | signed-in: pos.offline_validate | Super Admin, Admin, Administrator, Store Supervisor |
+| GET | `/api/v1/pos/offline-sales` | `handleListOfflineSales` |  | signed-in: pos.offline_validate | Super Admin, Admin, Administrator, Store Supervisor |
+
 ### `public/view-oms-steps.js`
 
 Owners: M12, M13, M28. Live inspection: not recorded.
@@ -852,6 +878,7 @@ Owners: M12, M13, M28. Live inspection: not recorded.
 | ANY | `/api/v1/doc/{doctype}/{id}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
 | ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
 | POST | `/api/v1/fulfillment/task/transition` | `handleFulfillmentTaskTransition` | wms_integration | signed-in: wms.default | every signed-in role |
+| POST | `/api/v1/marketplace/couriers/{provider}/resolve` | `handleCourierResolveBooking` | oms / oms_integration | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/marketplace/logistics/book` | `handleLogisticsBook` | oms / oms_integration | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/marketplace/logistics/manifest/handover` | `handleHandoverManifest` | oms / oms_integration | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/marketplace/logistics/manifest` | `handleGenerateManifest` | oms / oms_integration | signed-in: oms.default | every signed-in role |
@@ -1165,7 +1192,7 @@ Owners: M15, M16. Live inspection: not recorded.
 
 ### `public/view-reports.js`
 
-Screens: Reports (`#/view/reports`; help: Finding your way around, verified 2026-09-24; Open a shop and make your first sale, verified 2026-08-17; What this system is, verified 2026-08-17; CRM & Loyalty, verified 2026-09-03; Custom dashboards, verified 2026-10-22; Finance & Tax, verified 2026-09-03; Inventory & Warehouse Operations, verified 2026-09-03; Product Information Management, verified 2026-09-03; Point of Sale, verified 2026-09-02; Procurement, verified 2026-09-03; Batch, Serial & Expiry Traceability, verified 2026-08-31; Report catalog (part 2), verified 2026-09-10; Report catalog (part 3), verified 2026-09-10; Report catalog, verified 2026-09-10; A day as a category manager, verified 2026-08-17; A day in finance, verified 2026-08-17; A day as a store manager, verified 2026-08-17), Inventory (`#/view/inventory`; help: Finding your way around, verified 2026-09-24; Open a shop and make your first sale, verified 2026-08-17; Inventory & Warehouse Operations, verified 2026-09-03; A day as a store manager, verified 2026-08-17; Troubleshooting by symptom, verified 2026-08-17).  
+Screens: Reports (`#/view/reports`; help: Finding your way around, verified 2026-09-24; Keyboard shortcuts and quick codes, verified 2026-10-26; Open a shop and make your first sale, verified 2026-08-17; What this system is, verified 2026-08-17; CRM & Loyalty, verified 2026-09-03; Custom dashboards, verified 2026-10-22; Finance & Tax, verified 2026-09-03; Inventory & Warehouse Operations, verified 2026-09-03; Product Information Management, verified 2026-09-03; Point of Sale, verified 2026-09-02; Procurement, verified 2026-09-03; Batch, Serial & Expiry Traceability, verified 2026-08-31; Report catalog (part 2), verified 2026-09-10; Report catalog (part 3), verified 2026-09-10; Report catalog, verified 2026-09-10; A day as a category manager, verified 2026-08-17; A day in finance, verified 2026-08-17; A day as a store manager, verified 2026-08-17), Inventory (`#/view/inventory`; help: Finding your way around, verified 2026-09-24; Open a shop and make your first sale, verified 2026-08-17; Inventory & Warehouse Operations, verified 2026-09-03; A day as a store manager, verified 2026-08-17; Troubleshooting by symptom, verified 2026-08-17).  
 Owners: M25, M26. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
@@ -1470,7 +1497,11 @@ No screen and no API call: `charts.js`, `db.js`, `print-pdf.js`, `qrcode.min.js`
 
 ## Screens missing an owner or a help article
 
-0 of 66 screens. An owner comes from the plan's page ownership table, an article from a Knowledge Center article's `screens:` list.
+1 of 67 screens. An owner comes from the plan's page ownership table, an article from a Knowledge Center article's `screens:` list.
+
+| Screen | View | File | Owner | Help article |
+|---|---|---|---|---|
+| Offline Sales | `offline-sales` | `public/view-offline-sales.js` | missing | yes |
 
 ## Generic Setup pages
 
@@ -1521,19 +1552,19 @@ Settings → Configuration renders the settings registry by module, through the 
 | GST & Compliance | 1 |
 | HR & Payroll | 1 |
 | Inventory | 16 |
-| Localization | 1 |
+| Localization | 2 |
 | Loyalty | 8 |
 | Manufacturing | 4 |
 | OMS | 4 |
 | PIM | 2 |
-| Platform | 20 |
+| Platform | 21 |
 | Point of Sale | 11 |
 | Printing | 6 |
 | Procurement | 17 |
 | Procurement & GRN | 8 |
 | Reports | 1 |
 | Sales & Returns | 1 |
-| Security | 12 |
+| Security | 14 |
 | Stock Transfer | 1 |
 | Store app | 1 |
 | Warehouse | 8 |

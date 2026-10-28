@@ -119,9 +119,26 @@ func VerifyExpenseClaim(tenantID, claimID string) error {
 // issue/usage/balance tracking (MB 16.2's "Advance" requirement) is
 // explicitly out of scope for this pass.
 func PayExpenseClaim(tenantID, claimID string) (payableAmount float64, err error) {
-	data, status, err := fetchExpenseClaim(tenantID, claimID)
+	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
+		return 0, err
+	}
+	// Stage 135.21: the claim is read under its row lock and paid and marked
+	// Paid in this one transaction, so a second payment (double-click, retry,
+	// two users) waits, then finds it Paid and is refused - read outside it,
+	// both saw Verified and both reported the claim paid.
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	var dataStr, status string
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE doctype = 'ExpenseClaim' AND id = $1 FOR UPDATE`, schema), claimID).Scan(&dataStr, &status); err != nil {
 		return 0, fmt.Errorf("claim not found: %v", err)
+	}
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+		return 0, err
 	}
 	if status != "Verified" {
 		return 0, fmt.Errorf("only a finance-verified claim can be paid (current status: %s)", status)
@@ -174,12 +191,20 @@ func PayExpenseClaim(tenantID, claimID string) (payableAmount float64, err error
 		department = ""
 	}
 	project, _ := data["project"].(string)
-	if err := PostDoubleEntry(tenantID, "ExpenseClaim", claimID, debits, credits, "", fmt.Sprintf("ExpenseClaim:%s:PAY", claimID),
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "ExpenseClaim", claimID, debits, credits, "", fmt.Sprintf("ExpenseClaim:%s:PAY", claimID),
 		PostingOptions{Department: department, Project: project}); err != nil {
 		return 0, fmt.Errorf("failed to post expense payment GL entry: %v", err)
 	}
 
-	if err := saveExpenseClaimStatus(tenantID, claimID, "Paid", data); err != nil {
+	data["status"] = "Paid"
+	marshaled, err := json.Marshal(data)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = $1, status = 'Paid', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'ExpenseClaim' AND id = $2`, schema), marshaled, claimID); err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
 		return 0, err
 	}
 	return PaiseToRupees(amount + gstAmount - advanceAdjusted), nil

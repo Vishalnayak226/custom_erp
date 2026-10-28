@@ -3,855 +3,855 @@
 <h2 id="contents">Contents <a class="kb-anchor" href="#contents" aria-label="Copy link to this section">#</a></h2>
 <ul><li><a href="#inventory">Inventory</a> - 42 reports</li><li><a href="#mis-management">MIS &amp; Management</a> - 10 reports</li><li><a href="#manufacturing">Manufacturing</a> - 21 reports</li><li><a href="#master-data-audit">Master Data &amp; Audit</a> - 11 reports</li><li><a href="#oms">OMS</a> - 25 reports</li><li><a href="#pim">PIM</a> - 4 reports</li><li><a href="#pim-pims">PIM / PIMS</a> - 16 reports</li><li><a href="#procurement">Procurement</a> - 18 reports</li></ul>
 <h2 id="inventory">Inventory <a class="kb-anchor" href="#inventory" aria-label="Copy link to this section">#</a></h2>
-<h3 id="backflush-consumption">Backflush Consumption <a class="kb-anchor" href="#backflush-consumption" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3069-backflush-consumption">R3069 Backflush Consumption <a class="kb-anchor" href="#r3069-backflush-consumption" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>backflush-consumption</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>store</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Date · Bill · Store · Sold item · Group · Consumed · Qty · Default · Changed · Reason · Rule (version)</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="barcode-reprint-label-history">Barcode Reprint / Label History <a class="kb-anchor" href="#barcode-reprint-label-history" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3020-barcode-reprint-label-history">R3020 Barcode Reprint / Label History <a class="kb-anchor" href="#r3020-barcode-reprint-label-history" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-barcode-reprint-label-history</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Document Date · Barcode · SKU · Design No · Combination ID · Store Code · Store Name · Reason · User ID · User Name · Created At</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="barcode-wise-cost-mrp-report">Barcode-wise Cost &amp; MRP Report <a class="kb-anchor" href="#barcode-wise-cost-mrp-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3009-barcode-wise-cost-mrp-report">R3009 Barcode-wise Cost &amp; MRP Report <a class="kb-anchor" href="#r3009-barcode-wise-cost-mrp-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-barcode-wise-cost-and-mrp-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> As Of Date · Store Code · Store Name · Location Name · Item Code · Item Name · SKU · Barcode · Design No · Combination ID · Category Name · Vendor Name · PO No · GRN No · Purchase Price <em>(sensitive)</em> · Landed Cost <em>(sensitive)</em> · MRP · Cost Value <em>(sensitive)</em> · MRP Value · Margin Amount <em>(sensitive)</em> · Margin % <em>(sensitive)</em> · Stock Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="batch-lookup-ageing">Batch Lookup &amp; Ageing <a class="kb-anchor" href="#batch-lookup-ageing" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3080-batch-lookup-ageing">R3080 Batch Lookup &amp; Ageing <a class="kb-anchor" href="#r3080-batch-lookup-ageing" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>batch-ageing</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Scan batch, barcode or SKU</strong> (<code>scan</code>) - text, optional</li><li><strong>Older than (days)</strong> (<code>min_age_days</code>) - text, optional</li><li><strong>Show</strong> (<code>show</code>) - select, optional, one of: All batches,Only with stock left</li></ul>
 <p><strong>Columns:</strong> Batch · Item · Received On · Age (days) · Age Band · GRN · Supplier · Received Qty · Est. Left (FIFO) · Expires · Batch Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="consumption-by-cost-centre">Consumption by cost centre <a class="kb-anchor" href="#consumption-by-cost-centre" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3071-consumption-by-cost-centre">R3071 Consumption by cost centre <a class="kb-anchor" href="#r3071-consumption-by-cost-centre" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>consumption-by-cost-centre</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Cost centre · Department · Issued · Returned · Net consumption</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="current-stock">Current Stock <a class="kb-anchor" href="#current-stock" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3076-current-stock">R3076 Current Stock <a class="kb-anchor" href="#r3076-current-stock" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>current-stock</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> SKU · Location · On Hand · Available · Committed · Reserved · Safety Stock</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="current-stock-barcode-detail">Current Stock Barcode Detail <a class="kb-anchor" href="#current-stock-barcode-detail" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3003-current-stock-barcode-detail">R3003 Current Stock Barcode Detail <a class="kb-anchor" href="#r3003-current-stock-barcode-detail" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-current-stock-barcode-detail</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> As Of Date · Store Code · Store Name · Location Code · Location Name · Item Code · Item Name · SKU · Barcode · Design No · Combination ID · Category Name · EAN Code · MRP · Purchase Price <em>(sensitive)</em> · Stock Status · Rack · Shelf · Box</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="current-stock-itemwise-detail">Current Stock Itemwise Detail <a class="kb-anchor" href="#current-stock-itemwise-detail" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3002-current-stock-itemwise-detail">R3002 Current Stock Itemwise Detail <a class="kb-anchor" href="#r3002-current-stock-itemwise-detail" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-current-stock-itemwise-detail</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> As Of Date · Store Code · Store Name · Location Code · Location Name · Item Code · Item Name · SKU · Barcode · Design No · Combination ID · Category Name · Available Qty · Blocked Qty · In-Transit Qty · MRP · MRP Value · Stock Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="current-stock-summary">Current Stock Summary <a class="kb-anchor" href="#current-stock-summary" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3001-current-stock-summary">R3001 Current Stock Summary <a class="kb-anchor" href="#r3001-current-stock-summary" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-current-stock-summary</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> As Of Date · Store Code · Store Name · Location Code · Location Name · Category Name · SKU · Available Qty · Blocked Qty · In-Transit Qty · MRP Value</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="current-stock-with-image">Current Stock with Image <a class="kb-anchor" href="#current-stock-with-image" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3013-current-stock-with-image">R3013 Current Stock with Image <a class="kb-anchor" href="#r3013-current-stock-with-image" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-current-stock-with-image</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> As Of Date · Store Code · Store Name · Location Name · Design No · Combination ID · SKU · Item Name · Category Name · Available Qty · MRP · Image URL</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="delivery-challan-register">Delivery challan register <a class="kb-anchor" href="#delivery-challan-register" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3062-delivery-challan-register">R3062 Delivery challan register <a class="kb-anchor" href="#r3062-delivery-challan-register" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>delivery-challan-register</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Date · Challan · Purpose · Store · Party · Item · Lot · Issued · Back good · Back damaged · Back rejected · Written off · Still out · Expected back · Status · E-way bill</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="demand-forecast-trend">Demand Forecast (Trend) <a class="kb-anchor" href="#demand-forecast-trend" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3073-demand-forecast-trend">R3073 Demand Forecast (Trend) <a class="kb-anchor" href="#r3073-demand-forecast-trend" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>demand-forecast</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>SKU</strong> (<code>sku</code>) - text, <strong>required</strong></li><li><strong>Location</strong> (<code>location_code</code>) - text, <strong>required</strong></li><li><strong>Forecast Days</strong> (<code>forecast_days</code>) - text, <strong>required</strong></li></ul>
 <p><strong>Columns:</strong> SKU · Location · Forecasted Qty</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="e-way-bill-register">E-way bill register <a class="kb-anchor" href="#e-way-bill-register" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3064-e-way-bill-register">R3064 E-way bill register <a class="kb-anchor" href="#r3064-e-way-bill-register" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>ewaybill-register</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Date · Document · Type · From · To · Value · E-way bill · EWB no · Valid until · Vehicle · Why</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="goods-in-receiving">Goods In Receiving <a class="kb-anchor" href="#goods-in-receiving" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3065-goods-in-receiving">R3065 Goods In Receiving <a class="kb-anchor" href="#r3065-goods-in-receiving" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>grn-in-receiving</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Store code (blank = all)</strong> (<code>store</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Store · SKU · In receiving · Receipts · Received since</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="goods-out-on-challan-by-party">Goods out on challan, by party <a class="kb-anchor" href="#goods-out-on-challan-by-party" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3063-goods-out-on-challan-by-party">R3063 Goods out on challan, by party <a class="kb-anchor" href="#r3063-goods-out-on-challan-by-party" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>challan-outstanding-returnables</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Party · Challans · Still out · Value · Not due · Overdue up to 30 days · 31-60 days · Over 60 days</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="inventory-matrix-summary">Inventory Matrix Summary <a class="kb-anchor" href="#inventory-matrix-summary" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3012-inventory-matrix-summary">R3012 Inventory Matrix Summary <a class="kb-anchor" href="#r3012-inventory-matrix-summary" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-inventory-matrix-summary</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> As Of Date · Store Code · Store Name · Category Name · Design No · Unique Design Count · Available Qty · MRP Value</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="inventory-valuation">Inventory Valuation <a class="kb-anchor" href="#inventory-valuation" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3060-inventory-valuation">R3060 Inventory Valuation <a class="kb-anchor" href="#r3060-inventory-valuation" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>inventory-valuation</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> SKU · Qty On Hand · Unit Cost (Avg) <em>(sensitive)</em> · Total Value <em>(sensitive)</em> · Costed</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="inventory-by-location-summary">Inventory by Location Summary <a class="kb-anchor" href="#inventory-by-location-summary" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3011-inventory-by-location-summary">R3011 Inventory by Location Summary <a class="kb-anchor" href="#r3011-inventory-by-location-summary" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-inventory-by-location-summary</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> As Of Date · Store Code · Store Name · Location Code · Location Name · Closing Stock Qty · Unique Design Count · MRP Value</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="item-classification-register">Item Classification Register <a class="kb-anchor" href="#item-classification-register" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3068-item-classification-register">R3068 Item Classification Register <a class="kb-anchor" href="#r3068-item-classification-register" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>item-classification-register</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Item Type</strong> (<code>item_type</code>) - text, optional</li><li><strong>Sellability</strong> (<code>sellability</code>) - select, optional, one of: ,Normal sale,Promo only,Not sellable,Stored-value issue only</li></ul>
 <p><strong>Columns:</strong> SKU · Item · Item Type · Class · Stock · Valuation · Accounting · Sellability · Bill · Capture · Consumption · Item overrides · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="mrp-change-register">MRP Change Register <a class="kb-anchor" href="#mrp-change-register" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3019-mrp-change-register">R3019 MRP Change Register <a class="kb-anchor" href="#r3019-mrp-change-register" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-mrp-change-register</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Document Date · Document No · Store Code · Store Name · Design No · Combination ID · Barcode · MRP · New Value · Reason · Status · Created By · Approved By</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="material-issue-and-return-register">Material issue and return register <a class="kb-anchor" href="#material-issue-and-return-register" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3072-material-issue-and-return-register">R3072 Material issue and return register <a class="kb-anchor" href="#r3072-material-issue-and-return-register" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>material-issue-register</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Date · Document · Type · Store · Department · Cost centre · Item · Qty · Value · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="negative-stock-exception">Negative Stock Exception <a class="kb-anchor" href="#negative-stock-exception" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3018-negative-stock-exception">R3018 Negative Stock Exception <a class="kb-anchor" href="#r3018-negative-stock-exception" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-negative-stock-exception</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> As Of Date · Store Code · Store Name · Location Name · SKU · Barcode · Item Name · Closing Stock Qty · Reason · Source Document No</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="non-valuated-stock">Non-Valuated Stock <a class="kb-anchor" href="#non-valuated-stock" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3070-non-valuated-stock">R3070 Non-Valuated Stock <a class="kb-anchor" href="#r3070-non-valuated-stock" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>non-valuated-stock</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> SKU · Item · Item Type · Store · On hand · Available</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="pegged-demand-supply">Pegged Demand &amp; Supply <a class="kb-anchor" href="#pegged-demand-supply" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3075-pegged-demand-supply">R3075 Pegged Demand &amp; Supply <a class="kb-anchor" href="#r3075-pegged-demand-supply" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>pegged-demand-supply</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>SKU</strong> (<code>sku</code>) - text, <strong>required</strong></li><li><strong>Location (for on-hand supply)</strong> (<code>location_code</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Kind · Type · Reference · Qty · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="physical-stock-count-register">Physical Stock Count Register <a class="kb-anchor" href="#physical-stock-count-register" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3016-physical-stock-count-register">R3016 Physical Stock Count Register <a class="kb-anchor" href="#r3016-physical-stock-count-register" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-physical-stock-count-register</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Open,Counting,Review,Closed,Posted</li></ul>
 <p><strong>Columns:</strong> Document Date · Count Reference · Store Code · Store Name · Location Name · System Qty · Physical Qty · Difference Qty · Status · Created By · Approved By</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="physical-stock-variance-report">Physical Stock Variance Report <a class="kb-anchor" href="#physical-stock-variance-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3017-physical-stock-variance-report">R3017 Physical Stock Variance Report <a class="kb-anchor" href="#r3017-physical-stock-variance-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-physical-stock-variance-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Document Date · Count Reference · Store Code · Store Name · Location Name · Item Code · Item Name · SKU · Barcode · Design No · Combination ID · Category Name · System Qty · Physical Qty · Difference Qty · Reason · Purchase Price <em>(sensitive)</em> · MRP · Approval Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="reorder-suggestions-configured">Reorder Suggestions (Configured) <a class="kb-anchor" href="#reorder-suggestions-configured" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3074-reorder-suggestions-configured">R3074 Reorder Suggestions (Configured) <a class="kb-anchor" href="#r3074-reorder-suggestions-configured" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>reorder-suggestions</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Location</strong> (<code>location_code</code>) - text, <strong>required</strong></li><li><strong>Default Lead Time (days)</strong> (<code>default_lead_time_days</code>) - text, <strong>required</strong></li><li><strong>Default Safety Stock</strong> (<code>default_safety_stock</code>) - text, <strong>required</strong></li></ul>
 <p><strong>Columns:</strong> SKU · Location · Available · Daily Velocity · Reorder Point · Suggested Qty · Safety Stock · Lead Time (days)</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="stock-ageing-by-grn-batch">Stock Ageing (by GRN batch) <a class="kb-anchor" href="#stock-ageing-by-grn-batch" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3081-stock-ageing-by-grn-batch">R3081 Stock Ageing (by GRN batch) <a class="kb-anchor" href="#r3081-stock-ageing-by-grn-batch" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>stock-ageing</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Scan barcode or SKU (optional)</strong> (<code>scan</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Item · On Hand · 0-30 days · 31-60 days · 61-90 days · 91-180 days · Over 180 days · Before batch numbers · Oldest Batch Held · Oldest Received On</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="stock-aging">Stock Aging <a class="kb-anchor" href="#stock-aging" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3007-stock-aging">R3007 Stock Aging <a class="kb-anchor" href="#r3007-stock-aging" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-stock-aging</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> As Of Date · Store Code · Store Name · Location Name · Item Code · Item Name · SKU · Barcode · Design No · Combination ID · Category Name · Available Qty · MRP · Stock Age Days · Age Bucket · Last GRN Date · Last Sale Date · MRP Value</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="stock-book-vs-ledger-drift-finder">Stock Book vs Ledger (drift finder) <a class="kb-anchor" href="#stock-book-vs-ledger-drift-finder" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3079-stock-book-vs-ledger-drift-finder">R3079 Stock Book vs Ledger (drift finder) <a class="kb-anchor" href="#r3079-stock-book-vs-ledger-drift-finder" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>stock-book-vs-ledger</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Item Code (optional)</strong> (<code>sku</code>) - text, optional</li><li><strong>Location (optional)</strong> (<code>location</code>) - text, optional</li><li><strong>Include rows that agree</strong> (<code>all</code>) - select, optional, one of: No,Yes</li></ul>
-<p><strong>Columns:</strong> Item · Location · On hand (book) · Ledger total · Difference · Ledger lines · What it suggests</p>
+<p><strong>Columns:</strong> Item · Location · On hand (book) · Ledger total · Difference · Ledger lines · In own locations · Set aside (book) · What it suggests</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="stock-details-period-wise">Stock Details - Period Wise <a class="kb-anchor" href="#stock-details-period-wise" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3004-stock-details-period-wise">R3004 Stock Details - Period Wise <a class="kb-anchor" href="#r3004-stock-details-period-wise" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-stock-details-period-wise</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> From Date · To Date · Store Code · Store Name · Location Code · Location Name · EAN Code · Barcode · Item Name · Design No · Style · Color · Polish · Size · Brand · Configured Attribute 1 · Configured Attribute 2 · Category Name · Transaction HSN Code · GST % · Item Type · Rack · Shelf · Box · Opening Stock Qty · Inward Qty · Outward Qty · Closing Stock Qty · Stock Value at Purchase Price <em>(sensitive)</em> · Stock Value at Landed Cost <em>(sensitive)</em> · Stock Value at Selling Price · Stock Value at MRP · Stock Value Excl. Tax</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="stock-ledger">Stock Ledger <a class="kb-anchor" href="#stock-ledger" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3005-stock-ledger">R3005 Stock Ledger <a class="kb-anchor" href="#r3005-stock-ledger" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-stock-ledger</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Movement Date · Store Code · Store Name · Location Code · Location Name · Item Code · Item Name · SKU · Barcode · Design No · Combination ID · Category Name · Movement Type · Qty · Source Document Type · Source Document No · Stock Status · Created By</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="stock-ledger-2">Stock Ledger <a class="kb-anchor" href="#stock-ledger-2" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3078-stock-ledger">R3078 Stock Ledger <a class="kb-anchor" href="#r3078-stock-ledger" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>stock-ledger</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>SKU (optional)</strong> (<code>sku</code>) - text, optional</li><li><strong>Location (optional)</strong> (<code>location_code</code>) - text, optional</li><li><strong>Voucher Type (optional)</strong> (<code>voucher_type</code>) - text, optional</li><li><strong>From (optional)</strong> (<code>start</code>) - date, optional</li><li><strong>To (optional)</strong> (<code>end</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Date · SKU · Location · Qty Delta · Running Balance · Voucher Type · Voucher ID · From Location/Bin · To Location/Bin · From Condition · To Condition · User</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="stock-ledger-category-summary">Stock Ledger - Category Summary <a class="kb-anchor" href="#stock-ledger-category-summary" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3006-stock-ledger-category-summary">R3006 Stock Ledger - Category Summary <a class="kb-anchor" href="#r3006-stock-ledger-category-summary" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-stock-ledger-category-summary</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> From Date · To Date · Category Code · Category Name · Store Code · Store Name · Location Code · Location Name · Opening Stock Qty · Inward Qty · Outward Qty · Closing Stock Qty</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="stock-movement-history">Stock Movement History <a class="kb-anchor" href="#stock-movement-history" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3010-stock-movement-history">R3010 Stock Movement History <a class="kb-anchor" href="#r3010-stock-movement-history" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-stock-movement-history</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Movement Date · Barcode · SKU · Design No · Combination ID · From Location · To Location · Movement Type · Qty · Source Document Type · Source Document No · Created By</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="stock-valuation-summary">Stock Valuation Summary <a class="kb-anchor" href="#stock-valuation-summary" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3008-stock-valuation-summary">R3008 Stock Valuation Summary <a class="kb-anchor" href="#r3008-stock-valuation-summary" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-stock-valuation-summary</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> As Of Date · Store Code · Store Name · Location Name · Category Name · Closing Stock Qty · Stock Value at Purchase Price <em>(sensitive)</em> · Stock Value at Landed Cost <em>(sensitive)</em> · Stock Value at MRP · Stock Value Excl. Tax</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="stock-adjustment-register">Stock adjustment register <a class="kb-anchor" href="#stock-adjustment-register" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3066-stock-adjustment-register">R3066 Stock adjustment register <a class="kb-anchor" href="#r3066-stock-adjustment-register" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>inventory-adjustment-register</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Date · Adjustment · Store · Item · Qty · Before · After · Reason · Value · Status · Flag</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="stock-by-location">Stock by Location <a class="kb-anchor" href="#stock-by-location" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3077-stock-by-location">R3077 Stock by Location <a class="kb-anchor" href="#r3077-stock-by-location" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>stock-by-location</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Store code (blank = all)</strong> (<code>store</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Store · SKU · Main · Inward · In-Transit · QC Hold · Damage · On Hold · Purchase Return · Own locations · Sellable</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="stock-losses-by-reason-and-store">Stock losses by reason and store <a class="kb-anchor" href="#stock-losses-by-reason-and-store" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3067-stock-losses-by-reason-and-store">R3067 Stock losses by reason and store <a class="kb-anchor" href="#r3067-stock-losses-by-reason-and-store" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>inventory-loss-by-reason</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Store · Reason · Lines · Units lost · Value</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="transfer-shortages-by-reason">Transfer shortages by reason <a class="kb-anchor" href="#transfer-shortages-by-reason" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3082-transfer-shortages-by-reason">R3082 Transfer shortages by reason <a class="kb-anchor" href="#r3082-transfer-shortages-by-reason" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>transfer-shortage-by-reason</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Reason · Transfers · Damaged · Lost · Returned to source · Excess</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="transfers-in-transit-too-long">Transfers in transit too long <a class="kb-anchor" href="#transfers-in-transit-too-long" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3061-transfers-in-transit-too-long">R3061 Transfers in transit too long <a class="kb-anchor" href="#r3061-transfers-in-transit-too-long" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>transfers-in-transit-long</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Transfer · From · To · Dispatched · Days in transit</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="unique-design-inventory-summary">Unique Design Inventory Summary <a class="kb-anchor" href="#unique-design-inventory-summary" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r3021-unique-design-inventory-summary">R3021 Unique Design Inventory Summary <a class="kb-anchor" href="#r3021-unique-design-inventory-summary" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-unique-design-inventory-summary</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> As Of Date · Store Code · Store Name · Category Name · Unique Design Count · Available Qty · MRP Value</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h2 id="mis-management">MIS &amp; Management <a class="kb-anchor" href="#mis-management" aria-label="Copy link to this section">#</a></h2>
-<h3 id="ageing-inventory-value">Ageing Inventory Value <a class="kb-anchor" href="#ageing-inventory-value" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r9019-ageing-inventory-value">R9019 Ageing Inventory Value <a class="kb-anchor" href="#r9019-ageing-inventory-value" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-ageing-inventory-value</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> As Of Date · Store Name · Category Name · Age Bucket · Closing Stock Qty · Stock Value at Purchase Price <em>(sensitive)</em> · Stock Value at MRP</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="category-performance-summary">Category Performance Summary <a class="kb-anchor" href="#category-performance-summary" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r9015-category-performance-summary">R9015 Category Performance Summary <a class="kb-anchor" href="#r9015-category-performance-summary" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-category-performance-summary</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> From Date · To Date · Category Name · Sold Qty · Net Sales Amount · Margin Amount <em>(sensitive)</em> · Margin % <em>(sensitive)</em> · Closing Stock Qty · MRP Value · Sell Through %</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="daily-business-summary">Daily Business Summary <a class="kb-anchor" href="#daily-business-summary" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r9012-daily-business-summary">R9012 Daily Business Summary <a class="kb-anchor" href="#r9012-daily-business-summary" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-daily-business-summary</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Document Date · Store Code · Store Name · Bill Count · Sold Qty · Return Qty · Net Sales Amount · ABV · UPT · Discount Amount · Closing Stock Qty · MRP Value</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="fast-slow-moving-stock">Fast / Slow Moving Stock <a class="kb-anchor" href="#fast-slow-moving-stock" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r9017-fast-slow-moving-stock">R9017 Fast / Slow Moving Stock <a class="kb-anchor" href="#r9017-fast-slow-moving-stock" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-fast-slow-moving-stock</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> As Of Date · SKU · Design No · Item Name · Category Name · Available Qty · Sold Qty · Stock Age Days · Last Sale Date · MRP Value · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="gross-margin-summary">Gross Margin Summary <a class="kb-anchor" href="#gross-margin-summary" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r9016-gross-margin-summary">R9016 Gross Margin Summary <a class="kb-anchor" href="#r9016-gross-margin-summary" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-gross-margin-summary</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> From Date · To Date · Store Name · Category Name · Net Sales Amount · Cost Value <em>(sensitive)</em> · Margin Amount <em>(sensitive)</em> · Margin % <em>(sensitive)</em></p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="inventory-turnover-summary">Inventory Turnover Summary <a class="kb-anchor" href="#inventory-turnover-summary" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r9020-inventory-turnover-summary">R9020 Inventory Turnover Summary <a class="kb-anchor" href="#r9020-inventory-turnover-summary" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-inventory-turnover-summary</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> From Date · To Date · Store Name · Category Name · Sold Qty · Closing Stock Qty · Inventory Turnover · Sell Through %</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="management-stock-sales-summary">Management Stock &amp; Sales Summary <a class="kb-anchor" href="#management-stock-sales-summary" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r9021-management-stock-sales-summary">R9021 Management Stock &amp; Sales Summary <a class="kb-anchor" href="#r9021-management-stock-sales-summary" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-management-stock-and-sales-summary</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> From Date · To Date · Store Name · Category Name · Net Sales Amount · Sold Qty · Closing Stock Qty · MRP Value · Margin % <em>(sensitive)</em> · Stock Cover Days</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="sales-vs-target">Sales vs Target <a class="kb-anchor" href="#sales-vs-target" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r9013-sales-vs-target">R9013 Sales vs Target <a class="kb-anchor" href="#r9013-sales-vs-target" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-sales-vs-target</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> From Date · To Date · Store Code · Store Name · Target Amount · Net Sales Amount · Achievement % · Rank</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="stock-cover-report">Stock Cover Report <a class="kb-anchor" href="#stock-cover-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r9018-stock-cover-report">R9018 Stock Cover Report <a class="kb-anchor" href="#r9018-stock-cover-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-stock-cover-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> As Of Date · Store Name · Category Name · SKU · Available Qty · Sold Qty · Stock Cover Days · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="store-performance-ranking">Store Performance / Ranking <a class="kb-anchor" href="#store-performance-ranking" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r9014-store-performance-ranking">R9014 Store Performance / Ranking <a class="kb-anchor" href="#r9014-store-performance-ranking" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-store-performance-ranking</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> From Date · To Date · Store Code · Store Name · Bill Count · Sold Qty · Net Sales Amount · ABV · UPT · Margin % <em>(sensitive)</em> · Rank</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h2 id="manufacturing">Manufacturing <a class="kb-anchor" href="#manufacturing" aria-label="Copy link to this section">#</a></h2>
-<h3 id="bom-costing-report">BOM Costing Report <a class="kb-anchor" href="#bom-costing-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7018-bom-costing-report">R7018 BOM Costing Report <a class="kb-anchor" href="#r7018-bom-costing-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-bom-costing-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> BOM Code · Parent Item · Component Item · Component Qty · Purchase Price <em>(sensitive)</em> · Standard Cost <em>(sensitive)</em> · Cost Value <em>(sensitive)</em> · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="bom-register">BOM Register <a class="kb-anchor" href="#bom-register" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7017-bom-register">R7017 BOM Register <a class="kb-anchor" href="#r7017-bom-register" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-bom-register</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> BOM Code · Parent Item · Component Item · Component Qty · UOM · Status · Created By</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="batch-lot-traceability">Batch / Lot Traceability <a class="kb-anchor" href="#batch-lot-traceability" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7031-batch-lot-traceability">R7031 Batch / Lot Traceability <a class="kb-anchor" href="#r7031-batch-lot-traceability" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-batch-lot-traceability</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Document Date · Production Order No · Parent Item · Component Item · Barcode · Source Document No · Movement Type · Qty · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="job-work-cost-yield-and-wastage">Job work cost, yield and wastage <a class="kb-anchor" href="#job-work-cost-yield-and-wastage" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7034-job-work-cost-yield-and-wastage">R7034 Job work cost, yield and wastage <a class="kb-anchor" href="#r7034-job-work-cost-yield-and-wastage" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>job-work-yield</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Order · Job worker · Sent · Came back as · Consumed · Output accepted · Output rejected · Yield % (of expected) · Scrap / loss % · Material value · Processing charge · Cost per output</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="job-work-outstanding-qty-and-weight">Job work outstanding (qty and weight) <a class="kb-anchor" href="#job-work-outstanding-qty-and-weight" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7033-job-work-outstanding-qty-and-weight">R7033 Job work outstanding (qty and weight) <a class="kb-anchor" href="#r7033-job-work-outstanding-qty-and-weight" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>job-work-outstanding</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Order · Job worker · Line · Item · Sent · Accepted · Rejected · Scrap / loss · Loss awaiting approval · Still out · Net weight out · Fine weight out · Sent · Due back · Days overdue · Statutory return by</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="mrp-suggestions">MRP Suggestions <a class="kb-anchor" href="#mrp-suggestions" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7029-mrp-suggestions">R7029 MRP Suggestions <a class="kb-anchor" href="#r7029-mrp-suggestions" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-mrp-suggestions</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Proposed,Approved,Rejected,Converted</li></ul>
 <p><strong>Columns:</strong> As Of Date · Component Item · Available Qty · Reserved Qty · MRP Suggestion Qty · Promise Date · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="material-issue-consumption-report">Material Issue / Consumption Report <a class="kb-anchor" href="#material-issue-consumption-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7021-material-issue-consumption-report">R7021 Material Issue / Consumption Report <a class="kb-anchor" href="#r7021-material-issue-consumption-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-material-issue-consumption-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Document Date · Production Order No · Component Item · Component Qty · Qty · From Location · Work Center · Actual Cost <em>(sensitive)</em> · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="material-usage-variance">Material Usage Variance <a class="kb-anchor" href="#material-usage-variance" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7022-material-usage-variance">R7022 Material Usage Variance <a class="kb-anchor" href="#r7022-material-usage-variance" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-material-usage-variance</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Production Order No · Component Item · Component Qty · Qty · Variance Qty · Standard Cost <em>(sensitive)</em> · Actual Cost <em>(sensitive)</em> · Cost Variance <em>(sensitive)</em></p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="production-capacity-schedule">Production Capacity Schedule <a class="kb-anchor" href="#production-capacity-schedule" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7040-production-capacity-schedule">R7040 Production Capacity Schedule <a class="kb-anchor" href="#r7040-production-capacity-schedule" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>production-capacity-schedule</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Production Order · Operation Seq · Work Center · Needed Minutes · Finite Date · Infinite Date · Overflow (past due date)</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="production-cost-variance">Production Cost Variance <a class="kb-anchor" href="#production-cost-variance" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7035-production-cost-variance">R7035 Production Cost Variance <a class="kb-anchor" href="#r7035-production-cost-variance" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>production_cost_variance</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Production Order · BOM · Quantity · Standard Cost (Total) · Actual Cost · Variance · Variance % · Flag</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="production-order-register">Production Order Register <a class="kb-anchor" href="#production-order-register" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7019-production-order-register">R7019 Production Order Register <a class="kb-anchor" href="#r7019-production-order-register" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-production-order-register</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Draft,Released,In Progress,Completed,Closed,Cancelled</li></ul>
 <p><strong>Columns:</strong> Production Order No · Document Date · Parent Item · BOM Code · Planned Qty · Completed Qty · WIP Qty · Work Center · Routing · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="production-order-status">Production Order Status <a class="kb-anchor" href="#production-order-status" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7041-production-order-status">R7041 Production Order Status <a class="kb-anchor" href="#r7041-production-order-status" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>production-order-status</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Order ID · BOM · Finished Item · Qty · Status · Date</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="production-receipt-completion">Production Receipt / Completion <a class="kb-anchor" href="#production-receipt-completion" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7023-production-receipt-completion">R7023 Production Receipt / Completion <a class="kb-anchor" href="#r7023-production-receipt-completion" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-production-receipt-completion</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Draft,Released,In Progress,Completed,Closed,Cancelled</li></ul>
 <p><strong>Columns:</strong> Document Date · Production Order No · Parent Item · Completed Qty · Scrap Qty · Yield % · To Location · QC Result · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="production-schedule">Production Schedule <a class="kb-anchor" href="#production-schedule" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7027-production-schedule">R7027 Production Schedule <a class="kb-anchor" href="#r7027-production-schedule" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-production-schedule</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Draft,Released,In Progress,Completed,Closed,Cancelled</li></ul>
 <p><strong>Columns:</strong> Document Date · Production Order No · Parent Item · Work Center · Planned Qty · Promise Date · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="quality-inspection-report">Quality Inspection Report <a class="kb-anchor" href="#quality-inspection-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7025-quality-inspection-report">R7025 Quality Inspection Report <a class="kb-anchor" href="#r7025-quality-inspection-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-quality-inspection-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Draft,Released,Rejected,Open,Closed</li></ul>
 <p><strong>Columns:</strong> Document Date · Production Order No · Parent Item · Work Center · QC Result · Rejected Qty · Reason · User Name · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="rework-rejection-report">Rework / Rejection Report <a class="kb-anchor" href="#rework-rejection-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7026-rework-rejection-report">R7026 Rework / Rejection Report <a class="kb-anchor" href="#r7026-rework-rejection-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-rework-rejection-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Draft,Released,Rejected,Open,Closed</li></ul>
 <p><strong>Columns:</strong> Document Date · Production Order No · Parent Item · Rejected Qty · Qty · Reason · QC Result · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="standard-vs-actual-cost">Standard vs Actual Cost <a class="kb-anchor" href="#standard-vs-actual-cost" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7032-standard-vs-actual-cost">R7032 Standard vs Actual Cost <a class="kb-anchor" href="#r7032-standard-vs-actual-cost" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-standard-vs-actual-cost</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Draft,Released,In Progress,Completed,Closed,Cancelled</li></ul>
 <p><strong>Columns:</strong> Production Order No · Parent Item · Completed Qty · Standard Cost <em>(sensitive)</em> · Actual Cost <em>(sensitive)</em> · Cost Variance <em>(sensitive)</em> · Margin % <em>(sensitive)</em></p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="subcontracting-job-work-report">Subcontracting / Job Work Report <a class="kb-anchor" href="#subcontracting-job-work-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7030-subcontracting-job-work-report">R7030 Subcontracting / Job Work Report <a class="kb-anchor" href="#r7030-subcontracting-job-work-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-subcontracting-job-work-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Document Date · Job Work No · Vendor Code · Vendor Name · Component Item · Qty · Expected Return Date · Work Result · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="work-center-capacity-load">Work Center Capacity / Load <a class="kb-anchor" href="#work-center-capacity-load" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7028-work-center-capacity-load">R7028 Work Center Capacity / Load <a class="kb-anchor" href="#r7028-work-center-capacity-load" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-work-center-capacity-load</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> From Date · To Date · Work Center · Planned Qty · Completed Qty · WIP Qty · Achievement %</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="work-in-process-report">Work In Process Report <a class="kb-anchor" href="#work-in-process-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7020-work-in-process-report">R7020 Work In Process Report <a class="kb-anchor" href="#r7020-work-in-process-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-work-in-process-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Draft,Released,In Progress,Completed,Closed,Cancelled</li></ul>
 <p><strong>Columns:</strong> As Of Date · Production Order No · Parent Item · Work Center · Routing · Planned Qty · Completed Qty · WIP Qty · Actual Cost <em>(sensitive)</em> · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="yield-scrap-analysis">Yield / Scrap Analysis <a class="kb-anchor" href="#yield-scrap-analysis" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7024-yield-scrap-analysis">R7024 Yield / Scrap Analysis <a class="kb-anchor" href="#r7024-yield-scrap-analysis" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-yield-scrap-analysis</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Draft,Released,In Progress,Completed,Closed,Cancelled</li></ul>
 <p><strong>Columns:</strong> From Date · To Date · Production Order No · Parent Item · Planned Qty · Completed Qty · Scrap Qty · Yield % · Reason</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h2 id="master-data-audit">Master Data &amp; Audit <a class="kb-anchor" href="#master-data-audit" aria-label="Copy link to this section">#</a></h2>
-<h3 id="approval-history-report">Approval History Report <a class="kb-anchor" href="#approval-history-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r9007-approval-history-report">R9007 Approval History Report <a class="kb-anchor" href="#r9007-approval-history-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-approval-history-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Document Type · Document No · Approval Status · Approved By · Approved At · Reason · Remarks</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="backdated-entry-report">Backdated Entry Report <a class="kb-anchor" href="#backdated-entry-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r9010-backdated-entry-report">R9010 Backdated Entry Report <a class="kb-anchor" href="#r9010-backdated-entry-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-backdated-entry-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Pending,Approved,Rejected</li></ul>
 <p><strong>Columns:</strong> Document Type · Document No · Document Date · Created At · Store Name · User ID · User Name · Reason · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="item-master-register">Item Master Register <a class="kb-anchor" href="#item-master-register" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r9001-item-master-register">R9001 Item Master Register <a class="kb-anchor" href="#r9001-item-master-register" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-item-master-register</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Active,Inactive,Draft</li></ul>
 <p><strong>Columns:</strong> Item Code · Item Name · SKU · Barcode · EAN Code · Design No · Combination ID · Category Name · Subcategory · Brand · Style · Color · Polish · Size · HSN Code · GST % · MRP · Item Type · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="master-data-change-audit">Master Data Change Audit <a class="kb-anchor" href="#master-data-change-audit" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r9004-master-data-change-audit">R9004 Master Data Change Audit <a class="kb-anchor" href="#r9004-master-data-change-audit" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-master-data-change-audit</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Audit ID · Document Type · Document No · Field Changed · Old Value · New Value · Edit Reason · Edited By · Edited At</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="report-download-audit">Report Download Audit <a class="kb-anchor" href="#report-download-audit" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r9009-report-download-audit">R9009 Report Download Audit <a class="kb-anchor" href="#r9009-report-download-audit" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-report-download-audit</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Report Name · From Date · To Date · User ID · User Name · Export Format · Download At · IP Address</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="role-permission-audit">Role Permission Audit <a class="kb-anchor" href="#role-permission-audit" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r9006-role-permission-audit">R9006 Role Permission Audit <a class="kb-anchor" href="#r9006-role-permission-audit" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-role-permission-audit</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Document Date · Document No · Status · Created By · Approved By · Remarks</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="store-location-master-register">Store / Location Master Register <a class="kb-anchor" href="#store-location-master-register" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r9002-store-location-master-register">R9002 Store / Location Master Register <a class="kb-anchor" href="#r9002-store-location-master-register" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-store-location-master-register</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Active,Inactive</li></ul>
 <p><strong>Columns:</strong> Legal Entity · Store Code · Store Name · Outlet ID · GSTIN · Location Code · Location Name · Status · Created By · Created At</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="transaction-cancellation-audit">Transaction Cancellation Audit <a class="kb-anchor" href="#transaction-cancellation-audit" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r9011-transaction-cancellation-audit">R9011 Transaction Cancellation Audit <a class="kb-anchor" href="#r9011-transaction-cancellation-audit" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-transaction-cancellation-audit</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Document Type · Document No · Document Date · Store Name · Edit Action · Reason · User ID · User Name · Approved By · Approved At</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="user-access-matrix-report">User Access Matrix Report <a class="kb-anchor" href="#user-access-matrix-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r9005-user-access-matrix-report">R9005 User Access Matrix Report <a class="kb-anchor" href="#r9005-user-access-matrix-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-user-access-matrix-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> User ID · User Name · Status · Store Code · Store Name · Created At · Approved By</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="user-activity-log">User Activity Log <a class="kb-anchor" href="#user-activity-log" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r9008-user-activity-log">R9008 User Activity Log <a class="kb-anchor" href="#r9008-user-activity-log" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-user-activity-log</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Created At · User ID · User Name · Edit Action · Document Type · Document No · IP Address · Remarks</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="vendor-master-register">Vendor Master Register <a class="kb-anchor" href="#vendor-master-register" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r9003-vendor-master-register">R9003 Vendor Master Register <a class="kb-anchor" href="#r9003-vendor-master-register" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-vendor-master-register</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Active,Inactive</li></ul>
 <p><strong>Columns:</strong> Vendor Code · Vendor Name · Vendor GSTIN · Status · Created By · Created At</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h2 id="oms">OMS <a class="kb-anchor" href="#oms" aria-label="Copy link to this section">#</a></h2>
-<h3 id="atp-promise-inventory-report">ATP / Promise Inventory Report <a class="kb-anchor" href="#atp-promise-inventory-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6023-atp-promise-inventory-report">R6023 ATP / Promise Inventory Report <a class="kb-anchor" href="#r6023-atp-promise-inventory-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-atp-promise-inventory-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> As Of Date · SKU · Item Name · Allocated Location · Available Qty · Reserved Qty · ATP Qty · Promise Date</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="allocation-pending">Allocation Pending <a class="kb-anchor" href="#allocation-pending" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6064-allocation-pending">R6064 Allocation Pending <a class="kb-anchor" href="#r6064-allocation-pending" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>allocation-pending</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Order · Customer · Channel · Total Amount <em>(sensitive)</em> · Created At</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="channel-order-reconciliation">Channel Order Reconciliation <a class="kb-anchor" href="#channel-order-reconciliation" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6024-channel-order-reconciliation">R6024 Channel Order Reconciliation <a class="kb-anchor" href="#r6024-channel-order-reconciliation" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-channel-order-reconciliation</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Order ID · Channel · Order Status · UC Status · Net Amount · Integration Status · Error Code · Error Message</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="courier-performance">Courier Performance <a class="kb-anchor" href="#courier-performance" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6068-courier-performance">R6068 Courier Performance <a class="kb-anchor" href="#r6068-courier-performance" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>courier-performance</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Carrier · Total Shipments · Delivered · RTO · RTO Rate % · Avg Handover-&gt;Delivered (hrs)</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="fulfilment-status-report">Fulfilment Status Report <a class="kb-anchor" href="#fulfilment-status-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6016-fulfilment-status-report">R6016 Fulfilment Status Report <a class="kb-anchor" href="#r6016-fulfilment-status-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-fulfilment-status-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Order ID · Shipment ID · Shipment Sequence · Allocated Location · Fulfilment Status · Tracking Number · Shipping Provider · Promise Date · SLA Due At · SLA Age Hours · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="oms-exception-queue">OMS Exception Queue <a class="kb-anchor" href="#oms-exception-queue" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6060-oms-exception-queue">R6060 OMS Exception Queue <a class="kb-anchor" href="#r6060-oms-exception-queue" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>oms-exception-queue</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Event ID · Event · Status · Attempts · Queued At · Last Error</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="oms-integration-error-retry">OMS Integration Error / Retry <a class="kb-anchor" href="#oms-integration-error-retry" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6025-oms-integration-error-retry">R6025 OMS Integration Error / Retry <a class="kb-anchor" href="#r6025-oms-integration-error-retry" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-oms-integration-error-retry</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Created At · Order ID · Shipment ID · Channel · Integration Status · Error Code · Error Message · Retry Count · Last Retry At</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="oms-reconciliation-variance">OMS Reconciliation Variance <a class="kb-anchor" href="#oms-reconciliation-variance" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6061-oms-reconciliation-variance">R6061 OMS Reconciliation Variance <a class="kb-anchor" href="#r6061-oms-reconciliation-variance" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>oms-reconciliation-variance</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Order · Order Status · Shipment/Booking · Booking Status · Variance</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="order-aging">Order Aging <a class="kb-anchor" href="#order-aging" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6062-order-aging">R6062 Order Aging <a class="kb-anchor" href="#r6062-order-aging" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>order-aging</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Age Bucket · Order Count · Total Amount <em>(sensitive)</em></p>
 <p><strong>Drill-down:</strong> yes - a row&#39;s <strong>View Details</strong> opens the transactions behind it.</p>
-<h3 id="order-allocation-reservation-report">Order Allocation / Reservation Report <a class="kb-anchor" href="#order-allocation-reservation-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6015-order-allocation-reservation-report">R6015 Order Allocation / Reservation Report <a class="kb-anchor" href="#r6015-order-allocation-reservation-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-order-allocation-reservation-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Order ID · Shipment ID · SKU · Qty · Allocated Location · Available Qty · Reserved Qty · Allocation Status · Promise Date · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="order-cancellation-report">Order Cancellation Report <a class="kb-anchor" href="#order-cancellation-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6019-order-cancellation-report">R6019 Order Cancellation Report <a class="kb-anchor" href="#r6019-order-cancellation-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-order-cancellation-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Order Date · Order ID · Channel · SKU · Qty · Net Amount · Cancellation Reason · User Name · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="order-line-detail">Order Line Detail <a class="kb-anchor" href="#order-line-detail" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6014-order-line-detail">R6014 Order Line Detail <a class="kb-anchor" href="#r6014-order-line-detail" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-order-line-detail</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Order Date · Order ID · Channel · Channel SKU · SKU · Item Name · Qty · MRP · Discount Amount · Net Amount · Line Status · Order Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="order-register">Order Register <a class="kb-anchor" href="#order-register" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6013-order-register">R6013 Order Register <a class="kb-anchor" href="#r6013-order-register" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-order-register</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Order Date · Order ID · Channel · Customer ID · Customer Name · Customer Mobile · Order Status · Gross Amount · Discount Amount · Net Amount · Payment Status · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="order-to-invoice-reconciliation">Order to Invoice Reconciliation <a class="kb-anchor" href="#order-to-invoice-reconciliation" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6022-order-to-invoice-reconciliation">R6022 Order to Invoice Reconciliation <a class="kb-anchor" href="#r6022-order-to-invoice-reconciliation" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-order-to-invoice-reconciliation</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Order ID · Shipment ID · Invoice Code · POS Invoice No · Order Status · Invoice Status · POS Bill Status · Package Amount · Net Amount · Variance Qty</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="orphaned-channel-orders-pre-35-1-intake">Orphaned Channel Orders (pre-35.1 intake) <a class="kb-anchor" href="#orphaned-channel-orders-pre-35-1-intake" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6069-orphaned-channel-orders-pre-35-1-intake">R6069 Orphaned Channel Orders (pre-35.1 intake) <a class="kb-anchor" href="#r6069-orphaned-channel-orders-pre-35-1-intake" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>orphaned-channel-orders</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Mapping Table · Channel · Channel Order ID · Legacy Order ID · Last Written</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="pending-order-sla-aging">Pending Order / SLA Aging <a class="kb-anchor" href="#pending-order-sla-aging" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6018-pending-order-sla-aging">R6018 Pending Order / SLA Aging <a class="kb-anchor" href="#r6018-pending-order-sla-aging" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-pending-order-sla-aging</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Order Date · Order ID · Shipment ID · Channel · Order Status · Fulfilment Status · SLA Due At · SLA Age Hours · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="refund-status-report">Refund Status Report <a class="kb-anchor" href="#refund-status-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6021-refund-status-report">R6021 Refund Status Report <a class="kb-anchor" href="#r6021-refund-status-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-refund-status-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Document Date · Order ID · Shipment ID · Customer Name · Refund Amount · Refund Status · Reference No · Created At</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="reserved-stock">Reserved Stock <a class="kb-anchor" href="#reserved-stock" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6067-reserved-stock">R6067 Reserved Stock <a class="kb-anchor" href="#r6067-reserved-stock" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>reserved-stock</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> SKU · Location · Reserved · Committed · On Hand · Available</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="return-rto-register">Return / RTO Register <a class="kb-anchor" href="#return-rto-register" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6020-return-rto-register">R6020 Return / RTO Register <a class="kb-anchor" href="#r6020-return-rto-register" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-return-rto-register</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Document Date · Order ID · Shipment ID · Tracking Number · SKU · Qty · Return Status · Reason · Refund Status · Refund Amount</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="return-aging">Return Aging <a class="kb-anchor" href="#return-aging" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6066-return-aging">R6066 Return Aging <a class="kb-anchor" href="#r6066-return-aging" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>return-aging</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Age Bucket · Return Request Count</p>
 <p><strong>Drill-down:</strong> yes - a row&#39;s <strong>View Details</strong> opens the transactions behind it.</p>
-<h3 id="sla-breach">SLA Breach <a class="kb-anchor" href="#sla-breach" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6063-sla-breach">R6063 SLA Breach <a class="kb-anchor" href="#r6063-sla-breach" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>sla-breach</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Threshold (minutes, default 120)</strong> (<code>threshold_minutes</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Task ID · Order · Location · Status · Minutes Elapsed · Threshold (mins)</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="settlement-variance-queue">Settlement Variance Queue <a class="kb-anchor" href="#settlement-variance-queue" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6074-settlement-variance-queue">R6074 Settlement Variance Queue <a class="kb-anchor" href="#r6074-settlement-variance-queue" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>oms-settlement-variance</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Settlement Line · Channel · Channel Order ID · Order · Batch · Gross Amount <em>(sensitive)</em> · Expected (Invoiced) <em>(sensitive)</em> · Variance <em>(sensitive)</em> · Status · Settlement Date</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="split-shipment-report">Split Shipment Report <a class="kb-anchor" href="#split-shipment-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6017-split-shipment-report">R6017 Split Shipment Report <a class="kb-anchor" href="#r6017-split-shipment-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-split-shipment-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Order ID · Shipment ID · Shipment Sequence · Allocated Location · Qty · Package Amount · Invoice Code · Tracking Number · Fulfilment Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="stock-mismatch">Stock Mismatch <a class="kb-anchor" href="#stock-mismatch" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6065-stock-mismatch">R6065 Stock Mismatch <a class="kb-anchor" href="#r6065-stock-mismatch" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>stock-mismatch</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> SKU · Location · On Hand · Available · Reserved · Safety Stock · Blocked · QC Hold · Damaged · Channel Buffer · ATS (negative = over-committed)</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="unsettled-marketplace-orders">Unsettled Marketplace Orders <a class="kb-anchor" href="#unsettled-marketplace-orders" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r6073-unsettled-marketplace-orders">R6073 Unsettled Marketplace Orders <a class="kb-anchor" href="#r6073-unsettled-marketplace-orders" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>oms-unsettled-settlements</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Order · Channel · Order Status · Days Since Ship · Overdue</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h2 id="pim">PIM <a class="kb-anchor" href="#pim" aria-label="Copy link to this section">#</a></h2>
-<h3 id="pim-overdue-tasks">PIM Overdue Tasks <a class="kb-anchor" href="#pim-overdue-tasks" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7038-pim-overdue-tasks">R7038 PIM Overdue Tasks <a class="kb-anchor" href="#r7038-pim-overdue-tasks" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>pim-task-overdue</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Assignee (blank = everyone)</strong> (<code>assignee</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Task · Title · Item · Assignee · Due · Days Overdue · Priority · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="pim-product-group-readiness">PIM Product Group Readiness <a class="kb-anchor" href="#pim-product-group-readiness" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7036-pim-product-group-readiness">R7036 PIM Product Group Readiness <a class="kb-anchor" href="#r7036-pim-product-group-readiness" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>pim-product-group-readiness</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Product Group ID or code</strong> (<code>group_id</code>) - text, <strong>required</strong></li></ul>
 <p><strong>Columns:</strong> Item · Name · Family · Status · Completeness % · Missing Fields</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="pim-stalled-workflow-runs">PIM Stalled Workflow Runs <a class="kb-anchor" href="#pim-stalled-workflow-runs" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7039-pim-stalled-workflow-runs">R7039 PIM Stalled Workflow Runs <a class="kb-anchor" href="#r7039-pim-stalled-workflow-runs" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>pim-workflow-stalled</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Run · Workflow · Item · Stage · Status · Why It Is Waiting · Age (days) · Open Tasks</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="pim-task-workload-by-assignee">PIM Task Workload by Assignee <a class="kb-anchor" href="#pim-task-workload-by-assignee" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7037-pim-task-workload-by-assignee">R7037 PIM Task Workload by Assignee <a class="kb-anchor" href="#r7037-pim-task-workload-by-assignee" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>pim-task-workload</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Assignee · Open · In Progress · Blocked · Overdue · Due This Week</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h2 id="pim-pims">PIM / PIMS <a class="kb-anchor" href="#pim-pims" aria-label="Copy link to this section">#</a></h2>
-<h3 id="attribute-definition-report">Attribute Definition Report <a class="kb-anchor" href="#attribute-definition-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7006-attribute-definition-report">R7006 Attribute Definition Report <a class="kb-anchor" href="#r7006-attribute-definition-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-attribute-definition-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Attribute Name · Attribute Value · Product Family · Family Attribute Required · Status · Created By</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="attribute-group-report">Attribute Group Report <a class="kb-anchor" href="#attribute-group-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7007-attribute-group-report">R7007 Attribute Group Report <a class="kb-anchor" href="#r7007-attribute-group-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-attribute-group-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Attribute Group · Attribute Name · Sequence No · Mandatory Flag · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="category-attribute-mapping-report">Category / Attribute Mapping Report <a class="kb-anchor" href="#category-attribute-mapping-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7013-category-attribute-mapping-report">R7013 Category / Attribute Mapping Report <a class="kb-anchor" href="#r7013-category-attribute-mapping-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-category-attribute-mapping-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Product Family · Category Name · Channel · Attribute Name · Attribute Value · Mapping Status · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="channel-publication-error-report">Channel Publication Error Report <a class="kb-anchor" href="#channel-publication-error-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7012-channel-publication-error-report">R7012 Channel Publication Error Report <a class="kb-anchor" href="#r7012-channel-publication-error-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-channel-publication-error-report</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> SKU · Channel SKU · Channel · Publication Status · Publication Error · Retry Count · Last Retry At</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="channel-publication-status">Channel Publication Status <a class="kb-anchor" href="#channel-publication-status" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7011-channel-publication-status">R7011 Channel Publication Status <a class="kb-anchor" href="#r7011-channel-publication-status" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-channel-publication-status</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> SKU · Channel SKU · Channel · Publication Status · Publication Error · Created At · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="channel-readiness-report">Channel Readiness Report <a class="kb-anchor" href="#channel-readiness-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7010-channel-readiness-report">R7010 Channel Readiness Report <a class="kb-anchor" href="#r7010-channel-readiness-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-channel-readiness-report</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> SKU · Channel · Completeness % · Media Count · Channel Readiness · Publication Status · Publication Error</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="duplicate-sku-barcode-exception">Duplicate SKU / Barcode Exception <a class="kb-anchor" href="#duplicate-sku-barcode-exception" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7014-duplicate-sku-barcode-exception">R7014 Duplicate SKU / Barcode Exception <a class="kb-anchor" href="#r7014-duplicate-sku-barcode-exception" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-duplicate-sku-barcode-exception</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> SKU · Barcode · EAN Code · Design No · Combination ID · Item Name · Reason · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="family-attribute-mapping-report">Family Attribute Mapping Report <a class="kb-anchor" href="#family-attribute-mapping-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7008-family-attribute-mapping-report">R7008 Family Attribute Mapping Report <a class="kb-anchor" href="#r7008-family-attribute-mapping-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-family-attribute-mapping-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Product Family · Attribute Group · Attribute Name · Mandatory Flag · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="media-image-coverage-report">Media / Image Coverage Report <a class="kb-anchor" href="#media-image-coverage-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7009-media-image-coverage-report">R7009 Media / Image Coverage Report <a class="kb-anchor" href="#r7009-media-image-coverage-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-media-image-coverage-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Active,Inactive,Draft</li></ul>
 <p><strong>Columns:</strong> SKU · Design No · Combination ID · Item Name · Media Count · Image URL · Channel Readiness · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="missing-attribute-report">Missing Attribute Report <a class="kb-anchor" href="#missing-attribute-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7004-missing-attribute-report">R7004 Missing Attribute Report <a class="kb-anchor" href="#r7004-missing-attribute-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-missing-attribute-report</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Product Family · SKU · Item Name · Attribute Name · Family Attribute Required · Channel · Publication Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="pim-workbench-queue">PIM Workbench Queue <a class="kb-anchor" href="#pim-workbench-queue" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7003-pim-workbench-queue">R7003 PIM Workbench Queue <a class="kb-anchor" href="#r7003-pim-workbench-queue" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-pim-workbench-queue</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Open,In Progress,Blocked,Done,Cancelled</li></ul>
 <p><strong>Columns:</strong> SKU · Item Name · Product Family · Status · Assigned To · Created At · Updated At · Ageing Days</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="price-inventory-publish-status">Price / Inventory Publish Status <a class="kb-anchor" href="#price-inventory-publish-status" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7016-price-inventory-publish-status">R7016 Price / Inventory Publish Status <a class="kb-anchor" href="#r7016-price-inventory-publish-status" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-price-inventory-publish-status</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> SKU · Channel SKU · Channel · MRP · Available Qty · ERP Sync Time · Publication Status · Publication Error</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="product-change-audit">Product Change Audit <a class="kb-anchor" href="#product-change-audit" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7015-product-change-audit">R7015 Product Change Audit <a class="kb-anchor" href="#r7015-product-change-audit" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-product-change-audit</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Audit ID · SKU · Field Changed · Old Value · New Value · Edit Reason · Edited By · Edited At</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="product-completeness-report">Product Completeness Report <a class="kb-anchor" href="#product-completeness-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7002-product-completeness-report">R7002 Product Completeness Report <a class="kb-anchor" href="#r7002-product-completeness-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-product-completeness-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Active,Inactive,Draft</li></ul>
 <p><strong>Columns:</strong> Product Family · SKU · Item Name · Completeness % · Missing Attribute Count · Media Count · Channel Readiness · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="product-family-variant-matrix">Product Family / Variant Matrix <a class="kb-anchor" href="#product-family-variant-matrix" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7005-product-family-variant-matrix">R7005 Product Family / Variant Matrix <a class="kb-anchor" href="#r7005-product-family-variant-matrix" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-product-family-variant-matrix</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Active,Inactive,Draft</li></ul>
 <p><strong>Columns:</strong> Product Family · Design No · Combination ID · SKU · Item Name · Style · Color · Polish · Size · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="product-master-report">Product Master Report <a class="kb-anchor" href="#product-master-report" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r7001-product-master-report">R7001 Product Master Report <a class="kb-anchor" href="#r7001-product-master-report" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-product-master-report</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Active,Inactive,Draft</li></ul>
 <p><strong>Columns:</strong> Product Family · Item Code · Item Name · SKU · Design No · Combination ID · Category Name · Brand · Style · Color · Polish · Size · HSN Code · MRP · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h2 id="procurement">Procurement <a class="kb-anchor" href="#procurement" aria-label="Copy link to this section">#</a></h2>
-<h3 id="grn-corrections-log">GRN Corrections Log <a class="kb-anchor" href="#grn-corrections-log" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r2036-grn-corrections-log">R2036 GRN Corrections Log <a class="kb-anchor" href="#r2036-grn-corrections-log" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>grn-corrections</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> When · GRN · Line · SKU · Step · Field · Was · Now · Why · By</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="grn-payments">GRN Payments <a class="kb-anchor" href="#grn-payments" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r2038-grn-payments">R2038 GRN Payments <a class="kb-anchor" href="#r2038-grn-payments" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>grn-payments</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Vendor (blank = all)</strong> (<code>vendor</code>) - text, optional</li><li><strong>Due only</strong> (<code>due_only</code>) - select, optional, one of: ,Yes</li></ul>
 <p><strong>Columns:</strong> GRN · Vendor · Invoice No · Invoiced <em>(sensitive)</em> · We owe <em>(sensitive)</em> · Paid <em>(sensitive)</em> · Due <em>(sensitive)</em> · Status · Last paid · Paid by</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="grn-register">GRN Register <a class="kb-anchor" href="#grn-register" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r2046-grn-register">R2046 GRN Register <a class="kb-anchor" href="#r2046-grn-register" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>grn-register</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> GRN ID · PO Reference · Item Lines · Status · Date</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="grn-register-every-line-every-step">GRN Register - every line, every step <a class="kb-anchor" href="#grn-register-every-line-every-step" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r2032-grn-register-every-line-every-step">R2032 GRN Register - every line, every step <a class="kb-anchor" href="#r2032-grn-register-every-line-every-step" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>grn-line-register</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Vendor (blank = all)</strong> (<code>vendor</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> GRN · Child · Store · Vendor · Invoice No · PO · SKU · PO Qty · Received · Invoice Qty · GRN Qty · Rejected · Damaged · PO Price <em>(sensitive)</em> · Invoice Price <em>(sensitive)</em> · GRN Price <em>(sensitive)</em> · GST % · Old MRP · MRP · Batch · Step · Received · Posted</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="goods-receipts-waiting">Goods Receipts Waiting <a class="kb-anchor" href="#goods-receipts-waiting" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r2035-goods-receipts-waiting">R2035 Goods Receipts Waiting <a class="kb-anchor" href="#r2035-goods-receipts-waiting" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>grn-waiting</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> GRN · Vendor · Invoice No · Waiting for · Age (days) · Invoice Total <em>(sensitive)</em> · Excess awaiting approval</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="goods-receipt-discrepancies-by-vendor">Goods receipt discrepancies by vendor <a class="kb-anchor" href="#goods-receipt-discrepancies-by-vendor" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r2040-goods-receipt-discrepancies-by-vendor">R2040 Goods receipt discrepancies by vendor <a class="kb-anchor" href="#r2040-goods-receipt-discrepancies-by-vendor" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>grn-discrepancy-by-vendor</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Vendor · Receipts · Received · Accepted · Rejected · Damaged · Short of the invoice · Invoice difference · Rejected %</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="goods-receipts-not-billed">Goods receipts not billed <a class="kb-anchor" href="#goods-receipts-not-billed" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r2031-goods-receipts-not-billed">R2031 Goods receipts not billed <a class="kb-anchor" href="#r2031-goods-receipts-not-billed" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>grn-not-billed</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Goods receipt · Vendor · Posted · Days · Vendor invoice no.</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="goods-received-not-invoiced-grni">Goods received not invoiced (GRNI) <a class="kb-anchor" href="#goods-received-not-invoiced-grni" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r2042-goods-received-not-invoiced-grni">R2042 Goods received not invoiced (GRNI) <a class="kb-anchor" href="#r2042-goods-received-not-invoiced-grni" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>grni</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Goods receipt · Date · Vendor · Store · Accepted value · Invoiced · Not invoiced · Price difference · Vendor invoices · AP hold</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="invoice-vs-grn-differences">Invoice vs GRN Differences <a class="kb-anchor" href="#invoice-vs-grn-differences" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r2033-invoice-vs-grn-differences">R2033 Invoice vs GRN Differences <a class="kb-anchor" href="#r2033-invoice-vs-grn-differences" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>grn-invoice-differences</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Vendor (blank = all)</strong> (<code>vendor</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Month · Vendor · Receipts · Invoiced <em>(sensitive)</em> · Received and verified <em>(sensitive)</em> · Difference <em>(sensitive)</em> · Debit notes <em>(sensitive)</em> · Credit notes <em>(sensitive)</em> · Notes</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="late-and-early-receipts">Late and early receipts <a class="kb-anchor" href="#late-and-early-receipts" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r2030-late-and-early-receipts">R2030 Late and early receipts <a class="kb-anchor" href="#r2030-late-and-early-receipts" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>grn-receipt-timing</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Goods receipt · PO · Vendor · Expected · Received · Timing</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="open-purchase-commitments">Open Purchase Commitments <a class="kb-anchor" href="#open-purchase-commitments" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r2045-open-purchase-commitments">R2045 Open Purchase Commitments <a class="kb-anchor" href="#r2045-open-purchase-commitments" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>po-commitments</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Age Bucket · PO Count · Committed Amount <em>(sensitive)</em></p>
 <p><strong>Drill-down:</strong> yes - a row&#39;s <strong>View Details</strong> opens the transactions behind it.</p>
-<h3 id="po-expected-delivery-and-terms">PO expected delivery and terms <a class="kb-anchor" href="#po-expected-delivery-and-terms" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r2039-po-expected-delivery-and-terms">R2039 PO expected delivery and terms <a class="kb-anchor" href="#r2039-po-expected-delivery-and-terms" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>po-delivery-and-terms</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> PO · Vendor · Store · Status · Expected delivery · Days late · Payment term · Delivery terms · Freight paid by · Quote valid until · Amendments · Value</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="po-vs-grn-price-variance">PO vs GRN Price Variance <a class="kb-anchor" href="#po-vs-grn-price-variance" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r2037-po-vs-grn-price-variance">R2037 PO vs GRN Price Variance <a class="kb-anchor" href="#r2037-po-vs-grn-price-variance" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>grn-po-variance</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Vendor (blank = all)</strong> (<code>vendor</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Received · Vendor · PO · GRN · SKU · Qty · PO Price <em>(sensitive)</em> · GRN Price <em>(sensitive)</em> · Variance / unit <em>(sensitive)</em> · Variance % · Variance value <em>(sensitive)</em></p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="purchase-price-changes">Purchase Price Changes <a class="kb-anchor" href="#purchase-price-changes" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r2034-purchase-price-changes">R2034 Purchase Price Changes <a class="kb-anchor" href="#r2034-purchase-price-changes" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>grn-price-changes</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Vendor (blank = all)</strong> (<code>vendor</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Received · SKU · Vendor · GRN · Previous Price <em>(sensitive)</em> · Previous Vendor · New Price <em>(sensitive)</em> · Change % · Old MRP · New MRP</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="rfq-comparison-export">RFQ Comparison Export <a class="kb-anchor" href="#rfq-comparison-export" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r2047-rfq-comparison-export">R2047 RFQ Comparison Export <a class="kb-anchor" href="#r2047-rfq-comparison-export" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>rfq-comparison</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>RFQ ID</strong> (<code>rfq_id</code>) - text, <strong>required</strong></li></ul>
 <p><strong>Columns:</strong> Quote ID · Vendor · Quoted Price <em>(sensitive)</em> · Status</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="rejections-and-returns-by-reason">Rejections and Returns by Reason <a class="kb-anchor" href="#rejections-and-returns-by-reason" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r2043-rejections-and-returns-by-reason">R2043 Rejections and Returns by Reason <a class="kb-anchor" href="#r2043-rejections-and-returns-by-reason" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>rejections-by-reason</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Vendor (blank = all)</strong> (<code>vendor</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> What · Reason code · Reason · Vendor · Documents · Qty</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="vendor-ledger">Vendor Ledger <a class="kb-anchor" href="#vendor-ledger" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r2044-vendor-ledger">R2044 Vendor Ledger <a class="kb-anchor" href="#r2044-vendor-ledger" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>vendor-ledger</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Vendor (optional)</strong> (<code>vendor_id</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> PO ID · Vendor · PO Number · Total Amount <em>(sensitive)</em> · Status · Date</p>
 <p><strong>Drill-down:</strong> no.</p>
-<h3 id="vendor-document-and-transport-register">Vendor document and transport register <a class="kb-anchor" href="#vendor-document-and-transport-register" aria-label="Copy link to this section">#</a></h3>
+<h3 id="r2041-vendor-document-and-transport-register">R2041 Vendor document and transport register <a class="kb-anchor" href="#r2041-vendor-document-and-transport-register" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>vendor-document-transport-register</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>

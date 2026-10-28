@@ -3,6 +3,7 @@ package engines
 import (
 	"context"
 	"custom_erp/db"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -164,15 +165,38 @@ func journalVoucherLinesFromData(data map[string]interface{}) ([]JournalVoucherL
 }
 
 func updateJournalVoucherData(schema, voucherID, status string, data map[string]interface{}) error {
+	return updateJournalVoucherDataIn(db.DB, schema, voucherID, status, data)
+}
+
+// updateJournalVoucherDataIn is updateJournalVoucherData on a given
+// connection or transaction.
+func updateJournalVoucherDataIn(q interface {
+	Exec(string, ...interface{}) (sql.Result, error)
+}, schema, voucherID, status string, data map[string]interface{}) error {
 	data["status"] = status
 	marshaled, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
-	_, err = db.DB.Exec(fmt.Sprintf(
+	_, err = q.Exec(fmt.Sprintf(
 		`UPDATE %s.documents SET data = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'JournalVoucher' AND id = $3`, schema),
 		marshaled, status, voucherID)
 	return err
+}
+
+// lockJournalVoucherTx is fetchJournalVoucher under the voucher's row lock
+// (Stage 135.21).
+func lockJournalVoucherTx(tx *sql.Tx, schema, voucherID string) (data map[string]interface{}, status string, err error) {
+	var dataStr string
+	if err := tx.QueryRow(fmt.Sprintf(
+		`SELECT data, status FROM %s.documents WHERE doctype = 'JournalVoucher' AND id = $1 FOR UPDATE`, schema), voucherID).
+		Scan(&dataStr, &status); err != nil {
+		return nil, "", fmt.Errorf("journal voucher not found: %v", err)
+	}
+	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+		return nil, "", fmt.Errorf("journal voucher %s has corrupt stored data: %v", voucherID, err)
+	}
+	return data, status, nil
 }
 
 // postApprovedJournalVoucher posts an Approved JournalVoucher's lines
@@ -182,21 +206,47 @@ func updateJournalVoucherData(schema, voucherID, status string, data map[string]
 // but unlike the ProductContent snapshot this failure IS a real
 // data-integrity gap (an "Approved" voucher that never reached the GL), so
 // it's logged loudly via LogSystemError rather than silently skipped.
+//
+// Stage 135.21: the voucher is read under its row lock and posted and marked
+// Posted in one transaction, so this and a retry (or two retries) at once
+// cannot both post - the second waits, then finds it Posted.
 func postApprovedJournalVoucher(tenantID, voucherID string) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		LogSystemError(tenantID, "", "ERROR", "postApprovedJournalVoucher", fmt.Sprintf("voucher %s: %v", voucherID, err), "")
 		return
 	}
-	data, _, err := fetchJournalVoucher(schema, voucherID)
+	tx, err := db.DB.Begin()
+	if err != nil {
+		LogSystemError(tenantID, "", "ERROR", "postApprovedJournalVoucher", fmt.Sprintf("voucher %s: %v", voucherID, err), "")
+		return
+	}
+	defer tx.Rollback()
+	data, status, err := lockJournalVoucherTx(tx, schema, voucherID)
 	if err != nil {
 		LogSystemError(tenantID, "", "ERROR", "postApprovedJournalVoucher", err.Error(), "")
 		return
 	}
+	if status != "Approved" {
+		return // a retry posted it first
+	}
+	if err := postJournalVoucherTx(tx, tenantID, schema, voucherID, data); err != nil {
+		LogSystemError(tenantID, "", "ERROR", "postApprovedJournalVoucher", err.Error(), "")
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		LogSystemError(tenantID, "", "ERROR", "postApprovedJournalVoucher", fmt.Sprintf("voucher %s: %v", voucherID, err), "")
+	}
+}
+
+// postJournalVoucherTx is the posting itself, in the caller's transaction
+// holding the voucher's row lock: the lines to the GL, the rows to the
+// voucher's date, the voucher to Posted and the voucher it reverses to
+// Reversed. Any failure returns an error and leaves the whole post undone.
+func postJournalVoucherTx(tx *sql.Tx, tenantID, schema, voucherID string, data map[string]interface{}) error {
 	lines, err := journalVoucherLinesFromData(data)
 	if err != nil {
-		LogSystemError(tenantID, "", "ERROR", "postApprovedJournalVoucher", fmt.Sprintf("voucher %s: %v", voucherID, err), "")
-		return
+		return fmt.Errorf("voucher %s: %v", voucherID, err)
 	}
 
 	debits := map[string]int{}
@@ -226,18 +276,15 @@ func postApprovedJournalVoucher(tenantID, voucherID string) {
 	if currency != "" && currency != "<NIL>" && currency != functional {
 		rate, ok := parityNumber(data["exchange_rate"])
 		if !ok || rate <= 0 {
-			LogSystemError(tenantID, "", "ERROR", "postApprovedJournalVoucher",
-				fmt.Sprintf("voucher %s is in %s but carries no usable exchange rate; not posted", voucherID, currency), "")
-			return
+			return fmt.Errorf("voucher %s is in %s but carries no usable exchange rate; not posted", voucherID, currency)
 		}
 		debits, credits, opt.TransactionDebits, opt.TransactionCredits = ConvertPostingToFunctional(debits, credits, rate)
 		opt.Currency = currency
 		opt.ExchangeRate = rate
 	}
 	postingKey := fmt.Sprintf("JournalVoucher:%s:POST", voucherID)
-	if err := PostDoubleEntry(tenantID, "JournalVoucher", voucherID, PaiseMap(debits), PaiseMap(credits), voucherDate, postingKey, opt); err != nil {
-		LogSystemError(tenantID, "", "ERROR", "postApprovedJournalVoucher", fmt.Sprintf("voucher %s approved but GL post failed: %v", voucherID, err), "")
-		return
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "JournalVoucher", voucherID, PaiseMap(debits), PaiseMap(credits), voucherDate, postingKey, opt); err != nil {
+		return fmt.Errorf("voucher %s approved but GL post failed: %v", voucherID, err)
 	}
 	// Stage 73.D.16: a backdated voucher belongs to its own date. Period
 	// reports read the GL row's created_at, which is the posting moment, so a
@@ -245,23 +292,23 @@ func postApprovedJournalVoucher(tenantID, voucherID string) {
 	// voucher's date (keeping their time of day), as depreciation's rows take
 	// their month's end (asset_depreciation.go). A future date is left alone.
 	if _, perr := time.Parse("2006-01-02", voucherDate); perr == nil && voucherDate < BusinessToday() {
-		if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.gl_postings SET created_at = $1::date + CAST(created_at AS time)
+		if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.gl_postings SET created_at = $1::date + CAST(created_at AS time)
 			WHERE idempotency_key = $2 AND document_type = 'JournalVoucher' AND document_id = $3`, schema), voucherDate, postingKey, voucherID); err != nil {
-			LogSystemError(tenantID, "", "ERROR", "postApprovedJournalVoucher", fmt.Sprintf("voucher %s posted but its rows keep today's date: %v", voucherID, err), "")
+			return fmt.Errorf("voucher %s not posted - its rows could not take the voucher's date: %v", voucherID, err)
 		}
 	}
-	if err := updateJournalVoucherData(schema, voucherID, "Posted", data); err != nil {
-		LogSystemError(tenantID, "", "ERROR", "postApprovedJournalVoucher", fmt.Sprintf("voucher %s posted to GL but status update failed: %v", voucherID, err), "")
-		return
+	if err := updateJournalVoucherDataIn(tx, schema, voucherID, "Posted", data); err != nil {
+		return fmt.Errorf("voucher %s not posted - status update failed: %v", voucherID, err)
 	}
 	// Stage 132.17: a reversal that has posted marks the voucher it reverses.
 	if orig, _ := data["reversed_from"].(string); orig != "" {
-		if od, ost, err := fetchJournalVoucher(schema, orig); err == nil && ost == "Posted" {
-			if err := updateJournalVoucherData(schema, orig, "Reversed", od); err != nil {
-				LogSystemError(tenantID, "", "ERROR", "postApprovedJournalVoucher", fmt.Sprintf("reversal %s posted but %s not marked Reversed: %v", voucherID, orig, err), "")
+		if od, ost, err := lockJournalVoucherTx(tx, schema, orig); err == nil && ost == "Posted" {
+			if err := updateJournalVoucherDataIn(tx, schema, orig, "Reversed", od); err != nil {
+				return fmt.Errorf("reversal %s not posted - %s could not be marked Reversed: %v", voucherID, orig, err)
 			}
 		}
 	}
+	return nil
 }
 
 // RetryPostApprovedJournalVoucher re-attempts posting an Approved voucher
@@ -271,28 +318,31 @@ func postApprovedJournalVoucher(tenantID, voucherID string) {
 // Approved rather than Posted. A caller retries once the blocking condition
 // is resolved (e.g. a BackdatedPostingRequest for this exact voucher gets
 // Approved) - only valid while still Approved, so it can't be used to
-// re-post an already-Posted voucher a second time.
+// re-post an already-Posted voucher a second time. The status is checked
+// under the voucher's row lock in the posting's own transaction (Stage
+// 135.21), so of two retries at once one posts and the other is refused.
 func RetryPostApprovedJournalVoucher(tenantID, voucherID string) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
 	}
-	_, status, err := fetchJournalVoucher(schema, voucherID)
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	data, status, err := lockJournalVoucherTx(tx, schema, voucherID)
 	if err != nil {
 		return err
 	}
 	if status != "Approved" {
 		return fmt.Errorf("only an Approved (not yet Posted) journal voucher can be retried (current status: %s)", status)
 	}
-	postApprovedJournalVoucher(tenantID, voucherID)
-	_, newStatus, err := fetchJournalVoucher(schema, voucherID)
-	if err != nil {
-		return err
+	if err := postJournalVoucherTx(tx, tenantID, schema, voucherID, data); err != nil {
+		LogSystemError(tenantID, "", "ERROR", "postApprovedJournalVoucher", err.Error(), "")
+		return fmt.Errorf("posting is still blocked (status: %s) - check for a required BackdatedPostingRequest approval", status)
 	}
-	if newStatus != "Posted" {
-		return fmt.Errorf("posting is still blocked (status: %s) - check for a required BackdatedPostingRequest approval", newStatus)
-	}
-	return nil
+	return tx.Commit()
 }
 
 // ReverseJournalVoucher creates a new Draft JournalVoucher with every line's

@@ -2477,7 +2477,7 @@ table has the same shape whoever runs it.
 - **Location (optional)** (`location`) - text, optional
 - **Include rows that agree** (`all`) - select, optional, one of: No,Yes
 
-**Columns:** Item · Location · On hand (book) · Ledger total · Difference · Ledger lines · What it suggests
+**Columns:** Item · Location · On hand (book) · Ledger total · Difference · Ledger lines · In own locations · Set aside (book) · What it suggests
 
 **Drill-down:** no.
 

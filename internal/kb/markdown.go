@@ -133,31 +133,9 @@ func RenderMarkdown(source string) string {
 			continue
 		}
 
-		if _, ok := unorderedItem(line); ok {
-			out.WriteString("<ul>")
-			for i < len(lines) {
-				item, itemOK := unorderedItem(strings.TrimSpace(lines[i]))
-				if !itemOK {
-					break
-				}
-				out.WriteString("<li>" + renderInline(item) + "</li>")
-				i++
-			}
-			out.WriteString("</ul>\n")
-			continue
-		}
-
-		if _, ok := orderedItem(line); ok {
-			out.WriteString("<ol>")
-			for i < len(lines) {
-				item, itemOK := orderedItem(strings.TrimSpace(lines[i]))
-				if !itemOK {
-					break
-				}
-				out.WriteString("<li>" + renderInline(item) + "</li>")
-				i++
-			}
-			out.WriteString("</ol>\n")
+		if _, _, _, _, ok := listItem(lines[i]); ok {
+			i = renderList(lines, i, 0, &out)
+			out.WriteString("\n")
 			continue
 		}
 
@@ -173,6 +151,83 @@ func RenderMarkdown(source string) string {
 		out.WriteString("<p>" + renderInline(strings.Join(paragraph, " ")) + "</p>\n")
 	}
 	return out.String()
+}
+
+// renderList writes the list that opens at lines[start] and returns the index
+// of the first line after it. As in CommonMark, a wrapped line - indented or
+// not ("lazy") - continues the item above it rather than starting a paragraph
+// under the list, and an item indented to at least the column of its parent's
+// text is a nested list inside that parent. A blank line, a heading, fence,
+// admonition, quote, comment or table, an item of the other kind at the same
+// depth, or an item left of minIndent (it belongs to an enclosing list) ends
+// the list.
+func renderList(lines []string, start, minIndent int, out *strings.Builder) int {
+	ordered, _, _, _, _ := listItem(lines[start])
+	tag := "ul"
+	if ordered {
+		tag = "ol"
+	}
+	out.WriteString("<" + tag + ">")
+	i := start
+	for i < len(lines) {
+		itemOrdered, text, indent, content, ok := listItem(lines[i])
+		if !ok || itemOrdered != ordered || indent < minIndent {
+			break
+		}
+		i++
+		parts := []string{text}
+		var children strings.Builder
+		for i < len(lines) {
+			if _, _, childIndent, _, isItem := listItem(lines[i]); isItem {
+				if childIndent < content {
+					break
+				}
+				i = renderList(lines, i, content, &children)
+				continue
+			}
+			trimmed := strings.TrimSpace(lines[i])
+			if trimmed == "" || strings.HasPrefix(trimmed, ">") || strings.HasPrefix(trimmed, "<!--") || startsBlock(lines, i) {
+				break
+			}
+			parts = append(parts, trimmed)
+			i++
+		}
+		out.WriteString("<li>" + renderInline(strings.Join(parts, " ")) + children.String() + "</li>")
+	}
+	out.WriteString("</" + tag + ">")
+	return i
+}
+
+// listItem reports whether line opens a list item. indent is the column of the
+// marker and content the column the item's text starts at; a tab advances to
+// the next multiple of four, as in CommonMark.
+func listItem(line string) (ordered bool, text string, indent, content int, ok bool) {
+	trimmed := strings.TrimSpace(line)
+	markerLength := 0
+	if item, isItem := unorderedItem(trimmed); isItem {
+		text, markerLength = item, 1
+	} else if match := orderedItemPattern.FindStringSubmatch(trimmed); len(match) == 3 {
+		text, markerLength, ordered = strings.TrimSpace(match[2]), len(match[1])+1, true
+	} else {
+		return false, "", 0, 0, false
+	}
+	rest := strings.TrimLeft(line, " \t")
+	afterMarker := rest[markerLength:]
+	gap := afterMarker[:len(afterMarker)-len(strings.TrimLeft(afterMarker, " \t"))]
+	indent = indentWidth(line[:len(line)-len(rest)])
+	return ordered, text, indent, indent + markerLength + indentWidth(gap), true
+}
+
+func indentWidth(whitespace string) int {
+	width := 0
+	for _, char := range whitespace {
+		if char == '\t' {
+			width += 4 - width%4
+		} else {
+			width++
+		}
+	}
+	return width
 }
 
 func startsBlock(lines []string, index int) bool {

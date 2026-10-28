@@ -679,6 +679,17 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 	if err := db.SetSearchPath(tx, schema); err != nil {
 		return 0, "", err
 	}
+	// Stage 135.20: the status again, under the request's row lock. Checked
+	// only outside the transaction, two QC submissions at once both passed,
+	// and each restocked the units and raised its own refund request.
+	var lockedStatus string
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'status', '') FROM %s.documents WHERE doctype = 'ReturnRequest' AND id = $1 FOR UPDATE`, schema),
+		returnRequestID).Scan(&lockedStatus); err != nil {
+		return 0, "", err
+	}
+	if lockedStatus != "Received" {
+		return 0, "", fmt.Errorf("return request %s is not Received (currently %s)", returnRequestID, lockedStatus)
+	}
 
 	var refundTotal, costReceivedTotal, exchangeCostTotal float64
 	// Stage 73.1.1: what goes back, split the way the sale was paid. money is
@@ -686,6 +697,14 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 	var moneyPaise, pointsPaise, netPaise, roundOffPaise int64
 	refundPoints := 0
 	refundTenders := map[string]int64{}
+	// Stage 135.16: the disposition is per SKU, so the ledger line is too - of
+	// every line of that SKU. Written per line, a SKU on two lines shared one
+	// key and the second was swallowed as a replay: on hand took both.
+	returnedBySKU := map[string]int{}
+	for _, it := range items {
+		returnedBySKU[it.SKU] += it.Qty
+	}
+	ledgered := map[string]bool{}
 	for i := range items {
 		disposition := dispositions[items[i].SKU]
 		rule, ok := returnDispositionRule[disposition]
@@ -701,13 +720,16 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 			// without this the Stock Ledger report's running balance fell one behind on hand
 			// with every customer return (found by Guide on app). Same transaction, keyed so
 			// a retried QC cannot count it twice.
-			if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
-				ItemID: items[i].SKU, WarehouseID: returnLocation, Qty: float64(items[i].Qty),
-				VoucherType: "SalesReturn", VoucherID: returnRequestID,
-				IdempotencyKey: fmt.Sprintf("ReturnRequest:%s:%s:QC", returnRequestID, items[i].SKU),
-				ToStatus:       rule.Bucket, UserID: qcBy,
-			}); err != nil {
-				return 0, "", err
+			if !ledgered[items[i].SKU] {
+				ledgered[items[i].SKU] = true
+				if err := insertStockLedgerEntry(tx, schema, StockLedgerEntry{
+					ItemID: items[i].SKU, WarehouseID: returnLocation, Qty: float64(returnedBySKU[items[i].SKU]),
+					VoucherType: "SalesReturn", VoucherID: returnRequestID,
+					IdempotencyKey: fmt.Sprintf("ReturnRequest:%s:%s:QC", returnRequestID, items[i].SKU),
+					ToStatus:       rule.Bucket, UserID: qcBy,
+				}); err != nil {
+					return 0, "", err
+				}
 			}
 			// Stage 106.4: a Good (Sellable) return lands where Sales Return's
 			// "To" says; Main means it stays where it just went.
@@ -1320,6 +1342,7 @@ func ScheduleReturnReversePickup(ctx context.Context, tenantID, returnRequestID,
 	if err != nil {
 		return "", "", err
 	}
+	ctx = withOutsideCallsSchema(ctx, schema) // 49.8.7a: the courier call is this client's
 	if data["status"] != "Approved" {
 		return "", "", fmt.Errorf("return request %s is not Approved (currently %v)", returnRequestID, data["status"])
 	}

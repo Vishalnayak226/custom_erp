@@ -139,3 +139,38 @@ func TestRenderMarkdownDropsHTMLComments(t *testing.T) {
 		t.Fatalf("unterminated comment swallowed following content:\n%s", out)
 	}
 }
+
+// 135.15 (user QA): a bullet wrapped onto an indented second line showed that
+// line as a separate paragraph under the list, and split the list in two. A
+// wrapped line - indented or "lazy" - belongs to the item above it, and an
+// item indented under another is a nested list, as in CommonMark.
+func TestRenderMarkdownKeepsWrappedLinesInListItems(t *testing.T) {
+	cases := []struct{ name, source, want string }{
+		{"indented bullet continuation",
+			"- **Ready-made** dashboards for **Sales**,\n  **Customers** and **Money**.\n- Every figure",
+			"<ul><li><strong>Ready-made</strong> dashboards for <strong>Sales</strong>, <strong>Customers</strong> and <strong>Money</strong>.</li><li>Every figure</li></ul>\n"},
+		{"numbered continuation, indented and lazy",
+			"1. Step one\n   continues.\n10. Step two\nlazy line.",
+			"<ol><li>Step one continues.</li><li>Step two lazy line.</li></ol>\n"},
+		{"nested list keeps the outer numbering",
+			"1. Decide:\n   - Maker\n     wrapped.\n   - Role\n2. Approve",
+			"<ol><li>Decide:<ul><li>Maker wrapped.</li><li>Role</li></ul></li><li>Approve</li></ol>\n"},
+		{"a blank line still ends the list",
+			"- Item\n\nParagraph after.",
+			"<ul><li>Item</li></ul>\n<p>Paragraph after.</p>\n"},
+		{"a fence still ends the list",
+			"- Item\n```\ncode\n```",
+			"<ul><li>Item</li></ul>\n<pre><code>code</code></pre>\n"},
+		{"a heading still ends the list",
+			"- Item\n## Next",
+			"<ul><li>Item</li></ul>\n<h2 id=\"next\">Next <a class=\"kb-anchor\" href=\"#next\" aria-label=\"Copy link to this section\">#</a></h2>\n"},
+		{"the other kind at the same depth is a new list",
+			"- a\n1. b",
+			"<ul><li>a</li></ul>\n<ol><li>b</li></ol>\n"},
+	}
+	for _, testCase := range cases {
+		if got := RenderMarkdown(testCase.source); got != testCase.want {
+			t.Errorf("%s:\n got %q\nwant %q", testCase.name, got, testCase.want)
+		}
+	}
+}

@@ -59,9 +59,9 @@ async function renderAPIAccessPanel(container) {
   list.innerHTML = `
     <div class="table-wrapper">
       <table>
-        <thead><tr><th>Name</th><th>Type</th><th>Client ID / key prefix</th><th>Scopes</th><th>Status</th><th>Expires</th><th>Last used</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Name</th><th>Type</th><th>Client ID / key prefix</th><th>Scopes</th><th>Status</th><th>Expires</th><th>Last used</th><th>Owner</th><th>Actions</th></tr></thead>
         <tbody>${credentials.length === 0
-          ? '<tr><td colspan="8" class="text-muted">No API access issued yet. Nothing outside this system can call the public API.</td></tr>'
+          ? '<tr><td colspan="9" class="text-muted">No API access issued yet. Nothing outside this system can call the public API.</td></tr>'
           : credentials.map(c => `<tr>
             <td>${escapeHTMLText(c.name)}</td>
             <td>${c.auth_mode === 'oauth_client' ? 'OAuth client' : 'API key'}</td>
@@ -70,6 +70,7 @@ async function renderAPIAccessPanel(container) {
             <td>${escapeHTMLText(c.status)}${c.rotated_from ? ' <span class="text-muted">(rotated)</span>' : ''}</td>
             <td>${escapeHTMLText(c.expires_at ? apiAccessWhen(c.expires_at) : 'Never')}</td>
             <td>${escapeHTMLText(apiAccessWhen(c.last_used_at))}</td>
+            <td>${escapeHTMLText(c.created_by || '')}</td>
             <td>${c.status === 'Active' ? `<button class="action-btn" data-api-rotate="${escapeHTMLText(c.id)}">Rotate</button>
                  <button class="action-btn action-btn-danger" data-api-revoke="${escapeHTMLText(c.id)}">Revoke</button>` : ''}
                  <button class="action-btn" data-api-traffic="${escapeHTMLText(c.id)}">Recent calls</button></td>

@@ -285,7 +285,7 @@ func handleScheduleReturnReversePickup(w http.ResponseWriter, r *http.Request) {
 
 	bookingID, awb, err := engines.ScheduleReturnReversePickup(context.Background(), tenantID, returnID, req.Provider, req.PickupPincode, req.PickupAddress, req.PickupName, pickupAt)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeCourierError(w, r, err) // 47.11.8a: a courier down / unconfirmed keeps its own code; the rest stay 422
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"booking_id": bookingID, "awb": awb})

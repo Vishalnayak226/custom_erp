@@ -180,6 +180,11 @@ func TestBLD031ExtensionHookTargetURLRejectsPrivateResolvedHTTPS(t *testing.T) {
 // hooks, so this would have dialed the private address.
 func TestBLD031ExtensionHookDeliveryRevalidatesTargetBeforeEveryCall(t *testing.T) {
 	db.InitDB(testConnStr())
+	// 49.8.7a: outside production a hook on another machine is refused before
+	// this check is reached; production is where the check is the guard.
+	t.Setenv("ENV", "production")
+	t.Setenv("ERP_ENABLE_EXTERNAL_SIDE_EFFECTS", "")
+	t.Setenv("ERP_DISABLE_EXTERNAL_SIDE_EFFECTS", "")
 	tenantID := "default"
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -441,4 +446,3 @@ func TestBLD031PineLabsReconciliationReportsAmbiguousResultsHonestly(t *testing.
 		t.Fatalf("second pass failed = %d, want the same 2 still-unreconciled rows reported again (not silently dropped or fabricated as success)", failed2)
 	}
 }
-

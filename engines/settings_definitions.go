@@ -495,6 +495,35 @@ func registerStage282Settings() {
 		Label: "Freeze exports (emergency)", Type: SettingTypeBool, Default: "false",
 		Description: "Stage 49.12.3: while on, every bulk export and report download is refused for this business and logged. For a suspected data leak; turn it off to undo. Audit evidence exports stay open. Set it from Activity Log → Security so a reason is recorded.",
 	})
+	// Stage 49.2.1 / 49.2.6: identity lifecycle sweeps (identity_lifecycle.go).
+	// Off by default - nothing is disabled or revoked until an admin picks a
+	// period. The shortest account period (60 days) is longer than the longest
+	// session (720 hours), so someone working every day signs in inside it.
+	RegisterSetting(SettingDefinition{
+		Key: SettingDormantAccountDays, Module: "Security",
+		Label: "Disable accounts not signed in for", Type: SettingTypeSelect, Default: "0", Unit: "days",
+		Options: []SettingOption{
+			{Value: "0", Label: "Off"},
+			{Value: "60", Label: "60 days"},
+			{Value: "90", Label: "90 days"},
+			{Value: "180", Label: "180 days"},
+			{Value: "365", Label: "365 days"},
+		},
+		Description: "Stage 49.2.1: an Active account with no sign-in for this long is deactivated (its session ends) and the audit log says why. Counted from the latest of its last sign-in or creation, its reactivation, and this setting's last change. Never the Super Admin or the last active admin. Reactivate from Users.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingAPICredentialUnusedDays, Module: "Security",
+		Label: "Revoke API access unused for", Type: SettingTypeSelect, Default: "0", Unit: "days",
+		Options: []SettingOption{
+			{Value: "0", Label: "Off"},
+			{Value: "30", Label: "30 days"},
+			{Value: "60", Label: "60 days"},
+			{Value: "90", Label: "90 days"},
+			{Value: "180", Label: "180 days"},
+			{Value: "365", Label: "365 days"},
+		},
+		Description: "Stage 49.2.6: an API key or OAuth client not used for this long is revoked and the audit log says why. Counted from the latest of its last use or issue and this setting's last change. Issue a new one from Settings → Extension Hooks → API access.",
+	})
 
 	// --- Platform ---
 	// These are safety limits rather than business policy: configurable (so
@@ -628,6 +657,13 @@ func registerStage282Settings() {
 		Min: settingBound(0), Max: settingBound(3650),
 		Description: "How long system error log rows (the Activity Log's errors) are kept before the hourly sweep deletes them (Stage 49.18.2). 0 keeps everything (a hold). A client under legal hold keeps every log whatever this says.",
 	})
+	// Stage 49.8.7a: the client's own switch for calls to other systems
+	// (engines/outside_calls.go).
+	RegisterSetting(SettingDefinition{
+		Key: SettingOutsideCalls, Module: "Platform",
+		Label: "Outside calls", Type: SettingTypeBool, Default: "true",
+		Description: "Off stops this client's calls to other systems. Channel publishes and courier bookings are refused (publishes wait, Queued, until this is back on); plain reads of orders and tracking still run. Extension hooks are not called - a before-save hook then stops the save. Order status sent to a channel, webhooks, notification webhooks, phone alerts, CRM and campaign messages, emailed documents and dashboard digests are recorded as simulated. Password-reset and sign-in mail still go.",
+	})
 
 	// --- OMS Settlement Reconciliation (Stage 35.8) ---
 	RegisterSetting(SettingDefinition{
@@ -713,5 +749,17 @@ func registerLocalizationSettings() {
 		Description: "The country this business operates from. Sets the phone-number length every module validates against " +
 			"(POS, Customer master, HR, vendors) and the dial code stripped when cleaning imported data. Orders arriving " +
 			"from other countries are still accepted and are tagged with their own country for targeting.",
+	})
+	// Stage 47.14.2a: how a typed date is read and the order dates show in.
+	RegisterSetting(SettingDefinition{
+		Key: SettingKeyDateOrder, Module: "Localization",
+		Label: "Date order", Type: SettingTypeSelect, Default: DateOrderDMY,
+		Options: []SettingOption{
+			{Value: DateOrderDMY, Label: "Day first - DD/MM/YYYY"},
+			{Value: DateOrderMDY, Label: "Month first - MM/DD/YYYY"},
+			{Value: DateOrderYMD, Label: "Year first - YYYY/MM/DD"},
+		},
+		Description: "How a typed date is read (imports, forms, the API) and the order lists show dates in (03 Feb 2026, Feb 03, 2026 or 2026 Feb 03). " +
+			"A date that does not fit the order is refused, never swapped. 2026-02-03 and 3 Feb 2026 are read in every order. Dates already saved do not change.",
 	})
 }

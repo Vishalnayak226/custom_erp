@@ -568,6 +568,9 @@ func runAuditCheckpointJob(ctx context.Context, schema string, job Job) (map[str
 		return nil, err
 	}
 	tenantID := schemaToTenantID(schema)
+	if tenantID == "" { // Stage 49.3.2: never the default client's checkpoint
+		return nil, fmt.Errorf("no client is registered for %s", schema)
+	}
 	cp, err := WriteAuditCheckpoint(tenantID, "Periodic")
 	if err != nil {
 		return nil, err
@@ -592,6 +595,9 @@ func runAuditVerifyJob(ctx context.Context, schema string, job Job) (map[string]
 		return nil, err
 	}
 	tenantID := schemaToTenantID(schema)
+	if tenantID == "" { // Stage 49.3.2: never the default client's evidence
+		return nil, fmt.Errorf("no client is registered for %s - audit verification could not run", schema)
+	}
 	result, err := VerifyAuditEvidence(tenantID)
 	if err != nil {
 		LogSystemError(tenantID, "", "CRITICAL", "audit.verify",
@@ -682,6 +688,9 @@ func StartAuditEvidenceScheduler(ctx context.Context, interval time.Duration) {
 						continue
 					}
 					tenantID := schemaToTenantID(schema)
+					if tenantID == "" { // Stage 49.3.2: not queued on the default client
+						continue
+					}
 					if _, err := EnqueueJob(tenantID, AuditCheckpointJobType, nil,
 						fmt.Sprintf("audit-checkpoint:%s:%s", tenantID, stamp)); err != nil {
 						log.Printf("[AUDIT-EVIDENCE] %s: could not enqueue checkpoint: %v", schema, err)

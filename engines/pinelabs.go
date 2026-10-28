@@ -263,9 +263,12 @@ func StartPineLabsReconciliationWorker(ctx context.Context, interval time.Durati
 }
 
 // schemaToTenantID is a helper to resolve a schema name back to a tenant_id.
+// "" means no client could be resolved - never "the default client"
+// (db.GetTenantSchema would read it that way), so every caller checks it
+// (Stage 49.3.2, TestStage4932NoSilentDefaultClient). tenant_default is
+// "default" even on a database whose registry has no row for it.
 func schemaToTenantID(schema string) string {
-	var tenantID string
-	err := db.DB.QueryRow("SELECT tenant_id FROM public.tenants WHERE schema_name = $1", schema).Scan(&tenantID)
+	tenantID, err := tenantIDForSchema(schema)
 	if err != nil {
 		return ""
 	}

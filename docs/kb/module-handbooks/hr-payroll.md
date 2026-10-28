@@ -122,8 +122,8 @@ ESI is simply zero for that employee.
 the PF/ESI/PT breakdown without creating anything — a preview before
 committing to a run.
 
-**HR → Payroll tab → Run Payroll** (`POST /api/v1/hr/run-payroll`, employee
-+ period) computes and saves a **Draft Payslip**:
+**HR → Payroll tab → Run Payroll** (`POST /api/v1/hr/run-payroll`, employee +
+period) computes and saves a **Draft Payslip**:
 
 1. Confirms attendance exists for the employee in that period at all —
    refused with `HRPAYR-0150` otherwise, since payroll without attendance

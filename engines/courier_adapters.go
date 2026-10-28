@@ -41,7 +41,7 @@ func courierJSONCall(ctx context.Context, provider, method, endpoint string, hea
 		return err
 	}
 	if status < 200 || status >= 300 {
-		return fmt.Errorf("%s returned HTTP %d: %s", provider, status, strings.TrimSpace(string(responseBody)))
+		return &ConnectorHTTPError{Platform: provider, Status: status, Body: strings.TrimSpace(string(responseBody))} // same text; typed for courierCallFailed (47.11.8)
 	}
 	if response != nil && len(responseBody) > 0 {
 		if err := json.Unmarshal(responseBody, response); err != nil {
@@ -74,7 +74,7 @@ func (delhiveryAdapter) AllocateAWB(ctx context.Context, cred map[string]string,
 	}
 	payload := map[string]interface{}{"shipments": []map[string]interface{}{{
 		"name": req.RecipientName, "add": req.RecipientAddress, "pin": req.DestinationPincode,
-		"phone": req.RecipientPhone, "order": req.OrderID, "payment_mode": func() string {
+		"phone": req.RecipientPhone, "order": delhiveryOrderRef(req), "payment_mode": func() string {
 			if req.CODAmount > 0 {
 				return "COD"
 			}
@@ -90,7 +90,7 @@ func (delhiveryAdapter) AllocateAWB(ctx context.Context, cred map[string]string,
 		return CourierAWB{}, err
 	}
 	if status < 200 || status >= 300 {
-		return CourierAWB{}, fmt.Errorf("delhivery returned HTTP %d: %s", status, body)
+		return CourierAWB{}, &ConnectorHTTPError{Platform: "delhivery", Status: status, Body: string(body)}
 	}
 	var response struct {
 		Success  bool `json:"success"`
@@ -108,6 +108,54 @@ func (delhiveryAdapter) AllocateAWB(ctx context.Context, cred map[string]string,
 		return CourierAWB{}, fmt.Errorf("delhivery rejected shipment: %s", response.RMK)
 	}
 	return CourierAWB{AWB: response.Packages[0].Waybill, TrackingNumber: response.Packages[0].Waybill}, nil
+}
+
+// delhiveryOrderRef is the "order" a shipment is booked under (47.11.8a): the
+// booking's own reference, so a retry can find it again by that order id.
+func delhiveryOrderRef(req CourierShipmentRequest) string {
+	if req.Reference != "" {
+		return req.Reference
+	}
+	return req.OrderID
+}
+
+// FindBooking (47.11.8a) asks Delhivery's tracking API for the shipment booked
+// under this order id (ref_ids). None only when Delhivery says so plainly.
+func (delhiveryAdapter) FindBooking(ctx context.Context, cred map[string]string, req CourierShipmentRequest) (CourierAWB, bool, error) {
+	headers, err := delhiveryHeaders(cred)
+	if err != nil {
+		return CourierAWB{}, false, err
+	}
+	ref := delhiveryOrderRef(req)
+	status, body, err := doConnectorRequest(ctx, 20*time.Second, http.MethodGet, strings.TrimRight(delhiveryBaseURL, "/")+"/api/v1/packages/json/?"+url.Values{"ref_ids": {ref}}.Encode(), headers, nil, "courier:delhivery")
+	if err != nil {
+		return CourierAWB{}, false, err
+	}
+	if status < 200 || status >= 300 {
+		return CourierAWB{}, false, &ConnectorHTTPError{Platform: "delhivery", Status: status, Body: strings.TrimSpace(string(body))}
+	}
+	var response struct {
+		ShipmentData []struct {
+			Shipment struct {
+				AWB         string `json:"AWB"`
+				ReferenceNo string `json:"ReferenceNo"`
+			} `json:"Shipment"`
+		} `json:"ShipmentData"`
+		Error string `json:"Error"`
+	}
+	if err := json.Unmarshal(body, &response); err != nil {
+		return CourierAWB{}, false, fmt.Errorf("invalid delhivery lookup answer: %w", err)
+	}
+	for _, row := range response.ShipmentData {
+		if awb := strings.TrimSpace(row.Shipment.AWB); awb != "" && (row.Shipment.ReferenceNo == "" || row.Shipment.ReferenceNo == ref) {
+			return CourierAWB{AWB: awb, TrackingNumber: awb}, true, nil
+		}
+	}
+	notFound := strings.Contains(strings.ToLower(response.Error), "no such") || strings.Contains(strings.ToLower(response.Error), "not found")
+	if len(response.ShipmentData) == 0 && (notFound || (response.ShipmentData != nil && response.Error == "")) {
+		return CourierAWB{}, false, nil
+	}
+	return CourierAWB{}, false, fmt.Errorf("delhivery lookup for order %s was not clear: %.200s", ref, strings.TrimSpace(string(body)))
 }
 
 func (delhiveryAdapter) SchedulePickup(ctx context.Context, cred map[string]string, req CourierPickupRequest) (string, error) {
@@ -266,6 +314,34 @@ func (shiprocketAdapter) AllocateAWB(ctx context.Context, cred map[string]string
 		return CourierAWB{}, fmt.Errorf("shiprocket rejected AWB allocation")
 	}
 	return CourierAWB{AWB: response.Response.Data.AWBCode, TrackingNumber: response.Response.Data.AWBCode, RemoteShipmentID: req.RemoteShipmentID}, nil
+}
+
+// FindBooking (47.11.8a): a Shiprocket AWB is assigned to its own shipment id,
+// so the shipment says whether it already has one.
+func (shiprocketAdapter) FindBooking(ctx context.Context, cred map[string]string, req CourierShipmentRequest) (CourierAWB, bool, error) {
+	if req.RemoteShipmentID == "" {
+		return CourierAWB{}, false, fmt.Errorf("shiprocket lookup requires remote_shipment_id")
+	}
+	token, err := shiprocketToken(ctx, cred)
+	if err != nil {
+		return CourierAWB{}, false, err
+	}
+	var response struct {
+		Data struct {
+			ID  interface{} `json:"id"`
+			AWB string      `json:"awb"`
+		} `json:"data"`
+	}
+	if err := courierJSONCall(ctx, "shiprocket", http.MethodGet, strings.TrimRight(shiprocketBaseURL, "/")+"/shipments/"+url.PathEscape(req.RemoteShipmentID), shiprocketHeaders(token), nil, &response); err != nil {
+		return CourierAWB{}, false, err
+	}
+	if awb := strings.TrimSpace(response.Data.AWB); awb != "" {
+		return CourierAWB{AWB: awb, TrackingNumber: awb, RemoteShipmentID: req.RemoteShipmentID}, true, nil
+	}
+	if response.Data.ID == nil {
+		return CourierAWB{}, false, fmt.Errorf("shiprocket shipment %s lookup was not clear", req.RemoteShipmentID)
+	}
+	return CourierAWB{}, false, nil
 }
 
 func (shiprocketAdapter) SchedulePickup(ctx context.Context, cred map[string]string, req CourierPickupRequest) (string, error) {

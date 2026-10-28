@@ -9,7 +9,7 @@
 
 Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.
 
-There are **567** codes. Each row says what the user is shown, what to do about
+There are **574** codes. Each row says what the user is shown, what to do about
 it, and how serious it is.
 
 **How to read an error dialog** - it has up to three lines: the *headline* (the
@@ -58,12 +58,12 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 - [Goods Receipt / GRN](#goods-receipt--grn) - 8 codes
 - [HR & Payroll](#hr--payroll) - 2 codes
 - [HR / Payroll](#hr--payroll) - 14 codes
-- [Integration / API](#integration--api) - 9 codes
+- [Integration / API](#integration--api) - 10 codes
 - [Integrations](#integrations) - 1 codes
 - [Inventory](#inventory) - 10 codes
 - [Inventory / Warehouse](#inventory--warehouse) - 29 codes
 - [Item Master](#item-master) - 2 codes
-- [Manufacturing / Production](#manufacturing--production) - 13 codes
+- [Manufacturing / Production](#manufacturing--production) - 16 codes
 - [Master Data](#master-data) - 43 codes
 - [Mobile App / Device](#mobile-app--device) - 7 codes
 - [Notifications](#notifications) - 6 codes
@@ -72,13 +72,13 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 - [Order Management](#order-management) - 9 codes
 - [PIM](#pim) - 6 codes
 - [PIM / Product Publishing](#pim--product-publishing) - 8 codes
-- [POS / Billing](#pos--billing) - 39 codes
+- [POS / Billing](#pos--billing) - 41 codes
 - [POS / Offline & Cash Drawer](#pos--offline--cash-drawer) - 8 codes
 - [Patch / Bug Governance](#patch--bug-governance) - 3 codes
 - [Payments](#payments) - 7 codes
 - [Planning](#planning) - 1 codes
 - [Procurement / RFQ](#procurement--rfq) - 6 codes
-- [Purchase Order](#purchase-order) - 17 codes
+- [Purchase Order](#purchase-order) - 18 codes
 - [Purchase Return](#purchase-return) - 1 codes
 - [Purchase Return / RTV](#purchase-return--rtv) - 5 codes
 - [Quality & Maintenance](#quality--maintenance) - 6 codes
@@ -536,6 +536,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `INTEGR-0167` | Integration timeout | External service did not respond in time. Please retry. | Correct details or retry. Contact admin if repeated. | High | 503 |
 | `INTEGR-0168` | Integration authentication failed | External service authentication failed. Please contact administrator. | Correct details or retry. Contact admin if repeated. | High | 401 |
 | `INTEGR-0169` | Invalid API response | Invalid response received from external service. Please retry or contact support. | Correct details or retry. Contact admin if repeated. | High | 422 |
+| `INTEGR-4718` | Courier booking not confirmed - the courier may already have it and cannot be asked | This courier booking is not confirmed - the courier may already have it. | Find the reference below on the courier's portal, then enter its AWB, or mark it not booked to try again. | High | 409 |
 
 ## Integrations
 
@@ -616,6 +617,9 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `MFG-0277` | Work center capacity exceeded | Work center capacity is exceeded for the selected schedule. | Reschedule or approve overtime. | Medium | 200 |
 | `MFG-0278` | QC result failed | Quality inspection failed. Finished goods cannot be released to available stock. | Route to rework/scrap or approve exception. | High | 503 |
 | `MFG-0279` | Production cost variance exceeds tolerance | Production cost variance exceeds configured tolerance. Approval is required. | Review variance and approve/post adjustment. | High | 200 |
+| `MFG-4962` | Save or import sets, changes or clears a production order's BOM-change acceptance | A BOM change is accepted only with Accept BOM change. | Save the order without that field. To finish an order whose BOM changed, use Complete and give the reason when asked. | Medium | 422 |
+| `MFG-4963` | BOM change accepted without a reason | Give the reason for accepting the BOM change. | Type why the order may finish on the changed BOM, then accept again. | Low | 422 |
+| `MFG-4964` | BOM change accepted where there is none (BOM as issued, order completed or cancelled) | There is no BOM change to accept on this order. | Complete the order as it is. | Low | 422 |
 
 ## Master Data
 
@@ -786,6 +790,8 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `POSOFF-1303` | Item not yet released (Draft, Pending Approval or Blocked) scanned at the till | This item can't be sold yet. | It is waiting for its release approval - ask a manager to approve it under Approvals, or sell another item. | Medium | 422 |
 | `POSOFF-1304` | Item listed under the store's Items not sold here | This store does not sell this item. | The store's record lists it under Items not sold here - sell it from another store, or ask an administrator to change the list. | Medium | 422 |
 | `POSOFF-1309` | Store credit cannot pay (no customer, none or not enough, more than due, above the manager limit, daily uses reached) | Store credit can't pay this. | Store credit is the bill's own customer's: take their number, use no more than they have and the bill needs. Above the limit a store manager switches in. | Medium | 422 |
+| `POSOFF-1361` | Offline sale validated with a line not scanned, or scanned with a code that is not that item's barcode | The scanned barcodes don't match. | Every line must have been scanned with one of the item's own barcodes. Check the goods with the cashier; if it can't be put right, reject the sale with the reason. | High | 422 |
+| `POSOFF-1362` | Offline sale cannot be decided (already validated or rejected, rung up by the person deciding, or a rejection with no reason) | This offline sale can't be decided. | Only a Pending sale is validated or rejected, by a manager other than the cashier who rang it up; a rejection needs the reason. | Medium | 422 |
 | `STORE-0854` | Store switch while the user's till session is open at the current store | Your till session is still open at this store. | Close the session (POS -> More... -> Close Session), then switch store. | High | 422 |
 
 ## POS / Offline & Cash Drawer
@@ -859,6 +865,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `PURCHA-0621` | Sending a cancelled (e.g. auto-cancelled) purchase order to the vendor | This purchase order is cancelled. | Raise a new purchase order for anything still needed. | Medium | 422 |
 | `PURCHA-1308` | Typed date further back or ahead than the client's day limit (vendor invoice date, PO expected delivery) | That date is outside the allowed window. | Check the date against the bill. An administrator can enter a date outside the window (Configuration > Procurement & GRN sets it). | Medium | 422 |
 | `PURCHA-1316` | PO sent for approval without its commercial terms, or after its quote's validity | This purchase order can't go for approval yet. | Fill in the payment term, delivery terms, expected delivery date and who pays the freight; renew or correct an expired quote date. | Medium | 422 |
+| `PURCHA-4961` | Purchase order for a vendor with no state (save, import, submit, RFQ award, supply proposal, bulk upload) | This vendor has no state, so the GST split can't be worked out. | Open the vendor, choose its State (or enter its GSTIN) and save, then save the purchase order again. | Medium | 422 |
 
 ## Purchase Return
 

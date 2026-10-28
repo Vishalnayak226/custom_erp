@@ -48,6 +48,9 @@ func SyncEmployeeAccessLink(tenantID, employeeUserID, employeeStatus string) err
 	if employeeStatus == "Inactive" {
 		userStatus = "Inactive"
 	}
+	if userStatus == "Active" {
+		MarkUserReactivated(schema, employeeUserID) // 49.2.1: a fresh dormant window
+	}
 	_, err = db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET status = $1 WHERE id = $2`, schema), userStatus, employeeUserID)
 	if err == nil {
 		// Stage 29.8: drop the cached auth state so deactivating an Employee

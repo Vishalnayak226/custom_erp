@@ -120,6 +120,11 @@ type SecurityPosture struct {
 	AuditRowsEstimate   int64                   `json:"audit_rows_estimate"`
 	AuditWritesLost     int64                   `json:"audit_writes_lost"`
 	AuditLossReason     string                  `json:"audit_loss_reason,omitempty"`
+	// Stage 49.2.1: Active accounts with no sign-in for DormantDays - the
+	// policy's period while it is on (DormantAutoDisable), else 90.
+	DormantDays        int              `json:"dormant_days"`
+	DormantAutoDisable bool             `json:"dormant_auto_disable"`
+	DormantAccounts    []DormantAccount `json:"dormant_accounts"`
 }
 
 // GetSecurityPosture reads the posture for one client.
@@ -129,7 +134,7 @@ func GetSecurityPosture(tenantID string) (*SecurityPosture, error) {
 		return nil, err
 	}
 	p := &SecurityPosture{Rules: SecurityDetectionRules(), AdminsWithout2FA: []string{},
-		Credentials: []PostureCredential{}, Detections: []PostureDetection{}}
+		Credentials: []PostureCredential{}, Detections: []PostureDetection{}, DormantAccounts: []DormantAccount{}}
 	if last := LastSecuritySweep(); !last.IsZero() {
 		p.LastSweep = &last
 	}
@@ -190,6 +195,15 @@ func GetSecurityPosture(tenantID string) (*SecurityPosture, error) {
 			}
 		}
 		creds.Close()
+	}
+
+	p.DormantDays = GetSettingInt(tenantID, SettingDormantAccountDays)
+	p.DormantAutoDisable = p.DormantDays > 0
+	if !p.DormantAutoDisable {
+		p.DormantDays = postureDormantDays
+	}
+	if dormant, err := dormantAccounts(schema, p.DormantDays, false, nil); err == nil {
+		p.DormantAccounts = dormant
 	}
 
 	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.async_jobs

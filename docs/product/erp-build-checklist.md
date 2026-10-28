@@ -601,6 +601,7 @@ promise to perform every ERP domain serially or a mandate to split the service i
   and whether service/quality/integrations need packages. Five always-on core modules are not
   currently detachable artifacts. **Done:** approved dependency graph, entitlement/support
   contract and explicit unsupported combinations; no silent SKU expansion. Sources: PKG-03/12, MC-068/072.
+  - *2026-10-27, decision (micro_checklist 135.10): every package runs on the always-on core (master data, inventory, sales & POS, finance). Sold on their own: Full ERP, PIM, WMS, OMS. Add-ons only: HR, Procurement + RFQ, Manufacturing, CRM & Loyalty, Fixed Assets, Expenses. Reports come with any package; other combinations are unsupported. Left: the written entitlement / support contract. Status: Decision recorded*
 - [ ] **BLD-024 — package transition contract. DEPENDS on BLD-007/021/023;
   engineering/product.** Add impact preview and attributable audit; select atomic transitions
   where practical or explicit recoverable partial-state semantics in the existing model.

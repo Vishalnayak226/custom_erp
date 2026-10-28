@@ -1316,8 +1316,9 @@ func pushShopifyStatusJob(ctx context.Context, schema string, job Job) (map[stri
 		_ = mergeSalesOrderData(schema, orderID, map[string]interface{}{"shopify_push": map[string]interface{}{
 			"status": status, "result": st, "error": detail, "at": time.Now().UTC().Format(time.RFC3339), "attempts": job.Attempts + 1}})
 	}
-	if sandbox, _ := IsSandboxSchema(schema); sandbox || !ExternalSideEffectsEnabled() {
-		record("Simulated", "external side effects are off on this server - nothing was sent")
+	ok, reason := OutsideCallsAllowed(schema) // 49.8.7a
+	if sandbox, _ := IsSandboxSchema(schema); sandbox || !ok {
+		record("Simulated", firstNonEmpty(reason, "a sandbox client")+" - nothing was sent")
 		return map[string]interface{}{"simulated": true}, nil
 	}
 	var items []ConnectorStatusLine

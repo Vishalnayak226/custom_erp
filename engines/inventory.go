@@ -305,7 +305,7 @@ func PostInventoryLedgerWithVoucherTx(tx *sql.Tx, schema string, locationCode st
 			continue
 		}
 		// Stage 130.9 (72.D f): a line whose product type allows negative stock.
-		lineAllowsNegative := allowNegative || itemMap["allow_negative"] == true
+		lineAllowsNegative := allowNegative || lineMarkedNegativeAllowed(itemMap)
 
 		// Floor-check: a negative delta (checkout/decrement) must not push available
 		// stock below zero. Locks the row (FOR UPDATE) so concurrent checkouts against
@@ -314,11 +314,11 @@ func PostInventoryLedgerWithVoucherTx(tx *sql.Tx, schema string, locationCode st
 			// Stage 85.B3: the floor is Main - available less what is held
 			// inside it (the client's own locations, hold codes) - so a sale
 			// cannot take a unit set aside in Alteration or under a recall.
-			var currentAvailable int
+			var currentAvailable, reserved int
 			err := tx.QueryRow(fmt.Sprintf(`
-				SELECT available - blocked - hold_qty FROM %s.inventory_availability
+				SELECT available - blocked - hold_qty, reserved FROM %s.inventory_availability
 				WHERE sku = $1 AND location_code = $2
-				FOR UPDATE`, schema), sku, locationCode).Scan(&currentAvailable)
+				FOR UPDATE`, schema), sku, locationCode).Scan(&currentAvailable, &reserved)
 			if err == sql.ErrNoRows {
 				if !lineAllowsNegative {
 					return nil, nil, &InsufficientStockError{SKU: sku, Location: locationCode, Available: 0, Requested: -qtyVal}
@@ -326,6 +326,15 @@ func PostInventoryLedgerWithVoucherTx(tx *sql.Tx, schema string, locationCode st
 				currentAvailable = 0
 			} else if err != nil {
 				return nil, nil, err
+			}
+			// Stage 135.18 (user decision 2026-10-27): a store sale leaves the
+			// units reserved for orders at this location alone. Only a refusal
+			// rule - a line that may go negative (offline sync, product type)
+			// is not held back by it.
+			heldForOrders := 0
+			if itemMap["respect_reserved"] == true && !lineAllowsNegative && reserved > 0 {
+				heldForOrders = reserved
+				currentAvailable -= reserved
 			}
 			// Stage 85.B3: Main short, but QC Hold / Damage marked sellable -
 			// the units the till offered come from there.
@@ -338,7 +347,11 @@ func PostInventoryLedgerWithVoucherTx(tx *sql.Tx, schema string, locationCode st
 			}
 			if currentAvailable+qtyVal < 0 {
 				if !lineAllowsNegative {
-					return nil, nil, &InsufficientStockError{SKU: sku, Location: locationCode, Available: currentAvailable, Requested: -qtyVal}
+					short := &InsufficientStockError{SKU: sku, Location: locationCode, Available: currentAvailable, Requested: -qtyVal, Reserved: heldForOrders}
+					if heldForOrders > 0 && short.Available < 0 {
+						short.Available = 0
+					}
+					return nil, nil, short
 				}
 				resulting := currentAvailable + qtyVal
 				negativeEvents = append(negativeEvents, NegativeStockEvent{
@@ -386,9 +399,13 @@ type InsufficientStockError struct {
 	Location  string
 	Available int
 	Requested int
+	Reserved  int // units held for orders that the floor left alone (135.18)
 }
 
 func (e *InsufficientStockError) Error() string {
+	if e.Reserved > 0 {
+		return fmt.Sprintf("insufficient stock for SKU %s at %s: available %d (%d more reserved for orders), requested %d", e.SKU, e.Location, e.Available, e.Reserved, e.Requested)
+	}
 	return fmt.Sprintf("insufficient stock for SKU %s at %s: available %d, requested %d", e.SKU, e.Location, e.Available, e.Requested)
 }
 

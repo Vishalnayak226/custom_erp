@@ -160,9 +160,26 @@ func CapitalizeAsset(tenantID, assetID string) error {
 // one, and the Fixed Assets screen asks for it on Capitalise. A positive
 // usefulLifeYears is stored on the asset; zero keeps what the asset has.
 func CapitalizeAssetWithLife(tenantID, assetID string, usefulLifeYears float64) error {
-	data, status, err := fetchAssetData(tenantID, assetID)
+	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
+		return err
+	}
+	// Stage 135.21: read under the asset's row lock, posted and saved in this
+	// one transaction, so a second capitalisation waits, then finds it
+	// Capitalised and is refused - read outside it, the second also saved over
+	// the first (its own useful life and date) behind the one keyed journal.
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var dataStr, status string
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE doctype = 'Asset' AND id = $1 FOR UPDATE`, schema), assetID).Scan(&dataStr, &status); err != nil {
 		return fmt.Errorf("asset not found: %v", err)
+	}
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+		return err
 	}
 	if status != "Draft" {
 		return fmt.Errorf("only a Draft asset can be capitalised (current status: %s)", status)
@@ -187,10 +204,18 @@ func CapitalizeAssetWithLife(tenantID, assetID string, usefulLifeYears float64) 
 		data["capitalisation_date"] = BusinessToday()
 	}
 
-	if err := PostDoubleEntry(tenantID, "Asset", assetID, map[string]int64{"1400": cost}, map[string]int64{"2100": cost}, "", fmt.Sprintf("Asset:%s:CAPITALIZE", assetID)); err != nil {
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "Asset", assetID, map[string]int64{"1400": cost}, map[string]int64{"2100": cost}, "", fmt.Sprintf("Asset:%s:CAPITALIZE", assetID)); err != nil {
 		return fmt.Errorf("failed to post capitalisation GL entry: %v", err)
 	}
-	return saveAssetData(tenantID, assetID, "Capitalised", data)
+	data["status"] = "Capitalised"
+	marshaled, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = $1, status = 'Capitalised', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'Asset' AND id = $2`, schema), marshaled, assetID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // TransferAsset moves a Capitalised asset between locations/custodians and

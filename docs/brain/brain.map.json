@@ -118,6 +118,8 @@
         "public/components/*",
         "public/view-*.js",
         "public/txn-screen.*",
+        "public/shortcuts.*",
+        "public/shortcut-codes.json",
         "public/theme-boot.js"
       ]
     },
@@ -167,6 +169,7 @@
         "internal/server/middleware.go",
         "internal/server/middleware_compress.go",
         "internal/server/request_envelope.go",
+        "internal/server/server_limits.go",
         "internal/server/method_not_allowed.go",
         "internal/server/tenant_host.go",
         "internal/server/handlers_csp.go",
@@ -192,6 +195,7 @@
       "role": "The metadata-driven Record Type engine — one generic documents table per tenant plus a doctype_meta/doctype_fields registry. ValidateDocument is the shared validation choke point; document numbering, edit windows and status transitions hang off the same spine.",
       "match": [
         "engines/doctype.go",
+        "engines/locale_dates.go",
         "engines/search_identity.go",
         "engines/docid.go",
         "engines/document_edit_window.go",
@@ -217,6 +221,7 @@
         "engines/field_formats.go",
         "engines/phone.go",
         "internal/server/handlers_core_doc_engine.go",
+        "internal/server/handlers_doc_find_stage139.go",
         "internal/server/handlers_field_formats.go"
       ]
     },
@@ -228,6 +233,7 @@
       "match": [
         "engines/auth.go",
         "engines/auth_livestate.go",
+        "engines/identity_lifecycle.go",
         "engines/store_access.go",
         "engines/store_view.go",
         "internal/server/handlers_store_access.go",
@@ -321,6 +327,7 @@
       "role": "Two historical grab-bag handler files whose contents span several modules (bulk import, availability/checkout, POS sessions, trial balance, approvals, GST, the four core reports, RFQ quotes, stickers, payroll export, the PIM workbench). Kept visible as its own region rather than force-filed under one module, because that is genuinely what they are.",
       "match": [
         "internal/server/handlers_pim_pos_finance.go",
+        "internal/server/handlers_pos_offline_sales.go",
         "internal/server/handlers_procurement_pim2.go"
       ]
     },
@@ -343,6 +350,10 @@
         "engines/bank_reconciliation.go",
         "engines/bank_reconciliation_workbench.go",
         "engines/partial_settlement.go",
+        "engines/customer_receipt.go",
+        "engines/acquirer_settlement.go",
+        "engines/reports_stage140.go",
+        "internal/server/handlers_customer_receipts.go",
         "engines/period_close.go",
         "engines/posting_actor.go",
         "engines/gl_attribution_reports.go",
@@ -379,6 +390,7 @@
         "engines/gst.go",
         "engines/tds.go",
         "engines/gst_place_of_supply.go",
+        "engines/supply_state.go",
         "engines/regions.go",
         "engines/tax_ids.go",
         "engines/amount_words.go",
@@ -529,6 +541,7 @@
       "role": "Cart → offer evaluation → GST → tender → GL posting → loyalty accrual, plus cash-drawer sessions, offline heartbeat and session close.",
       "match": [
         "engines/pos_checkout.go",
+        "engines/pos_offline_sales.go",
         "engines/pos_session.go",
         "engines/pos_offers.go",
         "engines/pos_quote.go",
@@ -634,6 +647,7 @@
       "role": "BOM, production orders (issue → receive), MRP netting, and production scheduling / subcontracting.",
       "match": [
         "engines/manufacturing*.go",
+        "engines/production_bom_variance.go",
         "internal/server/handlers_manufacturing_stage26.go",
         "internal/server/handlers_material_plan.go",
         "engines/job_work.go"
@@ -715,6 +729,7 @@
       "match": [
         "engines/import.go",
         "engines/import_resume.go",
+        "engines/import_controls.go",
         "internal/server/handlers_import_resume.go",
         "engines/setup_workbook.go",
         "engines/xlsx_reader*.go",
@@ -810,6 +825,7 @@
         "engines/webhook.go",
         "internal/server/handlers_jobrunner.go",
         "engines/environment.go",
+        "engines/outside_calls.go",
         "internal/server/handlers_environment.go"
       ]
     },
@@ -908,6 +924,7 @@
         "engines/secret_keyring.go",
         "engines/telemetry_redaction.go",
         "engines/security_detection.go",
+        "engines/security_detection_abuse.go",
         "engines/security_emergency.go",
         "engines/security_posture.go",
         "engines/restore_verify.go",

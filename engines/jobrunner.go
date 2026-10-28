@@ -237,6 +237,14 @@ func runClaimedJobsContext(ctx context.Context, schema string) {
 	if ctx.Err() != nil {
 		return
 	}
+	// Stage 49.3.2: the client a job acts for is the one whose schema holds
+	// it. Resolved before anything is claimed, so a schema that names no
+	// client leaves its jobs queued instead of running them for nobody.
+	tenantID, err := tenantIDForSchema(schema)
+	if err != nil {
+		LogBackgroundJobError("JOBRUNNER", "tenant", schema, err)
+		return
+	}
 	jobs, err := claimJobs(schema, jobClaimBatchSize)
 	if err != nil {
 		LogBackgroundJobError("JOBRUNNER", "claim", schema, err)
@@ -253,7 +261,11 @@ func runClaimedJobsContext(ctx context.Context, schema string) {
 			finishJob(schema, job, nil, fmt.Errorf("no handler registered for job_type %q", job.JobType))
 			continue
 		}
-		jobCtx, cancel := context.WithCancel(ctx)
+		if err := bindJobTenant(schema, tenantID, &job); err != nil {
+			finishJob(schema, job, nil, err)
+			continue
+		}
+		jobCtx, cancel := context.WithCancel(withOutsideCallsSchema(ctx, schema)) // 49.8.7a: the job's client
 		key := runningJobKey{schema: schema, id: job.ID}
 		runningJobs.Lock()
 		runningJobs.byKey[key] = runningJob{cancel: cancel}
@@ -273,6 +285,30 @@ func runClaimedJobsContext(ctx context.Context, schema string) {
 		runningJobs.Unlock()
 		finishJob(schema, job, result, err)
 	}
+}
+
+// bindJobTenant (Stage 49.3.2) makes the payload's tenant_id - which several
+// handlers act on - the client the job is queued for. A payload naming
+// another client is refused, never run there. A payload naming none gets this
+// one: before, its handler read "" and db.GetTenantSchema sent it to the
+// default client.
+func bindJobTenant(schema, tenantID string, job *Job) error {
+	named, _ := job.Payload["tenant_id"].(string)
+	if named == "" {
+		if job.Payload == nil {
+			job.Payload = map[string]interface{}{}
+		}
+		job.Payload["tenant_id"] = tenantID
+		return nil
+	}
+	resolved, err := db.GetTenantSchema(named)
+	if err != nil {
+		return err
+	}
+	if resolved != schema {
+		return fmt.Errorf("job names client %q but is queued for %s - not run", named, schema)
+	}
+	return nil
 }
 
 // watchJobCancellation observes the durable Cancelled state so an operator

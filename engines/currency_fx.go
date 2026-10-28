@@ -2,6 +2,7 @@ package engines
 
 import (
 	"custom_erp/db"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -614,19 +615,46 @@ func RevalueOpenForeignItems(tenantID, asOfDate, rateType, userID string, dryRun
 			// The as-of date is passed as the transaction date so the closed
 			// period check applies: a revaluation dated into a closed period is
 			// exactly the write that check exists to refuse.
+			// Stage 135.21: posted and stamped in one transaction holding the
+			// document's row lock, once the position read above is confirmed
+			// under it. The key allows one posting per document and date, so
+			// two runs at once for different dates both posted against the
+			// same carrying amount - the movement booked twice - and the
+			// later stamp kept a cumulative that missed the other's.
+			tx, err := db.DB.Begin()
+			if err != nil {
+				return nil, err
+			}
+			stale, err := revaluationPositionChangedTx(tx, tenantID, schema, class, item.id, position, asOfDate)
+			if err != nil {
+				tx.Rollback()
+				return nil, err
+			}
+			if stale != "" {
+				tx.Rollback()
+				line.SkippedReason = stale
+				run.Lines = append(run.Lines, line)
+				run.DocumentsSkipped++
+				continue
+			}
 			postingKey := fmt.Sprintf("%s:%s:FX_REVAL:%s", class.DocType, item.id, asOfDate)
-			if err := PostDoubleEntry(tenantID, class.DocType, item.id, PaiseMap(debits), PaiseMap(credits), asOfDate, postingKey,
+			if err := PostDoubleEntryTx(tx, tenantID, schema, class.DocType, item.id, PaiseMap(debits), PaiseMap(credits), asOfDate, postingKey,
 				// A revaluation moves no foreign currency at all - the customer
 				// still owes exactly the same USD - so no account carries one.
 				postingOptionsFor(position, closingRate, debits, credits, nil)); err != nil {
+				tx.Rollback()
 				line.SkippedReason = fmt.Sprintf("GL posting refused: %v", err)
 				run.Lines = append(run.Lines, line)
 				run.DocumentsSkipped++
 				continue
 			}
 
-			if err := updateDocumentRevaluationState(schema, class.DocType, item.id, line, closingRate, asOfDate); err != nil {
-				return nil, fmt.Errorf("revaluation posted for %s but the document could not be stamped: %v", item.id, err)
+			if err := updateDocumentRevaluationState(tx, schema, class.DocType, item.id, line, closingRate, asOfDate); err != nil {
+				tx.Rollback()
+				return nil, fmt.Errorf("revaluation of %s not posted - the document could not be stamped: %v", item.id, err)
+			}
+			if err := tx.Commit(); err != nil {
+				return nil, err
 			}
 
 			line.Posted = true
@@ -649,12 +677,46 @@ func RevalueOpenForeignItems(tenantID, asOfDate, rateType, userID string, dryRun
 	return run, nil
 }
 
+// revaluationPositionChangedTx locks the document and re-reads its position
+// (Stage 135.21). It returns "" when the position the run computed from still
+// stands - still open, not revalued since - and otherwise why the document is
+// skipped.
+func revaluationPositionChangedTx(tx *sql.Tx, tenantID, schema string, class openItemQuery, documentID string, seen DocumentFXPosition, asOfDate string) (string, error) {
+	var status, dataStr string
+	err := tx.QueryRow(fmt.Sprintf(`SELECT status, data FROM %s.documents WHERE doctype = $1 AND id = $2 AND deleted_at IS NULL FOR UPDATE`, schema),
+		class.DocType, documentID).Scan(&status, &dataStr)
+	if err == sql.ErrNoRows {
+		return "no longer open", nil
+	} else if err != nil {
+		return "", err
+	}
+	open := false
+	for _, s := range class.Statuses {
+		open = open || s == status
+	}
+	if !open {
+		return fmt.Sprintf("no longer open (status: %s)", status), nil
+	}
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+		return "", err
+	}
+	now := documentFXPosition(tenantID, data, class.AmountField)
+	if now.LastRevaluedOn != "" && now.LastRevaluedOn >= asOfDate {
+		return fmt.Sprintf("already revalued on %s", now.LastRevaluedOn), nil
+	}
+	if now.LastRevaluedOn != seen.LastRevaluedOn || now.CarryingAmount != seen.CarryingAmount || now.TransactionAmount != seen.TransactionAmount {
+		return "changed while this run was in progress - run the revaluation again", nil
+	}
+	return "", nil
+}
+
 // updateDocumentRevaluationState stamps the new cumulative position onto the
 // document. Written with jsonb_set against the live row rather than by
 // re-serialising the payload this function read earlier, so a concurrent edit
 // to an unrelated field is not clobbered by a period-end job.
-func updateDocumentRevaluationState(schema, doctype, documentID string, line RevaluationLine, rate float64, asOfDate string) error {
-	_, err := db.DB.Exec(fmt.Sprintf(`
+func updateDocumentRevaluationState(tx *sql.Tx, schema, doctype, documentID string, line RevaluationLine, rate float64, asOfDate string) error {
+	_, err := tx.Exec(fmt.Sprintf(`
 		UPDATE %s.documents SET data =
 			jsonb_set(
 				jsonb_set(

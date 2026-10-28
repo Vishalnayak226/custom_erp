@@ -93,6 +93,7 @@ var tenantResetClear = map[string]string{
 	"stored_value_instruments":          "gift cards and credits",
 	"stored_value_ledger":               "gift card and credit movements",
 	"pos_offline_heartbeats":            "till heartbeats",
+	"pos_offline_sales":                 "offline sales waiting for validation", // Stage 49.5.6a
 	"payment_utr_log":                   "payment references",
 	"print_job_log":                     "print history",
 	"print_snapshots":                   "the issued copy of each printed document", // Stage 130.16

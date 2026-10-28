@@ -741,8 +741,12 @@ func crmMarkTx(tx *sql.Tx, schema, id, status, code, detail string, extra map[st
 // records what it said.
 func crmHandOver(schema string, s *crmSendRow, d crmDecision) {
 	if d.sender.Provider != CRMProviderMock {
-		if sb, _ := IsSandboxSchema(schema); sb || !ExternalSideEffectsEnabled() {
-			_ = crmRecordOutcome(schema, s.ID, crmSendSimulated, "", "simulated - this server does not send to real providers (sandbox or external side effects off)", nil, "system")
+		if sb, _ := IsSandboxSchema(schema); sb {
+			_ = crmRecordOutcome(schema, s.ID, crmSendSimulated, "", "simulated - a sandbox client does not send to real providers", nil, "system")
+			return
+		}
+		if ok, reason := OutsideCallsAllowed(schema); !ok { // 49.8.7a: the client's own switch too
+			_ = crmRecordOutcome(schema, s.ID, crmSendSimulated, "", "simulated - "+reason, nil, "system")
 			return
 		}
 	}

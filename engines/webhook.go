@@ -193,10 +193,11 @@ func deliverWebhook(ctx context.Context, schema string, job Job) (map[string]int
 	// Stage 47.0.5/47.11.6 Gate 0: this server-wide switch is the sandbox
 	// check's twin for every other tenant - a dev/test boot must not deliver
 	// a real webhook just because a regression/abuse test or a developer
-	// happened to trigger one.
-	if !ExternalSideEffectsEnabled() {
-		log.Printf("[WEBHOOK] external side effects are OFF - simulating delivery of %q to %s (no real HTTP call made)", eventName, rawURL)
-		return map[string]interface{}{"simulated": true, "reason": "external side effects disabled"}, nil
+	// happened to trigger one. 49.8.7a: and a client whose Outside calls
+	// setting is off is simulated the same way.
+	if ok, reason := OutsideCallsAllowed(schema); !ok {
+		log.Printf("[WEBHOOK] %s - simulating delivery of %q to %s (no real HTTP call made)", reason, eventName, rawURL)
+		return map[string]interface{}{"simulated": true, "reason": reason}, nil
 	}
 
 	if err := validateWebhookURL(rawURL); err != nil {

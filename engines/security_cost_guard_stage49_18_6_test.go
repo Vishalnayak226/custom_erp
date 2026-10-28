@@ -29,6 +29,7 @@ var reviewedCaches = map[string]string{
 	"crmZoneCache":           "time-zone name only; holds no tenant data",
 	"crmJourneyVersionCache": "tenant schema + journey + version (versions never change)",
 	"imageDriveCache":        "tenant",
+	"doctypeModuleCache":     "tenant schema + doctype; module mapping changes only in a migration (49.18.8)",
 	"tenantHostCache":        "hostname -> tenant; the tenant is the answer, re-checked by the session",
 }
 

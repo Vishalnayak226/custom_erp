@@ -80,6 +80,7 @@ type extensionHookRow struct {
 	TargetURL string
 	Secret    string
 	TimeoutMs int
+	Schema    string // the client the hook belongs to (49.8.7a's Outside calls)
 }
 
 // generateExtensionSecret returns a high-entropy HMAC signing secret for a
@@ -269,7 +270,7 @@ func matchingHooks(tenantID, hookPoint, doctype string) ([]extensionHookRow, err
 
 	var out []extensionHookRow
 	for rows.Next() {
-		var h extensionHookRow
+		h := extensionHookRow{Schema: schema}
 		if err := rows.Scan(&h.ID, &h.TargetURL, &h.Secret, &h.TimeoutMs); err == nil {
 			out = append(out, h)
 		}
@@ -303,6 +304,14 @@ func logHookCall(tenantID, hookID, payloadHash string, status int, latencyMs int
 // This is what makes it safe to call synchronously from a before_save path
 // that needs a real answer (proceed or block).
 func callHookWithRecovery(hook extensionHookRow, payload []byte) (status int, latencyMs int, err error) {
+	// 49.8.7a: the emergency switch, the client's Outside calls setting and
+	// development stop a hook before it is called (outsideCallRefusal).
+	// before_save then refuses the save - a check that did not run must not
+	// let it through, the same rule as a hook that times out - and
+	// after_save logs the refusal on the hook's call log.
+	if reason := outsideCallRefusal(hook.Schema, http.MethodPost, hook.TargetURL); reason != "" {
+		return 0, 0, &ValidationError{Code: "EXT-0289", SubFor: reason, Message: "the hook was not called: " + reason}
+	}
 	// BLD-031: re-validated immediately before every delivery, not only at
 	// RegisterExtensionHook time - see validateHookTargetURL's own comment.
 	if verr := validateHookTargetURL(hook.TargetURL); verr != nil {

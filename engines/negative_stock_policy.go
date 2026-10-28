@@ -75,9 +75,21 @@ func markNegativeStockAllowed(tenantID string, items []interface{}) {
 			cache[sku] = allow
 		}
 		if allow {
-			m["allow_negative"] = true
+			m["allow_negative"] = negativeStockMark(true)
 		}
 	}
+}
+
+// negativeStockMark is the value markNegativeStockAllowed sets. Stage 49.5.6:
+// it is a type no JSON body decodes into, so a line that arrives carrying
+// "allow_negative": true - a stored document's lines, a client's cart - can
+// never lift the floor check; only the product-type lookup above can. It
+// still marshals as true.
+type negativeStockMark bool
+
+func lineMarkedNegativeAllowed(m map[string]interface{}) bool {
+	v, ok := m["allow_negative"].(negativeStockMark)
+	return ok && bool(v)
 }
 
 // checkGiftComesBack refuses a return that takes back every paid unit of a

@@ -696,7 +696,7 @@ work; dated older proposals are not a reliable estimate for the current tree.
 | Cost/fairness | Existing artifact gates plus measured DB/log/media/backup/tenant load | Resource reports and dominant-tenant comparison |
 | Documentation/SOP health | Each included workflow has matching instructions and current segments | Literal guide walk, link/generation checks and revision map |
 
-The 90% pilot target is proposed, not existing evidence or an approved commercial promise.
+The 90% pilot target was approved on 2026-10-27 (tracker 135.10) as a pilot target, not existing evidence or a commercial promise.
 Absolute "no bugs" is not a defensible release claim; use severity, exposure, observed
 failure rate and verified recovery. Reproduced critical defects block their affected scope.
 
@@ -713,6 +713,10 @@ exit bar, rather than source existence or one happy-path screen load.
 
 - **Supported products and dependency/support contract:** settle BLD-023 with the existing
   package graph, supported customer configurations, required shared services and disable rules.
+  *Decided 2026-10-27 (tracker 135.10):* Full ERP, PIM, WMS and OMS are sold on their own over
+  the always-on core; HR, Procurement + RFQ, Manufacturing, CRM & Loyalty, Fixed Assets and
+  Expenses only as add-ons; the ≥90% new-user target is adopted for the pilot; RPO ≤24 h and
+  RTO ≤4 h for every package; external acceptance runs at the pilot (55.22).
 - **Business-policy gaps:** first locate later answers in the live tracker. Only genuinely
   unresolved quote/award, tolerances, partial close, costing, refund and retention rules need
   another decision; do not reopen Stage 130/134 approvals by default.

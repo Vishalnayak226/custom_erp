@@ -17293,7 +17293,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Are we within budget?",
-      "description": "Budget against actual by account for the period."
+      "description": "Budget against actual by account for the period.",
+      "number": "R5047"
     },
     {
       "id": "dunning-queue",
@@ -17341,7 +17342,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Which overdue customers need chasing?",
-      "description": "Overdue invoices with their dunning stage."
+      "description": "Overdue invoices with their dunning stage.",
+      "number": "R5048"
     },
     {
       "id": "cash-flow-forecast",
@@ -17387,7 +17389,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "What cash is expected in and out?",
-      "description": "Expected receipts and payments by due date."
+      "description": "Expected receipts and payments by due date.",
+      "number": "R5049"
     },
     {
       "id": "campaign-roi",
@@ -17430,7 +17433,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Did this campaign pay off?",
-      "description": "Campaign spend against the sales it drove."
+      "description": "Campaign spend against the sales it drove.",
+      "number": "R6039"
     },
     {
       "id": "inventory-valuation",
@@ -17468,7 +17472,8 @@
       "has_drill_down": false,
       "has_control_totals": true,
       "question": "What is our stock worth?",
-      "description": "On-hand quantity at moving average cost; control totals tie it to 1200 Inventory Control."
+      "description": "On-hand quantity at moving average cost; control totals tie it to 1200 Inventory Control.",
+      "number": "R3060"
     },
     {
       "id": "customer-lifetime-value",
@@ -17518,7 +17523,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Which customers are worth the most?",
-      "description": "Spend and visits per customer over their history."
+      "description": "Spend and visits per customer over their history.",
+      "number": "R6040"
     },
     {
       "id": "cohort-retention",
@@ -17549,7 +17555,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R6041"
     },
     {
       "id": "crm-customer-summary",
@@ -17601,7 +17608,8 @@
       "params": null,
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "How many customers are in each lifecycle state, what they spend and how many can be reached. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: each customer's bills to date. Computed when the report runs - not a stored snapshot."
+      "description": "How many customers are in each lifecycle state, what they spend and how many can be reached. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: each customer's bills to date. Computed when the report runs - not a stored snapshot.",
+      "number": "R6042"
     },
     {
       "id": "crm-consent-audit",
@@ -17676,7 +17684,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Every consent given, refused or withdrawn, with who recorded it, how and under which notice. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the consent was recorded. Computed when the report runs - not a stored snapshot."
+      "description": "Every consent given, refused or withdrawn, with who recorded it, how and under which notice. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the consent was recorded. Computed when the report runs - not a stored snapshot.",
+      "number": "R6043"
     },
     {
       "id": "crm-segment-members",
@@ -17740,7 +17749,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Who is in a segment now (its current version). Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: each customer's bills to date. Computed when the report runs - not a stored snapshot."
+      "description": "Who is in a segment now (its current version). Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: each customer's bills to date. Computed when the report runs - not a stored snapshot.",
+      "number": "R6044"
     },
     {
       "id": "crm-campaign-summary",
@@ -17843,7 +17853,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Each campaign run: reached, held out, suppressed, delivered, credited sales and cost. Delivery is blank where the channel does not report it. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: the run's start; a bill is credited to the last offer within the attribution days before it. Computed when the report runs - not a stored snapshot."
+      "description": "Each campaign run: reached, held out, suppressed, delivered, credited sales and cost. Delivery is blank where the channel does not report it. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: the run's start; a bill is credited to the last offer within the attribution days before it. Computed when the report runs - not a stored snapshot.",
+      "number": "R6045"
     },
     {
       "id": "crm-message-detail",
@@ -17930,7 +17941,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Every CRM message and its decision: sent, delivered, or why not (the reason code). Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the message was queued. Computed when the report runs - not a stored snapshot."
+      "description": "Every CRM message and its decision: sent, delivered, or why not (the reason code). Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the message was queued. Computed when the report runs - not a stored snapshot.",
+      "number": "R6046"
     },
     {
       "id": "crm-journey-performance",
@@ -17995,7 +18007,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Per journey: customers who entered, are in it now, finished, left on reaching the goal, and messages sent. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the customer entered. Computed when the report runs - not a stored snapshot."
+      "description": "Per journey: customers who entered, are in it now, finished, left on reaching the goal, and messages sent. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the customer entered. Computed when the report runs - not a stored snapshot.",
+      "number": "R6047"
     },
     {
       "id": "crm-credited-sales",
@@ -18056,7 +18069,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Bills credited to a CRM message: the last marketing message the customer got within the attribution days before the bill, once per bill. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: the bill date. Computed when the report runs - not a stored snapshot."
+      "description": "Bills credited to a CRM message: the last marketing message the customer got within the attribution days before the bill, once per bill. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: the bill date. Computed when the report runs - not a stored snapshot.",
+      "number": "R6048"
     },
     {
       "id": "crm-rfm-lifecycle",
@@ -18111,7 +18125,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Every customer's RFM segment (scored against the whole customer base, as the RFM report does) and lifecycle state. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: each customer's bills to date. Computed when the report runs - not a stored snapshot."
+      "description": "Every customer's RFM segment (scored against the whole customer base, as the RFM report does) and lifecycle state. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: each customer's bills to date. Computed when the report runs - not a stored snapshot.",
+      "number": "R6049"
     },
     {
       "id": "crm-coupon-use",
@@ -18177,7 +18192,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Vouchers the CRM issued (campaigns, journeys) and whether they were used. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the voucher was issued. Computed when the report runs - not a stored snapshot."
+      "description": "Vouchers the CRM issued (campaigns, journeys) and whether they were used. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the voucher was issued. Computed when the report runs - not a stored snapshot.",
+      "number": "R6050"
     },
     {
       "id": "crm-service-sla",
@@ -18247,7 +18263,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Customer tickets against their first-response and resolution times (working hours only). Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the ticket was opened. Computed when the report runs - not a stored snapshot."
+      "description": "Customer tickets against their first-response and resolution times (working hours only). Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the ticket was opened. Computed when the report runs - not a stored snapshot.",
+      "number": "R6051"
     },
     {
       "id": "crm-clienteling",
@@ -18311,7 +18328,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "The store worklist: tasks by store and owner, done and open, with how many were late. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the task was created. Computed when the report runs - not a stored snapshot."
+      "description": "The store worklist: tasks by store and owner, done and open, with how many were late. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the task was created. Computed when the report runs - not a stored snapshot.",
+      "number": "R6052"
     },
     {
       "id": "crm-feedback",
@@ -18376,7 +18394,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Feedback by store: answers, promoters, detractors and NPS (promoters minus detractors, % of answers). Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the feedback was asked. Computed when the report runs - not a stored snapshot."
+      "description": "Feedback by store: answers, promoters, detractors and NPS (promoters minus detractors, % of answers). Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the feedback was asked. Computed when the report runs - not a stored snapshot.",
+      "number": "R6053"
     },
     {
       "id": "crm-message-cost",
@@ -18435,7 +18454,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "What CRM messages cost by month and channel: the estimate reserved and the provider's actual charge where it reported one. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the message was sent. Computed when the report runs - not a stored snapshot."
+      "description": "What CRM messages cost by month and channel: the estimate reserved and the provider's actual charge where it reported one. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: when the message was sent. Computed when the report runs - not a stored snapshot.",
+      "number": "R6054"
     },
     {
       "id": "crm-pipeline",
@@ -18507,7 +18527,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Open business deals by stage: value, chance and weighted value; won and lost in the period. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: the expected close date. Computed when the report runs - not a stored snapshot."
+      "description": "Open business deals by stage: value, chance and weighted value; won and lost in the period. Dates in the client's CRM time zone (Settings \u003e CRM). Date basis: the expected close date. Computed when the report runs - not a stored snapshot.",
+      "number": "R6055"
     },
     {
       "id": "rfm-segmentation",
@@ -18560,7 +18581,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Which customers are loyal, lapsing or new?",
-      "description": "Recency, frequency and spend scores per customer."
+      "description": "Recency, frequency and spend scores per customer.",
+      "number": "R6056"
     },
     {
       "id": "points-liability",
@@ -18588,7 +18610,8 @@
       "has_drill_down": false,
       "has_control_totals": true,
       "question": "What do we owe in loyalty points?",
-      "description": "Unredeemed points per customer at their redemption value."
+      "description": "Unredeemed points per customer at their redemption value.",
+      "number": "R6057"
     },
     {
       "id": "customer-360",
@@ -18641,7 +18664,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R6058"
     },
     {
       "id": "fx-open-item-exposure",
@@ -18725,7 +18749,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R5050"
     },
     {
       "id": "fx-gain-loss-register",
@@ -18810,7 +18835,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R5051"
     },
     {
       "id": "trial-balance-presentation-currency",
@@ -18880,7 +18906,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R5052"
     },
     {
       "id": "sales-by-customer-reference",
@@ -18956,7 +18983,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R1023"
     },
     {
       "id": "grn-receipt-timing",
@@ -18997,7 +19025,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R2030"
     },
     {
       "id": "grn-not-billed",
@@ -19033,7 +19062,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R2031"
     },
     {
       "id": "transfers-in-transit-long",
@@ -19069,7 +19099,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R3061"
     },
     {
       "id": "itc-past-deadline",
@@ -19105,7 +19136,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R5053"
     },
     {
       "id": "deferred-revenue-roll-forward",
@@ -19156,7 +19188,8 @@
       ],
       "params": [],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R5054"
     },
     {
       "id": "prepaid-expense-roll-forward",
@@ -19207,7 +19240,8 @@
       ],
       "params": [],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R5055"
     },
     {
       "id": "delivery-challan-register",
@@ -19311,7 +19345,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R3062"
     },
     {
       "id": "challan-outstanding-returnables",
@@ -19362,7 +19397,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R3063"
     },
     {
       "id": "einvoice-irn-register",
@@ -19450,7 +19486,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Every invoice and credit note that must have an IRN, its state, IRN and acknowledgement."
+      "description": "Every invoice and credit note that must have an IRN, its state, IRN and acknowledgement.",
+      "number": "R5056"
     },
     {
       "id": "einvoice-errors",
@@ -19521,7 +19558,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Documents the IRP refused or that are still being retried, with the last error and the number of attempts."
+      "description": "Documents the IRP refused or that are still being retried, with the last error and the number of attempts.",
+      "number": "R5057"
     },
     {
       "id": "einvoice-manual-upload",
@@ -19587,7 +19625,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Documents to report on the IRP's portal by hand (the outage path), and the IRNs entered from the portal."
+      "description": "Documents to report on the IRP's portal by hand (the outage path), and the IRNs entered from the portal.",
+      "number": "R5058"
     },
     {
       "id": "ewaybill-register",
@@ -19666,7 +19705,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R3064"
     },
     {
       "id": "profit-and-loss",
@@ -19730,7 +19770,8 @@
       "has_drill_down": true,
       "has_control_totals": false,
       "question": "Did we make money in this period?",
-      "description": "Revenue less expenses by account for the dates chosen; each line drills to its GL postings."
+      "description": "Revenue less expenses by account for the dates chosen; each line drills to its GL postings.",
+      "number": "R5059"
     },
     {
       "id": "balance-sheet",
@@ -19788,7 +19829,8 @@
       "has_drill_down": true,
       "has_control_totals": false,
       "question": "What do we own and owe on a date?",
-      "description": "Assets, liabilities and equity as at the date chosen; each line drills to its GL postings."
+      "description": "Assets, liabilities and equity as at the date chosen; each line drills to its GL postings.",
+      "number": "R5060"
     },
     {
       "id": "cash-flow-statement",
@@ -19834,7 +19876,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Where did the cash come from and go?",
-      "description": "Cash in and out on 1100 for the dates chosen, by activity."
+      "description": "Cash in and out on 1100 for the dates chosen, by activity.",
+      "number": "R5061"
     },
     {
       "id": "gl-drilldown",
@@ -19884,7 +19927,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "What makes up this account's balance?",
-      "description": "Every posting on one account, oldest first, with a running balance."
+      "description": "Every posting on one account, oldest first, with a running balance.",
+      "number": "R5062"
     },
     {
       "id": "customer-ledger",
@@ -19934,7 +19978,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "What has this customer been invoiced?",
-      "description": "Customer invoices with status and amount."
+      "description": "Customer invoices with status and amount.",
+      "number": "R1024"
     },
     {
       "id": "tax-ledger",
@@ -19995,7 +20040,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "What GST did we post, line by line?",
-      "description": "Every posting on the GST accounts, optionally for a date range."
+      "description": "Every posting on the GST accounts, optionally for a date range.",
+      "number": "R5063"
     },
     {
       "id": "statutory-gl-export",
@@ -20076,7 +20122,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "What does the auditor need from the ledger?",
-      "description": "The full GL for a closed period, with poster, for export."
+      "description": "The full GL for a closed period, with poster, for export.",
+      "number": "R5064"
     },
     {
       "id": "gl-journal",
@@ -20166,7 +20213,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Who posted what, and from which document?",
-      "description": "Every GL line in the period with the user, job or integration that posted it."
+      "description": "Every GL line in the period with the user, job or integration that posted it.",
+      "number": "R5065"
     },
     {
       "id": "gl-posting-review",
@@ -20232,7 +20280,8 @@
       "has_drill_down": true,
       "has_control_totals": false,
       "question": "Which people and jobs posted to the ledger?",
-      "description": "GL lines grouped by poster for the period; drills to that poster's lines."
+      "description": "GL lines grouped by poster for the period; drills to that poster's lines.",
+      "number": "R5066"
     },
     {
       "id": "cost-center-pl",
@@ -20276,7 +20325,8 @@
         }
       ],
       "has_drill_down": true,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R5067"
     },
     {
       "id": "department-pl",
@@ -20320,7 +20370,8 @@
         }
       ],
       "has_drill_down": true,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R5068"
     },
     {
       "id": "grn-line-register",
@@ -20467,7 +20518,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "What did each receipt line go through?",
-      "description": "Every GRN line with the PO, invoice and verified figures, MRP and who did each step."
+      "description": "Every GRN line with the PO, invoice and verified figures, MRP and who did each step.",
+      "number": "R2032"
     },
     {
       "id": "grn-invoice-differences",
@@ -20544,7 +20596,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Where do vendor invoices differ from what we received?",
-      "description": "Invoiced against received-and-verified, by vendor and month, with the notes raised."
+      "description": "Invoiced against received-and-verified, by vendor and month, with the notes raised.",
+      "number": "R2033"
     },
     {
       "id": "grn-price-changes",
@@ -20626,7 +20679,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Which purchase prices changed?",
-      "description": "Items received at a price different from the last purchase, with the old and new MRP."
+      "description": "Items received at a price different from the last purchase, with the old and new MRP.",
+      "number": "R2034"
     },
     {
       "id": "grn-waiting",
@@ -20674,7 +20728,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Which goods receipts are waiting, and for what?",
-      "description": "Receipts not yet verified, priced or posted, oldest first."
+      "description": "Receipts not yet verified, priced or posted, oldest first.",
+      "number": "R2035"
     },
     {
       "id": "grn-corrections",
@@ -20750,7 +20805,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "What was changed on a goods receipt?",
-      "description": "Every change at every step: was, now, who, when and why."
+      "description": "Every change at every step: was, now, who, when and why.",
+      "number": "R2036"
     },
     {
       "id": "grn-po-variance",
@@ -20837,7 +20893,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Are we paying what the PO agreed?",
-      "description": "Received price against the PO price per line."
+      "description": "Received price against the PO price per line.",
+      "number": "R2037"
     },
     {
       "id": "grn-payments",
@@ -20914,7 +20971,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "What do we still owe on goods received?",
-      "description": "Each posted receipt with what we owe, what is paid and what is due."
+      "description": "Each posted receipt with what we owe, what is paid and what is due.",
+      "number": "R2038"
     },
     {
       "id": "grn-in-receiving",
@@ -20959,7 +21017,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "What has arrived but is not in stock yet?",
-      "description": "Goods on receipts still being verified, priced or posted - not sellable until their child GRN posts."
+      "description": "Goods on receipts still being verified, priced or posted - not sellable until their child GRN posts.",
+      "number": "R3065"
     },
     {
       "id": "help-article-feedback",
@@ -21000,7 +21059,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R9022"
     },
     {
       "id": "entity-trial-balance",
@@ -21054,7 +21114,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R5069"
     },
     {
       "id": "intercompany-reconciliation",
@@ -21107,7 +21168,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R5070"
     },
     {
       "id": "consolidated-trial-balance",
@@ -21160,7 +21222,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R5071"
     },
     {
       "id": "inventory-adjustment-register",
@@ -21239,7 +21302,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R3066"
     },
     {
       "id": "inventory-loss-by-reason",
@@ -21288,7 +21352,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R3067"
     },
     {
       "id": "item-classification-register",
@@ -21378,7 +21443,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R3068"
     },
     {
       "id": "item-master-completeness",
@@ -21409,7 +21475,8 @@
       ],
       "params": [],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R9023"
     },
     {
       "id": "backflush-consumption",
@@ -21494,7 +21561,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R3069"
     },
     {
       "id": "gwp-issue-register",
@@ -21553,7 +21621,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R1025"
     },
     {
       "id": "non-valuated-stock",
@@ -21596,7 +21665,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Which stock has no cost on record?",
-      "description": "Items with stock but no unit cost - valued at zero until costed."
+      "description": "Items with stock but no unit cost - valued at zero until costed.",
+      "number": "R3070"
     },
     {
       "id": "inactive-items-with-stock",
@@ -21632,7 +21702,8 @@
       ],
       "params": [],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R9024"
     },
     {
       "id": "item-exceptions",
@@ -21696,7 +21767,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R9025"
     },
     {
       "id": "job-work-outstanding",
@@ -21787,7 +21859,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R7033"
     },
     {
       "id": "job-work-yield",
@@ -21858,7 +21931,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R7034"
     },
     {
       "id": "loyalty-points-movement",
@@ -21897,7 +21971,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R6059"
     },
     {
       "id": "production_cost_variance",
@@ -21948,7 +22023,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R7035"
     },
     {
       "id": "competitor-price-gap",
@@ -22046,7 +22122,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R1026"
     },
     {
       "id": "consumption-by-cost-centre",
@@ -22095,7 +22172,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R3071"
     },
     {
       "id": "material-issue-register",
@@ -22169,7 +22247,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R3072"
     },
     {
       "id": "oms-exception-queue",
@@ -22210,7 +22289,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R6060"
     },
     {
       "id": "oms-reconciliation-variance",
@@ -22246,7 +22326,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R6061"
     },
     {
       "id": "order-aging",
@@ -22274,7 +22355,8 @@
       "has_drill_down": true,
       "has_control_totals": false,
       "question": "Which orders are waiting too long?",
-      "description": "Open orders by age and status."
+      "description": "Open orders by age and status.",
+      "number": "R6062"
     },
     {
       "id": "sla-breach",
@@ -22324,7 +22406,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Which orders missed their promise?",
-      "description": "Orders past their dispatch or delivery SLA."
+      "description": "Orders past their dispatch or delivery SLA.",
+      "number": "R6063"
     },
     {
       "id": "allocation-pending",
@@ -22360,7 +22443,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R6064"
     },
     {
       "id": "stock-mismatch",
@@ -22426,7 +22510,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R6065"
     },
     {
       "id": "return-aging",
@@ -22449,7 +22534,8 @@
       "has_drill_down": true,
       "has_control_totals": false,
       "question": "Which returns are waiting to be processed?",
-      "description": "Open returns by age and status."
+      "description": "Open returns by age and status.",
+      "number": "R6066"
     },
     {
       "id": "reserved-stock",
@@ -22490,7 +22576,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R6067"
     },
     {
       "id": "courier-performance",
@@ -22531,7 +22618,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R6068"
     },
     {
       "id": "orphaned-channel-orders",
@@ -22567,7 +22655,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R6069"
     },
     {
       "id": "payroll-reconciliation",
@@ -22633,7 +22722,8 @@
       "has_drill_down": true,
       "has_control_totals": false,
       "question": "Does payroll agree from gross pay to the bank and the ledger?",
-      "description": "Payslip gross, deductions and net against the GL, salary paid, and payments confirmed on the bank statement."
+      "description": "Payslip gross, deductions and net against the GL, salary paid, and payments confirmed on the bank statement.",
+      "number": "R8017"
     },
     {
       "id": "pim-product-group-readiness",
@@ -22681,7 +22771,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R7036"
     },
     {
       "id": "pim-task-workload",
@@ -22722,7 +22813,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R7037"
     },
     {
       "id": "pim-task-overdue",
@@ -22780,7 +22872,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R7038"
     },
     {
       "id": "pim-workflow-stalled",
@@ -22831,7 +22924,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R7039"
     },
     {
       "id": "demand-forecast",
@@ -22876,7 +22970,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R3073"
     },
     {
       "id": "reorder-suggestions",
@@ -22948,7 +23043,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "What should we reorder?",
-      "description": "Items under their reorder level with the suggested quantity."
+      "description": "Items under their reorder level with the suggested quantity.",
+      "number": "R3074"
     },
     {
       "id": "pegged-demand-supply",
@@ -22997,7 +23093,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R3075"
     },
     {
       "id": "production-capacity-schedule",
@@ -23043,7 +23140,8 @@
       ],
       "params": [],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R7040"
     },
     {
       "id": "po-delivery-and-terms",
@@ -23127,7 +23225,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R2039"
     },
     {
       "id": "grn-discrepancy-by-vendor",
@@ -23196,7 +23295,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R2040"
     },
     {
       "id": "vendor-document-transport-register",
@@ -23280,7 +23380,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R2041"
     },
     {
       "id": "grni",
@@ -23354,7 +23455,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R2042"
     },
     {
       "id": "pos-sale-reconciliation",
@@ -23450,7 +23552,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Did every till sale post correctly?",
-      "description": "Each POS sale against the tender, revenue, tax and stock it posted."
+      "description": "Each POS sale against the tender, revenue, tax and stock it posted.",
+      "number": "R5072"
     },
     {
       "id": "print-template-coverage",
@@ -23501,7 +23604,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R9026"
     },
     {
       "id": "print-failures",
@@ -23560,7 +23664,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R9027"
     },
     {
       "id": "missing-regulatory-print-data",
@@ -23596,7 +23701,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R9028"
     },
     {
       "id": "project-pl",
@@ -23635,7 +23741,8 @@
         }
       ],
       "has_drill_down": true,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R5073"
     },
     {
       "id": "rejections-by-reason",
@@ -23697,7 +23804,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Why are goods rejected or sent back?",
-      "description": "Rejected and damaged units at receipt and returns to vendors, by reason and vendor."
+      "description": "Rejected and damaged units at receipt and returns to vendors, by reason and vendor.",
+      "number": "R2043"
     },
     {
       "id": "cat-sales-register",
@@ -23846,7 +23954,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": true,
-      "description": "Bill-level sales register for finance, retail and reconciliation. (One row per sales invoice.)"
+      "description": "Bill-level sales register for finance, retail and reconciliation. (One row per sales invoice.)",
+      "number": "R1001"
     },
     {
       "id": "cat-sales-itemwise-detail",
@@ -24026,7 +24135,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Detailed sales view used for item, tax, discount and margin analysis. (One row per invoice item line.)"
+      "description": "Detailed sales view used for item, tax, discount and margin analysis. (One row per invoice item line.)",
+      "number": "R1002"
     },
     {
       "id": "cat-sales-return-register",
@@ -24141,7 +24251,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Bill-level sales return register linked to the original sale. (One row per sales return/credit note.)"
+      "description": "Bill-level sales return register linked to the original sale. (One row per sales return/credit note.)",
+      "number": "R1003"
     },
     {
       "id": "cat-sales-return-itemwise-detail",
@@ -24310,7 +24421,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Item-level sales return detail using the original-sale calculation basis. (One row per returned item line.)"
+      "description": "Item-level sales return detail using the original-sale calculation basis. (One row per returned item line.)",
+      "number": "R1004"
     },
     {
       "id": "cat-net-sales-summary",
@@ -24406,7 +24518,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Summary of sales less sales returns with consistent underlying net calculation. (One row per date/store/channel.)"
+      "description": "Summary of sales less sales returns with consistent underlying net calculation. (One row per date/store/channel.)",
+      "number": "R1005"
     },
     {
       "id": "cat-sales-tender-summary",
@@ -24472,7 +24585,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Tender-wise sales summary. (One row per date/store/tender.)"
+      "description": "Tender-wise sales summary. (One row per date/store/tender.)",
+      "number": "R1006"
     },
     {
       "id": "cat-sales-tender-detail",
@@ -24560,7 +24674,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Bill-level tender allocation and payment reference detail. (One row per bill tender split.)"
+      "description": "Bill-level tender allocation and payment reference detail. (One row per bill tender split.)",
+      "number": "R1007"
     },
     {
       "id": "cat-salesman-sales-summary",
@@ -24651,7 +24766,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Salesperson performance summary. (One row per salesperson/store/period.)"
+      "description": "Salesperson performance summary. (One row per salesperson/store/period.)",
+      "number": "R1008"
     },
     {
       "id": "cat-sales-counter-summary",
@@ -24732,7 +24848,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "POS counter performance and value summary. (One row per counter/store/period.)"
+      "description": "POS counter performance and value summary. (One row per counter/store/period.)",
+      "number": "R1009"
     },
     {
       "id": "cat-sales-discount-analysis",
@@ -24886,7 +25003,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Analyzes item/bill discounts, redemptions and net value. (One row per item line.)"
+      "description": "Analyzes item/bill discounts, redemptions and net value. (One row per item line.)",
+      "number": "R1010"
     },
     {
       "id": "cat-sales-margin-analysis",
@@ -25011,7 +25129,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Analyzes sales margin using controlled cost access. (One row per item line.)"
+      "description": "Analyzes sales margin using controlled cost access. (One row per item line.)",
+      "number": "R1011"
     },
     {
       "id": "cat-sales-bill-edit-audit-report",
@@ -25109,7 +25228,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Tracks controlled post-bill edits such as tender, mobile, channel and B2B PO changes. (One row per audit event + changed field.)"
+      "description": "Tracks controlled post-bill edits such as tender, mobile, channel and B2B PO changes. (One row per audit event + changed field.)",
+      "number": "R1012"
     },
     {
       "id": "cat-cancelled-void-bill-register",
@@ -25211,7 +25331,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Tracks cancelled or voided sales bills and reasons. (One row per cancelled/void bill.)"
+      "description": "Tracks cancelled or voided sales bills and reasons. (One row per cancelled/void bill.)",
+      "number": "R1013"
     },
     {
       "id": "cat-customer-advance-summary",
@@ -25315,7 +25436,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Tracks advance received, utilization and balance. (One row per customer advance.)"
+      "description": "Tracks advance received, utilization and balance. (One row per customer advance.)",
+      "number": "R1014"
     },
     {
       "id": "cat-customer-advance-itemwise-detail",
@@ -25470,7 +25592,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Item-level view of products linked to customer advance and later billing. (One row per advance-linked requested/reserved item.)"
+      "description": "Item-level view of products linked to customer advance and later billing. (One row per advance-linked requested/reserved item.)",
+      "number": "R1015"
     },
     {
       "id": "cat-customer-advance-utilization",
@@ -25563,7 +25686,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Shows each invoice/redemption against an advance. (One row per advance adjustment event.)"
+      "description": "Shows each invoice/redemption against an advance. (One row per advance adjustment event.)",
+      "number": "R1016"
     },
     {
       "id": "cat-credit-note-register",
@@ -25661,7 +25785,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Tracks credit notes issued, balance and redemption. (One row per credit note.)"
+      "description": "Tracks credit notes issued, balance and redemption. (One row per credit note.)",
+      "number": "R1017"
     },
     {
       "id": "cat-gift-card-voucher-register",
@@ -25753,7 +25878,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Tracks issue, activation, redemption and balance of gift cards/vouchers. (One row per gift card/voucher transaction.)"
+      "description": "Tracks issue, activation, redemption and balance of gift cards/vouchers. (One row per gift card/voucher transaction.)",
+      "number": "R1018"
     },
     {
       "id": "cat-b2b-sales-register",
@@ -25881,7 +26007,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "B2B sales register with customer GST and PO reference. (One row per B2B invoice.)"
+      "description": "B2B sales register with customer GST and PO reference. (One row per B2B invoice.)",
+      "number": "R1019"
     },
     {
       "id": "cat-export-international-sales-register",
@@ -25999,7 +26126,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Tracks export/international sales, exchange-rate and tax treatment. (One row per export invoice.)"
+      "description": "Tracks export/international sales, exchange-rate and tax treatment. (One row per export invoice.)",
+      "number": "R1020"
     },
     {
       "id": "cat-sales-design-image-register",
@@ -26081,7 +26209,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Sales item image register searchable at Design No level. (One row per sales line/design.)"
+      "description": "Sales item image register searchable at Design No level. (One row per sales line/design.)",
+      "number": "R1021"
     },
     {
       "id": "cat-sales-variant-image-register",
@@ -26169,7 +26298,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Sales item image register searchable at Combination ID/variant level. (One row per sales line/variant.)"
+      "description": "Sales item image register searchable at Combination ID/variant level. (One row per sales line/variant.)",
+      "number": "R1022"
     },
     {
       "id": "cat-current-stock-summary",
@@ -26243,7 +26373,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Current stock snapshot summarized by selected dimensions. (One row per store/location/category/SKU.)"
+      "description": "Current stock snapshot summarized by selected dimensions. (One row per store/location/category/SKU.)",
+      "number": "R3001"
     },
     {
       "id": "cat-current-stock-itemwise-detail",
@@ -26356,7 +26487,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Current stock by SKU and location. (One row per SKU/location.)"
+      "description": "Current stock by SKU and location. (One row per SKU/location.)",
+      "number": "R3002"
     },
     {
       "id": "cat-current-stock-barcode-detail",
@@ -26470,7 +26602,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Barcode-level current stock position and traceability. (One row per barcode/location.)"
+      "description": "Barcode-level current stock position and traceability. (One row per barcode/location.)",
+      "number": "R3003"
     },
     {
       "id": "cat-stock-details-period-wise",
@@ -26675,7 +26808,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Opening, movement and closing stock with configurable product attributes and values. (One row per product/location for selected period.)"
+      "description": "Opening, movement and closing stock with configurable product attributes and values. (One row per product/location for selected period.)",
+      "number": "R3004"
     },
     {
       "id": "cat-stock-ledger",
@@ -26797,7 +26931,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Append-only inventory transaction ledger with source document traceability. (One row per stock movement.)"
+      "description": "Append-only inventory transaction ledger with source document traceability. (One row per stock movement.)",
+      "number": "R3005"
     },
     {
       "id": "cat-stock-ledger-category-summary",
@@ -26888,7 +27023,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Category-level opening, inward, outward and closing quantities for a date range. (One row per category/store/location.)"
+      "description": "Category-level opening, inward, outward and closing quantities for a date range. (One row per category/store/location.)",
+      "number": "R3006"
     },
     {
       "id": "cat-stock-aging",
@@ -26999,7 +27135,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Stock age and aging-bucket analysis. (One row per SKU/location or barcode.)"
+      "description": "Stock age and aging-bucket analysis. (One row per SKU/location or barcode.)",
+      "number": "R3007"
     },
     {
       "id": "cat-stock-valuation-summary",
@@ -27068,7 +27205,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": true,
-      "description": "Inventory valuation summary by approved valuation basis. (One row per store/location/category.)"
+      "description": "Inventory valuation summary by approved valuation basis. (One row per store/location/category.)",
+      "number": "R3008"
     },
     {
       "id": "cat-barcode-wise-cost-and-mrp-report",
@@ -27201,7 +27339,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Restricted barcode-level cost/MRP and margin validation report. (One row per barcode.)"
+      "description": "Restricted barcode-level cost/MRP and margin validation report. (One row per barcode.)",
+      "number": "R3009"
     },
     {
       "id": "cat-stock-movement-history",
@@ -27293,7 +27432,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Full movement history for a barcode/SKU across documents and locations. (One row per barcode movement.)"
+      "description": "Full movement history for a barcode/SKU across documents and locations. (One row per barcode movement.)",
+      "number": "R3010"
     },
     {
       "id": "cat-inventory-by-location-summary",
@@ -27352,7 +27492,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Current inventory quantities and value by location. (One row per store/location.)"
+      "description": "Current inventory quantities and value by location. (One row per store/location.)",
+      "number": "R3011"
     },
     {
       "id": "cat-inventory-matrix-summary",
@@ -27411,7 +27552,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Matrix summary for stock by design/variant attributes. (One row per store/category/design.)"
+      "description": "Matrix summary for stock by design/variant attributes. (One row per store/category/design.)",
+      "number": "R3012"
     },
     {
       "id": "cat-current-stock-with-image",
@@ -27492,7 +27634,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Current stock view with product/variant image. (One row per SKU/variant/location.)"
+      "description": "Current stock view with product/variant image. (One row per SKU/variant/location.)",
+      "number": "R3013"
     },
     {
       "id": "cat-physical-stock-count-register",
@@ -27589,7 +27732,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Tracks physical inventory count batches by location. (One row per count batch.)"
+      "description": "Tracks physical inventory count batches by location. (One row per count batch.)",
+      "number": "R3016"
     },
     {
       "id": "cat-physical-stock-variance-report",
@@ -27719,7 +27863,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Compares ERP stock with physical count and includes missing/extra scanned items. (One row per barcode/SKU in system or count.)"
+      "description": "Compares ERP stock with physical count and includes missing/extra scanned items. (One row per barcode/SKU in system or count.)",
+      "number": "R3017"
     },
     {
       "id": "cat-negative-stock-exception",
@@ -27789,7 +27934,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Lists negative or impossible stock balances for investigation. (One row per SKU/location exception.)"
+      "description": "Lists negative or impossible stock balances for investigation. (One row per SKU/location exception.)",
+      "number": "R3018"
     },
     {
       "id": "cat-mrp-change-register",
@@ -27880,7 +28026,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Audits old/new MRP changes and acknowledgement. (One row per price-change item/location.)"
+      "description": "Audits old/new MRP changes and acknowledgement. (One row per price-change item/location.)",
+      "number": "R3019"
     },
     {
       "id": "cat-barcode-reprint-label-history",
@@ -27966,7 +28113,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Tracks barcode/label generation and reprint activity. (One row per barcode print/reprint event.)"
+      "description": "Tracks barcode/label generation and reprint activity. (One row per barcode print/reprint event.)",
+      "number": "R3020"
     },
     {
       "id": "cat-unique-design-inventory-summary",
@@ -28020,7 +28168,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Distinct design count alongside stock quantity/value. (One row per store/category.)"
+      "description": "Distinct design count alongside stock quantity/value. (One row per store/category.)",
+      "number": "R3021"
     },
     {
       "id": "cat-purchase-requisition-register",
@@ -28106,7 +28255,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Tracks internal purchase demand and approval status. (One row per requisition line.)"
+      "description": "Tracks internal purchase demand and approval status. (One row per requisition line.)",
+      "number": "R2001"
     },
     {
       "id": "cat-rfq-quotation-comparison",
@@ -28199,7 +28349,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Compares vendor quotations for sourcing decision. (One row per RFQ-item-vendor quote.)"
+      "description": "Compares vendor quotations for sourcing decision. (One row per RFQ-item-vendor quote.)",
+      "number": "R2002"
     },
     {
       "id": "cat-purchase-order-register",
@@ -28323,7 +28474,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "PO header-level register and lifecycle status. (One row per PO.)"
+      "description": "PO header-level register and lifecycle status. (One row per PO.)",
+      "number": "R2003"
     },
     {
       "id": "cat-purchase-order-itemwise-detail",
@@ -28487,7 +28639,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Detailed PO lines including tax and quantity status. (One row per PO item line.)"
+      "description": "Detailed PO lines including tax and quantity status. (One row per PO item line.)",
+      "number": "R2004"
     },
     {
       "id": "cat-pending-open-po-report",
@@ -28598,7 +28751,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Open PO quantity and pending receipt visibility. (One row per pending PO item line.)"
+      "description": "Open PO quantity and pending receipt visibility. (One row per pending PO item line.)",
+      "number": "R2005"
     },
     {
       "id": "cat-pending-po-with-image",
@@ -28692,7 +28846,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Pending PO report with design-level product image. (One row per pending PO design.)"
+      "description": "Pending PO report with design-level product image. (One row per pending PO design.)",
+      "number": "R2006"
     },
     {
       "id": "cat-pending-po-with-variant-image",
@@ -28794,7 +28949,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Pending PO report with Combination ID/variant image. (One row per pending PO variant.)"
+      "description": "Pending PO report with Combination ID/variant image. (One row per pending PO variant.)",
+      "number": "R2007"
     },
     {
       "id": "cat-po-approval-pending-report",
@@ -28873,7 +29029,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "POs pending workflow approval. (One row per PO awaiting approval.)"
+      "description": "POs pending workflow approval. (One row per PO awaiting approval.)",
+      "number": "R2008"
     },
     {
       "id": "cat-po-amendment-history",
@@ -28950,7 +29107,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Audits changes to PO quantity/rate/dates/status. (One row per PO amendment version.)"
+      "description": "Audits changes to PO quantity/rate/dates/status. (One row per PO amendment version.)",
+      "number": "R2009"
     },
     {
       "id": "cat-cancelled-po-register",
@@ -29035,7 +29193,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Tracks cancelled purchase orders and reasons. (One row per cancelled PO.)"
+      "description": "Tracks cancelled purchase orders and reasons. (One row per cancelled PO.)",
+      "number": "R2010"
     },
     {
       "id": "cat-expired-po-report",
@@ -29121,7 +29280,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Lists open POs past valid/delivery date. (One row per expired/open PO.)"
+      "description": "Lists open POs past valid/delivery date. (One row per expired/open PO.)",
+      "number": "R2011"
     },
     {
       "id": "cat-po-vs-grn-status",
@@ -29227,7 +29387,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Compares ordered, received and pending quantities. (One row per PO item line.)"
+      "description": "Compares ordered, received and pending quantities. (One row per PO item line.)",
+      "number": "R2012"
     },
     {
       "id": "cat-vendor-performance-summary",
@@ -29315,7 +29476,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Measures receipt, rejection and fulfillment performance. (One row per vendor/period.)"
+      "description": "Measures receipt, rejection and fulfillment performance. (One row per vendor/period.)",
+      "number": "R2013"
     },
     {
       "id": "cat-purchase-register",
@@ -29423,7 +29585,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Purchase value/tax register. (One row per vendor invoice/GRN.)"
+      "description": "Purchase value/tax register. (One row per vendor invoice/GRN.)",
+      "number": "R2014"
     },
     {
       "id": "cat-purchase-itemwise-detail",
@@ -29567,7 +29730,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Item-level purchase detail with cost and tax. (One row per purchased item line.)"
+      "description": "Item-level purchase detail with cost and tax. (One row per purchased item line.)",
+      "number": "R2015"
     },
     {
       "id": "cat-purchase-return-register",
@@ -29667,7 +29831,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Vendor return header-level register. (One row per purchase return.)"
+      "description": "Vendor return header-level register. (One row per purchase return.)",
+      "number": "R2016"
     },
     {
       "id": "cat-purchase-return-itemwise-detail",
@@ -29807,7 +29972,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Item-level vendor return detail and source tracing. (One row per returned item/barcode.)"
+      "description": "Item-level vendor return detail and source tracing. (One row per returned item/barcode.)",
+      "number": "R2017"
     },
     {
       "id": "cat-vendor-debit-note-register",
@@ -29896,7 +30062,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Debit notes raised against vendor purchase/return differences. (One row per debit note.)"
+      "description": "Debit notes raised against vendor purchase/return differences. (One row per debit note.)",
+      "number": "R2018"
     },
     {
       "id": "cat-vendor-credit-note-register",
@@ -29985,7 +30152,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Vendor credit notes created/received for purchase pricing differences. (One row per vendor credit note.)"
+      "description": "Vendor credit notes created/received for purchase pricing differences. (One row per vendor credit note.)",
+      "number": "R2019"
     },
     {
       "id": "cat-grn-register",
@@ -30091,7 +30259,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "GRN header-level receiving register. (One row per GRN.)"
+      "description": "GRN header-level receiving register. (One row per GRN.)",
+      "number": "R2020"
     },
     {
       "id": "cat-grn-itemwise-detail",
@@ -30258,7 +30427,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Detailed GRN line report including costing inputs and user. (One row per GRN item/barcode.)"
+      "description": "Detailed GRN line report including costing inputs and user. (One row per GRN item/barcode.)",
+      "number": "R2021"
     },
     {
       "id": "cat-grn-po-invoice-variance",
@@ -30380,7 +30550,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Compares PO rate/qty, received qty and vendor invoice rate/qty. (One row per GRN line with comparison.)"
+      "description": "Compares PO rate/qty, received qty and vendor invoice rate/qty. (One row per GRN line with comparison.)",
+      "number": "R2022"
     },
     {
       "id": "cat-grn-cancelled-register",
@@ -30469,7 +30640,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Cancelled GRNs with reason and audit details. (One row per cancelled GRN.)"
+      "description": "Cancelled GRNs with reason and audit details. (One row per cancelled GRN.)",
+      "number": "R2023"
     },
     {
       "id": "cat-grn-barcode-generation-register",
@@ -30555,7 +30727,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Traceability of barcodes generated at GRN acceptance. (One row per generated barcode.)"
+      "description": "Traceability of barcodes generated at GRN acceptance. (One row per generated barcode.)",
+      "number": "R2024"
     },
     {
       "id": "cat-grn-qc-rejection-exception",
@@ -30686,7 +30859,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "GRN receiving exceptions such as reject, damage or QC hold. (One row per rejected/held GRN line.)"
+      "description": "GRN receiving exceptions such as reject, damage or QC hold. (One row per rejected/held GRN line.)",
+      "number": "R2025"
     },
     {
       "id": "cat-pending-grn-open-receipt",
@@ -30777,7 +30951,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Shows received/open quantities awaiting GRN completion. (One row per PO item pending final receipt.)"
+      "description": "Shows received/open quantities awaiting GRN completion. (One row per PO item pending final receipt.)",
+      "number": "R2026"
     },
     {
       "id": "cat-grn-vs-vendor-invoice-reconciliation",
@@ -30883,7 +31058,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Three-way/receipt-to-invoice reconciliation. (One row per GRN/invoice line.)"
+      "description": "Three-way/receipt-to-invoice reconciliation. (One row per GRN/invoice line.)",
+      "number": "R2027"
     },
     {
       "id": "cat-transfer-out-register",
@@ -30972,7 +31148,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Transfer-out header register. (One row per TO.)"
+      "description": "Transfer-out header register. (One row per TO.)",
+      "number": "R3034"
     },
     {
       "id": "cat-transfer-out-itemwise-detail",
@@ -31091,7 +31268,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Item-level transfer dispatch detail. (One row per TO item/barcode.)"
+      "description": "Item-level transfer dispatch detail. (One row per TO item/barcode.)",
+      "number": "R3035"
     },
     {
       "id": "cat-transfer-in-register",
@@ -31168,7 +31346,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Transfer-in receipt register. (One row per TI.)"
+      "description": "Transfer-in receipt register. (One row per TI.)",
+      "number": "R3036"
     },
     {
       "id": "cat-transfer-in-itemwise-detail",
@@ -31285,7 +31464,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Item-level transfer receipt and discrepancy detail. (One row per TI item/barcode.)"
+      "description": "Item-level transfer receipt and discrepancy detail. (One row per TI item/barcode.)",
+      "number": "R3037"
     },
     {
       "id": "cat-transfer-in-transit-aging",
@@ -31370,7 +31550,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Ageing of transfers dispatched but not fully received. (One row per open TO/shipment.)"
+      "description": "Ageing of transfers dispatched but not fully received. (One row per open TO/shipment.)",
+      "number": "R3038"
     },
     {
       "id": "cat-transfer-barcode-traceability",
@@ -31463,7 +31644,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "End-to-end barcode trace across TO, transit and TI. (One row per barcode transfer event.)"
+      "description": "End-to-end barcode trace across TO, transit and TI. (One row per barcode transfer event.)",
+      "number": "R3039"
     },
     {
       "id": "cat-transfer-gst-e-way-control",
@@ -31558,7 +31740,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Transfer e-invoice/e-way status and exception control. (One row per transfer requiring compliance.)"
+      "description": "Transfer e-invoice/e-way status and exception control. (One row per transfer requiring compliance.)",
+      "number": "R3040"
     },
     {
       "id": "cat-transfer-shortage-excess-exception",
@@ -31677,7 +31860,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Quantity mismatch at transfer receiving. (One row per transfer discrepancy item.)"
+      "description": "Quantity mismatch at transfer receiving. (One row per transfer discrepancy item.)",
+      "number": "R3041"
     },
     {
       "id": "cat-transfer-approval-cancellation-audit",
@@ -31763,7 +31947,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Approval, cancellation and controlled action history for transfers. (One row per transfer audit event.)"
+      "description": "Approval, cancellation and controlled action history for transfers. (One row per transfer audit event.)",
+      "number": "R3042"
     },
     {
       "id": "cat-gstr-1-hsn-summary",
@@ -31849,7 +32034,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": true,
-      "description": "HSN-wise outward-supply summary for GST reporting. (One row per HSN/tax rate/period.)"
+      "description": "HSN-wise outward-supply summary for GST reporting. (One row per HSN/tax rate/period.)",
+      "number": "R5001"
     },
     {
       "id": "cat-gstr-1-b2b-b2c-summary",
@@ -31935,7 +32121,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": true,
-      "description": "B2B/B2C outward supply summary. (One row per supply type/tax bucket.)"
+      "description": "B2B/B2C outward supply summary. (One row per supply type/tax bucket.)",
+      "number": "R5002"
     },
     {
       "id": "cat-irn-portal-manual-upload-report",
@@ -32036,7 +32223,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Export-ready data for manual IRN generation on the IRP portal. (One row per document requiring manual IRN generation.)"
+      "description": "Export-ready data for manual IRN generation on the IRP portal. (One row per document requiring manual IRN generation.)",
+      "number": "R5003"
     },
     {
       "id": "cat-e-invoice-irn-status-register",
@@ -32117,7 +32305,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Tracks IRN generation, acknowledgement and cancellation status. (One row per e-invoice document.)"
+      "description": "Tracks IRN generation, acknowledgement and cancellation status. (One row per e-invoice document.)",
+      "number": "R5004"
     },
     {
       "id": "cat-e-invoice-error-retry-report",
@@ -32189,7 +32378,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Operational error and retry queue for e-invoice generation. (One row per failed IRN attempt.)"
+      "description": "Operational error and retry queue for e-invoice generation. (One row per failed IRN attempt.)",
+      "number": "R5005"
     },
     {
       "id": "cat-gst-document-tax-detail",
@@ -32296,7 +32486,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": true,
-      "description": "Auditable tax detail across sales/returns/transfers/purchases. (One row per document tax line.)"
+      "description": "Auditable tax detail across sales/returns/transfers/purchases. (One row per document tax line.)",
+      "number": "R5007"
     },
     {
       "id": "cat-hsn-tax-summary",
@@ -32367,7 +32558,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": true,
-      "description": "Tax summary by HSN across selected transaction scope. (One row per HSN/rate.)"
+      "description": "Tax summary by HSN across selected transaction scope. (One row per HSN/rate.)",
+      "number": "R5008"
     },
     {
       "id": "cat-gst-bill-number-document-series-audit",
@@ -32438,7 +32630,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Validates document numbering, original bill linkage and gaps/duplicates. (One row per GST document.)"
+      "description": "Validates document numbering, original bill linkage and gaps/duplicates. (One row per GST document.)",
+      "number": "R5009"
     },
     {
       "id": "cat-e-commerce-sales-order-summary",
@@ -32561,7 +32754,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Bill-level e-commerce summary; same Order ID may repeat for multiple shipments. (One row per shipment/invoice.)"
+      "description": "Bill-level e-commerce summary; same Order ID may repeat for multiple shipments. (One row per shipment/invoice.)",
+      "number": "R6001"
     },
     {
       "id": "cat-e-commerce-sales-order-item-detail",
@@ -32689,7 +32883,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Line-level e-commerce order, invoice and POS status detail. (One row per order line/SKU.)"
+      "description": "Line-level e-commerce order, invoice and POS status detail. (One row per order line/SKU.)",
+      "number": "R6002"
     },
     {
       "id": "cat-pending-sales-order-stock",
@@ -32777,7 +32972,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Orders awaiting stock allocation/billing fulfillment. (One row per pending order line.)"
+      "description": "Orders awaiting stock allocation/billing fulfillment. (One row per pending order line.)",
+      "number": "R6003"
     },
     {
       "id": "cat-sales-order-integration-error",
@@ -32848,7 +33044,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Failed order creation/update events requiring retry or mapping fix. (One row per failed order integration event.)"
+      "description": "Failed order creation/update events requiring retry or mapping fix. (One row per failed order integration event.)",
+      "number": "R6004"
     },
     {
       "id": "cat-erp-vs-unicommerce-inventory-reconciliation-itemwise",
@@ -32931,7 +33128,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Compares ERP and Unicommerce sellable inventory with ERP push time. (One row per SKU/outlet.)"
+      "description": "Compares ERP and Unicommerce sellable inventory with ERP push time. (One row per SKU/outlet.)",
+      "number": "R6005"
     },
     {
       "id": "cat-erp-vs-unicommerce-inventory-reconciliation-summary",
@@ -33000,7 +33198,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "SKU-wise reconciliation across outlets; does not hide offsetting store variances. (One row per SKU.)"
+      "description": "SKU-wise reconciliation across outlets; does not hide offsetting store variances. (One row per SKU.)",
+      "number": "R6006"
     },
     {
       "id": "cat-inventory-sync-log",
@@ -33077,7 +33276,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Tracks inventory sync payload/result and latency. (One row per ERP-to-channel inventory push.)"
+      "description": "Tracks inventory sync payload/result and latency. (One row per ERP-to-channel inventory push.)",
+      "number": "R6007"
     },
     {
       "id": "cat-order-sync-log",
@@ -33159,7 +33359,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Tracks external order ingestion and ERP/POS update events. (One row per order integration event.)"
+      "description": "Tracks external order ingestion and ERP/POS update events. (One row per order integration event.)",
+      "number": "R6008"
     },
     {
       "id": "cat-marketplace-order-status-summary",
@@ -33235,7 +33436,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Marketplace order count/value by lifecycle status. (One row per status/channel/period.)"
+      "description": "Marketplace order count/value by lifecycle status. (One row per status/channel/period.)",
+      "number": "R6009"
     },
     {
       "id": "cat-online-return-register",
@@ -33328,7 +33530,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Tracks e-commerce returns to the configured original return location. (One row per online sales return.)"
+      "description": "Tracks e-commerce returns to the configured original return location. (One row per online sales return.)",
+      "number": "R6010"
     },
     {
       "id": "cat-integration-retry-failure-audit",
@@ -33399,7 +33602,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Cross-integration failure queue and retry audit. (One row per failed/retried integration event.)"
+      "description": "Cross-integration failure queue and retry audit. (One row per failed/retried integration event.)",
+      "number": "R6011"
     },
     {
       "id": "cat-outlet-facility-mapping-summary",
@@ -33448,7 +33652,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Validates outlet/facility mappings used by integrations. (One row per ERP outlet/channel facility mapping.)"
+      "description": "Validates outlet/facility mappings used by integrations. (One row per ERP outlet/channel facility mapping.)",
+      "number": "R6012"
     },
     {
       "id": "cat-item-master-register",
@@ -33575,7 +33780,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Canonical product master export. (One row per SKU/variant.)"
+      "description": "Canonical product master export. (One row per SKU/variant.)",
+      "number": "R9001"
     },
     {
       "id": "cat-store-location-master-register",
@@ -33663,7 +33869,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Canonical store/location configuration register. (One row per store/location.)"
+      "description": "Canonical store/location configuration register. (One row per store/location.)",
+      "number": "R9002"
     },
     {
       "id": "cat-vendor-master-register",
@@ -33725,7 +33932,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Canonical vendor master register. (One row per vendor.)"
+      "description": "Canonical vendor master register. (One row per vendor.)",
+      "number": "R9003"
     },
     {
       "id": "cat-master-data-change-audit",
@@ -33797,7 +34005,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Audits changes to controlled master data. (One row per field change.)"
+      "description": "Audits changes to controlled master data. (One row per field change.)",
+      "number": "R9004"
     },
     {
       "id": "cat-user-access-matrix-report",
@@ -33851,7 +34060,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Shows user, role and permitted organizational scope. (One row per user-role-scope assignment.)"
+      "description": "Shows user, role and permitted organizational scope. (One row per user-role-scope assignment.)",
+      "number": "R9005"
     },
     {
       "id": "cat-role-permission-audit",
@@ -33893,7 +34103,8 @@
       "params": null,
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Audits menu/action/data-scope permissions by role. (One row per role-permission.)"
+      "description": "Audits menu/action/data-scope permissions by role. (One row per role-permission.)",
+      "number": "R9006"
     },
     {
       "id": "cat-approval-history-report",
@@ -33959,7 +34170,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Cross-document approval history with actor and timestamp. (One row per approval action.)"
+      "description": "Cross-document approval history with actor and timestamp. (One row per approval action.)",
+      "number": "R9007"
     },
     {
       "id": "cat-user-activity-log",
@@ -34024,7 +34236,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "System-level user activity and traceability. (One row per material user action.)"
+      "description": "System-level user activity and traceability. (One row per material user action.)",
+      "number": "R9008"
     },
     {
       "id": "cat-report-download-audit",
@@ -34089,7 +34302,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Tracks who exported which report and when. (One row per report export.)"
+      "description": "Tracks who exported which report and when. (One row per report export.)",
+      "number": "R9009"
     },
     {
       "id": "cat-backdated-entry-report",
@@ -34172,7 +34386,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Flags documents created after their business/document date. (One row per backdated transaction.)"
+      "description": "Flags documents created after their business/document date. (One row per backdated transaction.)",
+      "number": "R9010"
     },
     {
       "id": "cat-transaction-cancellation-audit",
@@ -34253,7 +34468,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Cross-module cancellation register. (One row per cancelled document.)"
+      "description": "Cross-module cancellation register. (One row per cancelled document.)",
+      "number": "R9011"
     },
     {
       "id": "cat-daily-business-summary",
@@ -34344,7 +34560,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Daily sales, returns, inventory and key retail metrics. (One row per day/store.)"
+      "description": "Daily sales, returns, inventory and key retail metrics. (One row per day/store.)",
+      "number": "R9012"
     },
     {
       "id": "cat-sales-vs-target",
@@ -34415,7 +34632,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Compares actual net sales against configured target. (One row per store/period.)"
+      "description": "Compares actual net sales against configured target. (One row per store/period.)",
+      "number": "R9013"
     },
     {
       "id": "cat-store-performance-ranking",
@@ -34501,7 +34719,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Store ranking across key sales productivity measures. (One row per store/period.)"
+      "description": "Store ranking across key sales productivity measures. (One row per store/period.)",
+      "number": "R9014"
     },
     {
       "id": "cat-category-performance-summary",
@@ -34582,7 +34801,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Category sales, margin and stock performance. (One row per category/period.)"
+      "description": "Category sales, margin and stock performance. (One row per category/period.)",
+      "number": "R9015"
     },
     {
       "id": "cat-gross-margin-summary",
@@ -34653,7 +34873,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Gross margin performance using approved cost basis. (One row per store/category/period.)"
+      "description": "Gross margin performance using approved cost basis. (One row per store/category/period.)",
+      "number": "R9016"
     },
     {
       "id": "cat-fast-slow-moving-stock",
@@ -34739,7 +34960,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Classifies stock movement velocity using configurable thresholds. (One row per SKU/design.)"
+      "description": "Classifies stock movement velocity using configurable thresholds. (One row per SKU/design.)",
+      "number": "R9017"
     },
     {
       "id": "cat-stock-cover-report",
@@ -34812,7 +35034,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Estimated days of stock based on current stock and demand rate. (One row per SKU/category/location.)"
+      "description": "Estimated days of stock based on current stock and demand rate. (One row per SKU/category/location.)",
+      "number": "R9018"
     },
     {
       "id": "cat-ageing-inventory-value",
@@ -34878,7 +35101,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Inventory value exposure by stock age bucket. (One row per age bucket/category/location.)"
+      "description": "Inventory value exposure by stock age bucket. (One row per age bucket/category/location.)",
+      "number": "R9019"
     },
     {
       "id": "cat-inventory-turnover-summary",
@@ -34949,7 +35173,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Inventory turnover and sell-through performance. (One row per category/store/period.)"
+      "description": "Inventory turnover and sell-through performance. (One row per category/store/period.)",
+      "number": "R9020"
     },
     {
       "id": "cat-management-stock-and-sales-summary",
@@ -35030,7 +35255,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Combined sales, margin and stock snapshot for management review. (One row per store/category/period.)"
+      "description": "Combined sales, margin and stock snapshot for management review. (One row per store/category/period.)",
+      "number": "R9021"
     },
     {
       "id": "cat-order-register",
@@ -35124,7 +35350,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Canonical OMS order header register across channels. (One row per order.)"
+      "description": "Canonical OMS order header register across channels. (One row per order.)",
+      "number": "R6013"
     },
     {
       "id": "cat-order-line-detail",
@@ -35218,7 +35445,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "SKU-level OMS order detail. (One row per order line.)"
+      "description": "SKU-level OMS order detail. (One row per order line.)",
+      "number": "R6014"
     },
     {
       "id": "cat-order-allocation-reservation-report",
@@ -35302,7 +35530,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Inventory allocation and reservation by location. (One row per order line allocation.)"
+      "description": "Inventory allocation and reservation by location. (One row per order line allocation.)",
+      "number": "R6015"
     },
     {
       "id": "cat-fulfilment-status-report",
@@ -35388,7 +35617,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Tracks pick-pack-ship status for each shipment. (One row per shipment.)"
+      "description": "Tracks pick-pack-ship status for each shipment. (One row per shipment.)",
+      "number": "R6016"
     },
     {
       "id": "cat-split-shipment-report",
@@ -35466,7 +35696,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Shows split order/shipment structure and values. (One row per shipment in split order.)"
+      "description": "Shows split order/shipment structure and values. (One row per shipment in split order.)",
+      "number": "R6017"
     },
     {
       "id": "cat-pending-order-sla-aging",
@@ -35542,7 +35773,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Open orders approaching or breaching SLA. (One row per open order/shipment.)"
+      "description": "Open orders approaching or breaching SLA. (One row per open order/shipment.)",
+      "number": "R6018"
     },
     {
       "id": "cat-order-cancellation-report",
@@ -35620,7 +35852,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Cancelled orders/lines with reason and financial impact. (One row per cancelled order/line.)"
+      "description": "Cancelled orders/lines with reason and financial impact. (One row per cancelled order/line.)",
+      "number": "R6019"
     },
     {
       "id": "cat-return-rto-register",
@@ -35703,7 +35936,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Customer return and return-to-origin lifecycle report. (One row per return/RTO shipment.)"
+      "description": "Customer return and return-to-origin lifecycle report. (One row per return/RTO shipment.)",
+      "number": "R6020"
     },
     {
       "id": "cat-refund-status-report",
@@ -35775,7 +36009,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "OMS refund initiation and completion status. (One row per refund.)"
+      "description": "OMS refund initiation and completion status. (One row per refund.)",
+      "number": "R6021"
     },
     {
       "id": "cat-order-to-invoice-reconciliation",
@@ -35859,7 +36094,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Checks order, shipment, invoice and POS linkage. (One row per order/shipment.)"
+      "description": "Checks order, shipment, invoice and POS linkage. (One row per order/shipment.)",
+      "number": "R6022"
     },
     {
       "id": "cat-atp-promise-inventory-report",
@@ -35921,7 +36157,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Available-to-promise and reserved quantity by fulfillment location. (One row per SKU/location.)"
+      "description": "Available-to-promise and reserved quantity by fulfillment location. (One row per SKU/location.)",
+      "number": "R6023"
     },
     {
       "id": "cat-channel-order-reconciliation",
@@ -35993,7 +36230,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Compares channel and OMS order status/value. (One row per channel order.)"
+      "description": "Compares channel and OMS order status/value. (One row per channel order.)",
+      "number": "R6024"
     },
     {
       "id": "cat-oms-integration-error-retry",
@@ -36064,7 +36302,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Integration failures and retry audit. (One row per failed event.)"
+      "description": "Integration failures and retry audit. (One row per failed event.)",
+      "number": "R6025"
     },
     {
       "id": "cat-product-master-report",
@@ -36171,7 +36410,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Canonical product catalog export. (One row per SKU/variant.)"
+      "description": "Canonical product catalog export. (One row per SKU/variant.)",
+      "number": "R7001"
     },
     {
       "id": "cat-product-completeness-report",
@@ -36245,7 +36485,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Measures mandatory catalog completeness. (One row per SKU/variant.)"
+      "description": "Measures mandatory catalog completeness. (One row per SKU/variant.)",
+      "number": "R7002"
     },
     {
       "id": "cat-pim-workbench-queue",
@@ -36317,7 +36558,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Product enrichment, review or publishing tasks assigned to users with ageing. (One row per assigned product task.)"
+      "description": "Product enrichment, review or publishing tasks assigned to users with ageing. (One row per assigned product task.)",
+      "number": "R7003"
     },
     {
       "id": "cat-missing-attribute-report",
@@ -36364,7 +36606,8 @@
       "params": null,
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Lists missing required family/channel attributes. (One row per SKU + missing attribute.)"
+      "description": "Lists missing required family/channel attributes. (One row per SKU + missing attribute.)",
+      "number": "R7004"
     },
     {
       "id": "cat-product-family-variant-matrix",
@@ -36446,7 +36689,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Family, design and variant relationship report. (One row per variant.)"
+      "description": "Family, design and variant relationship report. (One row per variant.)",
+      "number": "R7005"
     },
     {
       "id": "cat-attribute-definition-report",
@@ -36502,7 +36746,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Configured PIM attribute dictionary. (One row per attribute.)"
+      "description": "Configured PIM attribute dictionary. (One row per attribute.)",
+      "number": "R7006"
     },
     {
       "id": "cat-attribute-group-report",
@@ -36552,7 +36797,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Reusable attribute groups and their assigned attributes. (One row per attribute/group mapping.)"
+      "description": "Reusable attribute groups and their assigned attributes. (One row per attribute/group mapping.)",
+      "number": "R7007"
     },
     {
       "id": "cat-family-attribute-mapping-report",
@@ -36602,7 +36848,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Attributes inherited or required for each product family. (One row per family/attribute mapping.)"
+      "description": "Attributes inherited or required for each product family. (One row per family/attribute mapping.)",
+      "number": "R7008"
     },
     {
       "id": "cat-media-image-coverage-report",
@@ -36676,7 +36923,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Image/media coverage and primary image availability. (One row per SKU.)"
+      "description": "Image/media coverage and primary image availability. (One row per SKU.)",
+      "number": "R7009"
     },
     {
       "id": "cat-channel-readiness-report",
@@ -36724,7 +36972,8 @@
       "params": null,
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Readiness validation before publication. (One row per SKU/channel.)"
+      "description": "Readiness validation before publication. (One row per SKU/channel.)",
+      "number": "R7010"
     },
     {
       "id": "cat-channel-publication-status",
@@ -36771,7 +37020,8 @@
       "params": null,
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Tracks publication/update status per channel. (One row per SKU/channel publication.)"
+      "description": "Tracks publication/update status per channel. (One row per SKU/channel publication.)",
+      "number": "R7011"
     },
     {
       "id": "cat-channel-publication-error-report",
@@ -36819,7 +37069,8 @@
       "params": null,
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Validation/API errors blocking publication. (One row per failed SKU/channel publish.)"
+      "description": "Validation/API errors blocking publication. (One row per failed SKU/channel publish.)",
+      "number": "R7012"
     },
     {
       "id": "cat-category-attribute-mapping-report",
@@ -36880,7 +37131,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Mapping audit between internal PIM taxonomy and channel taxonomy. (One row per internal-to-channel mapping.)"
+      "description": "Mapping audit between internal PIM taxonomy and channel taxonomy. (One row per internal-to-channel mapping.)",
+      "number": "R7013"
     },
     {
       "id": "cat-duplicate-sku-barcode-exception",
@@ -36932,7 +37184,8 @@
       "params": null,
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Flags duplicate/ambiguous product identifiers. (One row per duplicate identifier.)"
+      "description": "Flags duplicate/ambiguous product identifiers. (One row per duplicate identifier.)",
+      "number": "R7014"
     },
     {
       "id": "cat-product-change-audit",
@@ -36999,7 +37252,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Audits catalog edits and publishing-sensitive changes. (One row per product field change.)"
+      "description": "Audits catalog edits and publishing-sensitive changes. (One row per product field change.)",
+      "number": "R7015"
     },
     {
       "id": "cat-price-inventory-publish-status",
@@ -37052,7 +37306,8 @@
       "params": null,
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Latest price/inventory outbound publication result. (One row per SKU/channel.)"
+      "description": "Latest price/inventory outbound publication result. (One row per SKU/channel.)",
+      "number": "R7016"
     },
     {
       "id": "cat-general-ledger",
@@ -37138,7 +37393,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Source-linked accounting ledger detail. (One row per posted GL line.)"
+      "description": "Source-linked accounting ledger detail. (One row per posted GL line.)",
+      "number": "R5010"
     },
     {
       "id": "cat-trial-balance",
@@ -37203,7 +37459,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Opening, debit, credit and closing balance by account. (One row per GL account.)"
+      "description": "Opening, debit, credit and closing balance by account. (One row per GL account.)",
+      "number": "R5011"
     },
     {
       "id": "cat-profit-and-loss-statement",
@@ -37274,7 +37531,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Income and expense statement for selected period. (One row per account/group.)"
+      "description": "Income and expense statement for selected period. (One row per account/group.)",
+      "number": "R5012"
     },
     {
       "id": "cat-balance-sheet",
@@ -37316,7 +37574,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Assets, liabilities and equity balances as of date. (One row per balance-sheet account/group.)"
+      "description": "Assets, liabilities and equity balances as of date. (One row per balance-sheet account/group.)",
+      "number": "R5013"
     },
     {
       "id": "cat-cash-flow-statement",
@@ -37377,7 +37636,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Cash movements classified by operating/investing/financing activity. (One row per cash-flow category.)"
+      "description": "Cash movements classified by operating/investing/financing activity. (One row per cash-flow category.)",
+      "number": "R5014"
     },
     {
       "id": "cat-ap-aging",
@@ -37437,7 +37697,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": true,
-      "description": "Vendor outstanding aging. (One row per vendor invoice/open item.)"
+      "description": "Vendor outstanding aging. (One row per vendor invoice/open item.)",
+      "number": "R5015"
     },
     {
       "id": "cat-ar-aging",
@@ -37504,7 +37765,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": true,
-      "description": "Customer outstanding aging. (One row per customer invoice/open item.)"
+      "description": "Customer outstanding aging. (One row per customer invoice/open item.)",
+      "number": "R5016"
     },
     {
       "id": "cat-vendor-ledger",
@@ -37578,7 +37840,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Vendor account statement with running balance. (One row per vendor transaction.)"
+      "description": "Vendor account statement with running balance. (One row per vendor transaction.)",
+      "number": "R5017"
     },
     {
       "id": "cat-customer-ledger",
@@ -37652,7 +37915,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Customer account statement with running balance. (One row per customer transaction.)"
+      "description": "Customer account statement with running balance. (One row per customer transaction.)",
+      "number": "R5018"
     },
     {
       "id": "cat-vendor-invoice-register",
@@ -37743,7 +38007,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Supplier invoice register and payment status. (One row per vendor invoice.)"
+      "description": "Supplier invoice register and payment status. (One row per vendor invoice.)",
+      "number": "R5019"
     },
     {
       "id": "cat-payment-proposal-register",
@@ -37816,7 +38081,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Proposed supplier/expense payments before approval and bank execution. (One row per payment proposal.)"
+      "description": "Proposed supplier/expense payments before approval and bank execution. (One row per payment proposal.)",
+      "number": "R5020"
     },
     {
       "id": "cat-finance-approval-pending-report",
@@ -37881,7 +38147,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Finance documents waiting for approval with ageing and ownership. (One row per pending finance approval.)"
+      "description": "Finance documents waiting for approval with ageing and ownership. (One row per pending finance approval.)",
+      "number": "R5021"
     },
     {
       "id": "cat-sales-invoice-accounting-register",
@@ -37973,7 +38240,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Accounting view of customer/sales invoices. (One row per sales invoice.)"
+      "description": "Accounting view of customer/sales invoices. (One row per sales invoice.)",
+      "number": "R5022"
     },
     {
       "id": "cat-payment-register",
@@ -38046,7 +38314,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Vendor/expense/bank payment register. (One row per payment.)"
+      "description": "Vendor/expense/bank payment register. (One row per payment.)",
+      "number": "R5023"
     },
     {
       "id": "cat-receipt-register",
@@ -38119,7 +38388,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Customer/bank receipt register. (One row per receipt.)"
+      "description": "Customer/bank receipt register. (One row per receipt.)",
+      "number": "R5024"
     },
     {
       "id": "cat-journal-voucher-register",
@@ -38200,7 +38470,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Manual/system journal postings with approval trace. (One row per journal voucher line.)"
+      "description": "Manual/system journal postings with approval trace. (One row per journal voucher line.)",
+      "number": "R5025"
     },
     {
       "id": "cat-debit-credit-note-register",
@@ -38284,7 +38555,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Customer/vendor debit and credit notes. (One row per note.)"
+      "description": "Customer/vendor debit and credit notes. (One row per note.)",
+      "number": "R5026"
     },
     {
       "id": "cat-bank-reconciliation-report",
@@ -38357,7 +38629,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Matches bank statement transactions with book entries. (One row per bank/book transaction.)"
+      "description": "Matches bank statement transactions with book entries. (One row per bank/book transaction.)",
+      "number": "R5027"
     },
     {
       "id": "cat-tds-register",
@@ -38436,7 +38709,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "TDS deducted, payable and linked vendor/payment detail. (One row per TDS transaction.)"
+      "description": "TDS deducted, payable and linked vendor/payment detail. (One row per TDS transaction.)",
+      "number": "R5028"
     },
     {
       "id": "cat-fixed-asset-register",
@@ -38520,7 +38794,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Asset acquisition, location and carrying-value register. (One row per asset.)"
+      "description": "Asset acquisition, location and carrying-value register. (One row per asset.)",
+      "number": "R5029"
     },
     {
       "id": "cat-depreciation-schedule",
@@ -38600,7 +38875,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Periodic depreciation and closing carrying value. (One row per asset/period.)"
+      "description": "Periodic depreciation and closing carrying value. (One row per asset/period.)",
+      "number": "R5030"
     },
     {
       "id": "cat-cost-center-p-and-l",
@@ -38671,7 +38947,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Profitability by cost center/department. (One row per cost center/account group.)"
+      "description": "Profitability by cost center/department. (One row per cost center/account group.)",
+      "number": "R5031"
     },
     {
       "id": "cat-budget-vs-actual",
@@ -38733,7 +39010,8 @@
       "params": null,
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Budget consumption and variance. (One row per cost center/account/period.)"
+      "description": "Budget consumption and variance. (One row per cost center/account/period.)",
+      "number": "R5032"
     },
     {
       "id": "cat-intercompany-reconciliation",
@@ -38801,7 +39079,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Matches balances/transactions between legal entities. (One row per intercompany document/open item.)"
+      "description": "Matches balances/transactions between legal entities. (One row per intercompany document/open item.)",
+      "number": "R5033"
     },
     {
       "id": "cat-accounting-audit-trail",
@@ -38883,7 +39162,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Immutable accounting posting/change history. (One row per accounting change/action.)"
+      "description": "Immutable accounting posting/change history. (One row per accounting change/action.)",
+      "number": "R5034"
     },
     {
       "id": "cat-period-close-checklist",
@@ -38953,7 +39233,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Month/period close progress and sign-off status. (One row per close task/entity/period.)"
+      "description": "Month/period close progress and sign-off status. (One row per close task/entity/period.)",
+      "number": "R5035"
     },
     {
       "id": "cat-expense-claim-register",
@@ -39048,7 +39329,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "All employee expense claims and current status. (One row per claim.)"
+      "description": "All employee expense claims and current status. (One row per claim.)",
+      "number": "R5036"
     },
     {
       "id": "cat-claims-pending-approval",
@@ -39137,7 +39419,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Claims awaiting manager/HOD/director approval. (One row per pending claim.)"
+      "description": "Claims awaiting manager/HOD/director approval. (One row per pending claim.)",
+      "number": "R5037"
     },
     {
       "id": "cat-approved-pending-payment",
@@ -39221,7 +39504,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Accounts payment queue after approval. (One row per approved unpaid claim.)"
+      "description": "Accounts payment queue after approval. (One row per approved unpaid claim.)",
+      "number": "R5038"
     },
     {
       "id": "cat-paid-claims-register",
@@ -39300,7 +39584,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Paid reimbursements with UTR/payment date. (One row per paid claim.)"
+      "description": "Paid reimbursements with UTR/payment date. (One row per paid claim.)",
+      "number": "R5039"
     },
     {
       "id": "cat-rejected-returned-claims",
@@ -39384,7 +39669,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Claims rejected or sent back with reason. (One row per rejected/returned claim.)"
+      "description": "Claims rejected or sent back with reason. (One row per rejected/returned claim.)",
+      "number": "R5040"
     },
     {
       "id": "cat-expense-aging-sla-report",
@@ -39473,7 +39759,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Ageing across approval and payment stages. (One row per open claim.)"
+      "description": "Ageing across approval and payment stages. (One row per open claim.)",
+      "number": "R5041"
     },
     {
       "id": "cat-department-category-month-summary",
@@ -39546,7 +39833,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Expense spend summarized by organization and category. (One row per department/category/month.)"
+      "description": "Expense spend summarized by organization and category. (One row per department/category/month.)",
+      "number": "R5042"
     },
     {
       "id": "cat-employee-expense-summary",
@@ -39624,7 +39912,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Employee-wise claim count/value summary. (One row per employee/period.)"
+      "description": "Employee-wise claim count/value summary. (One row per employee/period.)",
+      "number": "R5043"
     },
     {
       "id": "cat-policy-violation-exception-report",
@@ -39709,7 +39998,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Claims breaching policy/limit/mandatory document rules. (One row per policy exception.)"
+      "description": "Claims breaching policy/limit/mandatory document rules. (One row per policy exception.)",
+      "number": "R5044"
     },
     {
       "id": "cat-expense-advance-settlement",
@@ -39790,7 +40080,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Employee travel/expense advance issued and settled. (One row per advance/settlement.)"
+      "description": "Employee travel/expense advance issued and settled. (One row per advance/settlement.)",
+      "number": "R5045"
     },
     {
       "id": "cat-accounting-export-report",
@@ -39875,7 +40166,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Ledger/cost-center export for accounting software. (One row per approved claim accounting line.)"
+      "description": "Ledger/cost-center export for accounting software. (One row per approved claim accounting line.)",
+      "number": "R5046"
     },
     {
       "id": "cat-customer-360-summary",
@@ -39953,7 +40245,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Customer profile, value, loyalty and latest activity. (One row per customer.)"
+      "description": "Customer profile, value, loyalty and latest activity. (One row per customer.)",
+      "number": "R6026"
     },
     {
       "id": "cat-campaign-performance",
@@ -40024,7 +40317,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Campaign reach/conversion/sales performance. (One row per campaign/channel/period.)"
+      "description": "Campaign reach/conversion/sales performance. (One row per campaign/channel/period.)",
+      "number": "R6029"
     },
     {
       "id": "cat-customer-segmentation-report",
@@ -40078,7 +40372,8 @@
       "params": null,
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Segment assignment using value/frequency/recency rules. (One row per customer.)"
+      "description": "Segment assignment using value/frequency/recency rules. (One row per customer.)",
+      "number": "R6030"
     },
     {
       "id": "cat-repeat-purchase-report",
@@ -40127,7 +40422,8 @@
       "params": null,
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Repeat purchase frequency and value. (One row per customer.)"
+      "description": "Repeat purchase frequency and value. (One row per customer.)",
+      "number": "R6031"
     },
     {
       "id": "cat-loyalty-points-ledger",
@@ -40200,7 +40496,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Loyalty earning, redemption, reversal and balance. (One row per loyalty event.)"
+      "description": "Loyalty earning, redemption, reversal and balance. (One row per loyalty event.)",
+      "number": "R6032"
     },
     {
       "id": "cat-coupon-voucher-usage-report",
@@ -40278,7 +40575,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Promotion/coupon usage and linked sales. (One row per coupon redemption.)"
+      "description": "Promotion/coupon usage and linked sales. (One row per coupon redemption.)",
+      "number": "R6033"
     },
     {
       "id": "cat-birthday-anniversary-campaign-list",
@@ -40331,7 +40629,8 @@
       "params": null,
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Customer outreach list for lifecycle campaigns. (One row per eligible customer.)"
+      "description": "Customer outreach list for lifecycle campaigns. (One row per eligible customer.)",
+      "number": "R6034"
     },
     {
       "id": "cat-complaint-service-case-register",
@@ -40413,7 +40712,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Customer complaint/service-case lifecycle. (One row per case.)"
+      "description": "Customer complaint/service-case lifecycle. (One row per case.)",
+      "number": "R6036"
     },
     {
       "id": "cat-customer-merge-mobile-change-audit",
@@ -40485,7 +40785,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Controlled customer merge/mobile-change history preserving loyalty and bill history. (One row per customer identity change.)"
+      "description": "Controlled customer merge/mobile-change history preserving loyalty and bill history. (One row per customer identity change.)",
+      "number": "R6037"
     },
     {
       "id": "cat-customer-inactivity-churn-report",
@@ -40539,7 +40840,8 @@
       "params": null,
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Identifies customers inactive beyond configurable threshold. (One row per customer.)"
+      "description": "Identifies customers inactive beyond configurable threshold. (One row per customer.)",
+      "number": "R6038"
     },
     {
       "id": "cat-employee-master-register",
@@ -40617,7 +40919,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Canonical employee master and organization assignment. (One row per employee.)"
+      "description": "Canonical employee master and organization assignment. (One row per employee.)",
+      "number": "R8001"
     },
     {
       "id": "cat-attendance-register",
@@ -40700,7 +41003,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Daily attendance result. (One row per employee/day.)"
+      "description": "Daily attendance result. (One row per employee/day.)",
+      "number": "R8002"
     },
     {
       "id": "cat-late-overtime-report",
@@ -40783,7 +41087,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Late arrival, early departure and overtime exceptions. (One row per employee/day exception.)"
+      "description": "Late arrival, early departure and overtime exceptions. (One row per employee/day exception.)",
+      "number": "R8003"
     },
     {
       "id": "cat-leave-register",
@@ -40871,7 +41176,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Employee leave requests, approvals and balance impact. (One row per leave request.)"
+      "description": "Employee leave requests, approvals and balance impact. (One row per leave request.)",
+      "number": "R8004"
     },
     {
       "id": "cat-shift-roster-report",
@@ -40937,7 +41243,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Employee roster and store/department assignment. (One row per employee/day/shift.)"
+      "description": "Employee roster and store/department assignment. (One row per employee/day/shift.)",
+      "number": "R8005"
     },
     {
       "id": "cat-payroll-register",
@@ -41008,7 +41315,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Payroll gross, deductions and net pay. (One row per employee/payroll period.)"
+      "description": "Payroll gross, deductions and net pay. (One row per employee/payroll period.)",
+      "number": "R8006"
     },
     {
       "id": "cat-salary-component-detail",
@@ -41074,7 +41382,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Detailed earnings/deductions by component. (One row per employee/pay component.)"
+      "description": "Detailed earnings/deductions by component. (One row per employee/pay component.)",
+      "number": "R8007"
     },
     {
       "id": "cat-statutory-deduction-summary",
@@ -41130,7 +41439,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Payroll statutory deduction summary. (One row per statutory component/period.)"
+      "description": "Payroll statutory deduction summary. (One row per statutory component/period.)",
+      "number": "R8008"
     },
     {
       "id": "cat-employee-loan-advance-register",
@@ -41204,7 +41514,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Employee advances/loans and recovery balance. (One row per employee loan/advance.)"
+      "description": "Employee advances/loans and recovery balance. (One row per employee loan/advance.)",
+      "number": "R8009"
     },
     {
       "id": "cat-headcount-summary",
@@ -41260,7 +41571,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Active headcount by organization unit. (One row per department/store.)"
+      "description": "Active headcount by organization unit. (One row per department/store.)",
+      "number": "R8010"
     },
     {
       "id": "cat-attrition-report",
@@ -41321,7 +41633,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Employee exits and attrition analysis. (One row per separated employee.)"
+      "description": "Employee exits and attrition analysis. (One row per separated employee.)",
+      "number": "R8011"
     },
     {
       "id": "cat-onboarding-checklist",
@@ -41392,7 +41705,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "New joiner onboarding completion status. (One row per employee/onboarding task.)"
+      "description": "New joiner onboarding completion status. (One row per employee/onboarding task.)",
+      "number": "R8013"
     },
     {
       "id": "cat-performance-review-summary",
@@ -41468,7 +41782,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Performance rating/goals review summary. (One row per employee/review period.)"
+      "description": "Performance rating/goals review summary. (One row per employee/review period.)",
+      "number": "R8014"
     },
     {
       "id": "cat-training-certification-register",
@@ -41534,7 +41849,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Training completion and certification status. (One row per employee/training.)"
+      "description": "Training completion and certification status. (One row per employee/training.)",
+      "number": "R8015"
     },
     {
       "id": "cat-employee-role-access-mapping",
@@ -41605,7 +41921,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Employee-to-system-role and organization scope alignment. (One row per employee-role-store mapping.)"
+      "description": "Employee-to-system-role and organization scope alignment. (One row per employee-role-store mapping.)",
+      "number": "R8016"
     },
     {
       "id": "cat-bom-register",
@@ -41666,7 +41983,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Multi-level bill of materials definition. (One row per BOM/component line.)"
+      "description": "Multi-level bill of materials definition. (One row per BOM/component line.)",
+      "number": "R7017"
     },
     {
       "id": "cat-bom-costing-report",
@@ -41734,7 +42052,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Standard/component cost roll-up for BOM. (One row per BOM/component line.)"
+      "description": "Standard/component cost roll-up for BOM. (One row per BOM/component line.)",
+      "number": "R7018"
     },
     {
       "id": "cat-production-order-register",
@@ -41825,7 +42144,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Production order plan, progress and status. (One row per production order.)"
+      "description": "Production order plan, progress and status. (One row per production order.)",
+      "number": "R7019"
     },
     {
       "id": "cat-work-in-process-report",
@@ -41917,7 +42237,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Current WIP quantity/stage/value. (One row per production order/work center.)"
+      "description": "Current WIP quantity/stage/value. (One row per production order/work center.)",
+      "number": "R7020"
     },
     {
       "id": "cat-material-issue-consumption-report",
@@ -41996,7 +42317,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Raw/component issue and actual consumption. (One row per production material issue line.)"
+      "description": "Raw/component issue and actual consumption. (One row per production material issue line.)",
+      "number": "R7021"
     },
     {
       "id": "cat-material-usage-variance",
@@ -42073,7 +42395,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Standard/BOM quantity versus actual material consumption. (One row per order/component.)"
+      "description": "Standard/BOM quantity versus actual material consumption. (One row per order/component.)",
+      "number": "R7022"
     },
     {
       "id": "cat-production-receipt-completion",
@@ -42158,7 +42481,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Finished-good receipt/completion quantity and batch trace. (One row per production completion.)"
+      "description": "Finished-good receipt/completion quantity and batch trace. (One row per production completion.)",
+      "number": "R7023"
     },
     {
       "id": "cat-yield-scrap-analysis",
@@ -42244,7 +42568,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Good output, scrap and yield analysis. (One row per production order.)"
+      "description": "Good output, scrap and yield analysis. (One row per production order.)",
+      "number": "R7024"
     },
     {
       "id": "cat-quality-inspection-report",
@@ -42328,7 +42653,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Manufacturing quality result and disposition. (One row per inspection/item/order.)"
+      "description": "Manufacturing quality result and disposition. (One row per inspection/item/order.)",
+      "number": "R7025"
     },
     {
       "id": "cat-rework-rejection-report",
@@ -42408,7 +42734,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Rework/rejection quantity, reason and final result. (One row per rejected/rework item.)"
+      "description": "Rework/rejection quantity, reason and final result. (One row per rejected/rework item.)",
+      "number": "R7026"
     },
     {
       "id": "cat-production-schedule",
@@ -42482,7 +42809,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Scheduled production loading by work center. (One row per order/work center/date.)"
+      "description": "Scheduled production loading by work center. (One row per order/work center/date.)",
+      "number": "R7027"
     },
     {
       "id": "cat-work-center-capacity-load",
@@ -42548,7 +42876,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Capacity and planned load by work center. (One row per work center/period.)"
+      "description": "Capacity and planned load by work center. (One row per work center/period.)",
+      "number": "R7028"
     },
     {
       "id": "cat-mrp-suggestions",
@@ -42624,7 +42953,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Material requirements planning suggestions. (One row per item/location.)"
+      "description": "Material requirements planning suggestions. (One row per item/location.)",
+      "number": "R7029"
     },
     {
       "id": "cat-subcontracting-job-work-report",
@@ -42701,7 +43031,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Externally processed manufacturing/job-work visibility. (One row per subcontract order/item.)"
+      "description": "Externally processed manufacturing/job-work visibility. (One row per subcontract order/item.)",
+      "number": "R7030"
     },
     {
       "id": "cat-batch-lot-traceability",
@@ -42778,7 +43109,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Input-to-output batch/lot lineage. (One row per batch/lot movement.)"
+      "description": "Input-to-output batch/lot lineage. (One row per batch/lot movement.)",
+      "number": "R7031"
     },
     {
       "id": "cat-standard-vs-actual-cost",
@@ -42855,7 +43187,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Manufacturing cost variance analysis. (One row per production order/item.)"
+      "description": "Manufacturing cost variance analysis. (One row per production order/item.)",
+      "number": "R7032"
     },
     {
       "id": "cat-inbound-asn-register",
@@ -42927,7 +43260,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Expected inbound shipment and receipt readiness. (One row per inbound shipment/ASN.)"
+      "description": "Expected inbound shipment and receipt readiness. (One row per inbound shipment/ASN.)",
+      "number": "R4001"
     },
     {
       "id": "cat-receiving-grn-detail",
@@ -43016,7 +43350,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Warehouse receiving detail by item/container. (One row per received item/LPN.)"
+      "description": "Warehouse receiving detail by item/container. (One row per received item/LPN.)",
+      "number": "R4002"
     },
     {
       "id": "cat-inbound-qc-exception",
@@ -43094,7 +43429,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Inbound quality/rejection exceptions. (One row per rejected/held inbound line.)"
+      "description": "Inbound quality/rejection exceptions. (One row per rejected/held inbound line.)",
+      "number": "R4003"
     },
     {
       "id": "cat-putaway-pending-report",
@@ -43170,7 +43506,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Received stock waiting for putaway. (One row per putaway task/item.)"
+      "description": "Received stock waiting for putaway. (One row per putaway task/item.)",
+      "number": "R4004"
     },
     {
       "id": "cat-putaway-completion-report",
@@ -43252,7 +43589,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Completed putaway trace by operator/bin. (One row per completed putaway task.)"
+      "description": "Completed putaway trace by operator/bin. (One row per completed putaway task.)",
+      "number": "R4005"
     },
     {
       "id": "cat-bin-inventory-report",
@@ -43318,7 +43656,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "On-hand inventory by warehouse bin. (One row per bin/SKU.)"
+      "description": "On-hand inventory by warehouse bin. (One row per bin/SKU.)",
+      "number": "R4006"
     },
     {
       "id": "cat-location-movement-register",
@@ -43400,7 +43739,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Stock movement between warehouse zones/bins without ownership change. (One row per internal location movement line.)"
+      "description": "Stock movement between warehouse zones/bins without ownership change. (One row per internal location movement line.)",
+      "number": "R4007"
     },
     {
       "id": "cat-wms-stock-transfer-execution-report",
@@ -43490,7 +43830,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Warehouse execution status for stock-transfer picking, packing and dispatch. (One row per WMS transfer task.)"
+      "description": "Warehouse execution status for stock-transfer picking, packing and dispatch. (One row per WMS transfer task.)",
+      "number": "R4008"
     },
     {
       "id": "cat-warehouse-cockpit-kpi-summary",
@@ -43555,7 +43896,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Daily operational snapshot of inbound, putaway, pick, pack, dispatch and exceptions. (One row per warehouse/day.)"
+      "description": "Daily operational snapshot of inbound, putaway, pick, pack, dispatch and exceptions. (One row per warehouse/day.)",
+      "number": "R4009"
     },
     {
       "id": "cat-bin-utilization-condition-report",
@@ -43618,7 +43960,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Bin occupancy, condition and exception status. (One row per bin.)"
+      "description": "Bin occupancy, condition and exception status. (One row per bin.)",
+      "number": "R4010"
     },
     {
       "id": "cat-lpn-carton-pallet-register",
@@ -43684,7 +44027,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Container hierarchy and contents summary. (One row per LPN/container.)"
+      "description": "Container hierarchy and contents summary. (One row per LPN/container.)",
+      "number": "R4011"
     },
     {
       "id": "cat-bin-replenishment-report",
@@ -43761,7 +44105,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Forward-pick replenishment demand and completion. (One row per replenishment task.)"
+      "description": "Forward-pick replenishment demand and completion. (One row per replenishment task.)",
+      "number": "R4012"
     },
     {
       "id": "cat-pick-list-report",
@@ -43844,7 +44189,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Order pick tasks and execution status. (One row per pick task/item.)"
+      "description": "Order pick tasks and execution status. (One row per pick task/item.)",
+      "number": "R4013"
     },
     {
       "id": "cat-wave-batch-picking-report",
@@ -43927,7 +44273,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Wave/batch picking progress and productivity. (One row per wave/order/SKU.)"
+      "description": "Wave/batch picking progress and productivity. (One row per wave/order/SKU.)",
+      "number": "R4014"
     },
     {
       "id": "cat-picking-exception-report",
@@ -44011,7 +44358,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Short pick, wrong location or stock exception. (One row per failed/short pick.)"
+      "description": "Short pick, wrong location or stock exception. (One row per failed/short pick.)",
+      "number": "R4015"
     },
     {
       "id": "cat-packing-report",
@@ -44089,7 +44437,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Pack completion, container and quantity detail. (One row per shipment/package.)"
+      "description": "Pack completion, container and quantity detail. (One row per shipment/package.)",
+      "number": "R4016"
     },
     {
       "id": "cat-dispatch-shipment-register",
@@ -44166,7 +44515,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Shipment dispatch and carrier traceability. (One row per outbound shipment.)"
+      "description": "Shipment dispatch and carrier traceability. (One row per outbound shipment.)",
+      "number": "R4017"
     },
     {
       "id": "cat-cycle-count-register",
@@ -44245,7 +44595,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Cycle count plan/execution by zone/bin. (One row per cycle-count batch.)"
+      "description": "Cycle count plan/execution by zone/bin. (One row per cycle-count batch.)",
+      "number": "R4018"
     },
     {
       "id": "cat-cycle-count-variance-report",
@@ -44329,7 +44680,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Physical-versus-system bin variance requiring review. (One row per SKU/bin variance.)"
+      "description": "Physical-versus-system bin variance requiring review. (One row per SKU/bin variance.)",
+      "number": "R4019"
     },
     {
       "id": "cat-bin-stock-aging",
@@ -44390,7 +44742,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Aging exposure by warehouse storage position. (One row per bin/SKU/age bucket.)"
+      "description": "Aging exposure by warehouse storage position. (One row per bin/SKU/age bucket.)",
+      "number": "R4020"
     },
     {
       "id": "cat-lot-serial-barcode-traceability",
@@ -44466,7 +44819,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "End-to-end RF/warehouse traceability. (One row per tracked unit movement.)"
+      "description": "End-to-end RF/warehouse traceability. (One row per tracked unit movement.)",
+      "number": "R4021"
     },
     {
       "id": "cat-rf-mobile-picking-productivity",
@@ -44537,7 +44891,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Operator task throughput and duration. (One row per operator/period.)"
+      "description": "Operator task throughput and duration. (One row per operator/period.)",
+      "number": "R4022"
     },
     {
       "id": "cat-dock-door-utilization",
@@ -44610,7 +44965,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Dock door schedule and utilization. (One row per dock/appointment.)"
+      "description": "Dock door schedule and utilization. (One row per dock/appointment.)",
+      "number": "R4023"
     },
     {
       "id": "cat-appointment-calendar-report",
@@ -44684,7 +45040,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Inbound/outbound dock appointment schedule. (One row per appointment.)"
+      "description": "Inbound/outbound dock appointment schedule. (One row per appointment.)",
+      "number": "R4024"
     },
     {
       "id": "cat-yard-trailer-board-report",
@@ -44750,7 +45107,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Vehicle/trailer queue, dock assignment and yard status. (One row per vehicle/trailer.)"
+      "description": "Vehicle/trailer queue, dock assignment and yard status. (One row per vehicle/trailer.)",
+      "number": "R4025"
     },
     {
       "id": "cat-warehouse-sla-throughput-summary",
@@ -44816,7 +45174,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Inbound/outbound throughput and SLA performance. (One row per day/process.)"
+      "description": "Inbound/outbound throughput and SLA performance. (One row per day/process.)",
+      "number": "R4026"
     },
     {
       "id": "cat-warehouse-inventory-accuracy-summary",
@@ -44887,7 +45246,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
-      "description": "Inventory accuracy and count variance KPIs. (One row per zone/bin/period.)"
+      "description": "Inventory accuracy and count variance KPIs. (One row per zone/bin/period.)",
+      "number": "R4027"
     },
     {
       "id": "current-stock",
@@ -44935,7 +45295,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "How much do we have, and where?",
-      "description": "On hand, available, committed and reserved per item and location."
+      "description": "On hand, available, committed and reserved per item and location.",
+      "number": "R3076"
     },
     {
       "id": "sales-register",
@@ -44983,7 +45344,8 @@
       "has_drill_down": false,
       "has_control_totals": true,
       "question": "What did we sell at the till?",
-      "description": "Paid and settled POS sales with their total; control totals tie them to revenue and output GST."
+      "description": "Paid and settled POS sales with their total; control totals tie them to revenue and output GST.",
+      "number": "R1027"
     },
     {
       "id": "vendor-ledger",
@@ -45033,7 +45395,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "What have we ordered from this vendor?",
-      "description": "Purchase orders by vendor with status and amount."
+      "description": "Purchase orders by vendor with status and amount.",
+      "number": "R2044"
     },
     {
       "id": "payables-ageing",
@@ -45061,7 +45424,8 @@
       "has_drill_down": true,
       "has_control_totals": true,
       "question": "What do we owe suppliers for goods received, and for how long?",
-      "description": "Goods received and not yet paid, per receipt, by age from the bill's due date (else the receipt date); part-payments are taken off. Control totals tie it to 2100 GRN Suspense."
+      "description": "Goods received and not yet paid, per receipt, by age from the bill's due date (else the receipt date); part-payments are taken off. Control totals tie it to 2100 GRN Suspense.",
+      "number": "R5074"
     },
     {
       "id": "po-commitments",
@@ -45089,7 +45453,8 @@
       "has_drill_down": true,
       "has_control_totals": true,
       "question": "What have we committed to buy, and how old is it?",
-      "description": "Approved purchase orders not yet closed, by age. These are commitments, not ledger liabilities - the control totals say so."
+      "description": "Approved purchase orders not yet closed, by age. These are commitments, not ledger liabilities - the control totals say so.",
+      "number": "R2045"
     },
     {
       "id": "receivables-ageing",
@@ -45117,7 +45482,8 @@
       "has_drill_down": true,
       "has_control_totals": true,
       "question": "Who owes us, and for how long?",
-      "description": "Open customer invoices by age from their due date; control totals tie them to 1300 Accounts Receivable."
+      "description": "Open customer invoices by age from their due date; control totals tie them to 1300 Accounts Receivable.",
+      "number": "R5075"
     },
     {
       "id": "gst-return-summary",
@@ -45213,7 +45579,8 @@
       "has_drill_down": true,
       "has_control_totals": true,
       "question": "What GST do we owe for this return period?",
-      "description": "Output GST, taxable and non-taxable value and input credit for the dates chosen; control totals tie the tax lines to the ledger."
+      "description": "Output GST, taxable and non-taxable value and input credit for the dates chosen; control totals tie the tax lines to the ledger.",
+      "number": "R5076"
     },
     {
       "id": "grn-register",
@@ -45251,7 +45618,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "What have we received?",
-      "description": "Goods receipts with their purchase order and lines."
+      "description": "Goods receipts with their purchase order and lines.",
+      "number": "R2046"
     },
     {
       "id": "cash-book",
@@ -45294,7 +45662,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "What went through the cash account?",
-      "description": "Every 1100 Cash/Bank posting with a running balance."
+      "description": "Every 1100 Cash/Bank posting with a running balance.",
+      "number": "R5077"
     },
     {
       "id": "bank-book",
@@ -45344,7 +45713,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "What went through this bank account?",
-      "description": "Every posting on the bank account's GL code with a running balance."
+      "description": "Every posting on the bank account's GL code with a running balance.",
+      "number": "R5078"
     },
     {
       "id": "asset-register",
@@ -45402,7 +45772,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "What fixed assets do we hold, and what are they worth?",
-      "description": "Each asset with cost, accumulated depreciation and book value."
+      "description": "Each asset with cost, accumulated depreciation and book value.",
+      "number": "R5079"
     },
     {
       "id": "loyalty-summary",
@@ -45440,7 +45811,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "How are points being earned and used?",
-      "description": "Earned, redeemed and balance per customer."
+      "description": "Earned, redeemed and balance per customer.",
+      "number": "R6070"
     },
     {
       "id": "production-order-status",
@@ -45481,7 +45853,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R7041"
     },
     {
       "id": "rfq-comparison",
@@ -45521,7 +45894,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Which vendor quoted best?",
-      "description": "Quotes side by side for one request for quotation."
+      "description": "Quotes side by side for one request for quotation.",
+      "number": "R2047"
     },
     {
       "id": "stock-by-location",
@@ -45596,7 +45970,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "What sits in each location of each store, and what can be sold?",
-      "description": "Main, Inward, In-Transit, QC Hold, Damage, On Hold, Purchase Return and your own locations per item and store, with the sellable figure."
+      "description": "Main, Inward, In-Transit, QC Hold, Damage, On Hold, Purchase Return and your own locations per item and store, with the sellable figure.",
+      "number": "R3077"
     },
     {
       "id": "advance-register",
@@ -45683,7 +46058,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "What do we owe customers in advances?",
-      "description": "Every advance taken at the till - used, refunded and what is still owed (2640 Customer Advance Liability)."
+      "description": "Every advance taken at the till - used, refunded and what is still owed (2640 Customer Advance Liability).",
+      "number": "R1028"
     },
     {
       "id": "tender-sales",
@@ -45725,7 +46101,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "How was the money taken?",
-      "description": "Paid bills by the store's own tenders (Cash, HDFC Card, Paytm...) for a store and dates."
+      "description": "Paid bills by the store's own tenders (Cash, HDFC Card, Paytm...) for a store and dates.",
+      "number": "R1029"
     },
     {
       "id": "salesman-sales",
@@ -45772,7 +46149,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Who sold what?",
-      "description": "Paid bills and sales per salesman for a store and dates."
+      "description": "Paid bills and sales per salesman for a store and dates.",
+      "number": "R1030"
     },
     {
       "id": "customer-duplicate-phones",
@@ -45800,7 +46178,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Which customers share one mobile number?",
-      "description": "Customers on file before the one-number-one-customer rule; merge them from the Customer master."
+      "description": "Customers on file before the one-number-one-customer rule; merge them from the Customer master.",
+      "number": "R6071"
     },
     {
       "id": "stock-ledger",
@@ -45904,7 +46283,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "What moved in and out of stock?",
-      "description": "Every stock movement with its source document."
+      "description": "Every stock movement with its source document.",
+      "number": "R3078"
     },
     {
       "id": "exception-stale-approvals",
@@ -45942,7 +46322,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R9029"
     },
     {
       "id": "exception-failed-syncs",
@@ -45973,7 +46354,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R9030"
     },
     {
       "id": "attendance-summary",
@@ -46054,7 +46436,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Who was present, absent or on leave?",
-      "description": "Attendance days per employee for the dates chosen."
+      "description": "Attendance days per employee for the dates chosen.",
+      "number": "R8018"
     },
     {
       "id": "exception-negative-stock",
@@ -46102,7 +46485,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Where has stock gone negative?",
-      "description": "Item and location pairs below zero."
+      "description": "Item and location pairs below zero.",
+      "number": "R9031"
     },
     {
       "id": "report-performance",
@@ -46156,7 +46540,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R9032"
     },
     {
       "id": "post-sale-edit-history",
@@ -46238,7 +46623,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R1031"
     },
     {
       "id": "serial-inquiry",
@@ -46309,7 +46695,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4028"
     },
     {
       "id": "serial-movement-history",
@@ -46378,7 +46765,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4029"
     },
     {
       "id": "service-sla-breaches",
@@ -46419,7 +46807,8 @@
       ],
       "params": [],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R6072"
     },
     {
       "id": "oms-unsettled-settlements",
@@ -46457,7 +46846,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Which marketplace orders are not yet paid out?",
-      "description": "Delivered marketplace orders with no settlement line."
+      "description": "Delivered marketplace orders with no settlement line.",
+      "number": "R6073"
     },
     {
       "id": "oms-settlement-variance",
@@ -46520,7 +46910,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Where did a marketplace pay us a different amount?",
-      "description": "Settlement lines held as variance for dispute or write-off."
+      "description": "Settlement lines held as variance for dispute or write-off.",
+      "number": "R6074"
     },
     {
       "id": "stock-book-vs-ledger",
@@ -46559,6 +46950,16 @@
           "sensitive": false
         },
         {
+          "key": "in_own_locations",
+          "label": "In own locations",
+          "sensitive": false
+        },
+        {
+          "key": "blocked",
+          "label": "Set aside (book)",
+          "sensitive": false
+        },
+        {
           "key": "hint",
           "label": "What it suggests",
           "sensitive": false
@@ -46586,7 +46987,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R3079"
     },
     {
       "id": "store-credit-liability",
@@ -46622,7 +47024,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": true
+      "has_control_totals": true,
+      "number": "R5080"
     },
     {
       "id": "refund-methods",
@@ -46661,7 +47064,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R5081"
     },
     {
       "id": "stored-value-liability",
@@ -46727,7 +47131,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "What do we owe on gift cards?",
-      "description": "Outstanding gift card balances against the liability account."
+      "description": "Outstanding gift card balances against the liability account.",
+      "number": "R5082"
     },
     {
       "id": "stored-value-ledger",
@@ -46807,7 +47212,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R5083"
     },
     {
       "id": "batch-near-expiry",
@@ -46860,7 +47266,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4030"
     },
     {
       "id": "batch-stock-inquiry",
@@ -46935,7 +47342,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4031"
     },
     {
       "id": "batch-movement-history",
@@ -47009,7 +47417,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4032"
     },
     {
       "id": "batch-ageing",
@@ -47097,7 +47506,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "Where is this batch, and how old is it?",
-      "description": "Batch lookup with its age and remaining quantity."
+      "description": "Batch lookup with its age and remaining quantity.",
+      "number": "R3080"
     },
     {
       "id": "stock-ageing",
@@ -47167,7 +47577,8 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "question": "How old is the stock on the shelf?",
-      "description": "Stock by receipt batch and age."
+      "description": "Stock by receipt batch and age.",
+      "number": "R3081"
     },
     {
       "id": "advance-outstanding-ageing",
@@ -47218,7 +47629,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": true
+      "has_control_totals": true,
+      "number": "R1032"
     },
     {
       "id": "transfer-shortage-by-reason",
@@ -47272,7 +47684,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R3082"
     },
     {
       "id": "print-reprint-audit",
@@ -47336,7 +47749,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R9033"
     },
     {
       "id": "3pl-storage-billing",
@@ -47416,7 +47830,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4033"
     },
     {
       "id": "bin-stock-reconciliation",
@@ -47482,7 +47897,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4034"
     },
     {
       "id": "cross-facility-stock",
@@ -47525,7 +47941,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4035"
     },
     {
       "id": "facility-rollup",
@@ -47568,7 +47985,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4036"
     },
     {
       "id": "labor-enterprise-productivity",
@@ -47617,7 +48035,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4037"
     },
     {
       "id": "labor-facility-performance",
@@ -47666,7 +48085,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4038"
     },
     {
       "id": "labor-task-productivity",
@@ -47715,7 +48135,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4039"
     },
     {
       "id": "labor-user-performance",
@@ -47764,7 +48185,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4040"
     },
     {
       "id": "labor-standards-audit",
@@ -47805,7 +48227,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4041"
     },
     {
       "id": "labor-cost",
@@ -47854,7 +48277,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4042"
     },
     {
       "id": "storage-billing-v2",
@@ -47929,7 +48353,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4043"
     },
     {
       "id": "owner-stock-exceptions",
@@ -47980,7 +48405,8 @@
       ],
       "params": null,
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4044"
     },
     {
       "id": "owner-stock-inquiry",
@@ -48040,7 +48466,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4045"
     },
     {
       "id": "labor-productivity",
@@ -48094,7 +48521,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4046"
     },
     {
       "id": "slotting-suggestions",
@@ -48152,7 +48580,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4047"
     },
     {
       "id": "unslotting-suggestions",
@@ -48200,7 +48629,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4048"
     },
     {
       "id": "consolidation-suggestions",
@@ -48248,7 +48678,8 @@
         }
       ],
       "has_drill_down": false,
-      "has_control_totals": false
+      "has_control_totals": false,
+      "number": "R4049"
     }
   ]
 }

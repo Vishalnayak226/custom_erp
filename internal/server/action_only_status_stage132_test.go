@@ -85,8 +85,9 @@ func TestActionOnlyStatusRefusedOnPlainSave(t *testing.T) {
 		t.Fatalf("re-saving a Dispatched transfer with its status unchanged was refused")
 	}
 
-	// The other three Guide proved are on the list, and the form hides them.
-	for doctype, status := range map[string]string{"ExpenseClaim": "Verified", "VendorInvoice": "Matched", "ProductionOrder": "Material Issued"} {
+	// The other three Guide proved are on the list, and the form hides them;
+	// so is a price list's Superseded (135.12), which only an approval sets.
+	for doctype, status := range map[string]string{"ExpenseClaim": "Verified", "VendorInvoice": "Matched", "ProductionOrder": "Material Issued", "PriceListVersion": "Superseded"} {
 		if !isActionOnlyStatus(doctype, status) {
 			t.Errorf("%s %s is not action-only", doctype, status)
 		}
