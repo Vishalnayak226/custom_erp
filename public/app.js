@@ -334,7 +334,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '69';
+const VIEW_MODULE_VERSION = '70';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -3515,6 +3515,16 @@ function bootstrap() {
 
 // Initializer
 async function init() {
+  // Stage 141.5: sign-out stays on this page, so signing in again ran this a
+  // second time and doubled every listener - one click on the menu toggle hid
+  // and re-showed the menu. A second sign-in reloads instead: one set of
+  // listeners, and nothing of the previous session left in memory.
+  if (init.ran) {
+    document.getElementById('app-root').classList.add('hidden');
+    location.reload();
+    return;
+  }
+  init.ran = true;
   setupEventListeners();
   setupModuleFlyouts();
   setupOfflineSync();

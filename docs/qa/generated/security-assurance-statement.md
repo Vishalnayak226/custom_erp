@@ -11,7 +11,7 @@ What is supported, how to report a problem, what is not yet true, and how far th
 
 ## Supported version and configuration
 
-- **Version 0.19.0** (`internal/server/VERSION`). Only the latest release receives security fixes; there is no long-term support line.
+- **Version 0.20.0** (`internal/server/VERSION`). Only the latest release receives security fixes; there is no long-term support line.
 - **Configuration:** one Go binary and PostgreSQL behind a TLS reverse proxy (Caddy) on a Linux host, installed by `deploy/`; each client in its own database schema; the browser app served by the same binary from its own origin, loading nothing from any other. Nothing else is required: no CDN, WAF, SIEM or secrets service (49.18.5).
 - **Not supported:** other databases, running without TLS, sharing one schema between clients, or browser extensions that inject scripts into the app.
 

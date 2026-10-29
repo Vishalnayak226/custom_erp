@@ -7,7 +7,7 @@
 > **Generated 2026-09-10.** This page is produced from `docs/micro_checklist.md` open items, `docs/product/erp-build-checklist.md` JRN table, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-BLD-002: the 332 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
+BLD-002: the 341 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
 
 | Journey | Reference configuration | Owner | Open | Needs decision | Blocked |
 |---|---|---|---:|---:|---:|
@@ -31,14 +31,14 @@ BLD-002: the 332 open checklist items reconciled into the business journeys they
 | JRN-18 expenses | deferred - outside both | Finance/employee owner; existing expenses scope | 0 | 0 | 0 |
 | JRN-19 projects/service | deferred - outside both | Service/project owner; Experimental scope preserved | 0 | 0 | 0 |
 | JRN-20 reports/analysis | REF-RETAIL-IN, REF-WAREHOUSE-IN | Data/finance/QA; 26.10/47.10 | 1 | 0 | 0 |
-| JRN-21 platform/integrations | REF-RETAIL-IN, REF-WAREHOUSE-IN | Integrator/security; Stage 38/49.8 | 21 | 2 | 0 |
+| JRN-21 platform/integrations | REF-RETAIL-IN, REF-WAREHOUSE-IN | Integrator/security; Stage 38/49.8 | 22 | 3 | 0 |
 | JRN-22 identity/approval/audit | REF-RETAIL-IN, REF-WAREHOUSE-IN | Tenant admin/security; 47.1/47.7/Stage 49 | 93 | 14 | 0 |
 | JRN-23 knowledge/implementation | REF-RETAIL-IN, REF-WAREHOUSE-IN | Documentation/implementation; Stage 39/47.15/48.7 | 34 | 0 | 1 |
-| Cross-journey acceptance and audits | - | - | 70 | 3 | 8 |
+| Cross-journey acceptance and audits | - | - | 70 | 2 | 8 |
 | Engineering housekeeping | - | - | 15 | 3 | 0 |
-| Unmapped - place these stages | - | - | 28 | 0 | 0 |
+| Unmapped - place these stages | - | - | 36 | 0 | 0 |
 
-**Unmapped:** Stage 140 (28) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
+**Unmapped:** Stage 140 (28), Stage 142 (4), Stage 143 (4) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
 
 ## JRN-01 POS/store
 
@@ -164,6 +164,7 @@ BLD-002: the 332 open checklist items reconciled into the business journeys they
 - **90.3** Map 840909b
 - **90.5** The Releases note says what changed
 - **90.6** More interesting, precise text; the old rows rewritten *(decision)*
+- **109.12** Smart cleanup bot every 10 days *(decision)*
 
 ## JRN-22 identity/approval/audit
 
@@ -367,7 +368,7 @@ BLD-002: the 332 open checklist items reconciled into the business journeys they
 - **135.9** Phases P02-P12 stay with their owners
 - **135.15** Knowledge Center: a bullet's wrapped line falls out of its list
 - **135.24** A step GRN with a vendor credit note overpays by the note
-- **135.25** One marketplace order can be settled under two settlement IDs *(decision)*
+- **135.25** One marketplace order can be settled under two settlement IDs
 - **135.26** Two postings still commit apart from their document
 - **136.3** Production link rejections: Vendor on Product Family, Legal Entity on Location
 
@@ -419,3 +420,11 @@ BLD-002: the 332 open checklist items reconciled into the business journeys they
 - **140.12.26** WhatsApp and SMS are not ready on app
 - **140.12.27** Decisions from customer data
 - **140.13.1** Release, deploy, re-run Guide on app
+- **142.1** An ecom order is always visible on Pending Orders
+- **142.2** Load a pending order by scan on Pick and Pack
+- **142.3** Sales from one Excel file (Sales Invoice → Upload from Excel)
+- **142.4** Item discount on the New Sales Invoice screen
+- **143.1** The file on app through Guide
+- **143.2** Barcode print on app
+- **143.3** The same file on minn
+- **143.4** Every print page shows its preview and has one Print button

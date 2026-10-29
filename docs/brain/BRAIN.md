@@ -9,12 +9,12 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 
 | | |
 |---|---|
-| Graph built from commit | `efc64032` |
-| Brain redrawn | source graph efc64032 |
+| Graph built from commit | `932f3c8f` |
+| Brain redrawn | source graph 932f3c8f |
 | Regions / lobes | 38 / 8 |
 | Files in the working tree | 2011 (1507 of them parsed into the graph) |
 | Files claimed by a region | **100.0%** |
-| Symbols in the graph | 18876 |
+| Symbols in the graph | 18926 |
 | Cross-region relationships | 7741 extracted (95% inferred) + 8 declared by hand |
 
 **Interactive version: [brain.html](brain.html)** — open it in a browser and click any region.
@@ -39,8 +39,8 @@ flowchart LR
   n_business["Functional Lobes — Business Operations<br/><small>405 files · 5183 symbols</small>"]
   n_peripheral["Peripheral Nerves — Integrations<br/><small>66 files · 1174 symbols</small>"]
   n_autonomic["Autonomic — Background & Reflexes<br/><small>19 files · 247 symbols</small>"]
-  n_memory["Hippocampus — Written Memory<br/><small>382 files · 4819 symbols</small>"]
-  n_motor["Motor Cortex — Build & Delivery<br/><small>62 files · 288 symbols</small>"]
+  n_memory["Hippocampus — Written Memory<br/><small>382 files · 4866 symbols</small>"]
+  n_motor["Motor Cortex — Build & Delivery<br/><small>62 files · 291 symbols</small>"]
   n_verification["Cerebellum — Verification<br/><small>503 files · 2143 symbols</small>"]
   n_business -->|2571| n_brainstem
   n_business -->|422| n_autonomic
@@ -101,8 +101,8 @@ flowchart LR
 | **Functional Lobes — Business Operations** | The specialised areas. Each one owns a domain and can be licensed on its own. | 16 | 405 | 5183 | 1742 |
 | **Peripheral Nerves — Integrations** | Contact with the outside world: storefronts, payment terminals, marketing clouds, third-party extensions. | 3 | 66 | 1174 | 8 |
 | **Autonomic — Background & Reflexes** | Runs without anyone asking it to: outbox drain, pollers, alerting, scheduled sweeps. | 2 | 19 | 247 | 33 |
-| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 382 | 4819 | 229 |
-| **Motor Cortex — Build & Delivery** | How the system actually moves: build, migrate, promote, back up, restore. | 1 | 62 | 288 | 0 |
+| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 382 | 4866 | 229 |
+| **Motor Cortex — Build & Delivery** | How the system actually moves: build, migrate, promote, back up, restore. | 1 | 62 | 291 | 0 |
 | **Cerebellum — Verification** | Balance and correction. Kept out of the wiring diagrams on purpose — tests touch everything, so drawing them would grey out every real edge. | 1 | 503 | 2143 | 0 |
 
 ## 2. Region map
@@ -162,12 +162,12 @@ flowchart LR
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>375 files · 4698 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>375 files · 4745 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 121 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
     direction TB
-    n_ops_tooling["Build, Deploy & Operate<br/><small>62 files · 288 symbols</small>"]
+    n_ops_tooling["Build, Deploy & Operate<br/><small>62 files · 291 symbols</small>"]
   end
   n_brain -->|228| n_docs_memory
   n_ui_shell -.->|221| n_ui_offline
@@ -421,12 +421,12 @@ flowchart LR
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>375 files · 4698 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>375 files · 4745 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 121 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
     direction TB
-    n_ops_tooling["Build, Deploy & Operate<br/><small>62 files · 288 symbols</small>"]
+    n_ops_tooling["Build, Deploy & Operate<br/><small>62 files · 291 symbols</small>"]
   end
   n_brain -->|228| n_docs_memory
   n_ui_shell -.->|221| n_ui_offline
@@ -889,9 +889,9 @@ flowchart LR
 | [Extension Platform](#extension-platform) | Peripheral Nerves — Integrations | 14 | 188 | → Persistence & Migrations (28) |
 | [Event Outbox & Async Job Runner](#event-outbox--async-job-runner) | Autonomic — Background & Reflexes | 9 | 84 | ← Logging, Alerting & Notifications (24) |
 | [Logging, Alerting & Notifications](#logging-alerting--notifications) | Autonomic — Background & Reflexes | 10 | 163 | ← Warehouse Management (WMS) (64) |
-| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 375 | 4698 | ← The Brain Map (this) (228) |
+| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 375 | 4745 | ← The Brain Map (this) (228) |
 | [The Brain Map (this)](#the-brain-map-this) | Hippocampus — Written Memory | 7 | 121 | → Project Documentation (228) |
-| [Build, Deploy & Operate](#build-deploy--operate) | Motor Cortex — Build & Delivery | 62 | 288 | → Identity, RBAC & MFA (10) |
+| [Build, Deploy & Operate](#build-deploy--operate) | Motor Cortex — Build & Delivery | 62 | 291 | → Identity, RBAC & MFA (10) |
 | [Security Baseline & Attack Surface](#security-baseline--attack-surface) | Brainstem — Kernel | 33 | 305 | → Persistence & Migrations (21) |
 | [Test Suite](#test-suite) | Cerebellum — Verification | 503 | 2143 | — |
 
@@ -910,7 +910,7 @@ The whole frontend: one hand-written vanilla-JS single-page app, no framework an
 - `apiFetch()` — [public/app.js](../../public/app.js#L926) · degree 26
 - `init()` — [public/app.js](../../public/app.js#L3517) · degree 22
 - `renderPick()` — [public/view-oms-steps.js](../../public/view-oms-steps.js#L255) · degree 21
-- `renderView()` — [public/app.js](../../public/app.js#L5783) · degree 21
+- `renderView()` — [public/app.js](../../public/app.js#L5793) · degree 21
 - `ErpTypeahead` — [public/components/erp-typeahead.js](../../public/components/erp-typeahead.js#L65) · degree 20
 - `renderPOComposer()` — [public/view-procurement.js](../../public/view-procurement.js#L541) · degree 20
 

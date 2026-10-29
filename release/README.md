@@ -25,7 +25,7 @@ in this order:
 |---|---|
 | **`Release.cmd`** | Runs every gate below on a snapshot of the tree, then commits and pushes - only if all pass. About 15 minutes. |
 | **`Deploy.cmd`** | Puts the released commit on production (app and minn): lists any change to client data and waits for you to type YES, takes a backup (checked against its sha256) and a rollback copy, deploys, checks every site (each gets up to 90 s after the restart - Caddy answers 503 for the first seconds, 0.9.0). A few minutes. |
-| **`Cleanup.cmd`** | Cleans the server now. Not needed day to day: the server cleans itself every night at 03:30. |
+| **`Cleanup.cmd`** | Cleans the server now (`Cleanup.cmd -Deep` adds the deep pass). Not needed day to day: the server cleans itself every night at 03:30, and every 10 days a deep pass at 04:15. |
 
 Each run writes a report to `reports\` (kept on this machine, never committed).
 If a click stops, its last line says why.
@@ -48,7 +48,7 @@ release\
 
 The server side stays in `deploy\`, next to `backup.sh`, because that folder is
 what lands in `/opt/erp/deploy` on the box: `server_cleanup.sh` (the cleanup) and
-`install_cleanup_cron.sh` (its 03:30 root cron, refreshed by every deploy), and
+`install_cleanup_cron.sh` (its 03:30 and 04:15 root cron lines, refreshed by every deploy), and
 `erp.service` (the systemd unit) with `install_service_unit.sh`, which every
 deploy runs: it installs the unit whenever it differs from the live one and puts
 the old one back by itself if the ERP is not healthy on it. The Deploy click
@@ -61,6 +61,7 @@ pwsh release\scripts\Invoke-Release.ps1 -DryRun       # every gate, nothing comm
 pwsh release\scripts\Invoke-Release.ps1 -NoPush       # gates + local commit
 pwsh release\scripts\Invoke-Deploy.ps1 -Check         # what a deploy would change; nothing done
 pwsh release\scripts\Invoke-Cleanup.ps1 -DryRun       # what the cleanup would remove
+pwsh release\scripts\Invoke-Cleanup.ps1 -Deep -DryRun # the same with the deep pass, and what is growing
 ```
 
 ## Holding work back
@@ -110,5 +111,18 @@ builds older than 7 days, control-character file names and stale `*.new`, runs
 `apt-get clean`, holds the journal at 100 MB, trims the failed-login log and keeps
 snapd out. It alerts through `OPS_ALERT_WEBHOOK_URL` above 80% disk and logs one
 line a run to `/var/log/erp-cleanup.log`. It never touches backups, the live or
-previous build, `db/` or PostgreSQL. SSH bots are blocked by sshguard (installed
-2026-10-19; SSH is key-only).
+previous build, `db/` or PostgreSQL. Over 70% disk it keeps 2 rollback copies.
+SSH bots are blocked by sshguard (installed 2026-10-19; SSH is key-only).
+
+**Every 10 days (Stage 109.12)** the 04:15 cron line runs `server_cleanup.sh
+--deep --if-due`: it asks daily and runs once the last deep pass is 10 days old
+(`/var/lib/erp-cleanup/deep.last`; `Cleanup.cmd -Deep` runs one now and restarts
+the count). On top of the nightly steps it removes packages nothing needs any
+more (old kernels; `apt-get autoremove --purge`), temp files untouched for 10
+days (not systemd's private ones), crash dumps over 10 days old and rotated
+system logs over 180 days old - never younger, CERT-In keeps 180 days. Then it
+measures backups, the ERP folder, PostgreSQL, logs, caches, temp, `/root`,
+`/home`, `/boot` and `/usr` against the last deep pass
+(`/var/lib/erp-cleanup/sizes.tsv`), says which grew most and in how many days
+the disk is full at that rate, and alerts under 30 days. Its log line ends
+`deep grew=<area>:+<n>MB full_in=<n>d` (`deep=baseline` the first time).

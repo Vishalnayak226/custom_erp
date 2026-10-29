@@ -27,7 +27,7 @@ Newest first. Earlier entries continue on:
 
 ## 2026-10-29
 
-**The erp-d3 follow-ups: offline sales on the till's day, held offline cash in the drawer, SKU scans, no PO for a stateless store** *(code + tests + docs; NOT COMMITTED)*
+**The erp-d3 follow-ups: offline sales on the till's day, held offline cash in the drawer, SKU scans, no PO for a stateless store** *(code + tests + docs; released 0.19.0 932f3c8)*
 
 The user's *"all recommended"* on the six follow-up decisions of §304 (micro_checklist 49.5.6d, 49.5.6e, 47.11.8b).
 
@@ -35,7 +35,7 @@ The user's *"all recommended"* on the six follow-up decisions of §304 (micro_ch
 
 From the user's minn screenshots (branding on: Wholeops only as grey foot text), their pick of four real-screenshot mockups (*"c1 b2"*), and a video of repeated refreshes on app.wholeops.in. Full detail in checklist Stage 141.
 
-**"Build next 20 items" (session erp-5e): twenty Stage 47 / 49 slices - privilege-change evidence, two hostile clients, insider scenarios, GST / Companies Act controls, receivables vs ledger, synthetic tenants, slow-query shapes, CERT-In logs, a secret scan** *(code + tests + docs; NOT COMMITTED, held)*
+**"Build next 20 items" (session erp-5e): twenty Stage 47 / 49 slices - privilege-change evidence, two hostile clients, insider scenarios, GST / Companies Act controls, receivables vs ledger, synthetic tenants, slow-query shapes, CERT-In logs, a secret scan** *(code + tests + docs; released 0.19.0 `932f3c8`)*
 
 The user's "Build next 20 items except 140's list" (2026-10-28). Everything open outside Stages 47 / 49 waited on the user, a device, a credential, a decision or another session, so the run took the twenty Stage 47 / 49 items no run had touched that have a self-contained slice: 47.9.1, 47.9.3, 47.12.4, 47.13.2, 47.13.5, 47.14.3, 47.14.4, 47.16.1, 47.16.3, 47.16.4, 47.18.2, 49.3.6, 49.3.7, 49.5.5, 49.5.7, 49.6.2, 49.6.6, 49.8.8, 49.10.3, 49.10.6. Item detail: each item's entry in micro_checklist, and the run header under erp-d3's decisions block. All twenty are built in part; what is left is on each.
 

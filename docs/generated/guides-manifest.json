@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": "cmd/gendocs",
   "generator_version": "stage48-v1",
-  "release": "0.19.0",
+  "release": "0.20.0",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "schema": "source registries",
   "tenant": "none",
@@ -101,7 +101,7 @@
     },
     {
       "path": "docs/kb/reference/release-notes.md",
-      "sha256": "ffd7d1390f151b20e798e43095f78fe44c59b759d2a8411a54a39715d03d9e56",
+      "sha256": "dcba8ce8bdcbdd9ceae956c00872d057a6a29f52538194e57af54835d7dfb06f",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -179,7 +179,7 @@
     },
     {
       "path": "docs/qa/generated/backlog-journey-map.md",
-      "sha256": "91dc7906c4b947fe5df68bd5cca3a08321aa90d2945a42ef019e2c6eae10edd2",
+      "sha256": "fe40a038d118237538d048f5e0997e1a2694f38b168b7a53a40c70338e454e7f",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -205,7 +205,7 @@
     },
     {
       "path": "docs/qa/generated/security-assurance-statement.md",
-      "sha256": "cdb4bd9a47bec02bf9aec1e691c1aa0997777a45441f7858003885a431eada56",
+      "sha256": "e59dc00d9404161e24f21efb479c71d105a64a71e65b58ab91fe8fc28f4fe7ea",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",

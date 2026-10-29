@@ -18,18 +18,19 @@ if (!document.getElementById('shell-identity-css')) {
 .header-company { margin: 0 16px 0 4px; min-width: 0; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--text-muted); }
 @media (max-width: 700px) { .header-company { display: none; } }
 .has-client-logo .brand-logo, .has-client-logo .brand-symbol { display: none !important; }
-.has-client-logo { gap: 12px; text-decoration: none; }
-.client-logo { display: block; max-height: 36px; max-width: 160px; width: auto; height: auto; object-fit: contain; }
-.sidebar-header .client-logo { max-height: 44px; max-width: 120px; }
-.login-brand .client-logo { max-height: 64px; max-width: 240px; }
-.wo-by { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-.wo-by::before { content: ''; width: 1px; height: 34px; background: var(--border-color); }
+.has-client-logo { gap: 24px; text-decoration: none; }
+.client-logo { display: block; max-height: 36px; max-width: 200px; width: auto; height: auto; object-fit: contain; }
+.sidebar-header .has-client-logo { gap: 20px; }
+.sidebar-header .client-logo { max-height: 44px; max-width: 112px; }
+.login-brand .client-logo { max-height: 64px; max-width: 280px; }
+.wo-by { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+.wo-by::before { content: ''; width: 1px; height: 38px; background: var(--border-color); }
 .wo-by > span { display: flex; flex-direction: column; gap: 3px; font-size: 10.5px; line-height: 1.2; color: var(--text-muted); white-space: nowrap; }
-.wo-by img { height: 16px; width: auto; }
+.wo-by img { height: 20px; width: auto; }
 .wo-logo { display: var(--logo-light-display); }
 .wo-logo-dark { display: var(--logo-dark-display); }
-.wo-strip { position: absolute; top: 0; left: 0; right: 0; height: 44px; display: flex; align-items: center; padding: 0 24px; background: var(--panel-bg); border-bottom: 1px solid var(--border-color); }
-.wo-strip img { height: 22px; width: auto; }
+.wo-strip { position: absolute; top: 0; left: 0; right: 0; height: 52px; display: flex; align-items: center; padding: 0 24px; background: var(--panel-bg); border-bottom: 1px solid var(--border-color); }
+.wo-strip img { height: 28px; width: auto; }
 @media (max-width: 820px) { .header-brand .wo-by { display: none; } }
 `;
   document.head.appendChild(style);
