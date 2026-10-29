@@ -334,7 +334,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '68';
+const VIEW_MODULE_VERSION = '69';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -915,6 +915,14 @@ const DEFAULT_API_TIMEOUT_MS = 30000;
 const inflightGets = new Map();
 let lastLoadFailure = null;
 
+// Stage 141.4: a burst of refused calls is one message, not one per call.
+let rateLimitToastAt = 0;
+async function showRateLimitToast(response) {
+  if (Date.now() - rateLimitToastAt < 20000) return;
+  rateLimitToastAt = Date.now();
+  showToast(await getErrorMessage(response, 'Rate limit exceeded. Please throttle your requests.'), { variant: 'warning', title: 'Rate Limit' });
+}
+
 async function apiFetch(url, options = {}) {
   if ((options.method && options.method !== 'GET') || options.body || options.signal) return apiFetchOnce(url, options);
   const key = url + '|' + JSON.stringify(options.headers || {});
@@ -987,7 +995,7 @@ async function apiFetchOnce(url, options = {}, retried = false) {
       await new Promise(resolve => setTimeout(resolve, wait * 1000));
       return apiFetchOnce(url, options, true);
     }
-    showToast(await getErrorMessage(response, 'Rate limit exceeded. Please throttle your requests.'), { variant: 'warning', title: 'Rate Limit' });
+    await showRateLimitToast(response);
     return null;
   }
   if (!response.ok && isRead) lastLoadFailure = { status: response.status, at: Date.now() };
@@ -1040,7 +1048,7 @@ async function apiUpload(url, formData, timeoutMs = DEFAULT_UPLOAD_TIMEOUT_MS) {
     return null;
   }
   if (response.status === 429) {
-    showToast(await getErrorMessage(response, 'Rate limit exceeded. Please throttle your requests.'), { variant: 'warning', title: 'Rate Limit' });
+    await showRateLimitToast(response);
     return null;
   }
   return response;
@@ -3497,6 +3505,7 @@ function bootstrap() {
     return;
   }
   if (localStorage.getItem('erp_token')) {
+    loadViewModule('/shell-identity.js').catch(() => {}); // 141.3: brand at once
     showApp();
     init();
   } else {
@@ -4337,11 +4346,24 @@ function syncFlyoutHeadings() {
   });
 }
 
+// Stage 141.3: this browser's last good copy of a boot read, per user. A call
+// with no answer (refused 429, offline) uses it, so a refresh never empties
+// the menu; a real answer (even an error) always wins.
+async function bootData(res, name) {
+  try {
+    const key = `erp_boot_${name}:${localStorage.getItem('erp_tenant_id')}:${localStorage.getItem('erp_username')}`;
+    if (!res) return JSON.parse(localStorage.getItem(key));
+    if (!res.ok) return null;
+    const data = await res.json();
+    localStorage.setItem(key, JSON.stringify(data));
+    return data;
+  } catch (_) { return null; }
+}
+
 async function fetchAndApplyModules() {
   try {
-    const res = await apiFetch('/api/v1/me/modules');
-    if (res && res.ok) {
-      const data = await res.json();
+    const data = await bootData(await apiFetch('/api/v1/me/modules'), 'modules');
+    if (data) {
       state.modules = {
         enabled: new Set(data.enabled_modules || []),
         solePackage: data.sole_package || null,
@@ -4376,9 +4398,8 @@ function applyProductPathRouting() {
 
 async function fetchAndApplyPermissions() {
   try {
-    const res = await apiFetch('/api/v1/me/permissions');
-    if (res && res.ok) {
-      const data = await res.json();
+    const data = await bootData(await apiFetch('/api/v1/me/permissions'), 'permissions');
+    if (data) {
       state.permissions = {
         isAdmin: !!data.is_admin,
         isSuperAdmin: !!data.is_super_admin,
@@ -5099,21 +5120,17 @@ function setupAccountMenu() {
 // updates what this shows by itself, with no file to remember to edit.
 // ---------------------------------------------------------------------------
 
+// Public route, so a plain fetch rather than apiFetch: it still renders if a
+// tenant/permission call fails; no-store, to show the binary running now.
+// Stage 141.4: one request per page - shell-identity.js reads the same.
+function versionInfo() {
+  return (versionInfo.p ||= fetch('/api/v1/version', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).catch(() => null));
+}
+
 async function loadAppVersion() {
   const line = document.getElementById('app-version-line');
   if (!line) return;
-  let info;
-  try {
-    // Public route (see publicRoutes server-side), so a plain fetch rather
-    // than apiFetch: this should still render if a tenant/permission call
-    // fails. no-store because the whole point is to reflect the binary
-    // running right now, not what a cached response said before a deploy.
-    const res = await fetch('/api/v1/version', { cache: 'no-store' });
-    if (!res.ok) return;
-    info = await res.json();
-  } catch (_) {
-    return; // Offline or blocked: the line simply stays hidden.
-  }
+  const info = await versionInfo(); // offline or blocked: the line stays hidden
   if (!info || !info.version) return;
 
   // The sidebar carries the bare number. Everything else - the word
@@ -6668,7 +6685,7 @@ async function checkoutOnlineOrQueue(payload) {
     return null;
   }
   if (response.status === 429) {
-    showToast(await getErrorMessage(response, 'Rate limit exceeded. Please throttle your requests.'), { variant: 'warning', title: 'Rate Limit' });
+    await showRateLimitToast(response);
     return null;
   }
   return response;

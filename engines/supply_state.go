@@ -26,7 +26,8 @@ import (
 //     column stays (additive rule) and is stored false.
 //
 // Vendors already saved without a state, and POs already saved, keep what
-// they hold until they are saved again.
+// they hold until they are saved again. 49.5.6e adds the billing store: a PO
+// billed to a store with no state is refused at the same places.
 
 // ruleMandatoryFields are required by a business rule, not only by the
 // field's own Mandatory setting, so the field editor cannot make them
@@ -40,23 +41,82 @@ var ruleMandatoryFields = map[string]map[string]bool{
 // state recorded.
 const POVendorNoStateCode = "PURCHA-4961"
 
+// POStoreNoStateCode (49.5.6e) is the refusal of a purchase order whose
+// billing store has no state: neither a GSTIN or State on its legal entity nor
+// a State of its own (buyerStateCode).
+const POStoreNoStateCode = "PURCHA-4965"
+
+// serverSetFields are stored by the server on every save and ignored from the
+// client, so the record form neither shows nor sends them (49.5.6e: the PO's
+// two supply-type ticks, which ApplyPlaceOfSupply always sets).
+var serverSetFields = map[string]map[string]bool{
+	"PurchaseOrder": {"interstate": true, "interstate_override": true},
+}
+
 func init() {
 	RegisterApprovalSubmitCheck("PurchaseOrder", func(tenantID, docID string, data map[string]interface{}) error {
-		return RequirePOVendorState(tenantID, data)
+		return RequirePOStates(tenantID, data)
 	})
 }
 
 // validateSupplyStateDocument is ValidateDocument's purchase order step: the
-// vendor must have a state, and the supply type is then derived.
+// vendor and the billing store must have a state, and the supply type is then
+// derived.
 func validateSupplyStateDocument(tenantID, doctype string, docData map[string]interface{}) error {
 	if doctype != "PurchaseOrder" {
 		return nil
 	}
-	if err := RequirePOVendorState(tenantID, docData); err != nil {
+	if err := RequirePOStates(tenantID, docData); err != nil {
 		return err
 	}
 	ApplyPlaceOfSupply(tenantID, docData)
 	return nil
+}
+
+// RequirePOStates is both state checks a purchase order needs before its GST
+// split can be worked out: the vendor's, then the billing store's.
+func RequirePOStates(tenantID string, po map[string]interface{}) error {
+	if err := RequirePOVendorState(tenantID, po); err != nil {
+		return err
+	}
+	return RequirePOStoreState(tenantID, po)
+}
+
+// RequirePOStoreState (49.5.6e, user 2026-10-29: "all recommended") refuses a
+// purchase order billed to a store with no state - it was saved as intra-state
+// before. A blank or unknown store is left to the mandatory and link checks.
+// The PO screen asks for the missing state and saves it to the store (126.2).
+func RequirePOStoreState(tenantID string, po map[string]interface{}) error {
+	location := strings.TrimSpace(strField(po, "location"))
+	if location == "" || db.DB == nil {
+		return nil
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	var code, name string
+	err = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT COALESCE(data->>'code', ''), COALESCE(data->>'name', '')
+		  FROM %s.documents
+		 WHERE doctype = 'Location' AND deleted_at IS NULL AND (id = $1 OR data->>'code' = $1)
+		 LIMIT 1`, schema), location).Scan(&code, &name)
+	if err == sql.ErrNoRows {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	state, err := buyerStateCode(tenantID, location)
+	if err != nil || state != "" {
+		return err
+	}
+	label := firstNonEmpty(strings.TrimSpace(name), code, location)
+	if c := firstNonEmpty(code, location); c != label {
+		label = fmt.Sprintf("%s (%s)", label, c)
+	}
+	return &ValidationError{Code: POStoreNoStateCode, SubFor: "Store", Message: fmt.Sprintf(
+		"Store %s has no state - add its State on the store (or a GSTIN on its legal entity), then save the purchase order again", label)}
 }
 
 // RequirePOVendorState refuses a purchase order whose vendor has neither a

@@ -352,6 +352,10 @@ func ApproveSupplyProposals(tenantID, userID, storeCode string, in ApprovePropos
 			"target_warehouse": location, "items": string(itemsJSON), "total_amount": round2(total), "gst_mode": GSTModeExclusive,
 			"source_proposal_ids": strings.Join(ids, ","), "status": "Draft",
 		}
+		// 49.5.6e: not for a store with no state either.
+		if err := RequirePOStoreState(tenantID, po); err != nil {
+			return nil, err
+		}
 		ApplyPlaceOfSupply(tenantID, po) // 49.5.6b: the supply type is derived
 		if err := insert(numbers[0], "PurchaseOrder", po); err != nil {
 			return nil, err

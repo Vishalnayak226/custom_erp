@@ -2,7 +2,7 @@
 title: Release notes (part 2)
 section: Reference
 order: 26
-summary: Earlier releases, 2026-07-27 to 2026-09-17, continued from the release notes.
+summary: Earlier releases, 2026-07-27 to 2026-09-22, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,9 +19,29 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **92** earlier entries, 2026-07-27 to 2026-09-17.
+This page continues the [release notes](release-notes.md) with **96** earlier entries, 2026-07-27 to 2026-09-22.
+
+## 2026-09-22
+
+**Stage 50 — BLD-017 (economic property/metamorphic tests) built and verified, GST rounding bug found and fixed** *(code + tests + docs)*
+
+Continuation of the same session as §160. Two other things closed first, both quick: re-asked and got the BLD-002 DECISION half from the product/QA owner (both reference candidates approved as drafted; Chromium/3-viewport/en-IN accepted as the release bar; a tenant-size dimension approved and defined as three tiers reusing the existing `tenant_limits`/`CheckTenantLimit` mechanism keyed on `max_users`; module/role subsets proposed per candidate with a stated gap — see `bld-002-test-configuration-inventory.md` §9 and the build checklist's BLD-002 entry; unblocks BLD-020). HEAD unchanged at `82f5517`; nothing committed.
+
+## 2026-09-18
+
+**Stage 50 — POSCart/override decision implemented, BLD-010/011 live-verified, two new focus/keyboard gaps found and fixed** *(code + tests)*
+
+Continued §157's build thread: the two items it left open (§157's own "one new finding" and BLD-010/011's live verification). HEAD unchanged at `82f5517`; nothing committed. All verification against a fresh, disposable PostgreSQL 16.3 cluster on loopback port 5461 (deliberately new rather than reusing the 2026-09-17 session's still-running :5460 cluster, whose bootstrap role name could not be determined) plus a scratch `erp-server` on port 8462, never shared dev/production.
 
 ## 2026-09-17
+
+**Stage 50 BLD-001–014 (Wave 0/1) built and verified, plus AUD-03/04 fixed and one new finding** *(code + tests)*
+
+Executed the build checklist's next-thread prompt from §156: BLD-001's isolated environment, then the full BLD-003–014 release-blocker batch. HEAD unchanged at `82f5517`; nothing committed. All work verified against a disposable PostgreSQL 16.3 cluster on loopback port 5460 (four independently fresh-migrated databases across the session), never the shared dev DB or the frozen 2026-09-16 audit fixture on 5446/8178.
+
+**Stage 50 build checklist and new-thread handoff** *(planning only)*
+
+Prepared the detailed build and acceptance checklist at the user's request: 60 work packages in ten dependency-ordered waves, 23 business reference journeys and eight explicit candidate-domain decisions. Each work package identifies responsible roles, readiness/prerequisites, implementation scope and observable closure criteria. All 136 audit controls, nine defects, two verification findings, twelve package proposals, eight performance proposals and twelve Stage 48 parent gates are mapped. The live TODO now links the detailed queue through 50.11–50.19 and records only checklist preparation as complete (50.6b).
 
 **Stage 50.7 (partial) — AUD-01/AUD-02/AUD-05 fixed and verified** *(code + tests)*
 

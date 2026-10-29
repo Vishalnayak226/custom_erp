@@ -230,6 +230,10 @@ body {
 
 .brand-logo-dark { display: var(--logo-dark-display); }
 
+/* Stage 141.3: set by theme-boot.js from the last brand, before first paint */
+[data-brand="client"] .brand-logo, [data-brand="client"] .brand-symbol { visibility: hidden; }
+[data-brand="client"] .login-screen { padding-top: 60px; }
+
 .brand-link {
   display: inline-flex;
   align-items: center;

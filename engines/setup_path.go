@@ -30,6 +30,13 @@ type SetupPathStep struct {
 	// holds the setup open.
 	Note     string `json:"note"`
 	Optional bool   `json:"optional,omitempty"`
+	// Stage 47.12.4: readiness is not row count (setup_readiness.go). Done
+	// above stays the guided setup's progress; State is whether what was
+	// entered passes its checks.
+	State            string       `json:"state"`
+	Severity         string       `json:"severity,omitempty"`
+	Checks           []SetupCheck `json:"checks"`
+	ValidatorVersion string       `json:"validator_version"`
 }
 
 // Stage 91.3 (decided 2026-10-21): the guided setup walks these in the
@@ -85,6 +92,8 @@ func GetSetupPath(tenantID string) ([]SetupPathStep, error) {
 	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.documents WHERE doctype = 'LegalEntity' AND deleted_at IS NULL
 		AND COALESCE(status, 'Active') = 'Active' AND COALESCE(data->>'gstin', '') = ''`, schema)).Scan(&noGSTIN)
 
+	readiness := &setupReadiness{schema: schema, country: TenantPhoneCountry(tenantID)}
+
 	steps := make([]SetupPathStep, len(setupPathPlan))
 	done := map[string]bool{}
 	for i, plan := range setupPathPlan {
@@ -118,8 +127,32 @@ func GetSetupPath(tenantID string) ([]SetupPathStep, error) {
 				}
 			}
 		}
+		// Stage 47.12.4: what the step's records are held to.
+		switch step.ID {
+		case "entity":
+			step.Checks = readiness.legalEntityChecks()
+		case "locations":
+			step.Checks = readiness.locationChecks()
+		case "tax":
+			step.Checks = readiness.taxChecks(active["HSNCode"])
+		case "numbering":
+			step.Checks = readiness.numberingChecks(series)
+		case "users":
+			step.Checks = []SetupCheck{setupExists("users-second", "Someone besides the first administrator can sign in", users-1, "user")}
+		case "approvals":
+			step.Checks = []SetupCheck{setupExists("approvals-rule", "At least one approval rule", rules, "approval rule")}
+		case "items":
+			step.Checks = readiness.itemChecks(active["Item"])
+		default:
+			step.Checks = countChecks(step, active)
+		}
+		step.ValidatorVersion = SetupValidatorVersion
+		step.State, step.Severity = setupStepState(step, readiness.pending(step.Doctypes))
 		done[step.ID] = step.Done
 		steps[i] = step
+	}
+	if readiness.err != nil {
+		return nil, readiness.err
 	}
 	nextMarked := false
 	for i := range steps {

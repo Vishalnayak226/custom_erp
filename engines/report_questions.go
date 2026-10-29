@@ -28,6 +28,7 @@ var reportQuestions = map[string]reportQuestion{
 	"payables-ageing":         {"What do we owe suppliers for goods received, and for how long?", "Goods received and not yet paid, per receipt, by age from the bill's due date (else the receipt date); part-payments are taken off. Control totals tie it to 2100 GRN Suspense."},
 	"po-commitments":          {"What have we committed to buy, and how old is it?", "Approved purchase orders not yet closed, by age. These are commitments, not ledger liabilities - the control totals say so."},
 	"customer-ledger":         {"What has this customer been invoiced?", "Customer invoices with status and amount."},
+	"receivables-vs-ledger":   {"Which invoices disagree with the receivables ledger?", "Each posted customer invoice's amount still owed beside its 1300 balance, and every 1300 posting no invoice accounts for, with what each difference suggests."},
 	"vendor-ledger":           {"What have we ordered from this vendor?", "Purchase orders by vendor with status and amount."},
 	"dunning-queue":           {"Which overdue customers need chasing?", "Overdue invoices with their dunning stage."},
 	"cash-flow-forecast":      {"What cash is expected in and out?", "Expected receipts and payments by due date."},
@@ -57,7 +58,10 @@ var reportQuestions = map[string]reportQuestion{
 	"stock-ageing":             {"How old is the stock on the shelf?", "Stock by receipt batch and age."},
 	"reorder-suggestions":      {"What should we reorder?", "Items under their reorder level with the suggested quantity."},
 	"exception-negative-stock": {"Where has stock gone negative?", "Item and location pairs below zero."},
-	"batch-ageing":             {"Where is this batch, and how old is it?", "Batch lookup with its age and remaining quantity."},
+	// Stage 47.14.3: the home dashboard's two other default tiles.
+	"exception-stale-approvals": {"Which documents have waited too long for approval?", "Documents pending approval for longer than the threshold - 24 hours unless set - with the hours waited."},
+	"exception-failed-syncs":    {"Which integration messages failed to send?", "Outbox events marked Failed after their retries, newest first, with the attempts made."},
+	"batch-ageing":              {"Where is this batch, and how old is it?", "Batch lookup with its age and remaining quantity."},
 
 	// Buying.
 	"grn-register":   {"What have we received?", "Goods receipts with their purchase order and lines."},

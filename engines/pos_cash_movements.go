@@ -43,8 +43,11 @@ type POSSessionCash struct {
 	AdvancesOut float64 `json:"advances_out"`
 	// Tenders (Stage 85.E5) is what the session's bills took by tender, so
 	// the close shows card and UPI beside the counted cash.
-	Tenders  map[string]float64 `json:"tenders"`
-	Expected float64            `json:"expected_cash"`
+	Tenders map[string]float64 `json:"tenders"`
+	// HeldOffline (49.5.6d): cash taken for offline sales still waiting on
+	// validation - in the drawer and in Expected, but not yet a sale.
+	HeldOffline float64 `json:"held_offline"`
+	Expected    float64 `json:"expected_cash"`
 }
 
 // SessionCashPosition reads one session's drawer, every figure from the
@@ -80,6 +83,10 @@ func SessionCashPosition(tenantID, sessionID string) (*POSSessionCash, error) {
 		out.Tenders = t
 	}
 	out.Expected = round2(out.Opening + out.CashSales - out.CashRefunds + out.PaidIn - out.PaidOut - out.SafeDrops + out.AdvancesIn - out.AdvancesOut)
+	if out.HeldOffline, err = sessionHeldOfflineCash(schema, sessionID); err != nil {
+		return nil, err
+	}
+	out.Expected = round2(out.Expected + out.HeldOffline)
 	return out, nil
 }
 
@@ -220,6 +227,7 @@ func TakeOverPOSSession(tenantID, location, newCashier, newUserID string, counte
 // POSSessionCloseResult is what closing a session produced.
 type POSSessionCloseResult struct {
 	Expected          float64  `json:"expected_cash"`
+	HeldOffline       float64  `json:"held_offline,omitempty"` // 49.5.6d: in Expected
 	Variance          float64  `json:"variance"`
 	Status            string   `json:"status"`
 	OfflineGapCarts   []string `json:"offline_queue_gap,omitempty"`

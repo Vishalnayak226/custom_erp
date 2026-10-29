@@ -128,6 +128,11 @@ $holds = @()
 if (Test-Path $holdFile) {
     $holds = Get-Content $holdFile | ForEach-Object { ($_ -replace '#.*$', '').Trim() } | Where-Object { $_ }
 }
+# A docs run made with held work in the tree lists that work's outputs in these
+# manifests, and G7's orphan check then stops the release (2026-10-29: Stage
+# 140.12's report-catalog-4 page). G7 regenerates all three from the release
+# set, so with anything held the snapshot starts them from HEAD.
+if (@($holds).Count) { $holds = @($holds) + @('docs/generated/guides-manifest.json', 'docs/generated/kb-manifest.json', 'docs/generated/manuals-manifest.json') }
 function Test-Held([string]$path) {
     foreach ($h in $holds) {
         $pat = $h.Replace('\', '/')

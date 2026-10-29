@@ -95,8 +95,7 @@ func insertStockLedgerEntry(q interface {
 }, schema string, e StockLedgerEntry) error {
 	if e.IdempotencyKey != "" {
 		var exists bool
-		if err := q.QueryRow(fmt.Sprintf(
-			`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'StockLedgerEntry' AND data->>'idempotency_key' = $1)`, schema),
+		if err := q.QueryRow(fmt.Sprintf(stockLedgerKeyProbe, schema), // 47.9.3: index-served
 			e.IdempotencyKey).Scan(&exists); err != nil {
 			return err
 		}

@@ -256,9 +256,12 @@ the line grid states which and why (e.g. *"Inter-state (IGST) — vendor in
 Karnataka (29), billing entity in Maharashtra (27)"*). If either side's state
 can't be established, the banner turns amber and asks for the missing state
 of that vendor or store, with the state list and a **Save** that writes it to
-the record - no guessing tick. On a derived answer, **Override** lets you set
-Inter-state by hand for that one PO, and the override sticks across later
-saves rather than being silently recomputed away.
+the record - no guessing tick. There is no override (49.5.6b): the derived
+answer always decides, and `interstate` / `interstate_override` are set by the
+server on every save and not shown on the record form (49.5.6e). A PO whose
+vendor has no state is refused (`PURCHA-4961`), and so is one whose billing
+store has no state (`PURCHA-4965`) - on save, import, submit, RFQ award,
+supply proposal and bulk upload.
 
 ### Printing and sending
 

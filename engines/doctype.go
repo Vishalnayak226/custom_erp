@@ -55,6 +55,10 @@ type FieldMeta struct {
 	// reason: the generic form drops the duplicate box instead of asking a
 	// user to type the same value twice into two identically-named fields.
 	Mirrored bool `json:"mirrored,omitempty"`
+	// ServerSet (49.5.6e) marks a field the server sets on every save and
+	// ignores from the client (serverSetFields) - the form drops it, as it
+	// drops a mirrored one.
+	ServerSet bool `json:"server_set,omitempty"`
 	// PickFrom names the doctype a plain Data field is resolved against on
 	// save (LocationReferenceFields), so the form offers that picker.
 	PickFrom string `json:"pick_from,omitempty"`
@@ -96,6 +100,7 @@ func GetDocTypeMeta(tenantID string, doctype string) ([]FieldMeta, error) {
 			f.NumberSeries, _ = DocumentNumberSeriesKey(doctype)
 		}
 		f.Mirrored = mirrored[f.Fieldname]
+		f.ServerSet = serverSetFields[doctype][f.Fieldname]
 		for _, lf := range LocationReferenceFields[doctype] {
 			if lf == f.Fieldname {
 				f.PickFrom = "Location"

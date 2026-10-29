@@ -20,7 +20,7 @@ screens: [reports]
 
 # Report catalog
 
-**421** reports across **26** categories, all reachable from
+**424** reports across **26** categories, all reachable from
 **Sales & Marketplace » Reports**.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -43,14 +43,14 @@ open the right page.
 ## Contents
 
 - [Accounting](#accounting) - 26 reports
-- [Admin](#admin) - 5 reports
+- [Admin](#admin) - 7 reports
 - [Assets](#assets) - 1 reports
 - [BI](#bi) - 1 reports
 - [CRM](#crm) - 33 reports
 - [E-commerce & Integration](#e-commerce-integration) - 12 reports
 - [Exceptions](#exceptions) - 6 reports
 - [Expense Management](#expense-management) - 11 reports
-- [Finance](#finance) - 36 reports
+- [Finance](#finance) - 37 reports
 - [GST & Compliance](#gst-compliance) - 8 reports
 - [HR](#hr) - 2 reports
 - [HRMS](#hrms) - 15 reports
@@ -425,6 +425,26 @@ open the right page.
 **Drill-down:** no.
 
 ## Admin
+
+### R9035 Duplicate items
+
+**Report id:** `duplicate-items`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Group · Code · Name · Why it matches · Proposal · Kept because · Transactions · Filled fields · Created
+
+**Drill-down:** no.
+
+### R9034 Duplicate suppliers
+
+**Report id:** `duplicate-suppliers`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Group · Code · Name · Why it matches · Proposal · Kept because · Transactions · Filled fields · Created
+
+**Drill-down:** no.
 
 ### R9027 Failed prints and fallbacks
 
@@ -1691,6 +1711,18 @@ open the right page.
 **Columns:** Age Bucket · Invoice Count · Outstanding Amount *(sensitive)*
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
+
+### R5086 Receivables vs Ledger (by invoice)
+
+**Report id:** `receivables-vs-ledger`
+
+**Parameters:**
+
+- **Include rows that agree** (`all`) - select, optional, one of: No,Yes
+
+**Columns:** Source · Document · Customer · Status · Owed per invoice *(sensitive)* · Owed per ledger (1300) *(sensitive)* · Difference *(sensitive)* · Ledger postings · Owner · What it suggests
+
+**Drill-down:** no.
 
 ### R5081 Refunds by method
 

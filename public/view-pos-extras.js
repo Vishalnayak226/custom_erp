@@ -554,6 +554,8 @@ function posCashBreakdown(p) {
   return `Float ${Number(p.opening_cash).toFixed(2)} + cash sales ${Number(p.cash_sales).toFixed(2)} - cash refunds ${Number(p.cash_refunds).toFixed(2)}`
     + ` + paid in ${Number(p.paid_in).toFixed(2)} - paid out ${Number(p.paid_out).toFixed(2)} - safe drops ${Number(p.safe_drops).toFixed(2)}`
     + (p.advances_in || p.advances_out ? ` + advances ${Number(p.advances_in || 0).toFixed(2)} - advance refunds ${Number(p.advances_out || 0).toFixed(2)}` : '')
+    // 49.5.6d: cash for offline sales still waiting on POS > Offline Sales.
+    + (p.held_offline ? ` + held offline sales ${Number(p.held_offline).toFixed(2)}` : '')
     + ` = ${Number(p.expected_cash).toFixed(2)} expected.`
     // Stage 85.E5: what the session's bills took by each tender - card and
     // UPI to tally with the terminal and the bank, cash counted above.
@@ -594,6 +596,8 @@ export async function closePOSSessionFlow(t) {
   }
   const data = await res.json();
   let msg = `Expected: ${Number(data.expected_cash).toFixed(2)}, Counted: ${Number(data.counted_cash).toFixed(2)}, Variance: ${Number(data.variance).toFixed(2)}`;
+  // 49.5.6d: part of Expected is cash for offline sales not yet validated.
+  if (data.held_offline) msg += `\nExpected includes ${Number(data.held_offline).toFixed(2)} for offline sales waiting on POS > Offline Sales.`;
   if (data.status === 'Pending Approval') {
     msg = `The count is off by more than the tolerance, so a ${data.required_role || 'manager'} has to accept it under Approvals before the session counts as closed. Nothing more can be sold on it.\n\n${msg}`;
   }

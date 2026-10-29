@@ -31,6 +31,7 @@ func retentionDelete(tenantID, schema, table, where string, args ...interface{})
 	if held, err := tenantLegalHold(tenantID); err != nil || held {
 		return 0, err
 	}
+	where = withSecurityLogFloor(table, where) // 47.16.3: CERT-In's 180 days
 	stmt := fmt.Sprintf(`DELETE FROM %[1]s.%[2]s WHERE ctid IN (SELECT ctid FROM %[1]s.%[2]s WHERE %[3]s LIMIT %[4]d)`,
 		schema, table, where, retentionBatchRows)
 	var total int64

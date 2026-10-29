@@ -362,10 +362,10 @@ func TestApplyAndRevertRoleTemplateMigration(t *testing.T) {
 		t.Error("the migration was not recorded in the ledger")
 	}
 
-	if err := RevertRoleTemplateMigration("default", migrationID, ""); err == nil {
+	if _, err := RevertRoleTemplateMigration("default", migrationID, ""); err == nil {
 		t.Error("an unattributed revert must be refused")
 	}
-	if err := RevertRoleTemplateMigration("default", migrationID, "tester"); err != nil {
+	if _, err := RevertRoleTemplateMigration("default", migrationID, "tester"); err != nil {
 		t.Fatalf("RevertRoleTemplateMigration: %v", err)
 	}
 	restored, err := StoredRoleGrants("default", role)
@@ -375,7 +375,7 @@ func TestApplyAndRevertRoleTemplateMigration(t *testing.T) {
 	if len(restored) != 0 {
 		t.Errorf("revert left %d grants behind - it must restore the exact prior state, including 'none'", len(restored))
 	}
-	if err := RevertRoleTemplateMigration("default", migrationID, "tester"); err == nil {
+	if _, err := RevertRoleTemplateMigration("default", migrationID, "tester"); err == nil {
 		t.Error("reverting twice must be refused")
 	}
 }

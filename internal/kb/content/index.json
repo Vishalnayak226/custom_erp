@@ -3161,6 +3161,16 @@
             },
             {
               "level": 3,
+              "text": "R9035 Duplicate items",
+              "slug": "r9035-duplicate-items"
+            },
+            {
+              "level": 3,
+              "text": "R9034 Duplicate suppliers",
+              "slug": "r9034-duplicate-suppliers"
+            },
+            {
+              "level": 3,
               "text": "R9027 Failed prints and fallbacks",
               "slug": "r9027-failed-prints-and-fallbacks"
             },
@@ -3693,6 +3703,11 @@
               "level": 3,
               "text": "R5075 Receivables Ageing",
               "slug": "r5075-receivables-ageing"
+            },
+            {
+              "level": 3,
+              "text": "R5086 Receivables vs Ledger (by invoice)",
+              "slug": "r5086-receivables-vs-ledger-by-invoice"
             },
             {
               "level": 3,
@@ -5329,6 +5344,11 @@
           "headings": [
             {
               "level": 2,
+              "text": "2026-10-29",
+              "slug": "2026-10-29"
+            },
+            {
+              "level": 2,
               "text": "2026-10-28",
               "slug": "2026-10-28"
             },
@@ -5451,16 +5471,6 @@
               "level": 2,
               "text": "2026-09-22",
               "slug": "2026-09-22"
-            },
-            {
-              "level": 2,
-              "text": "2026-09-18",
-              "slug": "2026-09-18"
-            },
-            {
-              "level": 2,
-              "text": "2026-09-17",
-              "slug": "2026-09-17"
             }
           ]
         },
@@ -5469,7 +5479,7 @@
           "title": "Release notes (part 2)",
           "section": "Reference",
           "order": 26,
-          "summary": "Earlier releases, 2026-07-27 to 2026-09-17, continued from the release notes.",
+          "summary": "Earlier releases, 2026-07-27 to 2026-09-22, continued from the release notes.",
           "audience": "everyone",
           "last_verified": "2026-09-10",
           "owner": "documentation-maintainer",
@@ -5481,6 +5491,16 @@
           "applies_to": "source registries; not release acceptance",
           "source_path": "reference/release-notes-2.md",
           "headings": [
+            {
+              "level": 2,
+              "text": "2026-09-22",
+              "slug": "2026-09-22"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-18",
+              "slug": "2026-09-18"
+            },
             {
               "level": 2,
               "text": "2026-09-17",

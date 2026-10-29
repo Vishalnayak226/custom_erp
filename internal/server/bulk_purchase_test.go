@@ -113,6 +113,7 @@ func TestBulkPurchaseMakesPOsAndNothingTwice(t *testing.T) {
 	if id, _, err := probe.resolveLink("Location", "HO"); err != nil || id == "" {
 		t.Skip("the test database has no store HO")
 	}
+	storeHasState(t, "HO") // 49.5.6e
 	sfx := fmt.Sprint(time.Now().UnixNano() % 1e9)
 	vendor, category, ref := "BP Vendor "+sfx, "BPCat"+sfx, "BPT-"+sfx
 	schema, _ := db.GetTenantSchema("default")

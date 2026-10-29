@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -276,6 +277,17 @@ func runClaimedJobsContext(ctx context.Context, schema string) {
 		var result map[string]interface{}
 		func() {
 			defer BindPostingActor(PostingActor{PostedBy: "service:job", SourceCommand: "job:" + job.JobType})()
+			// Stage 49.8.8: a poison job - one whose payload makes its handler
+			// panic - is a failed attempt like any other: retried with backoff,
+			// then dead-lettered. Unrecovered, the panic ended the worker
+			// goroutine and with it the whole server process, and the job,
+			// still Leased, was claimed again after the restart.
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("[JOBRUNNER] job %s (%s) panicked: %v\n%s", job.ID, job.JobType, r, debug.Stack())
+					result, err = nil, fmt.Errorf("job handler panicked: %v", r)
+				}
+			}()
 			result, err = handler(jobCtx, schema, job)
 		}()
 		cancel()

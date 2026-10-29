@@ -1278,7 +1278,9 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
     // asking for it here would be asking the user to type the same value into
     // a second identically-named required box. The flag is computed from the
     // registry that does the copying, not from a doctype list kept here.
-    if (f.mirrored) continue;
+    // f.server_set (49.5.6e): the server sets it on every save and ignores
+    // what is sent - the PO's supply-type ticks.
+    if (f.mirrored || f.server_set) continue;
 
     // f.auto_generated (Stage 30.6) is stamped on by the server for the
     // document-number fields it issues itself, so this form stops asking for
@@ -1862,8 +1864,8 @@ async function handleDynamicFormSubmitInner(form) {
     if (f.fieldname === 'id') return;
     // Mirrored fields (30.5.6) have no input on the form - the server fills
     // them from their primary. Sending an empty string would overwrite the
-    // copy it just made.
-    if (f.mirrored) return;
+    // copy it just made. Nor server-set ones (49.5.6e).
+    if (f.mirrored || f.server_set) return;
     // Stage 30.6: f.auto_generated joins PurchaseRequisition as a field the
     // server numbers during the save itself, so it must not be routed to the
     // admin-only /api/v1/sequence endpoint below (a Store Manager creating a

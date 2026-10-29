@@ -118,6 +118,9 @@ func forecastTable(tenantID, schema string, s StateStore) (StateForecast, bool, 
 		default:
 			f.RetentionDays = n
 		}
+		if _, floored := securityLogAgeColumns[s.Name]; floored && f.RetentionDays > 0 && f.RetentionDays < SecurityLogMinRetentionDays {
+			f.RetentionDays = SecurityLogMinRetentionDays // 47.16.3: the sweep keeps a security log this long whatever the setting says
+		}
 	}
 	project := func(years int) int64 {
 		days := float64(365 * years)

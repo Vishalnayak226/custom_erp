@@ -76,6 +76,7 @@ func TestStage104POEditWithoutNumberFieldsSaves(t *testing.T) {
 		($2, 'PurchaseOrder', '{"code":"PO-T104-EDIT-1","po_number":"PO-T104-EDIT-1","vendor":"T104-VENDOR","vendor_id":"T104-VENDOR","location":"HO","target_warehouse":"HO","items":"[]","total_amount":0}', 'Draft', 'admin')`, vendorID, poID); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
+	storeHasState(t, "HO") // 49.5.6e: a PO's store needs a state
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/doc/{doctype}/{id}", apiMiddleware(handleGenericDoc))
 	token := engines.SignToken("admin", "admin", engines.RoleSuperAdmin, "default", "HO", currentCredentialVersion("admin"))

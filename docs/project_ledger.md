@@ -44,7 +44,51 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
-## 303. Stage 135.21-135.26 — every posting under its document's lock; provisioning seeds stock locations; PIM publishes to Shopify linked (2026-10-28, code + tests + docs, NOT COMMITTED - held in release/hold.txt)
+## 307. The erp-d3 follow-ups: offline sales on the till's day, held offline cash in the drawer, SKU scans, no PO for a stateless store (2026-10-29, code + tests + docs; NOT COMMITTED)
+
+The user's *"all recommended"* on the six follow-up decisions of §304 (micro_checklist 49.5.6d, 49.5.6e, 47.11.8b).
+
+- **Offline sales (49.5.6d).** The till's exact match takes the SKU of an item with no barcode (its sticker prints it), so it counts as scanned. Pending offline sales' cash is its own `held_offline` line in the X-report and the till close, and in expected cash. A validated sale's GL rows, stock ledger lines and bill take the till's sale time - the backdated-JV pattern (73.D.16) - or today when that day is in a Closed period; the audit row says which.
+- **PO (49.5.6e).** A PO billed to a store with no state is refused (PURCHA-4965) wherever a stateless vendor is; the record form drops the two supply-type ticks (`FieldMeta.server_set`). No migration gives the seed HO a state - that would be guessing a live client's data; the 126.2 banner asks on the first PO.
+- **Courier (47.11.8b):** the Delhivery reference stays the booking id; the rest of that item is not started.
+- **Shared files:** the X-report / close lines sit in two of Stage 140.12's held files; `release/hold.txt` says how to ship them.
+
+Verified: `TestStage4956d*` (4), `TestStage4956ePOStoreStateIsRequired`, the earlier 49.5.6a/b tests; full `go test ./... -p 1` on `custom_erp_dec_full` - green except Stage 140.12's held work (clock-day guard, personal-data register, worker inventory, control-totals role) and `TestAttackSurfaceManifestIsCurrent` (G6), after three fixtures got a store state. Content docs, brain (100%) and graph regenerated.
+
+## 306. Stage 141 — Wholeops beside a client's brand; refreshes that keep the brand and the menu; a rate limit sized for real use (2026-10-29, code)
+
+From the user's minn screenshots (branding on: Wholeops only as grey foot text), their pick of four real-screenshot mockups (*"c1 b2"*), and a video of repeated refreshes on app.wholeops.in. Full detail in checklist Stage 141.
+
+- **141.1:** sign-in page - a slim Wholeops strip across the top, the client's logo left-aligned in the card; app - client logo | divider | "Powered by" over the Wholeops logo in the menu head (and beside ☰ while the menu is hidden; phone: client logo only). The foot lines are gone. All in the lazy `shell-identity.js`.
+- **141.3:** the video's symptoms were all refused calls: one Configuration load is 16 "default" calls and 60/min ran out, so branding never landed (Wholeops stayed), the module and permission calls came back empty (menu shrank, "Unavailable"), and the foot line arriving late moved the account chip. Now the last brand is remembered and applied before first paint (`theme-boot.js` `data-brand` + accent), and the menu falls back to this browser's last good modules/permissions when a call gets no answer.
+- **141.4:** signed-in sessions get 300 "default" calls a minute (signed out 60, login 5), the shell's version/branding reads their own bucket, one `/api/v1/version` per page, one Rate Limit toast per 20 s.
+- Verified: new rate-limit test, vet, shell tests; Playwright replays of the video (8 refreshes in 25 s, then branding/modules/permissions forced to 429, then branding switched off) and the final layout in light and dark, desktop, menu hidden and phone. Cold core 182,420 / 184,320.
+
+## 305. "Build next 20 items" (session erp-5e): twenty Stage 47 / 49 slices - privilege-change evidence, two hostile clients, insider scenarios, GST / Companies Act controls, receivables vs ledger, synthetic tenants, slow-query shapes, CERT-In logs, a secret scan (2026-10-29, code + tests + docs; NOT COMMITTED, held)
+
+The user's "Build next 20 items except 140's list" (2026-10-28). Everything open outside Stages 47 / 49 waited on the user, a device, a credential, a decision or another session, so the run took the twenty Stage 47 / 49 items no run had touched that have a self-contained slice: 47.9.1, 47.9.3, 47.12.4, 47.13.2, 47.13.5, 47.14.3, 47.14.4, 47.16.1, 47.16.3, 47.16.4, 47.18.2, 49.3.6, 49.3.7, 49.5.5, 49.5.7, 49.6.2, 49.6.6, 49.8.8, 49.10.3, 49.10.6. Item detail: each item's entry in micro_checklist, and the run header under erp-d3's decisions block. All twenty are built in part; what is left is on each.
+
+- **Bugs found and fixed:** a job whose handler panics took the whole server down (49.8.8, `jobrunner.go` recover); undoing a role-template migration restored removed dangerous grants and wiped later changes (49.3.7); 57 refusals showed a literal `{field name}` (47.14.4); a posted invoice / note / voucher could be saved as Cancelled, a POS bill saved as Paid through the record API, and the Super-Admin scale test deleted the client's whole ledger (47.16.4); a Paid-cart replay dropped the paise (49.5.7); the keyed stock-ledger replay check read the whole ledger on each write, 84 ms -> 5 ms (47.9.3).
+- **New:** role-change evidence table (`migrations_stage49_3_6_role_grant_changes.sql`, additive) with preview, session sign-out on a dangerous reduction and a safe rollback; reports Receivables vs Ledger (R5086), Duplicate suppliers (R9034), Duplicate items (R9035); the import column guide (`?variant=dictionary`); setup readiness states; KPI contracts on dashboard results; the error envelope's `saved` line; a 180-day floor on security logs; a slow-query sampler (`ERP_SLOW_QUERY_MS`, 15 s, memory only); `cmd/synthtenant`; register / matrix / scan tests (personal-data register, compliance matrix, committed-secret scan); docs `compliance-control-matrix`, `cert-in-log-inventory`, `gst-companies-act-controls`, `insider-scenarios`, `storage-forecast`.
+- **Way of working.** Four agents, five items each, in their own worktrees at HEAD 9a008cf; combined in `%TEMP%\erp-5e-wt`, moved onto 0.19.0 (`efc6403`) in `%TEMP%\erp-5e-wt2` (one conflict, one duplicate test helper), then copied into the main tree and listed in `release/hold.txt` (section "erp-5e next 20 batch"). Three agents stopped on the usage limit and were resumed.
+
+Verified: full `go test ./... -p 1` on fresh `custom_erp_5e_full3` (efc6403 + this batch, 307 migrations from empty): green except `TestAttackSurfaceManifestIsCurrent` (one migration, one worker - G6 regenerates) after four fixes of the batch's own (three report numbers, the reset classification of the new table, a CRLF-safe doc test). In the main tree (fresh `custom_erp_5e_main`): the batch's tests and their neighbours green; the two failures there are Stage 140.12's uncommitted work (a worker missing from the BLD-044 inventory, `AcquirerSettlement.bank_line` without a personal-data register row). Needs the user: approve the batch; the decisions listed on 47.16.4 (G1-G6), 49.3.7 (Store Manager's HR / finance grants), 49.6.2 (five minimisation questions), 49.10.6 (unencrypted media copy, unsigned binary, one-person purge), 47.16.1 (should an overdue review fail the build), 47.13.2 (update replaces vs merges).
+
+## 304. The erp-d3 decisions: offline sales validated before they post, vendor state required, unknown client codes refused, nothing booked twice, per-client date order, outside calls switch (2026-10-28, code + tests + docs; released in 0.19.0 `efc6403`)
+
+The user answered the eight decisions the "next 20" run (§300) left open; item detail: micro_checklist block "User, 2026-10-28: answers to the erp-d3 decisions" (49.5.6a-e, 49.3.2a, 49.2.1a, 47.11.8a-b, 47.14.2a, 49.8.7a, 49.10.8a, 49.3.4b).
+
+- **Offline sales (49.5.6a).** `offline_synced` no longer posts: the sale is held in `pos_offline_sales` and a manager validates it on the new POS → Offline Sales screen, where every line's scanned code must be that item's ERP barcode and the validator can't be the cashier. Validate replays it through the normal checkout; Reject never posts.
+- **PO and production (49.5.6b / c).** Vendor State always required; a PO for a stateless vendor is refused on every path; the supply type is always derived and the free override is gone. Accepting a BOM change is action-only, with a reason and an audit row.
+- **Unknown client code (49.3.2a).** `db.GetTenantSchema` no longer falls back to the default client; a no-session request naming an unregistered client gets SAAS-0188.
+- **Courier (47.11.8a).** The booking is claimed with a reference before the call; an uncertain one keeps its claim, a retry asks the courier first or waits for **Resolve**; two partial unique indexes make a second live AWB impossible.
+- **Date order (47.14.2a), outside calls (49.8.7a), store switch (49.2.1a), disclosure (49.10.8a).** Setting `localization.date_order` (day-first default) for saves, imports, bulk purchase and prints; one outside-calls gate with a per-client setting, off in development except loopback; a store switch counts as activity; coordinated disclosure in the finding register, with F-12 - F-20 added.
+- **Found, recorded:** 49.5.6d / 49.5.6e (decisions with recommended answers), 47.11.8b (pickup / cancel retry guard), 49.3.4b (an import update wipes server-kept keys).
+- **Way of working.** Five agents built in the main tree beside four other sessions, each told which other sessions' lines sat in its files; the lead took the three small items. The user's "Push all and deploy all" in erp-cd shipped this with §300's batch in 0.19.0.
+
+Verified: each item's own tests plus the existing tests of the code it touched; live checks of the offline screen and the courier Resolve on scratch servers; the full suite on fresh `custom_erp_dec_full` green for these items except `pos_offline_sales` missing from tenant reset (closed by erp-cd before the release); erp-cd's release suite green.
+
+## 303. Stage 135.21-135.26 — every posting under its document's lock; provisioning seeds stock locations; PIM publishes to Shopify linked (2026-10-28, code + tests + docs, released in 0.19.0 `efc6403`)
 
 The user: *"Yes, Acknowledged all as recommened"* - build 135.21 and 135.23, route Shopify channels in PIM Publish through the Shopify page (135.22), and the 135.10 / 135.18 answers confirmed. Item detail: micro_checklist 135.21-135.26.
 
@@ -54,7 +98,7 @@ The user: *"Yes, Acknowledged all as recommened"* - build 135.21 and 135.23, rou
 - **Found, recorded:** 135.24 (step GRN with a vendor credit note overpays by the note), 135.25 (one order settled under two settlement IDs - decision, recommended: refuse), 135.26 (bill part of a GRN payment and the job-work challan return still commit apart).
 - **Way of working.** Two sub-agents took 135.21 on disjoint files (stock / costing, finance / HR); each proved its tests on the old code with `git show HEAD:` copies (`go test -overlay`), so the shared tree was not touched; erp-d3, building in some of the same files, was told which lines to keep.
 
-Verified: 18 new tests, each failing on the old code (16 concurrency, the provisioning and the Shopify one); the agents' area runs (107 tests) green; migrate from empty on fresh `custom_erp_s135c` applies the backfill; the full suite on copies of that database: see handover §6.
+Verified: 18 new tests, each failing on the old code (16 concurrency, the provisioning and the Shopify one); the agents' area runs (107 tests) green; migrate from empty on fresh `custom_erp_s135c` applies the backfill; the full suite on copies of that database green apart from six failures in other sessions' then in-flight files (passed on to the releasing session; the 0.19.0 run was green).
 
 ## 302. Stage 140 — Guide runs the whole organisation cycle on app as user, BA, audit, accounts and customer (2026-10-28, live run + docs; no ERP code changed)
 
@@ -83,7 +127,7 @@ The user: *"Build next 20 items"*, then *"go ahead"*. Stages 47 / 49 / 50 had no
 
 Verified: about 60 new tests; full suite on fresh `custom_erp_n20full` in the worktree, green except `TestAttackSurfaceManifestIsCurrent` (one new sweep and one migration, which G6 regenerates) and the worktree-only CRLF checksum case; 135.12 / 135.15 clicked through in Chromium (scratch :8277). Needs the user: see the header's list.
 
-## 299. Stage 135.10-135.22 — decisions, stock integrity and locking (2026-10-27, code + tests + docs, NOT COMMITTED - held in release/hold.txt)
+## 299. Stage 135.10-135.22 — decisions, stock integrity and locking (2026-10-27, code + tests + docs, released in 0.19.0 `efc6403`)
 
 The user: *"Build all. All recommended one is approved"* - the open Stage 135 items, with the recommended answers to 135.10 and 135.18. Item detail: micro_checklist 135.10-135.22.
 

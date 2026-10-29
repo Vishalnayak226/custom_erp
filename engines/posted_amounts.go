@@ -41,11 +41,26 @@ var postedAmountRules = map[string]postedAmountRule{
 	"JournalVoucher":   {postedIn("Posted"), []string{"lines", "voucher_date", "currency", "exchange_rate"}},
 }
 
+// unpostingStatuses are the statuses that would say a posted document never
+// counted. Only an engine's own reversal may write them (in SQL, not here).
+var unpostingStatuses = map[string]bool{"Cancelled": true, "Draft": true, "Rejected": true, "Void": true, "Reversed": true}
+
 // validatePostedAmountsFrozen refuses a change to a posted document's money.
 func validatePostedAmountsFrozen(doctype, docID, priorStatus string, priorData, payload map[string]interface{}) error {
 	rule, ok := postedAmountRules[doctype]
 	if !ok || priorData == nil || !rule.posted(priorStatus, priorData) {
 		return nil
+	}
+	// Stage 47.16.4: nor can a save take it back out of the accounts. A
+	// posted invoice saved as Cancelled left its receivable and the GST it
+	// declared in the ledger while the invoice said it was gone - the
+	// instrument for that is a credit or debit note (CGST s.34) or the
+	// document's own reversal, each posting its own entry.
+	if s, sent := payload["status"]; sent && s != nil {
+		if status := strings.TrimSpace(fmt.Sprintf("%v", s)); status != priorStatus && unpostingStatuses[status] {
+			return &ValidationError{Code: "FIN-0844", Message: fmt.Sprintf(
+				"%s %s has posted to the accounts, so a save cannot make it %s - reverse it with a credit or debit note, or its own reversal", doctype, docID, status)}
+		}
 	}
 	for _, field := range rule.fields {
 		after, sent := payload[field]

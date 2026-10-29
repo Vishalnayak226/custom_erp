@@ -41,7 +41,7 @@ func TestSupplyProposalsStage73218(t *testing.T) {
 	}
 	const wh, store = "SP-WH", "SP-STORE"
 	for _, l := range []string{wh, store} {
-		insert(l, "Location", "Active", map[string]interface{}{"code": l, "name": l})
+		insert(l, "Location", "Active", map[string]interface{}{"code": l, "name": l, "state": "Maharashtra"}) // 49.5.6e
 	}
 	for _, i := range []struct {
 		sku  string

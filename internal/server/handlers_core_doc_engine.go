@@ -1934,6 +1934,10 @@ var actionOnlyStatuses = map[string][]string{
 	"VendorInvoice":    {"Matched", "MismatchHold", "Paid"},                                    // /procurement/vendor-invoice/match, pay
 	"ProductionOrder":  {"Material Issued", "In Process", "Completed"},                         // /manufacturing/issue-material, confirm-operation, complete
 	"PriceListVersion": {"Superseded"},                                                         // set when a newer version is approved (135.12)
+	// Stage 47.16.4: a till bill is Paid only by checkout, which takes the
+	// stock, posts the sale and issues the bill number; a save as Paid made
+	// a bill in the sales and GST figures with none of them.
+	"POSCart": {"Paid"}, // /checkout
 }
 
 func isActionOnlyStatus(doctype, s string) bool {

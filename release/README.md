@@ -78,7 +78,7 @@ A release problem these did not catch is a missing gate: add it to
 |---|---|---|
 | G0a Lock | one release at a time: `reports\release.lock` (pid + start time) taken atomically, freed on every exit; a lock whose process is gone is taken over | 2026-10-26: two queued runs went G0-G10 side by side and each stopped at G11 on the other's `index.lock` |
 | G0 Preflight | on main, nothing staged, not behind origin, tree quiet 10 min, Postgres up | 2026-10-18/19: sessions still writing files during a release |
-| G1 Snapshot | `%TEMP%` worktree at HEAD + shipped files; held paths left out | half-built report catalog nearly shipped (0.2.0) |
+| G1 Snapshot | `%TEMP%` worktree at HEAD + shipped files; held paths left out; with anything held, the guides / KB / manuals manifests start from HEAD (G7 regenerates them) | half-built report catalog nearly shipped (0.2.0); a manifest written with held work in the tree stopped G7 as "orphaned" (0.19.0, 2026-10-29) |
 | G2 Line endings | LF for text, never binaries, `i/mixed` manifests or `eol=crlf` files | `git apply` writes CRLF; four PNGs nearly corrupted (0.3.0) |
 | G3 gofmt | formats files whose HEAD copy was clean | 0.2.0 / 0.4.0 |
 | G4 Cache versions | bumps `VIEW_MODULE_VERSION` + `app.js?v=`, `styles.css?v=`, `qz-print.js?v=` | browsers kept old screens after a deploy (Stage 53.17); `qz-print.js` changed in 06547bb with no new `?v=` (Stage 137) |

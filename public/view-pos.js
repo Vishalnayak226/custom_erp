@@ -459,7 +459,11 @@ async function openPOSSessionFlow() {
 
 function posExactBarcode(rows, term) {
   const lower = term.toLowerCase();
-  return rows.find(r => String(r.barcode || '').toLowerCase() === lower || String(r.gtin || '').toLowerCase() === lower);
+  return rows.find(r => String(r.barcode || '').toLowerCase() === lower || String(r.gtin || '').toLowerCase() === lower)
+    // 49.5.6d: an item with no barcode carries its SKU on the sticker
+    // (sticker-studio.js: barcode || code), so its SKU scans like a barcode -
+    // and counts as scanned when an offline sale is validated.
+    || rows.find(r => !String(r.barcode || '').trim() && String(r.code || r.id || '').toLowerCase() === lower);
 }
 
 async function fetchPOSProductMatches(term) {
@@ -650,7 +654,7 @@ async function addResolvedItemToPOSCart(sku, name, scanned) {
     // shape entirely - the till neither collects nor sends a cost.
     // Stage 94.6: the scanned code rides along - a receipt-date barcode
     // names the receipt, so the server knows the MRP printed on it.
-    posCart.push({ sku, name: name || sku, available: sellable, withheld, heldText, qty: 1, salePrice: 0, referencePrice: 0, priceSource: '', overrideId: '', unpriced: false, barcode: scanned && scanned !== sku ? String(scanned) : '', scanned: scanned || '' });
+    posCart.push({ sku, name: name || sku, available: sellable, withheld, heldText, qty: 1, salePrice: 0, referencePrice: 0, priceSource: '', overrideId: '', unpriced: false, barcode: scanned && String(scanned).toLowerCase() !== String(sku).toLowerCase() ? String(scanned) : '', scanned: scanned || '' });
   }
   if (skuInput) { skuInput.value = ''; skuInput.focus(); }
   if (errorEl) errorEl.classList.add('hidden');

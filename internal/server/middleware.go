@@ -457,10 +457,23 @@ func rateLimitCategory(path, method string) (category string, limit int) {
 		(strings.HasPrefix(path, "/api/v1/procurement/purchase-order/") && strings.HasSuffix(path, "/images"))):
 		// Stage 95: dropping a folder of photos on a PO is one upload per file.
 		return "image-upload", 120
+	case method == "GET" && (path == "/api/v1/version" || path == "/api/v1/branding" || path == "/api/v1/branding/logo"):
+		// Stage 141.4: what every page load and the sign-in screen ask first -
+		// small, read-only and the same for everyone - in their own bucket, so
+		// refreshing can never leave a client without its logo or a screen
+		// without the build it runs.
+		return "shell", 300
 	default:
 		return "default", 60
 	}
 }
+
+// signedInDefaultLimit (Stage 141.4) is the "default" budget for a request
+// carrying a session this server signed. One load of a setup screen makes 16
+// such calls, so 60/min ran out after three or four refreshes (user video,
+// 2026-10-29) and the failed calls emptied the menu. 300/min is still a
+// per-session ceiling on a script; signed-out callers keep 60 and login keeps 5.
+const signedInDefaultLimit = 300
 
 func isImageReadPath(path string) bool {
 	if strings.HasPrefix(path, "/api/v1/images/") {
@@ -1037,6 +1050,9 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		limiterKey := ip + ":" + category
 		if fp := sessionFingerprint(r); fp != "" {
 			limiterKey += ":" + fp
+			if category == "default" {
+				limit = signedInDefaultLimit
+			}
 		}
 		if !globalLimiter.Allow(limiterKey, limit, time.Minute) {
 			if wait := globalLimiter.RetryAfter(limiterKey, time.Minute); wait > 0 {

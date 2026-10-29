@@ -1570,11 +1570,12 @@ func (b *bpRun) doPOs(pos []*bpPO) {
 		}
 		if !b.apply {
 			if po.out.Action == "new" {
-				// 49.5.6b: Apply would refuse a PO for a vendor with no state.
+				// 49.5.6b / 49.5.6e: Apply would refuse a PO for a vendor or a
+				// store with no state.
 				if err := engines.RequirePOVendorState(b.sw.c.tenantID, map[string]interface{}{"vendor": po.vendorID}); err != nil {
 					b.failPO(po, "the vendor has no state - add its State on the vendor in Wholeops, then upload again")
-				} else if ps := engines.ResolvePlaceOfSupply(b.sw.c.tenantID, po.storeID, po.vendorID); po.vendorID != "" && !ps.Derived {
-					po.out.Message = "CGST + SGST or IGST cannot be worked out (the store has no state) - it will be saved as within the state; check the PO"
+				} else if err := engines.RequirePOStoreState(b.sw.c.tenantID, map[string]interface{}{"location": po.storeID}); err != nil {
+					b.failPO(po, "the store has no state - add its State on the store in Wholeops, then upload again")
 				}
 			}
 			continue

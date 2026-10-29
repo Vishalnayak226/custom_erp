@@ -22126,6 +22126,120 @@
       "number": "R1026"
     },
     {
+      "id": "duplicate-suppliers",
+      "label": "Duplicate suppliers",
+      "category": "Admin",
+      "module_key": "reports",
+      "columns": [
+        {
+          "key": "group",
+          "label": "Group",
+          "sensitive": false
+        },
+        {
+          "key": "id",
+          "label": "Code",
+          "sensitive": false
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "sensitive": false
+        },
+        {
+          "key": "reasons",
+          "label": "Why it matches",
+          "sensitive": false
+        },
+        {
+          "key": "proposal",
+          "label": "Proposal",
+          "sensitive": false
+        },
+        {
+          "key": "rule",
+          "label": "Kept because",
+          "sensitive": false
+        },
+        {
+          "key": "references",
+          "label": "Transactions",
+          "sensitive": false
+        },
+        {
+          "key": "completeness",
+          "label": "Filled fields",
+          "sensitive": false
+        },
+        {
+          "key": "created",
+          "label": "Created",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R9034"
+    },
+    {
+      "id": "duplicate-items",
+      "label": "Duplicate items",
+      "category": "Admin",
+      "module_key": "reports",
+      "columns": [
+        {
+          "key": "group",
+          "label": "Group",
+          "sensitive": false
+        },
+        {
+          "key": "id",
+          "label": "Code",
+          "sensitive": false
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "sensitive": false
+        },
+        {
+          "key": "reasons",
+          "label": "Why it matches",
+          "sensitive": false
+        },
+        {
+          "key": "proposal",
+          "label": "Proposal",
+          "sensitive": false
+        },
+        {
+          "key": "rule",
+          "label": "Kept because",
+          "sensitive": false
+        },
+        {
+          "key": "references",
+          "label": "Transactions",
+          "sensitive": false
+        },
+        {
+          "key": "completeness",
+          "label": "Filled fields",
+          "sensitive": false
+        },
+        {
+          "key": "created",
+          "label": "Created",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R9035"
+    },
+    {
       "id": "consumption-by-cost-centre",
       "label": "Consumption by cost centre",
       "category": "Inventory",
@@ -23806,6 +23920,78 @@
       "question": "Why are goods rejected or sent back?",
       "description": "Rejected and damaged units at receipt and returns to vendors, by reason and vendor.",
       "number": "R2043"
+    },
+    {
+      "id": "receivables-vs-ledger",
+      "label": "Receivables vs Ledger (by invoice)",
+      "category": "Finance",
+      "module_key": "finance",
+      "columns": [
+        {
+          "key": "source",
+          "label": "Source",
+          "sensitive": false
+        },
+        {
+          "key": "document",
+          "label": "Document",
+          "sensitive": false
+        },
+        {
+          "key": "customer",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        },
+        {
+          "key": "book_outstanding",
+          "label": "Owed per invoice",
+          "sensitive": true
+        },
+        {
+          "key": "ledger_balance",
+          "label": "Owed per ledger (1300)",
+          "sensitive": true
+        },
+        {
+          "key": "difference",
+          "label": "Difference",
+          "sensitive": true
+        },
+        {
+          "key": "ledger_postings",
+          "label": "Ledger postings",
+          "sensitive": false
+        },
+        {
+          "key": "owner",
+          "label": "Owner",
+          "sensitive": false
+        },
+        {
+          "key": "hint",
+          "label": "What it suggests",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "all",
+          "label": "Include rows that agree",
+          "type": "select",
+          "options": "No,Yes",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Which invoices disagree with the receivables ledger?",
+      "description": "Each posted customer invoice's amount still owed beside its 1300 balance, and every 1300 posting no invoice accounts for, with what each difference suggests.",
+      "number": "R5086"
     },
     {
       "id": "cat-sales-register",
@@ -46323,6 +46509,8 @@
       ],
       "has_drill_down": false,
       "has_control_totals": false,
+      "question": "Which documents have waited too long for approval?",
+      "description": "Documents pending approval for longer than the threshold - 24 hours unless set - with the hours waited.",
       "number": "R9029"
     },
     {
@@ -46355,6 +46543,8 @@
       "params": null,
       "has_drill_down": false,
       "has_control_totals": false,
+      "question": "Which integration messages failed to send?",
+      "description": "Outbox events marked Failed after their retries, newest first, with the attempts made.",
       "number": "R9030"
     },
     {

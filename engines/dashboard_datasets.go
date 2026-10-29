@@ -425,6 +425,8 @@ type DatasetResult struct {
 	Previous  map[string]interface{}   `json:"previous,omitempty"`
 	Truncated bool                     `json:"truncated,omitempty"`
 	CachedAt  time.Time                `json:"cached_at"`
+	// Contract (Stage 47.14.3): what the figures mean, cover and rest on.
+	Contract KPIContract `json:"contract"`
 }
 
 // DatasetViewer is who asks: the role (money) and user (stores).
@@ -519,6 +521,11 @@ func RunDatasetQuery(tenantID string, v DatasetViewer, q DatasetQuery) (DatasetR
 		}
 	}
 	res.CachedAt = time.Now()
+	var viewerStores []string
+	if limited {
+		viewerStores = access.List()
+	}
+	res.Contract = buildKPIContract(ds, q, limited, viewerStores, res.CachedAt)
 	datasetCacheMu.Lock()
 	if len(datasetCache) >= datasetCacheMax {
 		datasetCache = map[string]datasetCacheEntry{}

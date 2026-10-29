@@ -1050,4 +1050,7 @@ var reportNumbers = map[string]string{
 	"z-report":                                                 "R1033",
 	"day-book":                                                 "R5084",
 	"customer-receipts":                                        "R5085",
+	"duplicate-suppliers":                                      "R9034",
+	"duplicate-items":                                          "R9035",
+	"receivables-vs-ledger":                                    "R5086",
 }

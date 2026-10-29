@@ -7,7 +7,7 @@
 > **Generated 2026-09-10.** This page is produced from `docs/micro_checklist.md` open items, `docs/product/erp-build-checklist.md` JRN table, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-BLD-002: the 336 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
+BLD-002: the 332 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
 
 | Journey | Reference configuration | Owner | Open | Needs decision | Blocked |
 |---|---|---|---:|---:|---:|
@@ -36,9 +36,9 @@ BLD-002: the 336 open checklist items reconciled into the business journeys they
 | JRN-23 knowledge/implementation | REF-RETAIL-IN, REF-WAREHOUSE-IN | Documentation/implementation; Stage 39/47.15/48.7 | 34 | 0 | 1 |
 | Cross-journey acceptance and audits | - | - | 70 | 3 | 8 |
 | Engineering housekeeping | - | - | 15 | 3 | 0 |
-| Unmapped - place these stages | - | - | 32 | 1 | 0 |
+| Unmapped - place these stages | - | - | 28 | 0 | 0 |
 
-**Unmapped:** Stage 140 (28), Stage 141 (4) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
+**Unmapped:** Stage 140 (28) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
 
 ## JRN-01 POS/store
 
@@ -419,7 +419,3 @@ BLD-002: the 336 open checklist items reconciled into the business journeys they
 - **140.12.26** WhatsApp and SMS are not ready on app
 - **140.12.27** Decisions from customer data
 - **140.13.1** Release, deploy, re-run Guide on app
-- **141.1** Where the Wholeops logo sits when a client's brand is on *(decision)*
-- **141.2** Real mockup images before building 141.1
-- **141.3** Refresh bugs
-- **141.4** Rate limit experience

@@ -75,6 +75,69 @@ type apiErrorBody struct {
 	CorrelationID string `json:"correlation_id,omitempty"`
 	Retryable     bool   `json:"retryable,omitempty"`
 	DisplayStyle  string `json:"display_style,omitempty"`
+	// Saved and SavedNote (Stage 47.14.4) are the "what saved / not saved"
+	// line of a refused change - see savedOutcome. Present only on an error
+	// answer to a request that tried to change something.
+	Saved     string `json:"saved,omitempty"`
+	SavedNote string `json:"saved_note,omitempty"`
+}
+
+// Stage 47.14.4: an error message answers four things in order - what
+// happened (error, detail), what was saved (saved, saved_note), the safe next
+// action (user_action) and the reference to quote (code, correlation_id).
+//
+// savedNotes are the only two sentences "saved" can carry, keyed so a client
+// can translate by key. A 4xx refusal is the request turned away before it
+// changed anything. A 5xx is a failure part-way that this server cannot vouch
+// for, so it says so - the safe next action at a till is "check before you
+// bill again", never a blind retry that sells the same goods twice.
+var savedNotes = map[string]string{
+	"no":      "Nothing was saved.",
+	"unknown": "It is not certain this was saved. Check before you try again, so nothing is entered twice.",
+}
+
+// savedOutcome returns the saved key and its sentence for an error answer,
+// or "" for a read (nothing to save) and for a non-error status.
+func savedOutcome(r *http.Request, status int) (string, string) {
+	if r == nil || status < 400 {
+		return "", ""
+	}
+	switch r.Method {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+	default:
+		return "", ""
+	}
+	key := "no"
+	if status >= 500 {
+		key = "unknown"
+	}
+	return key, savedNotes[key]
+}
+
+// placeholderFallbacks stand in for a catalog placeholder when the call site
+// named no value for it, so a user never reads a literal "{field name}"
+// (57 engine refusals use GLOBAL-0002 with no field named). The detail line
+// under the headline is what names the field.
+var placeholderFallbacks = map[string]string{
+	"{field name}":    "this field",
+	"{unique key}":    "details",
+	"{linked record}": "record",
+	"{status}":        "in progress",
+	"{channel}":       "this channel",
+	"{locale}":        "this language",
+	"{reason}":        "see the detail below",
+}
+
+func fillPlaceholders(message, subFor string) string {
+	if subFor != "" {
+		return placeholderRe.ReplaceAllString(message, subFor)
+	}
+	return placeholderRe.ReplaceAllStringFunc(message, func(p string) string {
+		if v, ok := placeholderFallbacks[p]; ok {
+			return v
+		}
+		return "this value"
+	})
 }
 
 // resolvedContext pulls the tenant/user/correlation context apiMiddleware
@@ -173,17 +236,17 @@ func writeAPIErrorDetail(w http.ResponseWriter, r *http.Request, code string, su
 	if !ok {
 		// Programmer error (typo'd code) - fail loudly in a way that's still
 		// a valid, consistent envelope rather than panicking mid-response.
+		saved, savedNote := savedOutcome(r, http.StatusInternalServerError)
 		writeResponse(w, http.StatusInternalServerError, apiErrorBody{
-			Error: "Unexpected error occurred.",
-			Code:  "GLOBAL-0302",
+			Error:     "Unexpected error occurred.",
+			Code:      "GLOBAL-0302",
+			Saved:     saved,
+			SavedNote: savedNote,
 		})
 		return
 	}
 
-	message := entry.UserMessage
-	if subFor != "" {
-		message = placeholderRe.ReplaceAllString(message, subFor)
-	}
+	message := fillPlaceholders(entry.UserMessage, subFor)
 
 	// Log the detail when there is one - it is strictly more informative than
 	// the generic headline the log used to record.
@@ -200,6 +263,7 @@ func writeAPIErrorDetail(w http.ResponseWriter, r *http.Request, code string, su
 	}
 
 	_, _, correlationID := resolvedContext(r)
+	saved, savedNote := savedOutcome(r, entry.HTTPStatus)
 	writeResponse(w, entry.HTTPStatus, apiErrorBody{
 		Error:         message,
 		Detail:        detail,
@@ -208,6 +272,8 @@ func writeAPIErrorDetail(w http.ResponseWriter, r *http.Request, code string, su
 		CorrelationID: correlationID,
 		Retryable:     entry.Retryable,
 		DisplayStyle:  entry.DisplayStyle,
+		Saved:         saved,
+		SavedNote:     savedNote,
 	})
 }
 
@@ -345,8 +411,11 @@ func writeAPIErrorGeneric(w http.ResponseWriter, r *http.Request, status int, me
 	}
 
 	_, _, correlationID := resolvedContext(r)
+	saved, savedNote := savedOutcome(r, status)
 	writeResponse(w, status, apiErrorBody{
-		Error: responseMessage,
+		Saved:     saved,
+		SavedNote: savedNote,
+		Error:     responseMessage,
 		// Stage 30.2.4: the catalog's UserAction is populated on all 302 rows
 		// and had never been sent to a client. No `detail` here on purpose -
 		// on a 4xx the caller's own specific message is already the headline,

@@ -7,7 +7,7 @@
 > **Generated 2026-09-10.** This page is produced from `engines`' report registry (`report_definitions.go`), for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-Every report reachable from **Sales & Marketplace -> Reports**. There are **421**
+Every report reachable from **Sales & Marketplace -> Reports**. There are **424**
 across **26** categories.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -22,14 +22,14 @@ table has the same shape whoever runs it.
 ## Contents
 
 - [Accounting](#accounting) - 26 reports
-- [Admin](#admin) - 5 reports
+- [Admin](#admin) - 7 reports
 - [Assets](#assets) - 1 reports
 - [BI](#bi) - 1 reports
 - [CRM](#crm) - 33 reports
 - [E-commerce & Integration](#e-commerce--integration) - 12 reports
 - [Exceptions](#exceptions) - 6 reports
 - [Expense Management](#expense-management) - 11 reports
-- [Finance](#finance) - 36 reports
+- [Finance](#finance) - 37 reports
 - [GST & Compliance](#gst--compliance) - 8 reports
 - [HR](#hr) - 2 reports
 - [HRMS](#hrms) - 15 reports
@@ -407,6 +407,26 @@ table has the same shape whoever runs it.
 
 
 ## Admin
+
+### Duplicate items
+
+**Report id:** `duplicate-items`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Group · Code · Name · Why it matches · Proposal · Kept because · Transactions · Filled fields · Created
+
+**Drill-down:** no.
+
+### Duplicate suppliers
+
+**Report id:** `duplicate-suppliers`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Group · Code · Name · Why it matches · Proposal · Kept because · Transactions · Filled fields · Created
+
+**Drill-down:** no.
 
 ### Failed prints and fallbacks
 
@@ -1680,6 +1700,18 @@ table has the same shape whoever runs it.
 **Columns:** Age Bucket · Invoice Count · Outstanding Amount *(sensitive)*
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
+
+### Receivables vs Ledger (by invoice)
+
+**Report id:** `receivables-vs-ledger`
+
+**Parameters:**
+
+- **Include rows that agree** (`all`) - select, optional, one of: No,Yes
+
+**Columns:** Source · Document · Customer · Status · Owed per invoice *(sensitive)* · Owed per ledger (1300) *(sensitive)* · Difference *(sensitive)* · Ledger postings · Owner · What it suggests
+
+**Drill-down:** no.
 
 ### Refunds by method
 

@@ -259,6 +259,11 @@ func Run() {
 	// take the new GST rate / HSN as their own.
 	engines.StartItemTaxChangeWorker(workerCtx, 1*time.Hour)
 
+	// Stage 47.9.3: slow-statement fingerprints for the platform Control
+	// Panel - pg_stat_activity looked at every 15 s, kept in memory, no
+	// parameter values. ERP_SLOW_QUERY_MS sets the threshold (0 = off).
+	engines.StartSlowQuerySampler(workerCtx, 15*time.Second)
+
 	// Stage 130.8: gift card numbers still stored as typed are sealed (hash
 	// + encrypted copy) before the first request is served.
 	engines.EncryptStoredValueCardsOnBoot()

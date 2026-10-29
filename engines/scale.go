@@ -51,13 +51,14 @@ func SeedScaleTestData(tenantID string, numStores int, sku string, initialQty in
 
 // RunScaleSimulation runs a concurrent worker pool executing checkouts and order reservations
 func RunScaleSimulation(tenantID string, numWorkers int, numTransactions int, testSKU string, numStores int) (map[string]interface{}, error) {
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
+	if _, err := db.GetTenantSchema(tenantID); err != nil {
 		return nil, err
 	}
 
-	// Clean up old postings for clean trial asserts
-	_, _ = db.DB.Exec(fmt.Sprintf("DELETE FROM %s.gl_postings", schema))
+	// Stage 47.16.4: this used to start with DELETE FROM gl_postings - the
+	// client's whole general ledger - "for clean trial asserts". The books
+	// are never deleted; the simulation's postings balance on their own, so
+	// the trial balance still checks it.
 
 	var wg sync.WaitGroup
 	tasksChan := make(chan int, numTransactions)

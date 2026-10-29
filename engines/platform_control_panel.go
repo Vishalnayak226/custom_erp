@@ -76,6 +76,9 @@ type ControlPanel struct {
 	Deployments      []ControlPanelDeployment `json:"deployments"`
 	LastBackup       *ControlPanelBackup      `json:"last_backup,omitempty"`
 	LastGoodBackupAt *time.Time               `json:"last_good_backup_at,omitempty"`
+	// SlowQueries (Stage 47.9.3): the heaviest statement fingerprints, no
+	// parameter values - see engines/query_fingerprints.go.
+	SlowQueries SlowQuerySummary `json:"slow_queries"`
 }
 
 // GetControlPanel builds the summary. One client's unreadable schema is
@@ -147,6 +150,7 @@ func GetControlPanel() (ControlPanel, error) {
 	if db.DB.QueryRow(`SELECT MAX(finished_at) FROM public.backup_runs WHERE scope = 'database' AND outcome = 'Success'`).Scan(&good) == nil {
 		out.LastGoodBackupAt = nullTimePtr(good)
 	}
+	out.SlowQueries = SlowQueries(20)
 	return out, nil
 }
 

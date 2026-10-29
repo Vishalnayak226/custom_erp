@@ -107,11 +107,13 @@ func handleRevertRoleTemplates(w http.ResponseWriter, r *http.Request) {
 	if revertedBy == "" {
 		revertedBy = r.Header.Get("Resolved-User-ID")
 	}
-	if err := engines.RevertRoleTemplateMigration(r.Header.Get("Resolved-Tenant-ID"), req.MigrationID, revertedBy); err != nil {
+	outcome, err := engines.RevertRoleTemplateMigration(r.Header.Get("Resolved-Tenant-ID"), req.MigrationID, revertedBy)
+	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "reverted", "migration_id": req.MigrationID})
+	// Stage 49.3.6: what was put back, and what deliberately was not.
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "reverted", "migration_id": req.MigrationID, "outcome": outcome})
 }
 
 func handleListRoleTemplateMigrations(w http.ResponseWriter, r *http.Request) {

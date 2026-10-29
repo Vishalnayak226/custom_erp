@@ -19,7 +19,7 @@ export async function renderBrandingPanel(host) {
     <div class="form-group" style="margin-bottom: 18px;">
       <label class="form-label" style="font-weight: 600;">Branding for this company</label>
       <p class="page-subtitle" style="margin: 2px 0 8px; font-size: 12.5px;">${b.enabled
-        ? 'On: your logo replaces the Wholeops logo on your sign-in page, in the header and the menu, your accent colour is used, and "Powered by Wholeops" stays at the foot.'
+        ? 'On: your logo leads on your sign-in page, in the header and the menu, and your accent colour is used. Wholeops shows small beside it: "Powered by Wholeops" next to your logo in the menu, and a slim Wholeops strip across the top of the sign-in page.'
         : 'Off: the standard Wholeops look. Branding is part of the plan - ask Wholeops to switch it on.'}</p>
       ${operator ? `<label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer;"><input type="checkbox" id="brand-mode" ${b.enabled ? 'checked' : ''} style="width: 16px; height: 16px;"> <span style="font-size: 13px;">Branding switched on for this client (platform operator)</span></label>` : ''}
     </div>

@@ -236,10 +236,14 @@ gone through.
   `offline_synced`, so the flag alone never posts a sale.
 - **A manager validates it on POS → Offline Sales.** Each line shows the
   item's ERP barcode against the code scanned at the till; a line picked
-  by search counts as not scanned. **Validate** works only when every line
+  by search counts as not scanned (an item with no barcode scans by its
+  SKU, 49.5.6d). **Validate** works only when every line
   matches. It then posts the sale through the normal checkout as the
   original cashier at their store, in the session that was open, and stock
-  may go negative because the goods already left. **Reject** needs a reason
+  may go negative because the goods already left. The sale is dated the
+  till's sale day (GL, stock ledger, bill), or today when that day is in a
+  closed accounting period. Until then its cash is a *held offline sales*
+  line in the X-report and the till close. **Reject** needs a reason
   and never posts. The validator can't be the cashier who rang the sale,
   and it needs the `pos.offline_validate` capability (Admin and Store
   Supervisor by default). Shortfalls are still flagged as

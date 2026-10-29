@@ -13,6 +13,23 @@ import (
 	"time"
 )
 
+// storeHasState gives a default-client store a State for one test when it has
+// none (49.5.6e: a PO billed to a store with no state is refused, and the
+// seed store HO has none), and takes it off again afterwards.
+func storeHasState(t *testing.T, store string) {
+	t.Helper()
+	res, err := db.DB.Exec(`UPDATE tenant_default.documents SET data = data || '{"state":"Maharashtra"}'::jsonb
+		WHERE doctype = 'Location' AND (id = $1 OR data->>'code' = $1) AND COALESCE(data->>'state', '') = ''`, store)
+	if err != nil {
+		t.Fatalf("give store %s a state: %v", store, err)
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		t.Cleanup(func() {
+			db.DB.Exec(`UPDATE tenant_default.documents SET data = data - 'state' WHERE doctype = 'Location' AND (id = $1 OR data->>'code' = $1)`, store)
+		})
+	}
+}
+
 // Stage 49.5.6b through the real save: a vendor needs a state, a PO for a
 // vendor with none is refused, and the PO's supply type is the derived one
 // whatever the client sends.

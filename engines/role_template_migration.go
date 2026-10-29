@@ -53,6 +53,10 @@ type RoleTemplateDiff struct {
 	// Conflicts is the SoD picture AFTER the change - the point of showing
 	// a diff at all is deciding whether to accept the result.
 	Conflicts []SoDFinding `json:"sod_conflicts_after"`
+	// DangerousGained (49.3.7) is every payroll, posting, account-takeover
+	// or connector-secret grant the role would hold after the change and
+	// does not hold now - the lines an owner signs off by applying it.
+	DangerousGained []DangerousGrant `json:"dangerous_gained"`
 }
 
 // Changed reports whether anything at all would change for this role.
@@ -123,29 +127,10 @@ func diffRoleAgainstTemplate(tenantID, role string, template RoleTemplate) (Role
 		return diff, err
 	}
 
-	seen := map[string]bool{}
-	for _, doctype := range sortedKeys(wanted) {
-		seen[doctype] = true
-		before, had := stored[doctype]
-		after := wanted[doctype]
-		change := GrantChange{Doctype: doctype, From: before.String(), To: after.String()}
-		switch {
-		case !had || before == AccessNone:
-			diff.Added = append(diff.Added, change)
-		case after < before:
-			diff.Tightened = append(diff.Tightened, change)
-		case after > before:
-			diff.Loosened = append(diff.Loosened, change)
-		}
-	}
-	for _, doctype := range sortedKeys(stored) {
-		if seen[doctype] || stored[doctype] == AccessNone {
-			continue
-		}
-		diff.Removed = append(diff.Removed, GrantChange{
-			Doctype: doctype, From: stored[doctype].String(), To: AccessNone.String(),
-		})
-	}
+	// Stage 49.3.7: the same diff a hand-made role change is judged by.
+	levels := DiffGrantLevels(stored, wanted)
+	diff.Added, diff.Tightened, diff.Loosened, diff.Removed = levels.Added, levels.Tightened, levels.Loosened, levels.Removed
+	diff.DangerousGained = DangerousGained(role, stored, wanted)
 
 	approver, err := ApproverDoctypesForRole(tenantID, role)
 	if err != nil {
@@ -339,56 +324,96 @@ func ApplyRoleTemplateMigration(tenantID string, roles []string, approvedBy stri
 	return migrationID, nil
 }
 
-// RevertRoleTemplateMigration restores the exact grants that existed before
-// a migration, including removing rows it created.
-func RevertRoleTemplateMigration(tenantID, migrationID, revertedBy string) error {
+// RevertRoleTemplateMigration puts back the grants that existed before a
+// migration, including removing rows it created - but (Stage 49.3.6) never
+// restores obsolete access: a record type changed again since the migration
+// keeps that later decision, one that no longer exists is skipped, and a
+// dangerous grant the migration took away (privilege_risk.go) is not handed
+// back - the outcome names it, and it is granted again, with a reason, on
+// the Roles screen if it is really still wanted.
+func RevertRoleTemplateMigration(tenantID, migrationID, revertedBy string) (RollbackOutcome, error) {
 	if strings.TrimSpace(revertedBy) == "" {
-		return &ValidationError{Code: "GLOBAL-0002", Message: "a revert must record who performed it"}
+		return RollbackOutcome{}, &ValidationError{Code: "GLOBAL-0002", Message: "a revert must record who performed it"}
 	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return err
+		return RollbackOutcome{}, err
 	}
-	var rolesCSV, previousJSON string
+	var rolesCSV, previousJSON, appliedJSON string
 	var revertedAt *string
 	if err := db.DB.QueryRow(fmt.Sprintf(
-		`SELECT roles, previous_state, reverted_at FROM %s.role_template_migrations WHERE id = $1`, schema),
-		migrationID).Scan(&rolesCSV, &previousJSON, &revertedAt); err != nil {
-		return err
+		`SELECT roles, previous_state, applied_state, reverted_at FROM %s.role_template_migrations WHERE id = $1`, schema),
+		migrationID).Scan(&rolesCSV, &previousJSON, &appliedJSON, &revertedAt); err != nil {
+		return RollbackOutcome{}, err
 	}
 	if revertedAt != nil {
-		return &ValidationError{Code: "GLOBAL-0002", Message: "this role-template migration was already reverted"}
+		return RollbackOutcome{}, &ValidationError{Code: "GLOBAL-0002", Message: "this role-template migration was already reverted"}
 	}
-	var previous []storedRolePermissionRow
+	var previous, applied []storedRolePermissionRow
 	if err := json.Unmarshal([]byte(previousJSON), &previous); err != nil {
-		return err
+		return RollbackOutcome{}, err
+	}
+	if err := json.Unmarshal([]byte(appliedJSON), &applied); err != nil {
+		return RollbackOutcome{}, err
 	}
 
 	tx, err := db.DB.Begin()
 	if err != nil {
-		return err
+		return RollbackOutcome{}, err
 	}
 	defer tx.Rollback()
 
+	doctypes := map[string]bool{}
+	for _, r := range append(append([]storedRolePermissionRow{}, previous...), applied...) {
+		doctypes[r.Doctype] = true
+	}
+	names := make([]string, 0, len(doctypes))
+	for d := range doctypes {
+		names = append(names, d)
+	}
+	current := map[string]storedRolePermissionRow{}
 	for _, role := range strings.Split(rolesCSV, ",") {
-		if _, err := tx.Exec(fmt.Sprintf(`DELETE FROM %s.role_permissions WHERE role = $1`, schema), role); err != nil {
-			return err
+		rows, err := currentGrantRows(tx, schema, role, names, true)
+		if err != nil {
+			return RollbackOutcome{}, err
+		}
+		for _, r := range rows {
+			current[grantKey(role, r.Doctype)] = r
 		}
 	}
-	for _, row := range previous {
+	exists, err := existingDoctypes(tx, schema, names)
+	if err != nil {
+		return RollbackOutcome{}, err
+	}
+	writes, deletes, outcome := planGrantRollback(current, previous, applied, exists)
+	for _, row := range writes {
+		if deletes[grantKey(row.Role, row.Doctype)] {
+			if _, err := tx.Exec(fmt.Sprintf(`DELETE FROM %s.role_permissions WHERE role = $1 AND doctype_name = $2`, schema), row.Role, row.Doctype); err != nil {
+				return RollbackOutcome{}, err
+			}
+			continue
+		}
 		if _, err := tx.Exec(fmt.Sprintf(
 			`INSERT INTO %s.role_permissions (role, doctype_name, allow_read, allow_create, allow_update, allow_delete)
-			 VALUES ($1, $2, $3, $4, $5, $6)`, schema),
+			 VALUES ($1, $2, $3, $4, $5, $6)
+			 ON CONFLICT (role, doctype_name) DO UPDATE SET allow_read = EXCLUDED.allow_read, allow_create = EXCLUDED.allow_create,
+			   allow_update = EXCLUDED.allow_update, allow_delete = EXCLUDED.allow_delete`, schema),
 			row.Role, row.Doctype, row.Read, row.Create, row.Update, row.Delete); err != nil {
-			return err
+			return RollbackOutcome{}, err
 		}
 	}
 	if _, err := tx.Exec(fmt.Sprintf(
 		`UPDATE %s.role_template_migrations SET reverted_at = CURRENT_TIMESTAMP, reverted_by = $2 WHERE id = $1`, schema),
 		migrationID, revertedBy); err != nil {
-		return err
+		return RollbackOutcome{}, err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return RollbackOutcome{}, err
+	}
+	LogAuditEvent(tenantID, revertedBy, "ROLE_PERMISSIONS", "TEMPLATE_MIGRATION_REVERTED",
+		fmt.Sprintf("Reverted role-template migration %s (%s): %d record type(s) restored; %s",
+			migrationID, rolesCSV, len(outcome.Restored), rollbackSummary(outcome)))
+	return outcome, nil
 }
 
 // RoleTemplateMigrationRecord is one ledger row, for the admin list.

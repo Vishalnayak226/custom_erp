@@ -19,7 +19,7 @@ applies_to: source registries; not release acceptance
 
 # Error code reference
 
-Every refusal in this application carries a code. There are **574** of them,
+Every refusal in this application carries a code. There are **575** of them,
 across **75** areas. This page is produced from the running catalog, so it
 cannot describe a code the application does not have, or miss one it does.
 
@@ -96,7 +96,7 @@ open the right page.
 - [Payments](error-code-reference-2.md#payments) - 7 codes
 - [Planning](error-code-reference-2.md#planning) - 1 codes
 - [Procurement / RFQ](error-code-reference-2.md#procurement-rfq) - 6 codes
-- [Purchase Order](error-code-reference-2.md#purchase-order) - 18 codes
+- [Purchase Order](error-code-reference-2.md#purchase-order) - 19 codes
 - [Purchase Return](error-code-reference-2.md#purchase-return) - 1 codes
 - [Purchase Return / RTV](error-code-reference-2.md#purchase-return-rtv) - 5 codes
 - [Quality & Maintenance](error-code-reference-2.md#quality-maintenance) - 6 codes
@@ -504,13 +504,13 @@ open the right page.
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
 |---|---|---|---|---|---|
-| `GOODSR-0089` | GRN accepted quantity invalid | Accepted quantity cannot be greater than received quantity. | Correct transaction or send for approval. | High | 422 |
-| `GOODSR-0090` | Rejected quantity reason missing | Rejection reason is required for rejected quantity. | Correct transaction or send for approval. | High | 422 |
-| `GOODSR-0091` | Barcode generation failed | Barcode could not be generated. Please try again or contact support. | Correct transaction or send for approval. | High | 503 |
-| `GOODSR-0095` | Invoice without GRN | Vendor invoice cannot be posted because GRN is not completed. | Correct transaction or send for approval. | High | 422 |
+| `GOODSR-0089` | GRN accepted quantity invalid | Accepted quantity cannot be greater than received quantity. | Lower the accepted quantity to no more than was received, then save again. | High | 422 |
+| `GOODSR-0090` | Rejected quantity reason missing | Rejection reason is required for rejected quantity. | Choose a rejection reason on each line with a rejected quantity, then save again. | High | 422 |
+| `GOODSR-0091` | Barcode generation failed | Barcode could not be generated. Please try again or contact support. | Try again. If it fails again, tell support and quote the reference shown. | High | 503 |
+| `GOODSR-0095` | Invoice without GRN | Vendor invoice cannot be posted because GRN is not completed. | Finish and post the goods receipt first, then post the vendor invoice. | High | 422 |
 | `GOODSR-0180` | GRN posted | GRN posted successfully. | No action required. | Low | 200 |
-| `GRN-0253` | GRN cancellation blocked by downstream invoice | GRN cannot be cancelled because vendor invoice or stock movement exists. | Cancel downstream document first or create reversal. | Critical | 409 |
-| `GRN-0254` | Accepted quantity without barcode | Accepted quantity must have generated barcodes before stock posting. | Regenerate barcode or hold posting. | High | 422 |
+| `GRN-0253` | GRN cancellation blocked by downstream invoice | GRN cannot be cancelled because vendor invoice or stock movement exists. | Cancel the documents made from this receipt first (its vendor invoice or stock movement), then cancel the receipt. | Critical | 409 |
+| `GRN-0254` | Accepted quantity without barcode | Accepted quantity must have generated barcodes before stock posting. | Generate the barcodes for the accepted quantity, then post again. | High | 422 |
 | `GRN-0255` | QC hold pending | Stock is under QC hold and cannot be sold or transferred. | Complete QC approval/rejection. | High | 200 |
 
 ## HR & Payroll
@@ -579,21 +579,21 @@ open the right page.
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
 |---|---|---|---|---|---|
-| `INV-0256` | FEFO violation | Older/earlier-expiry stock must be issued first as per configured rule. | Pick suggested batch/lot. | High | 422 |
+| `INV-0256` | FEFO violation | The stock that expires first, or the oldest stock, must be issued first. | Pick the batch the screen suggests. | High | 422 |
 | `INV-0257` | Bin capacity exceeded | Selected bin does not have enough capacity. Please choose another bin. | Select another bin or split stock. | Medium | 422 |
 | `INV-0258` | Cycle count freeze active | Stock is frozen for counting. Sale/transfer is blocked until count is completed. | Complete or release count session. | High | 200 |
-| `INVENT-0101` | Insufficient stock | Insufficient available stock for this item at the selected location. | Select valid stock/location or request approval. | High | 422 |
-| `INVENT-0102` | Stock not available for barcode | Selected barcode is not available for transaction. | Select valid stock/location or request approval. | High | 422 |
-| `INVENT-0103` | Barcode already consumed | This barcode is already consumed or transferred. Please scan a valid barcode. | Select valid stock/location or request approval. | High | 409 |
-| `INVENT-0104` | Blocked stock selected | Blocked stock cannot be issued or sold until it is released. | Select valid stock/location or request approval. | High | 409 |
-| `INVENT-0105` | Negative stock not allowed | Stock cannot go negative for this item/location. | Select valid stock/location or request approval. | High | 422 |
-| `INVENT-0106` | Batch expired | This batch is expired. Transaction is not allowed. | Select valid stock/location or request approval. | High | 422 |
-| `INVENT-0107` | Location/bin missing | Storage location/bin is required for this transaction. | Select valid stock/location or request approval. | High | 422 |
-| `INVENT-0108` | Stock count already in progress | Stock count is already in progress for this item/location. | Select valid stock/location or request approval. | High | 409 |
-| `INVENT-0109` | Inventory adjustment reason missing | Adjustment reason is required before posting inventory adjustment. | Select valid stock/location or request approval. | High | 422 |
-| `INVENT-0110` | Adjustment exceeds tolerance | Adjustment quantity/value exceeds tolerance. Approval is required. | Select valid stock/location or request approval. | High | 422 |
-| `INVENT-0114` | Reserved stock blocked | This stock is reserved for another order and cannot be used. | Select valid stock/location or request approval. | High | 409 |
-| `INVENT-0115` | Serial/batch mismatch | Scanned barcode does not match selected item/design/combination. | Select valid stock/location or request approval. | High | 422 |
+| `INVENT-0101` | Insufficient stock | Insufficient available stock for this item at the selected location. | Lower the quantity to what is available, or choose a location that has the stock. | High | 422 |
+| `INVENT-0102` | Stock not available for barcode | Selected barcode is not available for transaction. | Scan the barcode of a unit that is in stock here. | High | 422 |
+| `INVENT-0103` | Barcode already consumed | This barcode is already consumed or transferred. Please scan a valid barcode. | Scan the barcode on another unit. If this unit is in your hand, give it to a supervisor to check. | High | 409 |
+| `INVENT-0104` | Blocked stock selected | Blocked stock cannot be issued or sold until it is released. | Use stock that is not blocked, or ask a supervisor to release the block first. | High | 409 |
+| `INVENT-0105` | Negative stock not allowed | Stock of this item at this location cannot go below zero. | Lower the quantity, or receive or move the stock in first. | High | 422 |
+| `INVENT-0106` | Batch expired | This batch is expired. Transaction is not allowed. | Pick a batch that has not expired, and set the expired stock aside. | High | 422 |
+| `INVENT-0107` | Location/bin missing | This transaction needs a storage location or bin. | Choose the bin, then save again. | High | 422 |
+| `INVENT-0108` | Stock count already in progress | A stock count is already running for this item at this location. | Wait for the count to finish, or ask the person running it to close it. | High | 409 |
+| `INVENT-0109` | Inventory adjustment reason missing | Adjustment reason is required before posting inventory adjustment. | Choose a reason for the adjustment, then post again. | High | 422 |
+| `INVENT-0110` | Adjustment exceeds tolerance | This adjustment is larger than allowed without approval. | Submit it for approval. It posts once a manager approves it. | High | 422 |
+| `INVENT-0114` | Reserved stock blocked | This stock is reserved for another order and cannot be used. | Use stock that is not reserved, or ask a supervisor to release the reservation. | High | 409 |
+| `INVENT-0115` | Serial/batch mismatch | The scanned barcode is for a different item. | Scan the barcode of the item on the line, or change the line to the scanned item. | High | 422 |
 | `INVENT-0185` | Approval needed | This adjustment requires approval because it exceeds tolerance. | Submit for approval. | Medium | 200 |
 | `INVENT-0421` | Non-stock item on a stock transaction (ITM-002) | This item keeps no stock, so it cannot be transferred, counted or consumed. | Remove it - services and non-stock expense items never hold store stock. | Medium | 422 |
 | `INVENT-0422` | Consumption entry incomplete or invalid | This consumption entry cannot be posted. | Choose the store, then for each item the counted closing quantity (periodic) or the quantity used (manual issue) - neither can exceed the stock on hand. | Medium | 422 |

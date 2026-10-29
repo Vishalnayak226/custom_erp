@@ -64,6 +64,7 @@ var workerOwner = map[string]string{
 	"StartWebPushAlertWorker":             "",
 	"StartDayLimitsWorker":                "",
 	"StartItemTaxChangeWorker":            "",
+	"StartSlowQuerySampler":               "",
 }
 
 // claimSafeWorkers may run on every server: they claim each unit of work

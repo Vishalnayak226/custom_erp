@@ -9,7 +9,7 @@
 
 Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.
 
-There are **574** codes. Each row says what the user is shown, what to do about
+There are **575** codes. Each row says what the user is shown, what to do about
 it, and how serious it is.
 
 **How to read an error dialog** - it has up to three lines: the *headline* (the
@@ -78,7 +78,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 - [Payments](#payments) - 7 codes
 - [Planning](#planning) - 1 codes
 - [Procurement / RFQ](#procurement--rfq) - 6 codes
-- [Purchase Order](#purchase-order) - 18 codes
+- [Purchase Order](#purchase-order) - 19 codes
 - [Purchase Return](#purchase-return) - 1 codes
 - [Purchase Return / RTV](#purchase-return--rtv) - 5 codes
 - [Quality & Maintenance](#quality--maintenance) - 6 codes
@@ -488,13 +488,13 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
 |---|---|---|---|---|---|
-| `GOODSR-0089` | GRN accepted quantity invalid | Accepted quantity cannot be greater than received quantity. | Correct transaction or send for approval. | High | 422 |
-| `GOODSR-0090` | Rejected quantity reason missing | Rejection reason is required for rejected quantity. | Correct transaction or send for approval. | High | 422 |
-| `GOODSR-0091` | Barcode generation failed | Barcode could not be generated. Please try again or contact support. | Correct transaction or send for approval. | High | 503 |
-| `GOODSR-0095` | Invoice without GRN | Vendor invoice cannot be posted because GRN is not completed. | Correct transaction or send for approval. | High | 422 |
+| `GOODSR-0089` | GRN accepted quantity invalid | Accepted quantity cannot be greater than received quantity. | Lower the accepted quantity to no more than was received, then save again. | High | 422 |
+| `GOODSR-0090` | Rejected quantity reason missing | Rejection reason is required for rejected quantity. | Choose a rejection reason on each line with a rejected quantity, then save again. | High | 422 |
+| `GOODSR-0091` | Barcode generation failed | Barcode could not be generated. Please try again or contact support. | Try again. If it fails again, tell support and quote the reference shown. | High | 503 |
+| `GOODSR-0095` | Invoice without GRN | Vendor invoice cannot be posted because GRN is not completed. | Finish and post the goods receipt first, then post the vendor invoice. | High | 422 |
 | `GOODSR-0180` | GRN posted | GRN posted successfully. | No action required. | Low | 200 |
-| `GRN-0253` | GRN cancellation blocked by downstream invoice | GRN cannot be cancelled because vendor invoice or stock movement exists. | Cancel downstream document first or create reversal. | Critical | 409 |
-| `GRN-0254` | Accepted quantity without barcode | Accepted quantity must have generated barcodes before stock posting. | Regenerate barcode or hold posting. | High | 422 |
+| `GRN-0253` | GRN cancellation blocked by downstream invoice | GRN cannot be cancelled because vendor invoice or stock movement exists. | Cancel the documents made from this receipt first (its vendor invoice or stock movement), then cancel the receipt. | Critical | 409 |
+| `GRN-0254` | Accepted quantity without barcode | Accepted quantity must have generated barcodes before stock posting. | Generate the barcodes for the accepted quantity, then post again. | High | 422 |
 | `GRN-0255` | QC hold pending | Stock is under QC hold and cannot be sold or transferred. | Complete QC approval/rejection. | High | 200 |
 
 ## HR & Payroll
@@ -563,21 +563,21 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
 |---|---|---|---|---|---|
-| `INV-0256` | FEFO violation | Older/earlier-expiry stock must be issued first as per configured rule. | Pick suggested batch/lot. | High | 422 |
+| `INV-0256` | FEFO violation | The stock that expires first, or the oldest stock, must be issued first. | Pick the batch the screen suggests. | High | 422 |
 | `INV-0257` | Bin capacity exceeded | Selected bin does not have enough capacity. Please choose another bin. | Select another bin or split stock. | Medium | 422 |
 | `INV-0258` | Cycle count freeze active | Stock is frozen for counting. Sale/transfer is blocked until count is completed. | Complete or release count session. | High | 200 |
-| `INVENT-0101` | Insufficient stock | Insufficient available stock for this item at the selected location. | Select valid stock/location or request approval. | High | 422 |
-| `INVENT-0102` | Stock not available for barcode | Selected barcode is not available for transaction. | Select valid stock/location or request approval. | High | 422 |
-| `INVENT-0103` | Barcode already consumed | This barcode is already consumed or transferred. Please scan a valid barcode. | Select valid stock/location or request approval. | High | 409 |
-| `INVENT-0104` | Blocked stock selected | Blocked stock cannot be issued or sold until it is released. | Select valid stock/location or request approval. | High | 409 |
-| `INVENT-0105` | Negative stock not allowed | Stock cannot go negative for this item/location. | Select valid stock/location or request approval. | High | 422 |
-| `INVENT-0106` | Batch expired | This batch is expired. Transaction is not allowed. | Select valid stock/location or request approval. | High | 422 |
-| `INVENT-0107` | Location/bin missing | Storage location/bin is required for this transaction. | Select valid stock/location or request approval. | High | 422 |
-| `INVENT-0108` | Stock count already in progress | Stock count is already in progress for this item/location. | Select valid stock/location or request approval. | High | 409 |
-| `INVENT-0109` | Inventory adjustment reason missing | Adjustment reason is required before posting inventory adjustment. | Select valid stock/location or request approval. | High | 422 |
-| `INVENT-0110` | Adjustment exceeds tolerance | Adjustment quantity/value exceeds tolerance. Approval is required. | Select valid stock/location or request approval. | High | 422 |
-| `INVENT-0114` | Reserved stock blocked | This stock is reserved for another order and cannot be used. | Select valid stock/location or request approval. | High | 409 |
-| `INVENT-0115` | Serial/batch mismatch | Scanned barcode does not match selected item/design/combination. | Select valid stock/location or request approval. | High | 422 |
+| `INVENT-0101` | Insufficient stock | Insufficient available stock for this item at the selected location. | Lower the quantity to what is available, or choose a location that has the stock. | High | 422 |
+| `INVENT-0102` | Stock not available for barcode | Selected barcode is not available for transaction. | Scan the barcode of a unit that is in stock here. | High | 422 |
+| `INVENT-0103` | Barcode already consumed | This barcode is already consumed or transferred. Please scan a valid barcode. | Scan the barcode on another unit. If this unit is in your hand, give it to a supervisor to check. | High | 409 |
+| `INVENT-0104` | Blocked stock selected | Blocked stock cannot be issued or sold until it is released. | Use stock that is not blocked, or ask a supervisor to release the block first. | High | 409 |
+| `INVENT-0105` | Negative stock not allowed | Stock of this item at this location cannot go below zero. | Lower the quantity, or receive or move the stock in first. | High | 422 |
+| `INVENT-0106` | Batch expired | This batch is expired. Transaction is not allowed. | Pick a batch that has not expired, and set the expired stock aside. | High | 422 |
+| `INVENT-0107` | Location/bin missing | This transaction needs a storage location or bin. | Choose the bin, then save again. | High | 422 |
+| `INVENT-0108` | Stock count already in progress | A stock count is already running for this item at this location. | Wait for the count to finish, or ask the person running it to close it. | High | 409 |
+| `INVENT-0109` | Inventory adjustment reason missing | Adjustment reason is required before posting inventory adjustment. | Choose a reason for the adjustment, then post again. | High | 422 |
+| `INVENT-0110` | Adjustment exceeds tolerance | This adjustment is larger than allowed without approval. | Submit it for approval. It posts once a manager approves it. | High | 422 |
+| `INVENT-0114` | Reserved stock blocked | This stock is reserved for another order and cannot be used. | Use stock that is not reserved, or ask a supervisor to release the reservation. | High | 409 |
+| `INVENT-0115` | Serial/batch mismatch | The scanned barcode is for a different item. | Scan the barcode of the item on the line, or change the line to the scanned item. | High | 422 |
 | `INVENT-0185` | Approval needed | This adjustment requires approval because it exceeds tolerance. | Submit for approval. | Medium | 200 |
 | `INVENT-0421` | Non-stock item on a stock transaction (ITM-002) | This item keeps no stock, so it cannot be transferred, counted or consumed. | Remove it - services and non-stock expense items never hold store stock. | Medium | 422 |
 | `INVENT-0422` | Consumption entry incomplete or invalid | This consumption entry cannot be posted. | Choose the store, then for each item the counted closing quantity (periodic) or the quantity used (manual issue) - neither can exceed the stock on hand. | Medium | 422 |
@@ -673,13 +673,13 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
 |---|---|---|---|---|---|
-| `DEVICE-0298` | Printer not configured | Printer is not configured for this location. Please contact administrator. | Configure printer or select another. | High | 422 |
-| `DEVICE-0299` | Print job failed | Sticker print job failed. Please check printer connection and retry. | Check printer and retry. | Medium | 503 |
-| `DEVICE-0300` | Barcode symbology not configured | Barcode format is not configured. Please contact administrator. | Configure barcode template. | High | 422 |
+| `DEVICE-0298` | Printer not configured | Printer is not configured for this location. Please contact administrator. | Pick another printer, or ask an administrator to set one up for this location. | High | 422 |
+| `DEVICE-0299` | Print job failed | Sticker print job failed. Please check printer connection and retry. | Check the printer is on, connected and loaded, then print again. | Medium | 503 |
+| `DEVICE-0300` | Barcode symbology not configured | Barcode format is not configured. Please contact administrator. | Ask an administrator to set up the barcode template. | High | 422 |
 | `DEVICE-0301` | Device clock mismatch | Device time differs from server time. Sync may be blocked. | Correct device time. | Medium | 200 |
-| `MOBILE-0175` | Device not registered | This device is not registered. Please contact administrator. | Correct details or retry. Contact admin if repeated. | Medium | 422 |
-| `MOBILE-0176` | Offline sync conflict | Offline data has conflicts with latest server data. Please review and sync again. | Correct details or retry. Contact admin if repeated. | Medium | 409 |
-| `MOBILE-0177` | Scanner input invalid | Scanned value is invalid. Please scan a valid barcode/QR code. | Correct details or retry. Contact admin if repeated. | Medium | 422 |
+| `MOBILE-0175` | Device not registered | This device is not registered. Please contact administrator. | Ask an administrator to register this device, then sign in again. | Medium | 422 |
+| `MOBILE-0176` | Offline sync conflict | Offline data has conflicts with latest server data. Please review and sync again. | Check each record the sync names, correct it, then sync again. | Medium | 409 |
+| `MOBILE-0177` | Scanner input invalid | The scanned code could not be read as a barcode or QR code. | Scan again, or type the code in. | Medium | 422 |
 
 ## Notifications
 
@@ -798,14 +798,14 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
 |---|---|---|---|---|---|
-| `POSOFF-0237` | POS profile missing | POS profile is not configured for this store/register. | Configure POS profile before billing. | Critical | 422 |
-| `POSOFF-0238` | Cash opening required | Cash opening is required before billing. Please open the shift drawer. | Open cash drawer session. | High | 422 |
+| `POSOFF-0237` | POS profile missing | This till has no POS profile yet. | Ask an administrator to set up the POS profile for this store and till, then open the till again. | Critical | 422 |
+| `POSOFF-0238` | Cash opening required | Cash opening is required before billing. Please open the shift drawer. | Open the till session and enter the opening cash, then bill. | High | 422 |
 | `POSOFF-0239` | Cash closing pending | Cash closing is pending for this shift. Please close the drawer before logout. | Close cash drawer and enter counted cash. | High | 200 |
-| `POSOFF-0240` | Drawer variance exceeds tolerance | Cash variance exceeds allowed tolerance. Manager approval is required. | Enter reason and request approval. | High | 422 |
-| `POSOFF-0241` | Offline invoice sync conflict | Offline bill could not be synced because server data changed. Please review the conflict. | Review conflict and choose server/client action. | High | 409 |
+| `POSOFF-0240` | Drawer variance exceeds tolerance | Cash variance exceeds allowed tolerance. Manager approval is required. | Count the cash again. If the difference stands, enter a reason and ask a manager to approve it. | High | 422 |
+| `POSOFF-0241` | Offline invoice sync conflict | Offline bill could not be synced because server data changed. Please review the conflict. | Open the bill's conflict, choose which version to keep, then sync again. | High | 409 |
 | `POSOFF-0242` | Duplicate offline invoice UUID | This offline bill was already synced. Duplicate submission was ignored. | No action required unless bill is missing. | Medium | 200 |
-| `POSOFF-0243` | Payment terminal not mapped | Payment terminal is not mapped to this POS register. | Map terminal in POS settings. | High | 422 |
-| `POSOFF-0244` | Payment callback mismatch | Payment confirmation does not match bill amount or reference. Please reconcile manually. | Hold bill and reconcile payment. | Critical | 422 |
+| `POSOFF-0243` | Payment terminal not mapped | This till has no card machine linked to it. | Take the payment another way, and ask an administrator to link the card machine in POS settings. | High | 422 |
+| `POSOFF-0244` | Payment callback mismatch | Payment confirmation does not match bill amount or reference. Please reconcile manually. | Hold the bill and check the payment on the card machine or UPI app before finishing it. | Critical | 422 |
 
 ## Patch / Bug Governance
 
@@ -866,6 +866,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `PURCHA-1308` | Typed date further back or ahead than the client's day limit (vendor invoice date, PO expected delivery) | That date is outside the allowed window. | Check the date against the bill. An administrator can enter a date outside the window (Configuration > Procurement & GRN sets it). | Medium | 422 |
 | `PURCHA-1316` | PO sent for approval without its commercial terms, or after its quote's validity | This purchase order can't go for approval yet. | Fill in the payment term, delivery terms, expected delivery date and who pays the freight; renew or correct an expired quote date. | Medium | 422 |
 | `PURCHA-4961` | Purchase order for a vendor with no state (save, import, submit, RFQ award, supply proposal, bulk upload) | This vendor has no state, so the GST split can't be worked out. | Open the vendor, choose its State (or enter its GSTIN) and save, then save the purchase order again. | Medium | 422 |
+| `PURCHA-4965` | Purchase order billed to a store with no state (save, import, submit, RFQ award, supply proposal, bulk upload) | This store has no state, so the GST split can't be worked out. | Open the store, choose its State (or enter the GSTIN on its legal entity) and save, then save the purchase order again. | Medium | 422 |
 
 ## Purchase Return
 
@@ -943,13 +944,13 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
 |---|---|---|---|---|---|
-| `SALESP-0122` | MRP exceeded | Selling price cannot exceed MRP. | Correct details or request approval. | High | 422 |
-| `SALESP-0123` | Discount exceeds limit | Discount exceeds your allowed limit. Approval is required. | Correct details or request approval. | High | 422 |
-| `SALESP-0124` | Coupon invalid | Coupon is invalid, expired, or not applicable for this bill. | Correct details or request approval. | High | 422 |
-| `SALESP-0125` | Payment split mismatch | Payment total must match invoice total. | Correct details or request approval. | High | 422 |
-| `SALESP-0126` | Card payment reference missing | Payment reference is required for card/UPI transaction. | Correct details or request approval. | High | 422 |
-| `SALESP-0127` | Cash limit exceeded | Cash amount exceeds allowed transaction limit. | Correct details or request approval. | High | 422 |
-| `SALESP-0128` | Bill cancellation blocked | Bill cannot be cancelled after the allowed cancellation period. | Correct details or request approval. | High | 409 |
+| `SALESP-0122` | MRP exceeded | Selling price cannot exceed MRP. | Lower the price to the MRP or below. | High | 422 |
+| `SALESP-0123` | Discount exceeds limit | Discount exceeds your allowed limit. Approval is required. | Lower the discount, or ask a manager to approve it. | High | 422 |
+| `SALESP-0124` | Coupon invalid | Coupon is invalid, expired, or not applicable for this bill. | Remove the coupon, or check its dates and conditions. | High | 422 |
+| `SALESP-0125` | Payment split mismatch | Payment total must match invoice total. | Change the payments so they add up to the bill total. | High | 422 |
+| `SALESP-0126` | Card payment reference missing | A card or UPI payment needs its reference number. | Type the reference from the card slip or the UPI app. | High | 422 |
+| `SALESP-0127` | Cash limit exceeded | Cash amount exceeds allowed transaction limit. | Take part of the payment by card or UPI so the cash stays under the limit. | High | 422 |
+| `SALESP-0128` | Bill cancellation blocked | Bill cannot be cancelled after the allowed cancellation period. | Take a return against the bill instead. | High | 409 |
 | `SALESP-0183` | Bill saved | Bill generated successfully. | No action required. | Low | 200 |
 | `SALESP-0616` | Change to an issued sale without a reason | Say why this issued sale is being changed. | Enter a reason for the change and save again. The change, who made it and the reason are kept in the Post-Sale Edit History report. | Medium | 422 |
 
@@ -957,10 +958,10 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
 |---|---|---|---|---|---|
-| `SALESR-0129` | Sales return period exceeded | Sales return is not allowed after the configured return period. | Correct details or request approval. | High | 422 |
-| `SALESR-0130` | Return quantity exceeds sold quantity | Return quantity cannot exceed sold quantity. | Correct details or request approval. | High | 422 |
-| `SALESR-0131` | Original bill required for return | Original bill reference is required for sales return. | Correct details or request approval. | High | 422 |
-| `SALESR-0132` | Refund exceeds return value | Refund amount cannot exceed approved return value. | Correct details or request approval. | High | 422 |
+| `SALESR-0129` | Sales return period exceeded | Sales return is not allowed after the configured return period. | Tell the customer the return period has ended, or ask a manager whether an exception can be made. | High | 422 |
+| `SALESR-0130` | Return quantity exceeds sold quantity | Return quantity cannot exceed sold quantity. | Lower the return quantity to no more than was sold, less anything already returned. | High | 422 |
+| `SALESR-0131` | Original bill required for return | Original bill reference is required for sales return. | Scan or type the original bill number. Without the bill, a manager handles the return. | High | 422 |
+| `SALESR-0132` | Refund exceeds return value | Refund amount cannot exceed approved return value. | Lower the refund to the approved return value. | High | 422 |
 | `SALESR-0617` | Return or refund approved by the person who raised the return | Another person must approve this. | Ask a colleague or manager to approve it. The business has turned on second-person approval of returns and refunds. | Medium | 422 |
 | `SALESR-1307` | Whole purchase returned without its free gift (Gift With Purchase) | The free gift comes back with the purchase. | Everything paid for on this bill is coming back - add the free gift to the return, or keep part of the purchase. An administrator can let customers keep gifts (Configuration > Point of Sale). | Medium | 422 |
 | `SALESR-1310` | Store credit chosen for a refund of a bill with no customer | Store credit needs a customer. | This bill was a walk-in sale - refund it the way it was paid. | Low | 422 |
@@ -979,9 +980,9 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
 |---|---|---|---|---|---|
-| `STOCKT-0111` | Transfer source destination same | Source and destination location cannot be the same. | Select valid stock/location or request approval. | High | 422 |
-| `STOCKT-0112` | Transfer quantity exceeds available | Transfer quantity cannot exceed available stock. | Select valid stock/location or request approval. | High | 422 |
-| `STOCKT-0113` | Transfer receipt pending | Stock transfer cannot be closed until receipt is completed. | Select valid stock/location or request approval. | High | 422 |
+| `STOCKT-0111` | Transfer source destination same | Source and destination location cannot be the same. | Choose a different location to send the stock to. | High | 422 |
+| `STOCKT-0112` | Transfer quantity exceeds available | Transfer quantity cannot exceed available stock. | Lower the quantity to what the sending location has. | High | 422 |
+| `STOCKT-0113` | Transfer receipt pending | Stock transfer cannot be closed until receipt is completed. | Receive the transfer at the receiving store first, then close it. | High | 422 |
 | `STOCKT-0481` | Direct transfer approval not allowed (D04) | This transfer cannot be approved directly. | Submit it for approval - someone other than its creator approves it. | Medium | 422 |
 | `STOCKT-0482` | Batch-tracked transfer line cannot be traced to a lot | The lots for this item could not be found. | Name the batch on the line, or put the stock away against its lot first. | Medium | 422 |
 | `STOCKT-0483` | Serial numbers on a transfer do not match | The serial numbers do not match this transfer. | Scan one serial number per unit; each must be in stock at the sending store, or in transit on this transfer. | Medium | 422 |
@@ -1043,9 +1044,9 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
 |---|---|---|---|---|---|
-| `WMSLOG-0137` | Shipment partner missing | Logistics partner is required before dispatch. | Correct details or request approval. | High | 422 |
-| `WMSLOG-0138` | AWB generation failed | AWB generation failed. Please review courier response and try again. | Correct details or request approval. | High | 503 |
-| `WMSLOG-0139` | Delivery status update failed | Delivery status could not be updated. Please retry or check integration. | Correct details or request approval. | High | 503 |
+| `WMSLOG-0137` | Shipment partner missing | Logistics partner is required before dispatch. | Choose the courier for the shipment, then dispatch. | High | 422 |
+| `WMSLOG-0138` | AWB generation failed | AWB generation failed. Please review courier response and try again. | Read the courier's reason below, correct the shipment details, then try again. | High | 503 |
+| `WMSLOG-0139` | Delivery status update failed | Delivery status could not be updated. Please retry or check integration. | Try again in a few minutes. If it keeps failing, tell your administrator the courier link may be down. | High | 503 |
 
 ---
 

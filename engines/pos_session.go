@@ -343,6 +343,12 @@ func closePOSSession(tenantID, sessionID, cashier string, countedCash float64, v
 	if err != nil {
 		return nil, err
 	}
+	// 49.5.6d: offline sales waiting on validation took cash too - the same
+	// line the X-report shows (SessionCashPosition).
+	if res.HeldOffline, err = sessionHeldOfflineCash(schema, sessionID); err != nil {
+		return nil, err
+	}
+	res.Expected = round2(res.Expected + res.HeldOffline)
 	res.Variance = round2(countedCash - res.Expected)
 
 	if math.Abs(res.Variance) > res.VarianceTolerance && strings.TrimSpace(varianceReason) == "" {

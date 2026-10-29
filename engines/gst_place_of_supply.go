@@ -249,10 +249,8 @@ func ResolvePlaceOfSupply(tenantID, locationCode, vendorID string) PlaceOfSupply
 // Stage 49.5.6b: the derivation always decides. A client's `interstate` and
 // `interstate_override` are ignored - the override column stays for the POs
 // saved before, and is stored false - so the GST split is never a maker's
-// tick. A vendor with no state is refused before this runs
-// (RequirePOVendorState); a store whose state is not recorded leaves the
-// supply underived, and the PO is intra-state until it is (the PO screen asks
-// for the store's state).
+// tick. A vendor or a billing store with no state is refused before this runs
+// (RequirePOStates, 49.5.6e); the PO screen asks for the missing state.
 func ApplyPlaceOfSupply(tenantID string, payload map[string]interface{}) PlaceOfSupply {
 	location, _ := payload["location"].(string)
 	vendor, _ := payload["vendor"].(string)

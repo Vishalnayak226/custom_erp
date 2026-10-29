@@ -464,3 +464,6 @@ R4049	consolidation-suggestions	Clean-Location Consolidation Suggestions	WMS
 R1033	z-report	Z-report (till close)	Sales & POS
 R5084	day-book	Day Book	Finance
 R5085	customer-receipts	Customer receipts	Finance
+R9034	duplicate-suppliers	Duplicate suppliers	Admin
+R9035	duplicate-items	Duplicate items	Admin
+R5086	receivables-vs-ledger	Receivables vs Ledger (by invoice)	Finance

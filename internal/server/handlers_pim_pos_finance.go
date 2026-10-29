@@ -300,6 +300,9 @@ func handleGetImportTemplate(w http.ResponseWriter, r *http.Request) {
 	case variant == engines.ImportTemplateVariantFamily && doctype == "Item":
 		templateBytes, err = engines.GenerateItemFamilyCSVTemplate(tenantID)
 		filename = "Item_family_template.csv"
+	case variant == engines.ImportTemplateVariantDictionary: // Stage 47.13.2
+		templateBytes, err = engines.GenerateImportTemplateDictionaryCSV(tenantID, doctype)
+		filename = doctype + "_dictionary.csv"
 	default:
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("template variant %q is not available for %s", variant, doctype))
 		return
@@ -1091,16 +1094,18 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 					SalePrice float64 `json:"sale_price"`
 				} `json:"items"`
 			}
-			replaySale := 0
+			// Stage 49.5.7: summed in paise, as the sale itself was - int()
+			// dropped the paise (99.50 x 2 replayed as 198).
+			var replayPaise int64
 			if json.Unmarshal([]byte(existingData), &existing) == nil {
 				for _, it := range existing.Items {
-					replaySale += int(it.SalePrice) * it.Qty
+					replayPaise += engines.RupeesToPaise(it.SalePrice) * int64(it.Qty)
 				}
 			}
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"status":      "completed",
 				"cart_number": req.CartNumber,
-				"sale_total":  replaySale,
+				"sale_total":  engines.PaiseToRupees(replayPaise),
 			})
 			return
 		}

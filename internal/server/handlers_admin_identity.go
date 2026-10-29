@@ -665,6 +665,12 @@ func handleRolePermissions(w http.ResponseWriter, r *http.Request) {
 			// Roles screen saves a whole role's module-by-module ticks in one
 			// transaction instead of a request per combination.
 			Grants []rolePermissionRow `json:"grants"`
+			// Stage 49.3.6: why (recorded with the change), preview (answer
+			// what the save would do and save nothing) and end_sessions
+			// (sign the role's users out even for a change that would not).
+			Reason      string `json:"reason"`
+			Preview     bool   `json:"preview"`
+			EndSessions bool   `json:"end_sessions"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
@@ -688,34 +694,38 @@ func handleRolePermissions(w http.ResponseWriter, r *http.Request) {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'role' and 'doctype_name' (or 'doctype_names' or 'grants') are required")
 			return
 		}
-		tx, err := db.DB.Begin()
-		if err != nil {
-			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
-			return
+		// Stage 49.3.6: one engine path records the before/after evidence,
+		// flags dangerous grants and ends the sessions a high-risk reduction
+		// must not leave open (engines/role_grant_change.go).
+		change := engines.RoleGrantChangeRequest{
+			Role: req.Role, Actor: r.Header.Get("Resolved-Username"), ActorUserID: r.Header.Get("Resolved-User-ID"),
+			Reason: req.Reason, EndSessions: req.EndSessions,
 		}
-		defer tx.Rollback()
+		if change.Actor == "" {
+			change.Actor = change.ActorUserID
+		}
 		for _, g := range grants {
-			if _, err := tx.Exec(fmt.Sprintf(`
-				INSERT INTO %s.role_permissions (role, doctype_name, allow_read, allow_create, allow_update, allow_delete)
-				VALUES ($1, $2, $3, $4, $5, $6)
-				ON CONFLICT (role, doctype_name) DO UPDATE SET
-					allow_read = EXCLUDED.allow_read, allow_create = EXCLUDED.allow_create,
-					allow_update = EXCLUDED.allow_update, allow_delete = EXCLUDED.allow_delete`, schema),
-				req.Role, g.DoctypeName, g.AllowRead, g.AllowCreate, g.AllowUpdate, g.AllowDelete); err != nil {
-				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("%s: %v", g.DoctypeName, err))
+			change.Grants = append(change.Grants, engines.RoleGrantInput{Doctype: g.DoctypeName,
+				Read: g.AllowRead, Create: g.AllowCreate, Update: g.AllowUpdate, Delete: g.AllowDelete})
+		}
+		if req.Preview {
+			preview, err := engines.PreviewRoleGrantChange(tenantID, change)
+			if err != nil {
+				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 				return
 			}
-		}
-		if err := tx.Commit(); err != nil {
-			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "preview", "preview": preview})
 			return
 		}
-		actorUsername := r.Header.Get("Resolved-Username")
-		for _, g := range grants {
-			engines.LogAuditEventCtx(r.Context(), tenantID, actorUsername, "ROLE_PERMISSIONS", "GRANT_UPDATED",
-				fmt.Sprintf("Set %s permissions on %s: read=%v create=%v update=%v delete=%v", req.Role, g.DoctypeName, g.AllowRead, g.AllowCreate, g.AllowUpdate, g.AllowDelete))
+		result, err := engines.ChangeRoleGrants(r.Context(), tenantID, change)
+		if err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
 		}
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success", "granted": len(grants)})
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success", "granted": len(grants),
+			"change_id": result.ChangeID, "sessions_ended": result.SessionsEnded,
+			"high_risk": result.Preview.HighRisk, "dangerous_gained": result.Preview.DangerousGained,
+			"dangerous_removed": result.Preview.DangerousRemoved})
 
 	default:
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")

@@ -396,6 +396,29 @@ func DecideOfflineSale(ctx context.Context, tenantID string, d OfflineSaleDecisi
 	if len(result) == 0 || !json.Valid(result) {
 		result = []byte("null")
 	}
+	// 49.5.6d: a sale that posted goes on the till's sale day. One waiting on
+	// Approvals (over the discount limit) has not posted yet, and posts on the
+	// day it is approved, as any such sale does.
+	postedOn := ""
+	var checkout struct {
+		Status string `json:"status"`
+	}
+	_ = json.Unmarshal(result, &checkout)
+	if checkout.Status == "completed" {
+		day, closedDay, err := offlineSalePostingDay(tx, schema, sale.SoldAt)
+		if err != nil {
+			return nil, err
+		}
+		if day < BusinessToday() {
+			if err := dateOfflineSaleTx(tx, schema, sale.CartNumber, *sale.SoldAt); err != nil {
+				return nil, err
+			}
+		}
+		postedOn = " on " + day
+		if closedDay != "" {
+			postedOn += fmt.Sprintf(" (rung up %s, in a closed period)", closedDay)
+		}
+	}
 	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.pos_offline_sales SET status = $2, decided_by = $3, decided_at = NOW(), bill_number = $4,
 		result = $5, lines_matched = $6 WHERE id = $1`, schema), sale.ID, OfflineSaleValidated, d.Actor, bill, result, matched); err != nil {
 		return nil, err
@@ -403,8 +426,92 @@ func DecideOfflineSale(ctx context.Context, tenantID string, d OfflineSaleDecisi
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
-	LogAuditEventCtx(ctx, tenantID, d.Actor, "POS_OFFLINE_SALE_VALIDATED", "SUCCESS", fmt.Sprintf("Validated %s - %d/%d lines match, posted as %s", summary, matched, len(lines), bill))
+	LogAuditEventCtx(ctx, tenantID, d.Actor, "POS_OFFLINE_SALE_VALIDATED", "SUCCESS", fmt.Sprintf("Validated %s - %d/%d lines match, posted as %s%s", summary, matched, len(lines), bill, postedOn))
 	return GetOfflineSale(tenantID, sale.ID)
+}
+
+// offlineSalePostingDay (49.5.6d, user 2026-10-29: "all recommended") is the
+// day a validated offline sale posts on: the day the till rang it up. It is
+// today when the till sent no time or a time from today on, and today when
+// the till's day is inside a Closed accounting period, which takes no new
+// postings (rejectIfCurrentPeriodClosed) - closedDay then names that day.
+func offlineSalePostingDay(tx *sql.Tx, schema string, soldAt *time.Time) (day, closedDay string, err error) {
+	today := BusinessToday()
+	if soldAt == nil {
+		return today, "", nil
+	}
+	tillDay := soldAt.In(BusinessLocation()).Format("2006-01-02")
+	if tillDay >= today {
+		return today, "", nil
+	}
+	var closed bool
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT EXISTS(SELECT 1 FROM %s.accounting_periods
+		WHERE status = 'Closed' AND $1::date BETWEEN start_date AND end_date)`, schema), tillDay).Scan(&closed); err != nil {
+		return "", "", err
+	}
+	if closed {
+		return today, tillDay, nil
+	}
+	return tillDay, "", nil
+}
+
+// dateOfflineSaleTx puts a posted offline sale at the till's sale time: its
+// GL rows, its stock ledger lines and the bill, whose created_at is what day
+// and period reports read - as a backdated journal voucher's rows take the
+// voucher's date (journal_voucher.go, 73.D.16). The bill number still comes
+// from the validation day's series.
+func dateOfflineSaleTx(tx *sql.Tx, schema, cartNumber string, soldAt time.Time) error {
+	at := soldAt.UTC().Format(time.RFC3339Nano)
+	for _, q := range []string{
+		`UPDATE %s.gl_postings SET created_at = $2::timestamptz WHERE document_type = 'POSCart' AND document_id = $1`,
+		`UPDATE %s.documents SET created_at = $2::timestamptz WHERE doctype = 'StockLedgerEntry'
+			AND data->>'voucher_id' = $1 AND data->>'voucher_type' IN ('POSInvoice', 'POSConsumption')`,
+		`UPDATE %s.documents SET created_at = $2::timestamptz WHERE doctype = 'POSCart' AND id = $1`,
+	} {
+		if _, err := tx.Exec(fmt.Sprintf(q, schema), cartNumber, at); err != nil {
+			return fmt.Errorf("offline sale %s posted but not dated to the till's day: %w", cartNumber, err)
+		}
+	}
+	return nil
+}
+
+// sessionHeldOfflineCash (49.5.6d) is the cash a session's drawer took for
+// offline sales still waiting on validation. They have not posted, so they
+// are not in the session's cash sales; the X-report and the till close show
+// them as their own line and hold the drawer to them. Validated, a sale posts
+// into the same session and moves to cash sales; rejected, it leaves both.
+func sessionHeldOfflineCash(schema, sessionID string) (float64, error) {
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT payload, total FROM %s.pos_offline_sales WHERE pos_session = $1 AND status = $2`, schema),
+		sessionID, OfflineSalePending)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	total := 0.0
+	for rows.Next() {
+		var payload []byte
+		var saleTotal float64
+		if err := rows.Scan(&payload, &saleTotal); err != nil {
+			return 0, err
+		}
+		var p struct {
+			PaymentMode string      `json:"payment_mode"`
+			Tenders     []POSTender `json:"tenders"`
+		}
+		_ = json.Unmarshal(payload, &p)
+		if len(p.Tenders) > 0 {
+			for _, t := range p.Tenders {
+				if strings.EqualFold(t.Mode, "Cash") {
+					total += t.Amount
+				}
+			}
+			continue
+		}
+		if p.PaymentMode == "" || strings.EqualFold(p.PaymentMode, "Cash") {
+			total += saleTotal
+		}
+	}
+	return round2(total), rows.Err()
 }
 
 // offlineSaleHeld reports whether a cart number arrived as a held offline

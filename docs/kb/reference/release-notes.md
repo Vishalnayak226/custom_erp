@@ -19,15 +19,33 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **198** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **202** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
-- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-17
+- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-22
+
+## 2026-10-29
+
+**The erp-d3 follow-ups: offline sales on the till's day, held offline cash in the drawer, SKU scans, no PO for a stateless store** *(code + tests + docs; NOT COMMITTED)*
+
+The user's *"all recommended"* on the six follow-up decisions of §304 (micro_checklist 49.5.6d, 49.5.6e, 47.11.8b).
+
+**Stage 141 — Wholeops beside a client's brand; refreshes that keep the brand and the menu; a rate limit sized for real use** *(code)*
+
+From the user's minn screenshots (branding on: Wholeops only as grey foot text), their pick of four real-screenshot mockups (*"c1 b2"*), and a video of repeated refreshes on app.wholeops.in. Full detail in checklist Stage 141.
+
+**"Build next 20 items" (session erp-5e): twenty Stage 47 / 49 slices - privilege-change evidence, two hostile clients, insider scenarios, GST / Companies Act controls, receivables vs ledger, synthetic tenants, slow-query shapes, CERT-In logs, a secret scan** *(code + tests + docs; NOT COMMITTED, held)*
+
+The user's "Build next 20 items except 140's list" (2026-10-28). Everything open outside Stages 47 / 49 waited on the user, a device, a credential, a decision or another session, so the run took the twenty Stage 47 / 49 items no run had touched that have a self-contained slice: 47.9.1, 47.9.3, 47.12.4, 47.13.2, 47.13.5, 47.14.3, 47.14.4, 47.16.1, 47.16.3, 47.16.4, 47.18.2, 49.3.6, 49.3.7, 49.5.5, 49.5.7, 49.6.2, 49.6.6, 49.8.8, 49.10.3, 49.10.6. Item detail: each item's entry in micro_checklist, and the run header under erp-d3's decisions block. All twenty are built in part; what is left is on each.
 
 ## 2026-10-28
 
-**Stage 135.21-135.26 — every posting under its document's lock; provisioning seeds stock locations; PIM publishes to Shopify linked** *(code + tests + docs, NOT COMMITTED - held in release/hold.txt)*
+**The erp-d3 decisions: offline sales validated before they post, vendor state required, unknown client codes refused, nothing booked twice, per-client date order, outside calls switch** *(code + tests + docs; released in 0.19.0 `efc6403`)*
+
+The user answered the eight decisions the "next 20" run (§300) left open; item detail: micro_checklist block "User, 2026-10-28: answers to the erp-d3 decisions" (49.5.6a-e, 49.3.2a, 49.2.1a, 47.11.8a-b, 47.14.2a, 49.8.7a, 49.10.8a, 49.3.4b).
+
+**Stage 135.21-135.26 — every posting under its document's lock; provisioning seeds stock locations; PIM publishes to Shopify linked** *(code + tests + docs, released in 0.19.0 `efc6403`)*
 
 The user: *"Yes, Acknowledged all as recommened"* - build 135.21 and 135.23, route Shopify channels in PIM Publish through the Shopify page (135.22), and the 135.10 / 135.18 answers confirmed. Item detail: micro_checklist 135.21-135.26.
 
@@ -45,7 +63,7 @@ The user approved the §296 batch and its five open decisions. The batch shipped
 
 The user: *"Build next 20 items"*, then *"go ahead"*. Stages 47 / 49 / 50 had no unblocked item left in tracker order, so the run took the six not-started Stage 135 findings and the fourteen Stage 47 / 49 items earlier runs had passed over. Item detail: micro_checklist header of 2026-10-27 and each item's entry.
 
-**Stage 135.10-135.22 — decisions, stock integrity and locking** *(code + tests + docs, NOT COMMITTED - held in release/hold.txt)*
+**Stage 135.10-135.22 — decisions, stock integrity and locking** *(code + tests + docs, released in 0.19.0 `efc6403`)*
 
 The user: *"Build all. All recommended one is approved"* - the open Stage 135 items, with the recommended answers to 135.10 and 135.18. Item detail: micro_checklist 135.10-135.22.
 
@@ -448,24 +466,4 @@ Same session as §160-162, immediately following BLD-019. BLD-020 formally `DEPE
 **Stage 50 — BLD-019 (targeted mutation proof) built and verified, three real test gaps found and closed** *(code + tests + docs)*
 
 Same session as §161, immediately following. BLD-019 formally `DEPENDS on BLD-015/017`, both now done, so this was next-ready. HEAD unchanged at `82f5517`; nothing committed.
-
-**Stage 50 — BLD-017 (economic property/metamorphic tests) built and verified, GST rounding bug found and fixed** *(code + tests + docs)*
-
-Continuation of the same session as §160. Two other things closed first, both quick: re-asked and got the BLD-002 DECISION half from the product/QA owner (both reference candidates approved as drafted; Chromium/3-viewport/en-IN accepted as the release bar; a tenant-size dimension approved and defined as three tiers reusing the existing `tenant_limits`/`CheckTenantLimit` mechanism keyed on `max_users`; module/role subsets proposed per candidate with a stated gap — see `bld-002-test-configuration-inventory.md` §9 and the build checklist's BLD-002 entry; unblocks BLD-020). HEAD unchanged at `82f5517`; nothing committed.
-
-## 2026-09-18
-
-**Stage 50 — POSCart/override decision implemented, BLD-010/011 live-verified, two new focus/keyboard gaps found and fixed** *(code + tests)*
-
-Continued §157's build thread: the two items it left open (§157's own "one new finding" and BLD-010/011's live verification). HEAD unchanged at `82f5517`; nothing committed. All verification against a fresh, disposable PostgreSQL 16.3 cluster on loopback port 5461 (deliberately new rather than reusing the 2026-09-17 session's still-running :5460 cluster, whose bootstrap role name could not be determined) plus a scratch `erp-server` on port 8462, never shared dev/production.
-
-## 2026-09-17
-
-**Stage 50 BLD-001–014 (Wave 0/1) built and verified, plus AUD-03/04 fixed and one new finding** *(code + tests)*
-
-Executed the build checklist's next-thread prompt from §156: BLD-001's isolated environment, then the full BLD-003–014 release-blocker batch. HEAD unchanged at `82f5517`; nothing committed. All work verified against a disposable PostgreSQL 16.3 cluster on loopback port 5460 (four independently fresh-migrated databases across the session), never the shared dev DB or the frozen 2026-09-16 audit fixture on 5446/8178.
-
-**Stage 50 build checklist and new-thread handoff** *(planning only)*
-
-Prepared the detailed build and acceptance checklist at the user's request: 60 work packages in ten dependency-ordered waves, 23 business reference journeys and eight explicit candidate-domain decisions. Each work package identifies responsible roles, readiness/prerequisites, implementation scope and observable closure criteria. All 136 audit controls, nine defects, two verification findings, twelve package proposals, eight performance proposals and twelve Stage 48 parent gates are mapped. The live TODO now links the detailed queue through 50.11–50.19 and records only checklist preparation as complete (50.6b).
 

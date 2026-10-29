@@ -40,6 +40,7 @@ var tenantResetKeep = map[string]string{
 	"role_permissions":         "permissions",
 	"field_permissions":        "permissions",
 	"role_template_migrations": "role template history",
+	"role_grant_changes":       "evidence: role permission changes (Stage 49.3.6)",
 	"doctype_meta":             "record definitions",
 	"doctype_fields":           "record definitions",
 	"module_entitlements":      "the modules this client has",
