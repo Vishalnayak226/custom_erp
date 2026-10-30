@@ -44,6 +44,15 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 313. "Push and deploy properly ... all approved" - 0.20.0, everything in the tree, deployed to app and minn (2026-10-30, release, session erp-1f)
+
+micro_checklist run header "Push and deploy properly" (2026-10-30).
+
+- **99b1416** (0.20.0; live was 0.19.0 at 932f3c8): §310 Stage 140.12, §311 erp-7c's approved decisions, §312 erp-6b's batch (the user's "all approved" is its approval), Stage 142, 143.4's built entry points, and 135.24-135.26 (code and tests complete since 2026-10-29, never marked by their owner). `release/hold.txt` cleared - nothing held, so no carving. Every peer idle.
+- **What the combined tree broke, fixed before commit:** 140.12 code met the newer gates for the first time. First Release run stopped at G10 on 7 tests: Settings > CRM "Test" dialled a client-typed mail server outside the outbound guard (now `outboundDial`, as `crmSendEmail` since 49.8.7; `reviewedEgress` entry added); the preset hint field `Secret` held digit-bearing text the credential scan reads as a secret (renamed `SecretHint`, its JSON name unchanged); the `crm-pulse` tile had no question (47.14.3); the customer statement's date fallback used the server clock (`erp_local_date`); the acquirer settlement matcher was missing from the worker inventory; two tests still assumed four tiles and a Cashier reading Receivables Ageing (140.12.10 refuses it now). Also regenerated before the run: `command-catalog.md`, `idempotency-audit.md` (written to %TEMP% and copied in - Controlled Folder Access), `AcquirerSettlement.bank_line` registered as business data.
+- **Deploy:** 8 migrations (47.16.4a/b/c, 49.8.5, 49.8.6, 75.2/47.16.4f, 130.16.3 strict transitions, 140.12), backup sha256 OK, rollback copy kept, both hosts 200 on 0.20.0. Client-data list was read first: additive rows and flags only, no existing record or password changed.
+- **Not done here:** Guide's closing run on app (140.13.1); 140.12.18 / .20 not driven live; 49.10.6a's first encrypted media nightly re-sends the whole media store.
+
 ## 312. "Build next 20 open items" (session erp-6b): twenty Stage 47 / 49 slices - a cross-store write hole, raw database text in errors, a screen burst refused, a posted GRN cancellable, strict posting transitions, revocable exports, job actors (2026-10-30, code + tests + docs; NOT COMMITTED)
 
 The user's "build next 20 open items" (2026-10-29). erp-7c held the six approved decisions and 140.12 was erp-91's; the Stage 47 / 49 items no run had touched needed a reviewer, an environment, counsel or real users. So the run took the "Left:" slices earlier runs had named and two not-started follow-ups: 47.10.7, 47.11.2, 47.11.3, 47.11.8b, 47.13.3, 47.14.3, 47.17.5, 47.18.3, 47.18.4, 49.3.8, 49.4.6, 49.4.7, 49.5.1, 49.5.3, 49.5.4, 49.8.2, 49.8.5, 49.8.6, 49.10.4, 49.11.1. Item detail: each item's entry in micro_checklist and the run header after the erp-7c block. Seven are done and ticked; thirteen are built in part, with what is left on each.
