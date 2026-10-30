@@ -114,12 +114,25 @@ func RetryChannelDecisionPush(tenantID, orderID, userID string) error {
 		return fmt.Errorf("order %s: the channel push is %s - only a Failed or Not connected push is retried", orderID, status)
 	}
 	got, why := queueChannelDecision(tenantID, schema, orderID, order, decision, fmt.Sprintf("retry-%d", time.Now().UnixNano()))
+	if got == "" {
+		// 140.12.17: an own-channel order stuck before this change - nothing
+		// waits for the answer, so the push is closed instead of retried.
+		_ = mergeSalesOrderData(schema, orderID, map[string]interface{}{"channel_push": map[string]interface{}{
+			"decision": decision, "status": "Not needed", "error": "", "at": time.Now().UTC().Format(time.RFC3339)}})
+		LogAuditEvent(tenantID, userID, "ORDER_CHANNEL_PUSH_RETRY", "SUCCESS", fmt.Sprintf("order=%s decision=%s channel_push=Not needed", orderID, decision))
+		return nil
+	}
 	LogAuditEvent(tenantID, userID, "ORDER_CHANNEL_PUSH_RETRY", "SUCCESS", fmt.Sprintf("order=%s decision=%s channel_push=%s", orderID, decision, got))
 	if got != "Queued" {
 		return fmt.Errorf("still %s: %s", strings.ToLower(got), why)
 	}
 	return nil
 }
+
+// ownOrderChannels are order sources that belong to the business itself. Set
+// up as a Channel with a connector (a Shopify store named "Website"), the
+// connector's own rules apply instead.
+var ownOrderChannels = map[string]bool{"website": true, "own website": true, "web": true, "phone": true, "whatsapp": true, "store": true, "walk-in": true, "email": true}
 
 // queueChannelDecision decides whether the answer can go to the order's
 // channel, queues it when it can, and records the outcome on the order as
@@ -130,7 +143,14 @@ func queueChannelDecision(tenantID, schema, orderID string, order map[string]int
 		return "", ""
 	}
 	status, detail := "Queued", ""
-	if cfg, err := LoadChannelRuntimeConfig(tenantID, channel); err != nil {
+	cfg, cfgErr := LoadChannelRuntimeConfig(tenantID, channel)
+	if cfgErr != nil && ownOrderChannels[strings.ToLower(strings.TrimSpace(channel))] {
+		// 140.12.17: the business's own website, phone or chat - no
+		// marketplace is waiting for the answer, so like Manual it needs no
+		// push (it was "Not connected" and retried for ever).
+		return "", ""
+	}
+	if cfgErr != nil {
 		status, detail = "Not connected", fmt.Sprintf("no active channel %q is set up (Setup ▸ PIM ▸ Channel) - add it and its credentials, then Retry", channel)
 	} else if connector, err := ResolveOmnichannelConnector(cfg.Platform); err != nil || !connector.Descriptor().PushStatus {
 		status, detail = "Not supported", "this channel's connector cannot send order answers - answer it in the channel's seller portal"

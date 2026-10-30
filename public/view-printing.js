@@ -23,8 +23,7 @@ function renderQZSetupPanel(container) {
       <label class="form-label" for="qz-doc-file">Print a marketplace label or invoice (PDF from Myntra, or any channel)</label>
       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
         <input type="file" id="qz-doc-file" class="form-input" accept=".pdf,.zpl,.txt,.prn" style="max-width: 340px;">
-        <button class="btn btn-outline" id="qz-doc-preview-btn" type="button">Preview</button>
-        <button class="btn btn-primary" ${actionAttrs('qzPrintPickedDocument')}>Print</button>
+        <button class="btn btn-primary" id="qz-doc-preview-btn" type="button">Print</button>
       </div>
       <p class="page-subtitle" style="margin: 6px 0 0;">
         Goes to whichever Printer has <strong>Default For = Shipping Label</strong>, exactly as the channel issued it.
@@ -37,9 +36,10 @@ function renderQZSetupPanel(container) {
 }
 
 // qzPreviewPickedDocument (Stage 133.3) shows the picked file as the channel
-// issued it before it prints: a PDF in the browser's own viewer in a new tab
-// (the page's security policy keeps PDFs out of its own frames), a ZPL or text
-// file as its text - the printer's commands, which the printer draws from.
+// issued it before it prints: a PDF through a link to the browser's own viewer
+// in a new tab (the page's security policy keeps PDFs out of its own frames),
+// a ZPL or text file as its text - the printer's commands, which the printer
+// draws from. Stage 143.4: it is what Print does; its Print prints.
 async function qzPreviewPickedDocument() {
   const input = document.getElementById('qz-doc-file');
   if (!input || !input.files || input.files.length === 0) {
@@ -47,13 +47,12 @@ async function qzPreviewPickedDocument() {
     return;
   }
   const file = input.files[0];
-  if (/\.pdf$/i.test(file.name) || file.type === 'application/pdf') {
-    const url = URL.createObjectURL(file);
-    if (!window.open(url, '_blank')) await showCustomAlert('The browser blocked the preview tab - allow pop-ups for this site and try again.', 'Preview');
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-    return;
-  }
-  const text = await file.text();
+  const pdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
+  const url = pdf ? URL.createObjectURL(file) : '';
+  const body = pdf
+    ? `<p style="margin: 0;">A PDF prints exactly as the channel issued it. <a href="${url}" target="_blank" rel="noopener">Open the PDF</a> to look at it first.</p>`
+    : `<p style="margin: 0 0 8px; color: var(--text-muted);">This file is the label printer's own commands; the printer draws the label from them.</p>
+        <pre style="white-space: pre-wrap; font-family: monospace; font-size: 12px; max-height: 60vh; overflow: auto; margin: 0;">${escapeHTMLText(await file.text())}</pre>`;
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
@@ -61,8 +60,7 @@ async function qzPreviewPickedDocument() {
       <div class="modal-header"><h3 class="modal-title" id="qz-doc-preview-title">${escapeHTMLText(file.name)}</h3>
         <button type="button" class="modal-close" aria-label="Close dialog" data-qz-preview="close">×</button></div>
       <div class="modal-body">
-        <p style="margin: 0 0 8px; color: var(--text-muted);">This file is the label printer's own commands; the printer draws the label from them.</p>
-        <pre style="white-space: pre-wrap; font-family: monospace; font-size: 12px; max-height: 60vh; overflow: auto; margin: 0;">${escapeHTMLText(text)}</pre>
+        ${body}
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline" data-qz-preview="close">Close</button>
@@ -71,7 +69,7 @@ async function qzPreviewPickedDocument() {
     </div>`;
   document.body.appendChild(overlay);
   requestAnimationFrame(() => overlay.classList.add('open'));
-  const close = () => overlay.remove();
+  const close = () => { overlay.remove(); if (url) URL.revokeObjectURL(url); };
   overlay.querySelectorAll('[data-qz-preview="close"]').forEach(b => b.addEventListener('click', close));
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
   overlay.querySelector('[data-qz-preview="print"]').addEventListener('click', () => { close(); qzPrintPickedDocument(); });
@@ -299,7 +297,6 @@ async function renderStickerPrintTab(container) {
     <div id="sticker-sku-list" style="margin-bottom: 16px; font-size: 13px; color: var(--text-muted);"></div>
     <div id="sticker-form-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
     <div style="display: flex; gap: 12px;">
-      <button class="btn btn-outline" id="sticker-preview-btn" type="button">Preview</button>
       <button class="btn btn-primary" id="sticker-print-btn" style="flex: 1;">Print Stickers</button>
     </div>
   `;
@@ -380,8 +377,7 @@ async function renderStickerPrintTab(container) {
       addStickerSKU();
     }
   });
-  document.getElementById('sticker-print-btn').addEventListener('click', printStickers);
-  document.getElementById('sticker-preview-btn').addEventListener('click', previewStickers);
+  document.getElementById('sticker-print-btn').addEventListener('click', previewStickers);
 
   // Stage 88.5.5: an MRP change hands its items over for the sticker reprint.
   let prefill = null;
@@ -833,7 +829,6 @@ function renderStickerSourceLines() {
       </tbody>
     </table>
     <div style="display: flex; gap: 12px; margin-top: 12px;">
-      <button class="btn btn-outline" id="sticker-source-preview-btn" type="button">Preview</button>
       <button class="btn btn-primary" id="sticker-source-print-btn">Print Selected</button>
     </div>
   `;
@@ -867,16 +862,16 @@ function renderStickerSourceLines() {
     keepStickerTemplateFor([stickerSourceLines[i].product_type], stickerSourceTemplates[i]);
   }));
   document.getElementById('sticker-source-keep-all')?.addEventListener('click', () => keepStickerTemplateFor(allTypes, runValue));
-  el.querySelectorAll('[data-source-print-one]').forEach(btn => {
-    btn.addEventListener('click', () => printStickerSourceLines([Number(btn.getAttribute('data-source-print-one'))]));
-  });
-  const selectedLines = () => stickerSourceLines.map((l, i) => i).filter(i => stickerSourceSelected[i]);
-  document.getElementById('sticker-source-print-btn').addEventListener('click', () => printStickerSourceLines(selectedLines()));
-  document.getElementById('sticker-source-preview-btn').addEventListener('click', async () => {
-    const indexes = selectedLines();
+  // Stage 143.4: every Print shows the preview first; its Print prints.
+  const previewThenPrint = async (indexes) => {
     const body = stickerSourceRequest(indexes);
     if (body && await previewStickerRequest(body, 1, document.getElementById('sticker-source-error'))) printStickerSourceLines(indexes);
+  };
+  el.querySelectorAll('[data-source-print-one]').forEach(btn => {
+    btn.addEventListener('click', () => previewThenPrint([Number(btn.getAttribute('data-source-print-one'))]));
   });
+  const selectedLines = () => stickerSourceLines.map((l, i) => i).filter(i => stickerSourceSelected[i]);
+  document.getElementById('sticker-source-print-btn').addEventListener('click', () => previewThenPrint(selectedLines()));
 }
 
 // previewStickerRequest (Stage 133.3) asks for a print's labels without
@@ -1012,7 +1007,8 @@ function stickerScanBody(code, printerCode, copies) {
 
 // previewStickers (Stage 133.3) previews the scan list - or, when the list is
 // empty (Print on scan), what is typed in the scan box, as that scan would
-// print. Print in the preview prints it the same way.
+// print. Print in the preview prints it the same way. Stage 143.4: it is
+// what Print Stickers does - there is no separate Preview button.
 async function previewStickers() {
   const errorEl = document.getElementById('sticker-form-error');
   errorEl.classList.add('hidden');
@@ -1025,7 +1021,7 @@ async function previewStickers() {
     return;
   }
   if (stickerSKUs.length === 0 && !typed) {
-    errorEl.textContent = 'Scan or type a SKU first, then Preview.';
+    errorEl.textContent = 'Scan or type a SKU first, then Print.';
     errorEl.classList.remove('hidden');
     return;
   }

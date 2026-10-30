@@ -283,19 +283,18 @@ func postJournalVoucherTx(tx *sql.Tx, tenantID, schema, voucherID string, data m
 		opt.ExchangeRate = rate
 	}
 	postingKey := fmt.Sprintf("JournalVoucher:%s:POST", voucherID)
-	if err := PostDoubleEntryTx(tx, tenantID, schema, "JournalVoucher", voucherID, PaiseMap(debits), PaiseMap(credits), voucherDate, postingKey, opt); err != nil {
-		return fmt.Errorf("voucher %s approved but GL post failed: %v", voucherID, err)
-	}
 	// Stage 73.D.16: a backdated voucher belongs to its own date. Period
 	// reports read the GL row's created_at, which is the posting moment, so a
 	// voucher dated last month landed in this month. The rows take the
 	// voucher's date (keeping their time of day), as depreciation's rows take
 	// their month's end (asset_depreciation.go). A future date is left alone.
+	// Stage 47.16.4b: written as the rows are inserted - gl_postings refuses
+	// to change a posted row's date afterwards.
 	if _, perr := time.Parse("2006-01-02", voucherDate); perr == nil && voucherDate < BusinessToday() {
-		if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.gl_postings SET created_at = $1::date + CAST(created_at AS time)
-			WHERE idempotency_key = $2 AND document_type = 'JournalVoucher' AND document_id = $3`, schema), voucherDate, postingKey, voucherID); err != nil {
-			return fmt.Errorf("voucher %s not posted - its rows could not take the voucher's date: %v", voucherID, err)
-		}
+		opt.PostedAt = voucherDate
+	}
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "JournalVoucher", voucherID, PaiseMap(debits), PaiseMap(credits), voucherDate, postingKey, opt); err != nil {
+		return fmt.Errorf("voucher %s approved but GL post failed: %v", voucherID, err)
 	}
 	if err := updateJournalVoucherDataIn(tx, schema, voucherID, "Posted", data); err != nil {
 		return fmt.Errorf("voucher %s not posted - status update failed: %v", voucherID, err)

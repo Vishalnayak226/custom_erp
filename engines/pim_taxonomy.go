@@ -8,10 +8,10 @@ import (
 // Taxonomy versioning (Stage 26.4.3). ProductFamily/ProductAttributeDef/
 // ProductFamilyAttribute/ProductAttributeGroup are all plain generic
 // doctypes (Stage 15/26.4.1) with no dedicated engine of their own - every
-// field-level change on them is already captured by the existing
-// tenant_default.audit_logs trigger (db/migration.sql section 16,
-// log_document_changes/log_document_insert_delete), which fires on every
-// documents INSERT/UPDATE/DELETE regardless of doctype. This file adds no
+// field-level change on them is already captured by the documents edit-log
+// trigger (db/migration.sql section 16 on tenant_default; on every client
+// since Stage 47.16.4a, public.erp_log_document_edit), which fires on every
+// documents UPDATE regardless of doctype. This file adds no
 // new table and no new trigger - it only reads that existing audit trail
 // back out, filtered to one taxonomy document, instead of building a
 // parallel version-history mechanism.
@@ -47,7 +47,9 @@ type TaxonomyHistoryEntry struct {
 // an UPDATE row always ends with "for Document ID: <id>" (nothing
 // trailing) - anchoring on start/end rather than a bare substring match
 // avoids one document's id ever matching another's audit rows as a
-// false-positive substring.
+// false-positive substring. Since Stage 47.16.4a an UPDATE row (one per save,
+// on every client) also names its record in entity_type / entity_id, which is
+// matched exactly.
 func GetTaxonomyHistory(tenantID, doctype, docID string) ([]TaxonomyHistoryEntry, error) {
 	if !IsTaxonomyHistoryDoctype(doctype) {
 		return nil, fmt.Errorf("taxonomy history is not available for doctype %q", doctype)
@@ -63,7 +65,8 @@ func GetTaxonomyHistory(tenantID, doctype, docID string) ([]TaxonomyHistoryEntry
 		SELECT user_id, action, details, created_at::text FROM %s.audit_logs
 		WHERE (action = $1 AND details LIKE 'Created Document ID: ' || $2 || ' with data:%%')
 		   OR (action = $3 AND details LIKE '%%for Document ID: ' || $2)
-		ORDER BY created_at ASC`, schema), createAction, docID, updateAction)
+		   OR (action = $3 AND entity_type = $4 AND entity_id = $2)
+		ORDER BY created_at ASC`, schema), createAction, docID, updateAction, doctype)
 	if err != nil {
 		return nil, err
 	}

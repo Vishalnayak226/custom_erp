@@ -30,7 +30,10 @@ package db
 //      record types it added (never for ones the client already has, so a
 //      permission an admin removed is not handed back); missing number series;
 //   6. inserts the system seed records named in systemSeedDoctypes, by id;
-//   7. grants the least-privilege roles on the schema when they exist.
+//   7. puts the row guards in guardTriggers on the tables that lack them, and
+//      attaches the documents edit-log trigger when it is missing (Stage
+//      47.16.4a; LIKE copies no triggers);
+//   8. grants the least-privilege roles on the schema when they exist.
 // Counters (sequence_counters), users, settings and every other record are
 // left alone.
 
@@ -67,6 +70,17 @@ var syncMetaTables = []metaTable{
 	{name: "prefix_configs", key: []string{"doc_type"}, skip: []string{"id"}},
 }
 
+// guardTriggers are the row guards a client's table carries, as
+// tenant_default's does (each added by its migration). Each runs a function in
+// public, so one trigger definition serves every schema. Put on a table only
+// once its function exists, so a binary ahead of its migration still syncs.
+var guardTriggers = []struct{ table, name, fn string }{
+	// Stage 47.16.4b: posted ledger rows never change or go (db/migrations_stage47_16_4b_gl_postings_guard.sql).
+	{"gl_postings", "gl_postings_guard", "public.gl_postings_guard()"},
+	// Stage 47.16.4f: an IRP acknowledgement is never changed (db/migrations_stage75_2_irp_evidence_47_16_4f.sql).
+	{"irp_documents", "irp_documents_ack_immutable", "public.irp_documents_ack_immutable()"},
+}
+
 var schemaNameRE = regexp.MustCompile(`^[a-z_][a-z0-9_]{0,62}$`)
 
 // TenantSchemaSyncReport says what one sync changed.
@@ -76,13 +90,14 @@ type TenantSchemaSyncReport struct {
 	ColumnsAdded   []string
 	IndexesCreated []string
 	SequencesOwned []string
+	TriggersAdded  []string
 	RowsAdded      map[string]int
 	Warnings       []string
 }
 
 // Changed reports whether the sync altered anything.
 func (r TenantSchemaSyncReport) Changed() bool {
-	if len(r.TablesCreated)+len(r.ColumnsAdded)+len(r.IndexesCreated)+len(r.SequencesOwned) > 0 {
+	if len(r.TablesCreated)+len(r.ColumnsAdded)+len(r.IndexesCreated)+len(r.SequencesOwned)+len(r.TriggersAdded) > 0 {
 		return true
 	}
 	for _, n := range r.RowsAdded {
@@ -100,6 +115,9 @@ func (r TenantSchemaSyncReport) Summary() string {
 		fmt.Sprintf("%d columns", len(r.ColumnsAdded)),
 		fmt.Sprintf("%d indexes", len(r.IndexesCreated)),
 		fmt.Sprintf("%d own sequences", len(r.SequencesOwned)),
+	}
+	if len(r.TriggersAdded) > 0 {
+		parts = append(parts, fmt.Sprintf("%d triggers", len(r.TriggersAdded)))
 	}
 	keys := make([]string, 0, len(r.RowsAdded))
 	for k := range r.RowsAdded {
@@ -428,7 +446,34 @@ func SyncTenantSchemaTx(tx *sql.Tx, schema string) (TenantSchemaSyncReport, erro
 		}
 	}
 
-	// 7. Least-privilege grants (only on a hardened cluster).
+	// 7. Row guards (Stage 47.16.4b / 4f): LIKE copies no triggers.
+	for _, g := range guardTriggers {
+		var tableThere, fnThere, guarded bool
+		if err := tx.QueryRow(`SELECT to_regclass(quote_ident($1) || '.' || quote_ident($2)) IS NOT NULL, to_regprocedure($3) IS NOT NULL,
+			EXISTS (SELECT 1 FROM pg_trigger t WHERE t.tgrelid = to_regclass(quote_ident($1) || '.' || quote_ident($2)) AND t.tgname = $4)`,
+			schema, g.table, g.fn, g.name).Scan(&tableThere, &fnThere, &guarded); err != nil {
+			return rep, err
+		}
+		if !tableThere || !fnThere || guarded {
+			continue
+		}
+		if try("trigger "+g.name, fmt.Sprintf(`CREATE TRIGGER %s BEFORE UPDATE OR DELETE ON %s.%s FOR EACH ROW EXECUTE FUNCTION %s`,
+			pq.QuoteIdentifier(g.name), s, pq.QuoteIdentifier(g.table), g.fn)) {
+			rep.TriggersAdded = append(rep.TriggersAdded, g.table+":"+g.name)
+		}
+	}
+
+	// 7b. The edit log (Stage 47.16.4a, Rule 3(1)). LIKE ... INCLUDING ALL
+	// copies no triggers, so a new client gets it here - ProvisionTenantSchema
+	// runs this sync - and a client that has lost it gets it back on -migrate.
+	if missing, err := DocumentEditLogMissingTx(tx, schema); err != nil {
+		rep.Warnings = append(rep.Warnings, "edit log: "+err.Error())
+	} else if missing && try("edit log", fmt.Sprintf(`CREATE TRIGGER %s AFTER UPDATE ON %s.documents FOR EACH ROW
+		WHEN (OLD.data IS DISTINCT FROM NEW.data) EXECUTE FUNCTION %s()`, DocumentEditLogTrigger, s, documentEditLogFunction)) {
+		rep.TriggersAdded = append(rep.TriggersAdded, "documents."+DocumentEditLogTrigger)
+	}
+
+	// 8. Least-privilege grants (only on a hardened cluster).
 	if rep.Changed() {
 		if err := GrantLeastPrivilegeSchemaAccessTx(tx, schema); err != nil {
 			rep.Warnings = append(rep.Warnings, "grants: "+err.Error())
@@ -531,6 +576,34 @@ func indexDefs(tx *sql.Tx, schema, alsoIn string) ([]indexDef, error) {
 		out = append(out, ix)
 	}
 	return out, rows.Err()
+}
+
+// DocumentEditLogTrigger is the Stage 47.16.4a edit-log trigger on a schema's
+// documents table: one audit_logs row per save that changes `data`, with the
+// old and new value of each changed field
+// (db/migrations_stage47_16_4a_edit_log_every_client.sql).
+const DocumentEditLogTrigger = "trg_log_document_changes"
+
+const documentEditLogFunction = "public.erp_log_document_edit"
+
+// DocumentEditLogMissingTx reports whether schema has a documents table that
+// lacks the edit-log trigger. It is an error for the trigger's function not to
+// exist: the binary is ahead of its migration.
+func DocumentEditLogMissingTx(tx *sql.Tx, schema string) (bool, error) {
+	if ok, err := regclassExists(tx, schema, "documents"); err != nil || !ok {
+		return false, err
+	}
+	var fn, attached bool
+	if err := tx.QueryRow(`SELECT to_regprocedure($1 || '()') IS NOT NULL,
+		EXISTS (SELECT 1 FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid JOIN pg_namespace n ON n.oid = c.relnamespace
+		         WHERE n.nspname = $2 AND c.relname = 'documents' AND t.tgname = $3 AND NOT t.tgisinternal)`,
+		documentEditLogFunction, schema, DocumentEditLogTrigger).Scan(&fn, &attached); err != nil {
+		return false, err
+	}
+	if !attached && !fn {
+		return true, fmt.Errorf("%s() does not exist - run erp-server -migrate", documentEditLogFunction)
+	}
+	return !attached, nil
 }
 
 func regclassExists(tx *sql.Tx, schema, table string) (bool, error) {

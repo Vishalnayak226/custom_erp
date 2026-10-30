@@ -3,6 +3,7 @@ package engines
 import (
 	"context"
 	"custom_erp/db"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -15,19 +16,31 @@ import (
 
 // SaveCleverTapCredential stores or updates CleverTap API credentials.
 func SaveCleverTapCredential(tenantID, accountID, passcode, region string) error {
+	return SaveCleverTapCredentialBy(tenantID, accountID, passcode, region, "", "")
+}
+
+// SaveCleverTapCredentialBy (49.8.5) also records who saved it and an
+// optional expiry (a date or RFC3339; blank = none).
+func SaveCleverTapCredentialBy(tenantID, accountID, passcode, region, savedBy, expiresAt string) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
 	}
+	expiry, err := parseCredentialExpiry(expiresAt)
+	if err != nil {
+		return err
+	}
 	query := fmt.Sprintf(`
-		INSERT INTO %s.clevertap_credentials (account_id, passcode, region, active)
-		VALUES ($1, $2, $3, TRUE)
+		INSERT INTO %s.clevertap_credentials (account_id, passcode, region, active, saved_by, expires_at)
+		VALUES ($1, $2, $3, TRUE, NULLIF($4, ''), $5)
 		ON CONFLICT (account_id) DO UPDATE SET
 			passcode = EXCLUDED.passcode,
 			region = EXCLUDED.region,
 			active = TRUE,
+			saved_by = COALESCE(EXCLUDED.saved_by, clevertap_credentials.saved_by),
+			expires_at = EXCLUDED.expires_at,
 			updated_at = CURRENT_TIMESTAMP`, schema)
-	_, err = db.DB.Exec(query, accountID, passcode, region)
+	_, err = db.DB.Exec(query, accountID, passcode, region, savedBy, expiry)
 	return err
 }
 
@@ -38,7 +51,7 @@ func GetCleverTapCredentials(tenantID string) ([]map[string]interface{}, error) 
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT account_id, region, active, created_at
+		SELECT account_id, region, active, created_at, `+credentialMetaColumns+`
 		FROM %s.clevertap_credentials
 		ORDER BY created_at DESC`, schema))
 	if err != nil {
@@ -48,15 +61,18 @@ func GetCleverTapCredentials(tenantID string) ([]map[string]interface{}, error) 
 
 	var creds []map[string]interface{}
 	for rows.Next() {
-		var accountID, region, createdAt string
+		var accountID, region, createdAt, owner string
 		var active bool
-		if err := rows.Scan(&accountID, &region, &active, &createdAt); err == nil {
-			creds = append(creds, map[string]interface{}{
+		var lastUsed, expires sql.NullTime
+		if err := rows.Scan(&accountID, &region, &active, &createdAt, &owner, &lastUsed, &expires); err == nil {
+			row := map[string]interface{}{
 				"account_id": accountID,
 				"region":     region,
 				"active":     active,
 				"created_at": createdAt,
-			})
+			}
+			credentialMetaFields(row, owner, lastUsed, expires)
+			creds = append(creds, row)
 		}
 	}
 	return creds, nil

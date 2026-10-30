@@ -11,6 +11,8 @@
 // the recent runs. Everything goes through /api/v1/shopify/{channel}.
 
 const esc = (s) => window.escapeHTMLText(String(s ?? ''));
+// 49.8.5: a credential timestamp on one short line.
+const shpWhen = (v) => v ? String(v).slice(0, 16).replace('T', ' ') : '—';
 let lastCheck = null;
 
 async function call(path, body) {
@@ -47,7 +49,9 @@ export async function renderShopifyPage(root, channel) {
         <div class="form-group"><label class="form-label" for="shp-secret">Webhook secret (API secret key)</label><input id="shp-secret" type="password" class="form-input" style="width:220px;" autocomplete="off" placeholder="${ov.webhook_secret_set ? 'saved - type to replace' : 'required for orders'}"></div>
         <button type="button" class="btn btn-primary" id="shp-save-cred">Save</button>
         <button type="button" class="btn btn-outline" id="shp-check"${ov.credentials_set ? '' : ' disabled'}>Test connection</button>
+        ${ov.credentials_set ? '<button type="button" class="btn btn-outline" id="shp-disconnect">Disconnect</button>' : ''}
       </div>
+      ${ov.credentials_set ? `<div class="text-muted" style="margin-top:8px;">Owner ${esc((ov.credential || {}).owner || '—')} · Last used ${esc(shpWhen((ov.credential || {}).last_used_at))} · Expires ${(ov.credential || {}).expired ? '<span class="badge badge-danger">Expired</span>' : esc(shpWhen((ov.credential || {}).expires_at))}</div>` : ''}
       <div id="shp-check-out" style="margin-top:10px;">${s.shop ? `<span class="badge badge-success">Connected to ${esc(s.shop)}</span>` : ''}</div>
     </div>
     <div class="table-panel" style="padding:16px 20px;margin-bottom:16px;">
@@ -112,6 +116,12 @@ export async function renderShopifyPage(root, channel) {
   $('shp-save-cred').addEventListener('click', (e) => busy(e.currentTarget, async () => {
     const r = await call(`${base}/credentials`, { shop_domain: $('shp-domain').value, access_token: $('shp-token').value, webhook_secret: $('shp-secret').value });
     if (r) { showToast('Saved. Test the connection next.', { variant: 'success' }); again(); }
+  }));
+  // 49.8.5: Disconnect removes the token and cancels queued syncs; links and settings stay.
+  $('shp-disconnect')?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
+    if (!await showCustomConfirm('Disconnect this shop? The saved token is removed and queued syncs are cancelled; product links and settings stay.', 'Disconnect')) return;
+    const r = await call('/api/v1/integrations/credentials/disconnect', { kind: 'channel', code: channel });
+    if (r) { showToast('Disconnected.', { variant: 'success' }); again(); }
   }));
   $('shp-check').addEventListener('click', (e) => busy(e.currentTarget, async () => {
     const r = await call(`${base}/do/check`, {});

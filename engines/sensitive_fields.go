@@ -205,7 +205,24 @@ var sensitiveFields = map[string]map[string]sensitiveFieldRule{
 			Why:        "Customer date of birth - personal data with no POS-operational need",
 		},
 	},
+	// Stage 49.6.2a (owner decision, 2026-10-29): a salesman's own mobile
+	// number is for the people who manage salesmen. The till's salesman
+	// picker (StoreSalesmen) never carried it; the record reads and the
+	// import are what this closes.
+	"Salesman": {
+		"phone": {
+			Category:   SensitiveCategoryPersonal,
+			ReadRoles:  salesmanManagerRoles,
+			WriteRoles: salesmanManagerRoles,
+			Why:        "Salesman's own mobile number - shown only to the roles that manage salesmen",
+		},
+	},
 }
+
+// salesmanManagerRoles are the shipped roles that create and change Salesman
+// records: Store Manager (the seed) under its template name Store Supervisor
+// too, and Setup Operator. Super Admin and Admin hold every field anyway.
+var salesmanManagerRoles = []string{RoleStoreManager, "Store Supervisor", RoleSetupOperator}
 
 func payrollRule(why string) sensitiveFieldRule {
 	return sensitiveFieldRule{Category: SensitiveCategoryPayroll, Why: why}
@@ -293,6 +310,25 @@ func SensitiveFieldNames(doctype string) []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// SensitiveFieldRoles lists every role name a sensitive-field rule grants
+// read or write to (Stage 49.3.8: each must be a registered role).
+func SensitiveFieldRoles() []string {
+	seen := map[string]bool{}
+	for _, fields := range sensitiveFields {
+		for _, rule := range fields {
+			for _, role := range append(append([]string{}, rule.ReadRoles...), rule.WriteRoles...) {
+				seen[role] = true
+			}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for role := range seen {
+		out = append(out, role)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // SensitiveFieldDoctypes lists every doctype the policy covers, sorted.

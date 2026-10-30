@@ -22,10 +22,39 @@ async function downloadFailedRows(jobID) {
   URL.revokeObjectURL(url);
 }
 
+const importNum = v => escapeHTMLText(Number(v || 0).toLocaleString());
+
+// Stage 47.13.3: the job's control totals and the file it came from.
+function totalsHTML(job) {
+  const t = job.control_totals;
+  if (!t) return '';
+  const cols = (t.columns || []).map(c => `${escapeHTMLText(c.label || c.field)} ${importNum(c.accepted)} of ${importNum(c.read)}`).join(' · ');
+  return `<p><strong>Totals</strong>: ${importNum(t.rows_read)} read · ${importNum(t.rows_accepted)} accepted (${importNum(t.created)} new, ${importNum(t.updated)} updated) · ${importNum(t.rows_rejected)} rejected${t.rerun ? ' · rerun' : ''}${t.balanced === false ? ' · <strong>do not balance</strong>' : ''}${cols ? `<br>${cols}` : ''}</p>`;
+}
+
+function sourceHTML(job) {
+  const s = job.source;
+  if (!s && !job.rules_version) return '';
+  const parts = [];
+  if (s) {
+    if (s.file_name) parts.push(escapeHTMLText(s.file_name));
+    parts.push(`${importNum(Math.ceil((s.size_bytes || 0) / 1024))} KB`);
+    if (s.sha256) parts.push(`<code title="${escapeHTMLText(s.sha256)}">sha256 ${escapeHTMLText(s.sha256.slice(0, 12))}…</code>`);
+    if (s.uploaded_by) parts.push(`by ${escapeHTMLText(s.uploaded_by)}`);
+    if (s.uploaded_at) parts.push(escapeHTMLText(importWhen(s.uploaded_at)));
+  }
+  if (job.rules_version) parts.push(`rules ${escapeHTMLText(job.rules_version)}`);
+  return `<p><strong>Source</strong>: ${parts.join(' · ')}</p>`;
+}
+
 function summaryHTML(job) {
+  const noRows = job.raw_rows_expired_at
+    ? `Its failed rows expired on ${escapeHTMLText(importWhen(job.raw_rows_expired_at))}, so it cannot be resumed - correct and re-import the original file.`
+    : 'This job was recorded before failed rows were kept, so it cannot be resumed - correct and re-import the original file.';
   return `<p><strong>${escapeHTMLText(job.id)}</strong> - ${escapeHTMLText(job.template ? `template ${job.template}` : job.doctype || '')}, ${escapeHTMLText(job.status)}${job.resumed_from ? ` (resumed from ${escapeHTMLText(job.resumed_from)})` : ''}</p>
     <p>${escapeHTMLText(String(job.total_rows))} row(s): ${escapeHTMLText(String(job.success_rows))} imported, ${escapeHTMLText(String(job.failed_rows))} failed.
-      ${job.keeps_failed_rows ? `<strong>${escapeHTMLText(String(job.open_failed_rows))} still to fix</strong>${job.resolved_rows ? `, ${escapeHTMLText(String(job.resolved_rows))} fixed since` : ''}.` : 'This job was recorded before failed rows were kept, so it cannot be resumed - correct and re-import the original file.'}</p>
+      ${job.keeps_failed_rows ? `<strong>${escapeHTMLText(String(job.open_failed_rows))} still to fix</strong>${job.resolved_rows ? `, ${escapeHTMLText(String(job.resolved_rows))} fixed since` : ''}.` : noRows}</p>
+    ${totalsHTML(job)}${sourceHTML(job)}
     ${(job.resumes || []).length ? `<ul>${job.resumes.map(r => `<li>${escapeHTMLText(importWhen(r.at))}: ${escapeHTMLText(String(r.imported))} of ${escapeHTMLText(String(r.attempted))} imported by ${escapeHTMLText(r.by || '')} (job ${escapeHTMLText(r.job)})</li>`).join('')}</ul>` : ''}`;
 }
 

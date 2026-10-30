@@ -9,8 +9,22 @@ import (
 	"time"
 )
 
+// requireScaleSandbox (Stage 47.16.4b, G2 of
+// docs/security/gst-companies-act-controls.md): the scale test posts synthetic
+// sales, stock and reservations, so it runs only in a sandbox client (Stage
+// 38.7) - never in a real client's books.
+func requireScaleSandbox(tenantID string) error {
+	if sandbox, _ := IsSandboxTenant(tenantID); !sandbox {
+		return &ValidationError{Code: "PLATFORM-0318", Message: fmt.Sprintf("client %s is not a sandbox - the scale test posts test sales, so it runs only in a sandbox client", tenantID)}
+	}
+	return nil
+}
+
 // SeedScaleTestData seeds initial inventory availability across multiple mock store locations
 func SeedScaleTestData(tenantID string, numStores int, sku string, initialQty int) error {
+	if err := requireScaleSandbox(tenantID); err != nil {
+		return err
+	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
@@ -51,6 +65,9 @@ func SeedScaleTestData(tenantID string, numStores int, sku string, initialQty in
 
 // RunScaleSimulation runs a concurrent worker pool executing checkouts and order reservations
 func RunScaleSimulation(tenantID string, numWorkers int, numTransactions int, testSKU string, numStores int) (map[string]interface{}, error) {
+	if err := requireScaleSandbox(tenantID); err != nil {
+		return nil, err
+	}
 	if _, err := db.GetTenantSchema(tenantID); err != nil {
 		return nil, err
 	}

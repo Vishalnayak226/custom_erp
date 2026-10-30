@@ -24,12 +24,12 @@ func handleBranding(w http.ResponseWriter, r *http.Request) {
 func handleBrandingLogo(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if !engines.GetBranding(tenantID).Enabled {
-		http.NotFound(w, r)
+		logoNotFound(w)
 		return
 	}
 	content, contentType, err := engines.BrandLogo(tenantID)
 	if err != nil {
-		http.NotFound(w, r)
+		logoNotFound(w)
 		return
 	}
 	w.Header().Set("Content-Type", contentType)
@@ -37,6 +37,15 @@ func handleBrandingLogo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", "inline")
 	w.Header().Set("Cache-Control", "public, max-age=86400") // the URL carries ?v=<version>
 	_, _ = w.Write(content)
+}
+
+// logoNotFound (Stage 49.10.4) answers a missing logo with the JSON error
+// envelope, not Go's plain-text 404. Written straight through writeResponse,
+// not writeAPIError: this public route is asked on every sign-in page load, so
+// "no logo set" must not write a system-error log row each time.
+func logoNotFound(w http.ResponseWriter) {
+	entry := errorCatalog["GLOBAL-0004"]
+	writeResponse(w, http.StatusNotFound, apiErrorBody{Error: entry.UserMessage, Code: entry.Code, UserAction: entry.UserAction})
 }
 
 // POST /api/v1/admin/branding/logo (multipart "file"), DELETE removes it.

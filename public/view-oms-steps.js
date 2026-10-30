@@ -177,6 +177,92 @@ async function renderPending(container) {
   }));
   syncBulk();
   await renderPushProblems(container);
+  await renderOnHold(container);
+}
+
+// 142.1: what a hold reason means to the person who has to clear it.
+const HOLD_WORDS = {
+  ALLOCATION_FAILED: 'No stock to reserve',
+  PAYMENT_PENDING: 'Payment not confirmed',
+  ADDR_INVALID: 'Address incomplete',
+  SKU_MAPPING_FAILED: 'An item is not mapped'
+};
+const holdWords = (code) => HOLD_WORDS[code] || (code ? String(code).replace(/_/g, ' ').toLowerCase() : 'On hold');
+
+// 142.1: the orders that arrived but could not be reserved - no stock, payment
+// pending, a bad address. Without this they were on OMS → Orders only, and a
+// channel order could "disappear" between arriving and being pickable.
+async function renderOnHold(container) {
+  const result = await getJSON('/api/v1/oms/orders?status=On%20Hold&limit=200', null);
+  const rows = result ? (result.rows || []) : [];
+  if (!result || rows.length === 0) return;
+  const host = panel(container);
+  host.innerHTML = `
+    <div class="oms-console-head"><h2>On hold · ${rows.length}</h2></div>
+    <p class="text-muted oms-step-note" style="margin:0 0 10px;">Arrived, but not reserved yet. Fix the cause (receive the stock, confirm the payment, complete the address) and click Retry; the order then comes to the list above.</p>
+    <div class="table-wrapper"><table>
+      <thead><tr><th>Order</th><th>Source</th><th>Customer</th><th class="num">Lines</th><th>Why</th><th>Waiting</th><th class="num">Value</th><th>Actions</th></tr></thead>
+      <tbody>${rows.map(o => `<tr>
+        <td class="oms-mono">${esc(o.order_number || o.order_id)}</td>
+        <td>${esc(o.channel || 'Manual')}${o.channel_order_id ? `<div class="oms-channel-ref">${esc(o.channel_order_id)}</div>` : ''}</td>
+        <td>${esc(o.customer_name || '—')}${o.customer_phone ? `<div class="oms-channel-ref">${esc(o.customer_phone)}</div>` : ''}</td>
+        <td class="num">${esc(o.line_count)}</td>
+        <td><span class="badge badge-warning" title="${esc(o.hold_reason || '')}">${esc(holdWords(o.hold_reason))}</span></td>
+        <td title="${esc(o.created_at)}">${esc(ageText(o.created_at))}</td>
+        <td class="num">${formatMoney(o.total_amount)}</td>
+        <td class="oms-step-actions">
+          <button type="button" class="btn btn-outline btn-sm" data-hold-act="retry" data-id="${esc(o.order_id)}" title="Try to reserve the stock again">Retry</button>
+          <button type="button" class="action-btn" data-hold-act="open" data-id="${esc(o.order_id)}">Open</button>
+        </td></tr>`).join('')}</tbody>
+    </table></div>`;
+  host.querySelectorAll('[data-hold-act]').forEach(btn => btn.addEventListener('click', async () => {
+    const id = btn.dataset.id;
+    if (btn.dataset.holdAct === 'open') return window.openOMSOrderDetail(id);
+    btn.disabled = true;
+    const r = await post(`/api/v1/orders/${encodeURIComponent(id)}/release-hold`, {});
+    btn.disabled = false;
+    if (r.error) { await showCustomAlert(r.error, 'Retry'); return; }
+    if (r.order_status === 'On Hold') { await showCustomAlert(`Still on hold: ${holdWords(r.hold_reason)}.`, 'Retry'); return; }
+    showToast('Reserved - the order is now in the list above.', { variant: 'success' });
+    again('pending');
+  }));
+}
+
+// 142.2: open a task by scanning or typing what the picker holds - the pick
+// list number (the task), the order number or the channel's order number.
+function loadOrderBox(container, step, tasks, orders, open) {
+  const box = document.createElement('div');
+  box.className = 'table-panel oms-step-panel';
+  box.innerHTML = `
+    <form class="oms-scan-row" data-load-form style="margin:0;">
+      <input class="form-input" data-load-input autocomplete="off" placeholder="Scan or type the pick list, order or channel order number" aria-label="Load order">
+      <button type="submit" class="btn btn-primary">Load</button>
+    </form>
+    <div class="oms-scan-msg" data-load-msg role="status"></div>`;
+  container.appendChild(box);
+  const input = box.querySelector('[data-load-input]');
+  const msg = box.querySelector('[data-load-msg]');
+  box.querySelector('[data-load-form]').addEventListener('submit', async e => {
+    e.preventDefault();
+    const v = input.value.trim().toUpperCase();
+    if (!v) return;
+    input.value = '';
+    const same = (s) => String(s || '').trim().toUpperCase() === v;
+    const hit = tasks.find(t => {
+      const o = orders[t.order_id] || {};
+      return same(taskID(t)) || same(t.id) || same(t.order_id) || same(o.code) || same(o.channel_order_id);
+    });
+    if (!hit) {
+      msg.textContent = `${v} is not on this list. A ${step === 'pick' ? 'pick' : 'pack'} task appears here ${step === 'pick' ? 'once its order is accepted on Pending Orders' : 'once every line is picked on Pick'}.`;
+      msg.classList.add('oms-scan-bad');
+      input.focus();
+      return;
+    }
+    msg.textContent = '';
+    msg.classList.remove('oms-scan-bad');
+    await open(taskID(hit));
+  });
+  if (!openedTask(step)) input.focus();
 }
 
 // Stage 88.3.1: Accept and Reject go through the Pending gate (the bulk
@@ -255,6 +341,8 @@ async function pickData() {
 async function renderPick(container) {
   await stepBar(container, 'Pick', 'pick', wmsOn() ? '<button type="button" class="btn btn-outline" data-oms-mobile>Mobile Picking</button>' : '');
   container.querySelector('[data-oms-mobile]')?.addEventListener('click', () => { setActiveMenu('menu-mobile-picking'); renderView('mobile-picking'); });
+  const loadHost = document.createElement('div');
+  container.appendChild(loadHost);
   const scanHost = document.createElement('div');
   container.appendChild(scanHost);
   const host = panel(container);
@@ -262,6 +350,7 @@ async function renderPick(container) {
   if (!queue) { renderErrorPanel(host, 'Failed to load the pick worklist.', () => again('pick')); return; }
   const open = queue.map(q => ({ ...byID[q.task_id], ...q, code: q.task_id }))
     .filter(t => ['Pending', 'Picking'].includes(t.status) && !pickDone(t));
+  loadOrderBox(loadHost, 'pick', open, orders, async id => { openTask('pick', id); await showScanPanel('pick', scanHost, id, orders); });
   const shown = open.filter(t => !stepLocation || t.location_code === stepLocation);
   host.innerHTML = `
     <div class="oms-facets">${locationFilter(open, stepLocation)}</div>
@@ -309,6 +398,12 @@ async function showScanPanel(step, host, id, orders) {
   if (!task) { openTask(step, ''); host.innerHTML = ''; await showCustomAlert(`Task ${id} could not be loaded.`, step === 'pick' ? 'Pick' : 'Pack'); return; }
   const order = orders[task.order_id];
   const isPick = step === 'pick';
+  // 140.12.20: where each item is (the task's bin reservation), and the bin
+  // the picker last scanned - an item scanned there must be one of its own.
+  const bins = {};
+  if (isPick) (await getJSON(`/api/v1/wms/pick-list?task_id=${encodeURIComponent(id)}`, [])).forEach(b => { if (b.bin_code) (bins[b.sku] = bins[b.sku] || []).push(b); });
+  const binCodes = new Set(Object.values(bins).flat().map(b => b.bin_code.toUpperCase()));
+  let atBin = '';
   host.innerHTML = `
     <div class="table-panel oms-scan-panel" aria-live="polite">
       <div class="oms-console-head">
@@ -316,7 +411,7 @@ async function showScanPanel(step, host, id, orders) {
         <button type="button" class="btn btn-outline btn-sm" data-scan-close>Close</button>
       </div>
       <form class="oms-scan-row" data-scan-form>
-        <input class="form-input" data-scan-input autocomplete="off" placeholder="Scan or type the barcode / SKU" aria-label="Scan">
+        <input class="form-input" data-scan-input autocomplete="off" placeholder="${isPick && binCodes.size ? 'Scan the bin, then the item' : 'Scan or type the barcode / SKU'}" aria-label="Scan">
         <button type="submit" class="btn btn-primary">${isPick ? 'Pick' : 'Pack'}</button>
       </form>
       <div class="oms-scan-msg" data-scan-msg role="status"></div>
@@ -326,13 +421,29 @@ async function showScanPanel(step, host, id, orders) {
   const msg = host.querySelector('[data-scan-msg]');
   const input = host.querySelector('[data-scan-input]');
   const say = (text, bad) => { msg.textContent = text; msg.classList.toggle('oms-scan-bad', !!bad); };
-  const draw = (t) => drawScanLines(step, host, t, orders, say);
+  const draw = (t) => drawScanLines(step, host, t, orders, say, bins);
   host.querySelector('[data-scan-close]').addEventListener('click', () => { openTask(step, ''); host.innerHTML = ''; });
   host.querySelector('[data-scan-form]').addEventListener('submit', async e => {
     e.preventDefault();
     const scan = input.value.trim();
     if (!scan) return;
     input.value = '';
+    if (isPick && binCodes.has(scan.toUpperCase())) {
+      atBin = scan.toUpperCase();
+      say(`At bin ${atBin} - scan the items.`);
+      input.focus();
+      return;
+    }
+    if (isPick && atBin) {
+      const t = await loadTask(id);
+      const it = t && taskItems(t).find(x => x.sku === scan || x.barcode === scan);
+      const own = it && bins[it.sku];
+      if (own && !own.some(b => b.bin_code.toUpperCase() === atBin)) {
+        say(`${it.sku} is not in bin ${atBin} - it is in ${own.map(b => b.bin_code).join(', ')}.`, true);
+        input.focus();
+        return;
+      }
+    }
     const r = await post(`/api/v1/wms/${isPick ? 'pick' : 'pack'}-scan`, { task_id: id, scan });
     if (r.error) { say(r.error, true); input.focus(); return; }
     say(`${r.sku}: ${isPick ? `picked ${r.picked_qty}` : `packed ${r.packed_qty}`}.`);
@@ -345,15 +456,17 @@ async function showScanPanel(step, host, id, orders) {
   input.focus();
 }
 
-function drawScanLines(step, host, task, orders, say) {
+function drawScanLines(step, host, task, orders, say, bins = {}) {
   const id = taskID(task);
   const isPick = step === 'pick';
   const items = taskItems(task);
+  const showBins = isPick && Object.keys(bins).length > 0;
+  const where = (sku) => (bins[sku] || []).map(b => `${esc(b.bin_code)}${[b.zone, b.aisle, b.rack].filter(Boolean).length ? ` <span class="text-muted">${esc([b.zone, b.aisle, b.rack].filter(Boolean).join('/'))}</span>` : ''}`).join('<br>');
   host.querySelector('[data-scan-lines]').innerHTML = `<div class="table-wrapper"><table>
-    <thead><tr><th>SKU</th><th class="num">Ordered</th><th class="num">Picked</th>${isPick ? '<th class="num">Short</th>' : '<th class="num">Packed</th>'}<th class="num">Left</th>${isPick ? '<th></th>' : ''}</tr></thead>
+    <thead><tr><th>SKU</th>${showBins ? '<th>Bin</th>' : ''}<th class="num">Ordered</th><th class="num">Picked</th>${isPick ? '<th class="num">Short</th>' : '<th class="num">Packed</th>'}<th class="num">Left</th>${isPick ? '<th></th>' : ''}</tr></thead>
     <tbody>${items.map(it => {
       const left = isPick ? lineLeft(it) : Math.max(0, num(it.picked_qty) - num(it.packed_qty));
-      return `<tr class="${left === 0 ? 'oms-line-done' : ''}"><td class="oms-mono">${esc(it.sku)}</td><td class="num">${num(it.qty)}</td><td class="num">${num(it.picked_qty)}</td>
+      return `<tr class="${left === 0 ? 'oms-line-done' : ''}"><td class="oms-mono">${esc(it.sku)}</td>${showBins ? `<td>${where(it.sku) || '-'}</td>` : ''}<td class="num">${num(it.qty)}</td><td class="num">${num(it.picked_qty)}</td>
         <td class="num">${isPick ? num(it.short_qty) : num(it.packed_qty)}</td><td class="num">${left}</td>
         ${isPick ? `<td>${left > 0 ? `<button type="button" class="action-btn" data-short="${esc(it.sku)}" title="The rest of this line cannot be found">Short-pick</button>` : ''}</td>` : ''}</tr>`;
     }).join('')}</tbody></table></div>`;
@@ -365,7 +478,7 @@ function drawScanLines(step, host, task, orders, say) {
     if (r.error) { say(r.error, true); return; }
     say(`${btn.dataset.short}: the rest is short-picked.`);
     const fresh = await loadTask(id);
-    if (fresh) drawScanLines(step, host, fresh, orders, say);
+    if (fresh) drawScanLines(step, host, fresh, orders, say, bins);
   }));
   const next = host.querySelector('[data-scan-next]');
   if (isPick) {
@@ -400,6 +513,8 @@ async function printBill(bill) {
 
 async function renderPack(container) {
   await stepBar(container, 'Pack', 'pack');
+  const loadHost = document.createElement('div');
+  container.appendChild(loadHost);
   const scanHost = document.createElement('div');
   container.appendChild(scanHost);
   const host = panel(container);
@@ -414,6 +529,7 @@ async function renderPack(container) {
   // billed and booked: the one action stopped part-way, so Finish runs the rest.
   const work = tasks.filter(t => (['Pending', 'Picking'].includes(t.status) && pickDone(t) && packLeft(t) > 0) ||
     (t.status === 'Packed' && !booked.has(taskID(t))));
+  loadOrderBox(loadHost, 'pack', work, orders, async id => { openTask('pack', id); await showScanPanel('pack', scanHost, id, orders); });
   const shown = work.filter(t => !stepLocation || t.location_code === stepLocation);
   host.innerHTML = `
     <div class="oms-facets">${locationFilter(work, stepLocation)}</div>
@@ -493,13 +609,12 @@ async function finishPack(task, orders, opts, out, say) {
   openTask('pack', '');
   show(`<div class="oms-step-actions">
     <button type="button" class="btn btn-primary btn-sm" data-print-bill>Print bill</button>
-    ${booking ? '<button type="button" class="btn btn-primary btn-sm" data-print-label>Print label</button><button type="button" class="btn btn-outline btn-sm" data-view-label>View label</button>' : ''}
+    ${booking ? '<button type="button" class="btn btn-primary btn-sm" data-print-label>Print label</button>' : ''}
     <button type="button" class="btn btn-outline btn-sm" data-to-ship>Go to Ship</button>
     <button type="button" class="btn btn-outline btn-sm" data-pack-more>Pack the next one</button></div>${bookingNote}`);
   out.querySelector('[data-print-bill]').addEventListener('click', () => printBill(bill));
+  // Stage 143.4: Print label shows the label first; Print there prints it.
   out.querySelector('[data-print-label]')?.addEventListener('click', () => window.printShippingLabel(booking.code || booking.id));
-  // Stage 133.3: the label's content before it prints, as the Ship step's list offers.
-  out.querySelector('[data-view-label]')?.addEventListener('click', () => window.viewShippingLabel(booking.code || booking.id));
   out.querySelector('[data-to-ship]').addEventListener('click', () => goStep('ship'));
   out.querySelector('[data-pack-more]').addEventListener('click', () => again('pack'));
 }
@@ -590,11 +705,9 @@ async function renderShip(container) {
         <div class="table-wrapper"><table><thead><tr><th>Booking</th><th>Order</th><th>AWB</th><th>Label</th><th></th></tr></thead>
         <tbody>${g.rows.map(b => `<tr><td class="oms-mono">${esc(b.code || b.id)}</td><td>${orderCell(b.order_id, orders[b.order_id])}</td><td class="oms-mono">${esc(b.awb_number || '')}${courierUnconfirmed(b) ? ' <span class="badge badge-warning">Unconfirmed</span>' : ''}</td>
           <td>${b.label_generated_at ? '<span class="badge badge-success">Printed</span>' : '<span class="badge badge-warning">Not printed</span>'}</td>
-          <td class="oms-step-actions"><button type="button" class="action-btn" data-label-print="${esc(b.code || b.id)}">Print label</button>
-            <button type="button" class="action-btn" data-label-view="${esc(b.code || b.id)}">View</button>${courierUnconfirmed(b) ? ` <button type="button" class="action-btn" data-courier-resolve="${esc(b.code || b.id)}">Resolve</button>` : ''}</td></tr>`).join('')}</tbody></table></div>
+          <td class="oms-step-actions"><button type="button" class="action-btn" data-label-print="${esc(b.code || b.id)}">Print label</button>${courierUnconfirmed(b) ? ` <button type="button" class="action-btn" data-courier-resolve="${esc(b.code || b.id)}">Resolve</button>` : ''}</td></tr>`).join('')}</tbody></table></div>
       </div>`).join('')}`);
   manifestable.querySelectorAll('[data-label-print]').forEach(btn => btn.addEventListener('click', async () => { await window.printShippingLabel(btn.dataset.labelPrint); }));
-  manifestable.querySelectorAll('[data-label-view]').forEach(btn => btn.addEventListener('click', () => window.viewShippingLabel(btn.dataset.labelView)));
   manifestable.querySelectorAll('[data-courier-resolve]').forEach(btn => btn.addEventListener('click', async () => {
     const b = awaiting.find(x => (x.code || x.id) === btn.dataset.courierResolve);
     if (b && await resolveCourierBooking(b)) again('ship');

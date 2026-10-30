@@ -1,6 +1,6 @@
 {
-  "schema_version": 2,
-  "updated": "2026-10-27",
+  "schema_version": 3,
+  "updated": "2026-10-29",
   "entries": [
     {
       "name": "github.com/lib/pq",
@@ -225,6 +225,18 @@
       "purpose": "Daily server clean-up at 03:30 (deploy/server_cleanup.sh): old rollback copies and failed builds, dead deploy leftovers, package downloads.",
       "license": "n/a - this project's own script",
       "provenance": "deploy/install_cleanup_cron.sh installs one marked crontab line."
+    },
+    {
+      "name": "public/qrcode.min.js",
+      "type": "vendored_asset",
+      "grandfathered": "in the tree when the architecture gate opened (Stage 20, commit 7f2ca14; recorded 2026-10-29 when vendored assets joined the ledger, Stage 47.18.4)",
+      "version": "qrcodejs 1.0.0 (davidshimjs, minified build; no version string in the file)",
+      "checksum": "sha256:c541ef06327885a8415bca8df6071e14189b4855336def4f36db54bde8484f36",
+      "bytes": 19927,
+      "owner": "frontend (public/)",
+      "purpose": "QR code renderer for the browser (QRCode, QRCode.CorrectLevel). No screen loads it as of 2026-10-29 - no script tag or import names it - so it is a removal candidate; kept until the user decides.",
+      "license": "MIT",
+      "provenance": "github.com/davidshimjs/qrcodejs, minified distribution file copied into public/ at Stage 20; TestStage47184VendoredAssetsAreInTheLedger checks the bytes on disk against this checksum."
     }
   ]
 }

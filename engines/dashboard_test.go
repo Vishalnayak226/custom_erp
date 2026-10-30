@@ -113,10 +113,10 @@ func TestStage3711Dashboards(t *testing.T) {
 		}
 	})
 
-	t.Run("DefaultDashboardTiles returns the four legacy exec-dashboard cards as data", func(t *testing.T) {
+	t.Run("DefaultDashboardTiles returns the four legacy exec-dashboard cards and Customers (140.12.27) as data", func(t *testing.T) {
 		tiles := DefaultDashboardTiles()
-		if len(tiles) != 4 {
-			t.Fatalf("expected 4 default tiles, got %d: %+v", len(tiles), tiles)
+		if len(tiles) != 5 {
+			t.Fatalf("expected 5 default tiles, got %d: %+v", len(tiles), tiles)
 		}
 		for _, tile := range tiles {
 			if tile.ReportID == "" || tile.Title == "" {

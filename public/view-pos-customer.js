@@ -288,7 +288,31 @@ function voucherHTML(title, rows, note) {
     <hr>${note ? `<div style="font-size:11px;">${esc(note)}</div>` : ''}</div>`;
 }
 
-function printVoucher(html, ref) {
+// previewVoucher (Stage 143.4) shows the slip as it will print, with Close
+// and Print; resolves true on Print.
+function previewVoucher(html) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay open';
+    overlay.innerHTML = `<div class="modal-container" style="max-width: 440px;" role="dialog" aria-modal="true" aria-label="Preview">
+      <div class="modal-header"><h3 class="modal-title">Preview</h3><button type="button" class="modal-close" aria-label="Close dialog" data-vp="close">×</button></div>
+      <div class="modal-body"><style>.vp-slip .receipt-line{display:flex;justify-content:space-between;gap:8px}.vp-slip hr{border:0;border-top:1px dashed #000;margin:6px 0}</style>
+        <div class="vp-slip" style="width:80mm; max-width:100%; margin:0 auto; box-sizing:border-box; padding:3mm 4mm; background:#fff; color:#000; font:12px/1.4 system-ui, sans-serif; box-shadow:0 1px 3px rgba(0,0,0,.25);">${html}</div></div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline" data-vp="close">Close</button><button type="button" class="btn btn-primary" data-vp="print">Print</button></div></div>`;
+    document.body.appendChild(overlay);
+    const done = (v) => { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
+    const onKey = (e) => { if (e.key === 'Escape') done(false); };
+    document.addEventListener('keydown', onKey);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) done(false); });
+    overlay.querySelectorAll('[data-vp="close"]').forEach(b => b.addEventListener('click', () => done(false)));
+    const print = overlay.querySelector('[data-vp="print"]');
+    print.addEventListener('click', () => done(true));
+    print.focus();
+  });
+}
+
+async function printVoucher(html, ref) {
+  if (!await previewVoucher(html)) return;
   const browser = () => {
     const area = document.getElementById('receipt-print-area');
     if (!area) return;
@@ -414,7 +438,7 @@ async function takeAdvance(pane) {
   pane.querySelector('#adv-amount').value = '';
   pane.querySelector('#adv-purpose').value = '';
   loadAdvanceList(pane);
-  if (await showCustomConfirm('Print the advance receipt voucher for the customer?', 'Advance Receipt')) printAdvanceReceipt(a);
+  printAdvanceReceipt(a); // Stage 143.4: its preview asks Close or Print
 }
 
 async function refundAdvance(pane, a) {

@@ -1,0 +1,297 @@
+<h1 id="report-catalog-part-4">Report catalog (part 4) <a class="kb-anchor" href="#report-catalog-part-4" aria-label="Copy link to this section">#</a></h1>
+<p>This page continues the <a href="/help/report-catalog">report catalog</a>, which lists every category and explains how to run a report. It holds <strong>49</strong> reports, from WMS to WMS.</p>
+<h2 id="contents">Contents <a class="kb-anchor" href="#contents" aria-label="Copy link to this section">#</a></h2>
+<ul><li><a href="#wms">WMS</a> - 49 reports</li></ul>
+<h2 id="wms">WMS <a class="kb-anchor" href="#wms" aria-label="Copy link to this section">#</a></h2>
+<h3 id="r4033-3pl-storage-handling-billing">R4033 3PL Storage &amp; Handling Billing <a class="kb-anchor" href="#r4033-3pl-storage-handling-billing" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>3pl-storage-billing</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Owner (optional)</strong> (<code>owner_id</code>) - text, optional</li><li><strong>Period Start</strong> (<code>start</code>) - date, <strong>required</strong></li><li><strong>Period End</strong> (<code>end</code>) - date, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> Owner · Location · Current Units (EA) · Days · Billing UOM · Billing Units · Storage Charge <em>(sensitive)</em> · Handling Tasks · Handling Charge <em>(sensitive)</em> · Total <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4043-3pl-storage-billing-v2">R4043 3PL Storage Billing v2 <a class="kb-anchor" href="#r4043-3pl-storage-billing-v2" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>storage-billing-v2</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Owner (optional)</strong> (<code>owner_id</code>) - text, optional</li><li><strong>Period Start</strong> (<code>start</code>) - date, <strong>required</strong></li><li><strong>Period End</strong> (<code>end</code>) - date, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> Rate · Owner · Location · Item · Snapshot Days · Average Units · Net <em>(sensitive)</em> · Tax <em>(sensitive)</em> · Total <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4024-appointment-calendar-report">R4024 Appointment Calendar Report <a class="kb-anchor" href="#r4024-appointment-calendar-report" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-appointment-calendar-report</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Scheduled,Checked In,At Door,Completed,No Show,Cancelled</li></ul>
+<p><strong>Columns:</strong> Document Date · Appointment No · Vendor Name · Dock Door · Vehicle No · Qty · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4032-batch-movement-history-recall">R4032 Batch Movement History (Recall) <a class="kb-anchor" href="#r4032-batch-movement-history-recall" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>batch-movement-history</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Batch / Lot</strong> (<code>batch_no</code>) - text, <strong>required</strong></li><li><strong>Item Code (optional)</strong> (<code>sku</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> When · Item · Batch / Lot · Qty · Movement · Document · Location · From Bin · To Bin · By</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4030-batch-near-expiry-watchlist">R4030 Batch Near-Expiry Watchlist <a class="kb-anchor" href="#r4030-batch-near-expiry-watchlist" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>batch-near-expiry</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Within (days, default 30)</strong> (<code>within_days</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Item · Batch / Lot · Expires · Days Left · Batch Status · Qty On Hand · Locations</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4031-batch-stock-inquiry">R4031 Batch Stock Inquiry <a class="kb-anchor" href="#r4031-batch-stock-inquiry" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>batch-stock-inquiry</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Item Code (optional)</strong> (<code>sku</code>) - text, optional</li><li><strong>Location (optional)</strong> (<code>location</code>) - text, optional</li><li><strong>Batch / Lot (optional)</strong> (<code>batch_no</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Item · Batch / Lot · Location · Bin · Condition · Qty · Expires · Days Left · Batch Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4006-bin-inventory-report">R4006 Bin Inventory Report <a class="kb-anchor" href="#r4006-bin-inventory-report" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-bin-inventory-report</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> As Of Date · Bin Code · Bin Condition · SKU · Barcode · Available Qty · Blocked Qty · LPN · Stock Age Days</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4012-bin-replenishment-report">R4012 Bin Replenishment Report <a class="kb-anchor" href="#r4012-bin-replenishment-report" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-bin-replenishment-report</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Document Date · Document No · SKU · From Location · To Location · Qty · Status · RF User · Task Duration Min</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4020-bin-stock-aging">R4020 Bin Stock Aging <a class="kb-anchor" href="#r4020-bin-stock-aging" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-bin-stock-aging</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> As Of Date · Bin Code · SKU · Item Name · Available Qty · Stock Age Days · Age Bucket · MRP Value</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4034-bin-stock-reconciliation">R4034 Bin Stock Reconciliation <a class="kb-anchor" href="#r4034-bin-stock-reconciliation" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>bin-stock-reconciliation</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Item Code (optional)</strong> (<code>sku</code>) - text, optional</li><li><strong>Location (optional)</strong> (<code>location</code>) - text, optional</li><li><strong>Show</strong> (<code>mismatches_only</code>) - select, optional, one of: Mismatches only,All rows</li></ul>
+<p><strong>Columns:</strong> Location · Item · On Hand · In Bins · Picked, Not Dispatched · Difference · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4010-bin-utilization-condition-report">R4010 Bin Utilization / Condition Report <a class="kb-anchor" href="#r4010-bin-utilization-condition-report" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-bin-utilization-condition-report</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Active,Inactive,Blocked</li></ul>
+<p><strong>Columns:</strong> As Of Date · Bin Code · Bin Condition · Available Qty · Blocked Qty · Status · Remarks</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4049-clean-location-consolidation-suggestions">R4049 Clean-Location Consolidation Suggestions <a class="kb-anchor" href="#r4049-clean-location-consolidation-suggestions" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>consolidation-suggestions</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Location</strong> (<code>location_code</code>) - text, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> SKU · Action · From Bin · To Bin · Qty · Reason</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4035-cross-facility-inventory-inquiry">R4035 Cross-Facility Inventory Inquiry <a class="kb-anchor" href="#r4035-cross-facility-inventory-inquiry" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cross-facility-stock</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>SKU</strong> (<code>sku</code>) - text, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> SKU · Location · On Hand · Available · In Transit</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4018-cycle-count-register">R4018 Cycle Count Register <a class="kb-anchor" href="#r4018-cycle-count-register" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-cycle-count-register</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Document Date · Cycle Count No · Bin Code · SKU · System Qty · Physical Qty · Difference Qty · Status · User Name</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4019-cycle-count-variance-report">R4019 Cycle Count Variance Report <a class="kb-anchor" href="#r4019-cycle-count-variance-report" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-cycle-count-variance-report</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Document Date · Cycle Count No · Bin Code · SKU · Barcode · System Qty · Physical Qty · Difference Qty · Reason · Approval Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4017-dispatch-shipment-register">R4017 Dispatch / Shipment Register <a class="kb-anchor" href="#r4017-dispatch-shipment-register" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-dispatch-shipment-register</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Document Date · Order ID · Shipment ID · Dispatch Qty · Tracking Number · Shipping Provider · Vehicle No · Dock Door · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4023-dock-door-utilization">R4023 Dock Door Utilization <a class="kb-anchor" href="#r4023-dock-door-utilization" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-dock-door-utilization</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Scheduled,Checked In,At Door,Completed,No Show,Cancelled</li></ul>
+<p><strong>Columns:</strong> Document Date · Dock Door · Appointment No · Vendor Name · Vehicle No · SLA Due At · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4036-facility-roll-up-inventory-inquiry">R4036 Facility Roll-Up Inventory Inquiry <a class="kb-anchor" href="#r4036-facility-roll-up-inventory-inquiry" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>facility-rollup</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Facility (Location code)</strong> (<code>facility_code</code>) - text, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> SKU · On Hand · Available · In Transit · Locations</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4001-inbound-asn-register">R4001 Inbound / ASN Register <a class="kb-anchor" href="#r4001-inbound-asn-register" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-inbound-asn-register</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Document Date · Document No · Vendor Code · Vendor Name · Appointment No · Dock Door · Qty · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4003-inbound-qc-exception">R4003 Inbound QC Exception <a class="kb-anchor" href="#r4003-inbound-qc-exception" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-inbound-qc-exception</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> GRN Date · GRN No · SKU · Barcode · Received Qty · Rejected Qty · QC Result · Reason · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4011-lpn-carton-pallet-register">R4011 LPN / Carton / Pallet Register <a class="kb-anchor" href="#r4011-lpn-carton-pallet-register" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-lpn-carton-pallet-register</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
+<p><strong>Columns:</strong> Document Date · LPN · Carton No · Pallet No · Location Name · Qty · Status · Created By</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4046-labor-productivity">R4046 Labor Productivity <a class="kb-anchor" href="#r4046-labor-productivity" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>labor-productivity</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From (optional)</strong> (<code>start</code>) - date, optional</li><li><strong>To (optional)</strong> (<code>end</code>) - date, optional</li></ul>
+<p><strong>Columns:</strong> User · Task Type · Tasks · Tasks/Hour · First Task · Last Task</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4042-labour-cost">R4042 Labour Cost <a class="kb-anchor" href="#r4042-labour-cost" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>labor-cost</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From (optional)</strong> (<code>start</code>) - date, optional</li><li><strong>To (optional)</strong> (<code>end</code>) - date, optional</li></ul>
+<p><strong>Columns:</strong> Location · Tasks · Quantity · Standard Hours · Labour Cost <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4037-labour-enterprise-productivity">R4037 Labour Enterprise Productivity <a class="kb-anchor" href="#r4037-labour-enterprise-productivity" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>labor-enterprise-productivity</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From (optional)</strong> (<code>start</code>) - date, optional</li><li><strong>To (optional)</strong> (<code>end</code>) - date, optional</li></ul>
+<p><strong>Columns:</strong> Scope · Tasks · Quantity · Standard Hours · Labour Cost <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4038-labour-facility-performance">R4038 Labour Facility Performance <a class="kb-anchor" href="#r4038-labour-facility-performance" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>labor-facility-performance</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From (optional)</strong> (<code>start</code>) - date, optional</li><li><strong>To (optional)</strong> (<code>end</code>) - date, optional</li></ul>
+<p><strong>Columns:</strong> Location · Tasks · Quantity · Standard Hours · Labour Cost <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4041-labour-standards-audit">R4041 Labour Standards Audit <a class="kb-anchor" href="#r4041-labour-standards-audit" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>labor-standards-audit</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Standard · Operation · Element Seconds · Travel Seconds · Allowance Seconds · Total Seconds</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4039-labour-task-productivity">R4039 Labour Task Productivity <a class="kb-anchor" href="#r4039-labour-task-productivity" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>labor-task-productivity</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From (optional)</strong> (<code>start</code>) - date, optional</li><li><strong>To (optional)</strong> (<code>end</code>) - date, optional</li></ul>
+<p><strong>Columns:</strong> Task Type · Tasks · Quantity · Standard Hours · Labour Cost <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4040-labour-user-performance">R4040 Labour User Performance <a class="kb-anchor" href="#r4040-labour-user-performance" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>labor-user-performance</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From (optional)</strong> (<code>start</code>) - date, optional</li><li><strong>To (optional)</strong> (<code>end</code>) - date, optional</li></ul>
+<p><strong>Columns:</strong> User · Tasks · Quantity · Standard Hours · Labour Cost <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4007-location-movement-register">R4007 Location Movement Register <a class="kb-anchor" href="#r4007-location-movement-register" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-location-movement-register</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Document No · Document Date · Warehouse · SKU · Barcode · From Location · To Location · Qty · Status · Created By</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4021-lot-serial-barcode-traceability">R4021 Lot / Serial / Barcode Traceability <a class="kb-anchor" href="#r4021-lot-serial-barcode-traceability" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-lot-serial-barcode-traceability</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Barcode · SKU · LPN · Bin Code · Movement Date · Movement Type · Source Document No · RF User · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4044-owner-stock-exceptions-3pl">R4044 Owner Stock Exceptions (3PL) <a class="kb-anchor" href="#r4044-owner-stock-exceptions-3pl" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>owner-stock-exceptions</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Exception · Location · Bin · Item · Condition · Bin Qty · Owner Qty · What to do</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4045-owner-stock-inquiry-3pl">R4045 Owner Stock Inquiry (3PL) <a class="kb-anchor" href="#r4045-owner-stock-inquiry-3pl" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>owner-stock-inquiry</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Item Code (optional)</strong> (<code>sku</code>) - text, optional</li><li><strong>Location (optional)</strong> (<code>location</code>) - text, optional</li><li><strong>Owner (optional)</strong> (<code>owner_id</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Owner · Item · Bin · Location · Condition · Qty</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4016-packing-report">R4016 Packing Report <a class="kb-anchor" href="#r4016-packing-report" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-packing-report</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Document Date · Order ID · Shipment ID · Carton No · LPN · Picked Qty · Packed Qty · User Name · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4013-pick-list-report">R4013 Pick List Report <a class="kb-anchor" href="#r4013-pick-list-report" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-pick-list-report</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Document Date · Pick List No · Order ID · Shipment ID · SKU · Bin Code · Qty · Picked Qty · RF User · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4015-picking-exception-report">R4015 Picking Exception Report <a class="kb-anchor" href="#r4015-picking-exception-report" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-picking-exception-report</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Document Date · Pick List No · Order ID · SKU · Bin Code · Qty · Picked Qty · Variance Qty · Reason · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4005-putaway-completion-report">R4005 Putaway Completion Report <a class="kb-anchor" href="#r4005-putaway-completion-report" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-putaway-completion-report</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Document Date · Document No · SKU · Barcode · LPN · Bin Code · Qty · RF User · Task Duration Min · Putaway Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4004-putaway-pending-report">R4004 Putaway Pending Report <a class="kb-anchor" href="#r4004-putaway-pending-report" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-putaway-pending-report</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Document Date · Document No · SKU · Barcode · LPN · From Location · To Location · Putaway Status · SLA Age Hours</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4022-rf-mobile-picking-productivity">R4022 RF / Mobile Picking Productivity <a class="kb-anchor" href="#r4022-rf-mobile-picking-productivity" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-rf-mobile-picking-productivity</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> From Date · To Date · RF User · Pick List No · Picked Qty · Task Duration Min · Achievement % · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4002-receiving-grn-detail">R4002 Receiving / GRN Detail <a class="kb-anchor" href="#r4002-receiving-grn-detail" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-receiving-grn-detail</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> GRN Date · GRN No · Vendor Name · SKU · Barcode · LPN · Received Qty · Accepted Qty · Rejected Qty · Dock Door · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4029-serial-movement-history">R4029 Serial Movement History <a class="kb-anchor" href="#r4029-serial-movement-history" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>serial-movement-history</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Serial Number</strong> (<code>serial_no</code>) - text, <strong>required</strong></li><li><strong>Item Code (optional)</strong> (<code>sku</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> When · Item · Serial Number · Movement · Document · Location · From · To · By</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4028-serial-number-inquiry">R4028 Serial Number Inquiry <a class="kb-anchor" href="#r4028-serial-number-inquiry" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>serial-inquiry</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Item Code (optional)</strong> (<code>sku</code>) - text, optional</li><li><strong>Serial Number (optional)</strong> (<code>serial_no</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: InStock,Allocated,Shipped,Returned,Scrapped</li></ul>
+<p><strong>Columns:</strong> Item · Serial Number · Batch / Lot · Status · Current Bin · Location · Reserved For · Supplier</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4047-slotting-re-slotting-suggestions">R4047 Slotting / Re-Slotting Suggestions <a class="kb-anchor" href="#r4047-slotting-re-slotting-suggestions" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>slotting-suggestions</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Location</strong> (<code>location_code</code>) - text, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> SKU · Velocity Tier · Daily Velocity · Suggested Action · From Bin · To Bin · Qty · Reason</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4048-unslotting-suggestions-discontinued-items">R4048 Unslotting Suggestions (discontinued items) <a class="kb-anchor" href="#r4048-unslotting-suggestions-discontinued-items" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>unslotting-suggestions</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Location</strong> (<code>location_code</code>) - text, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> SKU · Action · From Bin · To Bin · Qty · Reason</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4008-wms-stock-transfer-execution-report">R4008 WMS Stock Transfer Execution Report <a class="kb-anchor" href="#r4008-wms-stock-transfer-execution-report" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-wms-stock-transfer-execution-report</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Transfer Out No · Transfer Date · From Location · To Location · SKU · Barcode · Transfer Qty · Picked Qty · Packed Qty · Dispatched Qty · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4009-warehouse-cockpit-kpi-summary">R4009 Warehouse Cockpit KPI Summary <a class="kb-anchor" href="#r4009-warehouse-cockpit-kpi-summary" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-warehouse-cockpit-kpi-summary</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> As Of Date · Warehouse · Pending Inbound Qty · Pending Putaway Qty · Pending Pick Qty · Pending Pack Qty · Pending Dispatch Qty · Exception Count</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4027-warehouse-inventory-accuracy-summary">R4027 Warehouse Inventory Accuracy Summary <a class="kb-anchor" href="#r4027-warehouse-inventory-accuracy-summary" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-warehouse-inventory-accuracy-summary</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> From Date · To Date · Location Name · Bin Code · System Qty · Physical Qty · Difference Qty · Achievement %</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4026-warehouse-sla-throughput-summary">R4026 Warehouse SLA / Throughput Summary <a class="kb-anchor" href="#r4026-warehouse-sla-throughput-summary" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-warehouse-sla-throughput-summary</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Document Date · Document Type · Qty · Task Duration Min · SLA Age Hours · Achievement % · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4014-wave-batch-picking-report">R4014 Wave / Batch Picking Report <a class="kb-anchor" href="#r4014-wave-batch-picking-report" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-wave-batch-picking-report</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Document Date · Wave No · Order ID · Shipment ID · SKU · Qty · Picked Qty · RF User · Task Duration Min · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r4025-yard-trailer-board-report">R4025 Yard / Trailer Board Report <a class="kb-anchor" href="#r4025-yard-trailer-board-report" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-yard-trailer-board-report</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Document Date · Vehicle No · Appointment No · Dock Door · Yard Status · SLA Age Hours · Status</p>
+<p><strong>Drill-down:</strong> no.</p>

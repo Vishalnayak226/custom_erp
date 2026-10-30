@@ -61,10 +61,15 @@ func TestValidatePIMExportTemplateDocument(t *testing.T) {
 			t.Fatal("expected an error for a missing header")
 		}
 	})
-	t.Run("refuses a duplicate field key", func(t *testing.T) {
+	t.Run("takes one field in two columns but refuses a duplicate header", func(t *testing.T) {
+		// 140.12.23: Shopify's Handle and Variant SKU are both the SKU.
 		payload := base(`[{"field_key":"item_code","column_header":"A"},{"field_key":"item_code","column_header":"B"}]`)
+		if err := ValidatePIMExportTemplateDocument("default", payload); err != nil {
+			t.Fatalf("one field in two columns refused: %v", err)
+		}
+		payload = base(`[{"field_key":"item_code","column_header":"A"},{"field_key":"name","column_header":"a"}]`)
 		if err := ValidatePIMExportTemplateDocument("default", payload); err == nil {
-			t.Fatal("expected an error for a duplicate field key")
+			t.Fatal("expected an error for a duplicate header")
 		}
 	})
 	t.Run("refuses an unknown raw field key", func(t *testing.T) {

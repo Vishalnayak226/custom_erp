@@ -15,20 +15,32 @@ import (
 
 // SavePineLabsCredential stores or updates Pine Labs Plutus terminal credentials.
 func SavePineLabsCredential(tenantID, terminalID, apiKey, merchantID, baseURL string) error {
+	return SavePineLabsCredentialBy(tenantID, terminalID, apiKey, merchantID, baseURL, "", "")
+}
+
+// SavePineLabsCredentialBy (49.8.5) also records who saved it and an
+// optional expiry (a date or RFC3339; blank = none).
+func SavePineLabsCredentialBy(tenantID, terminalID, apiKey, merchantID, baseURL, savedBy, expiresAt string) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
 	}
+	expiry, err := parseCredentialExpiry(expiresAt)
+	if err != nil {
+		return err
+	}
 	query := fmt.Sprintf(`
-		INSERT INTO %s.pinelabs_credentials (terminal_id, api_key, merchant_id, base_url, active)
-		VALUES ($1, $2, $3, $4, TRUE)
+		INSERT INTO %s.pinelabs_credentials (terminal_id, api_key, merchant_id, base_url, active, saved_by, expires_at)
+		VALUES ($1, $2, $3, $4, TRUE, NULLIF($5, ''), $6)
 		ON CONFLICT (terminal_id) DO UPDATE SET
 			api_key = EXCLUDED.api_key,
 			merchant_id = EXCLUDED.merchant_id,
 			base_url = EXCLUDED.base_url,
 			active = TRUE,
+			saved_by = COALESCE(EXCLUDED.saved_by, pinelabs_credentials.saved_by),
+			expires_at = EXCLUDED.expires_at,
 			updated_at = CURRENT_TIMESTAMP`, schema)
-	_, err = db.DB.Exec(query, terminalID, apiKey, merchantID, baseURL)
+	_, err = db.DB.Exec(query, terminalID, apiKey, merchantID, baseURL, savedBy, expiry)
 	return err
 }
 
@@ -39,7 +51,7 @@ func GetPineLabsCredentials(tenantID string) ([]map[string]interface{}, error) {
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT terminal_id, merchant_id, base_url, active, created_at
+		SELECT terminal_id, merchant_id, base_url, active, created_at, `+credentialMetaColumns+`
 		FROM %s.pinelabs_credentials
 		ORDER BY created_at DESC`, schema))
 	if err != nil {
@@ -49,16 +61,19 @@ func GetPineLabsCredentials(tenantID string) ([]map[string]interface{}, error) {
 
 	var creds []map[string]interface{}
 	for rows.Next() {
-		var terminalID, merchantID, baseURL, createdAt string
+		var terminalID, merchantID, baseURL, createdAt, owner string
 		var active bool
-		if err := rows.Scan(&terminalID, &merchantID, &baseURL, &active, &createdAt); err == nil {
-			creds = append(creds, map[string]interface{}{
+		var lastUsed, expires sql.NullTime
+		if err := rows.Scan(&terminalID, &merchantID, &baseURL, &active, &createdAt, &owner, &lastUsed, &expires); err == nil {
+			row := map[string]interface{}{
 				"terminal_id": terminalID,
 				"merchant_id": merchantID,
 				"base_url":    baseURL,
 				"active":      active,
 				"created_at":  createdAt,
-			})
+			}
+			credentialMetaFields(row, owner, lastUsed, expires)
+			creds = append(creds, row)
 		}
 	}
 	return creds, nil
@@ -79,13 +94,20 @@ func RecordPineLabsTransaction(tenantID, transactionID, terminalID, cartNumber s
 	// with no active pinelabs_credentials row is exactly "not mapped" (no
 	// admin has configured it via POST /api/v1/integrations/pinelabs/credentials).
 	var terminalActive bool
+	var expires sql.NullTime
 	err = db.DB.QueryRow(fmt.Sprintf(`
-		SELECT active FROM %s.pinelabs_credentials WHERE terminal_id = $1`, schema), terminalID).Scan(&terminalActive)
+		SELECT active, expires_at FROM %s.pinelabs_credentials WHERE terminal_id = $1`, schema), terminalID).Scan(&terminalActive, &expires)
 	if err == sql.ErrNoRows || (err == nil && !terminalActive) {
 		return &ValidationError{Code: "POSOFF-0243", Message: fmt.Sprintf("payment terminal %q is not mapped or inactive - configure it before recording transactions", terminalID)}
 	} else if err != nil {
 		return err
 	}
+	// 49.8.5: an expired terminal credential is "not mapped" too; a live
+	// one records its use.
+	if credentialExpired(expires) {
+		return &ValidationError{Code: "POSOFF-0243", Message: fmt.Sprintf("payment terminal %q's credentials expired on %s - save new ones", terminalID, expires.Time.UTC().Format("2006-01-02"))}
+	}
+	touchCredentialUse(schema, "pinelabs_credentials", "terminal_id", terminalID)
 
 	// Check for duplicate transaction
 	var exists bool

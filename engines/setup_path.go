@@ -92,7 +92,7 @@ func GetSetupPath(tenantID string) ([]SetupPathStep, error) {
 	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.documents WHERE doctype = 'LegalEntity' AND deleted_at IS NULL
 		AND COALESCE(status, 'Active') = 'Active' AND COALESCE(data->>'gstin', '') = ''`, schema)).Scan(&noGSTIN)
 
-	readiness := &setupReadiness{schema: schema, country: TenantPhoneCountry(tenantID)}
+	readiness := &setupReadiness{tenantID: tenantID, schema: schema, country: TenantPhoneCountry(tenantID)}
 
 	steps := make([]SetupPathStep, len(setupPathPlan))
 	done := map[string]bool{}
@@ -134,7 +134,9 @@ func GetSetupPath(tenantID string) ([]SetupPathStep, error) {
 		case "locations":
 			step.Checks = readiness.locationChecks()
 		case "tax":
-			step.Checks = readiness.taxChecks(active["HSNCode"])
+			// 47.16.4d: and a warning when a GSTIN's sales pass the
+			// e-invoice turnover while its IRP profile is off.
+			step.Checks = append(readiness.taxChecks(active["HSNCode"]), readiness.einvoiceTurnoverChecks()...)
 		case "numbering":
 			step.Checks = readiness.numberingChecks(series)
 		case "users":

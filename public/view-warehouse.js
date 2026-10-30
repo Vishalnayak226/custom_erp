@@ -329,7 +329,8 @@ async function submitPutaway() {
   const res = await apiFetch('/api/v1/wms/putaway', {
     method: 'POST',
     // Stage 59.4: in a warehouse shared by several 3PL owners, say whose.
-    body: JSON.stringify({ bin_code: binCode, sku: sku, qty: qty, owner_id: (document.getElementById('putaway-owner')?.value || '').trim() })
+    // 140.12.21: and the goods receipt, so a 3PL owner comes from it.
+    body: JSON.stringify({ bin_code: binCode, sku: sku, qty: qty, owner_id: (document.getElementById('putaway-owner')?.value || '').trim(), grn_id: (putawayFromGRN && putawayFromGRN.grn) || putawayRowGRN })
   });
   if (!res) return;
   if (!res.ok) {
@@ -347,6 +348,9 @@ async function submitPutaway() {
 
 // loadPutawayWaiting lists received stock not yet in a bin (Stage 55.7); a
 // row's Put away fills the form below and asks for a bin suggestion.
+// 140.12.21: the goods receipt of the waiting row last picked for put-away.
+let putawayRowGRN = '';
+
 async function loadPutawayWaiting() {
   const el = document.getElementById('putaway-waiting');
   if (!el) return;
@@ -370,8 +374,9 @@ async function loadPutawayWaiting() {
     <thead><tr><th>Item</th><th>Location</th><th class="num">On hand</th><th class="num">In bins</th><th class="num">Waiting</th><th></th></tr></thead>
     <tbody>${rows.map(p => `<tr><td>${escapeHTMLText(p.name || p.sku)}<div style="font-size: 11px; color: var(--text-muted);">${escapeHTMLText(p.sku)}</div></td>
       <td>${escapeHTMLText(p.location)}</td><td class="num">${p.on_hand}</td><td class="num">${p.binned}</td><td class="num"><b>${p.waiting}</b></td>
-      <td><button type="button" class="btn btn-outline btn-sm" data-putaway-sku="${escapeHTMLText(p.sku)}" data-putaway-loc="${escapeHTMLText(p.location)}" data-putaway-qty="${p.waiting}">Put away</button></td></tr>`).join('')}</tbody></table></div>`);
+      <td><button type="button" class="btn btn-outline btn-sm" data-putaway-sku="${escapeHTMLText(p.sku)}" data-putaway-loc="${escapeHTMLText(p.location)}" data-putaway-qty="${p.waiting}" data-putaway-grn="${escapeHTMLText(p.grn || '')}">Put away</button></td></tr>`).join('')}</tbody></table></div>`);
   el.querySelectorAll('[data-putaway-sku]').forEach(btn => btn.addEventListener('click', async () => {
+    putawayRowGRN = btn.dataset.putawayGrn || '';
     document.getElementById('putaway-sku').value = btn.dataset.putawaySku;
     document.getElementById('putaway-location').value = btn.dataset.putawayLoc;
     document.getElementById('putaway-qty').value = btn.dataset.putawayQty;

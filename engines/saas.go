@@ -272,6 +272,13 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 	if _, err = db.SyncTenantSchemaTx(tx, schemaName); err != nil {
 		return "", fmt.Errorf("failed to bring the new schema up to tenant_default: %v", err)
 	}
+	// Stage 47.16.4a: the sync attaches the edit log (Companies (Accounts)
+	// Rules, Rule 3(1)); a client is never created without it.
+	if missing, errLog := db.DocumentEditLogMissingTx(tx, schemaName); errLog != nil {
+		return "", fmt.Errorf("failed to attach the new client's edit log: %v", errLog)
+	} else if missing {
+		return "", fmt.Errorf("failed to attach the new client's edit log to %s.documents", schemaName)
+	}
 
 	// Stage 135.23: the stock locations and their transaction defaults are
 	// configuration like the step 4 seeds, but their tables only arrive with
@@ -325,6 +332,11 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		if _, err = tx.Exec(fmt.Sprintf(stmt, schemaName)); err != nil {
 			return "", fmt.Errorf("failed to give the client's Admin its approval and field rules: %v", err)
 		}
+	}
+	// Stage 49.3.7a: the copied seed, narrowed to the role templates where it
+	// gave more (a Store Manager posting journals, for one).
+	if err = narrowNewClientSeedGrantsTx(tx, schemaName); err != nil {
+		return "", err
 	}
 
 	// 6. (49.1.5) Record the one-time credential and its expiry, and open the

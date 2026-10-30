@@ -463,9 +463,6 @@ func ReceiveChallanReturn(tenantID, id, userID, returnKey string, in []ChallanRe
 	if err != nil {
 		return "", err
 	}
-	if len(in) == 0 {
-		return "", challanFail("lines", "say what came back")
-	}
 	tx, err := db.DB.Begin()
 	if err != nil {
 		return "", err
@@ -474,45 +471,64 @@ func ReceiveChallanReturn(tenantID, id, userID, returnKey string, in []ChallanRe
 	if err := db.SetSearchPath(tx, schema); err != nil {
 		return "", err
 	}
+	status, after, err := receiveChallanReturnTx(tx, schema, tenantID, id, userID, returnKey, in)
+	if err != nil || after == nil {
+		return status, err
+	}
+	if err := tx.Commit(); err != nil {
+		return "", err
+	}
+	after()
+	return status, nil
+}
+
+// receiveChallanReturnTx is ReceiveChallanReturn inside the caller's
+// transaction (Stage 135.26: job work takes the same item back in the
+// order's transaction). after is the audit line, for after the commit; it
+// is nil for a retry of a return already recorded.
+func receiveChallanReturnTx(tx *sql.Tx, schema, tenantID, id, userID, returnKey string, in []ChallanReturnLine) (string, func(), error) {
+	if len(in) == 0 {
+		return "", nil, challanFail("lines", "say what came back")
+	}
 	data, status, err := lockChallanTx(tx, schema, id)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	bal, events := challanState(data)
 	if key := strings.TrimSpace(returnKey); key != "" {
 		for _, e := range events {
 			if e.Key == key {
-				return status, nil
+				return status, nil, nil
 			}
 		}
 	}
 	if status != "Dispatched" && status != "Partly Returned" {
-		return "", challanFail(id, fmt.Sprintf("this challan is %s - nothing is out to come back", status))
+		return "", nil, challanFail(id, fmt.Sprintf("this challan is %s - nothing is out to come back", status))
 	}
 	if !truthy(data["returnable"]) {
-		return "", challanFail(id, "a non-returnable challan takes nothing back")
+		return "", nil, challanFail(id, "a non-returnable challan takes nothing back")
 	}
 	location := strField(data, "location")
 	var evLines []map[string]interface{}
 	for _, r := range in {
 		b := findChallanBalance(bal, strings.TrimSpace(r.SKU), strings.TrimSpace(r.BatchNo))
 		if b == nil {
-			return "", challanFail(r.SKU, r.SKU+" did not go out on this challan")
+			return "", nil, challanFail(r.SKU, r.SKU+" did not go out on this challan")
 		}
 		serials := cleanSerials(r.Serials)
 		if len(b.Serials) > 0 {
 			if len(serials) == 0 {
-				return "", challanFail(r.SKU, "say which serial numbers of "+r.SKU+" came back")
+				return "", nil, challanFail(r.SKU, "say which serial numbers of "+r.SKU+" came back")
 			}
 			r.Qty = len(serials)
 			for _, s := range serials {
 				if b.Serials[s] != "With party" {
-					return "", challanFail(r.SKU, fmt.Sprintf("serial %s of %s is not out on this challan", s, r.SKU))
+					return "", nil, challanFail(r.SKU, fmt.Sprintf("serial %s of %s is not out on this challan", s, r.SKU))
 				}
 			}
 		}
 		if r.Qty <= 0 || r.Qty > b.Open() {
-			return "", challanFail(r.SKU, fmt.Sprintf("%s: %d can come back, not %d", r.SKU, b.Open(), r.Qty))
+			return "", nil, challanFail(r.SKU, fmt.Sprintf("%s: %d can come back, not %d", r.SKU, b.Open(), r.Qty))
 		}
 		cond := "Good"
 		pool := "available"
@@ -525,15 +541,15 @@ func ReceiveChallanReturn(tenantID, id, userID, returnKey string, in []ChallanRe
 		code, text := "", ""
 		if cond != "Good" {
 			if code, text, err = ReasonForException(tenantID, ReasonDeliveryChallan, r.ReasonCode, r.Reason); err != nil {
-				return "", err
+				return "", nil, err
 			}
 			if code == "" && text == "" {
-				return "", challanFail(r.SKU, fmt.Sprintf("say why %s came back %s", r.SKU, strings.ToLower(cond)))
+				return "", nil, challanFail(r.SKU, fmt.Sprintf("say why %s came back %s", r.SKU, strings.ToLower(cond)))
 			}
 		}
 		if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.inventory_availability SET with_party = COALESCE(with_party, 0) - $3, %s = COALESCE(%s, 0) + $3, updated_at = CURRENT_TIMESTAMP
 			WHERE sku = $1 AND location_code = $2`, schema, pool, pool), b.SKU, location, r.Qty); err != nil {
-			return "", err
+			return "", nil, err
 		}
 		switch cond {
 		case "Good":
@@ -553,13 +569,11 @@ func ReceiveChallanReturn(tenantID, id, userID, returnKey string, in []ChallanRe
 	balRaw, _ := json.Marshal(bal)
 	evRaw, _ := json.Marshal(events)
 	if err := saveChallanTx(tx, schema, id, newStatus, map[string]interface{}{"challan_balance": string(balRaw), "challan_events": string(evRaw)}); err != nil {
-		return "", err
+		return "", nil, err
 	}
-	if err := tx.Commit(); err != nil {
-		return "", err
-	}
-	LogAuditEvent(tenantID, userID, "RETURN_DELIVERY_CHALLAN", "SUCCESS", fmt.Sprintf("%s: %d line(s) back, now %s", firstNonEmpty(strField(data, "code"), id), len(evLines), newStatus))
-	return newStatus, nil
+	return newStatus, func() {
+		LogAuditEvent(tenantID, userID, "RETURN_DELIVERY_CHALLAN", "SUCCESS", fmt.Sprintf("%s: %d line(s) back, now %s", firstNonEmpty(strField(data, "code"), id), len(evLines), newStatus))
+	}, nil
 }
 
 // CancelDeliveryChallan cancels a challan before its goods leave.

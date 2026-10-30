@@ -116,13 +116,19 @@ func courierDataString(data map[string]interface{}, key string) string {
 }
 
 func SaveCourierCredential(tenantID, provider string, fields map[string]string) error {
+	return SaveCourierCredentialBy(tenantID, provider, fields, "", nil)
+}
+
+// SaveCourierCredentialBy (49.8.5) records who saved the courier's
+// credential and an optional expiry (SaveChannelCredentialBy).
+func SaveCourierCredentialBy(tenantID, provider string, fields map[string]string, savedBy string, expiresAt *string) error {
 	if _, err := courierAdapter(provider); err != nil {
 		return err
 	}
 	if len(fields) == 0 {
 		return errors.New("credential fields are required")
 	}
-	return SaveChannelCredential(tenantID, courierCredentialCode(provider), fields)
+	return SaveChannelCredentialBy(tenantID, courierCredentialCode(provider), fields, savedBy, expiresAt)
 }
 
 func HasCourierCredential(tenantID, provider string) (bool, error) {
@@ -206,24 +212,47 @@ func ScheduleCourierPickup(ctx context.Context, tenantID, provider, bookingID, p
 	if err != nil {
 		return "", err
 	}
-	schema, data, status, err := fetchLogisticsBooking(tenantID, bookingID)
+	// 47.11.8b: claimed before the call, uncertain kept, retry asks first or
+	// waits for Resolve (courier_step_guard.go). A pickup already scheduled
+	// is answered from the record.
+	lookup, canLookup := adapter.(CourierPickupLookup)
+	claim, done, err := claimCourierStep(tenantID, provider, bookingID, courierPickupStep, canLookup, func(data map[string]interface{}, status string) error {
+		if status == "Delivered" || status == "RTO" {
+			return fmt.Errorf("booking %s is already %s", bookingID, status)
+		}
+		if courierDataString(data, "provider_awb") == "" {
+			return fmt.Errorf("booking %s has no provider AWB", bookingID)
+		}
+		return nil
+	})
+	if err != nil || done != "" {
+		return done, err
+	}
+	req := CourierPickupRequest{AWBs: []string{courierDataString(claim.data, "provider_awb")}, RemoteShipmentIDs: []string{courierDataString(claim.data, "remote_shipment_id")}, PickupName: pickupName, PickupAt: pickupAt}
+	if ctx.Err() != nil {
+		releaseCourierStepClaim(claim.schema, bookingID, courierPickupStep)
+		return "", ctx.Err()
+	}
+	scheduled := map[string]interface{}{"pickup_scheduled_at": pickupAt.UTC().Format(time.RFC3339)}
+	if claim.lookupFirst {
+		ref, found, lerr := lookup.FindPickup(ctx, cred, req)
+		if lerr != nil {
+			markCourierStepUncertain(claim.schema, bookingID, courierPickupStep)
+			return "", &ValidationError{Code: CourierUnreachableCode, Message: fmt.Sprintf("%s could not be asked about this pickup - nothing was sent. Try again shortly.", provider)}
+		}
+		if found {
+			scheduled["pickup_reference"] = ref
+			LogAuditEvent(tenantID, "system", "COURIER_PICKUP_ADOPTED", "SUCCESS", fmt.Sprintf("booking=%s provider=%s reference=%s", bookingID, provider, ref))
+			return ref, recordCourierStepDone(claim.schema, bookingID, courierPickupStep, scheduled)
+		}
+	}
+	traced, wrote := courierTracedContext(ctx)
+	ref, err := adapter.SchedulePickup(traced, cred, req)
 	if err != nil {
-		return "", err
+		return "", settleFailedCourierStep(tenantID, claim, courierPickupStep, provider, bookingID, canLookup, wrote.Load(), err)
 	}
-	if status == "Delivered" || status == "RTO" {
-		return "", fmt.Errorf("booking %s is already %s", bookingID, status)
-	}
-	awb := courierDataString(data, "provider_awb")
-	if awb == "" {
-		return "", fmt.Errorf("booking %s has no provider AWB", bookingID)
-	}
-	remoteID := courierDataString(data, "remote_shipment_id")
-	ref, err := adapter.SchedulePickup(ctx, cred, CourierPickupRequest{AWBs: []string{awb}, RemoteShipmentIDs: []string{remoteID}, PickupName: pickupName, PickupAt: pickupAt})
-	if err != nil {
-		return "", courierCallFailed(provider, err)
-	}
-	_, err = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || jsonb_build_object('pickup_reference',$1::text,'pickup_scheduled_at',$2::text), updated_at=CURRENT_TIMESTAMP WHERE id=$3 AND doctype='LogisticsBooking'`, schema), ref, pickupAt.UTC().Format(time.RFC3339), bookingID)
-	return ref, err
+	scheduled["pickup_reference"] = ref
+	return ref, recordCourierStepDone(claim.schema, bookingID, courierPickupStep, scheduled)
 }
 
 func CancelCourierShipment(ctx context.Context, tenantID, provider, bookingID string) error {
@@ -235,22 +264,43 @@ func CancelCourierShipment(ctx context.Context, tenantID, provider, bookingID st
 	if err != nil {
 		return err
 	}
-	schema, data, status, err := fetchLogisticsBooking(tenantID, bookingID)
-	if err != nil {
+	// 47.11.8b: the same guard as pickup; a shipment already cancelled at
+	// the courier is not cancelled again.
+	lookup, canLookup := adapter.(CourierCancelLookup)
+	claim, done, err := claimCourierStep(tenantID, provider, bookingID, courierCancelStep, canLookup, func(data map[string]interface{}, status string) error {
+		if status != "AWB Assigned" {
+			return fmt.Errorf("booking %s cannot be cancelled at courier from status %q", bookingID, status)
+		}
+		if courierDataString(data, "provider_awb") == "" {
+			return fmt.Errorf("booking %s has no provider AWB", bookingID)
+		}
+		return nil
+	})
+	if err != nil || done != "" {
 		return err
 	}
-	if status != "AWB Assigned" {
-		return fmt.Errorf("booking %s cannot be cancelled at courier from status %q", bookingID, status)
+	awb := courierDataString(claim.data, "provider_awb")
+	if ctx.Err() != nil {
+		releaseCourierStepClaim(claim.schema, bookingID, courierCancelStep)
+		return ctx.Err()
 	}
-	awb := courierDataString(data, "provider_awb")
-	if awb == "" {
-		return fmt.Errorf("booking %s has no provider AWB", bookingID)
+	cancelled := map[string]interface{}{"courier_cancelled_at": time.Now().UTC().Format(time.RFC3339)}
+	if claim.lookupFirst {
+		isCancelled, lerr := lookup.ShipmentCancelled(ctx, cred, awb)
+		if lerr != nil {
+			markCourierStepUncertain(claim.schema, bookingID, courierCancelStep)
+			return &ValidationError{Code: CourierUnreachableCode, Message: fmt.Sprintf("%s could not be asked about this cancellation - nothing was sent. Try again shortly.", provider)}
+		}
+		if isCancelled {
+			LogAuditEvent(tenantID, "system", "COURIER_CANCEL_ADOPTED", "SUCCESS", fmt.Sprintf("booking=%s provider=%s awb=%s", bookingID, provider, awb))
+			return recordCourierStepDone(claim.schema, bookingID, courierCancelStep, cancelled)
+		}
 	}
-	if err := adapter.CancelShipment(ctx, cred, awb); err != nil {
-		return courierCallFailed(provider, err)
+	traced, wrote := courierTracedContext(ctx)
+	if err := adapter.CancelShipment(traced, cred, awb); err != nil {
+		return settleFailedCourierStep(tenantID, claim, courierCancelStep, provider, bookingID, canLookup, wrote.Load(), err)
 	}
-	_, err = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data=data || jsonb_build_object('courier_cancelled_at',$1), updated_at=CURRENT_TIMESTAMP WHERE id=$2 AND doctype='LogisticsBooking'`, schema), time.Now().UTC().Format(time.RFC3339), bookingID)
-	return err
+	return recordCourierStepDone(claim.schema, bookingID, courierCancelStep, cancelled)
 }
 
 // CourierUnreachableCode is the code a courier call that never got a usable

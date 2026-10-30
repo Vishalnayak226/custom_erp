@@ -43,8 +43,9 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 	if err := validatePostSaleEdit(doctype, docID, priorStatus, priorData, payload); err != nil {
 		return err
 	}
-	// Stage 73.D.8: a posted document's money is fixed (posted_amounts.go).
-	if err := validatePostedAmountsFrozen(doctype, docID, priorStatus, priorData, payload); err != nil {
+	// Stage 73.D.8: a posted document's money is fixed (posted_amounts.go);
+	// a refused change is an INVARIANT event (49.11.1, security_events.go).
+	if err := checkPostedAmountsFrozen(tenantID, doctype, docID, priorStatus, priorData, payload); err != nil {
 		return err
 	}
 	// Stage 75.2.7: once an IRN exists, the fields it certifies are fixed.

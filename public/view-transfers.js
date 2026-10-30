@@ -257,12 +257,11 @@ export {
 import('./trade-docs.js' + new URL(import.meta.url).search).catch(() => null);
 
 function renderTransferActions(t) {
+  // Stage 143.4: one Print; the dialog's "Print as" picks Transfer Out or In.
   const prints = [];
   if (['Approved', 'Packed', 'Dispatched', 'Partially Received', 'Received'].includes(t.status)) {
-    prints.push(`<button class="action-btn" ${actionAttrs('printTransactionDocument', ['TransferOrder', t.id, 'TransferOut'])}>Print Transfer Out</button>`);
-  }
-  if (t.status === 'Received' || t.status === 'Partially Received') {
-    prints.push(`<button class="action-btn" ${actionAttrs('printTransactionDocument', ['TransferOrder', t.id, 'TransferIn'])}>Print Transfer In</button>`);
+    const txn = /Received/.test(t.status) ? 'TransferIn' : 'TransferOut';
+    prints.push(`<button class="action-btn" ${actionAttrs('printTransactionDocument', ['TransferOrder', t.id, txn])}>Print</button>`);
   }
   const stage = renderTransferStageActions(t);
   const details = `<button class="action-btn" ${actionAttrs('showTransferDetails', [t.id])}>Details</button>`;

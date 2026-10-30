@@ -30,8 +30,9 @@ func handleReportCatalog(w http.ResponseWriter, r *http.Request) {
 	for _, module := range entitlements {
 		enabled[module.ModuleKey] = module.Enabled
 	}
+	role := r.Header.Get("Resolved-Role")
 	for _, def := range engines.ListReportDefinitions() {
-		if enabled["reports"] && enabled[def.ModuleKey] {
+		if enabled["reports"] && enabled[def.ModuleKey] && engines.ReportAllowedForRole(def, role) {
 			catalog = append(catalog, def)
 		}
 	}
@@ -111,7 +112,7 @@ func handleCreateReportExport(w http.ResponseWriter, r *http.Request) {
 		Params   map[string]string `json:"params"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ReportID == "" {
-		http.Error(w, "Field 'report_id' is required", http.StatusUnprocessableEntity)
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'report_id' is required") // 49.10.4: the JSON envelope, not plain text
 		return
 	}
 	jobID, err := engines.CreateReportExportJob(tenantID, req.ReportID, role, req.Params, userID)
@@ -185,10 +186,11 @@ func handleListMyReportExports(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleCancelReportExport(w http.ResponseWriter, r *http.Request) {
-	if err := engines.CancelReportExportJob(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("id"),
-		r.Header.Get("Resolved-User-ID"), r.Header.Get("Resolved-Role")); err != nil {
+	status, err := engines.CancelReportExportJob(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("id"),
+		r.Header.Get("Resolved-User-ID"), r.Header.Get("Resolved-Role"))
+	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "Cancelled"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": status})
 }

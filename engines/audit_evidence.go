@@ -599,6 +599,9 @@ func runAuditVerifyJob(ctx context.Context, schema string, job Job) (map[string]
 		return nil, fmt.Errorf("no client is registered for %s - audit verification could not run", schema)
 	}
 	result, err := VerifyAuditEvidence(tenantID)
+	// 49.11.1: a break or a verifier that could not run is an AUDIT_VERIFY
+	// event (security_events.go), next to the system-error row.
+	RecordAuditVerification(tenantID, result, err)
 	if err != nil {
 		LogSystemError(tenantID, "", "CRITICAL", "audit.verify",
 			fmt.Sprintf("audit verification could not run: %v - treat this as unverified, not as passing", err), "")
@@ -691,11 +694,11 @@ func StartAuditEvidenceScheduler(ctx context.Context, interval time.Duration) {
 					if tenantID == "" { // Stage 49.3.2: not queued on the default client
 						continue
 					}
-					if _, err := EnqueueJob(tenantID, AuditCheckpointJobType, nil,
+					if _, err := EnqueueJobContext(SystemJobContext("audit-evidence"), tenantID, AuditCheckpointJobType, nil,
 						fmt.Sprintf("audit-checkpoint:%s:%s", tenantID, stamp)); err != nil {
 						log.Printf("[AUDIT-EVIDENCE] %s: could not enqueue checkpoint: %v", schema, err)
 					}
-					if _, err := EnqueueJob(tenantID, AuditVerifyJobType, nil,
+					if _, err := EnqueueJobContext(SystemJobContext("audit-evidence"), tenantID, AuditVerifyJobType, nil,
 						fmt.Sprintf("audit-verify:%s:%s", tenantID, stamp)); err != nil {
 						log.Printf("[AUDIT-EVIDENCE] %s: could not enqueue verification: %v", schema, err)
 					}

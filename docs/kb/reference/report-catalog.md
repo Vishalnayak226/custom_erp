@@ -20,7 +20,7 @@ screens: [reports]
 
 # Report catalog
 
-**424** reports across **26** categories, all reachable from
+**430** reports across **26** categories, all reachable from
 **Sales & Marketplace » Reports**.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -37,7 +37,7 @@ Each report's heading starts with its permanent number (R1001 is Sales Register)
 Type the number in the search box (Ctrl+K) to open the report - see
 [Keyboard shortcuts and quick codes](../getting-started/keyboard-shortcuts.md).
 
-The list runs over **3** pages. The contents below cover every category and
+The list runs over **4** pages. The contents below cover every category and
 open the right page.
 
 ## Contents
@@ -46,14 +46,14 @@ open the right page.
 - [Admin](#admin) - 7 reports
 - [Assets](#assets) - 1 reports
 - [BI](#bi) - 1 reports
-- [CRM](#crm) - 33 reports
+- [CRM](#crm) - 36 reports
 - [E-commerce & Integration](#e-commerce-integration) - 12 reports
 - [Exceptions](#exceptions) - 6 reports
 - [Expense Management](#expense-management) - 11 reports
-- [Finance](#finance) - 37 reports
+- [Finance](#finance) - 39 reports
 - [GST & Compliance](#gst-compliance) - 8 reports
 - [HR](#hr) - 2 reports
-- [HRMS](#hrms) - 15 reports
+- [HRMS](report-catalog-2.md#hrms) - 15 reports
 - [Inventory](report-catalog-2.md#inventory) - 42 reports
 - [MIS & Management](report-catalog-2.md#mis-management) - 10 reports
 - [Manufacturing](report-catalog-2.md#manufacturing) - 21 reports
@@ -61,13 +61,13 @@ open the right page.
 - [OMS](report-catalog-2.md#oms) - 25 reports
 - [PIM](report-catalog-2.md#pim) - 4 reports
 - [PIM / PIMS](report-catalog-2.md#pim-pims) - 16 reports
-- [Procurement](report-catalog-2.md#procurement) - 18 reports
+- [Procurement](report-catalog-3.md#procurement) - 18 reports
 - [Procurement & GRN](report-catalog-3.md#procurement-grn) - 27 reports
-- [Sales](report-catalog-3.md#sales) - 10 reports
+- [Sales](report-catalog-3.md#sales) - 11 reports
 - [Sales & POS](report-catalog-3.md#sales-pos) - 22 reports
 - [Service](report-catalog-3.md#service) - 1 reports
 - [Stock Transfer](report-catalog-3.md#stock-transfer) - 9 reports
-- [WMS](report-catalog-3.md#wms) - 49 reports
+- [WMS](report-catalog-4.md#wms) - 49 reports
 
 ## Accounting
 
@@ -684,7 +684,7 @@ open the right page.
 
 **Parameters:**
 
-- **Customer ID** (`customer_id`) - text, **required**
+- **Customer** (`customer_id`) - link, **required**, one of: Customer
 
 **Columns:** Customer · Loyalty Balance *(sensitive)* · POS Purchases · POS Spend *(sensitive)* · Last Purchase · Invoices · Invoice Total *(sensitive)*
 
@@ -745,6 +745,26 @@ open the right page.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Customer ID · Customer Name · Customer Mobile · Segment · RFM Score · Bill Count · Net Sales Amount · Last Sale Date
+
+**Drill-down:** no.
+
+### R6076 Customer affinity and next best offer
+
+**Report id:** `customer-affinity`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Customer · Name · Bills · Spend *(sensitive)* · Favourite category · Share of spend % · Last bill · Next best offer · Offer item
+
+**Drill-down:** no.
+
+### R6075 Customer pulse
+
+**Report id:** `crm-pulse`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Measure · Value · How it is counted
 
 **Drill-down:** no.
 
@@ -908,7 +928,7 @@ open the right page.
 
 **Parameters:**
 
-- **Segment (id from CRM > Segments)** (`segment_id`) - text, **required**
+- **Segment** (`segment_id`) - segment, **required**
 
 **Columns:** Customer · Name · Phone · Email · Lifecycle · RFM · Bills · Spend *(sensitive)* · Last bill
 
@@ -924,6 +944,16 @@ open the right page.
 - **To** (`to_date`) - date, optional
 
 **Columns:** Ticket · Opened · Customer · Store · State · Respond by · Response late · Resolve by · Resolution late
+
+**Drill-down:** no.
+
+### R6077 Suggested segments
+
+**Report id:** `suggested-segments`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Segment · Customers today · Build it with · Why
 
 **Drill-down:** no.
 
@@ -1421,6 +1451,33 @@ open the right page.
 **Columns:** Cost Center · Name · Type · Amount *(sensitive)*
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
+
+### R5085 Customer receipts
+
+**Report id:** `customer-receipts`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Customer** (`customer`) - text, optional
+
+**Columns:** Date · Receipt · Customer · Store · Mode · Reference · Amount · TDS · To invoices · Invoices · On account · Advance no.
+
+**Drill-down:** no.
+
+### R5084 Day Book
+
+**Report id:** `day-book`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Date · Voucher type · Voucher · Account · Account name · Debit *(sensitive)* · Credit *(sensitive)* · By
+
+**Drill-down:** no.
 
 ### R5054 Deferred Revenue Roll-Forward
 
@@ -1928,217 +1985,4 @@ open the right page.
 **Columns:** Step · What is compared · Payslips · Source total *(sensitive)* · Compared with *(sensitive)* · Difference *(sensitive)* · Status · Note
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
-
-## HRMS
-
-### R8002 Attendance Register
-
-**Report id:** `cat-attendance-register`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-- **Store** (`location`) - text, optional
-- **Status (optional)** (`status`) - select, optional, one of: ,Present,Absent,Half Day,Late,On Leave
-
-**Columns:** Attendance Date · Employee ID · Employee Name · Department · Store Name · Shift · Check In · Check Out · Attendance Status
-
-**Drill-down:** no.
-
-### R8011 Attrition Report
-
-**Report id:** `cat-attrition-report`
-
-**Parameters:**
-
-- **Store** (`location`) - text, optional
-- **Status (optional)** (`status`) - select, optional, one of: ,Active,Inactive,Exited,On Notice
-
-**Columns:** Document Date · Employee ID · Employee Name · Department · Store Name · Reason · Status
-
-**Drill-down:** no.
-
-### R8009 Employee Loan / Advance Register
-
-**Report id:** `cat-employee-loan-advance-register`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-- **Store** (`location`) - text, optional
-
-**Columns:** Document Date · Employee ID · Employee Name · Advance No · Advance Amount · Advance Adjusted Amount · Advance Balance Amount · Status
-
-**Drill-down:** no.
-
-### R8001 Employee Master Register
-
-**Report id:** `cat-employee-master-register`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-- **Store** (`location`) - text, optional
-- **Status (optional)** (`status`) - select, optional, one of: ,Active,Inactive,Exited,On Notice
-
-**Columns:** Employee ID · Employee Name · Department · Store Code · Store Name · Manager Name · Status · Created At
-
-**Drill-down:** no.
-
-### R8016 Employee Role / Access Mapping
-
-**Report id:** `cat-employee-role-access-mapping`
-
-**Parameters:**
-
-- **Store** (`location`) - text, optional
-- **Status (optional)** (`status`) - select, optional, one of: ,Active,Inactive,Exited,On Notice
-
-**Columns:** Employee ID · Employee Name · Department · Store Code · Store Name · User ID · User Name · Status · Approved By
-
-**Drill-down:** no.
-
-### R8010 Headcount Summary
-
-**Report id:** `cat-headcount-summary`
-
-**Parameters:**
-
-- **Store** (`location`) - text, optional
-- **Status (optional)** (`status`) - select, optional, one of: ,Active,Inactive,Exited,On Notice
-
-**Columns:** As Of Date · Department · Store Code · Store Name · Headcount · Status
-
-**Drill-down:** no.
-
-### R8003 Late / Overtime Report
-
-**Report id:** `cat-late-overtime-report`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-- **Store** (`location`) - text, optional
-- **Status (optional)** (`status`) - select, optional, one of: ,Present,Absent,Half Day,Late,On Leave
-
-**Columns:** Attendance Date · Employee ID · Employee Name · Shift · Check In · Check Out · Task Duration Min · Attendance Status · Reason
-
-**Drill-down:** no.
-
-### R8004 Leave Register
-
-**Report id:** `cat-leave-register`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-- **Store** (`location`) - text, optional
-- **Status (optional)** (`status`) - select, optional, one of: ,Draft,Pending Approval,Approved,Rejected,Cancelled
-
-**Columns:** Document Date · Employee ID · Employee Name · Leave Type · Leave Days · From Date · To Date · Approval Status · Manager Name · Reason
-
-**Drill-down:** no.
-
-### R8013 Onboarding Checklist
-
-**Report id:** `cat-onboarding-checklist`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-- **Store** (`location`) - text, optional
-
-**Columns:** Employee ID · Employee Name · Department · Document Type · Status · User Name · Approved By · Remarks
-
-**Drill-down:** no.
-
-### R8006 Payroll Register
-
-**Report id:** `cat-payroll-register`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-- **Store** (`location`) - text, optional
-
-**Columns:** Payroll Period · Employee ID · Employee Name · Department · Gross Salary · Deductions · Net Pay · Payment Status
-
-**Drill-down:** no.
-
-### R8014 Performance Review Summary
-
-**Report id:** `cat-performance-review-summary`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-- **Store** (`location`) - text, optional
-
-**Columns:** From Date · To Date · Employee ID · Employee Name · Department · Manager Name · Achievement % · Status · Remarks
-
-**Drill-down:** no.
-
-### R8007 Salary Component Detail
-
-**Report id:** `cat-salary-component-detail`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-- **Store** (`location`) - text, optional
-
-**Columns:** Payroll Period · Employee ID · Employee Name · Document Type · Gross Salary · Deductions · Net Pay
-
-**Drill-down:** no.
-
-### R8005 Shift / Roster Report
-
-**Report id:** `cat-shift-roster-report`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-- **Store** (`location`) - text, optional
-
-**Columns:** Document Date · Employee ID · Employee Name · Store Name · Department · Shift · Status
-
-**Drill-down:** no.
-
-### R8008 Statutory Deduction Summary
-
-**Report id:** `cat-statutory-deduction-summary`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-- **Store** (`location`) - text, optional
-
-**Columns:** Payroll Period · Department · Document Type · Deductions · Status
-
-**Drill-down:** no.
-
-### R8015 Training / Certification Register
-
-**Report id:** `cat-training-certification-register`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-- **Store** (`location`) - text, optional
-
-**Columns:** Document Date · Employee ID · Employee Name · Department · Document Type · Status · Remarks
-
-**Drill-down:** no.
 

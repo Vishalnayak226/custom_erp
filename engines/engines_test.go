@@ -964,8 +964,14 @@ func TestEngines(t *testing.T) {
 
 	// 8. Test Scale Simulation Concurrency (Phase 5)
 	t.Run("ScaleSimulationConcurrency", func(t *testing.T) {
+		// Stage 47.16.4b: the scale test runs only in a sandbox client.
+		tenantID, _, _, err := ProvisionSandboxTenant("", 1)
+		if err != nil {
+			t.Fatalf("sandbox: %v", err)
+		}
+		defer DeleteSandboxTenant(tenantID)
 		// Seed 100 stores for fast test scale execution (running 50 transactions with 5 parallel workers)
-		err := SeedScaleTestData(tenantID, 100, "BAR-SCALE", 500)
+		err = SeedScaleTestData(tenantID, 100, "BAR-SCALE", 500)
 		if err != nil {
 			t.Fatalf("Failed to seed scale test data: %v", err)
 		}

@@ -111,3 +111,30 @@ function Format-Findings($findings) {
         "  [$($_.Kind)] $where  $text"
     }
 }
+
+# Get-OverdueComplianceReviews (gate G4e, Stage 47.16.1a) lists the compliance
+# matrix rows whose review_by date has passed - one "OVERDUE CM-.." line each,
+# nothing when every review is current. The rule is the matrix test's own
+# (internal/securityscan TestComplianceMatrixReviewsAreNotOverdue, which runs
+# only with ERP_COMPLIANCE_REVIEW_GATE=1), so the build's OVERDUE log and the
+# gate never disagree. Throws when the check did not run, so a broken checker
+# never lets a release through.
+#   $RepoDir    - the tree to judge (the release snapshot)
+#   $GoExe      - go.exe
+#   $MatrixFile - optional: another copy of the matrix (to try the gate on)
+function Get-OverdueComplianceReviews {
+    param([string]$RepoDir, [string]$GoExe, [string]$MatrixFile = '')
+    $test = 'TestComplianceMatrixReviewsAreNotOverdue'
+    $env:ERP_COMPLIANCE_REVIEW_GATE = '1'
+    if ($MatrixFile) { $env:ERP_COMPLIANCE_MATRIX = $MatrixFile } else { Remove-Item Env:ERP_COMPLIANCE_MATRIX -ErrorAction SilentlyContinue }
+    try {
+        $out = Invoke-Native -Exe $GoExe -Arguments @('test', './internal/securityscan/', '-run', "^$test`$", '-count=1', '-v') -WorkDir $RepoDir -AllowFail
+        $code = $LASTEXITCODE
+    } finally {
+        Remove-Item Env:ERP_COMPLIANCE_REVIEW_GATE, Env:ERP_COMPLIANCE_MATRIX -ErrorAction SilentlyContinue
+    }
+    if ($code -eq 0 -and ($out | Where-Object { $_ -match "^--- PASS: $test " })) { return }
+    $overdue = @($out | Where-Object { $_ -match 'OVERDUE CM-' } | ForEach-Object { ($_ -replace '^.*?(OVERDUE CM-)', '$1').Trim() })
+    if ($code -ne 0 -and $overdue.Count) { return $overdue }
+    throw "the compliance review check failed or did not run (exit $code):`n$(($out | Select-Object -Last 15) -join "`n")"
+}

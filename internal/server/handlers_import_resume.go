@@ -68,14 +68,14 @@ func handleResumeImportJob(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, r, "GLOBAL-0007", "")
 		return
 	}
-	file, _, err := r.FormFile("file")
+	file, header, err := r.FormFile("file")
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Attach the corrected failed-rows CSV as 'file'.")
 		return
 	}
 	defer file.Close()
 	dryRun := r.URL.Query().Get("dry_run") == "1"
-	res, childID, err := engines.ResumeImportJob(r.Context(), tenantID, jobID, file, r.Header.Get("Resolved-User-ID"), r.Header.Get("Resolved-Role"), dryRun)
+	res, childID, err := engines.ResumeImportJob(r.Context(), tenantID, jobID, engines.NamedUpload(file, header.Filename), r.Header.Get("Resolved-User-ID"), r.Header.Get("Resolved-Role"), dryRun)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return

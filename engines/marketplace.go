@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -187,11 +188,32 @@ func CreateLogisticsBooking(tenantID, orderID, fulfillmentTaskID, carrier, track
 		return "", err
 	}
 
+	// 47.11.8b: one live booking per fulfillment task. The advisory lock makes
+	// two "Book" clicks on one task take turns here; the second finds the first.
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+	if fulfillmentTaskID != "" {
+		if _, err := tx.Exec(`SELECT pg_advisory_xact_lock(hashtext($1))`, schema+":courier-task:"+fulfillmentTaskID); err != nil {
+			return "", err
+		}
+		other, err := liveBookingForTask(tx, schema, fulfillmentTaskID)
+		if err != nil {
+			return "", err
+		}
+		if other != "" {
+			return "", &ValidationError{Code: CourierTaskBookedCode, Message: fmt.Sprintf("task %s is already booked as %s - cancel that booking first", fulfillmentTaskID, other)}
+		}
+	}
 	query := fmt.Sprintf(`
 		INSERT INTO %s.documents (id, doctype, data, status, created_by)
 		VALUES ($1, 'LogisticsBooking', $2, 'AWB Assigned', 'system')`, schema)
-	_, err = db.DB.Exec(query, bookingID, marshaled)
-	return bookingID, err
+	if _, err = tx.Exec(query, bookingID, marshaled); err != nil {
+		return "", err
+	}
+	return bookingID, tx.Commit()
 }
 
 // fetchLogisticsBooking loads one LogisticsBooking's raw fields, mirroring
@@ -716,23 +738,52 @@ func ProcessMarketplaceSettlement(tenantID string, channel string, settlementID 
 		return fmt.Errorf("settlement %s has already been reconciled", settlementID)
 	}
 
-	// 2. Reconcile matched orders
-	for _, orderID := range orderIDs {
-		// Fetch the document and transition its status to 'Settled'
+	// 2. Reconcile matched orders. Stage 135.25: an order another settlement
+	// has already taken is refused, naming that settlement - its sale was
+	// cleared there, and taking it again cleared it twice. A part payout or
+	// an adjustment for it goes in as a settlement line (Reconcile / Resolve
+	// / Write-off). The orders are locked in id order, so two settlements
+	// naming the same orders cannot deadlock: the later one waits, then
+	// finds them Settled.
+	locking := append([]string(nil), orderIDs...)
+	sort.Strings(locking)
+	orders := map[string]map[string]interface{}{}
+	for _, orderID := range locking {
 		var docBytes []byte
+		var status string
 		errFetch := tx.QueryRow(fmt.Sprintf(`
-			SELECT data FROM %s.documents 
-			WHERE id = $1 AND doctype = 'POSCart'`, schema), orderID).Scan(&docBytes)
-		if errFetch == nil {
-			var orderDoc map[string]interface{}
-			if errJson := json.Unmarshal(docBytes, &orderDoc); errJson == nil {
-				orderDoc["status"] = "Settled"
-				updatedBytes, _ := json.Marshal(orderDoc)
-				_, _ = tx.Exec(fmt.Sprintf(`
-					UPDATE %s.documents 
-					SET data = $1, status = 'Settled', updated_at = CURRENT_TIMESTAMP 
-					WHERE id = $2 AND doctype = 'POSCart'`, schema), updatedBytes, orderID)
+			SELECT data, status FROM %s.documents 
+			WHERE id = $1 AND doctype = 'POSCart' FOR UPDATE`, schema), orderID).Scan(&docBytes, &status)
+		if errFetch != nil {
+			continue
+		}
+		if status == "Settled" {
+			var other string
+			_ = tx.QueryRow(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = 'MarketplaceSettlement' AND id <> $2 AND data->'orders' ? $1 ORDER BY created_at LIMIT 1`, schema),
+				orderID, settlementID).Scan(&other)
+			if other == "" {
+				return fmt.Errorf("order %s is already settled", orderID)
 			}
+			return fmt.Errorf("order %s is already settled under settlement %s - record a part payout or an adjustment for it as a settlement line", orderID, other)
+		}
+		var orderDoc map[string]interface{}
+		if errJson := json.Unmarshal(docBytes, &orderDoc); errJson == nil {
+			orders[orderID] = orderDoc
+		}
+	}
+	for _, orderID := range locking {
+		orderDoc, ok := orders[orderID]
+		if !ok {
+			continue
+		}
+		orderDoc["status"] = "Settled"
+		orderDoc["settlement_id"] = settlementID
+		updatedBytes, _ := json.Marshal(orderDoc)
+		if _, err := tx.Exec(fmt.Sprintf(`
+			UPDATE %s.documents 
+			SET data = $1, status = 'Settled', updated_at = CURRENT_TIMESTAMP 
+			WHERE id = $2 AND doctype = 'POSCart'`, schema), updatedBytes, orderID); err != nil {
+			return err
 		}
 	}
 

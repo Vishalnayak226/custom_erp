@@ -32,6 +32,10 @@ type IRPAck struct {
 	AckDate       time.Time `json:"ack_date"`
 	SignedInvoice string    `json:"signed_invoice"`
 	SignedQR      string    `json:"signed_qr"`
+	// Raw (Stage 47.16.4f) is the IRP's response body as received (after the
+	// provider's own decryption), kept on the attempt as evidence. A provider
+	// never puts its session token or credentials in it.
+	Raw []byte `json:"-"`
 }
 
 // IRPErrorKind is how the queue must react to a provider error.
@@ -274,6 +278,9 @@ func (f *fakeIRPProvider) GenerateIRN(ctx context.Context, token IRPToken, gstin
 		ack := IRPAck{IRN: irn, AckNo: fmt.Sprintf("1%014d", len(f.issued)+1), AckDate: time.Now().UTC().Truncate(time.Second)}
 		ack.SignedQR = fakeSigned(map[string]interface{}{"SellerGstin": gstin, "DocNo": number, "DocTyp": p.DocDtls.Typ, "DocDt": p.DocDtls.Dt, "Irn": irn, "IrnDt": ack.AckDate.Format("2006-01-02 15:04:05")})
 		ack.SignedInvoice = fakeSigned(map[string]interface{}{"Irn": irn, "AckNo": ack.AckNo, "data": json.RawMessage(payload)})
+		// The response an IRP sends back, in its own field names.
+		ack.Raw, _ = json.Marshal(map[string]interface{}{"AckNo": ack.AckNo, "AckDt": ack.AckDate.Format("2006-01-02 15:04:05"), "Irn": irn,
+			"SignedInvoice": ack.SignedInvoice, "SignedQRCode": ack.SignedQR, "Status": "ACT"})
 		f.issued[key] = ack
 		return ack
 	}

@@ -34,9 +34,98 @@ func ConfirmWavePickLine(tenantID, waveID, lineKey string, qty int, user string)
 	if err != nil {
 		return err
 	}
-	_, err = db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.wave_pick_confirmations (wave_id, line_key, qty, confirmed_by) VALUES ($1, $2, $3, $4)
+	res, err := db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.wave_pick_confirmations (wave_id, line_key, qty, confirmed_by) VALUES ($1, $2, $3, $4)
 		ON CONFLICT (wave_id, line_key) DO NOTHING`, schema), waveID, lineKey, qty, user)
-	return err
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return nil
+	}
+	sku := strings.SplitN(lineKey, "|", 2)[0]
+	return applyWavePickToTasks(tenantID, schema, waveID, sku, qty)
+}
+
+// applyWavePickToTasks (140.12.15) counts a confirmed wave line as picked on
+// the wave's own orders: the quantity is spread over the open tasks needing
+// that item, oldest first, each through the bin consume a scan pick uses, so
+// Pack and the bill see the units as picked. A wave confirm used to record
+// only its own row, so a waved order could never be packed.
+func applyWavePickToTasks(tenantID, schema, waveID, sku string, qty int) error {
+	if sku == "" || qty <= 0 {
+		return nil
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = 'FulfillmentTask' AND deleted_at IS NULL
+		AND data->>'wave_id' = $1 AND status IN ('Pending', 'Picking') ORDER BY created_at, id`, schema), waveID)
+	if err != nil {
+		return err
+	}
+	var tasks []string
+	for rows.Next() {
+		var id string
+		if rows.Scan(&id) == nil {
+			tasks = append(tasks, id)
+		}
+	}
+	rows.Close()
+	for _, taskID := range tasks {
+		if qty <= 0 {
+			break
+		}
+		took, err := pickTaskSKUQty(tenantID, schema, taskID, sku, qty)
+		if err != nil {
+			return err
+		}
+		qty -= took
+	}
+	return nil
+}
+
+// pickTaskSKUQty picks up to qty units of sku on one task, under its lock.
+func pickTaskSKUQty(tenantID, schema, taskID, sku string, qty int) (int, error) {
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	lockedStatus, lockedData, err := lockFulfillmentTaskTx(tx, schema, taskID)
+	if err != nil {
+		return 0, err
+	}
+	task, err := loadPickPackTask(schema, taskID)
+	if err != nil || scanGuard(task) != nil {
+		return 0, err
+	}
+	took := 0
+	for i := range task.items {
+		it := &task.items[i]
+		if it.SKU != sku {
+			continue
+		}
+		n := it.Qty - it.ShortQty - it.PickedQty
+		if n > qty-took {
+			n = qty - took
+		}
+		if n > 0 {
+			it.PickedQty += n
+			took += n
+		}
+	}
+	if took == 0 {
+		return 0, nil
+	}
+	if err := ReserveTaskBinStockTx(tx, tenantID, schema, taskID, lockedStatus, lockedData); err != nil {
+		return 0, err
+	}
+	location, _ := task.data["location_code"].(string)
+	if _, err := ConsumeTaskBinStockTx(tx, tenantID, schema, taskID, location, sku, took); err != nil {
+		return 0, err
+	}
+	recomputeTaskStatus(task)
+	if err := task.saveWith(tx, schema); err != nil {
+		return 0, err
+	}
+	return took, tx.Commit()
 }
 
 // WavePickConfirmations are a wave's confirmed lines, by line key.

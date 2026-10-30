@@ -3704,3 +3704,48 @@ input[type="date"][data-date-picker="1"] {
 }
 input[type="date"][data-date-picker="1"]::-webkit-calendar-picker-indicator { display: none; }
 
+
+/* Stage 144: Configuration - an overview of module cards under plain
+   headings; a module opens as its own page with its group as pills. */
+.config-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+.config-toolbar .form-input { flex: 1 1 240px; max-width: 420px; }
+#config-screen [hidden] { display: none !important; }
+#config-screen .setup-guide { min-height: 0; } /* .table-panel min-height would hold the folded card open */
+.config-group { margin-bottom: 28px; }
+.config-group-title { font-size: 15px; font-weight: 600; color: var(--text-main); margin: 0 0 10px; }
+.config-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.config-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  padding: 14px 16px; text-align: left; font: inherit; color: var(--text-main);
+  background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 8px;
+  box-shadow: var(--shadow-sm); cursor: pointer;
+  transition: border-color var(--transition-med) var(--ease-out);
+}
+.config-card:hover, .config-card:focus-visible { border-color: var(--primary-color); }
+.config-card:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 1px; }
+.config-card-name { font-size: 14px; font-weight: 600; }
+.config-card-hint { font-size: 12.5px; color: var(--text-muted); }
+.config-card-unsaved { font-size: 12px; font-weight: 600; color: var(--warning-color); }
+.config-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.config-module-title { font-size: 18px; font-weight: 600; color: var(--text-main); margin: 0 0 12px; }
+.config-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.config-pill {
+  padding: 5px 12px; font: inherit; font-size: 13px; color: var(--text-muted);
+  background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 999px; cursor: pointer;
+}
+.config-pill:hover { color: var(--text-main); border-color: var(--primary-color); }
+.config-pill.active { color: var(--on-primary); background: var(--primary-color); border-color: var(--primary-color); }
+.config-pill:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 1px; }
+.config-fields-panel { padding: 20px 24px; }
+.config-savebar {
+  position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; gap: 14px;
+  margin-top: 16px; padding: 12px 24px; background: var(--panel-bg);
+  border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.08);
+}
+.config-savebar .text-muted { font-size: 13px; }
+@media (max-width: 600px) {
+  .config-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .config-card { padding: 12px; }
+  .config-fields-panel { padding: 16px; }
+  .config-savebar { padding: 10px 16px; }
+}

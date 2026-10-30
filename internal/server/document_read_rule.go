@@ -17,39 +17,54 @@ import (
 // filled in), and an update must target a record already its own. Same shape
 // as the supplier write scope. target is the record being written, "" for a
 // create.
-func selfScopeWriteAllowed(schema, doctype, target string, scope engines.SessionScope, payload map[string]interface{}) bool {
+func selfScopeWriteAllowed(schema, doctype, target string, scope engines.SessionScope, payload map[string]interface{}) selfScopeVerdict {
 	constraints, known := engines.ScopeConstraints(doctype, scope)
 	if !known {
-		return true
+		return selfScopeOK
 	}
 	for _, c := range constraints {
 		if c.Dimension != engines.ScopeSelf || len(c.Fields) == 0 {
 			continue
 		}
 		field := c.Fields[0]
+		if target != "" {
+			// Stage 49.4.7: a stored record that is not theirs (a colleague's,
+			// or any record when no Employee is linked) is a record they cannot
+			// reach - the caller answers it as "not found".
+			var stored string
+			if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'%s', '') FROM %s.documents WHERE id = $1 AND doctype = $2 AND deleted_at IS NULL`, field, schema),
+				target, doctype).Scan(&stored); err == nil && (c.Value == "" || stored != c.Value) {
+				return selfScopeOtherRecord
+			}
+		}
 		if c.Value == "" {
-			return false // no linked Employee: no record of this kind is theirs
+			return selfScopeRefused // no linked Employee: no record of this kind is theirs
 		}
 		given := ""
 		if v, ok := payload[field]; ok && v != nil {
 			given = strings.TrimSpace(fmt.Sprintf("%v", v))
 		}
 		if given != "" && given != c.Value {
-			return false
-		}
-		if target != "" {
-			var stored string
-			if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'%s', '') FROM %s.documents WHERE id = $1 AND doctype = $2 AND deleted_at IS NULL`, field, schema),
-				target, doctype).Scan(&stored); err == nil && stored != c.Value {
-				return false
-			}
+			return selfScopeRefused
 		}
 		if given == "" {
 			payload[field] = c.Value
 		}
 	}
-	return true
+	return selfScopeOK
 }
+
+// selfScopeVerdict is what selfScopeWriteAllowed decided. selfScopeRefused
+// is a new record filed under someone else's code (403: nothing to
+// disclose); selfScopeOtherRecord is a stored record that is not theirs
+// (404, Stage 49.4.7's disclosure rule, like a read).
+type selfScopeVerdict int
+
+const (
+	selfScopeOK selfScopeVerdict = iota
+	selfScopeRefused
+	selfScopeOtherRecord
+)
 
 // documentReadRule is the one object-level read rule (Stage 73.D.20): may this
 // session see this one document. It used to exist three times - inline in

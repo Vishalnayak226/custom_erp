@@ -39,6 +39,11 @@ var postedAmountRules = map[string]postedAmountRule{
 	"DebitNote":        {postedIn("Posted"), []string{"amount", "gst_amount"}},
 	"VendorCreditNote": {postedIn("Posted"), []string{"amount", "gst_amount"}},
 	"JournalVoucher":   {postedIn("Posted"), []string{"lines", "voucher_date", "currency", "exchange_rate"}},
+	// 49.5.3: an Approved goods receipt has posted its stock and GL. A save
+	// as Cancelled left both standing and took the receipt off its PO's
+	// received quantity, so the goods could be received again; it is
+	// reversed with a purchase return. Un-posting only - no field is frozen.
+	"GRN": {postedIn("Approved"), nil},
 }
 
 // unpostingStatuses are the statuses that would say a posted document never

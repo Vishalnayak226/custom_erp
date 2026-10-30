@@ -26,15 +26,17 @@ var serviceTicketNextStep = map[string]string{
 
 var servicePriorityRank = map[string]int{"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
 
-// serviceStatusHistory reads a document's status changes from the documents
-// audit trigger ("Field \"status\" modified from X to Y"), on the session
-// clock those unsigned rows are written in.
+// serviceStatusHistory reads a ticket's status changes from the documents edit
+// log - one row per field before Stage 47.16.4a ("Field \"status\" modified
+// from X to Y"), one row per save since (parseAuditFieldChanges) - on the
+// session clock those unsigned rows are written in.
 func serviceStatusHistory(schema, docID string) []map[string]interface{} {
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT COALESCE(user_id, ''), COALESCE(details, ''), created_at AT TIME ZONE current_setting('TimeZone')
 		FROM %s.audit_logs
-		WHERE details LIKE 'Field "status" modified%%' AND details LIKE '%%' || $1
-		ORDER BY created_at, id`, schema), docID)
+		WHERE (details LIKE 'Field "status" modified%%' AND details LIKE '%%' || $1)
+		   OR (entity_type = 'ServiceTicket' AND entity_id = $1 AND details LIKE $2)
+		ORDER BY created_at, id`, schema), docID, auditEditPrefix+`%"status": {"new": %`)
 	if err != nil {
 		return []map[string]interface{}{}
 	}
@@ -47,8 +49,11 @@ func serviceStatusHistory(schema, docID string) []map[string]interface{} {
 			continue
 		}
 		change := details
-		if i := strings.Index(details, " for Document ID"); i > 0 {
-			change = strings.TrimPrefix(details[:i], `Field "status" modified `)
+		_, changes := parseAuditFieldChanges(details)
+		for _, c := range changes {
+			if c.Field == "status" {
+				change = `from "` + c.Old + `" to "` + c.New + `"`
+			}
 		}
 		out = append(out, map[string]interface{}{"at": at, "by": user, "change": change})
 	}

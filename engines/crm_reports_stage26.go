@@ -265,7 +265,7 @@ func init() {
 			{Key: "last_purchase_at", Label: "Last Purchase"}, {Key: "invoice_count", Label: "Invoices"},
 			{Key: "invoice_total", Label: "Invoice Total", Sensitive: true},
 		},
-		Params: []ReportParam{{Key: "customer_id", Label: "Customer ID", Type: "text", Required: true}},
+		Params: []ReportParam{{Key: "customer_id", Label: "Customer", Type: "link", Options: "Customer", Required: true}}, // 140.12.27: picked, not typed
 		Run: func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
 			profile, err := GetCustomer360(tenantID, params["customer_id"])
 			if err != nil {

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // The blanket per-field length cap applied when a field has no explicit
@@ -529,6 +530,17 @@ func validateDocumentWith(tenantID string, doctype string, docData map[string]in
 			if r, bad := unsafeTextRune(s); bad {
 				return &ValidationError{Code: "GLOBAL-0309", Message: fmt.Sprintf("%s holds an invisible character (U+%04X)", f.Label, r), SubFor: f.Fieldname}
 			}
+			// Stage 49.4.6 (confusables): an identifier - a code, SKU, tax or
+			// bank number, email, URL - may not mix a look-alike alphabet
+			// (Cyrillic, Greek, Armenian) with another: "ITEМ-01" with a
+			// Cyrillic М is a second record that reads as the first. Names
+			// and descriptions keep every script, and an identifier written
+			// wholly in one script passes.
+			if IsIdentifierField(f.Fieldname) {
+				if r, bad := mixedScriptRune(s); bad {
+					return &ValidationError{Code: "GLOBAL-0311", Message: fmt.Sprintf("%s mixes alphabets: a look-alike letter (U+%04X) sits among letters of another alphabet", f.Label, r), SubFor: f.Fieldname}
+				}
+			}
 		}
 
 		// 1. Mandatory check
@@ -947,6 +959,76 @@ func applyMasterIDCodeInvariant(isCreate bool, payload map[string]interface{}, i
 	}
 	payload["id"] = code
 	return code, nil
+}
+
+// IsIdentifierField (Stage 49.4.6) reports whether a field holds an
+// identifier rather than free text: a code, SKU / barcode, scanned lot /
+// serial / LPN / wave id, tax or bank number, email, URL, or a reference id.
+// Decided from the field's name the way the seeds name them - "code",
+// "*_code", "sku", "barcode", "gstin", "pan", "ifsc", "email", "*_url",
+// "website", "account_number", "hsn", "ean", "upc", "*_id" - and from the
+// explicit scan semantics (field_semantics.go). A name, description or
+// address is not an identifier and keeps every script.
+func IsIdentifierField(fieldname string) bool {
+	f := strings.ToLower(strings.TrimSpace(fieldname))
+	if f == "" || IsPhoneField(f) { // a phone has its own normaliser (Stage 41), never this check
+		return false
+	}
+	if semantic := FieldSemantic(f); semantic != "" {
+		return scanSemantics[semantic]
+	}
+	if identifierFieldNames[f] {
+		return true
+	}
+	for _, suffix := range identifierFieldSuffixes {
+		if strings.HasSuffix(f, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+var identifierFieldNames = map[string]bool{
+	"id": true, "code": true, "sku": true, "barcode": true, "gstin": true, "pan": true, "ifsc": true,
+	"email": true, "url": true, "website": true, "hsn": true, "ean": true, "upc": true, "gtin": true,
+	"account_number": true, "account_no": true, "bank_account": true, "bank_account_number": true,
+	"swift": true, "swift_code": true, "iban": true, "upi_id": true, "username": true, "domain": true,
+}
+
+var identifierFieldSuffixes = []string{"_code", "_id", "_sku", "_barcode", "_gstin", "_pan", "_ifsc", "_email", "_url", "_no", "_number", "_hsn", "_ean", "_upc"}
+
+// mixedScriptRune (Stage 49.4.6) finds the first letter of a look-alike
+// alphabet (Cyrillic, Greek, Armenian - the ones with letters drawn like
+// Latin ones) in a value that also holds letters of another alphabet. A value
+// written wholly in one alphabet, whichever it is, passes; so does one that
+// mixes alphabets none of which imitates another (Latin and Devanagari).
+func mixedScriptRune(s string) (rune, bool) {
+	const latin, cyrillic, greek, armenian, other = 1, 2, 4, 8, 16
+	seen, lookalike := 0, rune(0)
+	for _, r := range s {
+		if !unicode.IsLetter(r) {
+			continue
+		}
+		switch {
+		case unicode.Is(unicode.Latin, r):
+			seen |= latin
+		case unicode.Is(unicode.Cyrillic, r):
+			seen |= cyrillic
+		case unicode.Is(unicode.Greek, r):
+			seen |= greek
+		case unicode.Is(unicode.Armenian, r):
+			seen |= armenian
+		default:
+			seen |= other
+		}
+		if lookalike == 0 && seen&(cyrillic|greek|armenian) != 0 && (unicode.Is(unicode.Cyrillic, r) || unicode.Is(unicode.Greek, r) || unicode.Is(unicode.Armenian, r)) {
+			lookalike = r
+		}
+	}
+	if lookalike != 0 && seen&(seen-1) != 0 { // a look-alike alphabet, and more than one alphabet
+		return lookalike, true
+	}
+	return 0, false
 }
 
 // unsafeTextRune finds the first character a typed value may not hold

@@ -7,15 +7,15 @@
 > **Generated 2026-09-10.** This page is produced from `public/**/*.js`, the shell's view registry in `public/app.js`, `internal/server/routes.go` and `route_capabilities.go`, role templates, the data and settings registries, and the owner table in `docs/product/wholeops-outsider-plan-2026-10-23.md`, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-Stage 135.5. Each front-end file, the screens the shell routes to it, and each API call its source makes, with the handler, module / feature gate, capability and roles enforced for that route. **Roles** are evaluated with `checkRouteCapability`, the check every signed-in request passes, for: Super Admin, Admin, Administrator, Store Supervisor, Cashier, Picker, Warehouse Manager, Accounts Payable, Accounts Receivable, Accountant, HR Manager, Employee Self-Service, Auditor, Integrator, Setup Operator. A module gate also needs the module switched on for the client, and generic record routes also need the role's per-doctype grant. **Methods** are every method registered for the called path; the source is not parsed for which one it sends, and a path built from a base is matched to every route under that base. **Nothing here was inspected live** and tabs are not derived from source: 55.0F records both. **Failure behaviour** is one shared contract for every screen (47.10.6): a refused permission shows *No access*, a missing record *Not found*, any other load failure *Nothing was changed. Trying again is safe.* with a retry.
+Stage 135.5. Each front-end file, the screens the shell routes to it, and each API call its source makes, with the handler, module / feature gate, capability and roles enforced for that route. **Roles** are evaluated with `checkRouteCapability`, the check every signed-in request passes, for: Super Admin, Admin, Administrator, Store Supervisor, Cashier, Picker, Warehouse Manager, Accounts Payable, Accounts Receivable, Accountant, HR Manager, Employee Self-Service, Auditor, Integrator, Setup Operator, Merchandiser. A module gate also needs the module switched on for the client, and generic record routes also need the role's per-doctype grant. **Methods** are every method registered for the called path; the source is not parsed for which one it sends, and a path built from a base is matched to every route under that base. **Nothing here was inspected live** and tabs are not derived from source: 55.0F records both. **Failure behaviour** is one shared contract for every screen (47.10.6): a refused permission shows *No access*, a missing record *Not found*, any other load failure *Nothing was changed. Trying again is safe.* with a retry.
 
 | Count | |
 |---|---|
-| Front-end files with screens or API calls | 78 |
+| Front-end files with screens or API calls | 80 |
 | Screens in the shell registry | 67 |
-| File-to-route actions | 896 |
-| Registered `/api` routes | 839 |
-| Routes no front-end file calls | 186 |
+| File-to-route actions | 917 |
+| Registered `/api` routes | 855 |
+| Routes no front-end file calls | 187 |
 | Calls matching no route | 2 |
 
 ## Screens and front-end files
@@ -367,6 +367,7 @@ Owners: M01, M30. Live inspection: not recorded.
 | ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
 | GET | `/api/v1/integration/logs` | `handleGetIntegrationLogs` |  | signed-in: integration.default | every signed-in role |
 | POST | `/api/v1/integration/retry` | `handleRetryIntegrationEvent` |  | signed-in: integration.default | every signed-in role |
+| POST | `/api/v1/integrations/credentials/disconnect` | `handleConnectorDisconnect` |  | admin: admin.integrations | Super Admin, Admin |
 | POST | `/api/v1/jobs/{id}/cancel` | `handleCancelJob` |  | signed-in: jobs.default | every signed-in role |
 | POST | `/api/v1/jobs/{id}/retry` | `handleRetryJob` |  | signed-in: jobs.default | every signed-in role |
 | GET | `/api/v1/jobs` | `handleListJobs` |  | signed-in: jobs.default | every signed-in role |
@@ -460,6 +461,19 @@ Owners: M03, M04. Live inspection: not recorded.
 | GET | `/api/v1/procurement/purchase-order/{id}/images` | `handleGetPOImages` | procurement | signed-in: procurement.default | every signed-in role |
 | POST | `/api/v1/procurement/purchase-order/{id}/images` | `handleUploadPOImage` | procurement | signed-in: procurement.default | every signed-in role |
 
+### `public/view-bulk-sales.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| POST | `/api/v1/sales/bulk-upload/apply` | `handleBulkSalesApply` |  | signed-in: finance.default | every signed-in role |
+| POST | `/api/v1/sales/bulk-upload/preview` | `handleBulkSalesPreview` |  | signed-in: finance.default | every signed-in role |
+| GET | `/api/v1/sales/bulk-upload/runs/{id}/file` | `handleBulkSalesRunFile` |  | signed-in: finance.default | every signed-in role |
+| GET | `/api/v1/sales/bulk-upload/runs/{id}` | `handleBulkSalesRun` |  | signed-in: finance.default | every signed-in role |
+| GET | `/api/v1/sales/bulk-upload/runs` | `handleBulkSalesRuns` |  | signed-in: finance.default | every signed-in role |
+| GET | `/api/v1/sales/bulk-upload/template` | `handleBulkSalesTemplate` |  | signed-in: finance.default | every signed-in role |
+
 ### `public/view-consumption.js`
 
 Owners: M07, M10, M20. Live inspection: not recorded.
@@ -508,8 +522,10 @@ Owners: M19, M24. Live inspection: not recorded.
 | ANY | `/api/v1/crm/messages` | `handleCRMMessages` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
 | GET | `/api/v1/crm/meta` | `handleCRMMeta` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
 | ANY | `/api/v1/crm/opportunities` | `handleCRMOpportunities` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
+| GET | `/api/v1/crm/readiness` | `handleCRMReadiness` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
 | ANY | `/api/v1/crm/referrals` | `handleCRMReferrals` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
 | ANY | `/api/v1/crm/segments` | `handleCRMSegments` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
+| GET | `/api/v1/crm/sender-presets` | `handleCRMSenderPresets` | crm_loyalty | admin: crm_loyalty.default | Super Admin, Admin |
 | ANY | `/api/v1/crm/senders` | `handleCRMSenders` | crm_loyalty | admin: crm_loyalty.default | Super Admin, Admin |
 | ANY | `/api/v1/crm/surveys` | `handleCRMSurveys` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
 | ANY | `/api/v1/crm/tasks` | `handleCRMTasks` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
@@ -628,30 +644,32 @@ Owners: M17, M18. Live inspection: not recorded.
 | GET | `/api/v1/doc/{doctype}/meta` | `handleGetDocTypeMeta` |  | signed-in: doc.default | every signed-in role |
 | ANY | `/api/v1/doc/{doctype}/{id}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
 | ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
-| POST | `/api/v1/finance/bank-reconcile` | `handleBankReconcile` |  | signed-in: finance.default | every signed-in role |
+| POST | `/api/v1/finance/acquirer-settlements/match` | `handleMatchAcquirerSettlements` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/bank-reconcile` | `handleBankReconcile` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | GET | `/api/v1/finance/bank-reconciliation/lines/{id}/candidates` | `handleBankLineCandidates` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/bank-reconciliation/lines/{id}/{action}` | `handleBankLineAction` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/bank-reconciliation/rule-match` | `handleBankRuleMatch` |  | signed-in: finance.default | every signed-in role |
+| POST | `/api/v1/finance/bank-reconciliation/lines/{id}/{action}` | `handleBankLineAction` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/bank-reconciliation/rule-match` | `handleBankRuleMatch` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | GET | `/api/v1/finance/bank-reconciliation/workbench` | `handleBankReconWorkbench` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/credit-note/{id}/post` | `handlePostCreditNote` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/debit-note/{id}/post` | `handlePostDebitNote` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/payment-proposal/{id}/execute` | `handleExecutePaymentProposal` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/payment-proposal` | `handlePaymentProposal` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/period-reopen/{request}/apply` | `handlePeriodReopenApply` |  | signed-in: finance.default | every signed-in role |
+| POST | `/api/v1/finance/credit-note/{id}/post` | `handlePostCreditNote` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/debit-note/{id}/post` | `handlePostDebitNote` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/payment-proposal/{id}/execute` | `handleExecutePaymentProposal` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/payment-proposal` | `handlePaymentProposal` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/period-reopen/{request}/apply` | `handlePeriodReopenApply` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | GET | `/api/v1/finance/periods/{id}/close-board` | `handlePeriodCloseBoard` |  | signed-in: finance.default | every signed-in role |
 | GET | `/api/v1/finance/periods/{id}/close-checklist` | `handlePeriodCloseChecklist` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/periods/{id}/close-tasks/{task}/{action}` | `handlePeriodCloseTaskAction` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/periods/{id}/close` | `handleCloseAccountingPeriod` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/periods/{id}/reopen-request` | `handlePeriodReopenRequest` |  | signed-in: finance.default | every signed-in role |
+| POST | `/api/v1/finance/periods/{id}/close-tasks/{task}/{action}` | `handlePeriodCloseTaskAction` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/periods/{id}/close` | `handleCloseAccountingPeriod` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/periods/{id}/reopen-request` | `handlePeriodReopenRequest` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | GET | `/api/v1/finance/periods` | `handleAccountingPeriods` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/periods` | `handleAccountingPeriods` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/sales-invoice/{id}/post` | `handlePostSalesInvoice` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/sales-invoice/{id}/settle` | `handleSettleSalesInvoice` |  | signed-in: finance.default | every signed-in role |
+| POST | `/api/v1/finance/periods` | `handleAccountingPeriods` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/sales-invoice/{id}/cancel` | `handleCancelSalesInvoice` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/sales-invoice/{id}/post` | `handlePostSalesInvoice` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/sales-invoice/{id}/settle` | `handleSettleSalesInvoice` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | GET | `/api/v1/finance/trial-balance` | `handleTrialBalance` |  | signed-in: finance.statements | Super Admin, Admin, Administrator, Store Supervisor, Accounts Payable, Accounts Receivable, Accountant, Auditor |
-| POST | `/api/v1/finance/vendor-credit-note/{id}/post` | `handlePostVendorCreditNote` |  | signed-in: finance.default | every signed-in role |
+| POST | `/api/v1/finance/vendor-credit-note/{id}/post` | `handlePostVendorCreditNote` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | POST | `/api/v1/procurement/vendor-invoice/match` | `handleMatchVendorInvoice` | procurement | signed-in: procurement.default | every signed-in role |
-| POST | `/api/v1/procurement/vendor-invoice/pay-with-tds` | `handlePayVendorInvoiceWithTDS` | procurement | signed-in: procurement.default | every signed-in role |
-| POST | `/api/v1/procurement/vendor-invoice/pay` | `handlePayVendorInvoice` | procurement | signed-in: procurement.default | every signed-in role |
+| POST | `/api/v1/procurement/vendor-invoice/pay-with-tds` | `handlePayVendorInvoiceWithTDS` | procurement | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/procurement/vendor-invoice/pay` | `handlePayVendorInvoice` | procurement | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 
 ### `public/view-handoff.js`
 
@@ -802,9 +820,9 @@ Owners: M17, M18. Live inspection: not recorded.
 |---|---|---|---|---|---|
 | POST | `/api/v1/approval/submit` | `handleSubmitApproval` |  | signed-in: approval.default | every signed-in role |
 | ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
-| POST | `/api/v1/finance/journal-voucher/{id}/retry-post` | `handleRetryPostJournalVoucher` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/journal-voucher/{id}/reverse` | `handleReverseJournalVoucher` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/journal-voucher` | `handleCreateJournalVoucher` |  | signed-in: finance.default | every signed-in role |
+| POST | `/api/v1/finance/journal-voucher/{id}/retry-post` | `handleRetryPostJournalVoucher` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/journal-voucher/{id}/reverse` | `handleReverseJournalVoucher` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/journal-voucher` | `handleCreateJournalVoucher` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | GET | `/api/v1/finance/trial-balance` | `handleTrialBalance` |  | signed-in: finance.statements | Super Admin, Admin, Administrator, Store Supervisor, Accounts Payable, Accounts Receivable, Accountant, Auditor |
 
 ### `public/view-loyalty.js`
@@ -895,6 +913,7 @@ Owners: M12, M13, M28. Live inspection: not recorded.
 | POST | `/api/v1/oms/shipping-packages/{id}/update` | `handleUpdateShippingPackage` | oms | signed-in: oms.default | every signed-in role |
 | GET | `/api/v1/oms/shipping-packages` | `handleListShippingPackages` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/oms/shipping-packages` | `handleCreateShippingPackage` | oms | signed-in: oms.default | every signed-in role |
+| POST | `/api/v1/orders/{id}/release-hold` | `handleReleaseOrderHold` | oms | signed-in: oms.default | every signed-in role |
 | GET | `/api/v1/wms/bin-contents` | `handleBinContents` | wms | signed-in: wms.default | every signed-in role |
 | POST | `/api/v1/wms/bin-move` | `handleBinMove` | wms | signed-in: wms.default | every signed-in role |
 | GET | `/api/v1/wms/cockpit` | `handleWarehouseCockpit` | wms | signed-in: wms.default | every signed-in role |
@@ -964,6 +983,7 @@ Owners: M12, M13, M28. Live inspection: not recorded.
 | POST | `/api/v1/orders/{id}/switch-facility` | `handleSwitchOrderFacility` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/orders` | `handleCreateSalesOrder` | oms | signed-in: oms.default | every signed-in role |
 | GET | `/api/v1/reports/run/{id}` | `handleRunReport` | reports | signed-in: reports.default | every signed-in role |
+| POST | `/api/v1/returns` | `handleCreateReturnRequest` | oms | signed-in: oms.default | every signed-in role |
 | POST | `/api/v1/wms/bundles/{operation}` | `handleBundleAssembly` | wms | signed-in: wms.default | every signed-in role |
 
 ### `public/view-pickers.js`
@@ -997,12 +1017,14 @@ Owners: M14, M27. Live inspection: not recorded.
 | GET | `/api/v1/pim/assignable-users` | `handlePIMAssignableUsers` | pim | signed-in: pim.default | every signed-in role |
 | POST | `/api/v1/pim/bulk-edit` | `handlePIMBulkEdit` | pim | signed-in: pim.default | every signed-in role |
 | GET | `/api/v1/pim/catalog-share` | `handlePIMCatalogShare` | pim | public: pim.default | anyone |
+| POST | `/api/v1/pim/channels/{code}/apply-pack` | `handlePIMApplyChannelPack` | pim | signed-in: pim.default | every signed-in role |
 | GET | `/api/v1/pim/completeness/{itemCode}` | `handlePIMCompleteness` | pim | signed-in: pim.default | every signed-in role |
 | GET | `/api/v1/pim/content-assist-shapes` | `handlePIMContentAssistShapes` | pim | signed-in: pim.default | every signed-in role |
 | GET | `/api/v1/pim/content-assist/{itemCode}` | `handlePIMContentAssist` | pim | signed-in: pim.default | every signed-in role |
 | POST | `/api/v1/pim/content/{id}/rollback` | `handlePIMContentRollback` | pim | signed-in: pim.default | every signed-in role |
 | GET | `/api/v1/pim/content/{id}/versions` | `handlePIMContentVersions` | pim | signed-in: pim.default | every signed-in role |
 | GET | `/api/v1/pim/dashboard` | `handlePIMDashboard` | pim | signed-in: pim.default | every signed-in role |
+| POST | `/api/v1/pim/export-templates/{id}/run` | `handlePIMExportTemplateRun` | pim | signed-in: pim.default | every signed-in role |
 | GET | `/api/v1/pim/import-jobs/{id}/errors.csv` | `handlePIMImportJobErrors` | pim | signed-in: pim.default | every signed-in role |
 | GET | `/api/v1/pim/import-schedules` | `handlePIMImportSchedules` | pim | signed-in: pim.default | every signed-in role |
 | POST | `/api/v1/pim/import-templates/{id}/import` | `handlePIMImportTemplateRun` | pim | signed-in: pim.default | every signed-in role |
@@ -1190,13 +1212,25 @@ Owners: M15, M16. Live inspection: not recorded.
 | POST | `/api/v1/quality/ncr/{id}/plan-corrective-action` | `handlePlanCorrectiveAction` | quality | signed-in: quality.default | every signed-in role |
 | POST | `/api/v1/quality/ncr` | `handleCreateNonConformanceReport` | quality | signed-in: quality.default | every signed-in role |
 
+### `public/view-receipt.js`
+
+Owners: not in the plan's table. Live inspection: not recorded.
+
+| Method | Route | Handler | Gate | Capability | Roles |
+|---|---|---|---|---|---|
+| ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
+| GET | `/api/v1/finance/receipts/open-items` | `handleCustomerOpenItems` |  | signed-in: finance.statements | Super Admin, Admin, Administrator, Store Supervisor, Accounts Payable, Accounts Receivable, Accountant, Auditor |
+| GET | `/api/v1/finance/receipts` | `handleCustomerReceipts` |  | signed-in: finance.statements | Super Admin, Admin, Administrator, Store Supervisor, Accounts Payable, Accounts Receivable, Accountant, Auditor |
+| POST | `/api/v1/finance/receipts` | `handleCustomerReceipts` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+
 ### `public/view-reports.js`
 
-Screens: Reports (`#/view/reports`; help: Finding your way around, verified 2026-09-24; Keyboard shortcuts and quick codes, verified 2026-10-26; Open a shop and make your first sale, verified 2026-08-17; What this system is, verified 2026-08-17; CRM & Loyalty, verified 2026-09-03; Custom dashboards, verified 2026-10-22; Finance & Tax, verified 2026-09-03; Inventory & Warehouse Operations, verified 2026-09-03; Product Information Management, verified 2026-09-03; Point of Sale, verified 2026-09-02; Procurement, verified 2026-09-03; Batch, Serial & Expiry Traceability, verified 2026-08-31; Report catalog (part 2), verified 2026-09-10; Report catalog (part 3), verified 2026-09-10; Report catalog, verified 2026-09-10; A day as a category manager, verified 2026-08-17; A day in finance, verified 2026-08-17; A day as a store manager, verified 2026-08-17), Inventory (`#/view/inventory`; help: Finding your way around, verified 2026-09-24; Open a shop and make your first sale, verified 2026-08-17; Inventory & Warehouse Operations, verified 2026-09-03; A day as a store manager, verified 2026-08-17; Troubleshooting by symptom, verified 2026-08-17).  
+Screens: Reports (`#/view/reports`; help: Finding your way around, verified 2026-09-24; Keyboard shortcuts and quick codes, verified 2026-10-26; Open a shop and make your first sale, verified 2026-08-17; What this system is, verified 2026-08-17; CRM & Loyalty, verified 2026-09-03; Custom dashboards, verified 2026-10-22; Finance & Tax, verified 2026-09-03; Inventory & Warehouse Operations, verified 2026-09-03; Product Information Management, verified 2026-09-03; Point of Sale, verified 2026-09-02; Procurement, verified 2026-09-03; Batch, Serial & Expiry Traceability, verified 2026-08-31; Report catalog (part 2), verified 2026-09-10; Report catalog (part 3), verified 2026-09-10; Report catalog (part 4), verified 2026-09-10; Report catalog, verified 2026-09-10; A day as a category manager, verified 2026-08-17; A day in finance, verified 2026-08-17; A day as a store manager, verified 2026-08-17), Inventory (`#/view/inventory`; help: Finding your way around, verified 2026-09-24; Open a shop and make your first sale, verified 2026-08-17; Inventory & Warehouse Operations, verified 2026-09-03; A day as a store manager, verified 2026-08-17; Troubleshooting by symptom, verified 2026-08-17).  
 Owners: M25, M26. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
 |---|---|---|---|---|---|
+| ANY | `/api/v1/crm/segments` | `handleCRMSegments` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
 | DELETE | `/api/v1/dashboards/layouts/{id}` | `handleDeleteDashboardLayout` | reports | signed-in: reports.default | every signed-in role |
 | GET | `/api/v1/dashboards/layouts` | `handleDashboardLayouts` | reports | signed-in: reports.default | every signed-in role |
 | POST | `/api/v1/dashboards/layouts` | `handleDashboardLayouts` | reports | signed-in: reports.default | every signed-in role |
@@ -1353,6 +1387,7 @@ Owners: M12, M13, M28. Live inspection: not recorded.
 | Method | Route | Handler | Gate | Capability | Roles |
 |---|---|---|---|---|---|
 | ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
+| POST | `/api/v1/integrations/credentials/disconnect` | `handleConnectorDisconnect` |  | admin: admin.integrations | Super Admin, Admin |
 | GET | `/api/v1/shopify/{channel}` | `handleShopifyOverview` | oms | signed-in: oms.default | every signed-in role |
 
 ### `public/view-stock-locations.js`
@@ -1557,8 +1592,8 @@ Settings → Configuration renders the settings registry by module, through the 
 | Manufacturing | 4 |
 | OMS | 4 |
 | PIM | 2 |
-| Platform | 21 |
-| Point of Sale | 11 |
+| Platform | 22 |
+| Point of Sale | 12 |
 | Printing | 6 |
 | Procurement | 17 |
 | Procurement & GRN | 8 |
@@ -1640,6 +1675,7 @@ Integration, device, webhook or customer-link routes, calls built in a way the s
 | ANY | `/api/v1/crm/referrals/{id}/{part}` | `handleCRMReferrals` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
 | ANY | `/api/v1/crm/segments/{id}` | `handleCRMSegments` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
 | ANY | `/api/v1/crm/senders/{id}` | `handleCRMSenders` | crm_loyalty | admin: crm_loyalty.default | Super Admin, Admin |
+| POST | `/api/v1/crm/senders/{id}/test` | `handleCRMSenderTest` | crm_loyalty | admin: crm_loyalty.default | Super Admin, Admin |
 | ANY | `/api/v1/crm/stores/{store}/slots` | `handleCRMStoreSlots` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
 | GET | `/api/v1/crm/stores/{store}/slots/{day}` | `handleCRMStoreSlots` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
 | ANY | `/api/v1/crm/surveys/{id}` | `handleCRMSurveys` | crm_loyalty | signed-in: crm_loyalty.default | every signed-in role |
@@ -1655,14 +1691,14 @@ Integration, device, webhook or customer-link routes, calls built in a way the s
 | POST | `/api/v1/doc/{doctype}/{id}/reactivate` | `handleReactivateMasterDocument` |  | signed-in: doc.default | every signed-in role |
 | GET | `/api/v1/einvoice/reconciliation` | `handleEInvoiceReconciliation` | finance | signed-in: finance.statements | Super Admin, Admin, Administrator, Store Supervisor, Accounts Payable, Accounts Receivable, Accountant, Auditor |
 | GET | `/api/v1/finance/fx-revaluation` | `handleFXRevaluation` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/fx-revaluation` | `handleFXRevaluation` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/intercompany-transaction` | `handleCreateIntercompanyTransaction` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/intercompany-transaction/{id}/retry-post` | `handleRetryPostIntercompanyTransaction` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/journal-voucher/recurring` | `handleCreateRecurringJournalTemplate` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/landed-cost-voucher` | `handleCreateLandedCostVoucher` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/landed-cost-voucher/{id}/apply` | `handleApplyLandedCostVoucher` |  | signed-in: finance.default | every signed-in role |
+| POST | `/api/v1/finance/fx-revaluation` | `handleFXRevaluation` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/intercompany-transaction` | `handleCreateIntercompanyTransaction` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/intercompany-transaction/{id}/retry-post` | `handleRetryPostIntercompanyTransaction` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/journal-voucher/recurring` | `handleCreateRecurringJournalTemplate` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/landed-cost-voucher` | `handleCreateLandedCostVoucher` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
+| POST | `/api/v1/finance/landed-cost-voucher/{id}/apply` | `handleApplyLandedCostVoucher` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | GET | `/api/v1/finance/payment-proposal/{id}/payment-file` | `handleGeneratePaymentFile` |  | signed-in: finance.default | every signed-in role |
-| POST | `/api/v1/finance/payment-proposal/{id}/record-utr` | `handleRecordPaymentUTR` |  | signed-in: finance.default | every signed-in role |
+| POST | `/api/v1/finance/payment-proposal/{id}/record-utr` | `handleRecordPaymentUTR` |  | signed-in: finance.post | Super Admin, Admin, Administrator, Accounts Payable, Accounts Receivable, Accountant |
 | GET | `/api/v1/finance/payment-proposal/{id}/utrs` | `handleListPaymentUTRs` |  | signed-in: finance.default | every signed-in role |
 | GET | `/api/v1/finance/trial-balance/presentation` | `handleTrialBalancePresentationCurrency` |  | signed-in: finance.statements | Super Admin, Admin, Administrator, Store Supervisor, Accounts Payable, Accounts Receivable, Accountant, Auditor |
 | POST | `/api/v1/fulfillment/return` | `handleFulfillmentReturn` | wms / wms_integration | signed-in: wms.default | every signed-in role |

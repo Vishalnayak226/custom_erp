@@ -46,6 +46,9 @@ type Job struct {
 	Payload     map[string]interface{}
 	Attempts    int
 	MaxAttempts int
+	// Actor (Stage 49.8.6) is who queued the job: the signed-in user's id,
+	// or system:<worker> for a background enqueue. Never empty.
+	Actor string
 }
 
 // JobHandlerFunc executes one job for one tenant schema. Returning an error
@@ -86,7 +89,86 @@ const (
 	jobBaseBackoff      = 30 * time.Second
 	jobMaxPayloadBytes  = 64 * 1024
 	jobDefaultRetention = 30
+	// Stage 49.8.6: result and runtime bounds. A result over jobMaxResultBytes
+	// is stored as a marker (truncated, original size, the first bytes), so
+	// one chatty handler cannot grow async_jobs without limit. A job's
+	// context is cancelled at its type's maximum runtime (the default below
+	// unless SetJobMaxRuntime names another) and the attempt is marked
+	// failed as "timed out", retried like any other failure. A handler that
+	// ignores its context keeps running past the deadline - the attempt is
+	// still recorded as timed out when it returns, and its lease (claimed
+	// for the runtime plus a grace) is what stops a second worker taking the
+	// job meanwhile.
+	jobMaxResultBytes     = 64 * 1024
+	jobResultHeadBytes    = 512
+	jobDefaultMaxRuntime  = jobLeaseDuration
+	jobRuntimeLeaseGrace  = time.Minute
+	jobActorSystemDefault = "system:background"
 )
+
+// jobMaxRuntimes holds the per-type overrides of jobDefaultMaxRuntime,
+// registered beside the handler (SetJobMaxRuntime) from init().
+var jobMaxRuntimes = map[string]time.Duration{}
+
+// SetJobMaxRuntime bounds how long one attempt of jobType may run. Called
+// from init() beside RegisterJobHandler; a non-positive duration is ignored.
+func SetJobMaxRuntime(jobType string, d time.Duration) {
+	if d > 0 {
+		jobMaxRuntimes[jobType] = d
+	}
+}
+
+// JobMaxRuntime is the runtime bound one attempt of jobType gets.
+func JobMaxRuntime(jobType string) time.Duration {
+	if d, ok := jobMaxRuntimes[jobType]; ok {
+		return d
+	}
+	return jobDefaultMaxRuntime
+}
+
+// jobActorKey carries the signed-in user through a request's context so the
+// durable work it queues is stamped with who asked for it - the same shape
+// as WithCorrelationID (BLD-052).
+type jobActorKey struct{}
+
+// WithJobActor returns ctx carrying actor as the one every job queued under
+// it is stamped with: a user id from apiMiddleware, or system:<worker> from
+// a background worker that queues on its own schedule.
+func WithJobActor(ctx context.Context, actor string) context.Context {
+	if actor == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, jobActorKey{}, actor)
+}
+
+// JobActorFromContext is the actor WithJobActor stored, or "".
+func JobActorFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	actor, _ := ctx.Value(jobActorKey{}).(string)
+	return actor
+}
+
+// jobActorFor resolves the actor a job is stamped with: the context's actor
+// (a user, or a named worker); else, inside a running job handler, that job
+// (system:job:<type>, from the posting actor the worker binds); else the
+// generic background name. Never empty, so every job row says who queued it.
+func jobActorFor(ctx context.Context) string {
+	if actor := JobActorFromContext(ctx); actor != "" {
+		return truncateAttribution(actor, 150)
+	}
+	if pa := currentPostingActor(); pa.PostedBy == "service:job" && pa.SourceCommand != "" {
+		return "system:" + pa.SourceCommand
+	}
+	return jobActorSystemDefault
+}
+
+// SystemJobContext names the background worker queuing a job, for
+// EnqueueJobContext: the job is stamped system:<worker>.
+func SystemJobContext(worker string) context.Context {
+	return WithJobActor(context.Background(), "system:"+strings.ToLower(strings.TrimSpace(worker)))
+}
 
 var jobWorkerIdentity = fmt.Sprintf("pid-%d", os.Getpid())
 
@@ -109,11 +191,11 @@ func EnqueueJobContext(ctx context.Context, tenantID, jobType string, payload ma
 	if err != nil {
 		return "", err
 	}
-	return enqueueJobInSchema(schema, jobType, payload, idempotencyKey, SafeCorrelationID(CorrelationIDFromContext(ctx)))
+	return enqueueJobInSchema(ctx, schema, jobType, payload, idempotencyKey, SafeCorrelationID(CorrelationIDFromContext(ctx)))
 }
 
-func enqueueJobInSchema(schema, jobType string, payload map[string]interface{}, idempotencyKey, correlationID string) (string, error) {
-	return enqueueJobWith(db.DB, schema, jobType, payload, idempotencyKey, correlationID)
+func enqueueJobInSchema(ctx context.Context, schema, jobType string, payload map[string]interface{}, idempotencyKey, correlationID string) (string, error) {
+	return enqueueJobWith(db.DB, schema, jobType, payload, idempotencyKey, correlationID, jobActorFor(ctx))
 }
 
 // jobSecretKeys are payload keys a job never stores (Stage 49.8.6): a job row
@@ -160,9 +242,18 @@ type jobEnqueuer interface {
 	QueryRow(query string, args ...interface{}) *sql.Row
 }
 
-func enqueueJobWith(q jobEnqueuer, schema, jobType string, payload map[string]interface{}, idempotencyKey, correlationID string) (string, error) {
+func enqueueJobWith(q jobEnqueuer, schema, jobType string, payload map[string]interface{}, idempotencyKey, correlationID, actor string) (string, error) {
 	if jobType == "" {
 		return "", fmt.Errorf("a job needs a job_type")
+	}
+	// Stage 49.8.6: the handler registry is the allowlist, checked here at
+	// enqueue and not only by the worker - a type nothing can run is refused
+	// to its caller instead of sitting in the queue until it dead-letters.
+	if _, ok := jobHandlers[jobType]; !ok {
+		return "", fmt.Errorf("job type %q has no registered handler", jobType)
+	}
+	if actor == "" {
+		actor = jobActorSystemDefault
 	}
 	if payload != nil {
 		payload, _ = redactJobSecrets(payload).(map[string]interface{})
@@ -176,10 +267,10 @@ func enqueueJobWith(q jobEnqueuer, schema, jobType string, payload map[string]in
 	}
 	jobID := NewDocID("JOB")
 	_, err = q.Exec(fmt.Sprintf(`
-		INSERT INTO %s.async_jobs (id, job_type, payload, idempotency_key, correlation_id)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO %s.async_jobs (id, job_type, payload, idempotency_key, correlation_id, actor)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (job_type, idempotency_key) WHERE idempotency_key <> '' DO NOTHING`, schema),
-		jobID, jobType, payloadBytes, idempotencyKey, correlationID)
+		jobID, jobType, payloadBytes, idempotencyKey, correlationID, actor)
 	if err != nil {
 		return "", err
 	}
@@ -266,7 +357,8 @@ func runClaimedJobsContext(ctx context.Context, schema string) {
 			finishJob(schema, job, nil, err)
 			continue
 		}
-		jobCtx, cancel := context.WithCancel(withOutsideCallsSchema(ctx, schema)) // 49.8.7a: the job's client
+		// 49.8.7a: the job's client; 49.8.6: bounded to its type's runtime.
+		jobCtx, cancel := context.WithTimeout(withOutsideCallsSchema(ctx, schema), JobMaxRuntime(job.JobType))
 		key := runningJobKey{schema: schema, id: job.ID}
 		runningJobs.Lock()
 		runningJobs.byKey[key] = runningJob{cancel: cancel}
@@ -289,6 +381,11 @@ func runClaimedJobsContext(ctx context.Context, schema string) {
 				}
 			}()
 			result, err = handler(jobCtx, schema, job)
+			if jobCtx.Err() == context.DeadlineExceeded && ctx.Err() == nil {
+				// Stage 49.8.6: over its runtime bound is a failed attempt
+				// whatever the handler returned.
+				result, err = nil, fmt.Errorf("job timed out after its %s runtime bound", JobMaxRuntime(job.JobType))
+			}
 		}()
 		cancel()
 		<-watchDone
@@ -358,7 +455,7 @@ func claimJobs(schema string, limit int) ([]Job, error) {
 	}()
 
 	rows, err := tx.Query(fmt.Sprintf(`
-		SELECT id, job_type, payload, attempts, max_attempts
+		SELECT id, job_type, payload, attempts, max_attempts, actor
 		FROM %s.async_jobs
 		WHERE (status = 'Pending' AND next_attempt_at <= CURRENT_TIMESTAMP)
 		   OR (status = 'Leased' AND leased_until < CURRENT_TIMESTAMP)
@@ -373,7 +470,7 @@ func claimJobs(schema string, limit int) ([]Job, error) {
 	for rows.Next() {
 		var j Job
 		var payloadStr string
-		if err := rows.Scan(&j.ID, &j.JobType, &payloadStr, &j.Attempts, &j.MaxAttempts); err != nil {
+		if err := rows.Scan(&j.ID, &j.JobType, &payloadStr, &j.Attempts, &j.MaxAttempts, &j.Actor); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -389,11 +486,16 @@ func claimJobs(schema string, limit int) ([]Job, error) {
 	rows.Close()
 
 	if len(ids) > 0 {
-		leasedUntil := time.Now().Add(jobLeaseDuration)
-		for _, id := range ids {
+		for _, j := range claimed {
+			// Stage 49.8.6: the lease outlives the type's runtime bound, so a
+			// job still inside its bound is never claimed twice.
+			lease := jobLeaseDuration
+			if bound := JobMaxRuntime(j.JobType) + jobRuntimeLeaseGrace; bound > lease {
+				lease = bound
+			}
 			if _, err := tx.Exec(fmt.Sprintf(`
 				UPDATE %s.async_jobs SET status = 'Leased', leased_by = $1, leased_until = $2, updated_at = CURRENT_TIMESTAMP
-				WHERE id = $3`, schema), jobWorkerIdentity, leasedUntil, id); err != nil {
+				WHERE id = $3`, schema), jobWorkerIdentity, time.Now().Add(lease), j.ID); err != nil {
 				return nil, err
 			}
 		}
@@ -411,8 +513,10 @@ func finishJob(schema string, job Job, result map[string]interface{}, jobErr err
 		if merr != nil {
 			resultBytes = []byte("{}")
 		}
-		if len(resultBytes) > jobMaxPayloadBytes {
-			resultBytes = []byte(fmt.Sprintf(`{"truncated":true,"original_size":%d}`, len(resultBytes)))
+		if len(resultBytes) > jobMaxResultBytes {
+			// Stage 49.8.6: a marker with the first bytes, never the whole.
+			head, _ := json.Marshal(string(resultBytes[:jobResultHeadBytes]))
+			resultBytes = []byte(fmt.Sprintf(`{"truncated":true,"original_size":%d,"limit":%d,"head":%s}`, len(resultBytes), jobMaxResultBytes, head))
 		}
 		_, err := db.DB.Exec(fmt.Sprintf(`
 			UPDATE %s.async_jobs SET status = 'Succeeded', result = $1, last_error = '', updated_at = CURRENT_TIMESTAMP, completed_at = CURRENT_TIMESTAMP
@@ -533,7 +637,7 @@ func ListJobs(tenantID, statusFilter, jobTypeFilter string, limit int) ([]map[st
 		limit = 100
 	}
 	query := fmt.Sprintf(`
-		SELECT id, job_type, status, attempts, max_attempts, progress_pct, last_error, created_at, updated_at
+		SELECT id, job_type, status, attempts, max_attempts, progress_pct, last_error, created_at, updated_at, actor
 		FROM %s.async_jobs WHERE ($1 = '' OR status = $1) AND ($2 = '' OR job_type = $2)
 		ORDER BY created_at DESC LIMIT $3`, schema)
 	rows, err := db.DB.Query(query, statusFilter, jobTypeFilter, limit)
@@ -543,15 +647,16 @@ func ListJobs(tenantID, statusFilter, jobTypeFilter string, limit int) ([]map[st
 	defer rows.Close()
 	out := []map[string]interface{}{}
 	for rows.Next() {
-		var id, jobType, status, lastError string
+		var id, jobType, status, lastError, actor string
 		var attempts, maxAttempts, progressPct int
 		var createdAt, updatedAt time.Time
-		if err := rows.Scan(&id, &jobType, &status, &attempts, &maxAttempts, &progressPct, &lastError, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&id, &jobType, &status, &attempts, &maxAttempts, &progressPct, &lastError, &createdAt, &updatedAt, &actor); err != nil {
 			return nil, err
 		}
 		out = append(out, map[string]interface{}{
 			"id": id, "job_type": jobType, "status": status, "attempts": attempts, "max_attempts": maxAttempts,
 			"progress_pct": progressPct, "last_error": lastError, "created_at": createdAt, "updated_at": updatedAt,
+			"actor": actor,
 		})
 	}
 	return out, rows.Err()

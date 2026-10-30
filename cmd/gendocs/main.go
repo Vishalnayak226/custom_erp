@@ -151,6 +151,12 @@ func referenceFiles(root, stamp string) (map[string][]byte, error) {
 	for name, body := range assuranceFiles(root, stamp) {
 		files[name] = body
 	}
+	for name, body := range capabilityMaturityFiles(stamp) {
+		files[name] = body
+	}
+	for name, body := range commandCatalogFiles(root, stamp) {
+		files[name] = body
+	}
 	checklist, _ := os.ReadFile(filepath.Join(root, "docs", "micro_checklist.md"))
 	buildChecklist, _ := os.ReadFile(filepath.Join(root, "docs", "product", "erp-build-checklist.md"))
 	for name, body := range journeyMapFiles(string(checklist), string(buildChecklist), stamp) {

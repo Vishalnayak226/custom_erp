@@ -402,6 +402,9 @@ type ReturnEligibility struct {
 // having; blocking a screen render on a row lock is not.
 func ResolveReturnEligibility(tenantID, originalOrderID string) (*ReturnEligibility, error) {
 	out := &ReturnEligibility{OriginalOrderID: originalOrderID, WindowDays: salesReturnWindowDaysFor(tenantID)}
+	// 140.12.16: an online order is checked against the invoice its shipment
+	// made, exactly as creating the return takes it.
+	originalOrderID = salesInvoiceForOrder(tenantID, originalOrderID)
 	soldLines, saleDate, found, err := resolveOriginalSale(tenantID, originalOrderID)
 	if err != nil {
 		return nil, err

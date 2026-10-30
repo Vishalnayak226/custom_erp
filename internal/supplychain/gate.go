@@ -57,6 +57,9 @@ var grandfatheredAtGateOpening = map[string]bool{
 	"compose:app":                            true,
 	"cron:install_backup_cron.sh":            true,
 	"cron:install_cleanup_cron.sh":           true,
+	// public/qrcode.min.js has been in the tree since Stage 20 (commit 7f2ca14),
+	// long before the gate opened; it joined the ledger when vendored assets did.
+	"public/qrcode.min.js": true,
 }
 
 // appealToCustom catches a gate field that argues from habit, not evidence.

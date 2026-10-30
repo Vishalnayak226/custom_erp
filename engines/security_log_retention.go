@@ -27,6 +27,8 @@ import (
 // data-minimization rule exists to prevent. audit_logs is not here because it
 // is never deleted at all - RunAuditArchive moves sealed windows into a signed,
 // encrypted archive no earlier than 30 days, and nothing deletes the archive.
+// The audit trail has its own, longer floor: Rule 3(5)'s eight years
+// (AuditLogMinRetentionDays, withAuditLogFloor, Stage 47.16.4c).
 //
 // docs/security/cert-in-log-inventory.md is the full inventory (host logs,
 // clocks, residency, the six-hour reporting workflow);

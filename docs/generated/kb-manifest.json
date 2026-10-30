@@ -91,7 +91,7 @@
     },
     {
       "path": "internal/kb/content/articles/error-code-reference-2.html",
-      "sha256": "16000105ba2511fbce1cdc70cb8a337d7ee0ef7c2ac6520e6610d3064605325d",
+      "sha256": "dc610c738de9e091632f796be5b8429b541526e3e474f215aad5fbfa48b428ac",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -100,7 +100,7 @@
     },
     {
       "path": "internal/kb/content/articles/error-code-reference.html",
-      "sha256": "e630083be6d2e13824c0ff0fe8dc4a843e470f1c0f9b882e78ac65be111d1ee5",
+      "sha256": "db03ff293d78862c15ddc083b6b6e3131ea39f2af9bb4831314dcb832d14ca8f",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -388,7 +388,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes-2.html",
-      "sha256": "f192235e6f64777ad30fd6395b6dc656062db572a12fe85de1ac0ea219e798f0",
+      "sha256": "31b840c15f4fdad9894bc95095c6155de8d92448b30cd0ace2ef0d9f21d951d7",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -397,7 +397,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes.html",
-      "sha256": "4a0915ffa20075f5f79971b9a9adbc17ccbd75af789372f7cecbdda2f1bf0ba7",
+      "sha256": "f0dfc925a0962a43abbc5abbe56ad8baefd6c4689cbc3e54d7a5cf410f82ffa5",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -406,7 +406,7 @@
     },
     {
       "path": "internal/kb/content/articles/report-catalog-2.html",
-      "sha256": "5e884349c8de4af7a396c533deb03fe1115163fce0715a0a09667c68ab0b00f2",
+      "sha256": "d41a994b278691c2d5b5e52d91f8e9e386985ce043f8d4f18e3db7fd8c21a1c9",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -415,7 +415,16 @@
     },
     {
       "path": "internal/kb/content/articles/report-catalog-3.html",
-      "sha256": "754b852253d0fc5e205cdce373d2c006169a1ebd766472b76d203c219f7a112c",
+      "sha256": "e916cdb8a25e5af38f39b3ff66cc9e4842a3c7093a88437a1d25783da59dc1b0",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/report-catalog-4.html",
+      "sha256": "f778d5c205ceb8add0172b9dd6e37c570d7403a1fccb95d9d684389fc2bd192c",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -424,7 +433,7 @@
     },
     {
       "path": "internal/kb/content/articles/report-catalog.html",
-      "sha256": "00536cb17e1a1ae54e39521deb24b038b0a665a416924ec9a8dbb3d0ad10c36f",
+      "sha256": "d9996d03e7add97bc5513d62779cb270d61d5e3d847c39a26caa2b4a9d36dfad",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -541,7 +550,7 @@
     },
     {
       "path": "internal/kb/content/index.json",
-      "sha256": "711facfb8bbd96e40a34652619280fe32726db32b33667fe5fa9dba8173edc70",
+      "sha256": "83f794fc4e605377262e5dddc678bab7676d2fc79edf368fbc9d922823737578",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -550,7 +559,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "3a0ccef3bd20f3cc50ba3c3540bd981b3b75dad28be5fc65d40aa6cd5e1708ba",
+      "sha256": "54bfe3b0e7f12ee20ec60ad2dc15630b27e931c8b057a50eda3c1657313bcca8",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

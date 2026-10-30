@@ -2,8 +2,11 @@ package engines
 
 import (
 	"custom_erp/db"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 )
 
 // SalesInvoice has existed since Stage 1 (db/migration.sql) as a registered
@@ -106,12 +109,12 @@ func PostSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error
 			for account, v := range taxCredits {
 				paiseCredits[account] = v
 			}
-			postErr = PostDoubleEntry(tenantID, "SalesInvoice", invoiceID, map[string]int64{"1300": totalPaise}, paiseCredits, "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID))
+			postErr = PostDoubleEntryTx(tx, tenantID, schema, "SalesInvoice", invoiceID, map[string]int64{"1300": totalPaise}, paiseCredits, "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID))
 			split = true
 		}
 	}
 	if !split {
-		postErr = PostDoubleEntry(tenantID, "SalesInvoice", invoiceID, PaiseMap(debits), PaiseMap(credits), "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID),
+		postErr = PostDoubleEntryTx(tx, tenantID, schema, "SalesInvoice", invoiceID, PaiseMap(debits), PaiseMap(credits), "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID),
 			postingOptionsFor(position, position.Rate, debits, credits, map[string]float64{
 				"1300":         position.TransactionAmount,
 				revenueAccount: position.TransactionAmount,
@@ -119,6 +122,11 @@ func PostSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error
 	}
 	if postErr != nil {
 		return 0, fmt.Errorf("GL posting failed, invoice not marked Approved: %v", postErr)
+	}
+	// 140.12.4: the goods leave stock with the invoice, in the same
+	// transaction as its revenue.
+	if err := issueSalesInvoiceStockTx(tx, tenantID, schema, invoiceID, userID, dataStr, data); err != nil {
+		return 0, err
 	}
 
 	data["status"] = "Approved"
@@ -156,6 +164,76 @@ func PostSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error
 	return amount, nil
 }
 
+// issueSalesInvoiceStockTx (140.12.4) takes a credit invoice's stock items out
+// of its store at moving-average cost - Dr 5100 Cost of Goods Sold / Cr 1200
+// Inventory - and writes the Stock Ledger, when the invoice is posted. An
+// invoice whose goods already left stock posts money only: one raised from an
+// order's shipment, a shipping package or an OMS bill, or a recurring contract
+// (each carries its source's id), and one that quotes the delivery challan the
+// goods went out on. Lines that are
+// not stock items (a service, a free-text code) are skipped. A store that does
+// not hold enough refuses the posting, unless the item's product type allows
+// negative stock.
+func issueSalesInvoiceStockTx(tx *sql.Tx, tenantID, schema, invoiceID, userID, dataStr string, data map[string]interface{}) error {
+	for _, source := range []string{"sales_order_id", "shipping_package_id", "oms_bill_id", "recurring_contract_id"} {
+		if strings.TrimSpace(strField(data, source)) != "" {
+			return nil
+		}
+	}
+	if challan := strings.TrimSpace(strField(data, "delivery_challan")); challan != "" {
+		var found string
+		_ = tx.QueryRow(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = $1 AND deleted_at IS NULL
+			AND (id = $2 OR data->>'number' = $2) AND status IN ('Dispatched', 'Partly Returned', 'Returned', 'Closed') LIMIT 1`, schema),
+			DeliveryChallanDoctype, challan).Scan(&found)
+		if found == "" {
+			return &ValidationError{Code: "FIN-0517", Message: fmt.Sprintf("delivery challan %s was not found or has not been dispatched - post the invoice without it to issue the goods from the store", challan)}
+		}
+		data["stock_issued_by"] = "Delivery challan " + challan
+		return nil
+	}
+	var items []interface{}
+	var cogsPaise int64
+	for _, l := range salesInvoiceLineItems(dataStr) {
+		if l.Sku == "" || l.Qty <= 0 {
+			continue
+		}
+		if policy, _, known := ItemPolicyForSKU(tenantID, l.Sku); !known || !policy.Tracked() {
+			continue
+		}
+		items = append(items, map[string]interface{}{"sku": l.Sku, "qty": -l.Qty})
+		cogsPaise += int64(l.Qty) * ResolveCOGSUnitCostPaise(tenantID, l.Sku, itemStandardCostRupees(tenantID, l.Sku))
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	location := strings.TrimSpace(strField(data, "location"))
+	if location == "" {
+		return &ValidationError{Code: "FIN-0517", Message: "choose the store the invoice is issued from - its stock items leave that store's stock"}
+	}
+	markNegativeStockAllowed(tenantID, items)
+	_, posted, err := PostInventoryLedgerWithVoucherTx(tx, schema, location, items, false)
+	var short *InsufficientStockError
+	if errors.As(err, &short) {
+		return &ValidationError{Code: "FIN-0517", Message: fmt.Sprintf("only %d of %s at %s - receive or transfer the stock in before posting the invoice", short.Available, short.SKU, location)}
+	}
+	if err != nil {
+		return err
+	}
+	if err := writeStockLedgerLinesInTx(tx, schema, location, "SalesInvoice", invoiceID, userID, posted); err != nil {
+		return err
+	}
+	if cogsPaise > 0 {
+		if err := PostDoubleEntryTx(tx, tenantID, schema, "SalesInvoice", invoiceID,
+			map[string]int64{"5100": cogsPaise}, map[string]int64{"1200": cogsPaise}, "",
+			fmt.Sprintf("SalesInvoice:%s:COGS", invoiceID)); err != nil {
+			return fmt.Errorf("COGS posting failed, invoice not posted: %v", err)
+		}
+	}
+	data["stock_issued_from"] = location
+	data["cogs_amount"] = PaiseToRupees(cogsPaise)
+	return nil
+}
+
 // outputGSTCreditsPaise reads the tax split an invoice stored when it was
 // generated (cgst/sgst/igst, rupees) as GST Output Payable credits in paise.
 // Empty when the invoice carries no tax - every invoice created before its
@@ -187,4 +265,125 @@ func SettleSalesInvoice(tenantID, invoiceID, userID string, opts ...SettlementOp
 		return 0, err
 	}
 	return roundToRupees(res.FunctionalAmount), nil
+}
+
+// CancelSalesInvoice (140.12.8) cancels an invoice that has taken no money:
+// a Draft simply turns Cancelled; a posted one has every GL line it posted
+// reversed (revenue, output tax, cost of goods) and the stock it issued put
+// back, in one transaction. An invoice with receipts, a credit note or a
+// return against it, an e-invoice IRN or a deferred-revenue schedule is
+// corrected with a credit note instead.
+func CancelSalesInvoice(tenantID, invoiceID, userID, reason string) error {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return &ValidationError{Code: "FIN-0517", Message: "say why the invoice is being cancelled"}
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := db.SetSearchPath(tx, schema); err != nil {
+		return err
+	}
+	var dataStr, status string
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE doctype = 'SalesInvoice' AND id = $1 AND deleted_at IS NULL FOR UPDATE`, schema),
+		invoiceID).Scan(&dataStr, &status); err != nil {
+		return fmt.Errorf("sales invoice not found: %v", err)
+	}
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+		return err
+	}
+	refuse := func(why string) error {
+		return &ValidationError{Code: "FIN-0517", Message: fmt.Sprintf("sales invoice %s %s - raise a credit note instead", invoiceID, why)}
+	}
+	switch {
+	case status == "Cancelled":
+		return nil
+	case status != "Draft" && status != "Approved":
+		return refuse("is " + status)
+	case status == "Approved" && sumSettledPaise(mustSettlements(data)) > 0:
+		return refuse("has receipts or credits against it")
+	case status == "Approved" && salesInvoiceHasIRN(tenantID, invoiceID):
+		return refuse("has an e-invoice IRN (cancel the IRN within 24 hours first)")
+	case status == "Approved" && data["deferred_revenue"] == "Yes":
+		return refuse("recognises its revenue over a schedule")
+	}
+	if status == "Approved" {
+		rows, err := tx.Query(fmt.Sprintf(`SELECT account_code, SUM(debit), SUM(credit) FROM %s.gl_postings
+			WHERE document_type = 'SalesInvoice' AND document_id = $1 GROUP BY account_code`, schema), invoiceID)
+		if err != nil {
+			return err
+		}
+		debits, credits := map[string]int64{}, map[string]int64{}
+		for rows.Next() {
+			var account string
+			var d, c int64
+			if err := rows.Scan(&account, &d, &c); err != nil {
+				rows.Close()
+				return err
+			}
+			if net := d - c; net > 0 {
+				credits[account] = net
+			} else if net < 0 {
+				debits[account] = -net
+			}
+		}
+		rows.Close()
+		if len(debits) > 0 {
+			if err := PostDoubleEntryTx(tx, tenantID, schema, "SalesInvoice", invoiceID, debits, credits, "", fmt.Sprintf("SalesInvoice:%s:CANCEL", invoiceID)); err != nil {
+				return postingError(err, "invoice not cancelled")
+			}
+		}
+		if location := strField(data, "stock_issued_from"); location != "" {
+			var items []interface{}
+			for _, l := range salesInvoiceLineItems(dataStr) {
+				if l.Sku == "" || l.Qty <= 0 {
+					continue
+				}
+				if policy, _, known := ItemPolicyForSKU(tenantID, l.Sku); known && policy.Tracked() {
+					items = append(items, map[string]interface{}{"sku": l.Sku, "qty": l.Qty})
+				}
+			}
+			if len(items) > 0 {
+				_, posted, err := PostInventoryLedgerWithVoucherTx(tx, schema, location, items, true)
+				if err != nil {
+					return err
+				}
+				if err := writeStockLedgerLinesInTx(tx, schema, location, "SalesInvoiceCancel", invoiceID, userID, posted); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	data["status"] = "Cancelled"
+	data["cancelled_by"], data["cancel_reason"], data["cancelled_on"] = userID, reason, BusinessToday()
+	raw, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = $1, status = 'Cancelled', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'SalesInvoice' AND id = $2`, schema),
+		raw, invoiceID); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	LogAuditEvent(tenantID, userID, "CANCEL_SALES_INVOICE", "SUCCESS", fmt.Sprintf("Cancelled sales invoice %s (was %s): %s", invoiceID, status, reason))
+	return nil
+}
+
+func salesInvoiceHasIRN(tenantID, invoiceID string) bool {
+	r, err := GetIRPRecordFor(tenantID, "SalesInvoice", invoiceID)
+	return err == nil && r != nil && r.State != IRPStateCancelled && r.IRN != ""
+}
+
+func mustSettlements(data map[string]interface{}) []SettlementEntry {
+	entries, _ := readSettlementEntries(data, "settlements")
+	return entries
 }

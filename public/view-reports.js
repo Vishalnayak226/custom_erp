@@ -934,8 +934,12 @@ function renderReportCatalogParams() {
       return `<select id="rc-param-${p.key}" class="form-select" data-param-key="${p.key}" style="width: 180px;">${any}${opts.map(o =>
         `<option value="${escapeHTMLText(o)}">${escapeHTMLText(o)}</option>`).join('')}</select>`;
     }
+    // 140.12.27: a segment is chosen from the list, a record by typeahead.
+    if (p.type === 'segment') {
+      return `<select id="rc-param-${p.key}" class="form-select" data-param-key="${p.key}" data-param-segment style="width: 220px;"><option value="">Choose a segment</option></select>`;
+    }
     return `<input type="${p.type === 'date' ? 'date' : 'text'}" id="rc-param-${p.key}" class="form-input"
-             data-param-key="${p.key}" ${p.required ? 'required' : ''} style="width: 160px;">`;
+             data-param-key="${p.key}" ${p.required ? 'required' : ''} ${p.type === 'link' && p.options ? `data-param-link="${escapeHTMLText(p.options)}"` : ''} style="width: 160px;">`;
   };
   container.innerHTML = (def.params || []).map(p => `
     <div class="form-group" style="margin-bottom: 0;">
@@ -943,6 +947,12 @@ function renderReportCatalogParams() {
       ${control(p)}
     </div>
   `).join('');
+  container.querySelectorAll('[data-param-link]').forEach(el => attachLinkTypeahead(el, el.dataset.paramLink, { noSetupHint: true }));
+  container.querySelectorAll('[data-param-segment]').forEach(async el => {
+    const res = await apiFetch('/api/v1/crm/segments');
+    const segs = res && res.ok ? ((await res.json()).segments || []) : [];
+    segs.forEach(s => el.insertAdjacentHTML('beforeend', `<option value="${escapeHTMLText(s.id)}">${escapeHTMLText(s.name)}</option>`));
+  });
   // Stage 55.20: the filters last run for this report come back (Back and
   // re-opening keep them); otherwise a required date starts on a sensible
   // default - this month to date, or today for an as-of date.
@@ -1015,8 +1025,9 @@ async function renderMyReportExports() {
       <td><small>${escapeHTMLText(Object.entries(j.params || {}).map(([k, v]) => `${k}=${v}`).join(', ') || '-')}</small></td>
       <td>${escapeHTMLText(reportCellText(j.created_at))}</td>
       <td><span class="badge ${j.status === 'Completed' ? 'badge-success' : j.status === 'Failed' ? 'badge-danger' : 'badge-secondary'}">${escapeHTMLText(j.status)}</span>${j.code ? ` <small>${escapeHTMLText(j.code)}</small>` : ''}</td>
-      <td>${j.status === 'Completed' ? `<button class="action-btn" data-export-download="${escapeHTMLText(j.id)}" data-report-id="${escapeHTMLText(j.report_id || '')}">Download CSV</button>` : ''}
-          ${j.status === 'Pending' ? `<button class="action-btn" data-export-cancel="${escapeHTMLText(j.id)}">Cancel</button>` : ''}</td></tr>`).join('')}
+      <td>${j.status === 'Completed' ? `<button class="action-btn" data-export-download="${escapeHTMLText(j.id)}" data-report-id="${escapeHTMLText(j.report_id || '')}">Download CSV</button>${j.expires_at ? ` <small>until ${escapeHTMLText(reportCellText(j.expires_at))}</small>` : ''}` : ''}
+          ${j.status === 'Pending' ? `<button class="action-btn" data-export-cancel="${escapeHTMLText(j.id)}">Cancel</button>` : ''}
+          ${j.status === 'Completed' || j.status === 'Failed' ? `<button class="action-btn" data-export-cancel="${escapeHTMLText(j.id)}">Revoke</button>` : ''}</td></tr>`).join('')}
     </tbody></table>`;
   body.querySelectorAll('[data-export-download]').forEach(b => b.addEventListener('click', () => downloadReportExportCSV(b.dataset.exportDownload, b.dataset.reportId)));
   body.querySelectorAll('[data-export-cancel]').forEach(b => b.addEventListener('click', async () => {
@@ -1379,8 +1390,8 @@ async function pollReportExportJob(jobId, statusEl) {
     statusEl.innerHTML = `<p class="login-error">Export failed${job.message ? `: ${escapeHTMLText(job.message)}` : '.'} Narrow the filters and export again.</p>`;
     return;
   }
-  if (job.status === 'Cancelled') {
-    statusEl.innerHTML = `<p>Export cancelled.</p>`;
+  if (job.status === 'Cancelled' || job.status === 'Revoked') {
+    statusEl.innerHTML = `<p>Export ${job.status === 'Revoked' ? 'revoked' : 'cancelled'}.</p>`;
     return;
   }
   statusEl.innerHTML = `<p><button class="action-btn" id="rc-download-btn">Download CSV</button></p>`;

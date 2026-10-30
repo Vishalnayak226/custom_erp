@@ -132,6 +132,16 @@ var reviewedEgress = map[string]egressEntry{
 			WhatsApp template sync here asks the same switch itself.`,
 		Evidence: []string{viaGuard, "outboundDial", viaOutsideCalls},
 	},
+	"engines/crm_readiness.go": {
+		Uses: map[string]int{"http-request": 1, "dial": 1, "smtp": 1},
+		Destination: `Settings > CRM "Test" on one sender (140.12.26): Meta's Graph API for a WhatsApp
+			sender, or the sender's mail server; SMS and webhook tests reuse crm_providers.go's sends.`,
+		Guard: `HTTP through crmDoJSON (crm_providers.go's guarded client); a sender's own mail server
+			through outboundDial, the operator's SMTP_HOST dialled directly - as crmSendEmail. 15 s cap.`,
+		KillSwitch: `Not called for the mock sender, in a sandbox client, or when OutsideCallsAllowed says
+			no (the client's Outside calls off, outside production, the emergency switch).`,
+		Evidence: []string{"crmDoJSON(", "outboundDial", viaOutsideCalls},
+	},
 	"engines/image_drive.go": {
 		Uses:        map[string]int{"http-client": 1, "http-transport": 1, "http-request": 1},
 		Destination: `A client's image drive (S3-compatible storage) - product images read and written.`,

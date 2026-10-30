@@ -98,9 +98,10 @@ below carries a build tag.
 
 ## 9. Stolen backup
 
-- `TestStage49106BackupLeavesTheBoxEncrypted` (internal/server/stage49_10_6_insider_test.go) — the backup script refuses to run without its encryption key, encrypts the database dump with AES-256, removes the plain dump, and copies only the encrypted dump off the box.
+- `TestStage49106BackupLeavesTheBoxEncrypted` (internal/server/stage49_10_6_insider_test.go) — the backup script refuses to run without its encryption key, encrypts the database dump with AES-256, removes the plain dump, and copies only encrypted files off the box.
+- `TestStage49106aMediaCopyLeavesTheBoxEncrypted` (same file) — runs the real deploy/backup.sh under bash with pg_dump, psql and curl stubbed: without the key nothing is dumped or sent, and `media_sync` alone refuses too; with it the dump and every media file (product images, expense receipts, vendor invoice copies) reach the bucket sealed with the same key and cipher, with no plain byte in them; deploy/restore_media.sh brings the files back exactly with the key and restores nothing with a wrong one.
 
-**Not covered:** the off-box copy of the media store (product images and attachments such as expense receipts and vendor invoice copies, deploy/backup.sh `media_sync`) is uploaded as plain files and relies on the bucket's own encryption - someone holding the bucket reads them. The script is checked as source; running it end to end needs a Linux host (deploy/restore_drill.sh is the operational proof).
+**Not covered:** the scripts run under Git for Windows' bash in the test, not on the Linux host, and the upload is a stub - the real curl signing against the bucket is proven only by a live run (deploy/restore_drill.sh and a restore from the bucket are the operational proof). Media copied before 49.10.6a sits in the bucket as plain files until the bucket's lifecycle rule ages it out or the operator deletes it (docs/operations/backup_restore.md). Someone with root on the host holds the key in /etc/erp/erp.env and reads everything regardless.
 
 ## 10. Compromised CI artifact
 

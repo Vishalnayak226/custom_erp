@@ -47,6 +47,7 @@ func DefaultDashboardTiles() []DashboardTileSpec {
 		{ReportID: "exception-failed-syncs", Title: "Failed Syncs"},
 		{ReportID: "exception-negative-stock", Title: "Negative Stock Flags"},
 		{ReportID: "sla-breach", Title: "SLA Breaches"},
+		{ReportID: "crm-pulse", Title: "Customers"}, // 140.12.27
 	}
 }
 

@@ -19,11 +19,17 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **202** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **203** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
 - [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-22
+
+## 2026-10-30
+
+**"Build next 20 open items" (session erp-6b): twenty Stage 47 / 49 slices - a cross-store write hole, raw database text in errors, a screen burst refused, a posted GRN cancellable, strict posting transitions, revocable exports, job actors** *(code + tests + docs; NOT COMMITTED)*
+
+The user's "build next 20 open items" (2026-10-29). erp-7c held the six approved decisions and 140.12 was erp-91's; the Stage 47 / 49 items no run had touched needed a reviewer, an environment, counsel or real users. So the run took the "Left:" slices earlier runs had named and two not-started follow-ups: 47.10.7, 47.11.2, 47.11.3, 47.11.8b, 47.13.3, 47.14.3, 47.17.5, 47.18.3, 47.18.4, 49.3.8, 49.4.6, 49.4.7, 49.5.1, 49.5.3, 49.5.4, 49.8.2, 49.8.5, 49.8.6, 49.10.4, 49.11.1. Item detail: each item's entry in micro_checklist and the run header after the erp-7c block. Seven are done and ticked; thirteen are built in part, with what is left on each.
 
 ## 2026-10-29
 
@@ -462,8 +468,4 @@ Continuation of the same Stage 50 build thread as §160-163. HEAD unchanged at `
 **Stage 50 — BLD-020 (pairwise compatibility and boundary matrix) built and verified, closing Wave 2; a second real timezone-skew bug found and fixed** *(code + tests + docs)*
 
 Same session as §160-162, immediately following BLD-019. BLD-020 formally `DEPENDS on BLD-002`, resolved earlier this session. HEAD unchanged at `82f5517`; nothing committed.
-
-**Stage 50 — BLD-019 (targeted mutation proof) built and verified, three real test gaps found and closed** *(code + tests + docs)*
-
-Same session as §161, immediately following. BLD-019 formally `DEPENDS on BLD-015/017`, both now done, so this was next-ready. HEAD unchanged at `82f5517`; nothing committed.
 

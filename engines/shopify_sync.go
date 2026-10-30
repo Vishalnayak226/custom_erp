@@ -1437,6 +1437,7 @@ type ShopifyOverview struct {
 	Buffer         int             `json:"inventory_buffer"`
 	Store          string          `json:"store"`
 	CredentialsSet bool            `json:"credentials_set"`
+	Credential     CredentialInfo  `json:"credential"` // 49.8.5: owner, last use, expiry
 	ShopDomain     string          `json:"shop_domain"`
 	WebhookSecret  bool            `json:"webhook_secret_set"`
 	Links          int             `json:"links"`
@@ -1469,8 +1470,9 @@ func GetShopifyOverview(tenantID, channel string) (ShopifyOverview, error) {
 	ov := ShopifyOverview{Channel: channel, Settings: s, Buffer: cfg.InventoryBuffer, Store: cfg.LocationCode, Runs: []ShopifyRun{}}
 	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'name', id) FROM %s.documents WHERE doctype = 'Channel' AND id = $1`, schema), channel).Scan(&ov.Name)
 	ov.CredentialsSet, _ = HasChannelCredential(tenantID, channel)
+	ov.Credential, _ = GetChannelCredentialInfo(tenantID, channel)
 	if ov.CredentialsSet {
-		if cred, err := getChannelCredential(tenantID, channel); err == nil {
+		if cred, err := getChannelCredentialRaw(tenantID, channel); err == nil { // a screen read is not a use
 			ov.ShopDomain = cred["shop_domain"]
 			ov.WebhookSecret = cred["webhook_secret"] != ""
 		}

@@ -5,6 +5,7 @@ import (
 	"custom_erp/db"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -188,7 +189,54 @@ func ResetSandboxTenant(tenantID string, ttlDays int) error {
 		return err
 	}
 	InvalidateTenantLifecycleCache(tenantID)
+	// 47.18.3: a sandbox the expiry sweep suspended comes back with its
+	// reset - the expiry is new, so the suspension's reason is gone.
+	if life, err := GetTenantLifecycle(tenantID); err == nil && life.Status == TenantStatusSuspended && strings.HasPrefix(life.Reason, sandboxExpiredReasonPrefix) {
+		return ResumeTenant(tenantID, "system:sandbox-reset", "sandbox reset: a new expiry was set")
+	}
 	return nil
+}
+
+// sandboxExpiredReasonPrefix opens the lifecycle reason the expiry sweep
+// records, so a reset can tell its own suspension from an operator's.
+const sandboxExpiredReasonPrefix = "sandbox expired"
+
+// SweepExpiredSandboxTenants (Stage 47.18.3) suspends every active sandbox
+// whose expiry has passed: the client is then refused exactly as a
+// suspended client is, and the suspension is on its evidence trail. Its
+// data is not touched here - a purge follows the ordinary tenant path
+// (RequestTenantDeprovision, then PurgeTenant with a backup reference), so
+// a sandbox is destroyed with the same evidence as any client. Runs hourly
+// on the leader beside the other retention sweeps. Returns how many were
+// suspended.
+func SweepExpiredSandboxTenants() (int, error) {
+	rows, err := db.DB.Query(`SELECT tenant_id, sandbox_expires_at FROM public.tenants
+		WHERE COALESCE(is_sandbox, FALSE) AND sandbox_expires_at IS NOT NULL AND sandbox_expires_at < CURRENT_TIMESTAMP
+		  AND lifecycle_status = $1 ORDER BY sandbox_expires_at`, TenantStatusActive)
+	if err != nil {
+		return 0, err
+	}
+	type expired struct {
+		id string
+		at time.Time
+	}
+	var due []expired
+	for rows.Next() {
+		var e expired
+		if rows.Scan(&e.id, &e.at) == nil {
+			due = append(due, e)
+		}
+	}
+	rows.Close()
+	n := 0
+	for _, e := range due {
+		reason := fmt.Sprintf("%s on %s", sandboxExpiredReasonPrefix, e.at.UTC().Format(time.RFC3339))
+		if err := SuspendTenant(e.id, "system:sandbox-expiry", reason); err != nil {
+			return n, fmt.Errorf("sandbox %s: %v", e.id, err)
+		}
+		n++
+	}
+	return n, nil
 }
 
 // DeleteSandboxTenant permanently drops a sandbox's schema and its registry

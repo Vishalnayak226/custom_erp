@@ -257,9 +257,15 @@ var globalScopeGrants = map[string][]string{
 // and EmployeeLoan and ShiftAssignment - so after this, none of them can
 // list another employee's payslip, salary structure, salary advance or
 // shift roster through GET /api/v1/doc/<doctype>.
+//
+// Stage 49.3.7a (owner decision, 2026-10-29): EmployeeLoan is no longer
+// exempt. The seed's create grant made it look like supervisor work, but it
+// let a Store Manager read every colleague's salary advance; a Store Manager
+// now sees only their own (and, in a client whose seed still lets it create
+// one, files only its own). Salary advances for staff are HR's.
 var selfScopeExemptions = map[string]map[string]bool{
 	RoleStoreManager: {
-		"Appraisal": true, "Attendance": true, "EmployeeLoan": true,
+		"Appraisal": true, "Attendance": true,
 		"ExpenseClaim": true, "Grievance": true, "Leave": true,
 		"OnboardingChecklist": true, "ShiftAssignment": true,
 		"TrainingRecord": true,
@@ -283,6 +289,27 @@ var selfScopeExemptions = map[string]map[string]bool{
 func ScopeForDoctype(doctype string) (DoctypeScope, bool) {
 	scope, ok := doctypeScopes[doctype]
 	return scope, ok
+}
+
+// ScopePolicyRoles lists every role name the scope policy grants something
+// to - a self-scope exemption or a global scope (Stage 49.3.8: each must be a
+// registered role).
+func ScopePolicyRoles() []string {
+	seen := map[string]bool{}
+	for role := range selfScopeExemptions {
+		seen[role] = true
+	}
+	for _, roles := range globalScopeGrants {
+		for _, role := range roles {
+			seen[role] = true
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for role := range seen {
+		out = append(out, role)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // ScopedDoctypes lists every doctype the registry covers, sorted.

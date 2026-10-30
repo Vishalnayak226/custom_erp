@@ -93,6 +93,16 @@ func PutawayToBin(tenantID, binCode, sku string, qty int, userID string) error {
 		sku, location).Scan(&alreadyBinned); err != nil {
 		return err
 	}
+	// 140.12.19: units picked out of a bin for an order not yet shipped are
+	// still on hand, but they are not there to be put away again.
+	var inPick int
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(ba.picked_qty), 0) FROM %s.bin_allocation ba
+		JOIN %s.documents t ON t.id = ba.task_id AND t.doctype = 'FulfillmentTask'
+		WHERE ba.sku = $1 AND ba.location_code = $2 AND ba.picked_qty > 0 AND t.status NOT IN ('Dispatched', 'Rejected') AND t.deleted_at IS NULL`, schema, schema),
+		sku, location).Scan(&inPick); err != nil {
+		return err
+	}
+	alreadyBinned += inPick
 	if alreadyBinned+qty > onHand {
 		return putawayRefused("putaway qty exceeds unassigned on-hand stock at %s (on_hand=%d, already binned=%d, requested=%d)",
 			location, onHand, alreadyBinned, qty)

@@ -47,6 +47,9 @@ type returnItemRecord struct {
 	// ExchangeSKU (Stage 35.9.2) is set only when this line was resolved as
 	// an exchange rather than a refund - see ApplyReturnQC's own comment.
 	ExchangeSKU string `json:"exchange_sku,omitempty"`
+	// PutawayBin (140.12.21) is where a Sellable unit goes next at a
+	// location with bins - it came back to the store, not to a rack.
+	PutawayBin string `json:"putaway_bin,omitempty"`
 	// Stage 73.1.1: these units' share of what the customer actually paid,
 	// from the sale's allocation (engines/sale_allocation.go), fixed under the
 	// original sale's lock when the return is raised. NetPaise is after the
@@ -97,6 +100,16 @@ var returnDispositionRule = map[string]struct {
 	"Rejected":   {false, "", false},
 }
 
+// onlineOrderShippingPincode is the pincode an online order (or the invoice
+// its shipment made) was delivered to, "" for a till bill.
+func onlineOrderShippingPincode(schema, id string) string {
+	var pin string
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(o.data->>'shipping_pincode', '') FROM %s.documents o
+		WHERE o.doctype = 'SalesOrder' AND (o.id = $1 OR o.id = (SELECT data->>'sales_order_id' FROM %s.documents WHERE id = $1 AND doctype = 'SalesInvoice'))
+		LIMIT 1`, schema, schema), id).Scan(&pin)
+	return strings.TrimSpace(pin)
+}
+
 // resolveOriginalSaleLinePrices reads a POSCart's own stored sale_price per
 // SKU - resolveOriginalSale (engines/fulfillment.go) only captures sku/qty via
 // transferLine, which is enough for the SALESR-0129/0130/0131 window/qty
@@ -121,6 +134,23 @@ type salesInvoiceLine struct {
 	Sku       string  `json:"sku"`
 	Qty       int     `json:"qty"`
 	UnitPrice float64 `json:"unit_price"`
+	// The Sales Invoice screen saves rate (before tax), gst_rate and amount
+	// (taxable + tax) instead of unit_price - 140.12.3.
+	Rate    float64 `json:"rate"`
+	GSTRate float64 `json:"gst_rate"`
+	Amount  float64 `json:"amount"`
+}
+
+// paidUnitPrice is what the customer was charged for one unit, tax included.
+func (l salesInvoiceLine) paidUnitPrice() float64 {
+	switch {
+	case l.UnitPrice > 0:
+		return l.UnitPrice
+	case l.Amount > 0 && l.Qty > 0:
+		return round2(l.Amount / float64(l.Qty))
+	default:
+		return round2(l.Rate * (1 + l.GSTRate/100))
+	}
 }
 
 func salesInvoiceLineItems(dataStr string) []salesInvoiceLine {
@@ -173,7 +203,7 @@ func resolveOriginalSaleLinePrices(tenantID, orderID string) (map[string]origina
 		if db.DB.QueryRow(fmt.Sprintf(`SELECT data FROM %s.documents WHERE doctype = 'SalesInvoice' AND id = $1`, schema), orderID).Scan(&invStr) == nil {
 			for _, l := range salesInvoiceLineItems(invStr) {
 				costPaise, _ := ResolveQuoteUnitCostPaise(tenantID, l.Sku)
-				prices[l.Sku] = originalLinePrice{SalePrice: l.UnitPrice, CostPrice: PaiseToRupees(costPaise)}
+				prices[l.Sku] = originalLinePrice{SalePrice: l.paidUnitPrice(), CostPrice: PaiseToRupees(costPaise)}
 			}
 		}
 		return prices, nil
@@ -369,6 +399,11 @@ func prepareReturnRequest(tenantID, schema, requestType, returnLocation, origina
 			}
 		}
 		rtoDestinationPincode, _ = bookingData["destination_pincode"].(string)
+	}
+	// 140.12.18: an online order's return routes from the pincode it was
+	// shipped to, like an RTO.
+	if requestType == "Customer Return" && returnLocation == "" && rtoDestinationPincode == "" {
+		rtoDestinationPincode = onlineOrderShippingPincode(schema, out.originalOrderID)
 	}
 
 	// Stage 35.9.3: return routing. An explicit return_location always wins
@@ -736,6 +771,9 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 			if rule.Bucket == "available" {
 				if err := applyReceiptDefaultTx(tx, schema, "Sales Return", returnLocation, []PostedStockLine{{SKU: items[i].SKU, Qty: items[i].Qty}}, docStockField(tx, schema, returnRequestID, "stock_to")); err != nil {
 					return 0, "", err
+				}
+				if bin, _, errS := SuggestPutawayBin(tenantID, items[i].SKU, returnLocation, items[i].Qty, ""); errS == nil && bin != "" {
+					items[i].PutawayBin = bin
 				}
 			}
 			costReceivedTotal += items[i].OriginalCostPrice * float64(items[i].Qty)
@@ -1137,10 +1175,23 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 				revenueCredits[k] += v
 			}
 		}
-	} else if storeCredit {
-		toStoreCredit = moneyPaise
-	} else if moneyPaise > 0 {
-		revenueCredits[paymentModeClearingAccount(refundMethod)] = moneyPaise
+	} else {
+		// 140.12.3: units returned against a credit invoice first reduce
+		// what the customer still owes on it (Cr 1300); only the rest is
+		// paid back.
+		owed, errA := applyReturnToSalesInvoiceTx(tx, tenantID, schema, salesInvoiceForOrder(tenantID, strField(data, "original_order_id")), refundRequestID, processedBy, moneyPaise)
+		if errA != nil {
+			return errA
+		}
+		if owed > 0 {
+			revenueCredits["1300"] = owed
+			data["applied_to_invoice"] = PaiseToRupees(owed)
+		}
+		if storeCredit {
+			toStoreCredit = moneyPaise - owed
+		} else if moneyPaise > owed {
+			revenueCredits[paymentModeClearingAccount(refundMethod)] = moneyPaise - owed
+		}
 	}
 	if toStoreCredit > 0 {
 		customerID, errC := storeCreditRefundCustomer(tx, tenantID, schema, strField(data, "original_order_id"))

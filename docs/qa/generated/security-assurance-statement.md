@@ -7,7 +7,7 @@
 > **Generated 2026-09-10.** This page is produced from `internal/server/VERSION`, `docs/security/risk_register.md`, `docs/security/assessment-register.md`, `docs/security/security-lessons.md`, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-What is supported, how to report a problem, what is not yet true, and how far the evidence reaches - as of 2026-10-29 (Stage 49.17.8). Not a certification.
+What is supported, how to report a problem, what is not yet true, and how far the evidence reaches - as of 2026-10-30 (Stage 49.17.8). Not a certification.
 
 ## Supported version and configuration
 

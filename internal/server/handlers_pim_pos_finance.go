@@ -43,14 +43,14 @@ func handleBulkImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, _, err := r.FormFile("file")
+	file, header, err := r.FormFile("file")
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "CSV file is mandatory under multipart FormFile 'file'")
 		return
 	}
 	defer file.Close()
 
-	res, err := engines.BulkImportCSVContext(r.Context(), tenantID, doctype, file, userID, role, false)
+	res, err := engines.BulkImportCSVContext(r.Context(), tenantID, doctype, engines.NamedUpload(file, header.Filename), userID, role, false)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusInternalServerError)
 		return
@@ -167,8 +167,12 @@ func handlePIMImportPreview(w http.ResponseWriter, r *http.Request) {
 // as a downloadable CSV, same Content-Disposition pattern as the CSV import
 // template endpoint above.
 func handlePIMImportJobErrors(w http.ResponseWriter, r *http.Request) {
-	tenantID := r.Header.Get("Resolved-Tenant-ID")
-	jobID := r.PathValue("id")
+	// 49.8.2: the error file holds the rejected rows' detail - the same
+	// read right on the job's target doctype that its failed-rows file asks.
+	tenantID, jobID, ok := importJobGuard(w, r, "read")
+	if !ok {
+		return
+	}
 
 	csvBytes, err := engines.GetImportJobErrorCSV(tenantID, jobID)
 	if err != nil {
@@ -1519,6 +1523,9 @@ func handlePOSSessionClose(w http.ResponseWriter, r *http.Request) {
 		SessionID      string  `json:"session_id"`
 		CountedCash    float64 `json:"counted_cash"`
 		VarianceReason string  `json:"variance_reason"`
+		// 140.12.12: the card terminal's and UPI app's own totals, optional.
+		DeclaredCard *float64 `json:"declared_card"`
+		DeclaredUPI  *float64 `json:"declared_upi"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.SessionID == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'session_id' is required")
@@ -1531,6 +1538,9 @@ func handlePOSSessionClose(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	engines.LogAuditEvent(tenantID, cashier, "POS_SESSION", strings.ToUpper(strings.ReplaceAll(res.Status, " ", "_")), fmt.Sprintf("Session %s %s, variance %.2f", req.SessionID, res.Status, res.Variance))
+	if err := engines.RecordDeclaredTenders(tenantID, req.SessionID, req.DeclaredCard, req.DeclaredUPI); err != nil {
+		engines.LogSystemError(tenantID, "", "WARN", "ClosePOSSession", fmt.Sprintf("till %s closed but its declared card / UPI totals were not kept: %v", req.SessionID, err), "")
+	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		// Stage 73.2.7: "Pending Approval" when the count was off by more
 		// than the tolerance and a manager has to accept it.

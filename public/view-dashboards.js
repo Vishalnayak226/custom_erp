@@ -1,3 +1,21 @@
+
+// 47.14.3: the KPI contract on a tile - the short lines in the title's
+// tooltip, the whole contract behind the ⓘ button.
+function ago(iso) {
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  return s < 90 ? 'just now' : s < 5400 ? `${Math.round(s / 60)} min ago` : s < 172800 ? `${Math.round(s / 3600)} h ago` : new Date(iso).toLocaleDateString();
+}
+export function kpiContractLines(c) {
+  if (!c) return [];
+  return [['Period', c.period], ['Scope', c.scope], ['Refreshed', c.as_of ? ago(c.as_of) : ''], ['Basis', c.basis], ['Owner', c.owner], ['Drill', c.drill]]
+    .filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`);
+}
+export const kpiContractSummary = (c) => kpiContractLines(c).slice(0, 4).join(' · ');
+function showContract(w, c) {
+  const box = document.createElement('div');
+  box.innerHTML = `<p>${esc(c.definition || '')}</p>${kpiContractLines(c).map(l => `<div>${esc(l)}</div>`).join('')}${c.basis_note ? `<p class="text-muted">${esc(c.basis_note)}</p>` : ''}`;
+  showCustomAlert(box, w.title);
+}
 // Stage 100 (user, 2026-10-19: "Data Custom Dasboard"; D1-D5 approved
 // 2026-10-21): custom dashboards - build your own charts and number tiles
 // from the ERP's data, filtered by date and store.
@@ -187,7 +205,7 @@ function widgetBox(w, i, editing) {
        <button type="button" data-dash-width="${i}:-3" title="Narrower" aria-label="Narrower">−</button><button type="button" data-dash-width="${i}:3" title="Wider" aria-label="Wider">+</button>
        <button type="button" data-dash-height="${i}" title="Taller / shorter" aria-label="Change height">↕</button>
        <button type="button" data-dash-edit="${i}" title="Edit" aria-label="Edit widget">✎</button><button type="button" data-dash-remove="${i}" title="Remove" aria-label="Remove widget">✕</button>`
-    : `${w.source === 'dataset' ? `<button type="button" data-dash-csv="${i}" title="Download CSV" aria-label="Download CSV">CSV</button><button type="button" data-dash-xlsx="${i}" title="Download Excel" aria-label="Download Excel">XLSX</button>` : ''}`;
+    : `${w.source === 'dataset' ? `<button type="button" data-dash-info="${i}" title="What this shows" aria-label="What this shows">ⓘ</button><button type="button" data-dash-csv="${i}" title="Download CSV" aria-label="Download CSV">CSV</button><button type="button" data-dash-xlsx="${i}" title="Download Excel" aria-label="Download Excel">XLSX</button>` : ''}`;
   return `<div class="dash-widget" style="grid-column: span ${w.w || 6}; grid-row: span ${w.h || 2};" data-dash-widget="${i}">
     <div class="dash-widget-head"><span class="dash-widget-title" title="${esc(w.title)}">${esc(w.title)}</span><span class="dash-widget-tools">${tools}</span></div>
     <div class="dash-widget-body" data-dash-body="${i}"><p class="dash-empty">Loading…</p></div></div>`;
@@ -202,6 +220,15 @@ async function paintWidgets(grid, cd, f, editing) {
     const w = cd.widgets[i];
     if (!r || r.error) { body.innerHTML = `<p class="dash-error">${esc(r ? r.error : 'No answer.')}</p>`; return; }
     body._result = r.result;
+    const c = r.result.contract;
+    if (c) {
+      body._contract = c;
+      const head = body.previousElementSibling;
+      const title = head && head.querySelector('.dash-widget-title');
+      if (title) title.title = `${w.title} · ${kpiContractSummary(c)}`;
+      const info = head && head.querySelector('[data-dash-info]');
+      if (info) info.onclick = () => showContract(w, c);
+    }
     body._draw = () => renderChart(body, w.kind, r.result, { title: w.title, onPick: editing || w.source !== 'dataset' ? null : (row) => drill(w, row, f) });
     body._draw();
   });

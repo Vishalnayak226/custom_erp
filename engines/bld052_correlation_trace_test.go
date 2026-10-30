@@ -30,6 +30,7 @@ func TestCorrelationIDReachesTheEnqueuedJobRow(t *testing.T) {
 
 	const correlation = "11111111-2222-4333-8444-555555555555"
 	ctx := WithCorrelationID(context.Background(), correlation)
+	ensureTestJobHandler("trace-probe", "trace-probe-bare") // 49.8.6: the registry is the enqueue allowlist
 	jobID, err := EnqueueJobContext(ctx, tenantID, "trace-probe", map[string]interface{}{"n": 1}, "")
 	if err != nil {
 		t.Fatalf("EnqueueJobContext: %v", err)
@@ -56,6 +57,7 @@ func TestEnqueueWithoutCorrelationStoresEmptyNotGarbage(t *testing.T) {
 		t.Fatalf("ProvisionTenantSchema: %v", err)
 	}
 
+	ensureTestJobHandler("trace-probe-bare") // 49.8.6
 	jobID, err := EnqueueJob(tenantID, "trace-probe-bare", map[string]interface{}{}, "")
 	if err != nil {
 		t.Fatalf("EnqueueJob: %v", err)

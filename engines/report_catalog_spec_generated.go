@@ -1053,4 +1053,7 @@ var reportNumbers = map[string]string{
 	"duplicate-suppliers":                                      "R9034",
 	"duplicate-items":                                          "R9035",
 	"receivables-vs-ledger":                                    "R5086",
+	"crm-pulse":                                                "R6075",
+	"customer-affinity":                                        "R6076",
+	"suggested-segments":                                       "R6077",
 }

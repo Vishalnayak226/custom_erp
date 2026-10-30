@@ -35,7 +35,8 @@ import (
 
 // LedgerSchemaVersion is bumped whenever Ledger's shape changes.
 // 2 (Stage 47.18.4): process entries, grandfathered and architecture_gate.
-const LedgerSchemaVersion = 2
+// 3 (Stage 47.18.4, second slice): vendored_asset entries and bytes.
+const LedgerSchemaVersion = 3
 
 // ComponentType classifies one dependency ledger entry into the four
 // categories 49.9.4 asks for: direct/transitive/tool/OS.
@@ -52,6 +53,9 @@ const (
 	// ComponentProcess (Stage 47.18.4) is a process the deployment runs beside
 	// the server: a systemd unit, the reverse proxy, a compose service, a cron job.
 	ComponentProcess ComponentType = "process"
+	// ComponentVendoredAsset (Stage 47.18.4) is a third-party JavaScript or CSS
+	// file vendored under public/ and served to every browser.
+	ComponentVendoredAsset ComponentType = "vendored_asset"
 )
 
 // LedgerEntry is one inventoried component: owner/purpose/license/
@@ -66,6 +70,8 @@ type LedgerEntry struct {
 	License    string        `json:"license"`
 	Provenance string        `json:"provenance"`
 	Note       string        `json:"note,omitempty"`
+	// Bytes (Stage 47.18.4) is a vendored file's size on disk.
+	Bytes int64 `json:"bytes,omitempty"`
 	// Stage 47.18.4: an entry that was in the ledger when the architecture
 	// gate opened says so here; every later one carries Gate instead.
 	Grandfathered string            `json:"grandfathered,omitempty"`

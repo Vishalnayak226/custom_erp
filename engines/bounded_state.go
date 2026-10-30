@@ -32,11 +32,43 @@ func retentionDelete(tenantID, schema, table, where string, args ...interface{})
 		return 0, err
 	}
 	where = withSecurityLogFloor(table, where) // 47.16.3: CERT-In's 180 days
+	where = withAuditLogFloor(table, where)    // 47.16.4c: Rule 3(5)'s eight years
 	stmt := fmt.Sprintf(`DELETE FROM %[1]s.%[2]s WHERE ctid IN (SELECT ctid FROM %[1]s.%[2]s WHERE %[3]s LIMIT %[4]d)`,
 		schema, table, where, retentionBatchRows)
 	var total int64
 	for i := 0; i < retentionMaxBatches; i++ {
 		res, err := db.DB.Exec(stmt, args...)
+		if err != nil {
+			return total, err
+		}
+		n, _ := res.RowsAffected()
+		total += n
+		if n < retentionBatchRows {
+			break
+		}
+	}
+	return total, nil
+}
+
+// retentionClearField (Stage 49.6.2a) is retentionDelete for one personal
+// field of a record that is itself kept: it removes field from the doctype's
+// documents made more than days ago, in the same batches and never under a
+// legal hold. The key is removed rather than blanked, so the change log row
+// the documents trigger writes does not copy the old value back out.
+func retentionClearField(tenantID, schema, doctype, field string, days int) (int64, error) {
+	if days <= 0 {
+		return 0, nil
+	}
+	if held, err := tenantLegalHold(tenantID); err != nil || held {
+		return 0, err
+	}
+	stmt := fmt.Sprintf(`UPDATE %[1]s.documents SET data = data - $1::text, updated_at = CURRENT_TIMESTAMP, version = version + 1,
+			updated_by = 'system', edit_reason = 'personal data retention'
+		WHERE ctid IN (SELECT ctid FROM %[1]s.documents WHERE doctype = $2 AND COALESCE(data->>$1::text, '') <> ''
+			AND created_at < CURRENT_TIMESTAMP - ($3 || ' days')::interval LIMIT %[2]d)`, schema, retentionBatchRows)
+	var total int64
+	for i := 0; i < retentionMaxBatches; i++ {
+		res, err := db.DB.Exec(stmt, field, doctype, days)
 		if err != nil {
 			return total, err
 		}
@@ -83,7 +115,7 @@ func SecurityStateStores() []StateStore {
 	)
 	return []StateStore{
 		{"audit_logs", "table", "event", "archived and removed by the audit archive policy", "writeArchiveWindow", "audit_legal_hold blocks the archive"},
-		{"audit_archives", "table", "archive batch", "one row per archived range", "", evidence},
+		{"audit_archives", "table", "archive batch", "one row per archived range; never deleted inside 8 years (withAuditLogFloor)", "", evidence},
 		{"audit_checkpoints", "table", "checkpoint", "one row per hour per tenant", "", evidence},
 		{"audit_legal_hold", "table", "hold", "set and lifted by an administrator", "", evidence},
 		{"audit_retention_policy", "table", "policy", "one row per tenant", "", evidence},
@@ -99,6 +131,9 @@ func SecurityStateStores() []StateStore {
 		{"pim_publish_log", "table", "item + channel + publish", "platform.integration_log_retention_days", "SweepIntegrationLogRetention", holdKeeps},
 		{"extension_hook_log", "table", "hook call", "platform.integration_log_retention_days", "SweepIntegrationLogRetention", holdKeeps},
 		{"system_error_logs", "table", "error", "platform.error_log_retention_days", "SweepIntegrationLogRetention", holdKeeps},
+		{"documents (ImportJob raw rows: open_failed_rows, source_header, error_csv)", "table", "import job", "stripped after platform.import_file_retention_days; the job's counts, totals and lineage stay", "SweepImportFileRetention", holdKeeps},
+		{"PIM import drop folders (imported/, failed/)", "files", "file", "platform.import_file_retention_days by file age", "SweepImportFileRetention", holdKeeps},
+		{"public.tenants (sandbox)", "table", "sandbox client", "suspended at sandbox_expires_at; purged by the tenant purge path", "SweepExpiredSandboxTenants", "an operator's purge is refused while the hold is set (PurgeTenant)"},
 		{"mfa_recovery_codes", "table", "user", "a fixed set per user, replaced on regeneration", "", notEvidence},
 		{"mfa_trusted_devices", "table", "user + device", "expired and over-limit devices dropped on each trust", "RememberMFADevice", notEvidence},
 		{"crm_pref_tokens", "table", "customer", "crm.message_retention_months", "crmApplyRetention", holdKeeps},

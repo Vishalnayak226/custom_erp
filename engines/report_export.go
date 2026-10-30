@@ -99,6 +99,11 @@ func GetReportExportJob(tenantID, jobID string) (status string, csvBytes []byte,
 	}
 	status, _ = data["status"].(string)
 	code, _ = data["code"].(string)
+	// Stage 49.8.2: a revoked export, or one past its expiry, is gone for
+	// its link's purposes even before the hourly sweep removes the row.
+	if status == "Revoked" || reportExportExpired(data) {
+		return "", nil, "", fmt.Errorf("export job not found: the export has expired or was revoked")
+	}
 	if csvStr, ok := data["csv"].(string); ok {
 		csvBytes = []byte(csvStr)
 	}
@@ -222,6 +227,10 @@ func processReportExportJobs(ctx context.Context, schema string) {
 			}
 		}
 		job.data["status"] = newStatus
+		// Stage 49.8.2: the download link is short-lived - it stops working
+		// at the export retention (the sweep deletes the row on the same
+		// clock) and can be revoked earlier (CancelReportExportJob).
+		job.data["expires_at"] = time.Now().Add(time.Duration(reportExportRetentionDays(tenantID)) * 24 * time.Hour).UTC().Format(time.RFC3339)
 		marshaled, err := json.Marshal(job.data)
 		if err != nil {
 			log.Printf("[REPORT_EXPORT] marshal failed for job %s: %v", job.id, err)
@@ -276,14 +285,31 @@ func SweepReportExportJobRetention(tenantID string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	retentionDays := GetSettingInt(tenantID, "platform.report_export_retention_days")
-	if retentionDays <= 0 {
-		retentionDays = 7
-	}
 	// 49.18.2: batched, and nothing while the tenant is under legal hold.
 	return retentionDelete(tenantID, schema, "documents",
-		`doctype = 'ReportExportJob' AND status IN ('Completed', 'Failed')
-		  AND updated_at < CURRENT_TIMESTAMP - ($1 || ' days')::interval`, retentionDays)
+		`doctype = 'ReportExportJob' AND status IN ('Completed', 'Failed', 'Revoked')
+		  AND updated_at < CURRENT_TIMESTAMP - ($1 || ' days')::interval`, reportExportRetentionDays(tenantID))
+}
+
+// reportExportRetentionDays is platform.report_export_retention_days with
+// its 7-day default - the one clock the sweep and the link expiry share.
+func reportExportRetentionDays(tenantID string) int {
+	if days := GetSettingInt(tenantID, "platform.report_export_retention_days"); days > 0 {
+		return days
+	}
+	return 7
+}
+
+// reportExportExpired reads the expiry an export was stamped with at
+// completion; a job from before expiries were stamped never expires here
+// (the sweep still removes it).
+func reportExportExpired(data map[string]interface{}) bool {
+	raw, _ := data["expires_at"].(string)
+	if raw == "" {
+		return false
+	}
+	at, err := time.Parse(time.RFC3339, raw)
+	return err == nil && time.Now().After(at)
 }
 
 // StartReportExportRetentionSweeper keeps ReportExportJob documents bounded

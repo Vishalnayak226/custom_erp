@@ -59,6 +59,11 @@ type posCart struct {
 	StockFrom   string `json:"stock_from,omitempty"` // 106.5: the till's From for this bill
 	PaymentMode string `json:"payment_mode"`
 	CustomerID  string `json:"customer_id"`
+	// PaymentReference (85.E2) is the slip / UTR of the Payment Mode part;
+	// SecondPayment (49.5.4) is the cashier confirming a tender that repeats
+	// one taken minutes ago (pos_duplicate_tender.go).
+	PaymentReference string `json:"payment_reference,omitempty"`
+	SecondPayment    bool   `json:"second_payment,omitempty"`
 	// Stage 47.2: sale_price on a stored cart is the SERVER's own resolved
 	// price (handleCheckout overwrites the request's items with
 	// ResolvePOSQuote's resolved lines before storing), not the browser's.
@@ -192,6 +197,11 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 
 	var cart posCart
 	if err := json.Unmarshal([]byte(dataStr), &cart); err != nil {
+		return nil, err
+	}
+	// 49.5.4: the same referenced tender taken minutes ago at this store is
+	// refused unless the cashier marked it a second payment.
+	if err := refuseDuplicateTenderTx(tx, schema, cartNumber, cart); err != nil {
 		return nil, err
 	}
 

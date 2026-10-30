@@ -24,6 +24,7 @@ Stage 49's security program lives here.
 |---|---|---|
 | [threat_model.md](threat_model.md) | The security charter: supported configurations, objectives, crown jewels, trust boundaries, adversary personas, misuse cases, review triggers. Stage 49.0.1–49.0.5 and 49.0.7. | Hand-written. Re-reviewed on the triggers in its own §6. |
 | [risk_register.md](risk_register.md) | Every open and closed security risk, with exposure, detectability, treatment, owner and review expiry. Stage 49.0.6. The 2026-09-01 deep persona audit's findings are indexed into it rather than tracked separately. Its finding register (Stage 49.10.8) is one row per security finding, closed only with a fix, a live regression test and a dated retest (`TestStage49108FindingRegisterNeverClosesOnCodeAlone`). | Hand-written. |
+| [command-catalog.md](command-catalog.md) | Every command of the sale, quote / override, tender, loyalty, return, allocation / ship, adjustment / count, vendor / payment, journal / period, payroll, merge, credential / config and export families: actor capability, authoritative inputs, preconditions, invariants, idempotency and the audit row it writes. Stage 49.5.1. | **Generated — never edit by hand.** Routes, actor, idempotency and audit rows are read from code; the invariant notes live in `cmd/gendocs/command_catalog.go`. `TestStage4951` fails when a family route has no note. |
 | [attack_surface.json](attack_surface.json) | The machine-readable inventory: every route and its authentication class, static roots, background jobs, CLI commands, migrations, environment flags, outbound call sites, dependencies. Stage 49.1.1, and the approved profile the 49.1.6 drift check compares against. | **Generated — never edit by hand.** Regenerate with `go run ./cmd/surfacescan`. |
 | [secure-development-lifecycle.md](secure-development-lifecycle.md) | Stage 49.9's SDLC/dependency/release-artifact supply-chain policy: what's built and tested vs. what's a documented GitHub-settings recommendation `[needs decision: org owner]`. | Hand-written. |
 | [dependency-inventory.md](dependency-inventory.md) | How the dependency ledger works, what's enforced automatically, and the review checklist for a new dependency (49.9.4). | Hand-written. |
@@ -40,6 +41,8 @@ Stage 49's security program lives here.
 | [insider-scenarios.md](insider-scenarios.md) | Stage 49.10.6 — each insider/red-team scenario (cashier payroll, cross-tenant admin, DBA audit tamper, support impersonation, malicious upload, price/refund fraud, owner crossover, connector SSRF, stolen backup, CI artifact, destructive operator) mapped to the tests that prove it, and what is not covered (checked by `TestStage49106InsiderScenarioMapIsHonest`). | Hand-written. |
 | [gst-companies-act-controls.md](gst-companies-act-controls.md) | Stage 47.16.4 — each GST / Companies Act record control (invoice numbers, posted-document lock and reversal, period lock, edit log, retention and legal hold, e-invoice / e-way applicability, IRP evidence), where it is enforced and the test that proves it, or the gap; kept honest by `TestStage47164ControlMapNamesLiveTests`. | Hand-written. |
 | [security-weight-budget.md](security-weight-budget.md) | Stage 49.18 — what the controls cost (measured), bounded state, one-event evidence, no client bloat, no infrastructure reflex, and the multi-year state forecast. |
+| [input-validation.md](input-validation.md) | Stage 49.4.6 — what the one validation choke point and the request envelope refuse (controls, bidi, look-alike alphabets in identifiers, the list's sort / filter allowlist) and the parser-differential outcome table (duplicate keys, number shapes, chunked + Content-Length, encodings, `%2F`). | Hand-written; `TestStage4946ParserDifferentialsAnswerConsistently` and `TestStage4946ListSortAndFilterAllowlist` keep the tables true. |
+| [idempotency-audit.md](idempotency-audit.md) | Stage 49.4.7 — every state-changing `/api` route with its idempotency key, replay window and what it touches (money / stock / document); money- or stock-moving commands without a key are listed as findings. | **Generated — never edit by hand.** `ERP_WRITE_IDEMPOTENCY_AUDIT=1 go test ./internal/server -run TestStage4947IdempotencyAuditIsCurrent`; the same test fails when it is stale. |
 | This file | Index and regeneration instructions. | Hand-written. |
 
 ## Release artifacts (49.9.6–49.9.9)
@@ -179,6 +182,16 @@ so a ciphertext written before rotation existed keeps working with no batch
 migration required first. `ReencryptChannelCredentials` /
 `tenantctl reencrypt-channel-credentials` is the operator step that actually
 completes a rotation by re-sealing every stored row under the current key.
+
+Every connector credential (`channel_credentials`, and the Pine Labs /
+CleverTap / Unicommerce tables) carries its owner (the user who last saved
+it), its last use (stamped where a connector reads it before a call, at most
+hourly) and an optional expiry, after which it is refused rather than sent
+(Stage 49.8.5, `engines/credential_meta.go`). The connector screens show the
+three, never the secret. **Disconnect**
+(`POST /api/v1/integrations/credentials/disconnect`, admin only, audited as
+`CONNECTOR_DISCONNECTED`) deletes the credential and cancels the channel's
+queued jobs; mappings and settings stay (`engines/connector_disconnect.go`).
 
 `[needs decision: dual-control key recovery]` — nothing here requires a
 second person to approve a key's recovery/rotation/destruction; keys are

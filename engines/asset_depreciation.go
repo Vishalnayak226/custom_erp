@@ -269,12 +269,12 @@ func postAssetDepreciationMonth(tenantID, schema, assetID string, plan assetDepP
 	}
 	monthEnd := plan.monthEnd(i).Format("2006-01-02")
 	amount := plan.amount(i)
-	if err := PostDoubleEntryTx(tx, tenantID, schema, "Asset", assetID,
-		map[string]int64{assetAccDepExpense: amount}, map[string]int64{assetAccAccumulated: amount}, monthEnd, key); err != nil {
-		return false, err
-	}
 	// The month's charge belongs to the month: period reports read created_at.
-	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.gl_postings SET created_at = $1::date + interval '23:59:59' WHERE idempotency_key = $2`, schema), monthEnd, key); err != nil {
+	// Stage 47.16.4b: the rows are inserted at the month's last second, not
+	// re-dated afterwards (gl_postings refuses that).
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "Asset", assetID,
+		map[string]int64{assetAccDepExpense: amount}, map[string]int64{assetAccAccumulated: amount}, monthEnd, key,
+		PostingOptions{PostedAt: monthEnd + " 23:59:59"}); err != nil {
 		return false, err
 	}
 	return true, tx.Commit()
@@ -701,7 +701,7 @@ func StartAssetDepreciationScheduler(ctx context.Context, interval time.Duration
 					if tenantID == "" {
 						continue
 					}
-					if _, err := EnqueueJob(tenantID, AssetDepreciationJobType, nil,
+					if _, err := EnqueueJobContext(SystemJobContext("asset-depreciation"), tenantID, AssetDepreciationJobType, nil,
 						fmt.Sprintf("asset-depreciation:%s:%s", tenantID, month)); err != nil {
 						log.Printf("[ASSET-DEPRECIATION] %s: could not enqueue: %v", schema, err)
 					}

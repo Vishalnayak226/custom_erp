@@ -465,7 +465,7 @@ func CreateMRPChange(tenantID string, in MRPChangeInput, userID string) (string,
 	}
 	LogAuditEvent(tenantID, userID, "CREATE_MRP_CHANGE", "SUCCESS", fmt.Sprintf("%s: %d item(s) from %s", id, len(lines), effective))
 	if status == "Scheduled" {
-		jobID, err := EnqueueJob(tenantID, mrpChangeJobType, map[string]interface{}{"tenant_id": tenantID, "mrp_change_id": id}, "mrp:"+id)
+		jobID, err := EnqueueJobContext(WithJobActor(context.Background(), userID), tenantID, mrpChangeJobType, map[string]interface{}{"tenant_id": tenantID, "mrp_change_id": id}, "mrp:"+id)
 		if err == nil {
 			_, err = db.DB.Exec(fmt.Sprintf(`UPDATE %s.async_jobs SET next_attempt_at = $1 WHERE id = $2`, schema), when, jobID)
 		}

@@ -296,7 +296,8 @@ func RunPIMImportTemplateContext(ctx context.Context, tenantID, templateID strin
 		return nil, err
 	}
 
-	records, err := readCSVRecordsContext(ctx, tenantID, r)
+	src := newImportSourceReader(r) // 47.13.3: lineage of the bytes as parsed
+	records, err := readCSVRecordsContext(ctx, tenantID, src)
 	if err != nil {
 		return nil, err
 	}
@@ -360,6 +361,7 @@ func RunPIMImportTemplateContext(ctx context.Context, tenantID, templateID strin
 	res, err := runDocDataImportContext(ctx, tenantID, targetDoctype, userID, role, dryRun, docRows, preErrors)
 	if err == nil {
 		attachFailedSourceRows(res, sourceHeaders, dataRows, targetDoctype, templateID)
+		stampImportSource(res, src, userID)
 	}
 	return res, err
 }

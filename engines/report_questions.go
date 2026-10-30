@@ -41,6 +41,7 @@ var reportQuestions = map[string]reportQuestion{
 	"sales-register":            {"What did we sell at the till?", "Paid and settled POS sales with their total; control totals tie them to revenue and output GST."},
 	"customer-lifetime-value":   {"Which customers are worth the most?", "Spend and visits per customer over their history."},
 	"rfm-segmentation":          {"Which customers are loyal, lapsing or new?", "Recency, frequency and spend scores per customer."},
+	"crm-pulse":                 {"Are customers coming back?", "Active customers (a bill in 90 days), new this month, repeat rate and lapsed high spenders."},
 	"points-liability":          {"What do we owe in loyalty points?", "Unredeemed points per customer at their redemption value."},
 	"loyalty-summary":           {"How are points being earned and used?", "Earned, redeemed and balance per customer."},
 	"tender-sales":              {"How was the money taken?", "Paid bills by the store's own tenders (Cash, HDFC Card, Paytm...) for a store and dates."},

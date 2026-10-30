@@ -35,6 +35,7 @@ func handleUnicommerceCredentials(w http.ResponseWriter, r *http.Request) {
 		APIKey    string `json:"api_key"`
 		APISecret string `json:"api_secret"`
 		BaseURL   string `json:"base_url"`
+		ExpiresAt string `json:"expires_at"` // 49.8.5, optional
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request body")
@@ -44,8 +45,8 @@ func handleUnicommerceCredentials(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'store_code', 'api_key', 'api_secret', and 'base_url' are required")
 		return
 	}
-	if err := engines.SaveUnicommerceCredential(tenantID, req.StoreCode, req.APIKey, req.APISecret, req.BaseURL); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+	if err := engines.SaveUnicommerceCredentialBy(tenantID, req.StoreCode, req.APIKey, req.APISecret, req.BaseURL, credentialActor(r), req.ExpiresAt); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved", "store_code": req.StoreCode})
@@ -157,6 +158,7 @@ func handlePineLabsCredentials(w http.ResponseWriter, r *http.Request) {
 		APIKey     string `json:"api_key"`
 		MerchantID string `json:"merchant_id"`
 		BaseURL    string `json:"base_url"`
+		ExpiresAt  string `json:"expires_at"` // 49.8.5, optional
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request body")
@@ -166,8 +168,8 @@ func handlePineLabsCredentials(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'terminal_id', 'api_key', 'merchant_id', and 'base_url' are required")
 		return
 	}
-	if err := engines.SavePineLabsCredential(tenantID, req.TerminalID, req.APIKey, req.MerchantID, req.BaseURL); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+	if err := engines.SavePineLabsCredentialBy(tenantID, req.TerminalID, req.APIKey, req.MerchantID, req.BaseURL, credentialActor(r), req.ExpiresAt); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved", "terminal_id": req.TerminalID})
@@ -282,6 +284,7 @@ func handleCleverTapCredentials(w http.ResponseWriter, r *http.Request) {
 		AccountID string `json:"account_id"`
 		Passcode  string `json:"passcode"`
 		Region    string `json:"region"`
+		ExpiresAt string `json:"expires_at"` // 49.8.5, optional
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request body")
@@ -295,8 +298,8 @@ func handleCleverTapCredentials(w http.ResponseWriter, r *http.Request) {
 	if region == "" {
 		region = "in1"
 	}
-	if err := engines.SaveCleverTapCredential(tenantID, req.AccountID, req.Passcode, region); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+	if err := engines.SaveCleverTapCredentialBy(tenantID, req.AccountID, req.Passcode, region, credentialActor(r), req.ExpiresAt); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved", "account_id": req.AccountID})

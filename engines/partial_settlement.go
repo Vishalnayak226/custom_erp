@@ -58,6 +58,7 @@ const (
 	settlementKindPayment    = "Payment"
 	settlementKindPaymentTDS = "Payment (TDS)"
 	settlementKindCreditNote = "Credit note"
+	settlementKindReturn     = "Return"
 )
 
 // SettlementEntry is one line of an invoice's payment history - a
@@ -128,7 +129,7 @@ func findSettlementByReference(entries []SettlementEntry, reference string) (Set
 		return SettlementEntry{}, false
 	}
 	for _, e := range entries {
-		if e.Kind != settlementKindCreditNote && e.Reference == reference {
+		if e.Kind != settlementKindCreditNote && e.Kind != settlementKindReturn && e.Reference == reference {
 			return e, true
 		}
 	}
@@ -386,7 +387,25 @@ func vendorPaymentBasis(data map[string]interface{}, position DocumentFXPosition
 	if stored := paiseLegs(data["payment_basis_paise"]); len(stored) > 0 {
 		return stored
 	}
+	if vendorBasisExact(data, position) {
+		invoice := RupeesToPaise(numFromInterface(data["invoice_amount"]))
+		gst := RupeesToPaise(numFromInterface(data["gst_amount"]))
+		if gst <= 0 || gst >= invoice {
+			return map[string]int64{"2100": invoice}
+		}
+		return map[string]int64{"2100": invoice - gst, "1500": gst}
+	}
 	return PaiseMap(inputGSTDebits(data, position))
+}
+
+// vendorBasisExact is a bill owed to the paisa rather than the whole rupee
+// (Stage 135.24): a step GRN's bill, whose GRN booked our exact figures and
+// whose invoice-vs-GRN note is worked out from the exact invoice total. Paid
+// at the whole rupee, a 2099.50 bill took 2100 and the GRN then paid the
+// 0.50 credit-note extra on top.
+func vendorBasisExact(data map[string]interface{}, position DocumentFXPosition) bool {
+	exact, _ := data["payment_basis_exact"].(bool)
+	return exact && !position.Foreign
 }
 
 // vendorOpenLegs is what a bill still owes, leg by leg, in paise.
@@ -492,7 +511,9 @@ func vendorFinalPaymentFor(invoiceID string, data map[string]interface{}, positi
 		return out, fmt.Errorf("vendor invoice %s has an unreadable payment history: %v", invoiceID, err)
 	}
 	out.Entries = entries
-	if len(entries) == 0 {
+	// A bill owed to the paisa clears its exact basis on the first payment
+	// too, through the open-legs path below.
+	if len(entries) == 0 && !vendorBasisExact(data, position) {
 		out.Debits, out.Credits = PaiseMap(debits), PaiseMap(credits)
 		out.Legs = vendorPaymentBasis(data, position)
 		out.Total = out.Credits["1100"]
@@ -517,60 +538,78 @@ func vendorFinalPaymentFor(invoiceID string, data map[string]interface{}, positi
 // stays a whole-bill, approval-routed payment. A foreign-currency bill pays in
 // full only, with the realised exchange line PayVendorInvoice always booked.
 func PayVendorInvoiceAmount(tenantID, invoiceID, userID string, amount float64, reference string, opts ...SettlementOptions) (PartSettlementResult, error) {
-	res := PartSettlementResult{ID: invoiceID}
-	reference = strings.TrimSpace(reference)
-	if err := validateSettlementInput(amount, reference); err != nil {
-		return res, err
-	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return res, err
+		return PartSettlementResult{ID: invoiceID}, err
 	}
 	tx, err := db.DB.Begin()
 	if err != nil {
-		return res, err
+		return PartSettlementResult{ID: invoiceID}, err
 	}
 	defer tx.Rollback()
-	if err := db.SetSearchPath(tx, schema); err != nil {
+	res, after, err := payVendorInvoiceAmountTx(tx, schema, tenantID, invoiceID, userID, amount, reference, opts...)
+	if err != nil || after == nil {
 		return res, err
+	}
+	if err := tx.Commit(); err != nil {
+		return res, err
+	}
+	after()
+	return res, nil
+}
+
+// payVendorInvoiceAmountTx is PayVendorInvoiceAmount inside the caller's
+// transaction (Stage 135.26: a step GRN's payment pays its bill part under
+// the GRN's lock, so the bill and the GRN commit together). after is the
+// audit line, for after the commit; it is nil when nothing was paid (a
+// retry of a payment already recorded).
+func payVendorInvoiceAmountTx(tx *sql.Tx, schema, tenantID, invoiceID, userID string, amount float64, reference string, opts ...SettlementOptions) (PartSettlementResult, func(), error) {
+	res := PartSettlementResult{ID: invoiceID}
+	reference = strings.TrimSpace(reference)
+	if err := validateSettlementInput(amount, reference); err != nil {
+		return res, nil, err
+	}
+	if err := db.SetSearchPath(tx, schema); err != nil {
+		return res, nil, err
 	}
 
 	var dataStr, status string
 	if err := tx.QueryRow(fmt.Sprintf(
 		`SELECT data, status FROM %s.documents WHERE doctype = 'VendorInvoice' AND id = $1 FOR UPDATE`, schema),
 		invoiceID).Scan(&dataStr, &status); err != nil {
-		return res, fmt.Errorf("vendor invoice not found: %v", err)
+		return res, nil, fmt.Errorf("vendor invoice not found: %v", err)
 	}
 	var data map[string]interface{}
 	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
-		return res, err
+		return res, nil, err
 	}
 	entries, err := readSettlementEntries(data, "payments")
 	if err != nil {
-		return res, fmt.Errorf("vendor invoice %s has an unreadable payment history: %v", invoiceID, err)
+		return res, nil, fmt.Errorf("vendor invoice %s has an unreadable payment history: %v", invoiceID, err)
 	}
 	if prior, ok := findSettlementByReference(entries, reference); ok {
-		return replaySettlement(res, prior, amount, status, data, "paid_amount")
+		res, err := replaySettlement(res, prior, amount, status, data, "paid_amount")
+		return res, nil, err
 	}
 	if status == "Paid" {
-		return res, fmt.Errorf("invoice is already Paid")
+		return res, nil, fmt.Errorf("invoice is already Paid")
 	}
 	if status != "Matched" {
-		return res, &ValidationError{Code: "VENDOR-0092", Message: fmt.Sprintf(
+		return res, nil, &ValidationError{Code: "VENDOR-0092", Message: fmt.Sprintf(
 			"invoice is not Matched (status: %s) - match it first, or use Override & Pay for the whole bill", status)}
 	}
 	if numFromInterface(data["invoice_amount"]) <= 0 {
-		return res, fmt.Errorf("invoice_amount must be positive to pay")
+		return res, nil, fmt.Errorf("invoice_amount must be positive to pay")
 	}
 
 	position := documentFXPosition(tenantID, data, "invoice_amount")
 	if position.Foreign && (len(entries) > 0 || (amount > 0 && RupeesToPaise(amount) != RupeesToPaise(position.TransactionAmount))) {
-		return res, &ValidationError{Code: "FIN-0518", Message: fmt.Sprintf(
+		return res, nil, &ValidationError{Code: "FIN-0518", Message: fmt.Sprintf(
 			"vendor invoice %s is in %s, so it can only be paid in full (%.2f %s)", invoiceID, position.Currency, position.TransactionAmount, position.Currency)}
 	}
 	settlement, err := resolveSettlementFX(tenantID, position, false, settlementOption(opts))
 	if err != nil {
-		return res, err
+		return res, nil, err
 	}
 	var debits, credits, legs map[string]int64
 	var postOpts []PostingOptions
@@ -593,14 +632,14 @@ func PayVendorInvoiceAmount(tenantID, invoiceID, userID string, amount float64, 
 		var open map[string]int64
 		open, outstanding = vendorOpenLegs(data, position)
 		if outstanding <= 0 {
-			return res, nothingOutstandingError("vendor invoice", invoiceID)
+			return res, nil, nothingOutstandingError("vendor invoice", invoiceID)
 		}
 		pay = outstanding
 		if amount > 0 {
 			pay = RupeesToPaise(amount)
 		}
 		if pay <= 0 || pay > outstanding {
-			return res, overSettlementError("vendor invoice", invoiceID, pay, outstanding)
+			return res, nil, overSettlementError("vendor invoice", invoiceID, pay, outstanding)
 		}
 		legs = splitVendorPayment(open, outstanding, pay)
 		debits = legs
@@ -617,7 +656,7 @@ func PayVendorInvoiceAmount(tenantID, invoiceID, userID string, amount float64, 
 		key += ":" + reference
 	}
 	if err := PostDoubleEntryTx(tx, tenantID, schema, "VendorInvoice", invoiceID, debits, credits, settlement.PostingDate(), key, postOpts...); err != nil {
-		return res, postingError(err, "payment not recorded")
+		return res, nil, postingError(err, "payment not recorded")
 	}
 	remaining := noteVendorPayment(data, entries, settlementKindPayment, reference, key, userID, settlement.SettlementDate, legs, position, functional)
 	newStatus := "Matched"
@@ -628,21 +667,20 @@ func PayVendorInvoiceAmount(tenantID, invoiceID, userID string, amount float64, 
 	data["status"] = newStatus
 	updatedBytes, err := json.Marshal(data)
 	if err != nil {
-		return res, err
+		return res, nil, err
 	}
 	if _, err := tx.Exec(fmt.Sprintf(
 		`UPDATE %s.documents SET data = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'VendorInvoice' AND id = $3`, schema),
 		updatedBytes, newStatus, invoiceID); err != nil {
-		return res, err
+		return res, nil, err
 	}
-	if err := tx.Commit(); err != nil {
-		return res, err
-	}
-	if oneShot {
-		LogAuditEvent(tenantID, userID, "PAY_VENDOR_INVOICE", "SUCCESS", settlementAuditDetail("vendor invoice", invoiceID, settlement))
-	} else {
-		LogAuditEvent(tenantID, userID, "PAY_VENDOR_INVOICE", "SUCCESS", fmt.Sprintf(
-			"Paid %.2f against vendor invoice %s (reference %s); outstanding now %.2f", PaiseToRupees(pay), invoiceID, reference, PaiseToRupees(remaining)))
+	after := func() {
+		if oneShot {
+			LogAuditEvent(tenantID, userID, "PAY_VENDOR_INVOICE", "SUCCESS", settlementAuditDetail("vendor invoice", invoiceID, settlement))
+		} else {
+			LogAuditEvent(tenantID, userID, "PAY_VENDOR_INVOICE", "SUCCESS", fmt.Sprintf(
+				"Paid %.2f against vendor invoice %s (reference %s); outstanding now %.2f", PaiseToRupees(pay), invoiceID, reference, PaiseToRupees(remaining)))
+		}
 	}
 
 	res.Status = newStatus
@@ -651,7 +689,7 @@ func PayVendorInvoiceAmount(tenantID, invoiceID, userID string, amount float64, 
 	res.SettledAmount = numFromInterface(data["paid_amount"])
 	res.OutstandingAmount = numFromInterface(data["outstanding_amount"])
 	res.Reference = reference
-	return res, nil
+	return res, after, nil
 }
 
 // vendorInvoiceHasPayments reports whether any payment is recorded on a bill.
@@ -748,4 +786,112 @@ func applyCreditNoteToInvoice(tx *sql.Tx, schema, tenantID, noteID, invoiceID, u
 		return 0, 0, false, err
 	}
 	return applied, refunded, true, nil
+}
+
+// applyReturnToSalesInvoiceTx (140.12.3) records a processed refund's money
+// against the credit invoice its units were sold on: up to the invoice's
+// outstanding balance is taken off what the customer owes, and that much is
+// returned for the caller to credit to 1300 instead of paying it back. Anything
+// that is not an Approved functional-currency SalesInvoice with a balance
+// applies nothing. Idempotent on the refund id.
+func applyReturnToSalesInvoiceTx(tx *sql.Tx, tenantID, schema, invoiceID, refundID, userID string, moneyPaise int64) (int64, error) {
+	return noteInvoiceSettlementTx(tx, tenantID, schema, invoiceSettlement{InvoiceID: invoiceID, Ref: refundID, Kind: settlementKindReturn,
+		User: userID, PostingKey: fmt.Sprintf("RefundRequest:%s:REFUND", refundID), Paise: moneyPaise, Cap: true})
+}
+
+// invoiceSettlement is one amount recorded against a SalesInvoice whose GL
+// posting the caller makes: a return (capped at what is owed), a customer
+// receipt or an advance applied (each must fit, for that customer).
+type invoiceSettlement struct {
+	InvoiceID, Ref, Kind, User, PostingKey, Customer, Date string
+	Paise                                                  int64
+	Cap                                                    bool
+}
+
+// noteInvoiceSettlementTx appends the settlement line, moves the outstanding
+// balance and turns the invoice Paid at zero, under the invoice's row lock.
+// It returns the paise applied; a replay of the same Ref and Kind returns the
+// first answer and changes nothing.
+func noteInvoiceSettlementTx(tx *sql.Tx, tenantID, schema string, in invoiceSettlement) (int64, error) {
+	if in.InvoiceID == "" || in.Paise <= 0 {
+		return 0, nil
+	}
+	refuse := func(format string, args ...interface{}) (int64, error) {
+		if in.Cap {
+			return 0, nil
+		}
+		return 0, &ValidationError{Code: "FIN-0517", Message: fmt.Sprintf(format, args...)}
+	}
+	var dataStr, status string
+	err := tx.QueryRow(fmt.Sprintf(
+		`SELECT data, status FROM %s.documents WHERE doctype = 'SalesInvoice' AND id = $1 AND deleted_at IS NULL FOR UPDATE`, schema),
+		in.InvoiceID).Scan(&dataStr, &status)
+	if err == sql.ErrNoRows {
+		return refuse("sales invoice %s was not found", in.InvoiceID)
+	}
+	if err != nil {
+		return 0, err
+	}
+	if status != "Approved" {
+		return refuse("sales invoice %s is %s - only a posted invoice with a balance takes a receipt", in.InvoiceID, status)
+	}
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+		return 0, err
+	}
+	if in.Customer != "" && strings.TrimSpace(strField(data, "customer")) != in.Customer {
+		return refuse("sales invoice %s is not %s's", in.InvoiceID, in.Customer)
+	}
+	position := documentFXPosition(tenantID, data, "total_amount")
+	if position.Foreign {
+		return refuse("sales invoice %s is in %s - settle it in full from the invoice list", in.InvoiceID, position.Currency)
+	}
+	entries, err := readSettlementEntries(data, "settlements")
+	if err != nil {
+		return 0, fmt.Errorf("sales invoice %s has an unreadable settlement history: %v", in.InvoiceID, err)
+	}
+	for _, e := range entries {
+		if e.Kind == in.Kind && e.Reference == in.Ref {
+			return RupeesToPaise(e.Amount), nil
+		}
+	}
+	already := sumSettledPaise(entries)
+	outstanding := int64(position.CarryingAmount)*100 - already
+	if outstanding <= 0 {
+		return refuse("sales invoice %s has nothing outstanding", in.InvoiceID)
+	}
+	applied := in.Paise
+	if applied > outstanding {
+		if !in.Cap {
+			return 0, overSettlementError("sales invoice", in.InvoiceID, applied, outstanding)
+		}
+		applied = outstanding
+	}
+	date := in.Date
+	if date == "" {
+		date = BusinessToday()
+	}
+	entries = append(entries, SettlementEntry{
+		Reference: in.Ref, Kind: in.Kind, Amount: PaiseToRupees(applied),
+		Date: date, By: in.User, PostingKey: in.PostingKey, RecordedAt: time.Now().UTC().Format(time.RFC3339),
+	})
+	remaining := outstanding - applied
+	data["settlements"] = entries
+	data["settled_amount"] = PaiseToRupees(already + applied)
+	data["outstanding_amount"] = PaiseToRupees(remaining)
+	newStatus := "Approved"
+	if remaining == 0 {
+		newStatus = "Paid"
+	}
+	data["status"] = newStatus
+	updatedBytes, err := json.Marshal(data)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := tx.Exec(fmt.Sprintf(
+		`UPDATE %s.documents SET data = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'SalesInvoice' AND id = $3`, schema),
+		updatedBytes, newStatus, in.InvoiceID); err != nil {
+		return 0, err
+	}
+	return applied, nil
 }

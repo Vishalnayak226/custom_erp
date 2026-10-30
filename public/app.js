@@ -334,7 +334,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '70';
+const VIEW_MODULE_VERSION = '71';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -913,6 +913,19 @@ const DEFAULT_API_TIMEOUT_MS = 30000;
 
 // 47.11.2: one request for identical reads in flight. 47.10.6: last failed read.
 const inflightGets = new Map();
+// 47.11.2: reads a view makes while it opens are aborted by the next view switch
+// (a stale answer never paints over the new screen) and counted against its budget.
+let viewAbort = new AbortController(), viewReadsOpen = false, viewReads = 0, viewReadView = '';
+const VIEW_READ_BUDGET = { default: 10, 'doctype-table': 12, home: 16, pos: 16, reports: 14 };
+function beginViewReads(view) {
+  viewAbort.abort(); viewAbort = new AbortController(); inflightGets.clear();
+  viewReadsOpen = true; viewReads = 0; viewReadView = view;
+}
+function endViewReads() { viewReadsOpen = false; }
+function noteViewRead(url) {
+  const budget = VIEW_READ_BUDGET[viewReadView] || VIEW_READ_BUDGET.default;
+  if (++viewReads === budget + 1 && (/^(localhost|127.0.0.1)$/.test(location.hostname) || document.getElementById('environment-banner'))) console.warn(`[view-budget] ${viewReadView}: over ${budget} reads on open`, url);
+}
 let lastLoadFailure = null;
 
 // Stage 141.4: a burst of refused calls is one message, not one per call.
@@ -928,7 +941,7 @@ async function apiFetch(url, options = {}) {
   const key = url + '|' + JSON.stringify(options.headers || {});
   let pending = inflightGets.get(key);
   if (!pending) {
-    pending = apiFetchOnce(url, options).finally(() => inflightGets.delete(key));
+    pending = apiFetchOnce(url, options).finally(() => { if (inflightGets.get(key) === pending) inflightGets.delete(key); });
     inflightGets.set(key, pending);
   }
   const response = await pending;
@@ -951,8 +964,11 @@ async function apiFetchOnce(url, options = {}, retried = false) {
   }
 
   const timeoutMs = options.timeoutMs === 0 ? 0 : (options.timeoutMs || DEFAULT_API_TIMEOUT_MS);
-  const controller = (timeoutMs > 0 && !options.signal) ? new AbortController() : null;
-  const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const controller = options.signal ? null : new AbortController();
+  const timeoutId = controller && timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const viewSignal = controller && isRead && viewReadsOpen ? viewAbort.signal : null;
+  const onViewAbort = () => controller.abort();
+  if (viewSignal) { noteViewRead(url); viewSignal.addEventListener('abort', onViewAbort); }
 
   let response;
   try {
@@ -962,8 +978,9 @@ async function apiFetchOnce(url, options = {}, retried = false) {
       signal: options.signal || (controller ? controller.signal : undefined)
     });
   } catch (err) {
+    if (viewSignal && viewSignal.aborted) return null; // the view is gone
     if (isRead) lastLoadFailure = { status: 0, at: Date.now() };
-    if (controller && err.name === 'AbortError') {
+    if (timeoutId && err.name === 'AbortError') {
       // A mutating call's server-side effect is genuinely unknown once the
       // client gives up waiting - never claim "nothing was changed" here.
       const isMutating = !!options.method && options.method !== 'GET';
@@ -976,6 +993,7 @@ async function apiFetchOnce(url, options = {}, retried = false) {
     return null;
   } finally {
     if (timeoutId) clearTimeout(timeoutId);
+    if (viewSignal) viewSignal.removeEventListener('abort', onViewAbort);
   }
 
   if (response.status === 401) {
@@ -5792,6 +5810,7 @@ function syncDocumentTitle() {
 
 async function renderView(view) {
   const myToken = ++viewRenderToken;
+  beginViewReads(view);
   const root = document.getElementById('view-root');
   root.innerHTML = '';
   root.scrollTop = 0;
@@ -5827,6 +5846,7 @@ async function renderView(view) {
     // permanent "Loading..." on screen, which would be a worse lie than the
     // blank panel this replaces.
     placeholder.remove();
+    if (myToken === viewRenderToken) endViewReads();
     if (myToken !== viewRenderToken) { scratch.remove(); return; }
     while (scratch.firstChild) root.appendChild(scratch.firstChild);
     scratch.remove();

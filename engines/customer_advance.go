@@ -141,10 +141,6 @@ func TakeCustomerAdvance(tenantID, user, session string, req TakeAdvanceRequest)
 	if !found || c.WalkIn {
 		return nil, &ValidationError{Code: "POSOFF-0871", Message: "An advance belongs to a customer - take their mobile number first (not Walk-in)."}
 	}
-	supply := "Goods"
-	if strings.EqualFold(strings.TrimSpace(req.SupplyType), "Services") {
-		supply = "Services"
-	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
@@ -155,6 +151,32 @@ func TakeCustomerAdvance(tenantID, user, session string, req TakeAdvanceRequest)
 		if db.DB.QueryRow(fmt.Sprintf(`SELECT instrument_id FROM %s.stored_value_ledger WHERE idempotency_key = $1`, schema), "advance|"+key).Scan(&number) == nil {
 			return LoadCustomerAdvance(tenantID, number)
 		}
+	}
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	number, err := takeCustomerAdvanceTx(tx, tenantID, schema, user, session, req, c, paymentModeClearingAccount(req.PaymentMode))
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	LogAuditEvent(tenantID, user, "POS", "CUSTOMER_ADVANCE_TAKEN", fmt.Sprintf("%s: %.2f from %s by %s", number, req.Amount, c.ID, req.PaymentMode))
+	return LoadCustomerAdvance(tenantID, number)
+}
+
+// takeCustomerAdvanceTx opens the advance in the caller's transaction: its
+// number, funding, register row and posting (Dr debitAccount / Cr 2640, and
+// the output tax of a services advance). A till advance debits its payment
+// mode's account; a back-office receipt (140.12.5 / 140.12.6) debits the bank.
+func takeCustomerAdvanceTx(tx *sql.Tx, tenantID, schema, user, session string, req TakeAdvanceRequest, c CustomerRef, debitAccount string) (string, error) {
+	amount := RupeesToPaise(req.Amount)
+	supply := "Goods"
+	if strings.EqualFold(strings.TrimSpace(req.SupplyType), "Services") {
+		supply = "Services"
 	}
 	tax := int64(0)
 	rate := 0.0
@@ -169,34 +191,29 @@ func TakeCustomerAdvance(tenantID, user, session string, req TakeAdvanceRequest)
 		interstate = c.State != "" && store.State != "" && !strings.EqualFold(c.State, store.State)
 	}
 
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
 	if err := ensureAdvanceSetupTx(tx, schema); err != nil {
-		return nil, err
+		return "", err
 	}
 	number, err := issueCompactNumberTx(tx, schema, "CA", "CA", req.Location, time.Now())
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	if _, err := tx.Exec(fmt.Sprintf(`INSERT INTO %s.stored_value_instruments (instrument_id, card_number, profile, status, customer_id, created_by)
 		VALUES ($1, $1, $2, 'Inactive', $3, $4)`, schema), number, AdvanceProfileID, c.ID, user); err != nil {
-		return nil, err
+		return "", err
 	}
 	card := svCard{ID: number, Number: number, Profile: AdvanceProfileID, Status: SVStatusInactive}
 	idem := ""
-	if key != "" {
+	if key := strings.TrimSpace(req.IdempotencyKey); key != "" {
 		idem = "advance|" + key
 	}
 	src := svSource{Doctype: "CustomerAdvance", ID: number, Location: req.Location, PaymentMode: req.PaymentMode, User: user, Reason: strings.TrimSpace(req.Purpose)}
 	if _, err := appendSVEvent(tx, schema, &card, SVEventActivate, amount, "", src, idem); err != nil {
-		return nil, err
+		return "", err
 	}
 	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.stored_value_instruments SET activated_at = CURRENT_TIMESTAMP, issued_location = $2, issue_payment_mode = $3 WHERE instrument_id = $1`, schema),
 		number, req.Location, req.PaymentMode); err != nil {
-		return nil, err
+		return "", err
 	}
 	var expected interface{}
 	if d := strings.TrimSpace(req.ExpectedDate); d != "" {
@@ -205,18 +222,14 @@ func TakeCustomerAdvance(tenantID, user, session string, req TakeAdvanceRequest)
 	if _, err := tx.Exec(fmt.Sprintf(`INSERT INTO %s.customer_advances (instrument_id, customer_id, location, amount_paise, payment_mode, purpose, expected_date, supply_type, gst_rate, tax_paise, interstate, pos_session, created_by)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NULLIF($12, ''), $13)`, schema),
 		number, c.ID, req.Location, amount, req.PaymentMode, strings.TrimSpace(req.Purpose), expected, supply, rate, tax, interstate, session, user); err != nil {
-		return nil, err
+		return "", err
 	}
 	credits := addLegs(map[string]int64{AccountCustomerAdvLia: amount - tax}, gstSplit(tax, interstate))
 	if err := PostDoubleEntryTx(tx, tenantID, schema, "CustomerAdvance", number,
-		map[string]int64{paymentModeClearingAccount(req.PaymentMode): amount}, credits, "", "CustomerAdvance:"+number+":RECEIPT"); err != nil {
-		return nil, err
+		map[string]int64{debitAccount: amount}, credits, "", "CustomerAdvance:"+number+":RECEIPT"); err != nil {
+		return "", err
 	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	LogAuditEvent(tenantID, user, "POS", "CUSTOMER_ADVANCE_TAKEN", fmt.Sprintf("%s: %.2f from %s by %s (%s)", number, PaiseToRupees(amount), c.ID, req.PaymentMode, supply))
-	return LoadCustomerAdvance(tenantID, number)
+	return number, nil
 }
 
 const advanceSelect = `SELECT a.instrument_id, a.customer_id, COALESCE(c.data->>'name', a.customer_id), a.location, a.amount_paise, i.balance_paise,

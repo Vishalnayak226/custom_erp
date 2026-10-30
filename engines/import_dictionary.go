@@ -19,8 +19,9 @@ import (
 // read (GetDocTypeMeta, importTemplateHeaders, ValidateDocument's rules,
 // DetectFieldFormat), so it covers every doctype and cannot describe a column
 // the template does not have. Every statement in it is what the importer in
-// engines/import.go does today - in particular an update REPLACES the whole
-// record, so a blank cell or a missing column clears that field.
+// engines/import.go does today - in particular an update MERGES into the
+// stored record (47.13.2a): a blank cell or a missing column keeps the stored
+// value, and only ImportClearMarker clears a field.
 
 // ImportTemplateVariantDictionary selects the dictionary on the template route.
 const ImportTemplateVariantDictionary = "dictionary"
@@ -104,8 +105,9 @@ func ImportTemplateDictionary(tenantID, doctype string) ([]ImportColumnSpec, err
 		order.Definition += " Import these first: " + strings.Join(deps, ", ") + "."
 	}
 	update := ImportColumnSpec{Column: "(update)", Type: "Behaviour",
-		Definition: "A row with an existing id REPLACES that record: every column's value is taken from the file, so a blank cell or a column left out of the file clears that field. To change one field, export the records, edit that column, and import the whole rows back.",
-		OnUpdate:   "Destructive for blank or missing columns; nothing is deleted - records not in the file are untouched. Status is not in the file: new records are Active, an update keeps the record's status."}
+		Definition: "A row with an existing id UPDATES that record: a filled cell replaces the stored value, a blank cell or a column left out of the file keeps it, and what the system keeps on the record itself (GST split, BOM snapshot, payments) stays. To empty a field, type " + ImportClearMarker + " in its cell. To change one field, fill the id and that column; the required columns must still be in the file, but their cells may stay blank.",
+		Example:    ImportClearMarker + " empties the field; a blank cell leaves it as it is",
+		OnUpdate:   "Never destructive: only " + ImportClearMarker + " clears a field, and a required field cannot be cleared. Nothing is deleted - records not in the file are untouched. Status is not in the file: new records are Active, an update keeps the record's status."}
 	safety := ImportColumnSpec{Column: "(formulas)", Type: "Safety",
 		Definition: "A cell starting with = + - or @ that is not a number is stored with a leading apostrophe, so a spreadsheet never runs it as a formula. Numbers (also negative ones) are kept as numbers.",
 		Example:    "'=SUM(A1) is stored for =SUM(A1)"}
@@ -119,7 +121,7 @@ func ImportTemplateDictionary(tenantID, doctype string) ([]ImportColumnSpec, err
 // describeImportColumn is one field's dictionary row.
 func describeImportColumn(doctype string, f FieldMeta, isMaster bool, country string) ImportColumnSpec {
 	s := ImportColumnSpec{Column: f.Fieldname, Label: firstNonEmpty(f.Label, humanizeField(f.Fieldname)), Required: "No", Unique: "No",
-		OnUpdate: "Replaced by this cell; a blank cell clears it"}
+		OnUpdate: "Replaced by this cell; a blank cell keeps the stored value; " + ImportClearMarker + " clears it"}
 	if f.Mandatory {
 		s.Required = "Yes"
 	}

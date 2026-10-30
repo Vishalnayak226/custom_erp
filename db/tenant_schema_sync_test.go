@@ -1,6 +1,7 @@
 package db
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -158,6 +159,12 @@ func TestSyncTenantSchemaBringsStaleClientUpToTemplate(t *testing.T) {
 	}
 	// The audit write that failed on production now has its column.
 	mustExec(`INSERT INTO ` + schema + `.audit_logs (user_id, action, status, details, signature) VALUES ('t', 'TEST', 'ok', '', 'x')`)
+	// Stage 47.16.4a: the edit log, which LIKE never copies.
+	if !slices.Contains(rep.TriggersAdded, "documents."+DocumentEditLogTrigger) || count(`SELECT count(*) FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
+		JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = '`+schema+`' AND c.relname = 'documents'
+		AND t.tgname = '`+DocumentEditLogTrigger+`'`) != 1 {
+		t.Errorf("the documents edit-log trigger was not attached (%v)", rep.TriggersAdded)
+	}
 
 	if n := count(`SELECT count(*) FROM pg_index x JOIN pg_class i ON i.oid = x.indexrelid JOIN pg_class t ON t.oid = x.indrelid
 		JOIN pg_namespace n ON n.oid = t.relnamespace WHERE n.nspname = '` + schema + `' AND t.relname = 'documents'

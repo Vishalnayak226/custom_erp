@@ -239,6 +239,16 @@ func PrepareDocumentNumber(tenantID, location, doctype string, isCreate bool, pa
 	for _, f := range series.StoreFields {
 		own = append(own, strField(payload, f))
 	}
+	// 140.12.8: a note or return with no store of its own is numbered in
+	// its source document's store series, not the maker's (a credit note
+	// for a GUIDE-TS invoice was CN/HO/...).
+	if DocumentStoreCode(tenantID, own...) == "" {
+		for _, src := range documentSourceStores[doctype] {
+			if ref := strings.TrimSpace(strField(payload, src.Field)); ref != "" {
+				own = append(own, sourceDocumentStore(tenantID, src.Doctype, ref, src.StoreField))
+			}
+		}
+	}
 	storeCode := numberingStore(tenantID, location, own...)
 
 	code, err := GenerateSequence(tenantID, series.SeriesKey, storeCode, documentFinancialYear(time.Now()))
@@ -259,6 +269,27 @@ func PrepareDocumentNumber(tenantID, location, doctype string, isCreate bool, pa
 		payload[field] = code
 	}
 	return nil
+}
+
+// documentSourceStores (140.12.8) are the links a document's store can come
+// from when it names none itself, in order.
+var documentSourceStores = map[string][]struct{ Field, Doctype, StoreField string }{
+	"CreditNote":     {{"sales_invoice_id", "SalesInvoice", "location"}, {"reference_cart", "POSCart", "location"}},
+	"DebitNote":      {{"grn_id", "GRN", "location"}, {"reference_po", "PurchaseOrder", "location"}},
+	"PurchaseReturn": {{"grn_id", "GRN", "location"}, {"po_id", "PurchaseOrder", "location"}},
+}
+
+// sourceDocumentStore reads a linked document's store, by id or number.
+func sourceDocumentStore(tenantID, doctype, ref, storeField string) string {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return ""
+	}
+	var store string
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>$3, '') FROM %s.documents WHERE doctype = $1 AND deleted_at IS NULL
+		AND (id = $2 OR data->>'code' = $2 OR data->>'invoice_number' = $2 OR data->>'bill_number' = $2 OR data->>'po_number' = $2) LIMIT 1`, schema),
+		doctype, ref, storeField).Scan(&store)
+	return store
 }
 
 // documentFinancialYear renders the Indian financial year (April-March) a date

@@ -80,14 +80,37 @@ func RunReportWithControlTotals(ctx context.Context, tenantID, reportID, role, u
 		def, rows, masked, err := RunReportContext(ctx, tenantID, reportID, role, userID, params)
 		return def, rows, masked, nil, err
 	}
+	// The caller's own rights first (140.12.10) - the unmasked run below is
+	// a full-visibility role and would skip them.
+	if d, known := reportRegistry[reportID]; known {
+		if !ReportAllowedForRole(d, role) {
+			return nil, nil, false, nil, reportRefused(d)
+		}
+		if access, limited := reportStoreScope(tenantID, role, userID); limited {
+			// A store-limited user gets their stores' rows, without the
+			// whole-ledger totals they could not tie to.
+			if err := checkReportStoreParams(d, params, access); err != nil {
+				return nil, nil, false, nil, err
+			}
+			def, rows, masked, err := RunReportContext(ctx, tenantID, reportID, role, userID, params)
+			return def, rows, masked, nil, err
+		}
+	}
 	// Run unmasked (a full-visibility role), total, then mask for the caller.
-	def, rawRows, _, err := RunReportContext(ctx, tenantID, reportID, RoleSuperAdmin, userID, params)
+	// The caller's real role rides along so the sensitive-read event (49.11.1)
+	// names who saw the answer, not the role that computed it.
+	def, rawRows, _, err := RunReportContext(context.WithValue(ctx, reportReadRoleKey{}, role), tenantID, reportID, RoleSuperAdmin, userID, params)
 	if err != nil {
 		return nil, nil, false, nil, err
 	}
 	totals, terr := fn(tenantID, params, rawRows)
 	if terr != nil {
 		totals = &ReportControlTotals{Notes: []string{"Control totals could not be computed: " + terr.Error()}}
+	} else if totals != nil && !totals.Tied {
+		// 49.11.1: the books disagreeing is an INVARIANT event, flagged once
+		// a day per report rather than on every open.
+		LogInvariantEvent(tenantID, userID, "control_totals:"+reportID, "FLAGGED",
+			fmt.Sprintf("detail %.2f vs summary %.2f (diff %.2f)%s", totals.DetailTotal, totals.SummaryTotal, totals.DetailVsSummary, ledgerDiffText(totals)))
 	}
 	masked := reportMasked(def.Columns, role)
 	rows := maskSensitiveColumns(def.Columns, rawRows, role)
@@ -133,6 +156,15 @@ func (c *ReportControlTotals) finish() *ReportControlTotals {
 }
 
 func roundRupees(v float64) float64 { return math.Round(v*100) / 100 }
+
+// ledgerDiffText is the ledger leg of a FLAGGED control-total event, when
+// the report has one.
+func ledgerDiffText(c *ReportControlTotals) string {
+	if c.LedgerTotal == nil || c.SummaryVsLedger == nil {
+		return ""
+	}
+	return fmt.Sprintf("; summary vs ledger %.2f (diff %.2f)", *c.LedgerTotal, *c.SummaryVsLedger)
+}
 
 func sumRowField(rows []map[string]interface{}, key string) float64 {
 	total := 0.0

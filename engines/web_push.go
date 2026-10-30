@@ -391,7 +391,7 @@ var webPushHTTPClient = newOutboundClient(10*time.Second, false) // 134.2: the e
 
 // queueWebPush queues one message for one phone; key makes a repeat a no-op.
 func queueWebPush(schema string, subID int64, msg WebPushMessage, key string) error {
-	_, err := enqueueJobInSchema(schema, webPushJobType, map[string]interface{}{
+	_, err := enqueueJobInSchema(SystemJobContext("web-push"), schema, webPushJobType, map[string]interface{}{
 		"subscription_id": subID, "title": msg.Title, "body": msg.Body, "url": msg.URL, "tag": msg.Tag,
 	}, fmt.Sprintf("push:%d:%s", subID, key), "")
 	return err

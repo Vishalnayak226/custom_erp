@@ -109,7 +109,9 @@ func authorizeAttachmentParent(w http.ResponseWriter, r *http.Request, tenantID,
 		return nil, false
 	}
 	if !rule.visible(parent.Data) {
-		writeAPIError(w, r, "GLOBAL-0011", "")
+		// Stage 49.4.7: a record this session cannot read answers "not
+		// found" here too, so the files route never confirms it exists.
+		refuseAsNotFound(w, r, tenantID, r.Header.Get("Resolved-User-ID"), "attachments", doctype, id)
 		return nil, false
 	}
 	if forChange {

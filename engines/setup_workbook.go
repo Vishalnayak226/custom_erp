@@ -21,6 +21,9 @@ const SetupWorkbookDoctype = "SetupWorkbook"
 // BulkPurchaseDoctype files a Bulk Purchase Upload run (Stage 129) the same way.
 const BulkPurchaseDoctype = "BulkPurchase"
 
+// BulkSalesDoctype files a Sales Upload from Excel run (Stage 142.3) the same way.
+const BulkSalesDoctype = "BulkSales"
+
 // setupWorkbookStaleAfter: a run still "Running" this long after its last
 // progress write was cut off (the server restarted mid-run). Re-uploading
 // the same file finishes it, since applying a workbook twice changes nothing

@@ -107,7 +107,7 @@ func init() {
 		}})
 	reg(ReportDefinition{ID: "crm-segment-members", Label: "Segment Members", StoreKey: "-",
 		Description: "Who is in a segment now (its current version). " + crmReportNote("each customer's bills to date"),
-		Params:      []ReportParam{{Key: "segment_id", Label: "Segment (id from CRM > Segments)", Type: "text", Required: true}},
+		Params:      []ReportParam{{Key: "segment_id", Label: "Segment", Type: "segment", Required: true}}, // 140.12.27: chosen, not typed
 		Columns: []ReportColumn{{Key: "customer_id", Label: "Customer"}, {Key: "name", Label: "Name"}, {Key: "phone", Label: "Phone"}, {Key: "email", Label: "Email"},
 			{Key: "lifecycle", Label: "Lifecycle"}, {Key: "rfm", Label: "RFM"}, {Key: "visits", Label: "Bills"}, {Key: "spend", Label: "Spend", Sensitive: true}, {Key: "last_bill", Label: "Last bill"}},
 		Run: func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {

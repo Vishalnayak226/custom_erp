@@ -151,7 +151,7 @@ func dispatchWebhooksForEvent(schema, eventID, eventName string, payload map[str
 		jobPayload := map[string]interface{}{
 			"url": s.url, "subscription_id": s.id, "event_name": eventName, "event_payload": payload,
 		}
-		if _, err := enqueueJobInSchema(schema, webhookDeliveryJobType, jobPayload, eventID+"-"+s.id, correlationID); err != nil {
+		if _, err := enqueueJobInSchema(SystemJobContext("outbox"), schema, webhookDeliveryJobType, jobPayload, eventID+"-"+s.id, correlationID); err != nil {
 			log.Printf("[WEBHOOK] failed to enqueue delivery for subscription %s: %v", s.id, err)
 		}
 	}

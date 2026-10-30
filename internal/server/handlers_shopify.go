@@ -70,9 +70,10 @@ func handleShopifyCredentials(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		ShopDomain    string `json:"shop_domain"`
-		AccessToken   string `json:"access_token"`
-		WebhookSecret string `json:"webhook_secret"`
+		ShopDomain    string  `json:"shop_domain"`
+		AccessToken   string  `json:"access_token"`
+		WebhookSecret string  `json:"webhook_secret"`
+		ExpiresAt     *string `json:"expires_at"` // 49.8.5: absent keeps, "" clears
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
@@ -100,7 +101,7 @@ func handleShopifyCredentials(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, r, "CONN-0994", "both the shop address and the admin API access token are needed")
 		return
 	}
-	if err := engines.SaveChannelCredential(tenantID, channel, fields); err != nil {
+	if err := engines.SaveChannelCredentialBy(tenantID, channel, fields, credentialActor(r), req.ExpiresAt); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to save the credentials")
 		return
 	}

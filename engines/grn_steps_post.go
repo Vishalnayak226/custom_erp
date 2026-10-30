@@ -365,6 +365,7 @@ func ensureStepGRNVendorBill(tenantID, userID, grnID string, grn map[string]inte
 			"po_id": strField(grn, "po_id"), "grn_id": grnID, "invoice_amount": total,
 			"invoice_date": strField(grn, "vendor_invoice_date"), "financial_year": documentFinancialYear(time.Now()),
 			"status": "Draft", "source_doctype": "GRN", "source_doc_id": grnID,
+			"payment_basis_exact": true, // owed to the paisa (vendorBasisExact, 135.24)
 		}
 		// Stage 130.16 (74.3.2): due by the PO's payment term.
 		if due := POPaymentDueDate(tenantID, strField(grn, "po_id"), strField(grn, "vendor_invoice_date")); due != "" {
@@ -615,6 +616,11 @@ func grnNetPayable(tenantID string, data map[string]interface{}) float64 {
 	if err != nil {
 		return 0
 	}
+	return grnNetPayableOn(data, bill, status)
+}
+
+// grnNetPayableOn is grnNetPayable on a bill the caller has already read.
+func grnNetPayableOn(data, bill map[string]interface{}, status string) float64 {
 	open := 0.0
 	if status != "Paid" {
 		open = vendorInvoiceOpenAmount(bill)
@@ -651,9 +657,10 @@ func PayGRNStep(tenantID, userID, grnID string, in GRNPayInput) (*GRNStepView, e
 	// what is due is checked, paid and recorded on the GRN while it is held.
 	// Read outside it, two payments at once both passed the check against
 	// the same balance (a credit-note extra could be paid twice), and the
-	// later save dropped the earlier payment from the GRN. The bill part pays
-	// in the bill's own transaction, keyed by the reference, so a retry after
-	// a failure here does not pay it twice.
+	// later save dropped the earlier payment from the GRN. Stage 135.26: the
+	// bill part pays in this transaction too, under the bill's lock, so a
+	// failure here can no longer leave the bill paid and the GRN not showing
+	// it.
 	tx, err := db.DB.Begin()
 	if err != nil {
 		return nil, err
@@ -695,7 +702,19 @@ func PayGRNStep(tenantID, userID, grnID string, in GRNPayInput) (*GRNStepView, e
 	if date == "" {
 		date = BusinessToday()
 	}
-	net := grnNetPayable(tenantID, data)
+	bill, billStatus, err := lockStepBillTx(tx, schema, billID)
+	if err != nil {
+		return nil, err
+	}
+	// 135.24: a bill made before step bills were paid to the paisa, with
+	// nothing paid on it yet, is paid that way from its first payment.
+	if exact, _ := bill["payment_basis_exact"].(bool); !exact && bill["payment_basis_paise"] == nil && !vendorInvoiceHasPayments(bill) {
+		if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || '{"payment_basis_exact": true}'::jsonb WHERE doctype = 'VendorInvoice' AND id = $1`, schema), billID); err != nil {
+			return nil, err
+		}
+		bill["payment_basis_exact"] = true
+	}
+	net := grnNetPayableOn(data, bill, billStatus)
 	if net <= 0.004 {
 		return nil, &ValidationError{Code: "GOODSR-0950", Message: "nothing is due on this receipt"}
 	}
@@ -706,10 +725,6 @@ func PayGRNStep(tenantID, userID, grnID string, in GRNPayInput) (*GRNStepView, e
 	if math.IsNaN(amount) || amount > net+0.005 {
 		return nil, &ValidationError{Code: "GOODSR-0950", SubFor: "Amount", Message: fmt.Sprintf("%.2f is more than the %.2f due", amount, net)}
 	}
-	bill, billStatus, err := fetchDocData(tenantID, "VendorInvoice", billID)
-	if err != nil {
-		return nil, err
-	}
 	billOpen := 0.0
 	if billStatus != "Paid" {
 		billOpen = vendorInvoiceOpenAmount(bill)
@@ -717,6 +732,7 @@ func PayGRNStep(tenantID, userID, grnID string, in GRNPayInput) (*GRNStepView, e
 	pay := GRNPayment{Reference: ref, Mode: mode, Amount: round2(amount), Date: date, By: userID, RecordedAt: time.Now().UTC().Format(time.RFC3339)}
 	pay.BillPart = round2(math.Min(amount, billOpen))
 	pay.ExtraPart = round2(amount - pay.BillPart)
+	var after []func()
 	if pay.BillPart > 0 {
 		if in.WithTDS {
 			section := ""
@@ -729,12 +745,22 @@ func PayGRNStep(tenantID, userID, grnID string, in GRNPayInput) (*GRNStepView, e
 			if math.Abs(pay.BillPart-billOpen) > 0.005 {
 				return nil, &ValidationError{Code: "FIN-0521", Message: "TDS is withheld on the whole bill - pay all that is due on the bill, or pay without TDS"}
 			}
-			tds, err := payStepBillWithTDS(tenantID, userID, billID, section, ref, date)
+			tds, audit, err := payStepBillWithTDSTx(tx, schema, tenantID, userID, billID, section, ref, date)
 			if err != nil {
 				return nil, err
 			}
 			pay.TDS = tds
-		} else if _, err := PayVendorInvoiceAmount(tenantID, billID, userID, pay.BillPart, ref, SettlementOptions{SettlementDate: date}); err != nil {
+			after = append(after, audit)
+		} else {
+			_, audit, err := payVendorInvoiceAmountTx(tx, schema, tenantID, billID, userID, pay.BillPart, ref, SettlementOptions{SettlementDate: date})
+			if err != nil {
+				return nil, err
+			}
+			if audit != nil {
+				after = append(after, audit)
+			}
+		}
+		if bill, billStatus, err = lockStepBillTx(tx, schema, billID); err != nil {
 			return nil, err
 		}
 	}
@@ -753,7 +779,7 @@ func PayGRNStep(tenantID, userID, grnID string, in GRNPayInput) (*GRNStepView, e
 	encoded, _ := json.Marshal(payments)
 	data["grn_payments"] = string(encoded)
 	data["paid_amount"] = round2(paid)
-	remaining := grnNetPayable(tenantID, data)
+	remaining := grnNetPayableOn(data, bill, billStatus)
 	data["payment_status"] = "Part paid"
 	if remaining <= 0.004 {
 		data["payment_status"] = "Paid"
@@ -766,58 +792,66 @@ func PayGRNStep(tenantID, userID, grnID string, in GRNPayInput) (*GRNStepView, e
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
+	for _, audit := range after {
+		audit()
+	}
 	LogAuditEvent(tenantID, userID, "GRN_VENDOR_PAYMENT", "SUCCESS", fmt.Sprintf("GRN %s: paid %.2f by %s (%s), TDS %.2f", grnID, pay.Amount, mode, ref, pay.TDS))
 	return GetGRNStepView(tenantID, grnID)
 }
 
-// payStepBillWithTDS is PayVendorInvoiceWithTDS on a bill a debit note has
-// already reduced: TDS on the open goods value, the rest paid in cash/bank.
-func payStepBillWithTDS(tenantID, userID, billID, section, ref, date string) (float64, error) {
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return 0, err
-	}
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return 0, err
-	}
-	defer tx.Rollback()
+// lockStepBillTx reads a step GRN's vendor bill under its row lock.
+func lockStepBillTx(tx *sql.Tx, schema, billID string) (map[string]interface{}, string, error) {
 	var dataStr, status string
 	if err := tx.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE doctype = 'VendorInvoice' AND id = $1 FOR UPDATE`, schema), billID).Scan(&dataStr, &status); err != nil {
-		return 0, err
-	}
-	if status != "Matched" {
-		return 0, &ValidationError{Code: "VENDOR-0092", Message: fmt.Sprintf("vendor bill %s is %s, not Matched", billID, status)}
+		return nil, "", fmt.Errorf("vendor bill %s: %v", billID, err)
 	}
 	var data map[string]interface{}
 	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
-		return 0, err
+		return nil, "", err
+	}
+	return data, status, nil
+}
+
+// payStepBillWithTDSTx is PayVendorInvoiceWithTDS on a bill a debit note has
+// already reduced: TDS on the open goods value, the rest paid in cash/bank.
+// It runs in the GRN payment's transaction (135.26); after is its audit line.
+func payStepBillWithTDSTx(tx *sql.Tx, schema, tenantID, userID, billID, section, ref, date string) (float64, func(), error) {
+	var dataStr, status string
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE doctype = 'VendorInvoice' AND id = $1 FOR UPDATE`, schema), billID).Scan(&dataStr, &status); err != nil {
+		return 0, nil, err
+	}
+	if status != "Matched" {
+		return 0, nil, &ValidationError{Code: "VENDOR-0092", Message: fmt.Sprintf("vendor bill %s is %s, not Matched", billID, status)}
+	}
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+		return 0, nil, err
 	}
 	entries, err := readSettlementEntries(data, "payments")
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	for _, e := range entries {
 		if e.Kind != "Debit note" {
-			return 0, &ValidationError{Code: "FIN-0521", Message: "this bill is already part-paid; TDS is withheld on a whole bill, so pay the rest without TDS"}
+			return 0, nil, &ValidationError{Code: "FIN-0521", Message: "this bill is already part-paid; TDS is withheld on a whole bill, so pay the rest without TDS"}
 		}
 	}
 	position := documentFXPosition(tenantID, data, "invoice_amount")
 	if position.Foreign {
-		return 0, &ValidationError{Code: "FIN-0841", Message: "TDS cannot be worked out on a bill in a foreign currency"}
+		return 0, nil, &ValidationError{Code: "FIN-0841", Message: "TDS cannot be worked out on a bill in a foreign currency"}
 	}
 	open, total := vendorOpenLegs(data, position)
 	if total <= 0 {
-		return 0, nothingOutstandingError("vendor invoice", billID)
+		return 0, nil, nothingOutstandingError("vendor invoice", billID)
 	}
 	tdsF, _, err := CalculateTDS(tenantID, section, PaiseToRupees(open["2100"]))
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	tdsP := RupeesToPaise(tdsF)
 	key := fmt.Sprintf("VendorInvoice:%s:PAY_TDS:%s", billID, ref)
 	if err := PostDoubleEntryTx(tx, tenantID, schema, "VendorInvoice", billID, open, map[string]int64{"1100": total - tdsP, "2300": tdsP}, date, key); err != nil {
-		return 0, fmt.Errorf("GL posting failed, bill not paid: %v", err)
+		return 0, nil, fmt.Errorf("GL posting failed, bill not paid: %v", err)
 	}
 	noteVendorPayment(data, entries, settlementKindPaymentTDS, ref, key, userID, date, open, position, 0)
 	data["status"] = "Paid"
@@ -826,13 +860,11 @@ func payStepBillWithTDS(tenantID, userID, billID, section, ref, date string) (fl
 	data["net_paid"] = PaiseToRupees(total - tdsP)
 	b, _ := json.Marshal(data)
 	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = $1, status = 'Paid', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'VendorInvoice' AND id = $2`, schema), b, billID); err != nil {
-		return 0, err
+		return 0, nil, err
 	}
-	if err := tx.Commit(); err != nil {
-		return 0, err
-	}
-	LogAuditEvent(tenantID, userID, "PAY_VENDOR_INVOICE_TDS", "SUCCESS", fmt.Sprintf("Paid vendor bill %s with TDS %.2f (section %s)", billID, tdsF, section))
-	return tdsF, nil
+	return tdsF, func() {
+		LogAuditEvent(tenantID, userID, "PAY_VENDOR_INVOICE_TDS", "SUCCESS", fmt.Sprintf("Paid vendor bill %s with TDS %.2f (section %s)", billID, tdsF, section))
+	}, nil
 }
 
 // --- Correct after posting (94.8, D8) ----------------------------------------------

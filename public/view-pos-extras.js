@@ -577,9 +577,20 @@ export async function closePOSSessionFlow(t) {
   const countedStr = await showCustomPrompt('Counted cash in the till?', '', 'Close Session', 'number');
   if (countedStr === null) return;
   const counted = parseFloat(countedStr);
+  // 140.12.12: the terminal's card total and the UPI app's total, asked only
+  // when the till's bills took card or UPI - kept beside what the bills say.
+  const declared = {};
+  const sumRes = await apiFetch(`/api/v1/pos/session/summary?session_id=${encodeURIComponent(sessionId)}`);
+  const tenders = (sumRes && sumRes.ok ? (await sumRes.json()).tenders : null) || {};
+  for (const [mode, key] of [['Card', 'declared_card'], ['UPI', 'declared_upi']]) {
+    if (!tenders[mode]) continue;
+    const v = await showCustomPrompt(`${mode} total on the ${mode === 'Card' ? 'card terminal' : 'UPI app'}? (bills say ${Number(tenders[mode]).toFixed(2)})`, '', 'Close Session', 'number');
+    if (v === null) return;
+    if (String(v).trim() !== '' && !isNaN(parseFloat(v))) declared[key] = parseFloat(v);
+  }
   const send = (reason) => apiFetch('/api/v1/pos/session/close', {
     method: 'POST',
-    body: JSON.stringify({ session_id: sessionId, counted_cash: isNaN(counted) ? 0 : counted, variance_reason: reason || '' })
+    body: JSON.stringify({ session_id: sessionId, counted_cash: isNaN(counted) ? 0 : counted, variance_reason: reason || '', ...declared })
   });
   let res = await send('');
   if (!res) return;

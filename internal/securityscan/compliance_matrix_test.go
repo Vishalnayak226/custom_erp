@@ -71,17 +71,30 @@ func set(v ...string) map[string]bool {
 
 func loadComplianceMatrix(t *testing.T) complianceMatrix {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join(repoRoot, complianceMatrixPath))
+	return loadComplianceMatrixFrom(t, filepath.Join(repoRoot, complianceMatrixPath))
+}
+
+func loadComplianceMatrixFrom(t *testing.T, path string) complianceMatrix {
+	t.Helper()
+	raw, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("read %s: %v", complianceMatrixPath, err)
+		t.Fatalf("read %s: %v", path, err)
 	}
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	var m complianceMatrix
 	if err := dec.Decode(&m); err != nil {
-		t.Fatalf("%s does not parse as the matrix shape: %v", complianceMatrixPath, err)
+		t.Fatalf("%s does not parse as the matrix shape: %v", path, err)
 	}
 	return m
+}
+
+// complianceReviewOverdue is whether a row's review_by date has passed: the
+// row is due on that day and overdue from the next. One rule for the build's
+// OVERDUE log and the release gate below.
+func complianceReviewOverdue(reviewBy string, today time.Time) bool {
+	due, err := time.Parse("2006-01-02", reviewBy)
+	return err == nil && today.After(due.AddDate(0, 0, 1))
 }
 
 // repoTestNames is every func TestXxx declared in a _test.go file of this
@@ -205,8 +218,53 @@ func TestComplianceMatrixIsCompleteAndItsEvidenceExists(t *testing.T) {
 			t.Errorf("%s: last_reviewed %q / review_by %q must be YYYY-MM-DD dates", where, r.LastReviewed, r.ReviewBy)
 		case !due.After(last) || due.After(last.AddDate(1, 0, 0)):
 			t.Errorf("%s: review_by must fall after last_reviewed and within a year of it", where)
-		case today.After(due.AddDate(0, 0, 1)):
+		case complianceReviewOverdue(r.ReviewBy, today):
+			// Logged, not failed: an overdue review stops the release (gate
+			// G4e, the test below), never a developer's build (47.16.1a).
 			t.Logf("OVERDUE %s: review_by %s has passed - review the row and move both dates", where, r.ReviewBy)
+		}
+	}
+}
+
+// Stage 47.16.1a: an overdue review fails the release, not the build. An
+// ordinary `go test` skips this; Release gate G4e runs it with
+// ERP_COMPLIANCE_REVIEW_GATE=1 and refuses to ship while any row's review_by
+// has passed. ERP_COMPLIANCE_MATRIX points it at another copy of the matrix,
+// so the gate can be tried on a temporary one.
+func TestComplianceMatrixReviewsAreNotOverdue(t *testing.T) {
+	if os.Getenv("ERP_COMPLIANCE_REVIEW_GATE") != "1" {
+		t.Skip("release gate G4e only (ERP_COMPLIANCE_REVIEW_GATE=1)")
+	}
+	path := os.Getenv("ERP_COMPLIANCE_MATRIX")
+	if path == "" {
+		path = filepath.Join(repoRoot, complianceMatrixPath)
+	}
+	m := loadComplianceMatrixFrom(t, path)
+	if len(m.Rows) == 0 {
+		t.Fatalf("%s has no rows", path)
+	}
+	today := time.Now()
+	for _, r := range m.Rows {
+		if _, err := time.Parse("2006-01-02", r.ReviewBy); err != nil {
+			t.Errorf("%s: review_by %q is not a YYYY-MM-DD date", r.ID, r.ReviewBy)
+		} else if complianceReviewOverdue(r.ReviewBy, today) {
+			t.Errorf("OVERDUE %s: review_by %s has passed - %s reviews the row and moves last_reviewed and review_by", r.ID, r.ReviewBy, r.Owner)
+		}
+	}
+}
+
+// The overdue rule itself, both ways and on its boundary.
+func TestComplianceReviewOverdueRule(t *testing.T) {
+	today := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
+	for reviewBy, want := range map[string]bool{
+		"2026-10-27": true,  // passed
+		"2026-10-28": true,  // passed yesterday
+		"2026-10-29": false, // due today
+		"2027-01-28": false, // in the future
+		"not-a-date": false, // malformed: the completeness test reports it
+	} {
+		if got := complianceReviewOverdue(reviewBy, today); got != want {
+			t.Errorf("review_by %s on 2026-10-29: overdue %v, want %v", reviewBy, got, want)
 		}
 	}
 }

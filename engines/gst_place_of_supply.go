@@ -4,6 +4,7 @@ import (
 	"custom_erp/db"
 	"database/sql"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -281,4 +282,21 @@ func truthy(v interface{}) bool {
 		return t != 0
 	}
 	return false
+}
+
+// IndianStateNames lists every state / UT name GSTIN knows, sorted, for a
+// drop-down (Stage 142.3: the sales upload template's Customers sheet).
+func IndianStateNames() []string {
+	names := make([]string, 0, len(indianStateNames))
+	for _, n := range indianStateNames {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// LocationStateCode is the GST state code a store bills from - its legal
+// entity's GSTIN, else the entity's or the store's State (Stage 142.3).
+func LocationStateCode(tenantID, locationCode string) (string, error) {
+	return buyerStateCode(tenantID, locationCode)
 }

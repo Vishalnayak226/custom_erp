@@ -655,6 +655,11 @@ func handleScaleTest(w http.ResponseWriter, r *http.Request) {
 
 	// 1. Seed test data
 	err := engines.SeedScaleTestData(tenantID, req.NumStores, "BAR-SCALE", 1000)
+	if verr, ok := err.(*engines.ValidationError); ok {
+		// Stage 47.16.4b: PLATFORM-0318 - only a sandbox client is load-tested.
+		writeEngineError(w, r, verr, http.StatusUnprocessableEntity)
+		return
+	}
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, fmt.Sprintf("Failed to seed scale data: %v", err))
 		return
@@ -759,7 +764,7 @@ func handleLogisticsBook(w http.ResponseWriter, r *http.Request) {
 
 	bookingID, err := engines.CreateLogisticsBooking(tenantID, req.OrderID, req.FulfillmentTaskID, req.Carrier, req.TrackingNumber, req.DestinationPincode, req.ShippingCharge)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeCourierError(w, r, err) // 47.11.8b: a task already booked is INTEGR-4719 (409)
 		return
 	}
 

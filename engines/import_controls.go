@@ -1,11 +1,92 @@
 package engines
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"hash"
+	"io"
 	"math"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
+
+// ImportRulesVersion (Stage 47.13.3) names the validation and transformation
+// rules an import ran under; every ImportJob records it. Bump it whenever
+// those rules change (ValidateDocument's import checks, header mapping,
+// number / date parsing, the control-total rules), so an old job can be
+// told from one run under today's rules.
+const ImportRulesVersion = "2026.10.29"
+
+// ImportSource is an import's source lineage: the file as uploaded - its
+// name, size and SHA-256 - and who uploaded it, when. Stored on the
+// ImportJob so a posted batch can be traced back to the exact file.
+type ImportSource struct {
+	FileName   string `json:"file_name,omitempty"`
+	SizeBytes  int64  `json:"size_bytes"`
+	SHA256     string `json:"sha256"`
+	UploadedBy string `json:"uploaded_by"`
+	UploadedAt string `json:"uploaded_at"`
+}
+
+// importSourceReader hashes and counts the bytes an import reads, so the
+// lineage is of the file exactly as parsed, with no second pass over it.
+// A reader that knows its name (an *os.File, or NamedUpload) names the file.
+type importSourceReader struct {
+	r    io.Reader
+	h    hash.Hash
+	size int64
+	name string
+}
+
+func newImportSourceReader(r io.Reader) *importSourceReader {
+	s := &importSourceReader{r: r, h: sha256.New()}
+	if n, ok := r.(interface{ Name() string }); ok {
+		s.name = filepath.Base(strings.TrimSpace(n.Name()))
+		if s.name == "." || s.name == string(filepath.Separator) {
+			s.name = ""
+		}
+	}
+	return s
+}
+
+type namedReader struct {
+	io.Reader
+	name string
+}
+
+func (n namedReader) Name() string { return n.name }
+
+// NamedUpload gives an upload stream its file name, so the import it feeds
+// records that name in its lineage - the handler that received the upload
+// is the one that knows it.
+func NamedUpload(r io.Reader, fileName string) io.Reader {
+	return namedReader{Reader: r, name: fileName}
+}
+
+func (s *importSourceReader) Read(p []byte) (int, error) {
+	n, err := s.r.Read(p)
+	if n > 0 {
+		s.h.Write(p[:n])
+		s.size += int64(n)
+	}
+	return n, err
+}
+
+// stampImportSource fills the result's rules version and lineage from the
+// reader the import parsed.
+func stampImportSource(res *ImportResult, src *importSourceReader, uploadedBy string) {
+	if res == nil || src == nil {
+		return
+	}
+	res.RulesVersion = ImportRulesVersion
+	res.Source = &ImportSource{
+		FileName: src.name, SizeBytes: src.size, SHA256: hex.EncodeToString(src.h.Sum(nil)),
+		UploadedBy: uploadedBy, UploadedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+}
 
 // Stage 47.13.3: batch control totals. Every import - a plain CSV, a
 // template import, a resumed job, a preview - reports what the file held

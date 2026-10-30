@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -100,5 +101,37 @@ func TestStage47143EveryKPICarriesItsContract(t *testing.T) {
 	if c.Period != "Now (a snapshot)" || c.Scope != "Store HO" || c.Basis != KPIBasisStockLedger ||
 		!strings.Contains(c.Definition, "number of rows") {
 		t.Errorf("stock snapshot contract: %+v", c)
+	}
+}
+
+// TestStage47143ContractReachesTheScreen: the keys view-dashboards.js reads
+// off a dataset result (kpiContractLines) are on the wire under "contract",
+// so every tile can show its period, scope, as-of, basis, owner and drill.
+func TestStage47143ContractReachesTheScreen(t *testing.T) {
+	ds, ok := DashboardDatasetByKey("pos_bills")
+	if !ok {
+		t.Fatal("pos_bills dataset is not registered")
+	}
+	asOf := time.Date(2026, 10, 29, 9, 30, 0, 0, time.UTC)
+	res := DatasetResult{Contract: buildKPIContract(ds, DatasetQuery{Dataset: "pos_bills", DateFrom: "2026-10-01", DateTo: "2026-10-31"}, false, nil, asOf)}
+	raw, err := json.Marshal(res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		t.Fatal(err)
+	}
+	var contract map[string]interface{}
+	if err := json.Unmarshal(wire["contract"], &contract); err != nil {
+		t.Fatalf("no contract on the wire: %s", raw)
+	}
+	for _, key := range []string{"definition", "period", "scope", "as_of", "basis", "basis_note", "owner", "drill"} {
+		if v, _ := contract[key].(string); strings.TrimSpace(v) == "" {
+			t.Errorf("contract.%s is empty on the wire: %s", key, wire["contract"])
+		}
+	}
+	if contract["as_of"] != "2026-10-29T09:30:00Z" {
+		t.Errorf("as_of %v is not the RFC 3339 instant the screen turns into \"N min ago\"", contract["as_of"])
 	}
 }

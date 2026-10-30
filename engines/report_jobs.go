@@ -23,6 +23,7 @@ type ReportExportJobSummary struct {
 	Code        string            `json:"code,omitempty"`
 	CreatedAt   string            `json:"created_at"`
 	UpdatedAt   string            `json:"updated_at"`
+	ExpiresAt   string            `json:"expires_at,omitempty"` // 49.8.2: when the link stops working
 }
 
 // ReportExportJobVisible reports whether userID may see this job.
@@ -67,6 +68,7 @@ func ListMyReportExportJobs(tenantID, userID string, limit int) ([]ReportExportJ
 		var d map[string]interface{}
 		if json.Unmarshal([]byte(dataStr), &d) == nil {
 			s.ReportID, _ = d["report_id"].(string)
+			s.ExpiresAt, _ = d["expires_at"].(string)
 			if code, _ := d["code"].(string); code != s.ID {
 				s.Code = code // a Failed job's REPORT-xxxx code; otherwise code is the job id itself
 			}
@@ -83,27 +85,38 @@ func ListMyReportExportJobs(tenantID, userID string, limit int) ([]ReportExportJ
 	return out, rows.Err()
 }
 
-// CancelReportExportJob cancels the caller's own Pending export.
-func CancelReportExportJob(tenantID, jobID, userID, role string) error {
+// CancelReportExportJob cancels the caller's own Pending export, or (Stage
+// 49.8.2) revokes one that has run: its CSV is dropped and its link answers
+// not found from then on. Returns the job's new status.
+func CancelReportExportJob(tenantID, jobID, userID, role string) (string, error) {
 	visible, err := ReportExportJobVisible(tenantID, jobID, userID, role)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if !visible {
-		return fmt.Errorf("export job not found")
+		return "", fmt.Errorf("export job not found")
 	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	res, err := db.DB.Exec(fmt.Sprintf(`
 		UPDATE %s.documents SET status = 'Cancelled', data = jsonb_set(data, '{status}', '"Cancelled"'), updated_at = CURRENT_TIMESTAMP
 		WHERE doctype = 'ReportExportJob' AND id = $1 AND status = 'Pending'`, schema), jobID)
 	if err != nil {
-		return err
+		return "", err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return "Cancelled", nil
+	}
+	res, err = db.DB.Exec(fmt.Sprintf(`
+		UPDATE %s.documents SET status = 'Revoked', data = jsonb_set(data - 'csv', '{status}', '"Revoked"'), updated_at = CURRENT_TIMESTAMP
+		WHERE doctype = 'ReportExportJob' AND id = $1 AND status IN ('Completed', 'Failed')`, schema), jobID)
+	if err != nil {
+		return "", err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return fmt.Errorf("only a Pending export can be cancelled - this one has already run")
+		return "", fmt.Errorf("this export is already cancelled or revoked")
 	}
-	return nil
+	return "Revoked", nil
 }

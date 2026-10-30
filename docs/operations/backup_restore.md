@@ -79,13 +79,22 @@ It is idempotent (a marker comment identifies its own crontab line, so re-runnin
 | `OFFSITE_S3_REGION` | optional, `auto` (R2) by default |
 | `OFFSITE_S3_PREFIX` | optional, the host's short name by default |
 
-- **What goes up:** `<prefix>/database/custom_erp_<ts>.dump.enc` (+ `.sha256`) each night; a tenant export goes under `<prefix>/tenant/`. The nightly also copies new or changed files under `/opt/erp/media_store` to `<prefix>/media/…` — upload-only, driven by `media_manifest.tsv` in the backup folder (a file goes up once, again only if its size or time changes; nothing is deleted off-box). Give the bucket a **30-day lifecycle rule** (and an object lock if offered) — that is the off-box retention.
+- **What goes up:** `<prefix>/database/custom_erp_<ts>.dump.enc` (+ `.sha256`) each night; a tenant export goes under `<prefix>/tenant/`. The nightly also copies new or changed files under `/opt/erp/media_store` (product images, expense receipts, vendor invoice copies) to `<prefix>/media/<path>.enc` — upload-only, driven by `media_manifest_enc.tsv` in the backup folder (a file goes up once, again only if its size or time changes; nothing is deleted off-box). Give the bucket a **30-day lifecycle rule** (and an object lock if offered) — that is the off-box retention.
+- **Media is encrypted too (Stage 49.10.6a).** Each file is sealed before it leaves, with the dump's key and cipher (`BACKUP_ENCRYPTION_KEY`, openssl AES-256-CBC, PBKDF2, salted); without the key the media copy is refused, recorded as a failed `media` run and alerted (`BACKUP_OFFSITE_FAILED`). Until this change media went up as plain files: the first nightly after the release sends every file again, encrypted, under the new manifest. Then delete the old plain objects — everything under `<prefix>/media/` whose name does not end in `.enc` — or let the lifecycle rule age them out.
 - **No new tool:** curl signs the requests itself (`--aws-sigv4`, curl 7.75+). The key pair is handed to curl on stdin, so it never appears in `ps`.
 - **What is recorded:** each run's `public.backup_runs` row carries `offsite_key` and `offsite_outcome` (`Success` / `Failed`, empty when no bucket is set); the media copy is its own row, scope `media`. Needs `db/migrations_stage75_1_offsite_backup.sql`.
 - **Alerts:** a failed upload → `BACKUP_OFFSITE_FAILED` (the local backup still completed); no successful off-box copy of a whole-database run for 26 h → `BACKUP_OFFSITE_STALE` (`incident_runbook.md`, trigger 3).
 - **Remember `deploy.ps1` does not ship `deploy/`** — copy the new `backup.sh` to `/opt/erp/deploy/` by hand after the release that brings it.
 - **Keep the backup key off the droplet too** — a copy of `BACKUP_ENCRYPTION_KEY` in a password manager. The bucket holds encrypted dumps; without the key they cannot be restored.
 - **Restore from the bucket alone** (the drill to record below, 75.1.7): download the dump and its `.sha256`, `sha256sum -c`, then decrypt and `pg_restore` into a scratch database exactly as for an on-box file.
+- **Restore the media files:** download the `<prefix>/media/` folder from the bucket to the box (somewhere the `erp` user can read, e.g. `/tmp/media-download`), then:
+
+  ```bash
+  sudo -u erp /bin/bash -c 'set -a; . /etc/erp/erp.env; set +a; \
+    bash /opt/erp/deploy/restore_media.sh /tmp/media-download /opt/erp/media_store'
+  ```
+
+  It decrypts every `*.enc` file to the same path without `.enc`, leaves a file already there alone (so it can be re-run), skips old plain objects, and names any file that does not decrypt — a wrong key restores nothing. It ends with `media restore: N restored, N already present, N failed` and exits non-zero if any failed. Every deploy ships the script to `/opt/erp/deploy/`.
 
 ### Backup threat model (Stage 49.13.4)
 

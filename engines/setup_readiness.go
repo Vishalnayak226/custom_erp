@@ -4,7 +4,9 @@ import (
 	"custom_erp/db"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // Stage 47.12.4 - readiness is not row count.
@@ -27,7 +29,8 @@ import (
 // SetupValidatorVersion names the rule set a step was judged by. Bump it
 // whenever a check is added, removed or changes what it accepts, so a
 // readiness answer kept as evidence says which rules produced it.
-const SetupValidatorVersion = "47.12.4-v1"
+// v2 (47.16.4d): the tax step's e-invoice turnover warning.
+const SetupValidatorVersion = "47.12.4-v2"
 
 // Readiness states.
 const (
@@ -106,8 +109,8 @@ func setupDoctypeName(dt string) string {
 // setupReadiness runs the checks of one GetSetupPath call. The first query
 // error is kept and returned; later queries are skipped.
 type setupReadiness struct {
-	schema, country string
-	err             error
+	tenantID, schema, country string
+	err                       error
 }
 
 // codes runs a query returning one string per row; %[1]s is the schema.
@@ -246,6 +249,85 @@ func (r *setupReadiness) taxChecks(activeHSN int) []SetupCheck {
 		setupCheck("tax-entity-gstin", "No active legal entity is without its GSTIN", SetupSeverityBlocking, noGSTIN),
 		setupCheck("tax-hsn-shape", "Every HSN code is 4, 6 or 8 digits", SetupSeverityBlocking, badHSN),
 	}
+}
+
+// einvoiceTurnoverLimit is ₹5 crore: a business whose turnover passes it in a
+// financial year must e-invoice its B2B invoices (CGST notification 10/2023,
+// from 1 August 2023).
+const einvoiceTurnoverLimit = 5_00_00_000.0
+
+// einvoiceTurnoverChecks (Stage 47.16.4d, gap G4 of
+// docs/security/gst-companies-act-controls.md): whether a GSTIN e-invoices
+// stays its administrator's switch on the IRP profile - the product does not
+// decide it. It warns when a GSTIN's posted sales invoices (the INV documents
+// a profile covers, B2B and B2C alike), before tax, pass ₹5 crore in a
+// financial year (April-March) while that GSTIN's profile in this server's
+// IRP environment is off or missing. A GSTIN is the one its store's legal
+// entity carries - the resolution the e-invoice itself uses (LoadPrintStore).
+// Credit notes are not deducted, so the warning errs early, never late.
+func (r *setupReadiness) einvoiceTurnoverChecks() []SetupCheck {
+	if r.country != "" && r.country != "IN" {
+		return nil
+	}
+	label := "E-invoicing is on for every GSTIN with sales over ₹5 crore in a financial year"
+	var hasProfiles bool
+	if r.err == nil {
+		r.err = db.DB.QueryRow(`SELECT to_regclass($1) IS NOT NULL`, r.schema+".irp_profiles").Scan(&hasProfiles)
+	}
+	enabled := map[string]bool{}
+	if hasProfiles {
+		for _, g := range r.codes(`SELECT upper(trim(gstin)) FROM %[1]s.irp_profiles WHERE environment = $1 AND enabled`, IRPEnvironment()) {
+			enabled[g] = true
+		}
+	}
+	// Per store and month, so no date is ever cast: a record with an odd
+	// date falls back to when it was made, and an amount that is not a
+	// number counts as nothing rather than failing the whole answer.
+	num := func(field string) string {
+		return `CASE WHEN data->>'` + field + `' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (data->>'` + field + `')::numeric END`
+	}
+	rows := r.codes(`SELECT concat_ws(chr(31), loc, ym, SUM(v)::text) FROM (
+			SELECT COALESCE(data->>'location', '') AS loc,
+			       CASE WHEN d ~ '^[0-9]{4}-[0-9]{2}' THEN substr(d, 1, 7) ELSE to_char(created_at, 'YYYY-MM') END AS ym,
+			       COALESCE(` + num("base_total_amount") + `, ` + num("total_amount") + `, 0) - COALESCE(` + num("total_tax") + `, 0) AS v
+			FROM (SELECT data, created_at, COALESCE(NULLIF(data->>'invoice_date', ''), NULLIF(data->>'posting_date', ''), NULLIF(data->>'date', ''), '') AS d
+			      FROM %[1]s.documents WHERE doctype = 'SalesInvoice' AND deleted_at IS NULL AND status IN ('Approved', 'Paid')) inv
+		) s GROUP BY loc, ym`)
+	gstinOf := map[string]string{}
+	sales := map[string]map[string]float64{} // GSTIN -> financial year -> sales before tax
+	for _, row := range rows {
+		f := strings.SplitN(row, setupFieldSep, 3)
+		if len(f) < 3 {
+			continue
+		}
+		g, ok := gstinOf[f[0]]
+		if !ok {
+			g = strings.ToUpper(strings.TrimSpace(LoadPrintStore(r.tenantID, f[0]).GSTIN))
+			gstinOf[f[0]] = g
+		}
+		month, err := time.Parse("2006-01", f[1])
+		amount, errA := strconv.ParseFloat(f[2], 64)
+		if g == "" || enabled[g] || err != nil || errA != nil {
+			continue
+		}
+		if sales[g] == nil {
+			sales[g] = map[string]float64{}
+		}
+		sales[g][irpFiscalYear(month)] += amount
+	}
+	var over []string
+	for g, years := range sales {
+		latest := ""
+		for fy, v := range years {
+			if v > einvoiceTurnoverLimit && fy > latest {
+				latest = fy
+			}
+		}
+		if latest != "" {
+			over = append(over, fmt.Sprintf("%s: ₹%.2f crore in %s", g, years[latest]/1e7, latest))
+		}
+	}
+	return []SetupCheck{setupCheck("tax-einvoice-turnover", label, SetupSeverityWarning, over)}
 }
 
 // gstSeriesDocTypes are the series whose numbers are GST tax-document

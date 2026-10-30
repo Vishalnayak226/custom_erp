@@ -19,17 +19,28 @@ import (
 // module a template grants wholesale, or a migration seeding role_permissions.
 // These tests are the standing checks every such change runs through.
 
-// floorRoles are the roles that serve customers or move stock all day. None of
-// them may hold a dangerous grant, by template or by the shipped seed.
-var floorRoles = []string{RoleCashier, "Picker", "Employee Self-Service"}
+// floorRoles are the roles that serve customers, move stock or run a store all
+// day. None of them may hold a dangerous grant, by template or by the seed a
+// new client gets. Store Manager joined in 49.3.7a (owner decision,
+// 2026-10-29): it reads only its own salary advance and posts no journal,
+// supplier bill or webhook.
+var floorRoles = []string{RoleCashier, "Picker", "Employee Self-Service", RoleStoreManager}
 
 func TestStage4937FloorRolesHoldNoDangerousGrant(t *testing.T) {
 	db.InitDB(testConnStr())
+	newClient, schema := uniqueLifecycleTenant(t)
+	t.Cleanup(func() { dropLifecycleTenant(newClient, schema) })
+	if _, err := ProvisionTenantSchema(newClient, schema, "0.1.0-test"); err != nil {
+		t.Fatalf("ProvisionTenantSchema: %v", err)
+	}
 	for _, name := range floorRoles {
 		template, ok := RoleTemplateFor(name)
 		if !ok {
 			t.Fatalf("%s has no template", name)
 		}
+		// Judged under the name a session carries: Store Manager is the Store
+		// Supervisor template's legacy name, and scope follows the name.
+		template.Name = name
 		found, err := TemplateDangerousGrants("default", template)
 		if err != nil {
 			t.Fatalf("TemplateDangerousGrants(%s): %v", name, err)
@@ -37,14 +48,95 @@ func TestStage4937FloorRolesHoldNoDangerousGrant(t *testing.T) {
 		if len(found) > 0 {
 			t.Errorf("the %s template holds dangerous grants: %+v", name, found)
 		}
-		// The shipped seed in this tenant, as the role actually stands.
-		stored, err := StoredRoleGrants("default", name)
-		if err != nil {
-			t.Fatalf("StoredRoleGrants(%s): %v", name, err)
+		// The seed, as the role stands in a new client and - for a role the
+		// new-client narrowing does not touch - in this existing one. An
+		// existing client's narrowed role changes only through the plan
+		// (TestStage4937aExistingClientChangesOnlyThroughThePlan).
+		tenants := []string{newClient}
+		if _, narrowed := newClientSeedNarrowings[name]; !narrowed {
+			tenants = append(tenants, "default")
 		}
-		if found := DangerousGrantsFor(name, stored, CapabilitiesForRole(name)); len(found) > 0 {
-			t.Errorf("the stored %s role holds dangerous grants: %+v", name, found)
+		for _, tenant := range tenants {
+			stored, err := StoredRoleGrants(tenant, name)
+			if err != nil {
+				t.Fatalf("StoredRoleGrants(%s, %s): %v", tenant, name, err)
+			}
+			if len(stored) == 0 && name == RoleStoreManager {
+				t.Fatalf("%s holds no %s grants - the seed did not reach it", tenant, name)
+			}
+			if found := DangerousGrantsFor(name, stored, CapabilitiesForRole(name)); len(found) > 0 {
+				t.Errorf("the stored %s role in %s holds dangerous grants: %+v", name, tenant, found)
+			}
 		}
+	}
+	// What the narrowing leaves: a new client's Store Manager still reads the
+	// ledger, its supplier bills and its own salary advance.
+	stored, err := StoredRoleGrants(newClient, RoleStoreManager)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, doctype := range newClientSeedNarrowings[RoleStoreManager] {
+		if level, held := stored[doctype]; held && level != AccessRead {
+			t.Errorf("a new client's Store Manager holds %s at %s, want read", doctype, level)
+		}
+	}
+	if stored["JournalVoucher"] != AccessRead || stored["VendorInvoice"] != AccessRead {
+		t.Errorf("a new client's Store Manager lost read on journals or supplier bills: %v / %v", stored["JournalVoucher"], stored["VendorInvoice"])
+	}
+}
+
+// Stage 49.3.7a: an existing client's Store Manager keeps what it holds until
+// the owner applies the role-template plan, and the plan shows the change.
+func TestStage4937aExistingClientChangesOnlyThroughThePlan(t *testing.T) {
+	db.InitDB(testConnStr())
+	stored, err := StoredRoleGrants("default", RoleStoreManager)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored["JournalVoucher"] != AccessOperate || stored["VendorInvoice"] != AccessOperate || stored["WebhookSubscription"] != AccessOperate {
+		t.Skipf("this database's Store Manager is not the shipped seed (JV %s, VI %s, webhook %s) - another session changed it",
+			stored["JournalVoucher"], stored["VendorInvoice"], stored["WebhookSubscription"])
+	}
+	plan, err := PlanRoleTemplateMigration("default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var diff *RoleTemplateDiff
+	for i := range plan.Diffs {
+		if plan.Diffs[i].Role == RoleStoreManager {
+			diff = &plan.Diffs[i]
+		}
+	}
+	if diff == nil {
+		t.Fatal("the plan has no Store Manager diff")
+	}
+	changed := map[string]string{}
+	for _, c := range append(append([]GrantChange{}, diff.Tightened...), diff.Removed...) {
+		changed[c.Doctype] = c.To
+	}
+	for doctype, want := range map[string]string{"JournalVoucher": "read", "VendorInvoice": "read", "EmployeeLoan": "read", "WebhookSubscription": "none"} {
+		if changed[doctype] != want {
+			t.Errorf("the plan takes Store Manager's %s to %q, want %q", doctype, changed[doctype], want)
+		}
+	}
+	for _, g := range diff.DangerousGained {
+		t.Errorf("the plan would give Store Manager a dangerous grant: %+v", g)
+	}
+
+	// Whatever the grants say, a Store Manager reads and files only their
+	// own salary advance.
+	session := SessionScope{Role: RoleStoreManager, EmployeeCode: "EMP-SM"}
+	if session.HasGlobalScope(ScopeSelf, "EmployeeLoan") {
+		t.Error("Store Manager still sees every colleague's salary advance")
+	}
+	constraints, _ := ScopeConstraints("EmployeeLoan", session)
+	if DocumentMatchesScope(constraints, map[string]interface{}{"employee_id": "EMP-OTHER"}) != ScopeSelf ||
+		DocumentMatchesScope(constraints, map[string]interface{}{"employee_id": "EMP-SM"}) != "" {
+		t.Errorf("Store Manager's salary-advance scope: %+v", constraints)
+	}
+	// The team's day stays theirs to record.
+	if !session.HasGlobalScope(ScopeSelf, "Leave") || !session.HasGlobalScope(ScopeSelf, "Attendance") {
+		t.Error("Store Manager lost the team's leave or attendance")
 	}
 }
 
@@ -67,13 +159,9 @@ var reviewedInheritedGrants = map[string]string{
 	// second administrator (49.2.4), so this is the maker half only.
 	"HR Manager / PasswordResetRequest": "maker side of the dual-control reset",
 	"Integrator / WebhookSubscription":  "wiring connectors is the role",
-	// Store Manager is Store Supervisor's legacy name. The template gives HR
-	// read; scope_policy's selfScopeExemptions gives Store Manager every
-	// employee's EmployeeLoan rows because the shipped seed lets a
-	// supervisor record staff salary advances. Together: a supervisor reads
-	// every colleague's advance. Kept as shipped and reported as an owner
-	// decision (49.3.7 finding) rather than changed here.
-	"Store Manager / EmployeeLoan": "supervisor records staff salary advances - owner decision pending",
+	// "Store Manager / EmployeeLoan" was here until 49.3.7a: the owner decided
+	// a Store Manager sees only their own salary advance, so it is no longer
+	// an inherited dangerous grant (scope_policy.go's selfScopeExemptions).
 }
 
 // fullAccessTemplates hold everything by design (allModules(AccessManage)).
@@ -270,12 +358,13 @@ func TestStage4937DangerousGrantClassifier(t *testing.T) {
 		level   AccessLevel
 		want    bool
 	}{
-		{RoleCashier, "Payslip", AccessRead, false},           // own payslip only (self scope)
-		{RoleCashier, "Payslip", AccessOperate, true},         // writing payslips is payroll
-		{"HR Manager", "Payslip", AccessRead, true},           // sees everyone's pay
-		{RoleStoreManager, "EmployeeLoan", AccessRead, true},  // self-scope exemption: every loan
-		{"Night Lead", "JournalVoucher", AccessRead, false},   // reading the ledger
-		{"Night Lead", "JournalVoucher", AccessOperate, true}, // posting to it
+		{RoleCashier, "Payslip", AccessRead, false},             // own payslip only (self scope)
+		{RoleCashier, "Payslip", AccessOperate, true},           // writing payslips is payroll
+		{"HR Manager", "Payslip", AccessRead, true},             // sees everyone's pay
+		{RoleStoreManager, "EmployeeLoan", AccessRead, false},   // 49.3.7a: own advance only
+		{RoleStoreManager, "EmployeeLoan", AccessOperate, true}, // writing advances is payroll
+		{"Night Lead", "JournalVoucher", AccessRead, false},     // reading the ledger
+		{"Night Lead", "JournalVoucher", AccessOperate, true},   // posting to it
 		{"Night Lead", "WebhookSubscription", AccessOperate, true},
 		{"Night Lead", "Item", AccessManage, false},
 		{RoleSuperAdmin, "JournalVoucher", AccessManage, false}, // full access is not reported grant by grant

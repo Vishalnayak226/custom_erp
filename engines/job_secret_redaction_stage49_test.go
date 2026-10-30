@@ -10,6 +10,7 @@ import (
 // inside an event's document - while ordinary fields pass through untouched.
 func TestStage49JobPayloadNeverStoresASecret(t *testing.T) {
 	db.InitDB(testConnStr())
+	ensureTestJobHandler("test-4986-redact") // 49.8.6: the registry is the enqueue allowlist
 	id, err := EnqueueJob("default", "test-4986-redact", map[string]interface{}{
 		"url": "https://hooks.example.com/x", "api_key": "AK-4986", "session_id": "POSSESS-1",
 		"event_payload": map[string]interface{}{"code": "V1", "client_secret": "CS-4986", "lines": []interface{}{map[string]interface{}{"password": "PW-4986", "qty": 2}}},

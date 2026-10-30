@@ -279,6 +279,61 @@ async function renderPIMDashboardTab(container) {
     if (target === 'content') { currentDoctype = 'ProductContent'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); return; }
     currentPIMTab = 'workbench'; renderView('pim');
   }));
+  await renderPIMFeedsPanel(container);
+}
+
+const PIM_PACK_PLATFORMS = ['shopify', 'amazon', 'myntra'];
+
+async function renderPIMFeedsPanel(container) {
+  const get = async (url) => { const r = await apiFetch(url); return r && r.ok ? r.json() : []; };
+  const [channels, templates] = await Promise.all([get('/api/v1/doc/Channel?limit=200'), get('/api/v1/doc/PIMExportTemplate?limit=200')]);
+  const withFeed = new Set(templates.map(t => t.channel).filter(Boolean));
+  const packable = channels.filter(c => PIM_PACK_PLATFORMS.includes(String(c.platform || '').toLowerCase()) && !withFeed.has(c.id));
+  const active = templates.filter(t => (t.status || 'Active') === 'Active');
+  if (!packable.length && !active.length) return;
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.marginTop = '16px';
+  panel.innerHTML = `<h3 style="margin:0 0 10px;font-size:15px;">Marketplace feeds</h3>
+    ${packable.map(c => `<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;"><span>${escapeHTMLText(c.name || c.id)} (${escapeHTMLText(c.platform)})</span>
+      <button type="button" class="btn btn-outline btn-sm" data-pack="${escapeHTMLText(c.id)}">Apply ${escapeHTMLText(c.platform)} layout</button></div>`).join('')}
+    ${active.length ? `<div class="table-wrapper"><table><thead><tr><th>Feed</th><th>Family</th><th>Category</th><th>File</th><th></th></tr></thead><tbody>
+      ${active.map(t => `<tr data-feed="${escapeHTMLText(t.id)}"><td>${escapeHTMLText(t.name || t.id)}</td>
+        <td><input class="form-input" data-feed-family style="width:120px;" placeholder="all"></td><td><input class="form-input" data-feed-category style="width:120px;" placeholder="all"></td>
+        <td><select class="form-select" data-feed-format style="width:auto;"><option value="csv">CSV</option><option value="xlsx">XLSX</option></select></td>
+        <td><button type="button" class="btn btn-primary btn-sm" data-feed-run>Download</button></td></tr>`).join('')}</tbody></table></div>` : ''}`;
+  container.appendChild(panel);
+  panel.querySelectorAll('[data-pack]').forEach(btn => btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    const r = await apiFetch(`/api/v1/pim/channels/${encodeURIComponent(btn.dataset.pack)}/apply-pack`, { method: 'POST' });
+    btn.disabled = false;
+    if (!r) return;
+    if (!r.ok) { showApiError(r, 'The layout was not applied.'); return; }
+    const out = await r.json();
+    await showCustomAlert(`${out.platform} layout ready: ${out.columns} columns, ${out.field_maps_added} field map(s).${out.attributes_created.length ? `\nNew attributes to fill on your items: ${out.attributes_created.join(', ')}.` : ''}`, 'Marketplace feeds');
+    renderView('pim');
+  }));
+  panel.querySelectorAll('[data-feed-run]').forEach(btn => btn.addEventListener('click', async () => {
+    const row = btn.closest('[data-feed]');
+    const q = new URLSearchParams({ family: row.querySelector('[data-feed-family]').value.trim(), category: row.querySelector('[data-feed-category]').value.trim(), format: row.querySelector('[data-feed-format]').value });
+    btn.disabled = true;
+    const r = await apiFetch(`/api/v1/pim/export-templates/${encodeURIComponent(row.dataset.feed)}/run?${q}`, { method: 'POST' });
+    btn.disabled = false;
+    if (!r) return;
+    if (!r.ok) { showApiError(r, 'The feed was not exported.'); return; }
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = ((r.headers.get('Content-Disposition') || '').split('filename=')[1] || `feed.${q.get('format')}`).replace(/"/g, '');
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    const skipped = Number(r.headers.get('X-Export-Skipped-Count') || 0);
+    if (skipped) {
+      let list = [];
+      try { list = JSON.parse(decodeURIComponent((r.headers.get('X-Export-Skipped') || '').replace(/\+/g, ' '))); } catch (_) {}
+      await showCustomAlert(`${r.headers.get('X-Export-Rows')} item(s) exported, ${skipped} left out:\n${list.map(s => `${s.item}: ${s.reason}`).join('\n')}`, 'Feed');
+    }
+  }));
 }
 
 // ---------------------------------------------------------------------------

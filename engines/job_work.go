@@ -433,18 +433,25 @@ func ReceiveJobWork(tenantID, id, userID, role, key string, in []JobWorkReceiveL
 		}
 		evLines = append(evLines, ev)
 	}
-	// (1) The same item back, through the challan's own return (its own
-	// transaction, keyed, so a retry after a failure below does not take the
-	// goods back twice). A receipt with no key is keyed by its number on the
+	// (1) The same item back, through the challan's own return, in the
+	// order's transaction (Stage 135.26 - it committed on its own, so a
+	// failure below left the goods back and the order not showing them).
+	// Keyed as before: a return an older build recorded without its order is
+	// a replay here. A receipt with no key is keyed by its number on the
 	// order - "jw:<order>:" alone made every keyless receipt after the first
 	// a replay, its goods never put back.
+	var afterCommit []func()
 	if len(sameItem) > 0 {
 		returnKey := "jw:" + id + ":" + key
 		if key == "" {
 			returnKey = fmt.Sprintf("jw:%s:#%d", id, receipt)
 		}
-		if _, err := ReceiveChallanReturn(tenantID, dcID, userID, returnKey, sameItem); err != nil {
+		_, audit, err := receiveChallanReturnTx(tx, schema, tenantID, dcID, userID, returnKey, sameItem)
+		if err != nil {
 			return status, err
+		}
+		if audit != nil {
+			afterCommit = append(afterCommit, audit)
 		}
 	}
 	// (2) Transformations, with the order, in the order's transaction.
@@ -525,6 +532,9 @@ func ReceiveJobWork(tenantID, id, userID, role, key string, in []JobWorkReceiveL
 	}
 	if err := tx.Commit(); err != nil {
 		return status, err
+	}
+	for _, audit := range afterCommit {
+		audit()
 	}
 	for _, wo := range autoWriteOffs {
 		if err := postChallanWriteOff(tenantID, wo, userID); err != nil {

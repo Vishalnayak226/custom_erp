@@ -34,7 +34,7 @@ func TestStage73D9ScheduleIsItsCreatorsOnly(t *testing.T) {
 	tokenAdmin := engines.SignToken("admin", "admin", engines.RoleSuperAdmin, "default", "", currentCredentialVersion("admin"))
 
 	listHas := func(token string) bool {
-		rec := doRequest(t, handler, http.MethodGet, "/api/v1/doc/ScheduledReport?recipients=boss@example.com", token, nil)
+		rec := doRequest(t, handler, http.MethodGet, "/api/v1/doc/ScheduledReport?report_id=gl-journal", token, nil)
 		var rows []map[string]interface{}
 		_ = json.Unmarshal(rec.Body.Bytes(), &rows)
 		for _, row := range rows {
@@ -62,7 +62,7 @@ func TestStage73D9ScheduleIsItsCreatorsOnly(t *testing.T) {
 		t.Errorf("the creator could not open their schedule: %d %s", rec.Code, rec.Body.String())
 	}
 	edit := map[string]interface{}{"report_id": "gl-journal", "frequency": "Daily", "requested_role": "Store Manager", "recipients": "attacker@example.com", "status": "Active"}
-	if rec := doRequest(t, handler, http.MethodPost, "/api/v1/doc/ScheduledReport/"+id, tokenOther, edit); rec.Code != http.StatusForbidden {
+	if rec := doRequest(t, handler, http.MethodPost, "/api/v1/doc/ScheduledReport/"+id, tokenOther, edit); rec.Code != http.StatusNotFound { // Stage 49.4.7
 		t.Errorf("another store manager changed the schedule: %d %s", rec.Code, rec.Body.String())
 	}
 	var recipients string

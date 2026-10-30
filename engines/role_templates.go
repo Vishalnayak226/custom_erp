@@ -1,10 +1,13 @@
 package engines
 
 import (
+	"database/sql"
 	"fmt"
 	"sort"
 
 	"custom_erp/db"
+
+	"github.com/lib/pq"
 )
 
 // Stage 47.1.5 - safe role templates, rebuilt from actual tasks (audit
@@ -110,7 +113,7 @@ var roleTemplates = []RoleTemplate{
 		Capabilities: []string{
 			"audit.logs", "system.logs", "finance.statements",
 			"assets.manage", "hr.payroll", "expenses.manage",
-			"pos.price_override", "returns.exception", "pos.offline_validate",
+			"pos.price_override", "returns.exception", "pos.offline_validate", "finance.post",
 		},
 		GlobalScopes: []ScopeDimension{ScopeLocation, ScopeSelf, ScopeOwner, ScopeEntity},
 	},
@@ -122,7 +125,7 @@ var roleTemplates = []RoleTemplate{
 		Modules: allModules(AccessManage),
 		Capabilities: []string{
 			"audit.logs", "finance.statements", "assets.manage", "hr.payroll",
-			"expenses.manage", "pos.price_override", "returns.exception", "pos.offline_validate",
+			"expenses.manage", "pos.price_override", "returns.exception", "pos.offline_validate", "finance.post",
 		},
 		GlobalScopes: []ScopeDimension{ScopeLocation, ScopeSelf, ScopeOwner, ScopeEntity},
 	},
@@ -145,7 +148,8 @@ var roleTemplates = []RoleTemplate{
 			// ...and these are the ones that stay read-only-and-own even
 			// though HR is otherwise readable. Scope, not capability, is
 			// what confines them (scope_policy.go's self dimension).
-			"Payslip": AccessRead, "SalaryStructure": AccessRead,
+			// 49.3.7a: a salary advance too - their own, never a colleague's.
+			"Payslip": AccessRead, "SalaryStructure": AccessRead, "EmployeeLoan": AccessRead,
 		},
 		// pos.price_override (Stage 47.2.3) is this template's own summary
 		// line made enforceable - "approves overrides and returns" was true
@@ -213,7 +217,7 @@ var roleTemplates = []RoleTemplate{
 			// an absent grant rather than only as a warning.
 			"Vendor": AccessRead,
 		},
-		Capabilities: []string{"finance.statements", "expenses.manage"},
+		Capabilities: []string{"finance.statements", "expenses.manage", "finance.post"},
 		GlobalScopes: []ScopeDimension{ScopeLocation},
 	},
 	{
@@ -227,7 +231,7 @@ var roleTemplates = []RoleTemplate{
 		Doctypes: map[string]AccessLevel{
 			"CreditNote": AccessOperate, "RecurringSalesContract": AccessOperate,
 		},
-		Capabilities: []string{"finance.statements"},
+		Capabilities: []string{"finance.statements", "finance.post"},
 		GlobalScopes: []ScopeDimension{ScopeLocation},
 	},
 	{
@@ -238,7 +242,7 @@ var roleTemplates = []RoleTemplate{
 			"Core": AccessRead, "Sales": AccessRead, "Procurement": AccessRead,
 			"Inventory": AccessRead, "Manufacturing": AccessRead,
 		},
-		Capabilities: []string{"finance.statements", "assets.manage", "expenses.manage"},
+		Capabilities: []string{"finance.statements", "assets.manage", "expenses.manage", "finance.post"},
 		GlobalScopes: []ScopeDimension{ScopeLocation},
 	},
 	{
@@ -344,6 +348,45 @@ var roleTemplates = []RoleTemplate{
 		Capabilities: []string{"admin.setup-workbook", "admin.settings", "admin.industries", "admin.industry"},
 		GlobalScopes: []ScopeDimension{ScopeLocation, ScopeOwner, ScopeEntity},
 	},
+	{
+		// 140.12.25 (user, 2026-10-28, option 1): the product team - sets up
+		// PIM (attributes, families, content, media, channel maps, feeds) and
+		// fills items; never stock, prices on bills, money or users.
+		Name:    "Merchandiser",
+		Summary: "Sets up and fills product information: attributes, families, content, media, channel maps and marketplace feeds.",
+		Modules: map[string]AccessLevel{
+			"PIM": AccessManage, "Master Data": AccessOperate, "Reports": AccessOperate,
+			"Core": AccessRead, "Inventory": AccessRead, "Sales": AccessRead, "OMS": AccessRead,
+		},
+		Doctypes:     map[string]AccessLevel{"Item": AccessOperate},
+		GlobalScopes: []ScopeDimension{ScopeLocation},
+	},
+}
+
+// newClientSeedNarrowings (Stage 49.3.7a) are grants the shipped seed gives a
+// role beyond what its template allows. A new client's copy of the seed is
+// narrowed to read on these before anyone signs in (ProvisionTenantSchema).
+// The seed itself (tenant_default, filled by migrations) is never rewritten -
+// it is a live client's roles too - and an existing client gets the same
+// change only by applying the role-template plan its owner previews
+// (role_template_migration.go).
+var newClientSeedNarrowings = map[string][]string{
+	// Running a store is not posting journals, booking supplier bills or
+	// wiring webhooks; a salary advance is the employee's own (scope_policy.go).
+	RoleStoreManager: {"EmployeeLoan", "JournalVoucher", "VendorInvoice", "WebhookSubscription"},
+}
+
+// narrowNewClientSeedGrantsTx applies newClientSeedNarrowings to a client
+// schema inside its provisioning transaction: read stays, create, update and
+// delete go.
+func narrowNewClientSeedGrantsTx(tx *sql.Tx, schema string) error {
+	for role, doctypes := range newClientSeedNarrowings {
+		if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.role_permissions SET allow_create = FALSE, allow_update = FALSE, allow_delete = FALSE
+			WHERE role = $1 AND doctype_name = ANY($2::text[])`, schema), role, pq.Array(doctypes)); err != nil {
+			return fmt.Errorf("could not narrow the seeded %s role: %v", role, err)
+		}
+	}
+	return nil
 }
 
 // allModules is the "everything at one level" shorthand, used only by

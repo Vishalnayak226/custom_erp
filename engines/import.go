@@ -33,6 +33,9 @@ type ImportResult struct {
 	// Stage 47.13.3: what the file held against what was posted.
 	Controls *ImportControlTotals `json:"control_totals,omitempty"`
 	controls *importControls
+	// Stage 47.13.3: the rules the run used and the file it came from.
+	RulesVersion string        `json:"rules_version,omitempty"`
+	Source       *ImportSource `json:"source,omitempty"`
 
 	// Stage 55.11: the source header and failed rows' original cells, kept
 	// for the ImportJob so its failed rows can be resumed (import_resume.go).
@@ -136,7 +139,8 @@ func BulkImportCSV(tenantID string, doctype string, r io.Reader, userID, role st
 // batches (so an abandoned import stops doing work without ever tearing up
 // a batch that already committed).
 func BulkImportCSVContext(ctx context.Context, tenantID string, doctype string, r io.Reader, userID, role string, dryRun bool) (*ImportResult, error) {
-	records, err := readCSVRecordsContext(ctx, tenantID, r)
+	src := newImportSourceReader(r) // 47.13.3: lineage of the bytes as parsed
+	records, err := readCSVRecordsContext(ctx, tenantID, src)
 	if err != nil {
 		return nil, err
 	}
@@ -166,6 +170,7 @@ func BulkImportCSVContext(ctx context.Context, tenantID string, doctype string, 
 	res, err := runDocDataImportContext(ctx, tenantID, doctype, userID, role, dryRun, docRows, preErrors)
 	if err == nil {
 		attachFailedSourceRows(res, headers, records[1:], doctype, "")
+		stampImportSource(res, src, userID)
 	}
 	return res, err
 }
@@ -400,6 +405,110 @@ func newImportLookups(tenantID, schema, doctype, role string) (*importLookups, e
 
 func (lk *importLookups) masterDoctype() (bool, error) { return lk.isMaster, lk.isMasterErr }
 
+// ImportClearMarker is the cell that clears a field on an update import
+// (Stage 47.13.2a / 49.3.4b). A blank cell keeps the stored value, so clearing
+// has to be said: it starts with no formula character, so the formula-safe
+// writer and reader (sanitizeCSVCell) pass it through unchanged, and no real
+// value is spelt like it. Read case-insensitively; on a new record it is blank.
+const ImportClearMarker = "<clear>"
+
+func isImportClearMarker(s string) bool {
+	return strings.EqualFold(strings.TrimSpace(s), ImportClearMarker)
+}
+
+// importUpdateTarget is the existing record a row names: its id, or - for a
+// master, whose id is its code (applyMasterIDCodeInvariant) - its code.
+func importUpdateTarget(docData map[string]interface{}, isMaster bool) string {
+	if id := importCellText(docData, "id"); id != "" {
+		return id
+	}
+	if isMaster {
+		return importCellText(docData, "code")
+	}
+	return ""
+}
+
+// importCellText is a row's cell as trimmed text, "" when absent or null.
+func importCellText(m map[string]interface{}, key string) string {
+	if v, ok := m[key]; ok && v != nil {
+		return strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
+	return ""
+}
+
+// storedImportTargets reads, and locks for the batch's transaction, the
+// stored data of every existing record a batch's rows could name - one query
+// per batch (49.4.4a), soft-deleted records left out as on the record form.
+func storedImportTargets(tx *sql.Tx, doctype string, docRows []map[string]interface{}) (map[string]map[string]interface{}, error) {
+	seen := map[string]bool{}
+	var ids []string
+	for _, row := range docRows {
+		for _, key := range []string{"id", "code"} {
+			if v := importCellText(row, key); v != "" && !seen[v] {
+				seen[v] = true
+				ids = append(ids, v)
+			}
+		}
+	}
+	out := map[string]map[string]interface{}{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := tx.Query(`SELECT id, data FROM documents WHERE doctype = $1 AND id = ANY($2::text[]) AND deleted_at IS NULL FOR UPDATE`, doctype, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		var raw []byte
+		if err := rows.Scan(&id, &raw); err != nil {
+			return nil, err
+		}
+		data := map[string]interface{}{}
+		if err := json.Unmarshal(raw, &data); err != nil {
+			return nil, fmt.Errorf("record %s could not be read: %v", id, err)
+		}
+		out[id] = data
+	}
+	return out, rows.Err()
+}
+
+// mergeImportUpdate (Stage 47.13.2a / 49.3.4b) is an update row laid over the
+// record it names, the import's form of the record-form save's merge (73.D.8):
+// a key the file does not carry - a column left out, or one the server keeps
+// (bom_snapshot, gst_breakdown, payment history) - keeps its stored value; a
+// blank cell keeps it too; ImportClearMarker clears it; any other cell wins.
+func mergeImportUpdate(stored, row map[string]interface{}) map[string]interface{} {
+	merged := make(map[string]interface{}, len(stored)+len(row))
+	for k, v := range stored {
+		merged[k] = v
+	}
+	for k, v := range row {
+		if s, isText := v.(string); isText {
+			if strings.TrimSpace(s) == "" {
+				if _, had := stored[k]; had {
+					continue
+				}
+			} else if isImportClearMarker(s) {
+				v = ""
+			}
+		}
+		merged[k] = v
+	}
+	return merged
+}
+
+// blankImportClearMarkers turns the marker into a blank cell on a row that
+// makes a new record - there is nothing to clear, and it is never stored.
+func blankImportClearMarkers(row map[string]interface{}) {
+	for k, v := range row {
+		if s, isText := v.(string); isText && isImportClearMarker(s) {
+			row[k] = ""
+		}
+	}
+}
+
 // importWrite is one validated row waiting for its batch's write.
 type importWrite struct {
 	rowNumber int
@@ -589,9 +698,33 @@ func missingMandatoryColumns(tenantID, doctype string, headers []string) []strin
 // either a plain CSV row or a template-remapped/transformed one); preErrors
 // is parallel to docRows and, when non-empty for a row, records that row as
 // failed for the given reason without calling ValidateDocument at all.
-func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, docRows []map[string]interface{}, preErrors []string, firstRowNumber int, result *ImportResult, seenIDs map[string]bool, lk *importLookups) error {
-	lk.prefetchLinks(schema, doctype, docRows)
+// importEdit is one existing record a batch changed, for its EDIT_ audit row.
+type importEdit struct {
+	id            string
+	before, after map[string]interface{}
+}
 
+// importPriorData reads the stored data of the ids a batch is about to
+// write, so an update can be audited field by field (49.5.4 b).
+func importPriorData(tx *sql.Tx, doctype string, ids []string) map[string]map[string]interface{} {
+	out := map[string]map[string]interface{}{}
+	rows, err := tx.Query(`SELECT id, data FROM documents WHERE doctype = $1 AND id = ANY($2)`, doctype, pq.Array(ids))
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		var raw []byte
+		var data map[string]interface{}
+		if rows.Scan(&id, &raw) == nil && json.Unmarshal(raw, &data) == nil {
+			out[id] = data
+		}
+	}
+	return out
+}
+
+func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, docRows []map[string]interface{}, preErrors []string, firstRowNumber int, result *ImportResult, seenIDs map[string]bool, lk *importLookups) error {
 	tx, err := db.DB.Begin()
 	if err != nil {
 		return err
@@ -601,6 +734,29 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 	if err := db.SetSearchPath(tx, schema); err != nil {
 		return err
 	}
+
+	// Stage 47.13.2a / 49.3.4b: a row that names an existing record updates
+	// it - merged into the stored record (mergeImportUpdate), so a blank cell
+	// keeps the stored value, a key the file does not carry survives, and only
+	// ImportClearMarker clears. The records are read once per batch and locked
+	// until it commits; the merged rows are what every check below reads.
+	storedTargets, err := storedImportTargets(tx, doctype, docRows)
+	if err != nil {
+		return err
+	}
+	isMaster, _ := lk.masterDoctype()
+	mergedRows := make([]map[string]interface{}, len(docRows))
+	priorRows := make([]map[string]interface{}, len(docRows)) // the stored record an update row names
+	for i, row := range docRows {
+		if prior, ok := storedTargets[importUpdateTarget(row, isMaster)]; ok && preErrors[i] == "" {
+			mergedRows[i] = mergeImportUpdate(prior, row)
+			priorRows[i] = prior
+		} else {
+			blankImportClearMarkers(row)
+			mergedRows[i] = row
+		}
+	}
+	lk.prefetchLinks(schema, doctype, mergedRows)
 
 	batchSuccessCount := 0
 	var writes []importWrite
@@ -641,6 +797,10 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 		if existingID, hasID := docData["id"]; hasID && strings.TrimSpace(fmt.Sprintf("%v", existingID)) != "" {
 			rowIsCreate = false
 		}
+		// The row as the file sent it decided the two answers above (field
+		// permissions, create or update); from here on it is the merged record.
+		sentStatus := strings.TrimSpace(strField(docData, "status"))
+		docData = mergedRows[i]
 
 		// Stage 51.8: an imported Item under a parent design gets its variant
 		// values and the duplicate-combination check exactly as the
@@ -690,11 +850,21 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 				recordImportError(result, rowNumber, err.Error())
 				continue
 			}
-			crmImportStampSources(nil, docData, userID)
+			// 47.13.2a: against the stored record, so only a changed field
+			// is stamped as coming from the import.
+			crmImportStampSources(priorRows[i], docData, userID)
 		}
 		if needsNumber {
 			delete(docData, "code")
 			if err := PrepareMasterNumber(tenantID, "", doctype, true, docData); err != nil {
+				recordImportError(result, rowNumber, err.Error())
+				continue
+			}
+		}
+		// Stage 49.3.4b: a PO's GST breakdown and totals, computed as its
+		// record-form save computes them (ApplyPurchaseOrderTotals).
+		if doctype == "PurchaseOrder" {
+			if err := ApplyPurchaseOrderTotals(tenantID, docData); err != nil {
 				recordImportError(result, rowNumber, err.Error())
 				continue
 			}
@@ -761,7 +931,7 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 			recordImportError(result, rowNumber, fmt.Sprintf("Failed to marshal JSON payload: %v", mErr))
 			continue
 		}
-		writes = append(writes, importWrite{rowNumber: rowNumber, id: id, data: string(marshaled), status: strings.TrimSpace(strField(docData, "status"))})
+		writes = append(writes, importWrite{rowNumber: rowNumber, id: id, data: string(marshaled), status: sentStatus})
 	}
 	writes = screenImportWrites(tx, doctype, lk.rules, writes, result)
 	writes = screenActionOnlyImportFields(tx, doctype, writes, result) // 49.5.6c
@@ -776,12 +946,14 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 	// only fires for a row of the same doctype; an id held by another record
 	// type comes back missing and is refused instead of overwriting that
 	// record's data (the generic create got the same guard in 7657453).
+	var edits []importEdit
 	if len(writes) > 0 {
 		ids := make([]string, len(writes))
 		datas := make([]string, len(writes))
 		for i, w := range writes {
 			ids[i], datas[i] = w.id, w.data
 		}
+		prior := importPriorData(tx, doctype, ids) // 49.5.4 (b)
 		inserted := map[string]bool{}
 		rows, execErr := tx.Query(`
 			INSERT INTO documents (id, doctype, data, status, created_by)
@@ -826,6 +998,10 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 				result.CreatedIDs = append(result.CreatedIDs, w.id)
 			} else {
 				result.UpdatedIDs = append(result.UpdatedIDs, w.id)
+				var next map[string]interface{}
+				if before, ok := prior[w.id]; ok && json.Unmarshal([]byte(w.data), &next) == nil {
+					edits = append(edits, importEdit{id: w.id, before: before, after: next})
+				}
 			}
 		}
 	}
@@ -836,6 +1012,11 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 	if !dryRun && batchSuccessCount > 0 {
 		if err := tx.Commit(); err != nil {
 			return err
+		}
+		// 49.5.4 (b): every record the import changed gets the same signed
+		// EDIT_ row the record save writes, once the change is committed.
+		for _, e := range edits {
+			LogDocumentEdit(tenantID, userID, doctype, e.id, e.before, e.after, "CSV import")
 		}
 	}
 	return nil
@@ -887,6 +1068,12 @@ func RecordImportJob(tenantID, doctype string, res *ImportResult, createdBy stri
 	}
 	if res.Controls != nil {
 		data["control_totals"] = res.Controls // Stage 47.13.3
+	}
+	if res.RulesVersion != "" {
+		data["rules_version"] = res.RulesVersion // 47.13.3: the rules it ran under
+	}
+	if res.Source != nil {
+		data["source"] = res.Source // 47.13.3: file name, size, sha256, uploader
 	}
 	marshaled, err := json.Marshal(data)
 	if err != nil {

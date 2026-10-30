@@ -7,7 +7,7 @@
 > **Generated 2026-09-10.** This page is produced from `engines`' report registry (`report_definitions.go`), for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-Every report reachable from **Sales & Marketplace -> Reports**. There are **424**
+Every report reachable from **Sales & Marketplace -> Reports**. There are **430**
 across **26** categories.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -25,11 +25,11 @@ table has the same shape whoever runs it.
 - [Admin](#admin) - 7 reports
 - [Assets](#assets) - 1 reports
 - [BI](#bi) - 1 reports
-- [CRM](#crm) - 33 reports
+- [CRM](#crm) - 36 reports
 - [E-commerce & Integration](#e-commerce--integration) - 12 reports
 - [Exceptions](#exceptions) - 6 reports
 - [Expense Management](#expense-management) - 11 reports
-- [Finance](#finance) - 37 reports
+- [Finance](#finance) - 39 reports
 - [GST & Compliance](#gst--compliance) - 8 reports
 - [HR](#hr) - 2 reports
 - [HRMS](#hrms) - 15 reports
@@ -42,7 +42,7 @@ table has the same shape whoever runs it.
 - [PIM / PIMS](#pim--pims) - 16 reports
 - [Procurement](#procurement) - 18 reports
 - [Procurement & GRN](#procurement--grn) - 27 reports
-- [Sales](#sales) - 10 reports
+- [Sales](#sales) - 11 reports
 - [Sales & POS](#sales--pos) - 22 reports
 - [Service](#service) - 1 reports
 - [Stock Transfer](#stock-transfer) - 9 reports
@@ -669,7 +669,7 @@ table has the same shape whoever runs it.
 
 **Parameters:**
 
-- **Customer ID** (`customer_id`) - text, **required**
+- **Customer** (`customer_id`) - link, **required**, one of: Customer
 
 **Columns:** Customer · Loyalty Balance *(sensitive)* · POS Purchases · POS Spend *(sensitive)* · Last Purchase · Invoices · Invoice Total *(sensitive)*
 
@@ -730,6 +730,26 @@ table has the same shape whoever runs it.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Customer ID · Customer Name · Customer Mobile · Segment · RFM Score · Bill Count · Net Sales Amount · Last Sale Date
+
+**Drill-down:** no.
+
+### Customer affinity and next best offer
+
+**Report id:** `customer-affinity`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Customer · Name · Bills · Spend *(sensitive)* · Favourite category · Share of spend % · Last bill · Next best offer · Offer item
+
+**Drill-down:** no.
+
+### Customer pulse
+
+**Report id:** `crm-pulse`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Measure · Value · How it is counted
 
 **Drill-down:** no.
 
@@ -893,7 +913,7 @@ table has the same shape whoever runs it.
 
 **Parameters:**
 
-- **Segment (id from CRM > Segments)** (`segment_id`) - text, **required**
+- **Segment** (`segment_id`) - segment, **required**
 
 **Columns:** Customer · Name · Phone · Email · Lifecycle · RFM · Bills · Spend *(sensitive)* · Last bill
 
@@ -909,6 +929,16 @@ table has the same shape whoever runs it.
 - **To** (`to_date`) - date, optional
 
 **Columns:** Ticket · Opened · Customer · Store · State · Respond by · Response late · Resolve by · Resolution late
+
+**Drill-down:** no.
+
+### Suggested segments
+
+**Report id:** `suggested-segments`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Segment · Customers today · Build it with · Why
 
 **Drill-down:** no.
 
@@ -1410,6 +1440,33 @@ table has the same shape whoever runs it.
 **Columns:** Cost Center · Name · Type · Amount *(sensitive)*
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
+
+### Customer receipts
+
+**Report id:** `customer-receipts`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Customer** (`customer`) - text, optional
+
+**Columns:** Date · Receipt · Customer · Store · Mode · Reference · Amount · TDS · To invoices · Invoices · On account · Advance no.
+
+**Drill-down:** no.
+
+### Day Book
+
+**Report id:** `day-book`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Date · Voucher type · Voucher · Account · Account name · Debit *(sensitive)* · Credit *(sensitive)* · By
+
+**Drill-down:** no.
 
 ### Deferred Revenue Roll-Forward
 
@@ -4549,6 +4606,20 @@ table has the same shape whoever runs it.
 - **To** (`to`) - date, optional
 
 **Columns:** Tender · Amount
+
+**Drill-down:** no.
+
+### Z-report (till close)
+
+**Report id:** `z-report`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`store`) - text, optional
+
+**Columns:** Closed · Store · Till · Cashier · Bills · First bill · Last bill · Opening float · Cash sales · Cash refunds · Advances in · Advances refunded · Paid in · Paid out · Safe drops · Expected cash · Counted cash · Variance · Tenders · Card declared · Card difference · UPI declared · UPI difference · Status
 
 **Drill-down:** no.
 

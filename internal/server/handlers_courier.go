@@ -19,12 +19,13 @@ func handleCourierCredentials(w http.ResponseWriter, r *http.Request) {
 	}
 	provider := r.PathValue("provider")
 	if r.Method == http.MethodGet {
-		configured, err := engines.HasCourierCredential(r.Header.Get("Resolved-Tenant-ID"), provider)
+		// 49.8.5: configured, plus owner / last use / expiry - never the secret.
+		info, err := engines.GetCourierCredentialInfo(r.Header.Get("Resolved-Tenant-ID"), provider)
 		if err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 			return
 		}
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{"provider": provider, "configured": configured})
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"provider": provider, "configured": info.Configured, "owner": info.Owner, "last_used_at": info.LastUsedAt, "expires_at": info.ExpiresAt, "expired": info.Expired})
 		return
 	}
 	if r.Method != http.MethodPost {
@@ -36,7 +37,8 @@ func handleCourierCredentials(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid credential payload")
 		return
 	}
-	if err := engines.SaveCourierCredential(r.Header.Get("Resolved-Tenant-ID"), provider, fields); err != nil {
+	expiresAt := takeCredentialExpiry(fields)
+	if err := engines.SaveCourierCredentialBy(r.Header.Get("Resolved-Tenant-ID"), provider, fields, credentialActor(r), expiresAt); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
@@ -65,7 +67,7 @@ func handleCourierAllocateAWB(w http.ResponseWriter, r *http.Request) {
 // engines.CourierUnconfirmedCode (409) with the reference to look up.
 func writeCourierError(w http.ResponseWriter, r *http.Request, err error) {
 	var verr *engines.ValidationError
-	if errors.As(err, &verr) && (verr.Code == engines.CourierUnreachableCode || verr.Code == engines.CourierUnconfirmedCode) {
+	if errors.As(err, &verr) && (verr.Code == engines.CourierUnreachableCode || verr.Code == engines.CourierUnconfirmedCode || verr.Code == engines.CourierStepUnconfirmedCode || verr.Code == engines.CourierTaskBookedCode) {
 		writeAPIErrorDetail(w, r, verr.Code, "", verr.Message)
 		return
 	}
@@ -75,12 +77,15 @@ func writeCourierError(w http.ResponseWriter, r *http.Request, err error) {
 // handleCourierResolveBooking (47.11.8a) settles a booking the courier may or
 // may not have made, from its portal: outcome "booked" with the AWB found
 // there, or "not_booked" so the next attempt books. Booking's own route gates
-// plus update on LogisticsBooking; audited by the engine.
+// plus update on LogisticsBooking; audited by the engine. 47.11.8b: with
+// step "pickup" / "cancel" it settles that step instead (outcome scheduled /
+// not_scheduled, cancelled / not_cancelled; awb carries the pickup reference).
 func handleCourierResolveBooking(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		BookingID string `json:"booking_id"`
 		Outcome   string `json:"outcome"`
 		AWB       string `json:"awb"`
+		Step      string `json:"step"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.BookingID == "" || req.Outcome == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "booking_id and outcome are required")
@@ -89,6 +94,15 @@ func handleCourierResolveBooking(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if ok, err := engines.RoleMayOnDoctype(tenantID, r.Header.Get("Resolved-Role"), "LogisticsBooking", "update"); err != nil || !ok {
 		writeAPIError(w, r, "GLOBAL-0011", "")
+		return
+	}
+	step := strings.ToLower(strings.TrimSpace(req.Step))
+	if step != "" && step != "booking" {
+		if err := engines.ResolveUnconfirmedCourierStep(tenantID, r.PathValue("provider"), req.BookingID, step, req.Outcome, req.AWB, r.Header.Get("Resolved-User-ID")); err != nil {
+			writeCourierError(w, r, err)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "resolved", "booking_id": req.BookingID, "step": step, "outcome": strings.ToLower(strings.TrimSpace(req.Outcome))})
 		return
 	}
 	awb, err := engines.ResolveUnconfirmedCourierBooking(tenantID, r.PathValue("provider"), req.BookingID, req.Outcome, req.AWB, r.Header.Get("Resolved-User-ID"))

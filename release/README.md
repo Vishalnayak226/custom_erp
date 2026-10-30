@@ -58,7 +58,7 @@ From a terminal the same scripts take options:
 
 ```powershell
 pwsh release\scripts\Invoke-Release.ps1 -DryRun       # every gate, nothing committed
-pwsh release\scripts\Invoke-Release.ps1 -NoPush       # gates + local commit
+pwsh release\scripts\Invoke-Release.ps1 -NoPush       # gates + local commit (push it yourself; Deploy then takes it)
 pwsh release\scripts\Invoke-Deploy.ps1 -Check         # what a deploy would change; nothing done
 pwsh release\scripts\Invoke-Cleanup.ps1 -DryRun       # what the cleanup would remove
 pwsh release\scripts\Invoke-Cleanup.ps1 -Deep -DryRun # the same with the deep pass, and what is growing
@@ -86,6 +86,7 @@ A release problem these did not catch is a missing gate: add it to
 | G4b Release number | reads the live number, applies the feat→MINOR / docs→PATCH rule, writes `internal/server/VERSION`; Deploy ships that number | prod said 0.4.0 while VERSION and the manuals said 0.1.0 (2026-10-19) |
 | G4c Budget | release budget (cold core incl. `view-pos.js`) judged right after G4, before the slow gates | 0.11.0 stopped at G8 at 5:52 for 983 bytes; G4-final files make it exact this early |
 | G4d PrintBridge download | `public/downloads/printbridge-setup.exe` + `printbridge-version.txt` present, and the version equals `../PrintBridge` `BuildVersion` | the ERP serves the installer and offers updates from that file (Stage 137.4) - a stale one would be offered to every PC |
+| G4e Compliance reviews | no row of `docs/security/compliance-control-matrix.json` is past its `review_by` date (`go test` with `ERP_COMPLIANCE_REVIEW_GATE=1` runs `TestComplianceMatrixReviewsAreNotOverdue`; an ordinary `go test` only logs OVERDUE). Fix: review the row with its owner, move `last_reviewed` and `review_by` | Stage 47.16.1a: an overdue review printed OVERDUE in every build and stopped nothing |
 | G5 Catalog spec | regenerates `report_catalog_spec_generated.go` if stale | 75.3 |
 | G6 Attack surface | `surfacescan` from the release set | manifest listed held files (0.2.0) |
 | G6b Security impact | `securityimpact`: last release's manifest vs the new one into the report - routes and their sign-in level, jobs, flags, outbound calls, dependencies; high-risk lines first (read, not a stop) | Stage 49.17.1: nobody saw what a release added to the surface |

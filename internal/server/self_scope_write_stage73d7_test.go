@@ -52,7 +52,7 @@ func TestStage73D7SelfServiceWritesOnlyItsOwn(t *testing.T) {
 		t.Errorf("leave filed under a colleague's code: %d %s", rec.Code, rec.Body.String())
 	}
 	if rec := doRequest(t, doc, http.MethodPost, "/api/v1/doc/Leave/T73D7-LEAVE-OTHER", token,
-		map[string]interface{}{"employee_id": "T73D7-EMP", "leave_type": "Casual", "from_date": "2031-01-01", "to_date": "2031-01-01"}); rec.Code != http.StatusForbidden {
+		map[string]interface{}{"employee_id": "T73D7-EMP", "leave_type": "Casual", "from_date": "2031-01-01", "to_date": "2031-01-01"}); rec.Code != http.StatusNotFound { // Stage 49.4.7: "not found", like a read
 		t.Errorf("a colleague's leave edited (re-filed under their own code): %d %s", rec.Code, rec.Body.String())
 	}
 	var stillTheirs string

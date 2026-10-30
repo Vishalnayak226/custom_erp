@@ -22,6 +22,10 @@ func TestStage386JobRunner(t *testing.T) {
 		}
 	}
 
+	// 49.8.6: the handler registry is the enqueue allowlist, so every type a
+	// subtest queues without running needs a (no-op) handler.
+	ensureTestJobHandler("test-3860-echo", "test-3860-cancel", "test-3860-list", "test-3860-sweep-old", "test-3860-sweep-fresh", "test-3860-sweep-pending")
+
 	t.Run("EnqueueJob rejects an empty job_type and dedupes on idempotency_key", func(t *testing.T) {
 		if _, err := EnqueueJob(tenantID, "", map[string]interface{}{"x": 1}, ""); err == nil {
 			t.Fatalf("expected an empty job_type to be rejected")
@@ -49,6 +53,17 @@ func TestStage386JobRunner(t *testing.T) {
 	})
 
 	t.Run("claimJobs + finishJob: a succeeding handler marks Succeeded, a failing one retries then dead-letters", func(t *testing.T) {
+		// 49.8.6: handlers registered before the enqueue - the registry is
+		// the enqueue allowlist.
+		RegisterJobHandler("test-3860-ok", func(ctx context.Context, schema string, job Job) (map[string]interface{}, error) {
+			return map[string]interface{}{"echoed": true}, nil
+		})
+		attemptCount := 0
+		RegisterJobHandler("test-3860-fail", func(ctx context.Context, schema string, job Job) (map[string]interface{}, error) {
+			attemptCount++
+			return nil, errors.New("deliberate test failure")
+		})
+
 		okID, err := EnqueueJob(tenantID, "test-3860-ok", map[string]interface{}{}, "")
 		if err != nil {
 			t.Fatalf("EnqueueJob (ok): %v", err)
@@ -63,15 +78,6 @@ func TestStage386JobRunner(t *testing.T) {
 		if _, err := db.DB.Exec("UPDATE "+schema+".async_jobs SET max_attempts = 2 WHERE id = $1", failID); err != nil {
 			t.Fatalf("lower max_attempts: %v", err)
 		}
-
-		RegisterJobHandler("test-3860-ok", func(ctx context.Context, schema string, job Job) (map[string]interface{}, error) {
-			return map[string]interface{}{"echoed": true}, nil
-		})
-		attemptCount := 0
-		RegisterJobHandler("test-3860-fail", func(ctx context.Context, schema string, job Job) (map[string]interface{}, error) {
-			attemptCount++
-			return nil, errors.New("deliberate test failure")
-		})
 
 		runClaimedJobs(schema)
 
@@ -111,9 +117,14 @@ func TestStage386JobRunner(t *testing.T) {
 	})
 
 	t.Run("an unclaimed job_type dead-letters immediately rather than looping forever", func(t *testing.T) {
-		id, err := EnqueueJob(tenantID, "test-3860-unregistered", map[string]interface{}{}, "")
-		if err != nil {
-			t.Fatalf("EnqueueJob: %v", err)
+		// 49.8.6: refused at enqueue now; a row that got in another way (an
+		// older release's queue) still dead-letters in the worker.
+		if _, err := EnqueueJob(tenantID, "test-3860-unregistered", map[string]interface{}{}, ""); err == nil {
+			t.Fatalf("expected an unregistered job_type to be refused at enqueue")
+		}
+		id := NewDocID("JOB")
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".async_jobs (id, job_type, payload) VALUES ($1, 'test-3860-unregistered', '{}')", id); err != nil {
+			t.Fatalf("insert: %v", err)
 		}
 		defer cleanup(id)
 		if _, err := db.DB.Exec("UPDATE "+schema+".async_jobs SET max_attempts = 1 WHERE id = $1", id); err != nil {
@@ -156,6 +167,15 @@ func TestStage386JobRunner(t *testing.T) {
 
 	t.Run("CancelJob interrupts a running handler without converting cancellation into a retry", func(t *testing.T) {
 		const jobType = "test-3860-cancel-running"
+		started := make(chan struct{})
+		interrupted := make(chan struct{})
+		// 49.8.6: registered before the enqueue - an unregistered type is refused.
+		RegisterJobHandler(jobType, func(ctx context.Context, schema string, job Job) (map[string]interface{}, error) {
+			close(started)
+			<-ctx.Done()
+			close(interrupted)
+			return nil, ctx.Err()
+		})
 		id, err := EnqueueJob(tenantID, jobType, map[string]interface{}{}, "")
 		if err != nil {
 			t.Fatalf("EnqueueJob: %v", err)
@@ -164,15 +184,6 @@ func TestStage386JobRunner(t *testing.T) {
 		if _, err := db.DB.Exec("UPDATE "+schema+".async_jobs SET next_attempt_at = CURRENT_TIMESTAMP - INTERVAL '1 second' WHERE id = $1", id); err != nil {
 			t.Fatalf("make job due: %v", err)
 		}
-
-		started := make(chan struct{})
-		interrupted := make(chan struct{})
-		RegisterJobHandler(jobType, func(ctx context.Context, schema string, job Job) (map[string]interface{}, error) {
-			close(started)
-			<-ctx.Done()
-			close(interrupted)
-			return nil, ctx.Err()
-		})
 		done := make(chan struct{})
 		go func() {
 			runClaimedJobs(schema)

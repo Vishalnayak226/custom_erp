@@ -467,3 +467,6 @@ R5085	customer-receipts	Customer receipts	Finance
 R9034	duplicate-suppliers	Duplicate suppliers	Admin
 R9035	duplicate-items	Duplicate items	Admin
 R5086	receivables-vs-ledger	Receivables vs Ledger (by invoice)	Finance
+R6075	crm-pulse	Customer pulse	CRM
+R6076	customer-affinity	Customer affinity and next best offer	CRM
+R6077	suggested-segments	Suggested segments	CRM

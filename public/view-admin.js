@@ -1441,6 +1441,7 @@ async function renderLogHubView(container) {
             <thead>
               <tr>
                 <th>Type</th>
+                <th>Actor</th>
                 <th>Status</th>
                 <th>Attempts</th>
                 <th>Progress</th>
@@ -1450,9 +1451,10 @@ async function renderLogHubView(container) {
               </tr>
             </thead>
             <tbody>
-              ${jobs.length === 0 ? '<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No async jobs found for the current filter.</td></tr>' : jobs.map(j => `
+              ${jobs.length === 0 ? '<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No async jobs found for the current filter.</td></tr>' : jobs.map(j => `
                 <tr>
                   <td style="font-weight:600;">${escapeHTMLText(j.job_type)}</td>
+                  <td style="font-size:11px;">${escapeHTMLText(j.actor || '-')}</td>
                   <td><span class="badge ${jobStatusBadgeClass(j.status)}">${escapeHTMLText(j.status)}</span></td>
                   <td>${j.attempts}/${j.max_attempts}</td>
                   <td>${j.progress_pct}%</td>
@@ -1587,16 +1589,22 @@ async function renderSetupPathPanel(host) {
   const details = document.createElement('details');
   details.className = 'table-panel setup-guide';
   details.id = 'setup-guide';
-  details.style.cssText = 'padding:16px 24px;margin-bottom:24px;';
-  details.open = remaining > 0;
+  details.style.cssText = 'padding:12px 20px;margin-bottom:24px;';
+  // Stage 144: folded to one line with a Continue button; Home's "Continue
+  // setup" opens it unfolded - a window flag, because Home imports this file
+  // under another URL, which makes it a second copy of this module.
+  details.open = !!window.configOpenSetupGuide && remaining > 0;
+  window.configOpenSetupGuide = false;
+  const next = remaining > 0 ? steps.find(s => s.next && !s.done) : null;
   const badge = s => s.done ? ['badge-success', 'Done'] : s.next ? ['badge-warning', 'Next']
     : s.optional ? ['', 'Optional'] : s.waiting_for.length ? ['', 'Waiting'] : ['', 'To do'];
   details.innerHTML = `
-    <summary style="cursor:pointer;font-weight:600;">Guided setup - ${remaining === 0 ? 'everything a client needs is in place' : `${remaining} step${remaining === 1 ? '' : 's'} to go`}</summary>
+    <summary style="cursor:pointer;font-weight:600;">Guided setup - ${remaining === 0 ? 'everything a client needs is in place' : `${remaining} step${remaining === 1 ? '' : 's'} to go`}${next
+      ? ` <span class="text-muted" style="font-weight:400;">· Next: ${escapeHTMLText(next.label)}</span> <button type="button" class="btn btn-primary btn-sm" data-setup-next style="margin-left:10px;">Continue</button>` : ''}</summary>
     <p class="text-muted" style="margin:8px 0 0;">Work down the list: each step opens a plain form, and every code is given for you on save. Come back here any time - it picks up where you are.</p>
     <ol style="margin:12px 0 0;padding-left:20px;display:grid;gap:10px;">${steps.map(s => {
       const [cls, text] = badge(s);
-      return `<li${s.next ? ' style="font-weight:500;"' : ''}>
+      return `<li data-step-id="${escapeHTMLText(s.id)}"${s.next ? ' style="font-weight:500;"' : ''}>
         <span class="badge ${cls}">${text}</span>
         <strong>${escapeHTMLText(s.label)}</strong>
         <span class="text-muted">${s.count ? `(${escapeHTMLText(String(s.count))})` : ''}${!s.done && s.waiting_for.length ? ` - after ${escapeHTMLText(s.waiting_for.map(w => label[w] || w).join(', '))}` : ''}</span>
@@ -1613,6 +1621,14 @@ async function renderSetupPathPanel(host) {
   }));
   // The master's list, with a way back here (the Stage 57.2 detour).
   details.querySelectorAll('[data-setup-doctype]').forEach(btn => btn.addEventListener('click', () => window.openSetupDoctype(btn.dataset.setupDoctype)));
+  // Continue = the next step's own first button.
+  const nextBtn = details.querySelector('[data-setup-next]');
+  if (nextBtn) nextBtn.addEventListener('click', event => {
+    event.preventDefault();
+    const row = [...details.querySelectorAll('li[data-step-id]')].find(li => li.dataset.stepId === next.id);
+    const target = row && row.querySelector('[data-setup-view], [data-setup-doctype]');
+    if (target) target.click(); else details.open = true;
+  });
 }
 
 // mountSetupGuideCard (91.3) puts "finish setting up" on an admin's Home
@@ -1628,10 +1644,56 @@ async function mountSetupGuideCard(host) {
     <div style="flex:1;min-width:220px;"><strong>Finish setting up</strong> <span class="text-muted">- ${left.length} step${left.length === 1 ? '' : 's'} to go. Next: ${escapeHTMLText(next.label)}.</span></div>
     <button type="button" class="btn btn-primary btn-sm" id="setup-guide-go">Continue setup</button></div>`;
   host.querySelector('#setup-guide-go').addEventListener('click', () => {
+    window.configOpenSetupGuide = true;
     setActiveMenu('menu-configuration');
     renderView('configuration');
   });
 }
+
+// Stage 144 (user, 2026-10-29: "Setting page is not good, Make it easy UI. 1st
+// some config menu then 10 sub menu not looks good and diff to understand"):
+// Configuration opens on an overview - every module as a card under a few
+// plain headings, Guided setup folded to one line - and a module opens as its
+// own page, configuration:<module>, so the address, a refresh and browser Back
+// follow it. This replaced a 26-row rail under the 12-step setup list. A
+// module the registry gains later shows under "Other" until it is filed here.
+const CONFIG_GROUPS = [
+  { title: 'Company', modules: ['Industry', 'Setup Workbook', 'App branding', 'Localization', 'Printing'] },
+  { title: 'Selling', modules: ['Point of Sale', 'Store app', 'Sales & Returns', 'OMS', 'CRM', 'Loyalty'] },
+  { title: 'Buying and stock', modules: ['Procurement', 'Procurement & GRN', 'Inventory', 'Item fields', 'Warehouse', 'Stock Transfer', 'PIM', 'Manufacturing'] },
+  { title: 'Money and tax', modules: ['Finance', 'GST & Compliance', 'HR & Payroll'] },
+  { title: 'System', modules: ['Security', 'Platform', 'Reports', 'Integrations'] }
+];
+const CONFIG_HINTS = {
+  'Industry': 'Your business type',
+  'Setup Workbook': 'Everything from one Excel',
+  'App branding': 'Logo · colour',
+  'Localization': 'Country · date order',
+  'Printing': 'Reprints · print rules',
+  'Point of Sale': 'Till · cash · discounts',
+  'Store app': 'Shared phone lock',
+  'Sales & Returns': 'Return window',
+  'OMS': 'Channel orders · settlements',
+  'CRM': 'Messages · quiet hours · churn',
+  'Loyalty': 'Points · tiers · redemption',
+  'Procurement': 'Purchase orders · goods receipt',
+  'Procurement & GRN': 'Delivery dates · late receipts',
+  'Inventory': 'Barcodes · batches · e-way bill',
+  'Item fields': 'What the item form asks',
+  'Warehouse': 'Cycle counts · stock ownership',
+  'Stock Transfer': 'Transfers in transit',
+  'PIM': 'Bulk edit · thumbnails',
+  'Manufacturing': 'BOM · MRP · cost variance',
+  'Finance': 'Currency · dunning',
+  'GST & Compliance': 'Input credit deadline',
+  'HR & Payroll': 'ESI ceiling',
+  'Security': 'Passwords · sign-in · approvals',
+  'Platform': 'Limits · retention · outside calls',
+  'Reports': 'Dashboard refresh',
+  'Integrations': 'Payment and channel links'
+};
+let configModules = [];           // the modules this person can open
+let configRenderToken = -1;       // app.js viewRenderToken at the last Configuration render
 
 async function renderConfigurationView(container) {
   const header = document.createElement('div');
@@ -1642,11 +1704,6 @@ async function renderConfigurationView(container) {
     </div>
   `;
   container.appendChild(header);
-  // Stage 55.3: the setup path sits above the settings; it loads on its own
-  // so a slow count never holds the settings back.
-  const pathHost = document.createElement('div');
-  container.appendChild(pathHost);
-  renderSetupPathPanel(pathHost);
 
   const res = await apiFetch('/api/v1/admin/settings');
   if (!res) return;
@@ -1669,8 +1726,18 @@ async function renderConfigurationView(container) {
     container.appendChild(err);
     return;
   }
-  configSettings = await res.json();
-  configDirty = {};
+  const fresh = await res.json();
+  // Back / Forward between the overview and a module renders this screen
+  // again; an unsaved change survives that, not a visit to another screen.
+  const token = typeof viewRenderToken === 'number' ? viewRenderToken : -2;
+  const sameScreen = token === configRenderToken + 1;
+  configRenderToken = token;
+  if (!sameScreen || !Array.isArray(fresh)) configDirty = {};
+  else Object.keys(configDirty).forEach(key => {
+    const s = fresh.find(x => x.key === key);
+    if (!s || String(s.value) === configDirty[key]) delete configDirty[key];
+  });
+  configSettings = fresh;
   configSearch = '';
 
   if (!Array.isArray(configSettings) || configSettings.length === 0) {
@@ -1683,70 +1750,134 @@ async function renderConfigurationView(container) {
 
   const modules = [];
   configSettings.forEach(s => { if (!modules.includes(s.module)) modules.push(s.module); });
-  // Stage 30.7: Integrations is a synthetic module appended to the registry-
-  // driven rail. Its values (Pine Labs terminals, Unicommerce middleware
-  // stores) are multi-row credential records rather than single scalars, so
-  // they can't live in the key/value settings registry - but the endpoint
-  // URLs belong on this screen with everything else, not on a separate page
-  // the admin has to know exists. Rendered by renderConfigIntegrations().
+  // Stage 30.7: Integrations is a synthetic module beside the registry's.
+  // Its values (Pine Labs terminals, Unicommerce middleware stores) are
+  // multi-row credential records rather than single scalars, so they can't
+  // live in the key/value settings registry - but they belong on this screen
+  // with everything else. Rendered by renderConfigIntegrations().
   // 132.15: payment and channel credentials stay with an administrator.
   if (state.permissions.isAdmin) modules.push(CONFIG_INTEGRATIONS_MODULE);
-  // Stage 89: where each item field is asked - its own page, beside Inventory.
-  modules.splice(modules.includes('Inventory') ? modules.indexOf('Inventory') + 1 : modules.length - 1, 0, CONFIG_ITEM_FIELDS_MODULE);
-  if (!configSelectedModule || !modules.includes(configSelectedModule)) configSelectedModule = modules[0];
-  // Stage 82: the industry heads the rail; the page still opens on settings.
-  // Stage 128: the Setup Workbook under it - everything at once.
+  // Stage 89: where each item field is asked - its own page.
+  modules.push(CONFIG_ITEM_FIELDS_MODULE);
+  // Stage 82: the industry; Stage 128: the Setup Workbook - everything at once.
   modules.unshift(CONFIG_INDUSTRY_MODULE, CONFIG_SETUP_WORKBOOK_MODULE);
+  configModules = modules;
+  // The address names the module (configuration:<module>); an unknown or
+  // unavailable one opens the overview, and the address says so.
+  const tab = typeof currentViewTab === 'string' ? currentViewTab : '';
+  configSelectedModule = modules.includes(tab) ? tab : '';
+  if (tab && !configSelectedModule) {
+    currentViewTab = '';
+    try { history.replaceState(history.state, '', deepLinkForView('configuration')); } catch (e) { /* not addressable */ }
+  }
 
-  const panel = document.createElement('div');
-  panel.className = 'table-panel';
-  // Stage 122.1: no overflow on the panel or #config-fields - either one is a
-  // scroll box that never scrolls, so a table's frozen header (styles.css th)
-  // stuck to it and left with the rows. The page scrolls; the rail rounds its
-  // own corners instead of the panel clipping them.
-  panel.style.cssText = 'display:grid; grid-template-columns:220px 1fr; min-height:440px;';
-  panel.innerHTML = `
-    <div style="border-right:1px solid var(--border-color); background:var(--bg-color); border-radius:7px 0 0 7px;">
-      <div style="padding:12px 12px 0;"><input type="search" id="config-search" class="form-input" placeholder="Find a setting" aria-label="Find a setting"></div>
-      <div id="config-modules" style="padding:12px 0;"></div>
+  const screen = document.createElement('div');
+  screen.id = 'config-screen';
+  // Stage 122.1: no overflow on anything here - a scroll box that never
+  // scrolls makes a table's frozen header (styles.css th) leave with the rows.
+  screen.innerHTML = `
+    <div class="config-toolbar">
+      <button type="button" class="btn btn-outline btn-sm" id="config-back" hidden>&larr; All settings</button>
+      <input type="search" id="config-search" class="form-input" placeholder="Find a setting" aria-label="Find a setting">
     </div>
-    <div style="display:flex; flex-direction:column; min-width:0;">
-      <div id="config-fields" style="padding:20px 24px; flex:1;"></div>
-      <div style="padding:14px 24px; border-top:1px solid var(--border-color); display:flex; align-items:center; gap:14px;">
-        <button class="btn btn-primary" id="config-save-btn" disabled>Save Changes</button>
-        <span id="config-dirty-note" class="page-subtitle" style="margin:0; font-size:13px;"></span>
-      </div>
+    <div id="config-body"></div>
+    <div class="config-savebar" id="config-savebar" hidden>
+      <button class="btn btn-primary" id="config-save-btn" disabled>Save Changes</button>
+      <span id="config-dirty-note" class="text-muted"></span>
     </div>
   `;
-  container.appendChild(panel);
+  container.appendChild(screen);
 
-  renderConfigModuleRail(modules);
-  renderConfigFields();
+  renderConfigBody();
   document.getElementById('config-save-btn').addEventListener('click', saveConfiguration);
+  document.getElementById('config-back').addEventListener('click', () => openConfigModule(''));
   // Stage 55.21: search across every module, and a guard against leaving
   // with unsaved changes.
-  document.getElementById('config-search').addEventListener('input', e => { configSearch = e.target.value.trim().toLowerCase(); renderConfigFields(); });
+  document.getElementById('config-search').addEventListener('input', e => { configSearch = e.target.value.trim().toLowerCase(); renderConfigBody(); });
   installConfigLeaveGuard();
 }
 
-function renderConfigModuleRail(modules) {
-  const rail = document.getElementById('config-modules');
-  if (!rail) return;
-  rail.innerHTML = modules.map(m => {
-    const active = m === configSelectedModule;
-    return `<a class="config-module-item" data-module="${cfgEsc(m)}"
-       style="display:block; padding:10px 20px; cursor:pointer; font-size:14px; font-weight:500;
-              border-left:3px solid ${active ? 'var(--primary-color)' : 'transparent'};
-              color:${active ? 'var(--text-main)' : 'var(--text-muted)'};
-              background:${active ? 'var(--panel-bg)' : 'transparent'};">${cfgEsc(m)}</a>`;
-  }).join('');
-  rail.querySelectorAll('.config-module-item').forEach(el => {
-    el.addEventListener('click', () => {
-      configSelectedModule = el.getAttribute('data-module');
-      renderConfigModuleRail(modules);
-      renderConfigFields();
-    });
-  });
+function configGroups() {
+  const filed = new Set(CONFIG_GROUPS.flatMap(g => g.modules));
+  return CONFIG_GROUPS.map(g => ({ title: g.title, modules: g.modules.filter(m => configModules.includes(m)) }))
+    .concat({ title: 'Other', modules: configModules.filter(m => !filed.has(m)) })
+    .filter(g => g.modules.length);
+}
+
+// renderConfigBody draws whichever page is current: search results, one
+// module (its group's other modules as pills above it), or the overview.
+function renderConfigBody() {
+  const body = document.getElementById('config-body');
+  if (!body) return;
+  const back = document.getElementById('config-back');
+  if (back) back.hidden = !configSelectedModule && !configSearch;
+  if (!configSearch && !configSelectedModule) {
+    body.innerHTML = `<div id="config-setup-path"></div>${configOverviewHtml()}<div id="config-more"></div>`;
+    renderSetupPathPanel(document.getElementById('config-setup-path'));
+    renderConfigMore(document.getElementById('config-more'));
+  } else {
+    const group = configSearch ? null : configGroups().find(g => g.modules.includes(configSelectedModule));
+    const pills = group && group.modules.length > 1
+      ? `<div class="config-pills">${group.modules.map(m => {
+          const on = m === configSelectedModule;
+          return `<button type="button" class="config-pill${on ? ' active' : ''}" data-config-module="${cfgEsc(m)}"${on ? ' aria-current="page"' : ''}>${cfgEsc(m)}</button>`;
+        }).join('')}</div>`
+      : '';
+    body.innerHTML = `${configSearch ? '' : `<h2 class="config-module-title">${cfgEsc(configSelectedModule)}</h2>${pills}`}
+      <div class="table-panel config-fields-panel"><div id="config-fields"></div></div>`;
+    renderConfigFields();
+  }
+  body.querySelectorAll('[data-config-module]').forEach(el => el.addEventListener('click', () => openConfigModule(el.dataset.configModule)));
+  updateConfigDirtyState();
+}
+
+function configOverviewHtml() {
+  const moduleOf = key => (configSettings.find(s => s.key === key) || {}).module;
+  return configGroups().map(g => `
+    <section class="config-group">
+      <h2 class="config-group-title">${cfgEsc(g.title)}</h2>
+      <div class="config-cards">${g.modules.map(m => {
+        const unsaved = Object.keys(configDirty).filter(k => moduleOf(k) === m).length;
+        const hint = CONFIG_HINTS[m];
+        return `<button type="button" class="config-card" data-config-module="${cfgEsc(m)}">
+          <span class="config-card-name">${cfgEsc(m)}</span>
+          ${hint ? `<span class="config-card-hint">${cfgEsc(hint)}</span>` : ''}
+          ${unsaved ? `<span class="config-card-unsaved">${unsaved} unsaved</span>` : ''}
+        </button>`;
+      }).join('')}</div>
+    </section>`).join('');
+}
+
+// The other Settings screens this person can open, read from the sidebar's
+// own Settings menu - so a screen added there shows here too, and one the
+// role cannot open (perm-hidden / module-hidden) does not.
+function renderConfigMore(host) {
+  if (!host) return;
+  const items = [...document.querySelectorAll('#module-admin + .menu-flyout .menu-item[id]')]
+    .filter(a => a.id !== 'menu-configuration' && !a.closest('.perm-hidden, .module-hidden'));
+  if (!items.length) { host.remove(); return; }
+  host.className = 'config-group';
+  host.innerHTML = `<h2 class="config-group-title">More settings</h2>
+    <div class="config-links">${items.map(a => `<button type="button" class="btn btn-outline btn-sm" data-config-menu="${cfgEsc(a.id)}">${cfgEsc(a.textContent.trim())}</button>`).join('')}</div>`;
+  // The sidebar item's own click: same screen, same leave-with-unsaved guard.
+  host.querySelectorAll('[data-config-menu]').forEach(btn => btn.addEventListener('click', () => {
+    const item = document.getElementById(btn.dataset.configMenu);
+    if (item) item.click();
+  }));
+}
+
+// openConfigModule('') is the overview. app.js saveNavState writes
+// configuration:<module> to the address as a new history entry.
+function openConfigModule(module) {
+  configSelectedModule = module;
+  configSearch = '';
+  const search = document.getElementById('config-search');
+  if (search) search.value = '';
+  currentViewTab = module;
+  saveNavState();
+  renderConfigBody();
+  const root = document.getElementById('view-root');
+  if (root) root.scrollTop = 0;
 }
 
 function configInputId(key) { return 'config-input-' + key; }
@@ -1907,14 +2038,19 @@ async function renderConfigIntegrations(host) {
   loadViewModule('/view-images.js').then(m => m.renderImageDriveSection(drive));
 }
 
+// 49.8.5: a credential's owner, last use and expiry on one short line.
+const cfgWhen = (v) => v ? String(v).slice(0, 16).replace('T', ' ') : '—';
+const cfgCredentialMeta = (row) => `${cfgEsc(row.saved_by || '—')} · ${cfgWhen(row.last_used_at)} · ${row.expired ? '<span class="badge badge-danger">Expired</span>' : cfgWhen(row.expires_at)}`;
+
 function configIntegrationSectionHtml(def, rows, unavailable) {
   const existing = rows.length
     ? `<table class="data-table" style="margin:10px 0 14px; width:100%;">
-         <thead><tr>${def.fields.map(f => `<th>${cfgEsc(f.label)}</th>`).join('')}<th>Active</th></tr></thead>
+         <thead><tr>${def.fields.map(f => `<th>${cfgEsc(f.label)}</th>`).join('')}<th>Active</th><th>Owner · Last used · Expires</th><th></th></tr></thead>
          <tbody>${rows.map(row => `<tr>${def.fields.map(f => {
            const v = row[f.name] == null ? '' : String(row[f.name]);
            return `<td>${f.secret && v ? '••••••' : cfgEsc(v)}</td>`;
-         }).join('')}<td>${row.active === false ? 'No' : 'Yes'}</td></tr>`).join('')}</tbody>
+         }).join('')}<td>${row.active === false ? 'No' : 'Yes'}</td><td>${cfgCredentialMeta(row)}</td>
+         <td><button type="button" class="action-btn" data-cfgint-disconnect="${cfgEsc(String(row[def.keyField] || ''))}">Disconnect</button></td></tr>`).join('')}</tbody>
        </table>`
     : `<p class="page-subtitle" style="margin:8px 0 14px; font-size:13px;">${unavailable
         ? 'This integration is not enabled for your account, or its credentials could not be read.'
@@ -1929,11 +2065,14 @@ function configIntegrationSectionHtml(def, rows, unavailable) {
     </div>`).join('');
 
   return `
-    <section style="margin-bottom:30px; max-width:760px;">
+    <section style="margin-bottom:30px; max-width:760px;" data-cfgint-section="${cfgEsc(def.id)}">
       <h3 style="margin:0 0 4px; font-size:15px; font-weight:600;">${cfgEsc(def.title)}</h3>
       <p class="page-subtitle" style="margin:0 0 4px; font-size:12.5px;">${cfgEsc(def.blurb)}</p>
       ${existing}
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 16px;">${inputs}</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 16px;">${inputs}
+        <div class="form-group" style="margin:0 0 12px;"><label class="form-label" for="cfgint-${def.id}-expires_at">Expires (optional)</label>
+          <input type="date" class="form-input" id="cfgint-${def.id}-expires_at"></div>
+      </div>
       <button class="btn btn-secondary" id="cfgint-save-${def.id}">Save ${cfgEsc(def.title.split(' ')[0])} entry</button>
       <span class="page-subtitle" style="margin-left:10px; font-size:12.5px;">Saving an existing ${cfgEsc(def.keyField.replace('_', ' '))} updates it in place.</span>
     </section>`;
@@ -1942,6 +2081,18 @@ function configIntegrationSectionHtml(def, rows, unavailable) {
 function wireConfigIntegrationSection(def) {
   const btn = document.getElementById(`cfgint-save-${def.id}`);
   if (!btn) return;
+  // 49.8.5: Disconnect removes the credential and cancels its queued jobs; mappings stay.
+  document.querySelectorAll(`[data-cfgint-section="${CSS.escape(def.id)}"] [data-cfgint-disconnect]`).forEach(b => b.addEventListener('click', async () => {
+    const code = b.dataset.cfgintDisconnect;
+    if (!await showCustomConfirm(`Disconnect ${code}? Its credential is removed and its queued jobs are cancelled; mappings stay.`, 'Disconnect')) return;
+    b.disabled = true;
+    const res = await apiFetch('/api/v1/integrations/credentials/disconnect', { method: 'POST', body: JSON.stringify({ kind: def.id, code }) });
+    b.disabled = false;
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Could not disconnect.'); return; }
+    showToast(`${code} disconnected.`, { variant: 'success' });
+    renderConfigFields();
+  }));
   btn.addEventListener('click', async () => {
     const payload = {};
     for (const f of def.fields) {
@@ -1953,6 +2104,8 @@ function wireConfigIntegrationSection(def) {
         return;
       }
     }
+    const expires = document.getElementById(`cfgint-${def.id}-expires_at`);
+    if (expires && expires.value) payload.expires_at = expires.value;
     btn.disabled = true;
     const res = await apiFetch(def.saveUrl, { method: 'POST', body: JSON.stringify(payload) });
     btn.disabled = false;
@@ -1966,22 +2119,22 @@ function wireConfigIntegrationSection(def) {
 function renderConfigFields() {
   const host = document.getElementById('config-fields');
   if (!host) return;
-  if (configSelectedModule === CONFIG_INTEGRATIONS_MODULE) {
+  if (!configSearch && configSelectedModule === CONFIG_INTEGRATIONS_MODULE) {
     renderConfigIntegrations(host);
     updateConfigDirtyState();
     return;
   }
-  if (configSelectedModule === CONFIG_INDUSTRY_MODULE) {
+  if (!configSearch && configSelectedModule === CONFIG_INDUSTRY_MODULE) {
     renderConfigIndustry(host);
     updateConfigDirtyState();
     return;
   }
-  if (configSelectedModule === CONFIG_ITEM_FIELDS_MODULE) {
+  if (!configSearch && configSelectedModule === CONFIG_ITEM_FIELDS_MODULE) {
     loadViewModule('/view-item-form.js').then(m => m.renderConfigItemFields(host));
     updateConfigDirtyState();
     return;
   }
-  if (configSelectedModule === CONFIG_SETUP_WORKBOOK_MODULE) {
+  if (!configSearch && configSelectedModule === CONFIG_SETUP_WORKBOOK_MODULE) {
     loadViewModule('/view-setup-workbook.js').then(m => m.renderSetupWorkbook(host));
     updateConfigDirtyState();
     return;
@@ -2049,6 +2202,8 @@ function updateConfigDirtyState() {
   const n = Object.keys(configDirty).length;
   if (btn) btn.disabled = n === 0;
   if (note) note.textContent = n === 0 ? 'No unsaved changes.' : `${n} unsaved change${n === 1 ? '' : 's'}.`;
+  const bar = document.getElementById('config-savebar');
+  if (bar) bar.hidden = n === 0 && !configSearch && !configSettings.some(s => s.module === configSelectedModule);
 }
 
 // Stage 55.21: leaving Configuration (sidebar, Home, reload) with unsaved
@@ -2062,7 +2217,8 @@ function installConfigLeaveGuard() {
   const dirtyHere = () => Object.keys(configDirty).length > 0 && document.getElementById('config-save-btn');
   document.addEventListener('click', async event => {
     const link = event.target.closest('.menu-item, .submenu-item, a[href^="#/"]');
-    if (!link || !dirtyHere() || link.closest('#config-fields') || link.dataset.configLeaveOk) return;
+    // Opening a menu group or a sub-menu heading is not leaving (Stage 144).
+    if (!link || link.matches('.menu-item-group, .submenu-parent') || !dirtyHere() || link.closest('#config-fields') || link.dataset.configLeaveOk) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     const n = Object.keys(configDirty).length;
@@ -2085,9 +2241,11 @@ async function saveConfiguration() {
   if (!res) { if (btn) btn.disabled = false; return; }
   if (!res.ok) { await showApiError(res, 'Failed to save configuration.'); if (btn) btn.disabled = false; return; }
   showToast('Configuration saved.', { variant: 'success' });
-  // Re-render fresh so persisted values show and dirty tracking resets.
+  // Re-render fresh so persisted values show and dirty tracking resets -
+  // on the module you were on (Stage 144).
+  configDirty = {};
   setActiveMenu('menu-configuration');
-  renderView('configuration');
+  renderView(configSelectedModule ? `configuration:${configSelectedModule}` : 'configuration');
 }
 
 // System Status dashboard (Stage 26.1.2, PDF "SLO/status-page dashboard").
@@ -2798,4 +2956,4 @@ function openConsoleEditor(results, row) {
   });
 }
 
-export { mountSetupGuideCard, renderPrefixConfigsView, renderApprovalRulesView, renderDynamicLabelsView, renderExtensionHooksView, renderExtensionHookLogView, showOneTimeSecretDialog, renderLogHubView, renderConfigurationView, renderConfigModuleRail, configInputId, renderConfigIntegrations, configIntegrationSectionHtml, wireConfigIntegrationSection, renderConfigFields, configFieldHtml, updateConfigDirtyState, saveConfiguration, renderSystemStatusView, renderTenantEntitlementsView, renderTenantUsageView, renderPlatformConsoleView };
+export { mountSetupGuideCard, renderPrefixConfigsView, renderApprovalRulesView, renderDynamicLabelsView, renderExtensionHooksView, renderExtensionHookLogView, showOneTimeSecretDialog, renderLogHubView, renderConfigurationView, renderConfigBody, openConfigModule, configInputId, renderConfigIntegrations, configIntegrationSectionHtml, wireConfigIntegrationSection, renderConfigFields, configFieldHtml, updateConfigDirtyState, saveConfiguration, renderSystemStatusView, renderTenantEntitlementsView, renderTenantUsageView, renderPlatformConsoleView };

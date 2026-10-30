@@ -1,7 +1,98 @@
 <h1 id="report-catalog-part-2">Report catalog (part 2) <a class="kb-anchor" href="#report-catalog-part-2" aria-label="Copy link to this section">#</a></h1>
-<p>This page continues the <a href="/help/report-catalog">report catalog</a>, which lists every category and explains how to run a report. It holds <strong>147</strong> reports, from Inventory to Procurement.</p>
+<p>This page continues the <a href="/help/report-catalog">report catalog</a>, which lists every category and explains how to run a report. It holds <strong>144</strong> reports, from HRMS to PIM / PIMS.</p>
 <h2 id="contents">Contents <a class="kb-anchor" href="#contents" aria-label="Copy link to this section">#</a></h2>
-<ul><li><a href="#inventory">Inventory</a> - 42 reports</li><li><a href="#mis-management">MIS &amp; Management</a> - 10 reports</li><li><a href="#manufacturing">Manufacturing</a> - 21 reports</li><li><a href="#master-data-audit">Master Data &amp; Audit</a> - 11 reports</li><li><a href="#oms">OMS</a> - 25 reports</li><li><a href="#pim">PIM</a> - 4 reports</li><li><a href="#pim-pims">PIM / PIMS</a> - 16 reports</li><li><a href="#procurement">Procurement</a> - 18 reports</li></ul>
+<ul><li><a href="#hrms">HRMS</a> - 15 reports</li><li><a href="#inventory">Inventory</a> - 42 reports</li><li><a href="#mis-management">MIS &amp; Management</a> - 10 reports</li><li><a href="#manufacturing">Manufacturing</a> - 21 reports</li><li><a href="#master-data-audit">Master Data &amp; Audit</a> - 11 reports</li><li><a href="#oms">OMS</a> - 25 reports</li><li><a href="#pim">PIM</a> - 4 reports</li><li><a href="#pim-pims">PIM / PIMS</a> - 16 reports</li></ul>
+<h2 id="hrms">HRMS <a class="kb-anchor" href="#hrms" aria-label="Copy link to this section">#</a></h2>
+<h3 id="r8002-attendance-register">R8002 Attendance Register <a class="kb-anchor" href="#r8002-attendance-register" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-attendance-register</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Present,Absent,Half Day,Late,On Leave</li></ul>
+<p><strong>Columns:</strong> Attendance Date · Employee ID · Employee Name · Department · Store Name · Shift · Check In · Check Out · Attendance Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r8011-attrition-report">R8011 Attrition Report <a class="kb-anchor" href="#r8011-attrition-report" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-attrition-report</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Active,Inactive,Exited,On Notice</li></ul>
+<p><strong>Columns:</strong> Document Date · Employee ID · Employee Name · Department · Store Name · Reason · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r8009-employee-loan-advance-register">R8009 Employee Loan / Advance Register <a class="kb-anchor" href="#r8009-employee-loan-advance-register" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-employee-loan-advance-register</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Document Date · Employee ID · Employee Name · Advance No · Advance Amount · Advance Adjusted Amount · Advance Balance Amount · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r8001-employee-master-register">R8001 Employee Master Register <a class="kb-anchor" href="#r8001-employee-master-register" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-employee-master-register</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Active,Inactive,Exited,On Notice</li></ul>
+<p><strong>Columns:</strong> Employee ID · Employee Name · Department · Store Code · Store Name · Manager Name · Status · Created At</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r8016-employee-role-access-mapping">R8016 Employee Role / Access Mapping <a class="kb-anchor" href="#r8016-employee-role-access-mapping" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-employee-role-access-mapping</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Active,Inactive,Exited,On Notice</li></ul>
+<p><strong>Columns:</strong> Employee ID · Employee Name · Department · Store Code · Store Name · User ID · User Name · Status · Approved By</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r8010-headcount-summary">R8010 Headcount Summary <a class="kb-anchor" href="#r8010-headcount-summary" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-headcount-summary</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Active,Inactive,Exited,On Notice</li></ul>
+<p><strong>Columns:</strong> As Of Date · Department · Store Code · Store Name · Headcount · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r8003-late-overtime-report">R8003 Late / Overtime Report <a class="kb-anchor" href="#r8003-late-overtime-report" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-late-overtime-report</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Present,Absent,Half Day,Late,On Leave</li></ul>
+<p><strong>Columns:</strong> Attendance Date · Employee ID · Employee Name · Shift · Check In · Check Out · Task Duration Min · Attendance Status · Reason</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r8004-leave-register">R8004 Leave Register <a class="kb-anchor" href="#r8004-leave-register" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-leave-register</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Draft,Pending Approval,Approved,Rejected,Cancelled</li></ul>
+<p><strong>Columns:</strong> Document Date · Employee ID · Employee Name · Leave Type · Leave Days · From Date · To Date · Approval Status · Manager Name · Reason</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r8013-onboarding-checklist">R8013 Onboarding Checklist <a class="kb-anchor" href="#r8013-onboarding-checklist" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-onboarding-checklist</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Employee ID · Employee Name · Department · Document Type · Status · User Name · Approved By · Remarks</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r8006-payroll-register">R8006 Payroll Register <a class="kb-anchor" href="#r8006-payroll-register" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-payroll-register</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Payroll Period · Employee ID · Employee Name · Department · Gross Salary · Deductions · Net Pay · Payment Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r8014-performance-review-summary">R8014 Performance Review Summary <a class="kb-anchor" href="#r8014-performance-review-summary" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-performance-review-summary</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> From Date · To Date · Employee ID · Employee Name · Department · Manager Name · Achievement % · Status · Remarks</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r8007-salary-component-detail">R8007 Salary Component Detail <a class="kb-anchor" href="#r8007-salary-component-detail" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-salary-component-detail</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Payroll Period · Employee ID · Employee Name · Document Type · Gross Salary · Deductions · Net Pay</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r8005-shift-roster-report">R8005 Shift / Roster Report <a class="kb-anchor" href="#r8005-shift-roster-report" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-shift-roster-report</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Document Date · Employee ID · Employee Name · Store Name · Department · Shift · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r8008-statutory-deduction-summary">R8008 Statutory Deduction Summary <a class="kb-anchor" href="#r8008-statutory-deduction-summary" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-statutory-deduction-summary</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Payroll Period · Department · Document Type · Deductions · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r8015-training-certification-register">R8015 Training / Certification Register <a class="kb-anchor" href="#r8015-training-certification-register" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cat-training-certification-register</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Store</strong> (<code>location</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Document Date · Employee ID · Employee Name · Department · Document Type · Status · Remarks</p>
+<p><strong>Drill-down:</strong> no.</p>
 <h2 id="inventory">Inventory <a class="kb-anchor" href="#inventory" aria-label="Copy link to this section">#</a></h2>
 <h3 id="r3069-backflush-consumption">R3069 Backflush Consumption <a class="kb-anchor" href="#r3069-backflush-consumption" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>backflush-consumption</code></p>
@@ -752,108 +843,4 @@
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Status (optional)</strong> (<code>status</code>) - select, optional, one of: ,Active,Inactive,Draft</li></ul>
 <p><strong>Columns:</strong> Product Family · Item Code · Item Name · SKU · Design No · Combination ID · Category Name · Brand · Style · Color · Polish · Size · HSN Code · MRP · Status</p>
-<p><strong>Drill-down:</strong> no.</p>
-<h2 id="procurement">Procurement <a class="kb-anchor" href="#procurement" aria-label="Copy link to this section">#</a></h2>
-<h3 id="r2036-grn-corrections-log">R2036 GRN Corrections Log <a class="kb-anchor" href="#r2036-grn-corrections-log" aria-label="Copy link to this section">#</a></h3>
-<p><strong>Report id:</strong> <code>grn-corrections</code></p>
-<p><strong>Parameters:</strong></p>
-<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
-<p><strong>Columns:</strong> When · GRN · Line · SKU · Step · Field · Was · Now · Why · By</p>
-<p><strong>Drill-down:</strong> no.</p>
-<h3 id="r2038-grn-payments">R2038 GRN Payments <a class="kb-anchor" href="#r2038-grn-payments" aria-label="Copy link to this section">#</a></h3>
-<p><strong>Report id:</strong> <code>grn-payments</code></p>
-<p><strong>Parameters:</strong></p>
-<ul><li><strong>Vendor (blank = all)</strong> (<code>vendor</code>) - text, optional</li><li><strong>Due only</strong> (<code>due_only</code>) - select, optional, one of: ,Yes</li></ul>
-<p><strong>Columns:</strong> GRN · Vendor · Invoice No · Invoiced <em>(sensitive)</em> · We owe <em>(sensitive)</em> · Paid <em>(sensitive)</em> · Due <em>(sensitive)</em> · Status · Last paid · Paid by</p>
-<p><strong>Drill-down:</strong> no.</p>
-<h3 id="r2046-grn-register">R2046 GRN Register <a class="kb-anchor" href="#r2046-grn-register" aria-label="Copy link to this section">#</a></h3>
-<p><strong>Report id:</strong> <code>grn-register</code></p>
-<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
-<p><strong>Columns:</strong> GRN ID · PO Reference · Item Lines · Status · Date</p>
-<p><strong>Drill-down:</strong> no.</p>
-<h3 id="r2032-grn-register-every-line-every-step">R2032 GRN Register - every line, every step <a class="kb-anchor" href="#r2032-grn-register-every-line-every-step" aria-label="Copy link to this section">#</a></h3>
-<p><strong>Report id:</strong> <code>grn-line-register</code></p>
-<p><strong>Parameters:</strong></p>
-<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Vendor (blank = all)</strong> (<code>vendor</code>) - text, optional</li></ul>
-<p><strong>Columns:</strong> GRN · Child · Store · Vendor · Invoice No · PO · SKU · PO Qty · Received · Invoice Qty · GRN Qty · Rejected · Damaged · PO Price <em>(sensitive)</em> · Invoice Price <em>(sensitive)</em> · GRN Price <em>(sensitive)</em> · GST % · Old MRP · MRP · Batch · Step · Received · Posted</p>
-<p><strong>Drill-down:</strong> no.</p>
-<h3 id="r2035-goods-receipts-waiting">R2035 Goods Receipts Waiting <a class="kb-anchor" href="#r2035-goods-receipts-waiting" aria-label="Copy link to this section">#</a></h3>
-<p><strong>Report id:</strong> <code>grn-waiting</code></p>
-<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
-<p><strong>Columns:</strong> GRN · Vendor · Invoice No · Waiting for · Age (days) · Invoice Total <em>(sensitive)</em> · Excess awaiting approval</p>
-<p><strong>Drill-down:</strong> no.</p>
-<h3 id="r2040-goods-receipt-discrepancies-by-vendor">R2040 Goods receipt discrepancies by vendor <a class="kb-anchor" href="#r2040-goods-receipt-discrepancies-by-vendor" aria-label="Copy link to this section">#</a></h3>
-<p><strong>Report id:</strong> <code>grn-discrepancy-by-vendor</code></p>
-<p><strong>Parameters:</strong></p>
-<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
-<p><strong>Columns:</strong> Vendor · Receipts · Received · Accepted · Rejected · Damaged · Short of the invoice · Invoice difference · Rejected %</p>
-<p><strong>Drill-down:</strong> no.</p>
-<h3 id="r2031-goods-receipts-not-billed">R2031 Goods receipts not billed <a class="kb-anchor" href="#r2031-goods-receipts-not-billed" aria-label="Copy link to this section">#</a></h3>
-<p><strong>Report id:</strong> <code>grn-not-billed</code></p>
-<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
-<p><strong>Columns:</strong> Goods receipt · Vendor · Posted · Days · Vendor invoice no.</p>
-<p><strong>Drill-down:</strong> no.</p>
-<h3 id="r2042-goods-received-not-invoiced-grni">R2042 Goods received not invoiced (GRNI) <a class="kb-anchor" href="#r2042-goods-received-not-invoiced-grni" aria-label="Copy link to this section">#</a></h3>
-<p><strong>Report id:</strong> <code>grni</code></p>
-<p><strong>Parameters:</strong></p>
-<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
-<p><strong>Columns:</strong> Goods receipt · Date · Vendor · Store · Accepted value · Invoiced · Not invoiced · Price difference · Vendor invoices · AP hold</p>
-<p><strong>Drill-down:</strong> no.</p>
-<h3 id="r2033-invoice-vs-grn-differences">R2033 Invoice vs GRN Differences <a class="kb-anchor" href="#r2033-invoice-vs-grn-differences" aria-label="Copy link to this section">#</a></h3>
-<p><strong>Report id:</strong> <code>grn-invoice-differences</code></p>
-<p><strong>Parameters:</strong></p>
-<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Vendor (blank = all)</strong> (<code>vendor</code>) - text, optional</li></ul>
-<p><strong>Columns:</strong> Month · Vendor · Receipts · Invoiced <em>(sensitive)</em> · Received and verified <em>(sensitive)</em> · Difference <em>(sensitive)</em> · Debit notes <em>(sensitive)</em> · Credit notes <em>(sensitive)</em> · Notes</p>
-<p><strong>Drill-down:</strong> no.</p>
-<h3 id="r2030-late-and-early-receipts">R2030 Late and early receipts <a class="kb-anchor" href="#r2030-late-and-early-receipts" aria-label="Copy link to this section">#</a></h3>
-<p><strong>Report id:</strong> <code>grn-receipt-timing</code></p>
-<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
-<p><strong>Columns:</strong> Goods receipt · PO · Vendor · Expected · Received · Timing</p>
-<p><strong>Drill-down:</strong> no.</p>
-<h3 id="r2045-open-purchase-commitments">R2045 Open Purchase Commitments <a class="kb-anchor" href="#r2045-open-purchase-commitments" aria-label="Copy link to this section">#</a></h3>
-<p><strong>Report id:</strong> <code>po-commitments</code></p>
-<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
-<p><strong>Columns:</strong> Age Bucket · PO Count · Committed Amount <em>(sensitive)</em></p>
-<p><strong>Drill-down:</strong> yes - a row&#39;s <strong>View Details</strong> opens the transactions behind it.</p>
-<h3 id="r2039-po-expected-delivery-and-terms">R2039 PO expected delivery and terms <a class="kb-anchor" href="#r2039-po-expected-delivery-and-terms" aria-label="Copy link to this section">#</a></h3>
-<p><strong>Report id:</strong> <code>po-delivery-and-terms</code></p>
-<p><strong>Parameters:</strong></p>
-<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
-<p><strong>Columns:</strong> PO · Vendor · Store · Status · Expected delivery · Days late · Payment term · Delivery terms · Freight paid by · Quote valid until · Amendments · Value</p>
-<p><strong>Drill-down:</strong> no.</p>
-<h3 id="r2037-po-vs-grn-price-variance">R2037 PO vs GRN Price Variance <a class="kb-anchor" href="#r2037-po-vs-grn-price-variance" aria-label="Copy link to this section">#</a></h3>
-<p><strong>Report id:</strong> <code>grn-po-variance</code></p>
-<p><strong>Parameters:</strong></p>
-<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Vendor (blank = all)</strong> (<code>vendor</code>) - text, optional</li></ul>
-<p><strong>Columns:</strong> Received · Vendor · PO · GRN · SKU · Qty · PO Price <em>(sensitive)</em> · GRN Price <em>(sensitive)</em> · Variance / unit <em>(sensitive)</em> · Variance % · Variance value <em>(sensitive)</em></p>
-<p><strong>Drill-down:</strong> no.</p>
-<h3 id="r2034-purchase-price-changes">R2034 Purchase Price Changes <a class="kb-anchor" href="#r2034-purchase-price-changes" aria-label="Copy link to this section">#</a></h3>
-<p><strong>Report id:</strong> <code>grn-price-changes</code></p>
-<p><strong>Parameters:</strong></p>
-<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Vendor (blank = all)</strong> (<code>vendor</code>) - text, optional</li></ul>
-<p><strong>Columns:</strong> Received · SKU · Vendor · GRN · Previous Price <em>(sensitive)</em> · Previous Vendor · New Price <em>(sensitive)</em> · Change % · Old MRP · New MRP</p>
-<p><strong>Drill-down:</strong> no.</p>
-<h3 id="r2047-rfq-comparison-export">R2047 RFQ Comparison Export <a class="kb-anchor" href="#r2047-rfq-comparison-export" aria-label="Copy link to this section">#</a></h3>
-<p><strong>Report id:</strong> <code>rfq-comparison</code></p>
-<p><strong>Parameters:</strong></p>
-<ul><li><strong>RFQ ID</strong> (<code>rfq_id</code>) - text, <strong>required</strong></li></ul>
-<p><strong>Columns:</strong> Quote ID · Vendor · Quoted Price <em>(sensitive)</em> · Status</p>
-<p><strong>Drill-down:</strong> no.</p>
-<h3 id="r2043-rejections-and-returns-by-reason">R2043 Rejections and Returns by Reason <a class="kb-anchor" href="#r2043-rejections-and-returns-by-reason" aria-label="Copy link to this section">#</a></h3>
-<p><strong>Report id:</strong> <code>rejections-by-reason</code></p>
-<p><strong>Parameters:</strong></p>
-<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>Vendor (blank = all)</strong> (<code>vendor</code>) - text, optional</li></ul>
-<p><strong>Columns:</strong> What · Reason code · Reason · Vendor · Documents · Qty</p>
-<p><strong>Drill-down:</strong> no.</p>
-<h3 id="r2044-vendor-ledger">R2044 Vendor Ledger <a class="kb-anchor" href="#r2044-vendor-ledger" aria-label="Copy link to this section">#</a></h3>
-<p><strong>Report id:</strong> <code>vendor-ledger</code></p>
-<p><strong>Parameters:</strong></p>
-<ul><li><strong>Vendor (optional)</strong> (<code>vendor_id</code>) - text, optional</li></ul>
-<p><strong>Columns:</strong> PO ID · Vendor · PO Number · Total Amount <em>(sensitive)</em> · Status · Date</p>
-<p><strong>Drill-down:</strong> no.</p>
-<h3 id="r2041-vendor-document-and-transport-register">R2041 Vendor document and transport register <a class="kb-anchor" href="#r2041-vendor-document-and-transport-register" aria-label="Copy link to this section">#</a></h3>
-<p><strong>Report id:</strong> <code>vendor-document-transport-register</code></p>
-<p><strong>Parameters:</strong></p>
-<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
-<p><strong>Columns:</strong> Goods receipt · Received · Vendor · Store · Invoice no · Invoice date · Challan no · Challan date · LR / AWB · Vehicle · Transporter · Packages</p>
 <p><strong>Drill-down:</strong> no.</p>

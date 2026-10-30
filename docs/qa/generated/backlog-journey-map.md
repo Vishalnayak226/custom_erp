@@ -7,13 +7,13 @@
 > **Generated 2026-09-10.** This page is produced from `docs/micro_checklist.md` open items, `docs/product/erp-build-checklist.md` JRN table, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-BLD-002: the 341 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
+BLD-002: the 307 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
 
 | Journey | Reference configuration | Owner | Open | Needs decision | Blocked |
 |---|---|---|---:|---:|---:|
 | JRN-01 POS/store | REF-RETAIL-IN | Store/finance; 47.2–47.4/47.6, Stage 31 | 9 | 2 | 0 |
 | JRN-02 OMS/order-to-cash | REF-RETAIL-IN, REF-WAREHOUSE-IN | OMS/operations; Stage 35 | 2 | 0 | 1 |
-| JRN-03 returns/refunds | REF-RETAIL-IN | Finance/store; 47.3/49.5 | 8 | 1 | 0 |
+| JRN-03 returns/refunds | REF-RETAIL-IN | Finance/store; 47.3/49.5 | 7 | 1 | 0 |
 | JRN-04 inventory | REF-RETAIL-IN, REF-WAREHOUSE-IN | Inventory controller; Stage 36/47.5 | 19 | 0 | 1 |
 | JRN-05 WMS | REF-WAREHOUSE-IN | Warehouse owner; Stage 36/47.6 | 0 | 0 | 0 |
 | JRN-06 warehouse billing/3PL | REF-WAREHOUSE-IN | Warehouse/finance; 47.5; mixed owner excluded | 0 | 0 | 0 |
@@ -32,13 +32,13 @@ BLD-002: the 341 open checklist items reconciled into the business journeys they
 | JRN-19 projects/service | deferred - outside both | Service/project owner; Experimental scope preserved | 0 | 0 | 0 |
 | JRN-20 reports/analysis | REF-RETAIL-IN, REF-WAREHOUSE-IN | Data/finance/QA; 26.10/47.10 | 1 | 0 | 0 |
 | JRN-21 platform/integrations | REF-RETAIL-IN, REF-WAREHOUSE-IN | Integrator/security; Stage 38/49.8 | 22 | 3 | 0 |
-| JRN-22 identity/approval/audit | REF-RETAIL-IN, REF-WAREHOUSE-IN | Tenant admin/security; 47.1/47.7/Stage 49 | 93 | 14 | 0 |
+| JRN-22 identity/approval/audit | REF-RETAIL-IN, REF-WAREHOUSE-IN | Tenant admin/security; 47.1/47.7/Stage 49 | 91 | 14 | 0 |
 | JRN-23 knowledge/implementation | REF-RETAIL-IN, REF-WAREHOUSE-IN | Documentation/implementation; Stage 39/47.15/48.7 | 34 | 0 | 1 |
 | Cross-journey acceptance and audits | - | - | 70 | 2 | 8 |
 | Engineering housekeeping | - | - | 15 | 3 | 0 |
-| Unmapped - place these stages | - | - | 36 | 0 | 0 |
+| Unmapped - place these stages | - | - | 5 | 1 | 0 |
 
-**Unmapped:** Stage 140 (28), Stage 142 (4), Stage 143 (4) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
+**Unmapped:** Stage 140 (3), Stage 143 (2) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
 
 ## JRN-01 POS/store
 
@@ -60,7 +60,6 @@ BLD-002: the 341 open checklist items reconciled into the business journeys they
 ## JRN-03 returns/refunds
 
 - **49.5** Server-authoritative business controls, fraud resistance and invariant security
-- **49.5.1** Command catalog
 - **49.5.2** Close Stage 47 atomicity work
 - **49.5.3** Workflow transition enforcement
 - **49.5.4** Abuse/fraud patterns
@@ -185,7 +184,6 @@ BLD-002: the 341 open checklist items reconciled into the business journeys they
 - **49.3.5** SoD and maker-checker invariants
 - **49.3.6** Privilege-change safety
 - **49.3.7** Tenant migration and customization proof
-- **49.3.8** Generated authorization tests
 - **49.4** Browser, session, API and request-boundary hardening
 - **49.4.1** Session topology ADR
 - **49.4.2** CSRF/cross-origin boundary
@@ -211,7 +209,6 @@ BLD-002: the 341 open checklist items reconciled into the business journeys they
 - **49.10.7** Independent penetration test and retest
 - **49.10.8** Finding discipline *(decision)*
 - **49.11** Security events, tamper evidence, detection and response-ready observability
-- **49.11.1** Event taxonomy
 - **49.11.2** High-quality event schema
 - **49.11.4** Actionable detections
 - **49.11.5** Alert engineering
@@ -392,39 +389,8 @@ BLD-002: the 341 open checklist items reconciled into the business journeys they
 
 ## Unmapped
 
-- **140.12.1** Till close leaves cash advances out of expected cash
-- **140.12.2** X-report shows advance redemptions as "Gift Card"
-- **140.12.3** A return against a credit invoice is valued at 0
-- **140.12.4** A credit invoice moves no stock and books no cost of goods
-- **140.12.5** Customer receipts always go to cash
-- **140.12.6** Advances only at the till
-- **140.12.7** The customer ledger tells half the story
-- **140.12.8** Small sales gaps
-- **140.12.9** A Cashier can post and settle sales invoices
-- **140.12.10** A Cashier reads the whole trial balance through the report
-- **140.12.11** A till's cash shortage or excess never reaches the GL
-- **140.12.12** Accounts automation: card / UPI clearing
-- **140.12.13** No Day Book and no Z-report
-- **140.12.14** Period close does not look at tills
-- **140.12.15** A wave-picked order cannot be packed or billed
-- **140.12.16** Return check cannot find a shipped OMS order
-- **140.12.17** An own-website order without a connector stays in Push problems
 - **140.12.18** RTO and OMS returns need their own screens
-- **140.12.19** Picked units show up again as "waiting for put-away"
 - **140.12.20** Pickers do not see the rack
-- **140.12.21** Warehouse setup friction
-- **140.12.22** Ready-made Shopify, Amazon and Myntra templates
-- **140.12.23** A template cannot use one field in two columns
-- **140.12.24** Feed export limits
-- **140.12.25** Merchandisers cannot set up PIM
-- **140.12.26** WhatsApp and SMS are not ready on app
-- **140.12.27** Decisions from customer data
 - **140.13.1** Release, deploy, re-run Guide on app
-- **142.1** An ecom order is always visible on Pending Orders
-- **142.2** Load a pending order by scan on Pick and Pack
-- **142.3** Sales from one Excel file (Sales Invoice → Upload from Excel)
-- **142.4** Item discount on the New Sales Invoice screen
-- **143.1** The file on app through Guide
-- **143.2** Barcode print on app
-- **143.3** The same file on minn
+- **143.3** The same file on minn *(decision)*
 - **143.4** Every print page shows its preview and has one Print button

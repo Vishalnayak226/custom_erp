@@ -19,7 +19,7 @@ applies_to: source registries; not release acceptance
 
 # Error code reference
 
-Every refusal in this application carries a code. There are **575** of them,
+Every refusal in this application carries a code. There are **580** of them,
 across **75** areas. This page is produced from the running catalog, so it
 cannot describe a code the application does not have, or miss one it does.
 
@@ -38,7 +38,7 @@ open the right page.
 
 ## Contents
 
-- [Admin / Configuration](#admin-configuration) - 18 codes
+- [Admin / Configuration](#admin-configuration) - 19 codes
 - [Approvals / Workflow](#approvals-workflow) - 4 codes
 - [Audit & Compliance](#audit-compliance) - 2 codes
 - [Backup / DR](#backup-dr) - 4 codes
@@ -70,13 +70,13 @@ open the right page.
 - [Finance & Accounting](#finance-accounting) - 47 codes
 - [Fixed Assets](#fixed-assets) - 9 codes
 - [GST](#gst) - 1 codes
-- [Global](#global) - 10 codes
+- [Global](#global) - 11 codes
 - [Global / Common](#global-common) - 25 codes
 - [Goods Receipt](#goods-receipt) - 19 codes
 - [Goods Receipt / GRN](#goods-receipt-grn) - 8 codes
 - [HR & Payroll](#hr-payroll) - 2 codes
 - [HR / Payroll](#hr-payroll) - 14 codes
-- [Integration / API](#integration-api) - 10 codes
+- [Integration / API](#integration-api) - 12 codes
 - [Integrations](#integrations) - 1 codes
 - [Inventory](#inventory) - 10 codes
 - [Inventory / Warehouse](#inventory-warehouse) - 29 codes
@@ -90,7 +90,7 @@ open the right page.
 - [Order Management](error-code-reference-2.md#order-management) - 9 codes
 - [PIM](error-code-reference-2.md#pim) - 6 codes
 - [PIM / Product Publishing](error-code-reference-2.md#pim-product-publishing) - 8 codes
-- [POS / Billing](error-code-reference-2.md#pos-billing) - 41 codes
+- [POS / Billing](error-code-reference-2.md#pos-billing) - 42 codes
 - [POS / Offline & Cash Drawer](error-code-reference-2.md#pos-offline-cash-drawer) - 8 codes
 - [Patch / Bug Governance](error-code-reference-2.md#patch-bug-governance) - 3 codes
 - [Payments](error-code-reference-2.md#payments) - 7 codes
@@ -130,8 +130,9 @@ open the right page.
 | `ADMINC-0039` | Template configuration missing | Document template is not configured. Please contact administrator. | Contact admin to configure. | High | 422 |
 | `ADMINC-0310` | Number series prefix already used by another series | This prefix is already used by another number series. | Choose a prefix no other transaction uses - two series with one prefix could print the same number. | High | 422 |
 | `ADMINC-0311` | Number series settings invalid | The number series settings are not valid. | Use capital letters, digits, '/' and '-' in prefix and suffix (no spaces, up to 20), a separator of / or - (or none), a length of 1 to 12 digits, and keep the whole number to 16 characters. | Medium | 422 |
-| `PLATFORM-0316` | Data console edit refused for a protected table or column | This value cannot be changed from the data console. | Keys, hidden (secret or personal) values and audit tables are protected. Change the record through its own screen instead. | Medium | 422 |
+| `PLATFORM-0316` | Data console edit refused for a protected table or column | This value cannot be changed from the data console. | Keys, hidden (secret or personal) values, audit tables and the ledger are protected. Change the record through its own screen instead. | Medium | 422 |
 | `PLATFORM-0317` | Cross-client action (data console, client list, plans, sandboxes) by someone who is not a platform operator | Only a platform operator can see or change other clients. | Ask the server administrator to add your client and username to ERP_PLATFORM_OPERATORS. | High | 403 |
+| `PLATFORM-0318` | Scale test run on a client that is not a sandbox | The scale test runs only on a sandbox client. | Run it signed in to a sandbox client (a platform operator creates one with POST /api/v1/admin/sandbox-tenants). The test posts sales, which must never reach a real client's books. | High | 422 |
 | `STORE-0850` | Working at, or switching to, a store the user has not been given | You have not been given this store. | Ask an administrator to add the store in Users -> Stores, or on your role in Roles -> Stores. | High | 422 |
 | `STORE-0851` | Store access setting incomplete or not one of the offered choices | The store access setting is not complete. | Choose All stores, Selected stores (and tick at least one) or Home store only. | Medium | 422 |
 | `STORE-0852` | Store access names a store that is not a Location | One of the stores is not in Setup -> Location. | Pick stores from the list; create the store in Setup -> Location first if it is new. | Medium | 422 |
@@ -443,6 +444,7 @@ open the right page.
 | `GLOBAL-0308` | Request exceeded its time limit | This took longer than the time a single request is allowed, so it was stopped. | Send less at once - split a large import file into smaller files, or narrow a report's filters and use background export. | Medium | 504 |
 | `GLOBAL-0309` | Field holds an invisible control or direction character | A field holds an invisible character that cannot be saved. | Retype the field named below, or paste it as plain text. | Low | 422 |
 | `GLOBAL-0310` | Too many report runs still running | Too many reports are still running for this business, so this one did not start. | Try again in a minute. For a large report, use Export - it runs in the background. | Medium | 503 |
+| `GLOBAL-0311` | Identifier mixes look-alike alphabets | A code or identifier mixes letters from different alphabets. | Retype the field named below in one alphabet - a look-alike letter (for example a Cyrillic letter inside a Latin code) was pasted in. | Low | 422 |
 | `GLOBAL-1315` | Reprint refused (no Document Reprint permission, no reason, approval needed or already used, no approver set) | This document can't be printed again yet. | Give the reason; ask a manager for the Document Reprint permission or send a Reprint Request and print once it is approved. | Medium | 422 |
 | `GLOBAL-1319` | Print refused: a tax document from a store with no GSTIN, or a template version that cannot be decided (not waiting, own change, not found) | This can't be printed or changed yet. | Add the GSTIN to the store's legal entity (Setup > Legal Entities); a template change is approved by someone other than the person who saved it. | Medium | 422 |
 
@@ -553,6 +555,8 @@ open the right page.
 | `INTEGR-0168` | Integration authentication failed | External service authentication failed. Please contact administrator. | Correct details or retry. Contact admin if repeated. | High | 401 |
 | `INTEGR-0169` | Invalid API response | Invalid response received from external service. Please retry or contact support. | Correct details or retry. Contact admin if repeated. | High | 422 |
 | `INTEGR-4718` | Courier booking not confirmed - the courier may already have it and cannot be asked | This courier booking is not confirmed - the courier may already have it. | Find the reference below on the courier's portal, then enter its AWB, or mark it not booked to try again. | High | 409 |
+| `INTEGR-4719` | Courier booked again for a fulfillment task that already has a live booking | This parcel is already booked with a courier. | Use the booking it has, or cancel that booking before booking again. | Medium | 409 |
+| `INTEGR-4720` | Courier pickup or cancellation not confirmed - the courier may already have done it and cannot be asked | This courier pickup or cancellation is not confirmed - the courier may already have done it. | Check the booking on the courier's portal, then resolve it here as done or not done to try again. | High | 409 |
 
 ## Integrations
 

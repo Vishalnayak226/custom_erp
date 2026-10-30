@@ -122,9 +122,13 @@ func TestReportControlTotalsTieDetailSummaryAndLedger(t *testing.T) {
 	}
 
 	// A role that cannot see the money sees the verdict, not the amounts.
-	_, masked := runWithControls(t, tenantID, "receivables-ageing", RoleCashier, nil)
+	_, masked := runWithControls(t, tenantID, "inventory-valuation", RoleCashier, nil)
 	if !masked.AmountsHidden || masked.DetailTotal != 0 || masked.SummaryTotal != 0 {
 		t.Fatalf("masked controls leak amounts: %+v", masked)
+	}
+	// 140.12.10: a finance report is refused outright to a role without a finance role.
+	if _, _, _, _, err := RunReportWithControlTotals(context.Background(), tenantID, "receivables-ageing", RoleCashier, "system", nil); err == nil {
+		t.Fatal("a Cashier ran Receivables Ageing")
 	}
 	// Reports without control totals keep the old shape.
 	if _, _, _, ct, err := RunReportWithControlTotals(context.Background(), tenantID, "grn-register", RoleSuperAdmin, "system", nil); err != nil || ct != nil {

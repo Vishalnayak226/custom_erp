@@ -67,6 +67,7 @@ export async function renderSecurityPane(target) {
       ${stat('Checks last ran', sweepAge == null ? 'Not yet on this server' : `${sweepAge} min ago`, sweepAge != null && sweepAge > 15)}
       ${stat('Audit evidence', p.audit_unsealed_hours >= 3 ? `Unsealed ${p.audit_unsealed_hours} h` : 'Sealed', p.audit_unsealed_hours >= 3 || p.audit_verify_failures_7d > 0)}
       ${stat('Verifier failures (7 days)', p.audit_verify_failures_7d, p.audit_verify_failures_7d > 0)}
+      ${stat('Verifier last ran', p.last_verify ? `${esc(p.last_verify.outcome)} · ${esc(when(p.last_verify.at))}` : 'Not yet', !!p.last_verify && p.last_verify.outcome !== 'Passed')}
       ${stat('Audit writes lost', p.audit_writes_lost, p.audit_writes_lost > 0)}
       ${stat('Urgent alerts sent', p.alerts_delivered ? 'Yes' : 'Not set up', !p.alerts_delivered)}
       ${stat('Exports', p.exports_frozen ? 'Frozen' : 'Open', p.exports_frozen)}

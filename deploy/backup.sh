@@ -26,6 +26,9 @@
 #   openssl enc -d -aes-256-cbc -pbkdf2 -in FILE.dump.enc -pass pass:"$BACKUP_ENCRYPTION_KEY" \
 #     | pg_restore -d "$DATABASE_URL" --clean --if-exists --no-owner
 #
+# Restore the off-box media copy (encrypted, see media_sync below):
+#   deploy/restore_media.sh <downloaded <prefix>/media folder> /opt/erp/media_store
+#
 # ---------------------------------------------------------------------------
 # Tenant-scoped export (26.1.6)
 # ---------------------------------------------------------------------------
@@ -189,33 +192,53 @@ offsite_put() {
 }
 
 # media_sync (Stage 75.1.5): an upload-only copy of media_store - product
-# images and other uploads, in no backup before. MEDIA_MANIFEST lists, one
+# images and attachments such as expense receipts and vendor invoice copies,
+# in no backup before. MEDIA_MANIFEST lists, one
 # "path<TAB>size<TAB>mtime" line each, the files already copied: a file goes
 # up once, again only when its size or time changes, and nothing is ever
 # deleted off-box (the bucket's lifecycle rule ages objects). Recorded as its
 # own backup_runs row, scope 'media'.
+#
+# Encrypted (Stage 49.10.6a): each file leaves the box sealed with the
+# database dump's key and cipher (openssl AES-256-CBC, PBKDF2, salted), as
+# <prefix>/media/<path>.enc - someone holding the bucket reads nothing. No key,
+# no copy. The key reaches openssl through its environment (-pass env:), not
+# its command line, so the per-file runs never show it in `ps`. The manifest
+# is media_manifest_enc.tsv: the files in the old media_manifest.tsv went up
+# as plain files, so the first run after this change sends every file again,
+# encrypted. deploy/restore_media.sh decrypts a downloaded copy.
 media_sync() {
   local dir="${MEDIA_DIR:-/opt/erp/media_store}"
-  local manifest="${MEDIA_MANIFEST:-$BACKUP_DIR/media_manifest.tsv}"
-  local prefix sent=0 bytes=0 failed=0 current todo line rel size outcome
+  local manifest="${MEDIA_MANIFEST:-$BACKUP_DIR/media_manifest_enc.tsv}"
+  local prefix sent=0 bytes=0 failed=0 current todo sealed line rel size outcome
+  if [ -z "${BACKUP_ENCRYPTION_KEY:-}" ]; then
+    RUN_SCOPE=media
+    record_run Failed "" "" "" "refused: no BACKUP_ENCRYPTION_KEY - media never leaves the box unencrypted"
+    RUN_SCOPE=""
+    alert_ops BACKUP_OFFSITE_FAILED "media copy refused: BACKUP_ENCRYPTION_KEY is not set"
+    return 1
+  fi
+  export BACKUP_ENCRYPTION_KEY
   [ -d "$dir" ] || return 0
   prefix="$(offsite_prefix)"
   touch "$manifest"
   current="$(mktemp)"
   todo="$(mktemp)"
+  sealed="$(mktemp)"
   # Guarded: under set -e a failure here would end the script after the
   # database backup was recorded, and the exit trap would then report the
   # database run as failed.
   if ! (cd "$dir" && find . -type f -printf '%P\t%s\t%T@\n') | LC_ALL=C sort > "$current" \
      || ! LC_ALL=C sort -u "$manifest" | LC_ALL=C comm -13 - "$current" > "$todo"; then
-    rm -f "$current" "$todo"
+    rm -f "$current" "$todo" "$sealed"
     alert_ops BACKUP_OFFSITE_FAILED "media copy: could not list $dir or read its manifest"
     return 0
   fi
   while IFS= read -r line; do
     rel="${line%%$'\t'*}"
     size="$(printf '%s' "$line" | cut -f2)"
-    if offsite_put "$dir/$rel" "$prefix/media/$rel"; then
+    if openssl enc -aes-256-cbc -pbkdf2 -salt -in "$dir/$rel" -out "$sealed" -pass env:BACKUP_ENCRYPTION_KEY \
+       && offsite_put "$sealed" "$prefix/media/$rel.enc"; then
       printf '%s\n' "$line" >> "$manifest"
       sent=$((sent + 1))
       bytes=$((bytes + size))
@@ -223,7 +246,7 @@ media_sync() {
       failed=$((failed + 1))
     fi
   done < "$todo"
-  rm -f "$current" "$todo"
+  rm -f "$current" "$todo" "$sealed"
   outcome=Success
   [ "$failed" -eq 0 ] || outcome=Failed
   RUN_SCOPE=media OFFSITE_KEY="$prefix/media/" OFFSITE_OUTCOME="$outcome"
@@ -326,7 +349,9 @@ enc_sha="$(cut -d' ' -f1 "$enc.sha256")"
 record_run Success "$(basename "$enc")" "$(wc -c < "$enc" | tr -d ' ')" "${enc_sha#\\}"
 echo "backup complete: $enc${OFFSITE_OUTCOME:+ (off-box: $OFFSITE_OUTCOME)}"
 
-# The nightly whole-database run also brings the media copy up to date.
+# The nightly whole-database run also brings the media copy up to date. A
+# refused media copy is recorded and alerted by media_sync itself; it must not
+# turn the database run, already recorded as a success, into a failure.
 if offsite_enabled && [ -z "$TENANT_SCHEMA" ]; then
-  media_sync
+  media_sync || true
 fi

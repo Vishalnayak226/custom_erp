@@ -346,6 +346,11 @@ func recodeInSchemaTx(tx *sql.Tx, schema, doctype string, rows []MasterRecodeRow
 	}
 	qOlds, qNews := quotedJSONStrings(olds), quotedJSONStrings(news)
 	sch := pq.QuoteIdentifier(schema)
+	// Stage 47.16.4b: the ledger's reference columns follow the renumber;
+	// its money, accounts and dates cannot (gl_postings_guard.go).
+	if err := sanctionWriteTx(tx, sanctionRecode); err != nil {
+		return err
+	}
 
 	// The records themselves: id and code.
 	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents d SET id = m.new, data = jsonb_set(d.data, '{code}', to_jsonb(m.new))

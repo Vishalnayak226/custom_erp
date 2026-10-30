@@ -3,6 +3,7 @@ package engines
 import (
 	"context"
 	"custom_erp/db"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -16,20 +17,32 @@ import (
 
 // SaveUnicommerceCredential stores or updates Unicommerce API credentials for a tenant.
 func SaveUnicommerceCredential(tenantID, storeCode, apiKey, apiSecret, baseURL string) error {
+	return SaveUnicommerceCredentialBy(tenantID, storeCode, apiKey, apiSecret, baseURL, "", "")
+}
+
+// SaveUnicommerceCredentialBy (49.8.5) also records who saved it and an
+// optional expiry (a date or RFC3339; blank = none).
+func SaveUnicommerceCredentialBy(tenantID, storeCode, apiKey, apiSecret, baseURL, savedBy, expiresAt string) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
 	}
+	expiry, err := parseCredentialExpiry(expiresAt)
+	if err != nil {
+		return err
+	}
 	query := fmt.Sprintf(`
-		INSERT INTO %s.unicommerce_credentials (store_code, api_key, api_secret, base_url, active)
-		VALUES ($1, $2, $3, $4, TRUE)
+		INSERT INTO %s.unicommerce_credentials (store_code, api_key, api_secret, base_url, active, saved_by, expires_at)
+		VALUES ($1, $2, $3, $4, TRUE, NULLIF($5, ''), $6)
 		ON CONFLICT (store_code) DO UPDATE SET
 			api_key = EXCLUDED.api_key,
 			api_secret = EXCLUDED.api_secret,
 			base_url = EXCLUDED.base_url,
 			active = TRUE,
+			saved_by = COALESCE(EXCLUDED.saved_by, unicommerce_credentials.saved_by),
+			expires_at = EXCLUDED.expires_at,
 			updated_at = CURRENT_TIMESTAMP`, schema)
-	_, err = db.DB.Exec(query, storeCode, apiKey, apiSecret, baseURL)
+	_, err = db.DB.Exec(query, storeCode, apiKey, apiSecret, baseURL, savedBy, expiry)
 	return err
 }
 
@@ -40,7 +53,7 @@ func GetUnicommerceCredentials(tenantID string) ([]map[string]interface{}, error
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT store_code, base_url, active, created_at
+		SELECT store_code, base_url, active, created_at, `+credentialMetaColumns+`
 		FROM %s.unicommerce_credentials
 		ORDER BY created_at DESC`, schema))
 	if err != nil {
@@ -50,15 +63,18 @@ func GetUnicommerceCredentials(tenantID string) ([]map[string]interface{}, error
 
 	var creds []map[string]interface{}
 	for rows.Next() {
-		var storeCode, baseURL, createdAt string
+		var storeCode, baseURL, createdAt, owner string
 		var active bool
-		if err := rows.Scan(&storeCode, &baseURL, &active, &createdAt); err == nil {
-			creds = append(creds, map[string]interface{}{
+		var lastUsed, expires sql.NullTime
+		if err := rows.Scan(&storeCode, &baseURL, &active, &createdAt, &owner, &lastUsed, &expires); err == nil {
+			row := map[string]interface{}{
 				"store_code": storeCode,
 				"base_url":   baseURL,
 				"active":     active,
 				"created_at": createdAt,
-			})
+			}
+			credentialMetaFields(row, owner, lastUsed, expires)
+			creds = append(creds, row)
 		}
 	}
 	return creds, nil

@@ -646,6 +646,12 @@ func registerStage282Settings() {
 		Description: "How long a completed, dead-lettered or cancelled async job (Stage 38.6) stays visible in the job history before the hourly sweeper deletes it. Jobs still Pending or Leased are never swept.",
 	})
 	RegisterSetting(SettingDefinition{
+		Key: "platform.import_file_retention_days", Module: "Platform",
+		Label: "Import file retention", Type: SettingTypeInt, Default: "30", Unit: "days",
+		Min: settingBound(0), Max: settingBound(3650),
+		Description: "How long raw import files are kept: the CSVs a scheduled import moved into its drop folder's imported/ and failed/ subfolders, and an import job's stored failed rows and error file (its counts, totals and source lineage stay). Swept hourly (Stage 47.18.3). 0 keeps everything (a hold).",
+	})
+	RegisterSetting(SettingDefinition{
 		Key: "platform.integration_log_retention_days", Module: "Platform",
 		Label: "Integration and hook log retention", Type: SettingTypeInt, Default: "90", Unit: "days",
 		Min: settingBound(0), Max: settingBound(3650),

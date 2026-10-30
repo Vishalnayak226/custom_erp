@@ -106,7 +106,7 @@ func TestImportDictionaryCoversEveryDoctype(t *testing.T) {
 	}
 }
 
-// The dictionary CSV is itself formula-safe and names the destructive update.
+// The dictionary CSV is itself formula-safe and says what an update keeps and how a field is cleared (47.13.2a).
 func TestImportDictionaryCSV(t *testing.T) {
 	db.InitDB(testConnStr())
 	out, err := GenerateImportTemplateDictionaryCSV("default", "Vendor")
@@ -121,7 +121,7 @@ func TestImportDictionaryCSV(t *testing.T) {
 		t.Errorf("header %v", records[0])
 	}
 	text := string(out)
-	for _, want := range []string{"gstin", "REPLACES that record", "a blank cell or a column left out", "YYYY-MM-DD", "leading apostrophe", "Example: 27AAPFU0939F1ZV"} {
+	for _, want := range []string{"gstin", "UPDATES that record", "a blank cell or a column left out of the file keeps it", ImportClearMarker, "YYYY-MM-DD", "leading apostrophe", "Example: 27AAPFU0939F1ZV"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("dictionary lacks %q", want)
 		}

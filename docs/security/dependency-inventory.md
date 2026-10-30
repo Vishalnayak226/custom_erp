@@ -44,6 +44,7 @@ covering all four categories:
 | `ci_tool` | `govulncheck`, installed via `go install ...@<pinned version>` rather than vendored. |
 | `os_runner` | The GitHub-hosted runner image (`ubuntu-24.04`). |
 | `os_container_image` | The CI Postgres service container and the (dormant) Dockerfile's base images. |
+| `vendored_asset` | Third-party JavaScript/CSS vendored under `public/` (`public/qrcode.min.js` today), each with version, licence, size and the SHA-256 of the bytes on disk (Stage 47.18.4). |
 
 ## What is enforced automatically, and what is not
 
@@ -60,6 +61,7 @@ gate tests by name so they're visible in the CI log without reading a full
 | `TestDependencyLedgerCoversWorkflowActions` | A GitHub Action is referenced in a workflow with no matching `ci_action` ledger entry, independent of whether it happens to be pinned. |
 | `TestLedgerEntriesAreWellFormed` | A ledger entry has an unrecognised `type`, a duplicate `name`, or an empty version/owner/purpose/provenance. |
 | `TestStage47184ArchitectureExceptionGate` | An entry added since the gate opened (2026-10-27) has no complete `architecture_gate`, a newcomer copies the `grandfathered` marker, a field argues from habit ("enterprise systems normally use it") or the bottleneck has no measurement; or a process the deployment starts (a `deploy/*.service` unit or a unit it wants, Caddy, a compose service, a `deploy/install_*_cron.sh` job) has no `process` entry. |
+| `TestStage47184VendoredAssetsAreInTheLedger` | A file under `public/` that looks third-party (`*.min.js`, `*.min.css`, anything under `vendor/` or `lib/`, or a licence banner in its first 4 KB) has no `vendored_asset` entry, its entry has no licence, or the entry's `bytes`/`checksum` disagree with the file on disk; or a `vendored_asset` entry names a file that is gone. |
 
 What is **not** automatically enforced, and why:
 

@@ -5,9 +5,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"math"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -289,8 +287,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				// Stage 49.4.7: answered exactly like a record that does not
 				// exist, so the refusal never confirms one is there; the
 				// refused read is still on the audit log, as GLOBAL-0011 was.
-				engines.LogAuditEvent(tenantID, userID, "GLOBAL-0011", "Error", fmt.Sprintf("[GLOBAL-0011] out-of-scope read of %s %s answered as not found", doctype, id))
-				writeAPIError(w, r, "GLOBAL-0004", "")
+				refuseAsNotFound(w, r, tenantID, userID, "read", doctype, id)
 				return
 			}
 
@@ -304,6 +301,14 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// stays untouched. The Home screen's "recent tasks" panel is the first
 			// caller that needs "what did I touch last" rather than a stable order.
 			sortRecent := r.URL.Query().Get("sort") == "recent"
+			// Stage 49.4.6: the sort and filter vocabulary is an allowlist -
+			// "recent" is the one sort order besides the default (by id), and
+			// a filter is one equality on a field name that safeFilterKeyRe
+			// accepts (below). Anything else is refused, never passed on.
+			if v := r.URL.Query().Get("sort"); v != "" && !sortRecent {
+				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("Unknown sort %q: a list is in id order, or by last change with sort=recent", v))
+				return
+			}
 			whereClause := " WHERE doctype = $1 AND deleted_at IS NULL"
 			var args []interface{}
 			args = append(args, doctype)
@@ -387,12 +392,28 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Dynamic search parameter filters check (WMS/OMS query filters)
+			//
+			// Stage 49.4.6: a filter is one equality on a field the doctype
+			// declares (or its id / status). A name the doctype does not have -
+			// an operator suffix (code__gt), a column guess - is refused with
+			// 422, never matched to nothing. A doctype with no declared fields
+			// (built at runtime) keeps the name-shape check alone.
+			declaredFilterFields := map[string]bool{"id": true, "status": true}
+			if metaFields, metaErr := engines.GetDocTypeMeta(tenantID, doctype); metaErr == nil {
+				for _, f := range metaFields {
+					declaredFilterFields[f.Fieldname] = true
+				}
+			}
 			for key, vals := range r.URL.Query() {
 				if key == "q" || key == "tenant_id" || key == "limit" || key == "offset" || key == "sort" || key == "count" || key == "q_fields" || len(vals) == 0 {
 					continue
 				}
 				if !safeFilterKeyRe.MatchString(key) {
 					writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("Invalid filter parameter name: %q", key))
+					return
+				}
+				if len(declaredFilterFields) > 2 && !declaredFilterFields[key] {
+					writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("Unknown filter %q: not a field of %s", key, doctype))
 					return
 				}
 				whereClause += fmt.Sprintf(" AND data->>'%s' = $%d", key, argIndex)
@@ -556,6 +577,11 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 
 				docs = append(docs, dataMap)
 			}
+			// 49.11.1: a page of a sensitive doctype this role can read in
+			// full is a security event; a user's own records are not.
+			if len(own) == 0 {
+				engines.LogSensitiveBulkRead(r.Context(), tenantID, userID, role, doctype, len(docs), r.URL.RawQuery)
+			}
 			_ = json.NewEncoder(w).Encode(docs)
 		}
 
@@ -587,7 +613,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 					`SELECT COALESCE(data->>'%s', '') FROM %s.documents WHERE id = $1 AND doctype = $2 AND deleted_at IS NULL`,
 					supplierScopeField, schema), id, doctype).Scan(&ownerCode)
 				if ownErr != nil || (ownerCode != "" && ownerCode != supplierCode) {
-					writeAPIError(w, r, "GLOBAL-0011", "")
+					refuseAsNotFound(w, r, tenantID, userID, "update", doctype, id)
 					return
 				}
 				payload[supplierScopeField] = supplierCode
@@ -602,7 +628,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			var storedCreator string
 			_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(created_by, '') FROM %s.documents WHERE id = $1 AND doctype = $2 AND deleted_at IS NULL`, schema), id, doctype).Scan(&storedCreator)
 			if !engines.CreatorMayAccess(doctype, role, userID, storedCreator) {
-				writeAPIError(w, r, "GLOBAL-0011", "")
+				refuseAsNotFound(w, r, tenantID, userID, "update", doctype, id)
 				return
 			}
 		}
@@ -616,9 +642,31 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				writeTarget = strings.TrimSpace(v)
 			}
 		}
-		if !selfScopeWriteAllowed(schema, doctype, writeTarget, docScope, payload) {
+		switch selfScopeWriteAllowed(schema, doctype, writeTarget, docScope, payload) {
+		case selfScopeOtherRecord:
+			// Stage 49.4.7: a colleague's record is "not found", as on a read.
+			refuseAsNotFound(w, r, tenantID, userID, "update", doctype, writeTarget)
+			return
+		case selfScopeRefused:
 			writeAPIError(w, r, "GLOBAL-0011", "")
 			return
+		}
+
+		// Stage 49.4.7: an update of a stored record this session cannot read
+		// (another store's, another owner's) is refused before anything else
+		// looks at it, and refused exactly as a missing record is - the same
+		// documentReadRule the single-record GET applies.
+		if writeTarget != "" {
+			var storedStr, storedCreator string
+			if scanErr := db.DB.QueryRow(fmt.Sprintf(`SELECT data, COALESCE(created_by, '') FROM %s.documents WHERE doctype = $1 AND id = $2 AND deleted_at IS NULL`, schema), doctype, writeTarget).Scan(&storedStr, &storedCreator); scanErr == nil {
+				var stored map[string]interface{}
+				_ = json.Unmarshal([]byte(storedStr), &stored)
+				rule := documentReadRule{doctype: doctype, role: role, location: location, supplierCode: supplierCode, scope: docScope}
+				if stored != nil && (!rule.visible(stored) || !engines.CreatorMayAccess(doctype, role, userID, storedCreator)) {
+					refuseAsNotFound(w, r, tenantID, userID, "update", doctype, writeTarget)
+					return
+				}
+			}
 		}
 
 		// Purchase Requisitions are numbered by the server from Prefix Configs
@@ -906,6 +954,12 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		if doctype == "ProductAttributeDef" || doctype == engines.ItemAttributeDoctype {
 			engines.KeepLibraryAttributeIdentity(tenantID, effectiveID, payload) // Stage 81
 		}
+		if doctype == "Bin" {
+			// 140.12.21: a bin's new zone is made with it, by someone who may make zones.
+			if ok, _ := checkPermission(tenantID, r.Header.Get("Resolved-Role"), "Zone", "create"); ok {
+				engines.EnsureBinZone(tenantID, r.Header.Get("Resolved-Username"), payload)
+			}
+		}
 		if err := engines.ValidateMasterDataRules(tenantID, effectiveID, doctype, payload); err != nil {
 			if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
 				writeAPIErrorDetail(w, r, verr.Code, verr.SubFor, verr.Message)
@@ -920,38 +974,12 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// breakdown is stored on the document itself (no GL posting here -
 		// PO creation posts no GL entries in this system, GRN receipt does).
 		if doctype == "PurchaseOrder" {
-			// Stage 40.1: inter-state vs intra-state is derived from the buying
-			// entity's and the vendor's states before the breakdown below.
-			// 49.5.6b: ValidateDocument did it above (ApplyPlaceOfSupply, after
-			// refusing a vendor with no state), so an import gets it too.
-			// Stage 110.2: a new PO carries its GST mode from the start.
-			engines.StampNewPOGSTMode(tenantID, payload)
-
-			breakdown, errGST := engines.ComputePurchaseOrderGST(tenantID, payload)
-			if errGST != nil {
-				writeEngineError(w, r, errGST, http.StatusUnprocessableEntity)
+			// Stage 49.3.4b: the GST breakdown and the totals, in
+			// engines.ApplyPurchaseOrderTotals so a CSV import computes them
+			// exactly as this save does.
+			if err := engines.ApplyPurchaseOrderTotals(tenantID, payload); err != nil {
+				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 				return
-			}
-			payload["gst_breakdown"] = breakdown
-			// total_amount is this codebase's taxable value throughout
-			// (engines.PostDoubleEntry's existing accounting depends on that),
-			// so it is kept as the breakdown's taxable figure rather than the
-			// gross. Before this it was a number the maker typed by hand next
-			// to lines that said something else; now the lines are the source
-			// of truth and the header total follows from them.
-			if breakdown.TaxableAmount > 0 || breakdown.NonTaxableAmount() > 0 {
-				payload["total_amount"] = math.Round((breakdown.TaxableAmount+breakdown.NonTaxableAmount())*100) / 100
-				// Stage 94.15: the PO total is to the whole rupee, with its
-				// round-off line beside it.
-				payload["grand_total"], payload["round_off"] = engines.RoundToRupee(breakdown.TotalAmount)
-				// Stage 129: the base amounts the approval bands read were
-				// stamped by ValidateDocument from the total the caller sent
-				// (0 from an upload, or a stale preview); they follow the
-				// recomputed total, or a PO is routed to the wrong approver.
-				if err := engines.ApplyDocumentCurrency(tenantID, doctype, payload); err != nil {
-					writeEngineError(w, r, err, http.StatusUnprocessableEntity)
-					return
-				}
 			}
 		}
 
@@ -1265,14 +1293,9 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 
 		// Stage 130.9 (72.D e): one signed audit event per edit - who changed
 		// which fields, and why - for every client.
+		// 49.5.4 (b): the one choke point a CSV import shares.
 		if priorData != nil && id != "" {
-			if changed := changedFieldNames(priorData, payload); len(changed) > 0 {
-				detail := fmt.Sprintf("Edited %s %s: %s", doctype, docID, strings.Join(changed, ", "))
-				if r := strings.TrimSpace(editReason); r != "" {
-					detail += " - reason: " + r
-				}
-				engines.LogAuditEvent(tenantID, userID, "EDIT_"+doctype, "SUCCESS", detail)
-			}
+			engines.LogDocumentEdit(tenantID, userID, doctype, docID, priorData, payload, editReason)
 		}
 
 		// Stage 73.2.8: the edit history of an issued sale, now it is saved.
@@ -1469,8 +1492,23 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !engines.CreatorMayAccess(doctype, role, userID, createdBy) { // Stage 73.D.9
-			writeAPIError(w, r, "GLOBAL-0011", "")
+			refuseAsNotFound(w, r, tenantID, userID, "delete", doctype, id)
 			return
+		}
+		// Stage 49.4.7: a record this session cannot read (another store's,
+		// another employee's, another owner's) is not deleted either, and the
+		// refusal reads exactly like a missing record.
+		{
+			var storedStr string
+			if scanErr := db.DB.QueryRow(fmt.Sprintf(`SELECT data FROM %s.documents WHERE doctype = $1 AND id = $2 AND deleted_at IS NULL`, schema), doctype, id).Scan(&storedStr); scanErr == nil {
+				var stored map[string]interface{}
+				_ = json.Unmarshal([]byte(storedStr), &stored)
+				rule := documentReadRule{doctype: doctype, role: role, location: location, supplierCode: supplierCode, scope: docScope}
+				if stored != nil && !rule.visible(stored) {
+					refuseAsNotFound(w, r, tenantID, userID, "delete", doctype, id)
+					return
+				}
+			}
 		}
 		if doctype == "PurchaseOrder" {
 			// Stage 65.2 (the user, 2026-10-16: delete "any PO with no goods
@@ -1509,6 +1547,16 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed on this endpoint")
 	}
+}
+
+// refuseAsNotFound (Stage 49.4.7, the disclosure rule) answers a record the
+// session may not reach exactly as a record that does not exist - 404
+// GLOBAL-0004 on a read, an update, a delete and an attachments list alike -
+// so a refusal never confirms the record is there. The refusal itself stays
+// on the audit log as GLOBAL-0011, which is what it answered before 49.4.7.
+func refuseAsNotFound(w http.ResponseWriter, r *http.Request, tenantID, userID, action, doctype, id string) {
+	engines.LogAuditEvent(tenantID, userID, "GLOBAL-0011", "Error", fmt.Sprintf("[GLOBAL-0011] out-of-scope %s of %s %s answered as not found", action, doctype, id))
+	writeAPIError(w, r, "GLOBAL-0004", "")
 }
 
 // checkPermission is engines.RoleMayOnDoctype - one copy, which the CSV
@@ -2167,24 +2215,8 @@ func handleGetIndustryLock(w http.ResponseWriter, r *http.Request) {
 }
 
 // changedFieldNames (Stage 130.9) lists, sorted, the fields an edit changed:
-// a value that differs, or one added or removed.
+// a value that differs, or one added or removed. 49.5.4 (b): the rule lives
+// in engines.ChangedFieldNames, shared with the import.
 func changedFieldNames(before, after map[string]interface{}) []string {
-	var out []string
-	seen := map[string]bool{}
-	for k, v := range after {
-		seen[k] = true
-		if k == "id" || k == "version" || k == "updated_at" {
-			continue
-		}
-		if fmt.Sprintf("%v", before[k]) != fmt.Sprintf("%v", v) {
-			out = append(out, k)
-		}
-	}
-	for k := range before {
-		if !seen[k] && k != "id" && k != "version" && k != "status" {
-			out = append(out, k)
-		}
-	}
-	sort.Strings(out)
-	return out
+	return engines.ChangedFieldNames(before, after)
 }

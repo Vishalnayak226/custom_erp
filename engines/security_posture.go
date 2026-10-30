@@ -112,14 +112,16 @@ type SecurityPosture struct {
 	AuditUnsealedHours  int                     `json:"audit_unsealed_hours"`
 	LastCheckpoint      *time.Time              `json:"last_checkpoint,omitempty"`
 	AuditVerifyFailures int                     `json:"audit_verify_failures_7d"`
-	AdminsWithout2FA    []string                `json:"admins_without_2fa"`
-	Credentials         []PostureCredential     `json:"credentials"`
-	DeadLetteredJobs    int                     `json:"dead_lettered_jobs_7d"`
-	ExportsFrozen       bool                    `json:"exports_frozen"`
-	AlertsDelivered     bool                    `json:"alerts_delivered"`
-	AuditRowsEstimate   int64                   `json:"audit_rows_estimate"`
-	AuditWritesLost     int64                   `json:"audit_writes_lost"`
-	AuditLossReason     string                  `json:"audit_loss_reason,omitempty"`
+	// LastVerify (49.11.1): the verifier's last run and what it found.
+	LastVerify        *PostureVerify      `json:"last_verify,omitempty"`
+	AdminsWithout2FA  []string            `json:"admins_without_2fa"`
+	Credentials       []PostureCredential `json:"credentials"`
+	DeadLetteredJobs  int                 `json:"dead_lettered_jobs_7d"`
+	ExportsFrozen     bool                `json:"exports_frozen"`
+	AlertsDelivered   bool                `json:"alerts_delivered"`
+	AuditRowsEstimate int64               `json:"audit_rows_estimate"`
+	AuditWritesLost   int64               `json:"audit_writes_lost"`
+	AuditLossReason   string              `json:"audit_loss_reason,omitempty"`
 	// Stage 49.2.1: Active accounts with no sign-in for DormantDays - the
 	// policy's period while it is on (DormantAutoDisable), else 90.
 	DormantDays        int              `json:"dormant_days"`
@@ -163,6 +165,7 @@ func GetSecurityPosture(tenantID string) (*SecurityPosture, error) {
 	}
 	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.system_error_logs
 		WHERE module_source = 'audit.verify' AND created_at > CURRENT_TIMESTAMP - INTERVAL '7 days'`, schema)).Scan(&p.AuditVerifyFailures)
+	p.LastVerify = lastAuditVerification(schema)
 
 	admins, err := db.DB.Query(fmt.Sprintf(`SELECT username, role FROM %s.users
 		WHERE status = 'Active' AND NOT COALESCE(mfa_enabled, FALSE) AND NOT COALESCE(is_platform_support, FALSE)

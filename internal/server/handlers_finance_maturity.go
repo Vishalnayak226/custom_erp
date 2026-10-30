@@ -156,7 +156,9 @@ func handlePostSalesInvoice(w http.ResponseWriter, r *http.Request) {
 	invoiceID := r.PathValue("id")
 	amount, err := engines.PostSalesInvoice(tenantID, invoiceID, userID)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		// 140.12.8: a coded refusal (the credit limit, a short store) keeps
+		// its code instead of a generic 422.
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "Approved", "id": invoiceID, "amount": amount})

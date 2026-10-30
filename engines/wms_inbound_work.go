@@ -66,6 +66,9 @@ type PutawayWaiting struct {
 	OnHand   float64 `json:"on_hand"`
 	Binned   float64 `json:"binned"`
 	Waiting  float64 `json:"waiting"`
+	// GRN (140.12.21) is the latest goods receipt that brought the item in
+	// here, sent with the put-away so a 3PL owner is taken from it.
+	GRN string `json:"grn,omitempty"`
 }
 
 // InboundWorkList is the whole inbound queue for a location.
@@ -172,20 +175,28 @@ func InboundWork(tenantID, location string) (InboundWorkList, error) {
 		return out.ASNs[i].ExpectedDate < out.ASNs[j].ExpectedDate
 	})
 
-	// Putaway: only where the location keeps bins at all.
+	// Putaway: only where the location keeps bins at all. 140.12.19: units
+	// already picked out of a bin for an order not yet shipped are still on
+	// hand but are not waiting to be put away, so they count with the binned.
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		WITH binned AS (
 			SELECT sku, location_code, SUM(qty) AS q FROM %s.bin_stock GROUP BY 1, 2
+		), picked AS (
+			SELECT ba.sku, ba.location_code, SUM(ba.picked_qty) AS q FROM %s.bin_allocation ba
+			  JOIN %s.documents t ON t.id = ba.task_id AND t.doctype = 'FulfillmentTask'
+			 WHERE ba.picked_qty > 0 AND t.status NOT IN ('Dispatched', 'Rejected') AND t.deleted_at IS NULL
+			 GROUP BY 1, 2
 		), binlocs AS (
 			SELECT DISTINCT data->>'location' AS loc FROM %s.documents
 			 WHERE doctype = 'Bin' AND status = 'Active' AND deleted_at IS NULL
 		)
-		SELECT ia.sku, ia.location_code, ia.on_hand, COALESCE(b.q, 0)
+		SELECT ia.sku, ia.location_code, ia.on_hand, COALESCE(b.q, 0) + COALESCE(p.q, 0)
 		  FROM %s.inventory_availability ia
 		  JOIN binlocs bl ON bl.loc = ia.location_code
 		  LEFT JOIN binned b ON b.sku = ia.sku AND b.location_code = ia.location_code
-		 WHERE ia.on_hand > COALESCE(b.q, 0) AND ($1 = '' OR ia.location_code = $1)
-		 ORDER BY ia.location_code, ia.sku`, schema, schema, schema), location)
+		  LEFT JOIN picked p ON p.sku = ia.sku AND p.location_code = ia.location_code
+		 WHERE ia.on_hand > COALESCE(b.q, 0) + COALESCE(p.q, 0) AND ($1 = '' OR ia.location_code = $1)
+		 ORDER BY ia.location_code, ia.sku`, schema, schema, schema, schema, schema), location)
 	if err != nil {
 		return out, err
 	}
@@ -205,6 +216,11 @@ func InboundWork(tenantID, location string) (InboundWorkList, error) {
 		if it, err := ResolveItemBySKU(tenantID, out.Putaway[i].Sku); err == nil {
 			out.Putaway[i].Name = strField(it.Data, "name")
 		}
+		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = 'GRN' AND deleted_at IS NULL
+			AND status NOT IN ('Draft', 'Cancelled', 'Rejected') AND data->>'location' = $1
+			AND ((jsonb_typeof(data->'items') = 'array' AND data->'items' @> jsonb_build_array(jsonb_build_object('sku', $2::text)))
+			  OR (jsonb_typeof(data->'items') = 'string' AND data->>'items' LIKE '%%"sku":"' || $2 || '"%%'))
+			ORDER BY created_at DESC LIMIT 1`, schema), out.Putaway[i].Location, out.Putaway[i].Sku).Scan(&out.Putaway[i].GRN)
 	}
 	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'Bin' AND status = 'Active' AND deleted_at IS NULL
 		AND ($1 = '' OR data->>'location' = $1))`, schema), location).Scan(&out.HasBins)

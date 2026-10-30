@@ -79,6 +79,10 @@ type ControlPanel struct {
 	// SlowQueries (Stage 47.9.3): the heaviest statement fingerprints, no
 	// parameter values - see engines/query_fingerprints.go.
 	SlowQueries SlowQuerySummary `json:"slow_queries"`
+	// CapabilityMaturity (Stage 47.17.5): each capability's level, evidence
+	// and limits - engines/capability_maturity.go, the same list as
+	// docs/product/capability-maturity.md.
+	CapabilityMaturity []CapabilityMaturity `json:"capability_maturity"`
 }
 
 // GetControlPanel builds the summary. One client's unreadable schema is
@@ -151,6 +155,7 @@ func GetControlPanel() (ControlPanel, error) {
 		out.LastGoodBackupAt = nullTimePtr(good)
 	}
 	out.SlowQueries = SlowQueries(20)
+	out.CapabilityMaturity = CapabilityMaturityRegistry()
 	return out, nil
 }
 

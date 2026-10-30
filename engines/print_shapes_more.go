@@ -285,6 +285,54 @@ func buildStatement(tenantID, txn, partyID string, d *PrintDocument) (string, er
 			}
 		}
 		rows.Close()
+		// 140.12.7: the rest of the customer's account - advances (2640) and
+		// store credit (2650) taken, used and refunded, and till bills - so
+		// the statement is the whole story, not receivables (1300) alone.
+		// Money received is a credit; using or refunding it is a debit.
+		sv, err := db.DB.Query(fmt.Sprintf(`SELECT l.created_at, l.instrument_id, i.profile, l.event_type, l.amount_paise,
+			COALESCE(l.source_doctype, ''), COALESCE(l.source_id, '')
+			FROM %s.stored_value_ledger l JOIN %s.stored_value_instruments i ON i.instrument_id = l.instrument_id
+			WHERE i.customer_id = $1 AND i.profile IN ($2, $3) AND l.amount_paise <> 0 ORDER BY l.created_at, l.event_seq`, schema, schema),
+			partyID, AdvanceProfileID, StoreCreditProfileID)
+		if err != nil {
+			return "", err
+		}
+		for sv.Next() {
+			var at time.Time
+			var inst, profile, event, srcType, srcID string
+			var amount int64
+			if sv.Scan(&at, &inst, &profile, &event, &amount, &srcType, &srcID) != nil {
+				continue
+			}
+			what := map[bool]string{true: "Advance", false: "Store credit"}[profile == AdvanceProfileID]
+			e := entry{date: at.Format("2006-01-02"), doc: inst}
+			switch {
+			case amount > 0:
+				e.particulars, e.credit = what+" received", PaiseToRupees(amount)
+			case event == SVEventRefund:
+				e.particulars, e.debit = what+" refunded", PaiseToRupees(-amount)
+			default:
+				e.particulars, e.debit = strings.TrimSpace(what+" used "+srcID), PaiseToRupees(-amount)
+			}
+			es = append(es, e)
+		}
+		sv.Close()
+		bills, err := db.DB.Query(fmt.Sprintf(`SELECT created_at, COALESCE(data->>'bill_number', id), COALESCE((data->>'amount_paid')::numeric, 0)
+			FROM %s.documents WHERE doctype = 'POSCart' AND status = 'Paid' AND deleted_at IS NULL AND data->>'customer_id' = $1 ORDER BY created_at`, schema), partyID)
+		if err != nil {
+			return "", err
+		}
+		for bills.Next() {
+			var at time.Time
+			var bill string
+			var amount float64
+			if bills.Scan(&at, &bill, &amount) != nil || amount == 0 {
+				continue
+			}
+			day := at.Format("2006-01-02")
+			es = append(es, entry{date: day, doc: bill, particulars: "Till bill", debit: amount}, entry{date: day, doc: bill, particulars: "Paid at the till", credit: amount})
+		}
+		bills.Close()
 	} else {
 		d.Title, d.Party, d.PartyTitle = "Statement of Account", loadPrintVendor(tenantID, partyID), "Vendor"
 		rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, data, created_at FROM %s.documents WHERE doctype = 'VendorInvoice' AND deleted_at IS NULL

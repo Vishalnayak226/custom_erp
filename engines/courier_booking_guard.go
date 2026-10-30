@@ -296,23 +296,34 @@ func settleFailedCourierBooking(tenantID string, c courierBookingClaim, provider
 		return courierBookingUncertain(provider, c.ref, canLookup, err)
 	}
 	releaseCourierClaim(c.schema, bookingID)
+	return courierClearFailure(provider, wrote, err)
+}
+
+// courierClearFailure words a failed call that left nothing outstanding at
+// the courier (shared with the pickup / cancel guard, 47.11.8b).
+func courierClearFailure(provider string, wrote bool, err error) error {
 	if !wrote && courierTransportError(err) && !errors.Is(err, context.Canceled) {
 		return &ValidationError{Code: CourierUnreachableCode, Message: fmt.Sprintf("%s could not be reached - nothing was sent and nothing was changed here. Try again shortly.", provider)}
 	}
 	return courierCallFailed(provider, err)
 }
 
-func courierBookingUncertain(provider, ref string, canLookup bool, err error) error {
-	what := provider + " did not answer"
+// courierUnclearAnswer names what the courier did after the request was sent.
+func courierUnclearAnswer(provider string, err error) string {
 	var httpErr *ConnectorHTTPError
 	switch {
 	case errors.As(err, &httpErr) && httpErr.Status == http.StatusConflict:
-		what = provider + " says this shipment may already exist (HTTP 409)"
+		return provider + " says this may already exist (HTTP 409)"
 	case errors.As(err, &httpErr):
-		what = fmt.Sprintf("%s is not working right now (HTTP %d)", provider, httpErr.Status)
+		return fmt.Sprintf("%s is not working right now (HTTP %d)", provider, httpErr.Status)
 	case courierUnreadable(err):
-		what = provider + "'s answer could not be read"
+		return provider + "'s answer could not be read"
 	}
+	return provider + " did not answer"
+}
+
+func courierBookingUncertain(provider, ref string, canLookup bool, err error) error {
+	what := courierUnclearAnswer(provider, err)
 	if canLookup {
 		return &ValidationError{Code: CourierUnreachableCode, Message: what + " - no AWB was recorded here, but it may have received the request. Try again: the retry asks " + provider + " first, so it is not booked twice."}
 	}

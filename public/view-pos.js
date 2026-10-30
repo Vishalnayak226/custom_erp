@@ -1231,7 +1231,10 @@ async function submitPOSCheckoutInner() {
       ...tillPayment,
       advances: posCustomerRef ? posCustomerRef.posAdvanceApplied(parseFloat(totalBox.dataset.beforeAdvance) || 0) : [],
       ...posRedemptionAuth,
-      tenders: posTenders,
+      // 49.5.4: a tender repeating one taken minutes ago is refused unless
+      // the cashier confirmed it is a second payment.
+      tenders: posSecondPayment ? posTenders.map(t => ({ ...t, second_payment: true })) : posTenders,
+      second_payment: posSecondPayment,
       exchange_credit_id: posExchange ? posExchange.id : '',
       coupon_codes: currentPOSCouponCodes(),
       // 47.2.4: what the cashier is looking at. If the server re-resolves to
@@ -1325,6 +1328,15 @@ async function submitPOSCheckoutInner() {
       // Stage 85.E7: over the limit the discount needs its reason.
       const reason = await showCustomPrompt(`${data.detail || 'This discount needs a reason.'}`, '', 'Discount Reason');
       if (reason && reason.trim()) { posDiscountReason = reason.trim(); await submitPOSCheckoutInner(); }
+      return;
+    }
+    if (!res.ok && data.code === 'POSOFF-1363' && !posSecondPayment) {
+      // 49.5.4: the same card slip / UTR was taken minutes ago. Only the
+      // cashier can say the customer really paid twice.
+      if (await showCustomConfirm(`${data.detail || 'This payment was already taken on an earlier bill.'}\n\nIs this a second payment with the same reference?`, 'Second payment')) {
+        posSecondPayment = true;
+        await submitPOSCheckoutInner();
+      }
       return;
     }
     if (!res.ok) {
@@ -1488,7 +1500,7 @@ function freezePOSTill(sale) {
     </div>
     <div style="display:flex; gap:10px; margin-top:16px;">
       <button class="btn btn-primary" id="pos-new-sale-btn" type="button">New Sale (Reset)</button>
-      ${sale.canPrint ? '<button class="btn btn-outline" id="pos-print-receipt-btn" type="button">Print Receipt</button><button class="btn btn-outline" id="pos-preview-receipt-btn" type="button">Preview</button>' : ''}
+      ${sale.canPrint ? '<button class="btn btn-outline" id="pos-print-receipt-btn" type="button">Print Receipt</button>' : ''}
       ${sale.gstBill && sale.status === 'paid' ? '<button class="btn btn-outline" id="pos-print-gst-btn" type="button">Print GST Invoice</button>' : ''}
     </div>
   `;
@@ -1496,15 +1508,12 @@ function freezePOSTill(sale) {
 
   const newBtn = document.getElementById('pos-new-sale-btn');
   if (newBtn) { newBtn.addEventListener('click', startNewPOSSale); newBtn.focus(); }
+  // Stage 143.4: Print Receipt shows the bill first; Print there prints.
   const printBtn = document.getElementById('pos-print-receipt-btn');
-  if (printBtn) printBtn.addEventListener('click', () => printCompletedPOSSale());
-  // Stage 133.3: the bill as Print Receipt would print it; Print there prints.
-  const previewBtn = document.getElementById('pos-preview-receipt-btn');
-  if (previewBtn) previewBtn.addEventListener('click', async () => {
+  if (printBtn) printBtn.addEventListener('click', async () => {
     const docs = await import('./trade-docs.js' + new URL(import.meta.url).search);
     const go = await docs.previewPOSBill(sale.cartNumber, sale.cashTendered);
-    if (go === null) await showCustomAlert('This bill has no preview yet - Print Receipt still prints it.', 'Receipt Preview');
-    if (go) printCompletedPOSSale();
+    if (go !== false) printCompletedPOSSale();
   });
   // Stage 85.D2: the tax invoice, from the Stage 71 print pack.
   const gstBtn = document.getElementById('pos-print-gst-btn');
@@ -1649,6 +1658,8 @@ let posRedemptionAuth = {};
 // 73.1.6: fixed parts of a split payment ({mode, amount}); Payment Mode takes
 // the rest.
 let posTenders = [];
+// 49.5.4: the cashier confirmed this bill's tender repeats an earlier one on purpose.
+let posSecondPayment = false;
 // 73.2.6: an exchange's credit ({id, amount}) paying this bill.
 let posExchange = null;
 
@@ -1657,6 +1668,7 @@ function clearPOSRedemption() {
   posLoyalty = null;
   posRedemptionAuth = {};
   posTenders = [];
+  posSecondPayment = false;
   posExchange = null;
   document.getElementById('pos-split-row')?.remove();
   document.getElementById('pos-exchange-row')?.remove();

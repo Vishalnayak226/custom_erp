@@ -1,6 +1,8 @@
 package engines
 
 import (
+	"custom_erp/db"
+	"fmt"
 	"regexp"
 	"sort"
 )
@@ -30,7 +32,9 @@ import (
 //
 // Review is the minimization question a row leaves for the privacy owner -
 // a field that has a purpose today but where collecting less looks possible.
-// Nothing here deletes or stops collecting anything: that is the owner's call.
+// Nothing here deletes or stops collecting anything unless the owner decided
+// it: 49.6.2a answered the five questions the sweep raised (the rows marked
+// 49.6.2a), and personalFieldClearings is the one field cleared on a timer.
 
 // Legal bases. These name the DPDP Act 2023's grounds in plain words; which
 // clause of section 7 a "statutory" or "employment" field rests on is for
@@ -77,7 +81,48 @@ const (
 	readersHR      = "HR and Super Admin"
 	readersOps     = "warehouse, dispatch and store roles"
 	readersFinance = "finance roles and Super Admin"
+	// 49.6.2a (owner decisions, 2026-10-29).
+	readersSalesmanManagers = "the roles that manage salesmen - Store Manager / Store Supervisor, Setup Operator - and Super Admin / Admin (sensitive_fields.go)"
+	retainGatePassPhone     = "cleared 90 days after the gate pass is made (personalFieldClearings, the hourly retention sweep)"
 )
+
+// personalFieldClearing is a personal field that is cleared from a record
+// once it has served its purpose, while the record itself is kept.
+type personalFieldClearing struct {
+	Doctype, Field string
+	Days           int // cleared this many days after the record was made
+}
+
+// personalFieldClearings (Stage 49.6.2a): a gate pass's driver phone is for
+// reaching the driver about the dispatch, so it goes after 90 days; the gate
+// pass, the driver's name and the vehicle stay with the dispatch record.
+var personalFieldClearings = []personalFieldClearing{
+	{Doctype: "GatePass", Field: "driver_phone", Days: 90},
+}
+
+// SweepPersonalFieldRetention clears every personalFieldClearings field that
+// is past its days, and reports how many records lost it per "Doctype.field".
+// It rides the hourly retention sweep (StartIntegrationLogRetentionSweeper),
+// batched and held back by a legal hold like every retention delete.
+func SweepPersonalFieldRetention(tenantID string) (map[string]int64, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]int64{}
+	for _, c := range personalFieldClearings {
+		n, err := retentionClearField(tenantID, schema, c.Doctype, c.Field, c.Days)
+		if err != nil {
+			return out, err
+		}
+		if n > 0 {
+			out[c.Doctype+"."+c.Field] = n
+			LogAuditEvent(tenantID, "system", "PERSONAL_DATA_RETENTION", "Success",
+				fmt.Sprintf("%s.%s cleared on %d record(s) made more than %d days ago (49.6.2a)", c.Doctype, c.Field, n, c.Days))
+		}
+	}
+	return out, nil
+}
 
 func pdField(kind, purpose, basis, retention, readers string) PersonalDataField {
 	return PersonalDataField{Kind: kind, Purpose: purpose, LegalBasis: basis, Retention: retention, Readers: readers}
@@ -92,22 +137,27 @@ func businessField(purpose string) PersonalDataField {
 // personalDataRegister is doctype -> field -> row.
 var personalDataRegister = map[string]map[string]PersonalDataField{
 	"Customer": {
-		"code":                pdField("identity", "Key every sale, invoice and loyalty entry refers to", BasisVoluntary, retainCustomer, readersPOS),
-		"name":                pdField("identity", "Name on the bill and the customer look-up", BasisVoluntary, retainCustomer, readersPOS),
-		"phone":               pdField("contact", "The till's customer look-up key; e-receipt and order updates", BasisVoluntary, retainCustomer, readersPOS),
-		"phone_country":       pdField("contact", "Dialling code that makes phone valid for messaging", BasisVoluntary, retainCustomer, readersPOS),
-		"email":               pdField("contact", "E-receipt and order updates", BasisVoluntary, retainCustomer, readersPOS),
-		"address":             pdField("address", "Delivery and the address printed on a B2B invoice", BasisVoluntary, retainCustomer, readersPOS),
-		"address_line2":       pdField("address", "Delivery and the address printed on a B2B invoice", BasisVoluntary, retainCustomer, readersPOS),
-		"city":                pdField("address", "Delivery; CRM segment by city", BasisVoluntary, retainCustomer, readersPOS),
-		"state":               pdField("address", "GST place of supply", BasisStatutory, retainCustomer, readersPOS),
-		"state_code":          pdField("address", "GST place of supply (state code on the invoice)", BasisStatutory, retainCustomer, readersPOS),
-		"pincode":             pdField("address", "Delivery serviceability and courier booking", BasisVoluntary, retainCustomer, readersPOS),
-		"pan":                 pdField("identity", "Income-tax PAN quoted on high-value sales (Rule 114B)", BasisStatutory, retainCustomer, readersPOS).review("Needed only above the Rule 114B threshold - consider asking for it only then, not on every customer"),
-		"gstin":               pdField("identity", "Buyer GSTIN on a B2B tax invoice", BasisStatutory, retainCustomer, readersPOS),
-		"date_of_birth":       pdField("demographic", "Birthday offers and lifecycle campaigns (crm_lifecycle.go)", BasisConsent, retainCustomer, readersManager).review("Used only for birthday campaigns - collect it only from customers who agreed to marketing"),
-		"date_of_anniversary": pdField("demographic", "Anniversary offers and lifecycle campaigns (crm_lifecycle.go)", BasisConsent, retainCustomer, readersPOS).review("Used only for campaigns - collect only with marketing consent, and restrict it like date_of_birth"),
-		"gender":              pdField("demographic", "CRM segments and the customer dashboard breakdown", BasisConsent, retainCustomer, readersPOS).review("Used only for segmentation and a dashboard split - optional at capture, never required"),
+		"code":          pdField("identity", "Key every sale, invoice and loyalty entry refers to", BasisVoluntary, retainCustomer, readersPOS),
+		"name":          pdField("identity", "Name on the bill and the customer look-up", BasisVoluntary, retainCustomer, readersPOS),
+		"phone":         pdField("contact", "The till's customer look-up key; e-receipt and order updates", BasisVoluntary, retainCustomer, readersPOS),
+		"phone_country": pdField("contact", "Dialling code that makes phone valid for messaging", BasisVoluntary, retainCustomer, readersPOS),
+		"email":         pdField("contact", "E-receipt and order updates", BasisVoluntary, retainCustomer, readersPOS),
+		"address":       pdField("address", "Delivery and the address printed on a B2B invoice", BasisVoluntary, retainCustomer, readersPOS),
+		"address_line2": pdField("address", "Delivery and the address printed on a B2B invoice", BasisVoluntary, retainCustomer, readersPOS),
+		"city":          pdField("address", "Delivery; CRM segment by city", BasisVoluntary, retainCustomer, readersPOS),
+		"state":         pdField("address", "GST place of supply", BasisStatutory, retainCustomer, readersPOS),
+		"state_code":    pdField("address", "GST place of supply (state code on the invoice)", BasisStatutory, retainCustomer, readersPOS),
+		"pincode":       pdField("address", "Delivery serviceability and courier booking", BasisVoluntary, retainCustomer, readersPOS),
+		// 49.6.2a (owner decision, 2026-10-29): asked for only when a bill is
+		// over the Rule 114B threshold - Rs 2,00,000 a sale - by the till and
+		// by checkout (CheckHighValueSale, POSOFF-0867); optional everywhere else.
+		"pan":   pdField("identity", "Income-tax PAN, asked for only on a sale over the Rule 114B threshold (Rs 2,00,000 a bill; POSOFF-0867)", BasisStatutory, retainCustomer, readersPOS),
+		"gstin": pdField("identity", "Buyer GSTIN on a B2B tax invoice", BasisStatutory, retainCustomer, readersPOS),
+		// 49.6.2a (owner decision): marketing data, held on consent - optional
+		// at capture and required nowhere (TestStage4962aMinimisationAnswers).
+		"date_of_birth":       pdField("demographic", "Marketing: birthday offers and lifecycle campaigns (crm_lifecycle.go); held on consent, optional", BasisConsent, retainCustomer, readersManager),
+		"date_of_anniversary": pdField("demographic", "Marketing: anniversary offers and lifecycle campaigns (crm_lifecycle.go); held on consent, optional", BasisConsent, retainCustomer, readersPOS),
+		"gender":              pdField("demographic", "Marketing: CRM segments and the customer dashboard breakdown; held on consent, optional", BasisConsent, retainCustomer, readersPOS),
 		"sizes":               pdField("preference", "Size preferences for clienteling and recommendations", BasisConsent, retainCustomer, readersPOS),
 		"preferred_store":     pdField("preference", "Clienteling and CRM segment", BasisVoluntary, retainCustomer, readersPOS),
 		"preferred_salesman":  pdField("preference", "Clienteling - who serves this customer", BasisVoluntary, retainCustomer, readersPOS),
@@ -131,7 +181,7 @@ var personalDataRegister = map[string]map[string]PersonalDataField{
 		"code":              pdField("identity", "Key for attendance, payroll and access", BasisEmployment, retainEmployee, readersHR),
 		"name":              pdField("identity", "Name on HR records and payslips", BasisEmployment, retainEmployee, readersHR),
 		"department":        pdField("record", "Reporting line and cost allocation", BasisEmployment, retainEmployee, readersHR),
-		"designation":       pdField("record", "Job title on the HR record", BasisEmployment, retainEmployee, readersHR).review("No report or workflow reads it - only the record form shows it"),
+		"designation":       pdField("record", "Job title on the HR record and on HR letters (49.6.2a: kept)", BasisEmployment, retainEmployee, readersHR),
 		"location":          pdField("record", "Work location for attendance and store access", BasisEmployment, retainEmployee, readersHR),
 		"reporting_manager": pdField("record", "Approval routing and the HR roster report", BasisEmployment, retainEmployee, readersHR),
 		"user_id":           pdField("identity", "Links the employee to their sign-in account", BasisEmployment, retainEmployee, readersHR),
@@ -144,7 +194,7 @@ var personalDataRegister = map[string]map[string]PersonalDataField{
 	"Salesman": {
 		"name":       pdField("identity", "Sales attribution and incentive", BasisEmployment, retainEmployee, readersPOS),
 		"store":      pdField("record", "The store the salesman sells at", BasisEmployment, retainEmployee, readersPOS),
-		"phone":      pdField("contact", "Reach the salesman about a customer or order", BasisEmployment, retainEmployee, readersPOS).review("Shown wherever salesmen are listed - consider restricting it to managers"),
+		"phone":      pdField("contact", "Reach the salesman about a customer or order", BasisEmployment, retainEmployee, readersSalesmanManagers),
 		"is_default": pdField("record", "The store's default salesman at the till", BasisEmployment, retainEmployee, readersPOS),
 		"status":     pdField("record", "Active / inactive record state", BasisEmployment, retainEmployee, readersPOS),
 	},
@@ -171,7 +221,7 @@ var personalDataRegister = map[string]map[string]PersonalDataField{
 	// --- Third parties at the dock ----------------------------------------
 	"GatePass": {
 		"driver_name":    pdField("identity", "Who took the goods out of the gate", BasisVoluntary, retainRecord, readersOps),
-		"driver_phone":   pdField("contact", "Reach the driver about the dispatch", BasisVoluntary, retainRecord, readersOps).review("Needed on the day of dispatch only - consider clearing it once the gate pass is closed"),
+		"driver_phone":   pdField("contact", "Reach the driver about the dispatch", BasisVoluntary, retainGatePassPhone, readersOps),
 		"vehicle_number": pdField("identity", "Vehicle that took the goods out", BasisVoluntary, retainRecord, readersOps),
 	},
 	"GRN":         {"vehicle_no": pdField("identity", "Vehicle that delivered the goods", BasisVoluntary, retainRecord, readersOps)},
@@ -203,6 +253,7 @@ var personalDataRegister = map[string]map[string]PersonalDataField{
 		"bank_name":      businessField("The company's own bank account"),
 		"ifsc_code":      businessField("The company's own bank account"),
 	},
+	"AcquirerSettlement": {"bank_line": businessField("The company's bank statement line a card / UPI settlement matched")},
 	"BankStatementLine":  {"bank_account": businessField("Which company account a statement line belongs to")},
 	"CourierServiceArea": {"pincode_prefix": businessField("Areas a courier serves")},
 	"LegalEntity": {

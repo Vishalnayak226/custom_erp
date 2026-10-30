@@ -2,6 +2,7 @@ package engines
 
 import (
 	"custom_erp/db"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -250,9 +251,18 @@ func getCleverTapPasscode(tenantID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var passcode string
-	err = db.DB.QueryRow(fmt.Sprintf(`SELECT passcode FROM %s.clevertap_credentials WHERE active = TRUE ORDER BY created_at DESC LIMIT 1`, schema)).Scan(&passcode)
-	return passcode, err
+	var passcode, accountID string
+	var expires sql.NullTime
+	err = db.DB.QueryRow(fmt.Sprintf(`SELECT passcode, account_id, expires_at FROM %s.clevertap_credentials WHERE active = TRUE ORDER BY created_at DESC LIMIT 1`, schema)).Scan(&passcode, &accountID, &expires)
+	if err != nil {
+		return "", err
+	}
+	// 49.8.5: an expired credential is not used; a live one records its use.
+	if credentialExpired(expires) {
+		return "", fmt.Errorf("CleverTap credentials for account %s expired on %s - save new ones", accountID, expires.Time.UTC().Format("2006-01-02"))
+	}
+	touchCredentialUse(schema, "clevertap_credentials", "account_id", accountID)
+	return passcode, nil
 }
 
 func VerifyCleverTapWebhookPasscode(tenantID, provided string) bool {

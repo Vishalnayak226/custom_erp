@@ -1,9 +1,11 @@
 package engines
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -483,6 +485,66 @@ var catStickers = &catSource{Label: "Label print", Rows: stickerRows, SKU: "sku"
 
 var auditFieldPattern = regexp.MustCompile(`^Field "([^"]+)" (?:modified from "(.*)" to "(.*)"|added with value "(.*)") for Document ID: (.+)$`)
 
+// auditEditPrefix starts the one-row-per-save shape the documents edit log
+// writes since Stage 47.16.4a (public.erp_log_document_edit):
+//
+//	Fields changed: {"<field>": {"new": <json>, "old": <json>}, ...} for Document ID: <id>[ (reason: <r>)]
+//
+// auditFieldPattern is the one-row-per-field shape tenant_default wrote before.
+const auditEditPrefix = "Fields changed: "
+
+// auditFieldChange is one field's change as the documents edit log holds it.
+type auditFieldChange struct{ Field, Old, New string }
+
+// parseAuditFieldChanges reads a documents edit-log row in either shape: the
+// record's id and each changed field, sorted, old and new as text (a JSON
+// string unquoted, null as "", anything else as its JSON).
+func parseAuditFieldChanges(details string) (string, []auditFieldChange) {
+	docOf := func(s string) string {
+		if i := strings.Index(s, " (reason: "); i >= 0 {
+			s = s[:i]
+		}
+		return s
+	}
+	if !strings.HasPrefix(details, auditEditPrefix) {
+		m := auditFieldPattern.FindStringSubmatch(details)
+		if m == nil {
+			return "", nil
+		}
+		old, newVal := m[2], m[3]
+		if m[4] != "" || (m[2] == "" && m[3] == "") {
+			old, newVal = "", m[4]
+		}
+		return docOf(m[5]), []auditFieldChange{{Field: m[1], Old: old, New: newVal}}
+	}
+	body := details[len(auditEditPrefix):]
+	dec := json.NewDecoder(strings.NewReader(body))
+	var raw map[string]struct {
+		Old json.RawMessage `json:"old"`
+		New json.RawMessage `json:"new"`
+	}
+	if dec.Decode(&raw) != nil {
+		return "", nil
+	}
+	text := func(v json.RawMessage) string {
+		var s string
+		if json.Unmarshal(v, &s) == nil {
+			return s
+		}
+		if t := string(v); t != "null" {
+			return t
+		}
+		return ""
+	}
+	out := make([]auditFieldChange, 0, len(raw))
+	for f, v := range raw {
+		out = append(out, auditFieldChange{Field: f, Old: text(v.Old), New: text(v.New)})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Field < out[j].Field })
+	rest := strings.TrimPrefix(body[dec.InputOffset():], " for Document ID: ")
+	return docOf(rest), out
+}
+
 // auditChangeRows: one row per recorded field change of the doctypes (and,
 // when fields are given, only those fields) - the documents trigger's log.
 func auditChangeRows(doctypes []string, fields []string) func(tenantID, schema string, p map[string]string) ([]*catRow, error) {
@@ -497,11 +559,13 @@ func auditChangeRows(doctypes []string, fields []string) func(tenantID, schema s
 			q = fmt.Sprintf(`SELECT id::text, action, COALESCE(user_id, ''), details, created_at FROM %s.audit_logs WHERE action LIKE $1`, schema)
 			args = []interface{}{"UPDATE\\_%"}
 		}
+		wanted := map[string]bool{}
 		if len(fields) > 0 {
-			conds := make([]string, len(fields))
-			for i, f := range fields {
-				args = append(args, `Field "`+f+`" %`)
-				conds[i] = fmt.Sprintf("details LIKE $%d", len(args))
+			conds := make([]string, 0, 2*len(fields))
+			for _, f := range fields {
+				wanted[f] = true
+				args = append(args, `Field "`+f+`" %`, auditEditPrefix+`%"`+f+`": {"new": %`)
+				conds = append(conds, fmt.Sprintf("details LIKE $%d", len(args)-1), fmt.Sprintf("details LIKE $%d", len(args)))
 			}
 			q += " AND (" + strings.Join(conds, " OR ") + ")"
 		}
@@ -525,16 +589,14 @@ func auditChangeRows(doctypes []string, fields []string) func(tenantID, schema s
 			if rows.Scan(&id, &action, &user, &details, &at) != nil {
 				continue
 			}
-			m := auditFieldPattern.FindStringSubmatch(details)
-			if m == nil {
-				continue
+			docID, changes := parseAuditFieldChanges(details)
+			for _, c := range changes {
+				if len(wanted) > 0 && !wanted[c.Field] {
+					continue
+				}
+				out = append(out, &catRow{ID: id, CreatedBy: user, Created: at, H: map[string]interface{}{
+					"doctype": strings.TrimPrefix(action, "UPDATE_"), "doc_id": docID, "field": c.Field, "old": c.Old, "new": c.New}})
 			}
-			old, newVal := m[2], m[3]
-			if m[4] != "" || (m[2] == "" && m[3] == "") {
-				old, newVal = "", m[4]
-			}
-			out = append(out, &catRow{ID: id, CreatedBy: user, Created: at, H: map[string]interface{}{
-				"doctype": strings.TrimPrefix(action, "UPDATE_"), "doc_id": m[5], "field": m[1], "old": old, "new": newVal}})
 		}
 		return out, rows.Err()
 	}

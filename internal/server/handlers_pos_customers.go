@@ -189,7 +189,7 @@ func handlePOSBills(w http.ResponseWriter, r *http.Request) {
 	}
 	bills, err := engines.SearchStoreBills(tenantID, stores, q.Get("q"), q.Get("date"))
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to search bills")
+		writeEngineError(w, r, err, http.StatusInternalServerError) // 49.10.4: a bad date or a NUL byte is the request's fault, not a 500
 		return
 	}
 	_ = json.NewEncoder(w).Encode(bills)

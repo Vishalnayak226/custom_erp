@@ -104,7 +104,7 @@ func handleDocumentPrintHistory(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	rows, err := engines.ListDocumentPrints(tenantID, engines.DocumentPrintFilter{Doctype: q.Get("doctype"), Query: q.Get("q"), Limit: 500})
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Could not load the print history")
+		writeEngineError(w, r, err, http.StatusInternalServerError) // 49.10.4: a bad search value is the request's fault, not a 500
 		return
 	}
 	readable := map[string]bool{}

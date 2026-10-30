@@ -4,6 +4,9 @@ import (
 	"custom_erp/engines"
 	"encoding/json"
 	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
 )
 
 // Stage 36.4: PIM export & syndication depth. Template/schedule/catalog
@@ -36,14 +39,31 @@ func handlePIMExportTemplateRun(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	templateID := r.PathValue("id")
-	csvBytes, err := engines.RunPIMExportTemplate(tenantID, templateID)
+	// 140.12.24: ?family= / ?category= narrow the feed, ?format=xlsx gives a
+	// sheet; items the channel cannot take are skipped and listed in the
+	// X-Export-Skipped header (JSON, the first 50) instead of failing the feed.
+	q := r.URL.Query()
+	out, err := engines.RunPIMExport(tenantID, templateID, engines.PIMExportFilter{Family: q.Get("family"), Category: q.Get("category"), Format: q.Get("format")})
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", "attachment; filename="+csvAttachmentName("pim_export", templateID))
-	_, _ = w.Write(csvBytes)
+	skipped := out.Skipped
+	if len(skipped) > 50 {
+		skipped = skipped[:50]
+	}
+	if b, mErr := json.Marshal(skipped); mErr == nil {
+		w.Header().Set("X-Export-Skipped", url.QueryEscape(string(b)))
+	}
+	w.Header().Set("X-Export-Skipped-Count", strconv.Itoa(len(out.Skipped)))
+	w.Header().Set("X-Export-Rows", strconv.Itoa(out.Rows))
+	w.Header().Set("Content-Type", out.ContentType)
+	name := csvAttachmentName("pim_export", templateID)
+	if out.Extension != "csv" {
+		name = strings.TrimSuffix(name, ".csv") + "." + out.Extension
+	}
+	w.Header().Set("Content-Disposition", "attachment; filename="+name)
+	_, _ = w.Write(out.Data)
 }
 
 // handlePIMCatalogRotateShareToken (36.4.4) mints/rotates a catalog's share

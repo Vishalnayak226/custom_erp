@@ -233,7 +233,10 @@ func TestStage752EInvoice(t *testing.T) {
 		t.Fatalf("a cancelled number again: want EINV-0981, got %v", err)
 	}
 	// After 24 hours: Manual review, and a credit note.
+	// Stage 47.16.4f: an acknowledgement is frozen; the test ages it with the guard off.
+	exec("ALTER TABLE " + schema + ".irp_documents DISABLE TRIGGER USER")
 	exec("UPDATE "+schema+".irp_documents SET ack_date = NOW() - INTERVAL '25 hours' WHERE id = $1", r4.ID)
+	exec("ALTER TABLE " + schema + ".irp_documents ENABLE TRIGGER USER")
 	if r, err := RequestIRNCancellation(tenantID, r4.ID, "4", "customer refused goods", "acc1", "Accountant"); err != nil || r.State != IRPStateManualReview {
 		t.Fatalf("cancel after 24 h: want MANUAL_REVIEW, got %+v err %v", r, err)
 	}

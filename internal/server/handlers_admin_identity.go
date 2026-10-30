@@ -749,6 +749,7 @@ func handleVerifyAuditEvidence(w http.ResponseWriter, r *http.Request) {
 	}
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	result, err := engines.VerifyAuditEvidence(tenantID)
+	engines.RecordAuditVerification(tenantID, result, err) // 49.11.1
 	if err != nil {
 		// A verifier that cannot run is NOT a passing verifier, and must never
 		// be reported as one (47.7.7).

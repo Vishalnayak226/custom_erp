@@ -471,13 +471,90 @@ func irpTransition(schema string, r IRPRecord, to, event, detail, lastError stri
 	irpEvent(schema, r.ID, r.GSTIN, event, r.State, to, detail, "worker")
 }
 
-func irpAttempt(schema string, r IRPRecord, action, outcome string, err error, started time.Time) {
+// irpAttempt records one call to the provider. response is the IRP's body for
+// a call that returned an IRN (Stage 47.16.4f), kept with secrets masked.
+func irpAttempt(schema string, r IRPRecord, action, outcome string, err error, started time.Time, response []byte) {
 	code, msg := "", ""
 	if err != nil {
 		code, msg = string(irpErrorKind(err)), redactAndBoundLogField(err.Error(), 500)
 	}
-	db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.irp_attempts (document_id, gstin, action, outcome, error_code, error_message, duration_ms) VALUES ($1,$2,$3,$4,$5,$6,$7)`, schema),
-		r.ID, r.GSTIN, action, outcome, code, msg, int(time.Since(started).Milliseconds()))
+	cols, vals := "", ""
+	args := []interface{}{r.ID, r.GSTIN, action, outcome, code, msg, int(time.Since(started).Milliseconds())}
+	if len(response) > 0 && irpResponseColumnReady(schema) {
+		cols, vals = ", response_body", ", $8"
+		args = append(args, irpEvidenceBody(response))
+	}
+	db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.irp_attempts (document_id, gstin, action, outcome, error_code, error_message, duration_ms%s) VALUES ($1,$2,$3,$4,$5,$6,$7%s)`, schema, cols, vals), args...)
+}
+
+// irpResponseBodyMax bounds one kept response. An IRP answer with its signed
+// invoice is tens of kilobytes; anything near this is not one.
+const irpResponseBodyMax = 1 << 20
+
+// irpSecretKeys are response fields never kept, compared lower-case without
+// "_" or "-": the IRP's session token and key, and any credential a provider
+// might echo. An IRN response carries none of them; this is the guard.
+var irpSecretKeys = map[string]bool{
+	"authtoken": true, "sek": true, "appkey": true, "password": true, "passwd": true, "secret": true,
+	"clientsecret": true, "clientid": true, "apikey": true, "token": true, "accesstoken": true,
+	"refreshtoken": true, "bearertoken": true, "privatekey": true, "authorization": true,
+}
+
+// irpEvidenceBody is a response as it is kept: a JSON body with every
+// irpSecretKeys field masked at any depth, any other body with bearer tokens
+// and "password=..." style values masked.
+func irpEvidenceBody(raw []byte) string {
+	if len(raw) > irpResponseBodyMax {
+		return fmt.Sprintf("[response of %d bytes not kept: over %d]", len(raw), irpResponseBodyMax)
+	}
+	var v interface{}
+	if json.Unmarshal(raw, &v) == nil {
+		if out, err := json.Marshal(maskIRPSecrets(v)); err == nil {
+			return string(out)
+		}
+	}
+	s := bearerSecretPattern.ReplaceAllString(string(raw), "${1}[REDACTED]")
+	return secretAssignmentPattern.ReplaceAllString(s, "$1$2[REDACTED]")
+}
+
+func maskIRPSecrets(v interface{}) interface{} {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		for k, item := range val {
+			norm := strings.NewReplacer("_", "", "-", "").Replace(strings.ToLower(k))
+			if irpSecretKeys[norm] {
+				val[k] = redactedMarker
+			} else {
+				val[k] = maskIRPSecrets(item)
+			}
+		}
+	case []interface{}:
+		for i, item := range val {
+			val[i] = maskIRPSecrets(item)
+		}
+	}
+	return v
+}
+
+// irpResponseColumns remembers the schemas whose irp_attempts has
+// response_body (the 47.16.4f migration). A missing column is rechecked after
+// a minute, so a lagging migration never stops an attempt being recorded.
+var irpResponseColumns sync.Map // schema -> glAttributionCheck
+
+func irpResponseColumnReady(schema string) bool {
+	if v, ok := irpResponseColumns.Load(schema); ok {
+		c := v.(glAttributionCheck)
+		if c.ready || time.Since(c.checkedAt) < time.Minute {
+			return c.ready
+		}
+	}
+	var ready bool
+	if err := db.DB.QueryRow(`SELECT EXISTS(SELECT 1 FROM information_schema.columns
+		WHERE table_schema = $1 AND table_name = 'irp_attempts' AND column_name = 'response_body')`, schema).Scan(&ready); err != nil {
+		return false
+	}
+	irpResponseColumns.Store(schema, glAttributionCheck{ready: ready, checkedAt: time.Now()})
+	return ready
 }
 
 // processIRPDocument does one step for one claimed record.
@@ -500,7 +577,7 @@ func processIRPDocument(tenantID, schema string, id int64) {
 	defer cancel()
 	token, err := irpTokenFor(ctx, tenantID, provider, r.Environment, r.GSTIN)
 	if err != nil {
-		irpAttempt(schema, r, "auth", "failed", err, time.Now())
+		irpAttempt(schema, r, "auth", "failed", err, time.Now(), nil)
 		n := 1
 		if v, ok := irpAuthFailures.Load(r.GSTIN); ok {
 			n = v.(int) + 1
@@ -549,11 +626,11 @@ func irpGenerate(ctx context.Context, schema string, r IRPRecord, profile *IRPPr
 	started := time.Now()
 	ack, err := provider.GenerateIRN(ctx, token, r.GSTIN, payload)
 	if err == nil {
-		irpAttempt(schema, r, "generate", "acknowledged", nil, started)
+		irpAttempt(schema, r, "generate", "acknowledged", nil, started, ack.Raw)
 		irpAcknowledge(schema, r, ack, "GENERATED")
 		return
 	}
-	irpAttempt(schema, r, "generate", string(irpErrorKind(err)), err, started)
+	irpAttempt(schema, r, "generate", string(irpErrorKind(err)), err, started, nil)
 	switch irpErrorKind(err) {
 	case IRPRejected:
 		irpTransition(schema, r, IRPStateRejected, "REJECTED", err.Error(), err.Error(), 0, ", attempts = attempts + 1")
@@ -580,11 +657,11 @@ func irpLookup(ctx context.Context, schema string, r IRPRecord, provider IRPProv
 	}
 	ack, err := provider.GetByDocument(ctx, token, r.GSTIN, r.DocType, r.DocNumber, docDate)
 	if err == nil {
-		irpAttempt(schema, r, "lookup", "found", nil, started)
+		irpAttempt(schema, r, "lookup", "found", nil, started, ack.Raw)
 		irpAcknowledge(schema, r, ack, "FOUND_ON_LOOKUP")
 		return
 	}
-	irpAttempt(schema, r, "lookup", string(irpErrorKind(err)), err, started)
+	irpAttempt(schema, r, "lookup", string(irpErrorKind(err)), err, started, nil)
 	switch irpErrorKind(err) {
 	case IRPNotFound:
 		// Not registered after all: it may be sent.
@@ -609,11 +686,11 @@ func irpCancel(ctx context.Context, schema string, r IRPRecord, provider IRPProv
 	started := time.Now()
 	at, err := provider.CancelIRN(ctx, token, r.GSTIN, r.IRN, code, remark)
 	if err == nil {
-		irpAttempt(schema, r, "cancel", "cancelled", nil, started)
+		irpAttempt(schema, r, "cancel", "cancelled", nil, started, nil)
 		irpTransition(schema, r, IRPStateCancelled, "CANCELLED", "", "", 0, ", cancelled_at = $5", at)
 		return
 	}
-	irpAttempt(schema, r, "cancel", string(irpErrorKind(err)), err, started)
+	irpAttempt(schema, r, "cancel", string(irpErrorKind(err)), err, started, nil)
 	switch irpErrorKind(err) {
 	case IRPWindowExpired:
 		irpTransition(schema, r, IRPStateManualReview, "CANCEL_TOO_LATE", err.Error(), "the 24-hour cancellation window has passed - issue a credit note instead", 0, "")

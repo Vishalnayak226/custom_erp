@@ -389,27 +389,37 @@ func DecideOfflineSale(ctx context.Context, tenantID string, d OfflineSaleDecisi
 		}
 		return nil, &ValidationError{Code: "POSOFF-1361", Message: fmt.Sprintf("%d of %d lines match: %s", matched, len(lines), strings.Join(bad, "; "))}
 	}
-	bill, result, err := post(sale)
+	// 49.5.6d: a sale that posts goes on the till's sale day. One waiting on
+	// Approvals (over the discount limit) has not posted yet, and posts on the
+	// day it is approved, as any such sale does.
+	day, closedDay, err := offlineSalePostingDay(tx, schema, sale.SoldAt)
+	if err != nil {
+		return nil, err
+	}
+	backdated := day < BusinessToday()
+	// Stage 47.16.4b: the checkout's GL rows are written at the till's time
+	// as they are inserted - gl_postings refuses to re-date a posted row.
+	var bill string
+	var result []byte
+	func() {
+		if backdated {
+			defer BindPostingTime(sale.SoldAt.UTC().Format(time.RFC3339Nano))()
+		}
+		bill, result, err = post(sale)
+	}()
 	if err != nil {
 		return nil, err
 	}
 	if len(result) == 0 || !json.Valid(result) {
 		result = []byte("null")
 	}
-	// 49.5.6d: a sale that posted goes on the till's sale day. One waiting on
-	// Approvals (over the discount limit) has not posted yet, and posts on the
-	// day it is approved, as any such sale does.
 	postedOn := ""
 	var checkout struct {
 		Status string `json:"status"`
 	}
 	_ = json.Unmarshal(result, &checkout)
 	if checkout.Status == "completed" {
-		day, closedDay, err := offlineSalePostingDay(tx, schema, sale.SoldAt)
-		if err != nil {
-			return nil, err
-		}
-		if day < BusinessToday() {
+		if backdated {
 			if err := dateOfflineSaleTx(tx, schema, sale.CartNumber, *sale.SoldAt); err != nil {
 				return nil, err
 			}
@@ -456,14 +466,14 @@ func offlineSalePostingDay(tx *sql.Tx, schema string, soldAt *time.Time) (day, c
 }
 
 // dateOfflineSaleTx puts a posted offline sale at the till's sale time: its
-// GL rows, its stock ledger lines and the bill, whose created_at is what day
-// and period reports read - as a backdated journal voucher's rows take the
-// voucher's date (journal_voucher.go, 73.D.16). The bill number still comes
+// stock ledger lines and the bill, whose created_at is what day and period
+// reports read - as a backdated journal voucher's rows take the voucher's
+// date (journal_voucher.go, 73.D.16). Its GL rows were already inserted at
+// that time (BindPostingTime, Stage 47.16.4b). The bill number still comes
 // from the validation day's series.
 func dateOfflineSaleTx(tx *sql.Tx, schema, cartNumber string, soldAt time.Time) error {
 	at := soldAt.UTC().Format(time.RFC3339Nano)
 	for _, q := range []string{
-		`UPDATE %s.gl_postings SET created_at = $2::timestamptz WHERE document_type = 'POSCart' AND document_id = $1`,
 		`UPDATE %s.documents SET created_at = $2::timestamptz WHERE doctype = 'StockLedgerEntry'
 			AND data->>'voucher_id' = $1 AND data->>'voucher_type' IN ('POSInvoice', 'POSConsumption')`,
 		`UPDATE %s.documents SET created_at = $2::timestamptz WHERE doctype = 'POSCart' AND id = $1`,

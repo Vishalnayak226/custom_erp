@@ -48,8 +48,11 @@ func handleCreateReturnRequest(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid payload")
 		return
 	}
-	if req.ReturnLocation == "" || len(req.Items) == 0 {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'return_location' and at least one 'items' entry are required")
+	// 140.12.18: return_location may be left blank - the engine routes an
+	// RTO or an online order's return to the nearest store by pincode, and
+	// says so when it cannot.
+	if len(req.Items) == 0 {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "At least one 'items' entry is required")
 		return
 	}
 

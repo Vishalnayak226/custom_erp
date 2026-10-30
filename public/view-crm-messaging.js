@@ -416,9 +416,11 @@ async function crmMessageNew(host, p) {
 async function crmSettings(host, st) {
   if (st.page === 'sender') return crmSenderEdit(host, st.params.id);
   const body = crmFrame(host, { title: 'Settings' });
-  const [senders, life] = await Promise.all([crmApi('senders', { quiet: true }), crmApi('lifecycle')]);
+  const [senders, life, ready] = await Promise.all([crmApi('senders', { quiet: true }), crmApi('lifecycle'), crmApi('readiness', { quiet: true })]);
   const store = (typeof currentUserLocation === 'string' && currentUserLocation) || localStorage.getItem('erp_location') || '';
   body.innerHTML = `
+    ${ready ? `<h3 class="crm-section">Ready to send</h3>${crmTable([{ label: 'Channel', key: 'channel' }, { label: 'Ready', html: r => r.ready ? crmChip('Yes', 'ok') : crmChip('Not yet', 'warn') },
+      { label: 'Checks', html: r => (r.checks || []).map(c => `${c.ok ? '✓' : '✗'} ${crmEsc(c.name)}: ${crmEsc(c.detail)}`).join('<br>') }], ready, { empty: '' })}` : ''}
     <h3 class="crm-section">Senders</h3>
     ${senders ? crmTable([{ label: 'Channel', key: 'channel' }, { label: 'Provider', key: 'provider' }, { label: 'Name', html: s => `<a href="#" data-snd="${crmEsc(s.id)}">${crmEsc(s.name)}</a>` },
       { label: 'Status', html: s => s.status === 'Active' ? crmChip('Active', 'ok') : crmChip('Off', 'muted') },
@@ -476,7 +478,7 @@ const crmProviderFields = {
   email_smtp: { config: [['host', 'Mail server (blank = this server\'s)'], ['port', 'Port'], ['username', 'User name'], ['from_email', 'From address'], ['from_name', 'From name'], ['reply_to', 'Reply-to']], secret: [['password', 'Password']] },
   sms_http: { config: [['url', 'Send URL (https)'], ['method', 'Method (POST / GET)'], ['format', 'Body (json / form)'], ['to_param', 'Number parameter'], ['to_format', 'Number as (e164 / digits / national)'],
     ['message_param', 'Text parameter'], ['sender_param', 'Header parameter'], ['sender_value', 'DLT sender header (e.g. SEZNIK)'], ['entity_param', 'Entity ID parameter'], ['entity_value', 'DLT principal entity ID'],
-    ['template_param', 'DLT template ID parameter'], ['ref_param', 'Our reference parameter (optional)'], ['auth_header', 'Auth header name'], ['id_field', 'Message id in the answer (e.g. data.id)'],
+    ['template_param', 'DLT template ID parameter'], ['ref_param', 'Our reference parameter (optional)'], ['auth_header', 'Auth header name'], ['auth_param', 'Or auth parameter name'], ['extra', 'Fixed parameters (JSON)'], ['test_template_id', 'DLT template ID for a test'], ['id_field', 'Message id in the answer (e.g. data.id)'],
     ['dlr_id_param', 'Report: message id parameter'], ['dlr_status_param', 'Report: status parameter'], ['dlr_cost_param', 'Report: cost parameter']], secret: [['auth_value', 'Auth header value (API key)']] },
   whatsapp_cloud: { config: [['phone_number_id', 'Phone number ID'], ['waba_id', 'WhatsApp business account ID'], ['api_version', 'API version (v21.0)'], ['verify_token', 'Webhook verify token']], secret: [['access_token', 'Access token'], ['app_secret', 'App secret']] },
   webhook: { config: [['url', 'Webhook URL (https)'], ['id_field', 'Message id in the answer']], secret: [['signing_secret', 'Signing secret']] },
@@ -497,10 +499,28 @@ async function crmSenderEdit(host, id) {
       <div class="crm-form-grid">${f.secret.map(([k, l]) => crmField('sds-' + k, l + ((s.secrets_set || {})[k] ? ' (set - blank keeps it)' : ''), `<input class="form-input" type="password" id="sds-${k}" autocomplete="new-password">`)).join('')}</div>
       ${s.callback_url ? `<p class="crm-small"><b>Callback URL</b> (give this to the provider for delivery reports${s.provider === 'whatsapp_cloud' ? ' and customer replies' : ''}): <code>${crmEsc(s.callback_url.startsWith('/') ? location.origin + s.callback_url : s.callback_url)}</code></p>` : ''}
       ${(s.problems || []).length ? `<div class="crm-note crm-note-warn">${s.problems.map(crmEsc).join('<br>')}</div>` : ''}
-      <div class="crm-form-actions"><button class="btn btn-primary" type="submit">Save</button></div></form>
+      <div class="crm-form-actions"><button class="btn btn-primary" type="submit">Save</button>${s.provider === 'sms_http' ? ' <select class="form-select" id="sd-preset" style="width:auto;"><option value="">Fill from...</option></select>' : ''}${id ? ' <button class="btn btn-outline" type="button" id="sd-test">Test connection</button>' : ''}</div></form>
       <p class="text-muted crm-small">Each channel uses its one Active sender; saving another as Active switches the old one off. Secrets are stored encrypted and never shown again. A server that is not production sends only to the test list (Configuration &gt; CRM).</p>`;
     body.querySelector('#sd-ch').addEventListener('change', () => { s.channel = crmVal(body, 'sd-ch'); s.provider = crmProviders[s.channel][0][0]; paint(); });
     body.querySelector('#sd-pr').addEventListener('change', () => { s.provider = crmVal(body, 'sd-pr'); paint(); });
+    // 140.12.26: provider presets fill the gateway's parameter names; Test connection asks the provider.
+    const presetSel = body.querySelector('#sd-preset');
+    if (presetSel) crmApi('sender-presets', { quiet: true }).then(list => {
+      (list || []).forEach(p => presetSel.insertAdjacentHTML('beforeend', `<option value="${crmEsc(p.key)}">${crmEsc(p.label)}</option>`));
+      presetSel.addEventListener('change', () => {
+        const p = (list || []).find(x => x.key === presetSel.value);
+        if (!p) return;
+        Object.entries(p.config || {}).forEach(([k, v]) => { const el = body.querySelector('#sdc-' + k); if (el) el.value = typeof v === 'object' ? JSON.stringify(v) : v; });
+        if (!crmVal(body, 'sd-name')) body.querySelector('#sd-name').value = p.label;
+        showToast(`${p.label}: fill the key (${p.secret_hint}) and your DLT details, then save. ${p.note}`);
+      });
+    });
+    body.querySelector('#sd-test')?.addEventListener('click', async () => {
+      let to = '';
+      if (s.channel === 'SMS') { to = String((await showCustomPrompt('Send one test SMS to (a number on the test list):', '', 'Test connection')) || '').trim(); if (!to) return; }
+      const r = await crmApi('senders/' + encodeURIComponent(id) + '/test', { method: 'POST', body: { to } });
+      if (r) await showCustomAlert(`${r.ok ? 'Works' : 'Not working'}: ${r.detail}`, 'Test connection');
+    });
     body.querySelector('#sd-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const config = {}, secrets = {};

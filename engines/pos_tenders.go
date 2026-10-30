@@ -32,6 +32,11 @@ type POSTender struct {
 	// Mode; Reference is its card slip / UTR when the tender asks for one.
 	Name      string `json:"name,omitempty"`
 	Reference string `json:"reference,omitempty"`
+	// SecondPayment (49.5.4) is the cashier saying this tender repeats one
+	// taken minutes ago on purpose - the same card slip / UTR for a second
+	// sale - so the duplicate-tender refusal (pos_duplicate_tender.go) lets
+	// it through.
+	SecondPayment bool `json:"second_payment,omitempty"`
 }
 
 // tenderPart is one tender of a settled sale, in paise.

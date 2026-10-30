@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 )
 
 // RupeesToPaise and PaiseToRupees (Stage 45) are the one rounding rule for
@@ -77,6 +78,29 @@ type PostingOptions struct {
 	// attach a WIP mechanism to (unlike item_cost, Stage 37.3, which exists
 	// because inventory valuation genuinely needs one).
 	Project string
+	// Stage 47.16.4b. PostedAt is when the rows belong, when that is not the
+	// posting moment: "2006-01-02" puts them on that day at the posting's time
+	// of day (a backdated voucher), "2006-01-02 15:04:05" at that time on the
+	// database's clock (a month's depreciation at its last second), RFC 3339
+	// at that instant (an offline sale at the till's time). It is written
+	// when the rows are inserted: gl_postings refuses to change a posted
+	// row's date afterwards. Empty is now. A caller deep below the one that
+	// knows the time is reached with BindPostingTime instead.
+	PostedAt string
+}
+
+// postedAtSQL is the created_at value of a posting with PostedAt set, as SQL
+// over parameter n - or an error for a value that is not a date or time.
+func postedAtSQL(at string, n int) (string, error) {
+	if _, err := time.Parse("2006-01-02", at); err == nil {
+		return fmt.Sprintf("($%d::text)::date + CAST(CURRENT_TIMESTAMP AS time)", n), nil
+	}
+	for _, layout := range []string{"2006-01-02 15:04:05", time.RFC3339Nano} {
+		if _, err := time.Parse(layout, at); err == nil {
+			return fmt.Sprintf("($%d::text)::timestamptz", n), nil
+		}
+	}
+	return "", fmt.Errorf("posting time %q is not a date (YYYY-MM-DD) or a time", at)
 }
 
 // PostDoubleEntry writes balanced debit/credit transactions to the GL
@@ -258,6 +282,19 @@ func PostDoubleEntryTx(tx *sql.Tx, tenantID, schema string, docType string, docI
 		actor := currentPostingActor()
 		attrCols, attrVals = ", posted_by, source_command", ", $13, $14"
 		attrArgs = []interface{}{actor.PostedBy, actor.SourceCommand}
+	}
+	// Stage 47.16.4b: a posting that belongs to another moment takes it on
+	// insert - a posted row's date is never changed afterwards.
+	if opt.PostedAt == "" {
+		opt.PostedAt = boundPostingTime()
+	}
+	if opt.PostedAt != "" {
+		expr, err := postedAtSQL(opt.PostedAt, 13+len(attrArgs))
+		if err != nil {
+			return err
+		}
+		attrCols, attrVals = attrCols+", created_at", attrVals+", "+expr
+		attrArgs = append(attrArgs, opt.PostedAt)
 	}
 
 	// Insert debits

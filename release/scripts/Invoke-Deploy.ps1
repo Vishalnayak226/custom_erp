@@ -68,7 +68,9 @@ $localOnly = [int](Invoke-Git @('rev-list', '--count', 'origin/main..main'))[0]
 if ($localOnly -gt 0) { Stop-Deploy "main has $localOnly commit(s) that are not on origin - run Release.cmd first (never deploy what GitHub does not have)" }
 $lastPath = Join-Path $reportDir 'last-release.json'
 $last = if (Test-Path $lastPath) { Get-Content $lastPath -Raw | ConvertFrom-Json } else { $null }
-if (-not $last -or $last.commit -ne $target -or $last.status -ne 'passed') {
+# 'committed' is a -NoPush run that passed every gate and was pushed by hand
+# afterwards (0.20.0, 2026-10-30): $target is origin/main, so it is on GitHub.
+if (-not $last -or $last.commit -ne $target -or $last.status -notin @('passed', 'committed')) {
     $why = "origin/main is $short but the last passed Release.cmd run is $(if ($last -and $last.commit) { "$($last.commit.Substring(0,7)) ($($last.status))" } else { 'none on this machine' }) - run Release.cmd so this exact commit goes through the gates"
     if (-not $Check) { Stop-Deploy $why }
     Note "NOTE (would stop a real deploy): $why"

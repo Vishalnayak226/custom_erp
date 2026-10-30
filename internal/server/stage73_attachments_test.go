@@ -139,19 +139,20 @@ func TestAttachmentsFollowTheClaimsReadRule(t *testing.T) {
 		if r := call(user, http.MethodGet, "/api/v1/doc/ExpenseClaim/"+url.PathEscape(claimID), nil, ""); r.Code != http.StatusNotFound {
 			t.Fatalf("precondition: %s should not read the claim, got %d", user, r.Code)
 		}
-		if r := call(user, http.MethodGet, listURL, nil, ""); r.Code != http.StatusForbidden {
+		// Stage 49.4.7: the files list and the file itself answer "not found" too.
+		if r := call(user, http.MethodGet, listURL, nil, ""); r.Code != http.StatusNotFound {
 			t.Errorf("%s list: %d %s", user, r.Code, r.Body.String())
 		}
-		if r := call(user, http.MethodGet, fileURL, nil, ""); r.Code != http.StatusForbidden || bytes.Contains(r.Body.Bytes(), receipt.Bytes()[:16]) {
+		if r := call(user, http.MethodGet, fileURL, nil, ""); r.Code != http.StatusNotFound || bytes.Contains(r.Body.Bytes(), receipt.Bytes()[:16]) {
 			t.Errorf("%s download: %d", user, r.Code)
 		}
 		if r := call(user, http.MethodGet, "/api/v1/attachments/ExpenseClaim?ids="+url.QueryEscape(claimID), nil, ""); r.Code != http.StatusOK || strings.Contains(r.Body.String(), claimID) {
 			t.Errorf("%s counts should leave the claim out: %d %s", user, r.Code, r.Body.String())
 		}
-		if r := upload(user, "other.png", receipt.Bytes()); r.Code != http.StatusForbidden {
+		if r := upload(user, "other.png", receipt.Bytes()); r.Code != http.StatusNotFound { // Stage 49.4.7
 			t.Errorf("%s upload: %d %s", user, r.Code, r.Body.String())
 		}
-		if r := call(user, http.MethodDelete, fileURL, nil, ""); r.Code != http.StatusForbidden {
+		if r := call(user, http.MethodDelete, fileURL, nil, ""); r.Code != http.StatusNotFound { // Stage 49.4.7
 			t.Errorf("%s remove: %d %s", user, r.Code, r.Body.String())
 		}
 	}

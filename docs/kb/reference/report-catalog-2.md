@@ -2,7 +2,7 @@
 title: Report catalog (part 2)
 section: Reference
 order: 21
-summary: Reports in Inventory to Procurement, continued from the report catalog.
+summary: Reports in HRMS to PIM / PIMS, continued from the report catalog.
 audience: store manager, finance, category manager, admin
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -21,11 +21,12 @@ screens: [reports]
 # Report catalog (part 2)
 
 This page continues the [report catalog](report-catalog.md), which lists
-every category and explains how to run a report. It holds **147** reports, from
-Inventory to Procurement.
+every category and explains how to run a report. It holds **144** reports, from
+HRMS to PIM / PIMS.
 
 ## Contents
 
+- [HRMS](#hrms) - 15 reports
 - [Inventory](#inventory) - 42 reports
 - [MIS & Management](#mis-management) - 10 reports
 - [Manufacturing](#manufacturing) - 21 reports
@@ -33,7 +34,219 @@ Inventory to Procurement.
 - [OMS](#oms) - 25 reports
 - [PIM](#pim) - 4 reports
 - [PIM / PIMS](#pim-pims) - 16 reports
-- [Procurement](#procurement) - 18 reports
+
+## HRMS
+
+### R8002 Attendance Register
+
+**Report id:** `cat-attendance-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Present,Absent,Half Day,Late,On Leave
+
+**Columns:** Attendance Date · Employee ID · Employee Name · Department · Store Name · Shift · Check In · Check Out · Attendance Status
+
+**Drill-down:** no.
+
+### R8011 Attrition Report
+
+**Report id:** `cat-attrition-report`
+
+**Parameters:**
+
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Active,Inactive,Exited,On Notice
+
+**Columns:** Document Date · Employee ID · Employee Name · Department · Store Name · Reason · Status
+
+**Drill-down:** no.
+
+### R8009 Employee Loan / Advance Register
+
+**Report id:** `cat-employee-loan-advance-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Document Date · Employee ID · Employee Name · Advance No · Advance Amount · Advance Adjusted Amount · Advance Balance Amount · Status
+
+**Drill-down:** no.
+
+### R8001 Employee Master Register
+
+**Report id:** `cat-employee-master-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Active,Inactive,Exited,On Notice
+
+**Columns:** Employee ID · Employee Name · Department · Store Code · Store Name · Manager Name · Status · Created At
+
+**Drill-down:** no.
+
+### R8016 Employee Role / Access Mapping
+
+**Report id:** `cat-employee-role-access-mapping`
+
+**Parameters:**
+
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Active,Inactive,Exited,On Notice
+
+**Columns:** Employee ID · Employee Name · Department · Store Code · Store Name · User ID · User Name · Status · Approved By
+
+**Drill-down:** no.
+
+### R8010 Headcount Summary
+
+**Report id:** `cat-headcount-summary`
+
+**Parameters:**
+
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Active,Inactive,Exited,On Notice
+
+**Columns:** As Of Date · Department · Store Code · Store Name · Headcount · Status
+
+**Drill-down:** no.
+
+### R8003 Late / Overtime Report
+
+**Report id:** `cat-late-overtime-report`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Present,Absent,Half Day,Late,On Leave
+
+**Columns:** Attendance Date · Employee ID · Employee Name · Shift · Check In · Check Out · Task Duration Min · Attendance Status · Reason
+
+**Drill-down:** no.
+
+### R8004 Leave Register
+
+**Report id:** `cat-leave-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: ,Draft,Pending Approval,Approved,Rejected,Cancelled
+
+**Columns:** Document Date · Employee ID · Employee Name · Leave Type · Leave Days · From Date · To Date · Approval Status · Manager Name · Reason
+
+**Drill-down:** no.
+
+### R8013 Onboarding Checklist
+
+**Report id:** `cat-onboarding-checklist`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Employee ID · Employee Name · Department · Document Type · Status · User Name · Approved By · Remarks
+
+**Drill-down:** no.
+
+### R8006 Payroll Register
+
+**Report id:** `cat-payroll-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Payroll Period · Employee ID · Employee Name · Department · Gross Salary · Deductions · Net Pay · Payment Status
+
+**Drill-down:** no.
+
+### R8014 Performance Review Summary
+
+**Report id:** `cat-performance-review-summary`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** From Date · To Date · Employee ID · Employee Name · Department · Manager Name · Achievement % · Status · Remarks
+
+**Drill-down:** no.
+
+### R8007 Salary Component Detail
+
+**Report id:** `cat-salary-component-detail`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Payroll Period · Employee ID · Employee Name · Document Type · Gross Salary · Deductions · Net Pay
+
+**Drill-down:** no.
+
+### R8005 Shift / Roster Report
+
+**Report id:** `cat-shift-roster-report`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Document Date · Employee ID · Employee Name · Store Name · Department · Shift · Status
+
+**Drill-down:** no.
+
+### R8008 Statutory Deduction Summary
+
+**Report id:** `cat-statutory-deduction-summary`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Payroll Period · Department · Document Type · Deductions · Status
+
+**Drill-down:** no.
+
+### R8015 Training / Certification Register
+
+**Report id:** `cat-training-certification-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Store** (`location`) - text, optional
+
+**Columns:** Document Date · Employee ID · Employee Name · Department · Document Type · Status · Remarks
+
+**Drill-down:** no.
 
 ## Inventory
 
@@ -1687,230 +1900,6 @@ Inventory to Procurement.
 - **Status (optional)** (`status`) - select, optional, one of: ,Active,Inactive,Draft
 
 **Columns:** Product Family · Item Code · Item Name · SKU · Design No · Combination ID · Category Name · Brand · Style · Color · Polish · Size · HSN Code · MRP · Status
-
-**Drill-down:** no.
-
-## Procurement
-
-### R2036 GRN Corrections Log
-
-**Report id:** `grn-corrections`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-
-**Columns:** When · GRN · Line · SKU · Step · Field · Was · Now · Why · By
-
-**Drill-down:** no.
-
-### R2038 GRN Payments
-
-**Report id:** `grn-payments`
-
-**Parameters:**
-
-- **Vendor (blank = all)** (`vendor`) - text, optional
-- **Due only** (`due_only`) - select, optional, one of: ,Yes
-
-**Columns:** GRN · Vendor · Invoice No · Invoiced *(sensitive)* · We owe *(sensitive)* · Paid *(sensitive)* · Due *(sensitive)* · Status · Last paid · Paid by
-
-**Drill-down:** no.
-
-### R2046 GRN Register
-
-**Report id:** `grn-register`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** GRN ID · PO Reference · Item Lines · Status · Date
-
-**Drill-down:** no.
-
-### R2032 GRN Register - every line, every step
-
-**Report id:** `grn-line-register`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-- **Vendor (blank = all)** (`vendor`) - text, optional
-
-**Columns:** GRN · Child · Store · Vendor · Invoice No · PO · SKU · PO Qty · Received · Invoice Qty · GRN Qty · Rejected · Damaged · PO Price *(sensitive)* · Invoice Price *(sensitive)* · GRN Price *(sensitive)* · GST % · Old MRP · MRP · Batch · Step · Received · Posted
-
-**Drill-down:** no.
-
-### R2035 Goods Receipts Waiting
-
-**Report id:** `grn-waiting`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** GRN · Vendor · Invoice No · Waiting for · Age (days) · Invoice Total *(sensitive)* · Excess awaiting approval
-
-**Drill-down:** no.
-
-### R2040 Goods receipt discrepancies by vendor
-
-**Report id:** `grn-discrepancy-by-vendor`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-
-**Columns:** Vendor · Receipts · Received · Accepted · Rejected · Damaged · Short of the invoice · Invoice difference · Rejected %
-
-**Drill-down:** no.
-
-### R2031 Goods receipts not billed
-
-**Report id:** `grn-not-billed`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Goods receipt · Vendor · Posted · Days · Vendor invoice no.
-
-**Drill-down:** no.
-
-### R2042 Goods received not invoiced (GRNI)
-
-**Report id:** `grni`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-
-**Columns:** Goods receipt · Date · Vendor · Store · Accepted value · Invoiced · Not invoiced · Price difference · Vendor invoices · AP hold
-
-**Drill-down:** no.
-
-### R2033 Invoice vs GRN Differences
-
-**Report id:** `grn-invoice-differences`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-- **Vendor (blank = all)** (`vendor`) - text, optional
-
-**Columns:** Month · Vendor · Receipts · Invoiced *(sensitive)* · Received and verified *(sensitive)* · Difference *(sensitive)* · Debit notes *(sensitive)* · Credit notes *(sensitive)* · Notes
-
-**Drill-down:** no.
-
-### R2030 Late and early receipts
-
-**Report id:** `grn-receipt-timing`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Goods receipt · PO · Vendor · Expected · Received · Timing
-
-**Drill-down:** no.
-
-### R2045 Open Purchase Commitments
-
-**Report id:** `po-commitments`
-
-**Parameters:** none - it runs as soon as you pick it.
-
-**Columns:** Age Bucket · PO Count · Committed Amount *(sensitive)*
-
-**Drill-down:** yes - a row's **View Details** opens the transactions behind it.
-
-### R2039 PO expected delivery and terms
-
-**Report id:** `po-delivery-and-terms`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-
-**Columns:** PO · Vendor · Store · Status · Expected delivery · Days late · Payment term · Delivery terms · Freight paid by · Quote valid until · Amendments · Value
-
-**Drill-down:** no.
-
-### R2037 PO vs GRN Price Variance
-
-**Report id:** `grn-po-variance`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-- **Vendor (blank = all)** (`vendor`) - text, optional
-
-**Columns:** Received · Vendor · PO · GRN · SKU · Qty · PO Price *(sensitive)* · GRN Price *(sensitive)* · Variance / unit *(sensitive)* · Variance % · Variance value *(sensitive)*
-
-**Drill-down:** no.
-
-### R2034 Purchase Price Changes
-
-**Report id:** `grn-price-changes`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-- **Vendor (blank = all)** (`vendor`) - text, optional
-
-**Columns:** Received · SKU · Vendor · GRN · Previous Price *(sensitive)* · Previous Vendor · New Price *(sensitive)* · Change % · Old MRP · New MRP
-
-**Drill-down:** no.
-
-### R2047 RFQ Comparison Export
-
-**Report id:** `rfq-comparison`
-
-**Parameters:**
-
-- **RFQ ID** (`rfq_id`) - text, **required**
-
-**Columns:** Quote ID · Vendor · Quoted Price *(sensitive)* · Status
-
-**Drill-down:** no.
-
-### R2043 Rejections and Returns by Reason
-
-**Report id:** `rejections-by-reason`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-- **Vendor (blank = all)** (`vendor`) - text, optional
-
-**Columns:** What · Reason code · Reason · Vendor · Documents · Qty
-
-**Drill-down:** no.
-
-### R2044 Vendor Ledger
-
-**Report id:** `vendor-ledger`
-
-**Parameters:**
-
-- **Vendor (optional)** (`vendor_id`) - text, optional
-
-**Columns:** PO ID · Vendor · PO Number · Total Amount *(sensitive)* · Status · Date
-
-**Drill-down:** no.
-
-### R2041 Vendor document and transport register
-
-**Report id:** `vendor-document-transport-register`
-
-**Parameters:**
-
-- **From** (`from`) - date, optional
-- **To** (`to`) - date, optional
-
-**Columns:** Goods receipt · Received · Vendor · Store · Invoice no · Invoice date · Challan no · Challan date · LR / AWB · Vehicle · Transporter · Packages
 
 **Drill-down:** no.
 

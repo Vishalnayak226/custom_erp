@@ -9,6 +9,8 @@ const { txnContext, txnTabs, txnMoney, txnRestorePane, txnPagedSection, txnDone 
 // Shared app services resolve from the classic shell; these named exports
 // are published by the loader for legacy cross-view calls.
 let currentFinanceTab = 'work';
+// 140.12.9: posting and settling are a finance role's (finance.post).
+const financeCanPost = () => !!(state.permissions && (state.permissions.isAdmin || (state.permissions.capabilities && state.permissions.capabilities.has('finance.post'))));
 // Stage 73.1.10: the period whose close board is open (null = the list).
 let currentClosePeriodId = null;
 const PERIOD_TASK_COUNT = 5;
@@ -906,8 +908,25 @@ async function renderBankReconciliationView(container) {
 
   const header = document.createElement('div');
   header.className = 'page-header';
-  header.innerHTML = `<div class="page-title-section"><h1 class="page-title">Bank Reconciliation</h1></div>`;
+  header.innerHTML = `<div class="page-title-section"><h1 class="page-title">Bank Reconciliation</h1></div>
+    <div>${financeCanPost() ? `<button type="button" class="btn btn-outline" data-acq="file">Settlement file</button> <button type="button" class="btn btn-outline" data-acq="match">Match card / UPI</button>` : ''}</div>`;
   container.appendChild(header);
+  // 140.12.12: the acquirer's daily card / UPI settlement file (imported on
+  // its own list) matched to bank credits; only the exceptions come back.
+  const acqFile = header.querySelector('[data-acq="file"]');
+  if (acqFile) acqFile.addEventListener('click', () => { currentDoctype = 'AcquirerSettlement'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
+  const acqMatch = header.querySelector('[data-acq="match"]');
+  if (acqMatch) acqMatch.addEventListener('click', async () => {
+    acqMatch.disabled = true;
+    const r = await apiFetch('/api/v1/finance/acquirer-settlements/match', { method: 'POST' });
+    acqMatch.disabled = false;
+    if (!r) return;
+    if (!r.ok) { showApiError(r, 'Matching failed.'); return; }
+    const out = await r.json();
+    const ex = (out.exceptions || []).map(e => `${e.settlement_date || ''} ${e.mode || ''} ${Number(e.net || 0).toFixed(2)}: ${e.reason}`).join('\n');
+    await showCustomAlert(`${out.matched} payout(s) matched.${ex ? `\n\nNot matched:\n${ex}` : ''}`, 'Card / UPI settlements');
+    if (out.matched) renderView(currentView);
+  });
 
   const panel = document.createElement('div');
   panel.className = 'table-panel';
@@ -1318,8 +1337,9 @@ async function renderSalesInvoicesView(container) {
               <td class="num">${v.status === 'Draft' || v.status === 'Cancelled' ? '&mdash;' : formatMoney(openBalance(v, 'total_amount', ['Approved']))}</td>
               <td data-einv-id="${escapeHTMLText(v.id)}"><span class="badge ${partPaid ? 'badge-warning' : (STATUS_BADGE[v.status] || 'badge-secondary')}">${partPaid ? 'Part paid' : escapeHTMLText(v.status)}</span></td>
               <td>
-                ${v.status === 'Draft' ? `<button class="action-btn" ${actionAttrs('postSalesInvoiceAction', [v.id])}>Post</button>` : ''}
-                ${v.status === 'Approved' ? `<button class="action-btn" data-si-settle="${escapeHTMLText(v.id)}">Settle</button>` : ''}
+                ${v.status === 'Draft' && financeCanPost() ? `<button class="action-btn" ${actionAttrs('postSalesInvoiceAction', [v.id])}>Post</button>` : ''}
+                ${v.status === 'Approved' && financeCanPost() ? `<button class="action-btn" data-si-settle="${escapeHTMLText(v.id)}">Settle</button>` : ''}
+                ${(v.status === 'Draft' || (v.status === 'Approved' && history.length === 0)) && financeCanPost() ? `<button class="action-btn" data-si-cancel="${escapeHTMLText(v.id)}">Cancel</button>` : ''}
                 ${history.length > 0 ? `<button class="action-btn" data-pay-hist-toggle="${escapeHTMLText(v.id)}">Payments (${history.length})</button>` : ''}
                 <button class="action-btn" ${actionAttrs('printSalesInvoice', [v.id])}>Print</button>
               </td>
@@ -1329,7 +1349,47 @@ async function renderSalesInvoicesView(container) {
     </table>`
   });
   container.querySelectorAll('[data-si-settle]').forEach(btn => btn.addEventListener('click', () => settleSalesInvoiceAction(btn.getAttribute('data-si-settle'))));
+  // 140.12.8: cancel an invoice that took no money - what it posted is reversed.
+  container.querySelectorAll('[data-si-cancel]').forEach(btn => btn.addEventListener('click', async () => {
+    const reason = String((await showCustomPrompt('Why is this invoice being cancelled?', '', 'Cancel invoice')) || '').trim();
+    if (!reason) return;
+    const res = await apiFetch(`/api/v1/finance/sales-invoice/${encodeURIComponent(btn.getAttribute('data-si-cancel'))}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) });
+    if (!res) return;
+    if (!res.ok) { showApiError(res, 'The invoice was not cancelled.'); return; }
+    showToast('Invoice cancelled.', { variant: 'success' });
+    renderView('sales-invoices');
+  }));
   addStatementButton('si-new-btn', 'CustomerStatement', 'Customer', 'customer');
+  // 140.12.5: a receipt across invoices, with bank, TDS and on account.
+  const newInv = document.getElementById('si-new-btn');
+  if (newInv && financeCanPost()) {
+    const rb = document.createElement('button');
+    rb.type = 'button';
+    rb.className = 'btn btn-outline';
+    rb.textContent = '+ Receipt';
+    rb.style.marginRight = '8px';
+    rb.addEventListener('click', async (e) => {
+      const host = e.currentTarget.closest('.txn-screen').parentElement;
+      const mod = await import('./view-receipt.js' + new URL(import.meta.url).search);
+      await mod.renderReceiptEntry(host, () => renderView(currentView));
+    });
+    newInv.parentElement.insertBefore(rb, newInv);
+  }
+  // 142.3: sales from one Excel file - rows by barcode, a discount per line
+  // (view-bulk-sales.js), the way Purchase Orders has Upload from Excel.
+  if (newInv && canCreateDoctype('SalesInvoice')) {
+    const ub = document.createElement('button');
+    ub.type = 'button';
+    ub.className = 'btn btn-outline';
+    ub.textContent = 'Upload from Excel';
+    ub.style.marginRight = '8px';
+    ub.addEventListener('click', async (e) => {
+      const host = e.currentTarget.closest('.txn-screen').parentElement;
+      const mod = await import('./view-bulk-sales.js' + new URL(import.meta.url).search);
+      await mod.renderBulkSales(host, { onBack: () => renderView(currentView) });
+    });
+    newInv.parentElement.insertBefore(ub, newInv);
+  }
   wirePaymentHistory(container);
   // Stage 75.2.9: each invoice's IRN state, from one call.
   const einvCells = [...container.querySelectorAll('[data-einv-id]')];

@@ -53,6 +53,40 @@ func BindPostingActor(actor PostingActor) (release func()) {
 	}
 }
 
+// postingTimes (Stage 47.16.4b) is PostingOptions.PostedAt carried beside the
+// call, the same way as the actor: an offline sale posts through the whole
+// checkout, whose many postings have no way to be handed the till's time.
+var postingTimes sync.Map // goroutine id (uint64) -> string
+
+// BindPostingTime makes every posting the calling goroutine writes until
+// release runs belong to at (a PostingOptions.PostedAt value), unless the
+// posting names its own. Bindings nest like BindPostingActor's.
+func BindPostingTime(at string) (release func()) {
+	id := currentGoroutineID()
+	if id == 0 || at == "" {
+		return func() {}
+	}
+	prev, hadPrev := postingTimes.Load(id)
+	postingTimes.Store(id, at)
+	return func() {
+		if hadPrev {
+			postingTimes.Store(id, prev)
+		} else {
+			postingTimes.Delete(id)
+		}
+	}
+}
+
+// boundPostingTime is the time BindPostingTime gave this goroutine, or "".
+func boundPostingTime() string {
+	if id := currentGoroutineID(); id != 0 {
+		if v, ok := postingTimes.Load(id); ok {
+			return v.(string)
+		}
+	}
+	return ""
+}
+
 // RequestPostingActor names the actor of one authenticated API request.
 // purpose is the token's purpose claim ("extension" tokens carry no user);
 // command is "<METHOD> <route pattern or path>".

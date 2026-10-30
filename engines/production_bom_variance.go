@@ -43,6 +43,16 @@ var actionOnlyFields = map[string]actionOnlyFieldRule{
 	"ProductionOrder": {Fields: []string{"bom_variance_acknowledged", "bom_variance_ack"}, Action: "Accept BOM change"},
 }
 
+// ActionOnlyFieldDoctypes lists, per doctype, the keys only an action writes
+// (Stage 49.3.8 generates a refused-save case from each).
+func ActionOnlyFieldDoctypes() map[string][]string {
+	out := make(map[string][]string, len(actionOnlyFields))
+	for doctype, rule := range actionOnlyFields {
+		out[doctype] = append([]string{}, rule.Fields...)
+	}
+	return out
+}
+
 // CheckActionOnlyFields refuses a save that sets, changes or clears a key
 // only the document's own action writes. docID is the record being updated
 // ("" for a new one).

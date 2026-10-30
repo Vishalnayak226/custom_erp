@@ -313,6 +313,16 @@ if ($budgetText -match '"status":\s*"over') {
 if ($budgetText -notmatch '"cold_core_gzip_bytes"') { Stop-Release "releasebudget gave no report:`n$(($budgetText -split "`n" | Select-Object -Last 15) -join "`n")" }
 Note 'release budget within limits'
 
+# ------------------------------------------------- G4e compliance reviews
+# Stage 47.16.1a: every row of docs/security/compliance-control-matrix.json
+# carries the date it is next reviewed by. `go test` only logs OVERDUE, so a
+# calendar date never breaks a developer's build; a release does not ship
+# while one has passed. Before the slow gates: it takes seconds.
+Write-Gate 'G4e Compliance reviews'
+$overdue = @(Get-OverdueComplianceReviews -RepoDir $wt -GoExe $go)
+if ($overdue.Count) { Stop-Release "compliance review overdue in docs/security/compliance-control-matrix.json:`n$($overdue -join "`n")`nReview each row with its owner, then move its last_reviewed and review_by" }
+Note 'compliance matrix: no review overdue'
+
 # ------------------------------------------------- G5 generated Go and reports
 Write-Gate 'G5 Report catalog spec'
 # Always regenerated, even when its inputs did not change: a stale file
@@ -678,7 +688,7 @@ if ($tree -ne $headTree) {
     $body = @($subject, '')
     $body += $titles | ForEach-Object { "- $_" }
     $body += ''
-    $body += "Gates passed (release/scripts/Invoke-Release.ps1): snapshot, LF, gofmt, cache versions, catalog spec, attack surface, KB, brain, register, build, vet, JS, budget, migrate from empty, full tests."
+    $body += "Gates passed (release/scripts/Invoke-Release.ps1): snapshot, LF, gofmt, cache versions, compliance reviews, catalog spec, attack surface, KB, brain, register, build, vet, JS, budget, migrate from empty, full tests."
     if ($state.flaky.Count) { $body += "Flaky (passed on rerun): $($state.flaky -join ', ')" }
     if ($held.Count) { $body += "Held back: $($held -join ', ')" }
     $msgFile = Join-Path $env:TEMP "release_msg_$ts.txt"

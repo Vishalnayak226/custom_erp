@@ -42,7 +42,7 @@ export async function renderSalesInvoiceEntry(container, onDone) {
       ${field('si-challan', 'Delivery challan', 150, 'placeholder="if already sent"')}
     </div>
     <div class="txn-hint" data-si="supply" style="margin-bottom:10px;"></div>
-    <div class="table-wrapper"><table><thead><tr><th>Item</th><th>HSN</th><th class="num">Qty</th><th class="num">Rate (before GST)</th><th class="num">GST %</th><th class="num">Taxable</th><th class="num">GST</th><th class="num">Amount</th><th></th></tr></thead><tbody data-si="lines"></tbody></table></div>
+    <div class="table-wrapper"><table><thead><tr><th>Item</th><th>HSN</th><th class="num">Qty</th><th class="num">Rate (before GST)</th><th class="num">Discount (₹)</th><th class="num">GST %</th><th class="num">Taxable</th><th class="num">GST</th><th class="num">Amount</th><th></th></tr></thead><tbody data-si="lines"></tbody></table></div>
     <div style="display:flex;gap:8px;margin-top:12px;"><input class="form-input" data-si="add" placeholder="Add an item by code, barcode or name" style="max-width:320px;" autocomplete="off"></div>
     <div data-si="totals" style="margin-top:14px;max-width:320px;margin-left:auto;"></div>
     <div class="login-error hidden" data-si="error" style="margin-top:12px;"></div>
@@ -66,16 +66,19 @@ export async function renderSalesInvoiceEntry(container, onDone) {
       : v('#si-pos') ? (inter ? `Inter-state supply (store ${S.storeState} → ${v('#si-pos')}): IGST.` : `Within state ${S.storeState}: CGST + SGST.`) : 'Enter the place of supply.';
     let taxable = 0, tax = 0;
     q('lines').innerHTML = S.lines.length ? S.lines.map((l, i) => {
-      l.taxable = r2(num(l.qty) * num(l.rate));
+      // 142.4: the line's discount comes off before GST; it cannot exceed the line.
+      l.discount = Math.min(Math.max(0, num(l.discount)), r2(num(l.qty) * num(l.rate)));
+      l.taxable = r2(num(l.qty) * num(l.rate) - l.discount);
       l.tax = r2(l.taxable * num(l.gst_rate) / 100);
       taxable += l.taxable; tax += l.tax;
       return `<tr><td>${esc(l.name || l.sku)}<div class="text-muted" style="font-size:12px;">${esc(l.sku)}</div></td><td>${esc(l.hsn || '')}</td>
         <td class="num"><input type="number" min="0" step="any" class="form-input" style="width:80px;text-align:right;" data-sil="qty" data-i="${i}" value="${esc(l.qty)}"></td>
         <td class="num"><input type="number" min="0" step="0.01" class="form-input" style="width:110px;text-align:right;" data-sil="rate" data-i="${i}" value="${esc(l.rate)}"></td>
+        <td class="num"><input type="number" min="0" step="0.01" class="form-input" style="width:90px;text-align:right;" data-sil="discount" data-i="${i}" value="${esc(l.discount)}" title="Taken off this line before GST"></td>
         <td class="num"><input type="number" min="0" step="0.01" class="form-input" style="width:70px;text-align:right;" data-sil="gst_rate" data-i="${i}" value="${esc(l.gst_rate)}"></td>
         <td class="num">${formatMoney(l.taxable)}</td><td class="num">${formatMoney(l.tax)}</td><td class="num">${formatMoney(l.taxable + l.tax)}</td>
         <td><button type="button" class="action-btn action-btn-danger" data-sil-remove="${i}">Remove</button></td></tr>`;
-    }).join('') : '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:16px;">Add the items billed.</td></tr>';
+    }).join('') : '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:16px;">Add the items billed.</td></tr>';
     taxable = r2(taxable); tax = r2(tax);
     const half = r2(tax / 2);
     S.totals = { taxable, tax, cgst: inter ? 0 : half, sgst: inter ? 0 : r2(tax - half), igst: inter ? tax : 0, total: r2(taxable + tax) };
@@ -102,7 +105,7 @@ export async function renderSalesInvoiceEntry(container, onDone) {
   panel.querySelector('#si-pos').addEventListener('input', draw);
   const addInput = q('add');
   attachLinkTypeahead(addInput, 'Item', { noSetupHint: true, onPick: (item) => {
-    S.lines.push({ sku: item.code || item.id, name: item.name || '', hsn: item.hsn_code || '', qty: 1, rate: num(item.sale_price || item.price || item.mrp), gst_rate: num(item.gst_rate) });
+    S.lines.push({ sku: item.code || item.id, name: item.name || '', hsn: item.hsn_code || '', qty: 1, rate: num(item.sale_price || item.price || item.mrp), discount: 0, gst_rate: num(item.gst_rate) });
     addInput.value = '';
     addInput.dispatchEvent(new Event('input'));
     draw();
@@ -121,7 +124,7 @@ export async function renderSalesInvoiceEntry(container, onDone) {
     const res = await apiFetch('/api/v1/doc/SalesInvoice', { method: 'POST', body: JSON.stringify({
       customer: v('#si-customer'), customer_gstin: g.toUpperCase(), location: v('#si-store'), invoice_date: v('#si-date'), place_of_supply: v('#si-pos'),
       due_date: v('#si-due'), customer_reference: v('#si-ref'), delivery_challan: v('#si-challan'), interstate: interstate(),
-      items: JSON.stringify(S.lines.map(l => ({ sku: l.sku, item_name: l.name, hsn_code: l.hsn, qty: num(l.qty), rate: num(l.rate), gst_rate: num(l.gst_rate), taxable: l.taxable, tax: l.tax, amount: r2(l.taxable + l.tax) }))),
+      items: JSON.stringify(S.lines.map(l => ({ sku: l.sku, item_name: l.name, hsn_code: l.hsn, qty: num(l.qty), rate: num(l.rate), discount: num(l.discount), gst_rate: num(l.gst_rate), taxable: l.taxable, tax: l.tax, amount: r2(l.taxable + l.tax) }))),
       taxable_amount: S.totals.taxable, cgst: S.totals.cgst, sgst: S.totals.sgst, igst: S.totals.igst, total_tax: S.totals.tax, total_amount: S.totals.total, status: 'Draft' }) });
     btn.disabled = false;
     if (!res) return;

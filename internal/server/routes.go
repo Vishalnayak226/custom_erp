@@ -163,6 +163,8 @@ func Run() {
 	// overdue SalesInvoices, dispatching Reminder/Escalation notifications
 	// through the existing outbox.
 	engines.StartDunningWorker(workerCtx, 1*time.Hour)
+	// 140.12.12: card / UPI settlement rows find their bank credit.
+	engines.StartAcquirerSettlementMatcher(workerCtx, 1*time.Hour)
 
 	// PO auto-cancel (procurement.po_auto_cancel_days, 2026-10-17) - hourly
 	// check of Approved POs past the days after approval.
@@ -830,6 +832,16 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/finance/credit-note/{id}/post", apiMiddleware(handlePostCreditNote))
 	http.HandleFunc("POST /api/v1/finance/sales-invoice/{id}/post", apiMiddleware(handlePostSalesInvoice))
 	http.HandleFunc("POST /api/v1/finance/sales-invoice/{id}/settle", apiMiddleware(handleSettleSalesInvoice))
+	// 140.12.5 / 140.12.6: back-office receipts across invoices, TDS, bank, on account.
+	http.HandleFunc("GET /api/v1/finance/receipts", apiMiddleware(handleCustomerReceipts))
+	http.HandleFunc("POST /api/v1/finance/receipts", apiMiddleware(handleCustomerReceipts))
+	http.HandleFunc("GET /api/v1/finance/receipts/open-items", apiMiddleware(handleCustomerOpenItems))
+	http.HandleFunc("POST /api/v1/finance/sales-invoice/{id}/cancel", apiMiddleware(handleCancelSalesInvoice))                  // 140.12.8
+	http.HandleFunc("POST /api/v1/finance/acquirer-settlements/match", apiMiddleware(handleMatchAcquirerSettlements))           // 140.12.12
+	http.HandleFunc("POST /api/v1/pim/channels/{code}/apply-pack", apiMiddleware(moduleGate("pim", handlePIMApplyChannelPack))) // 140.12.22
+	http.HandleFunc("GET /api/v1/crm/readiness", apiMiddleware(moduleGate("crm_loyalty", handleCRMReadiness)))                  // 140.12.26
+	http.HandleFunc("POST /api/v1/crm/senders/{id}/test", apiMiddleware(moduleGate("crm_loyalty", handleCRMSenderTest)))        // 140.12.26
+	http.HandleFunc("GET /api/v1/crm/sender-presets", apiMiddleware(moduleGate("crm_loyalty", handleCRMSenderPresets)))         // 140.12.26
 
 	// Stage 37.1.4/37.1.5 - FX revaluation and the presentation-currency trial
 	// balance. GET previews the revaluation and POST commits it; the split is
@@ -1319,6 +1331,13 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/procurement/bulk-upload/runs", apiMiddleware(moduleGate("procurement", handleBulkPurchaseRuns)))
 	http.HandleFunc("GET /api/v1/procurement/bulk-upload/runs/{id}", apiMiddleware(moduleGate("procurement", handleBulkPurchaseRun)))
 	http.HandleFunc("GET /api/v1/procurement/bulk-upload/runs/{id}/file", apiMiddleware(moduleGate("procurement", handleBulkPurchaseRunFile)))
+	// Stage 142.3: Sales from one Excel file (Sales Invoice → Upload from Excel).
+	http.HandleFunc("GET /api/v1/sales/bulk-upload/template", apiMiddleware(handleBulkSalesTemplate))
+	http.HandleFunc("POST /api/v1/sales/bulk-upload/preview", apiMiddleware(handleBulkSalesPreview))
+	http.HandleFunc("POST /api/v1/sales/bulk-upload/apply", apiMiddleware(handleBulkSalesApply))
+	http.HandleFunc("GET /api/v1/sales/bulk-upload/runs", apiMiddleware(handleBulkSalesRuns))
+	http.HandleFunc("GET /api/v1/sales/bulk-upload/runs/{id}", apiMiddleware(handleBulkSalesRun))
+	http.HandleFunc("GET /api/v1/sales/bulk-upload/runs/{id}/file", apiMiddleware(handleBulkSalesRunFile))
 	// Stage 95: Design and Combination ID images - the PO's Images page, the
 	// Design / Item screens' image strip, the image read routes (any module),
 	// and the client's own image drive (Configuration -> Integrations).
@@ -1424,6 +1443,9 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/pinelabs/transaction", apiMiddleware(handlePineLabsTransaction))
 	http.HandleFunc("POST /api/v1/pinelabs/reconcile", apiMiddleware(handlePineLabsReconcile))
 	http.HandleFunc("GET /api/v1/pinelabs/transactions", apiMiddleware(handleListPineLabsTransactions))
+
+	// 49.8.5: Disconnect any connector credential (channel, courier, Pine Labs, CleverTap, Unicommerce).
+	http.HandleFunc("POST /api/v1/integrations/credentials/disconnect", apiMiddleware(handleConnectorDisconnect))
 
 	// Stage 9.1: CleverTap Integration APIs
 	http.HandleFunc("POST /api/v1/clevertap/credentials", apiMiddleware(handleCleverTapCredentials))

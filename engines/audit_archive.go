@@ -249,9 +249,40 @@ type retentionPolicy struct {
 	EffectiveFrom    time.Time
 }
 
+// AuditLogMinRetentionDays is Stage 47.16.4c's floor: Companies (Accounts)
+// Rules 2014, Rule 3(5) keeps the audit trail for at least eight years - 2,922
+// days with their two leap days. It holds at three points: the database refuses
+// a delete_after_days below it (audit_retention_policy_delete_floor, in
+// db/migrations_stage47_16_4c_audit_retention_floor.sql); currentRetentionPolicy
+// reads an older, smaller value as the floor; and retentionDelete never deletes
+// an audit row, checkpoint or archive younger than it (withAuditLogFloor).
+const AuditLogMinRetentionDays = 2922
+
+// auditLogAgeColumns names the audit trail's tables and the timestamp each
+// row's age is read from. An archive's own created_at is later than every row
+// inside it, so an archive (and the file only its row points to) past the
+// floor holds nothing younger than the floor.
+var auditLogAgeColumns = map[string]string{
+	"audit_logs":        "created_at",
+	"audit_checkpoints": "created_at",
+	"audit_archives":    "created_at",
+}
+
+// withAuditLogFloor narrows a retention sweep's predicate so an audit-trail row
+// is only deleted once it is older than AuditLogMinRetentionDays as well.
+func withAuditLogFloor(table, where string) string {
+	col, ok := auditLogAgeColumns[table]
+	if !ok {
+		return where
+	}
+	return fmt.Sprintf("(%s) AND %s < CURRENT_TIMESTAMP - INTERVAL '%d days'", where, col, AuditLogMinRetentionDays)
+}
+
 // currentRetentionPolicy returns the highest-versioned policy already in
 // effect - never a future-dated one - so "the rule in force right now"
 // answers correctly even if a future policy has been scheduled ahead of time.
+// A delete_after_days below AuditLogMinRetentionDays (written before the
+// database refused one) is read as the floor.
 func currentRetentionPolicy(schema string) (*retentionPolicy, error) {
 	var p retentionPolicy
 	err := db.DB.QueryRow(fmt.Sprintf(`
@@ -265,6 +296,9 @@ func currentRetentionPolicy(schema string) (*retentionPolicy, error) {
 	}
 	if err != nil {
 		return nil, err
+	}
+	if p.DeleteAfterDays.Valid && p.DeleteAfterDays.Int64 < AuditLogMinRetentionDays {
+		p.DeleteAfterDays.Int64 = AuditLogMinRetentionDays
 	}
 	return &p, nil
 }
@@ -951,7 +985,7 @@ func StartAuditArchiveScheduler(ctx context.Context, interval time.Duration) {
 					if tenantID == "" { // Stage 49.3.2: not queued on the default client
 						continue
 					}
-					if _, err := EnqueueJob(tenantID, AuditArchiveJobType, nil,
+					if _, err := EnqueueJobContext(SystemJobContext("audit-archive"), tenantID, AuditArchiveJobType, nil,
 						fmt.Sprintf("audit-archive:%s:%s", tenantID, stamp)); err != nil {
 						log.Printf("[AUDIT-ARCHIVE] %s: could not enqueue archive: %v", schema, err)
 					}

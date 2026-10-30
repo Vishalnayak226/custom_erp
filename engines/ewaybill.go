@@ -44,7 +44,7 @@ import (
 const (
 	SettingEWBProvider   = "gst.ewb_provider"
 	SettingEWBExemptHSN  = "gst.ewb_exempt_hsn"
-	ewbDecisionVersion   = "EWB-R138-2026.1"
+	ewbDecisionVersion   = "EWB-R138-2026.2" // .2 (47.16.4e): a sales line's value always includes its tax
 	EWBNotRequired       = "NotRequired"
 	EWBReady             = "Ready"
 	EWBSubmitted         = "Submitted"
@@ -333,7 +333,7 @@ func ewbFactsFor(tenantID, doctype, docID string) (*ewbFacts, string, error) {
 			f.value, f.servicesOnly = numFromInterface(data["total_amount"]), false
 		}
 		for _, l := range lines {
-			addLine(strField(l, "sku"), strField(l, "hsn_code"), firstPositive(numFromInterface(l["amount"]), numFromInterface(l["taxable"])))
+			addLine(firstNonEmpty(strField(l, "sku"), strField(l, "item"), strField(l, "item_code")), strField(l, "hsn_code"), ewbSalesLineValue(tenantID, l))
 		}
 	case "TransferOrder":
 		f.number, f.date, f.fromStore = firstNonEmpty(strField(data, "transfer_number"), strField(data, "code"), docID), BusinessToday(), strField(data, "from_warehouse")
@@ -348,6 +348,37 @@ func ewbFactsFor(tenantID, doctype, docID string) (*ewbFacts, string, error) {
 		return nil, status, ewbFail(doctype + " does not carry an e-way bill")
 	}
 	return f, status, nil
+}
+
+// ewbSalesLineValue (Stage 47.16.4e, G5 of
+// docs/security/gst-companies-act-controls.md) is a sales invoice line's value
+// for Rule 138, which counts the consignment's value with its tax. A line's
+// amount already includes it - sale prices in this ERP include GST
+// (ComputeGSTForLines) - and is read here the way the e-invoice reads the same
+// line (salesInvoiceLines): net_total, amount, line_total (a package bill) or
+// rate x qty, less the line's discount. A line that stores only its taxable
+// value gets its tax added: its own tax, else its GST rate, else the item's.
+func ewbSalesLineValue(tenantID string, l map[string]interface{}) float64 {
+	num := func(k string) float64 { return numFromInterface(l[k]) }
+	rate := firstPositive(num("rate"), num("unit_price"), num("sale_price"))
+	if gross := firstPositive(num("net_total"), num("amount"), num("line_total"), rate*num("qty")); gross > 0 {
+		return round2(gross - num("discount"))
+	}
+	taxable := num("taxable")
+	if taxable <= 0 {
+		return 0
+	}
+	tax := firstPositive(num("tax"), num("cgst")+num("sgst")+num("igst"))
+	if tax == 0 {
+		gstRate := num("gst_rate")
+		if gstRate <= 0 {
+			if item, _, err := fetchDocData(tenantID, "Item", firstNonEmpty(strField(l, "sku"), strField(l, "item"), strField(l, "item_code"))); err == nil && item != nil {
+				gstRate = numFromInterface(item["gst_rate"])
+			}
+		}
+		tax = taxable * gstRate / 100
+	}
+	return round2(taxable + tax)
 }
 
 // EWBDecisionFor works out whether a document needs an e-way bill.

@@ -39,7 +39,7 @@ type ReportColumn struct {
 type ReportParam struct {
 	Key      string `json:"key"`
 	Label    string `json:"label"`
-	Type     string `json:"type"` // "date", "text", "select"
+	Type     string `json:"type"` // "date", "text", "select", "link" (Options = doctype), "segment"
 	Options  string `json:"options,omitempty"`
 	Required bool   `json:"required"`
 }
@@ -112,6 +112,22 @@ func ListReportDefinitions() []ReportDefinition {
 		out = append(out, def)
 	}
 	return out
+}
+
+// ReportAllowedForRole (140.12.10): a finance report - trial balance, ledgers,
+// statements, registers - carries the same right as the finance screens
+// (finance.statements), so a role refused /finance/trial-balance cannot read
+// the same figures through the report runner, an export, a dashboard tile or a
+// schedule. Every other report is open to any role with the module.
+func ReportAllowedForRole(def ReportDefinition, role string) bool {
+	if def.ModuleKey != "finance" {
+		return true
+	}
+	return HasFullAccess(role) || RoleHasCapability(role, "finance.statements")
+}
+
+func reportRefused(def ReportDefinition) error {
+	return &ValidationError{Code: "GLOBAL-0011", Message: fmt.Sprintf("%s is a finance report - it needs a finance role", def.Label)}
 }
 
 // ReportNumber is a report's permanent number (R1001), or "" for none.
@@ -228,6 +244,9 @@ func RunReportContext(ctx context.Context, tenantID, reportID, role, userID stri
 	if err := RequireModules(tenantID, "reports", d.ModuleKey); err != nil {
 		return nil, nil, false, err
 	}
+	if !ReportAllowedForRole(d, role) {
+		return nil, nil, false, reportRefused(d)
+	}
 	for _, p := range d.Params {
 		if p.Required && params[p.Key] == "" {
 			return nil, nil, false, fmt.Errorf("param %q is required", p.Key)
@@ -270,6 +289,13 @@ func RunReportContext(ctx context.Context, tenantID, reportID, role, userID stri
 		return nil, nil, false, &ValidationError{Code: "REPORT-0161", Message: fmt.Sprintf("this report matched %d rows, over the %d-row synchronous limit - narrow the filters or use Export instead", len(rows), maxRows)}
 	}
 	masked = reportMasked(d.Columns, role)
+	// 49.11.1: a report with a sensitive column read unmasked is a security
+	// event, in the caller's own role when a wrapper ran it on their behalf.
+	readRole := role
+	if real, ok := ctx.Value(reportReadRoleKey{}).(string); ok && real != "" {
+		readRole = real
+	}
+	logSensitiveReportRead(ctx, tenantID, userID, readRole, reportID, d.Columns, len(rows), params)
 	rows = maskSensitiveColumns(d.Columns, rows, role)
 	rows = maskContactColumns(tenantID, d.Columns, rows, role)
 	return &d, rows, masked, nil
@@ -389,6 +415,9 @@ func RunReportDrillDownContext(ctx context.Context, tenantID, reportID, role, ro
 	if err := RequireModules(tenantID, "reports", def.ModuleKey); err != nil {
 		return nil, err
 	}
+	if !ReportAllowedForRole(def, role) {
+		return nil, reportRefused(def)
+	}
 	if def.DrillDown == nil {
 		return nil, fmt.Errorf("report %q has no drill-down", reportID)
 	}
@@ -438,6 +467,9 @@ func RunReportDrillDown(tenantID, reportID, role, rowKey string, params map[stri
 	}
 	if err := RequireModules(tenantID, "reports", def.ModuleKey); err != nil {
 		return nil, err
+	}
+	if !ReportAllowedForRole(def, role) {
+		return nil, reportRefused(def)
 	}
 	if def.DrillDown == nil {
 		return nil, fmt.Errorf("report %q has no drill-down", reportID)

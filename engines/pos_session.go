@@ -105,7 +105,8 @@ func OpenPOSSession(tenantID, posProfile, location, cashier, userID string, open
 // assumption that was true before 20.9.
 //
 // Stage 73.2.7: the whole day - opening float + cash sales - cash refunds +
-// paid in - paid out - safe drops (engines/pos_cash_movements.go).
+// paid in - paid out - safe drops (engines/pos_cash_movements.go); 140.12.1
+// adds cash advances in - out, through drawerExpected.
 func expectedCashForSession(tenantID, sessionID string, openingCash float64) (float64, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -123,7 +124,15 @@ func expectedCashForSession(tenantID, sessionID string, openingCash float64) (fl
 	if err != nil {
 		return 0, err
 	}
-	return round2(openingCash + sales - refunds + moves[CashPaidIn] - moves[CashPaidOut] - moves[CashSafeDrop]), nil
+	advIn, advOut := sessionAdvanceCash(schema, sessionID)
+	return drawerExpected(openingCash, round2(sales), refunds, moves, advIn, advOut), nil
+}
+
+// drawerExpected is the one expected-cash formula (140.12.1): the X-report
+// and the till close both use it, so a close never disagrees with the
+// X-report the cashier just read (cash advances taken / refunded included).
+func drawerExpected(opening, cashSales, cashRefunds float64, moves map[string]float64, advancesIn, advancesOut float64) float64 {
+	return round2(opening + cashSales - cashRefunds + moves[CashPaidIn] - moves[CashPaidOut] - moves[CashSafeDrop] + advancesIn - advancesOut)
 }
 
 // sessionCashSales is the cash a session's paid sales took in.
@@ -394,6 +403,9 @@ func closePOSSession(tenantID, sessionID, cashier string, countedCash float64, v
 			return nil, err
 		}
 		res.Status = "Pending Approval"
+	} else if err := postTillVariance(tenantID, sessionID); err != nil {
+		// 140.12.11: a close within tolerance posts its variance at once.
+		log.Printf("[WARN] till %s closed but its cash variance was not posted: %v", sessionID, err)
 	}
 
 	gap, gapErr := detectOfflineQueueGap(tenantID, schema, sessionID)

@@ -2,12 +2,14 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
 	"regexp"
 	"sort"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -257,8 +259,9 @@ func writeAPIErrorDetail(w http.ResponseWriter, r *http.Request, code string, su
 	logForEntry(r, entry, logged)
 
 	// A detail identical to the headline adds a duplicated line to every
-	// dialog and no information.
-	if detail == message {
+	// dialog and no information. Stage 49.10.4: nor is database driver text a
+	// reason a user can act on - it is on the log line above, not the screen.
+	if detail == message || hasDriverText(detail) {
 		detail = ""
 	}
 
@@ -389,6 +392,16 @@ const clientClosedRequestStatus = 499
 // by the correlation_id shown to the user - nothing is lost, only what's
 // shown externally changes.
 func writeAPIErrorGeneric(w http.ResponseWriter, r *http.Request, status int, message string) {
+	// Stage 49.10.4: what the authenticated DAST sweep found at ~40 routes -
+	// a handler passing err.Error() through, so "pq: invalid input syntax for
+	// type uuid" or "sql: no rows in result set" reached the client, and a
+	// value Postgres refused as malformed answered 500. Decided here, once,
+	// for every caller: a missing row is "not found", a Postgres data
+	// exception (SQLSTATE class 22 - a bad uuid, date or number, a NUL byte, a
+	// negative OFFSET) is the request's fault, and driver text is logged,
+	// never shown.
+	raw := message
+	status, driverText := classifyDriverMessage(status, message)
 	code, ok := genericCodeForStatus[status]
 	if !ok {
 		// GLOBAL-0302 ("Unexpected server error") only fits an unmapped 5xx -
@@ -403,11 +416,16 @@ func writeAPIErrorGeneric(w http.ResponseWriter, r *http.Request, status int, me
 	}
 	entry := errorCatalog[code]
 
-	logForEntry(r, entry, message)
+	logForEntry(r, entry, raw)
 
 	responseMessage := message
-	if status >= 500 && entry.UserMessage != "" {
+	switch {
+	case status >= 500 && entry.UserMessage != "":
 		responseMessage = entry.UserMessage
+	case driverText && status == http.StatusNotFound && entry.UserMessage != "":
+		responseMessage = entry.UserMessage
+	case driverText:
+		responseMessage = driverSafeMessage
 	}
 
 	_, _, correlationID := resolvedContext(r)
@@ -426,6 +444,34 @@ func writeAPIErrorGeneric(w http.ResponseWriter, r *http.Request, status int, me
 		Retryable:     entry.Retryable,
 		DisplayStyle:  entry.DisplayStyle,
 	})
+}
+
+// driverSafeMessage is what a 4xx says in place of a database driver's text.
+const driverSafeMessage = "A value in this request is not valid."
+
+// driverDataException matches the SQLSTATE lib/pq appends to its message,
+// class 22 ("data exception"): the value sent is malformed for its column.
+var driverDataException = regexp.MustCompile(`pq: .*\(22[0-9A-Z]{3}\)`)
+
+// hasDriverText reports whether a message carries database driver output.
+func hasDriverText(message string) bool {
+	return strings.Contains(message, "pq: ") || strings.Contains(message, "sql: ")
+}
+
+// classifyDriverMessage (Stage 49.10.4) corrects the status of a message
+// that carries database driver text, and reports whether it does: a missing
+// row answers 404, a data exception answers 422 instead of 500.
+func classifyDriverMessage(status int, message string) (int, bool) {
+	if !hasDriverText(message) {
+		return status, false
+	}
+	switch {
+	case strings.Contains(message, sql.ErrNoRows.Error()):
+		return http.StatusNotFound, true
+	case status >= 500 && driverDataException.MatchString(message):
+		return http.StatusUnprocessableEntity, true
+	}
+	return status, true
 }
 
 // CatalogEntries exposes the standardized message catalog as a slice, for

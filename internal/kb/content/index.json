@@ -3311,6 +3311,16 @@
             },
             {
               "level": 3,
+              "text": "R6076 Customer affinity and next best offer",
+              "slug": "r6076-customer-affinity-and-next-best-offer"
+            },
+            {
+              "level": 3,
+              "text": "R6075 Customer pulse",
+              "slug": "r6075-customer-pulse"
+            },
+            {
+              "level": 3,
               "text": "R6071 Customers Sharing a Mobile Number",
               "slug": "r6071-customers-sharing-a-mobile-number"
             },
@@ -3383,6 +3393,11 @@
               "level": 3,
               "text": "R6051 Service SLA",
               "slug": "r6051-service-sla"
+            },
+            {
+              "level": 3,
+              "text": "R6077 Suggested segments",
+              "slug": "r6077-suggested-segments"
             },
             {
               "level": 2,
@@ -3591,6 +3606,16 @@
             },
             {
               "level": 3,
+              "text": "R5085 Customer receipts",
+              "slug": "r5085-customer-receipts"
+            },
+            {
+              "level": 3,
+              "text": "R5084 Day Book",
+              "slug": "r5084-day-book"
+            },
+            {
+              "level": 3,
               "text": "R5054 Deferred Revenue Roll-Forward",
               "slug": "r5054-deferred-revenue-roll-forward"
             },
@@ -3793,6 +3818,33 @@
               "level": 3,
               "text": "R8017 Payroll Reconciliation (gross to bank to GL)",
               "slug": "r8017-payroll-reconciliation-gross-to-bank-to-gl"
+            }
+          ]
+        },
+        {
+          "slug": "report-catalog-2",
+          "title": "Report catalog (part 2)",
+          "section": "Reference",
+          "order": 21,
+          "summary": "Reports in HRMS to PIM / PIMS, continued from the report catalog.",
+          "audience": "store manager, finance, category manager, admin",
+          "screens": [
+            "reports"
+          ],
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Report catalog (part 2)",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
+          "source_path": "reference/report-catalog-2.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Contents",
+              "slug": "contents"
             },
             {
               "level": 2,
@@ -3873,33 +3925,6 @@
               "level": 3,
               "text": "R8015 Training / Certification Register",
               "slug": "r8015-training-certification-register"
-            }
-          ]
-        },
-        {
-          "slug": "report-catalog-2",
-          "title": "Report catalog (part 2)",
-          "section": "Reference",
-          "order": 21,
-          "summary": "Reports in Inventory to Procurement, continued from the report catalog.",
-          "audience": "store manager, finance, category manager, admin",
-          "screens": [
-            "reports"
-          ],
-          "last_verified": "2026-09-10",
-          "owner": "documentation-maintainer",
-          "status": "active",
-          "topic_type": "reference",
-          "module": "platform",
-          "task": "Report catalog (part 2)",
-          "prerequisites": "Authorized access to the relevant ERP task",
-          "applies_to": "source registries; not release acceptance",
-          "source_path": "reference/report-catalog-2.md",
-          "headings": [
-            {
-              "level": 2,
-              "text": "Contents",
-              "slug": "contents"
             },
             {
               "level": 2,
@@ -4580,6 +4605,33 @@
               "level": 3,
               "text": "R7001 Product Master Report",
               "slug": "r7001-product-master-report"
+            }
+          ]
+        },
+        {
+          "slug": "report-catalog-3",
+          "title": "Report catalog (part 3)",
+          "section": "Reference",
+          "order": 22,
+          "summary": "Reports in Procurement to Stock Transfer, continued from the report catalog.",
+          "audience": "store manager, finance, category manager, admin",
+          "screens": [
+            "reports"
+          ],
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Report catalog (part 3)",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
+          "source_path": "reference/report-catalog-3.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Contents",
+              "slug": "contents"
             },
             {
               "level": 2,
@@ -4675,33 +4727,6 @@
               "level": 3,
               "text": "R2041 Vendor document and transport register",
               "slug": "r2041-vendor-document-and-transport-register"
-            }
-          ]
-        },
-        {
-          "slug": "report-catalog-3",
-          "title": "Report catalog (part 3)",
-          "section": "Reference",
-          "order": 22,
-          "summary": "Reports in Procurement \u0026 GRN to WMS, continued from the report catalog.",
-          "audience": "store manager, finance, category manager, admin",
-          "screens": [
-            "reports"
-          ],
-          "last_verified": "2026-09-10",
-          "owner": "documentation-maintainer",
-          "status": "active",
-          "topic_type": "reference",
-          "module": "platform",
-          "task": "Report catalog (part 3)",
-          "prerequisites": "Authorized access to the relevant ERP task",
-          "applies_to": "source registries; not release acceptance",
-          "source_path": "reference/report-catalog-3.md",
-          "headings": [
-            {
-              "level": 2,
-              "text": "Contents",
-              "slug": "contents"
             },
             {
               "level": 2,
@@ -4899,6 +4924,11 @@
               "slug": "r1029-tender-wise-sales"
             },
             {
+              "level": 3,
+              "text": "R1033 Z-report (till close)",
+              "slug": "r1033-z-report-till-close"
+            },
+            {
               "level": 2,
               "text": "Sales \u0026 POS",
               "slug": "sales-pos"
@@ -5072,6 +5102,33 @@
               "level": 3,
               "text": "R3041 Transfer Shortage / Excess Exception",
               "slug": "r3041-transfer-shortage-excess-exception"
+            }
+          ]
+        },
+        {
+          "slug": "report-catalog-4",
+          "title": "Report catalog (part 4)",
+          "section": "Reference",
+          "order": 23,
+          "summary": "Reports in WMS to WMS, continued from the report catalog.",
+          "audience": "store manager, finance, category manager, admin",
+          "screens": [
+            "reports"
+          ],
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Report catalog (part 4)",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
+          "source_path": "reference/report-catalog-4.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Contents",
+              "slug": "contents"
             },
             {
               "level": 2,
@@ -5342,6 +5399,11 @@
           "applies_to": "source registries; not release acceptance",
           "source_path": "reference/release-notes.md",
           "headings": [
+            {
+              "level": 2,
+              "text": "2026-10-30",
+              "slug": "2026-10-30"
+            },
             {
               "level": 2,
               "text": "2026-10-29",
@@ -6736,6 +6798,7 @@
       "report-catalog",
       "report-catalog-2",
       "report-catalog-3",
+      "report-catalog-4",
       "what-is-this-system",
       "finding-your-way-around",
       "journey-category-manager",
@@ -6825,5 +6888,5 @@
       "wms-start-here"
     ]
   },
-  "article_count": 59
+  "article_count": 60
 }

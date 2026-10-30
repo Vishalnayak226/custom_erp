@@ -71,14 +71,14 @@ func handlePIMImportTemplateRun(dryRun bool) http.HandlerFunc {
 			writeAPIError(w, r, "GLOBAL-0007", "")
 			return
 		}
-		file, _, err := r.FormFile("file")
+		file, header, err := r.FormFile("file")
 		if err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "CSV file is mandatory under multipart FormFile 'file'")
 			return
 		}
 		defer file.Close()
 
-		res, err := engines.RunPIMImportTemplateContext(r.Context(), tenantID, r.PathValue("id"), file, userID, r.Header.Get("Resolved-Role"), dryRun)
+		res, err := engines.RunPIMImportTemplateContext(r.Context(), tenantID, r.PathValue("id"), engines.NamedUpload(file, header.Filename), userID, r.Header.Get("Resolved-Role"), dryRun)
 		if err != nil {
 			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 			return
@@ -180,7 +180,7 @@ func handlePIMImportHook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 5<<20)
-	res, err := engines.RunPIMImportTemplateContext(r.Context(), tenantID, templateID, r.Body, runAs, runRole, false)
+	res, err := engines.RunPIMImportTemplateContext(r.Context(), tenantID, templateID, engines.NamedUpload(r.Body, "hook:"+scheduleID), runAs, runRole, false)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return

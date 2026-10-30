@@ -19,9 +19,13 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **96** earlier entries, 2026-07-27 to 2026-09-22.
+This page continues the [release notes](release-notes.md) with **97** earlier entries, 2026-07-27 to 2026-09-22.
 
 ## 2026-09-22
+
+**Stage 50 — BLD-019 (targeted mutation proof) built and verified, three real test gaps found and closed** *(code + tests + docs)*
+
+Same session as §161, immediately following. BLD-019 formally `DEPENDS on BLD-015/017`, both now done, so this was next-ready. HEAD unchanged at `82f5517`; nothing committed.
 
 **Stage 50 — BLD-017 (economic property/metamorphic tests) built and verified, GST rounding bug found and fixed** *(code + tests + docs)*
 

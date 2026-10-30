@@ -60,9 +60,11 @@ func platformSecretTable(table string) bool {
 // platformReadOnlyTable is a table the console shows but never changes.
 // Stage 72.8: gift-card balances and their ledger too - a stored-value
 // balance only ever changes through an appended ledger event (blueprint 11.4).
+// Stage 47.16.4b: the general ledger too - a posting is corrected by a
+// reversing entry, and the database refuses the edit anyway.
 func platformReadOnlyTable(table string) bool {
 	return strings.HasPrefix(table, "audit_") || table == "system_error_logs" || platformSecretTable(table) ||
-		strings.HasPrefix(table, "stored_value_")
+		strings.HasPrefix(table, "stored_value_") || table == "gl_postings"
 }
 
 // IsPlatformOperator reports whether this session may use the console.
@@ -391,7 +393,7 @@ func PlatformUpdateRow(tenantID, table string, key map[string]string, set map[st
 		return nil, err
 	}
 	if platformReadOnlyTable(table) {
-		return nil, &ValidationError{Code: "PLATFORM-0316", Message: fmt.Sprintf("table %s is read-only in the console (audit trail or secrets)", table)}
+		return nil, &ValidationError{Code: "PLATFORM-0316", Message: fmt.Sprintf("table %s is read-only in the console (audit trail, ledger or secrets)", table)}
 	}
 	byName := map[string]PlatformColumn{}
 	keyNames := []string{}

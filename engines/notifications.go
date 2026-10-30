@@ -230,7 +230,7 @@ func queueNotificationDelivery(schema, templateID, webhookURL string, payload no
 		return err
 	}
 	jobID, err := enqueueJobWith(tx, schema, notificationDeliveryJobType,
-		map[string]interface{}{"log_id": logID, "url": webhookURL, "payload": jobPayload}, logID, "")
+		map[string]interface{}{"log_id": logID, "url": webhookURL, "payload": jobPayload}, logID, "", "system:notifications")
 	if err != nil {
 		return err
 	}

@@ -105,6 +105,19 @@ func CloseAccountingPeriod(tenantID, periodID, userID string) error {
 	if err := requireSignedCloseTasks(tx, schema, periodID, round); err != nil {
 		return err
 	}
+	// 140.12.14: a till still open, or offline sales not yet on the server,
+	// mean the period's sales and cash are not all in the books.
+	var endDate string
+	if err := tx.QueryRow(fmt.Sprintf(`SELECT end_date::text FROM %s.accounting_periods WHERE id = $1`, schema), periodID).Scan(&endDate); err != nil {
+		return err
+	}
+	openTills, unsynced, err := periodTillBlockers(schema, endDate)
+	if err != nil {
+		return err
+	}
+	if openTills > 0 || unsynced > 0 {
+		return &ValidationError{Code: "FIN-0501", Message: fmt.Sprintf("cannot close: %d till(s) opened in or before this period are still open or awaiting approval, and %d offline sale(s) have not reached the server - close the tills and sync the sales first", openTills, unsynced)}
+	}
 
 	_, err = tx.Exec(fmt.Sprintf(`
 		UPDATE %s.accounting_periods SET status = 'Closed', closed_by = $1, closed_at = CURRENT_TIMESTAMP
@@ -246,7 +259,28 @@ func GetPeriodCloseChecklist(tenantID, periodID string) (*PeriodCloseChecklist, 
 	addCheck("No unmatched bank statement lines in this period", unmatchedBank == 0,
 		fmt.Sprintf("%d bank statement line(s) dated in this period still unmatched", unmatchedBank))
 
+	openTills, unsynced, err := periodTillBlockers(schema, endDate)
+	if err != nil {
+		return nil, err
+	}
+	addCheck("No till open or awaiting approval", openTills == 0, fmt.Sprintf("%d till(s) opened by the period end still open or awaiting approval", openTills))
+	addCheck("No offline sales waiting to sync", unsynced == 0, fmt.Sprintf("%d offline sale(s) a till reported but the server has not received", unsynced))
+
 	return result, nil
+}
+
+// periodTillBlockers (140.12.14) counts the tills opened by the period's end
+// that are not Closed, and the offline sales a till's last heartbeat listed
+// that are not yet a posted sale on the server.
+func periodTillBlockers(schema, endDate string) (openTills, unsynced int, err error) {
+	if err = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.documents WHERE doctype = 'POSSession' AND deleted_at IS NULL
+		AND status IN ('Open', 'Draft', 'Pending Approval') AND created_at < public.erp_day_start($1::date + 1)`, schema), endDate).Scan(&openTills); err != nil {
+		return 0, 0, err
+	}
+	err = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.pos_offline_heartbeats h, jsonb_array_elements_text(h.cart_numbers) c(n)
+		WHERE h.updated_at < public.erp_day_start($1::date + 1)
+		  AND NOT EXISTS (SELECT 1 FROM %s.documents d WHERE d.doctype = 'POSCart' AND d.id = c.n)`, schema, schema), endDate).Scan(&unsynced)
+	return openTills, unsynced, err
 }
 
 // rejectIfCurrentPeriodClosed is called from inside PostDoubleEntry's own

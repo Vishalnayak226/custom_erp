@@ -331,6 +331,10 @@ func ResetTenantData(tenantID, actor, reason string) (*TenantResetPlan, error) {
 		return nil, err
 	}
 	defer tx.Rollback()
+	// Stage 47.16.4b: the one sanctioned delete of ledger rows.
+	if err := sanctionWriteTx(tx, sanctionPurge); err != nil {
+		return nil, err
+	}
 	for _, t := range plan.Tables {
 		switch {
 		case t.Table == "documents":

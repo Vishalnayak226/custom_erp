@@ -306,6 +306,43 @@ func isPriorityRequest(r *http.Request) bool {
 		(r.Method == http.MethodPost && strings.HasSuffix(p, "/cancel"))
 }
 
+// lightAdmissionWait (47.11.3) is how long an ordinary request waits for a
+// slot before it is turned away. A screen open fires its reads at once - the
+// shell's boot calls and the list's own, 28 for a record list over HTTP/2 -
+// and the cap used to refuse the ones past it on the spot (14 of 30 in
+// TestStage47113NormalScreenBurstIsNotTurnedAway, 8 of 30 on the user's
+// screen). A waiting request holds a goroutine, not a pool connection, which
+// is what the cap protects; a flood still gets its 503 once the wait is up.
+// Report runs and exports do not wait: they are told to come back (47.11.3).
+const lightAdmissionWait = 1500 * time.Millisecond
+
+// acquireClassWait is acquireClass that, for an ordinary request, keeps
+// trying every 10 ms until wait is up or the caller has gone.
+func (l *tenantConcurrencyLimiter) acquireClassWait(done <-chan struct{}, tenantID string, heavy, priority bool, wait time.Duration) bool {
+	if l.acquireClass(tenantID, heavy, priority) {
+		return true
+	}
+	if heavy || wait <= 0 {
+		return false
+	}
+	deadline := time.Now().Add(wait)
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		select {
+		case <-done:
+			return false
+		case <-tick.C:
+		}
+		if l.acquireClass(tenantID, heavy, priority) {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+	}
+}
+
 // acquire returns true (and reserves a slot) if tenantID is below its
 // concurrency cap (and, for a heavy read, below half of it). Callers that get
 // true MUST call release exactly once with the same heavy flag.
@@ -1139,7 +1176,7 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		heavy := isHeavyRead(r)
 		admitted := false
 		admit := func() bool {
-			if !tenantConcurrency.acquireClass(tenantID, heavy, isPriorityRequest(r)) {
+			if !tenantConcurrency.acquireClassWait(r.Context().Done(), tenantID, heavy, isPriorityRequest(r), lightAdmissionWait) {
 				msg := "Too many concurrent requests in flight for this tenant - please retry shortly"
 				if heavy {
 					msg = "Reports and exports are busy for this business right now - this one did not run. Try again in a few seconds."
@@ -1327,6 +1364,8 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// 49.8.7a: a connector, courier or hook this request calls out to
 		// obeys this client's own Outside calls switch (engines/outside_calls.go).
 		r = r.WithContext(engines.WithOutsideCallsTenant(r.Context(), tenantID))
+		// 49.8.6: every job this request queues is stamped with its user.
+		r = r.WithContext(engines.WithJobActor(r.Context(), userID))
 		r.Header.Set("Resolved-User-ID", userID)
 		r.Header.Set("Resolved-Username", username)
 		// Stage 40.3: canonicalise the role once, here, so a token minted

@@ -560,10 +560,15 @@ func crmSendSMS(ctx context.Context, s *crmSenderRow, d crmDispatch) (crmProvide
 	set("entity_param", "entity_id", s.cfg("entity_value"))
 	set("template_param", "template_id", d.DLTTemplateID)
 	set("ref_param", "", d.SendID)
-	if extra, ok := s.Config["extra"].(map[string]interface{}); ok {
-		for k, v := range extra {
-			params[k] = crmString(v)
-		}
+	// 140.12.26: a gateway that takes its key as a parameter (MSG91's
+	// authkey, Gupshup's password) rather than a header.
+	set("auth_param", "", s.secret["auth_value"])
+	extra, ok := s.Config["extra"].(map[string]interface{})
+	if text, isText := s.Config["extra"].(string); !ok && isText && strings.TrimSpace(text) != "" {
+		_ = json.Unmarshal([]byte(text), &extra) // the sender form keeps fixed parameters as JSON text
+	}
+	for k, v := range extra {
+		params[k] = crmString(v)
 	}
 	var req *http.Request
 	var err error

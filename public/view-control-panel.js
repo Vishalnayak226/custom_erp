@@ -178,6 +178,24 @@ async function renderControlPanelView(container) {
   `;
   container.appendChild(rel);
 
+  // Stage 47.17.5: capability maturity, per configuration.
+  const mat = document.createElement('div');
+  mat.className = 'table-panel';
+  const caps = cp.capability_maturity || [];
+  mat.innerHTML = `
+    <h3 style="font-size:16px; font-weight:600; padding:16px 16px 0;">Capability maturity</h3>
+    <div class="table-wrapper">
+      <table>
+        <thead><tr><th>Capability</th><th>Module</th><th>Level</th><th>Limits</th><th>Verified</th></tr></thead>
+        <tbody>
+          ${caps.length === 0 ? '<tr><td colspan="5" style="color:var(--text-muted);">No entries.</td></tr>' : ''}
+          ${caps.map(c => `<tr><td>${escapeHTMLText(c.title)}</td><td style="font-family:monospace;">${escapeHTMLText(c.module)}</td><td>${escapeHTMLText(c.level)}${c.certified_until ? ' · until ' + escapeHTMLText(c.certified_until) : ''}</td><td style="font-size:12px; color:var(--text-muted);">${escapeHTMLText(c.limits || '-')}</td><td>${escapeHTMLText(c.verified_on || '-')}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  container.appendChild(mat);
+
   panel.querySelectorAll('[data-cp-modules]').forEach(btn => btn.addEventListener('click', () => {
     const row = panel.querySelector(`[data-cp-modules-row="${btn.getAttribute('data-cp-modules')}"]`);
     if (row) row.classList.toggle('hidden');

@@ -501,6 +501,42 @@ func ComputePurchaseOrderGST(tenantID string, payload map[string]interface{}) (G
 	return ComputeGSTForLinesMode(tenantID, lines, interstate, ResolvePOGSTMode(tenantID, payload))
 }
 
+// ApplyPurchaseOrderTotals is a PO save's GST enforcement (Stage 17.5): every
+// non-empty items line must resolve to an Item with hsn_code / gst_rate, and
+// the computed breakdown and totals are stored on the document (no GL posting
+// - GRN receipt posts). The record-form save and, since 49.3.4b, a CSV import
+// both call it, after ValidateDocument (which derives inter-state from the
+// two parties' states - ApplyPlaceOfSupply, 40.1 / 49.5.6b).
+func ApplyPurchaseOrderTotals(tenantID string, payload map[string]interface{}) error {
+	// Stage 110.2: a new PO carries its GST mode from the start.
+	StampNewPOGSTMode(tenantID, payload)
+	breakdown, err := ComputePurchaseOrderGST(tenantID, payload)
+	if err != nil {
+		return err
+	}
+	payload["gst_breakdown"] = breakdown
+	// total_amount is this codebase's taxable value throughout
+	// (PostDoubleEntry's existing accounting depends on that), so it is kept
+	// as the breakdown's taxable figure rather than the gross. Before this it
+	// was a number the maker typed by hand next to lines that said something
+	// else; now the lines are the source of truth and the header total
+	// follows from them.
+	if breakdown.TaxableAmount > 0 || breakdown.NonTaxableAmount() > 0 {
+		payload["total_amount"] = math.Round((breakdown.TaxableAmount+breakdown.NonTaxableAmount())*100) / 100
+		// Stage 94.15: the PO total is to the whole rupee, with its round-off
+		// line beside it.
+		payload["grand_total"], payload["round_off"] = RoundToRupee(breakdown.TotalAmount)
+		// Stage 129: the base amounts the approval bands read were stamped by
+		// ValidateDocument from the total the caller sent (0 from an upload,
+		// or a stale preview); they follow the recomputed total, or a PO is
+		// routed to the wrong approver.
+		if err := ApplyDocumentCurrency(tenantID, "PurchaseOrder", payload); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ResolvePOGSTMode decides whether a PO's line rates already include GST:
 // the PO's own gst_mode if it sets one, otherwise the tenant's chosen default
 // (procurement.po_gst_mode) if an admin set one.

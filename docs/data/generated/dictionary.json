@@ -17200,6 +17200,17 @@
         "sensitive": true
       }
     ],
+    "Salesman": [
+      {
+        "doctype": "Salesman",
+        "field": "phone",
+        "category": "privacy.personal",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Salesman's own mobile number - shown only to the roles that manage salesmen",
+        "sensitive": true
+      }
+    ],
     "Vendor": [
       {
         "doctype": "Vendor",
@@ -17559,6 +17570,124 @@
       "number": "R6041"
     },
     {
+      "id": "crm-pulse",
+      "label": "Customer pulse",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "metric",
+          "label": "Measure",
+          "sensitive": false
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "sensitive": false
+        },
+        {
+          "key": "note",
+          "label": "How it is counted",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Are customers coming back?",
+      "description": "Active customers (a bill in 90 days), new this month, repeat rate and lapsed high spenders.",
+      "number": "R6075"
+    },
+    {
+      "id": "customer-affinity",
+      "label": "Customer affinity and next best offer",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "customer_id",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "sensitive": false
+        },
+        {
+          "key": "bills",
+          "label": "Bills",
+          "sensitive": false
+        },
+        {
+          "key": "spend",
+          "label": "Spend",
+          "sensitive": true
+        },
+        {
+          "key": "top_category",
+          "label": "Favourite category",
+          "sensitive": false
+        },
+        {
+          "key": "share",
+          "label": "Share of spend %",
+          "sensitive": false
+        },
+        {
+          "key": "last_bill",
+          "label": "Last bill",
+          "sensitive": false
+        },
+        {
+          "key": "next_offer",
+          "label": "Next best offer",
+          "sensitive": false
+        },
+        {
+          "key": "next_offer_name",
+          "label": "Offer item",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R6076"
+    },
+    {
+      "id": "suggested-segments",
+      "label": "Suggested segments",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "segment",
+          "label": "Segment",
+          "sensitive": false
+        },
+        {
+          "key": "members",
+          "label": "Customers today",
+          "sensitive": false
+        },
+        {
+          "key": "rule",
+          "label": "Build it with",
+          "sensitive": false
+        },
+        {
+          "key": "why",
+          "label": "Why",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R6077"
+    },
+    {
       "id": "crm-customer-summary",
       "label": "CRM Customer Summary",
       "category": "CRM",
@@ -17742,8 +17871,8 @@
       "params": [
         {
           "key": "segment_id",
-          "label": "Segment (id from CRM \u003e Segments)",
-          "type": "text",
+          "label": "Segment",
+          "type": "segment",
           "required": true
         }
       ],
@@ -18658,8 +18787,9 @@
       "params": [
         {
           "key": "customer_id",
-          "label": "Customer ID",
-          "type": "text",
+          "label": "Customer",
+          "type": "link",
+          "options": "Customer",
           "required": true
         }
       ],
@@ -46366,6 +46496,313 @@
       "question": "Which customers share one mobile number?",
       "description": "Customers on file before the one-number-one-customer rule; merge them from the Customer master.",
       "number": "R6071"
+    },
+    {
+      "id": "day-book",
+      "label": "Day Book",
+      "category": "Finance",
+      "module_key": "finance",
+      "columns": [
+        {
+          "key": "date",
+          "label": "Date",
+          "sensitive": false
+        },
+        {
+          "key": "voucher_type",
+          "label": "Voucher type",
+          "sensitive": false
+        },
+        {
+          "key": "voucher",
+          "label": "Voucher",
+          "sensitive": false
+        },
+        {
+          "key": "account",
+          "label": "Account",
+          "sensitive": false
+        },
+        {
+          "key": "account_name",
+          "label": "Account name",
+          "sensitive": false
+        },
+        {
+          "key": "debit",
+          "label": "Debit",
+          "sensitive": true
+        },
+        {
+          "key": "credit",
+          "label": "Credit",
+          "sensitive": true
+        },
+        {
+          "key": "posted_by",
+          "label": "By",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R5084"
+    },
+    {
+      "id": "z-report",
+      "label": "Z-report (till close)",
+      "category": "Sales",
+      "module_key": "sales",
+      "columns": [
+        {
+          "key": "closed_at",
+          "label": "Closed",
+          "sensitive": false
+        },
+        {
+          "key": "store",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "till",
+          "label": "Till",
+          "sensitive": false
+        },
+        {
+          "key": "cashier",
+          "label": "Cashier",
+          "sensitive": false
+        },
+        {
+          "key": "bills",
+          "label": "Bills",
+          "sensitive": false
+        },
+        {
+          "key": "first_bill",
+          "label": "First bill",
+          "sensitive": false
+        },
+        {
+          "key": "last_bill",
+          "label": "Last bill",
+          "sensitive": false
+        },
+        {
+          "key": "opening",
+          "label": "Opening float",
+          "sensitive": false
+        },
+        {
+          "key": "cash_sales",
+          "label": "Cash sales",
+          "sensitive": false
+        },
+        {
+          "key": "cash_refunds",
+          "label": "Cash refunds",
+          "sensitive": false
+        },
+        {
+          "key": "advances_in",
+          "label": "Advances in",
+          "sensitive": false
+        },
+        {
+          "key": "advances_out",
+          "label": "Advances refunded",
+          "sensitive": false
+        },
+        {
+          "key": "paid_in",
+          "label": "Paid in",
+          "sensitive": false
+        },
+        {
+          "key": "paid_out",
+          "label": "Paid out",
+          "sensitive": false
+        },
+        {
+          "key": "safe_drops",
+          "label": "Safe drops",
+          "sensitive": false
+        },
+        {
+          "key": "expected",
+          "label": "Expected cash",
+          "sensitive": false
+        },
+        {
+          "key": "counted",
+          "label": "Counted cash",
+          "sensitive": false
+        },
+        {
+          "key": "variance",
+          "label": "Variance",
+          "sensitive": false
+        },
+        {
+          "key": "tenders",
+          "label": "Tenders",
+          "sensitive": false
+        },
+        {
+          "key": "card_declared",
+          "label": "Card declared",
+          "sensitive": false
+        },
+        {
+          "key": "card_difference",
+          "label": "Card difference",
+          "sensitive": false
+        },
+        {
+          "key": "upi_declared",
+          "label": "UPI declared",
+          "sensitive": false
+        },
+        {
+          "key": "upi_difference",
+          "label": "UPI difference",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "store",
+          "label": "Store",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R1033"
+    },
+    {
+      "id": "customer-receipts",
+      "label": "Customer receipts",
+      "category": "Finance",
+      "module_key": "finance",
+      "columns": [
+        {
+          "key": "date",
+          "label": "Date",
+          "sensitive": false
+        },
+        {
+          "key": "number",
+          "label": "Receipt",
+          "sensitive": false
+        },
+        {
+          "key": "customer",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "store",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "mode",
+          "label": "Mode",
+          "sensitive": false
+        },
+        {
+          "key": "reference",
+          "label": "Reference",
+          "sensitive": false
+        },
+        {
+          "key": "amount",
+          "label": "Amount",
+          "sensitive": false
+        },
+        {
+          "key": "tds",
+          "label": "TDS",
+          "sensitive": false
+        },
+        {
+          "key": "allocated",
+          "label": "To invoices",
+          "sensitive": false
+        },
+        {
+          "key": "invoices",
+          "label": "Invoices",
+          "sensitive": false
+        },
+        {
+          "key": "on_account",
+          "label": "On account",
+          "sensitive": false
+        },
+        {
+          "key": "advance",
+          "label": "Advance no.",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "customer",
+          "label": "Customer",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R5085"
     },
     {
       "id": "stock-ledger",

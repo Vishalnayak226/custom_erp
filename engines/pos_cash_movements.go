@@ -82,7 +82,7 @@ func SessionCashPosition(tenantID, sessionID string) (*POSSessionCash, error) {
 	if t, terr := TenderTotals(tenantID, sessionID, "", "", ""); terr == nil {
 		out.Tenders = t
 	}
-	out.Expected = round2(out.Opening + out.CashSales - out.CashRefunds + out.PaidIn - out.PaidOut - out.SafeDrops + out.AdvancesIn - out.AdvancesOut)
+	out.Expected = drawerExpected(out.Opening, out.CashSales, out.CashRefunds, moves, out.AdvancesIn, out.AdvancesOut)
 	if out.HeldOffline, err = sessionHeldOfflineCash(schema, sessionID); err != nil {
 		return nil, err
 	}
@@ -250,7 +250,41 @@ func finishPOSSessionApproval(tenantID, sessionID, decision string) {
 		`UPDATE %s.documents SET status = $2, data = jsonb_set(data, '{status}', to_jsonb($3::text)), updated_at = CURRENT_TIMESTAMP
 		 WHERE doctype = 'POSSession' AND id = $1`, schema), sessionID, next, next); err != nil {
 		LogSystemError(tenantID, "", "ERROR", "finishPOSSessionApproval", fmt.Sprintf("session %s %s but status update failed: %v", sessionID, decision, err), "")
+		return
 	}
+	if next == "Closed" {
+		if err := postTillVariance(tenantID, sessionID); err != nil {
+			LogSystemError(tenantID, "", "ERROR", "finishPOSSessionApproval", fmt.Sprintf("session %s approved but its cash variance was not posted: %v", sessionID, err), "")
+		}
+	}
+}
+
+// AccountCashShortOver (140.12.11) takes a closed till's counted-vs-expected
+// difference, so the cash account ends where the drawer was really counted.
+const AccountCashShortOver = "5295"
+
+// postTillVariance posts a Closed session's stored variance: a shortage
+// Dr 5295 / Cr 1100, an excess Dr 1100 / Cr 5295. Idempotent on the session.
+func postTillVariance(tenantID, sessionID string) error {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	var variance float64
+	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE((data->>'variance')::numeric, 0) FROM %s.documents
+		WHERE doctype = 'POSSession' AND id = $1 AND status = 'Closed'`, schema), sessionID).Scan(&variance); err != nil {
+		return err
+	}
+	p := RupeesToPaise(math.Abs(variance))
+	if p == 0 {
+		return nil
+	}
+	debit, credit := AccountCashShortOver, "1100"
+	if variance > 0 {
+		debit, credit = "1100", AccountCashShortOver
+	}
+	return PostDoubleEntry(tenantID, "POSSession", sessionID, map[string]int64{debit: p}, map[string]int64{credit: p}, "",
+		fmt.Sprintf("POSSession:%s:VARIANCE", sessionID))
 }
 
 // varianceNeedsApproval is whether a close's variance goes to a manager.

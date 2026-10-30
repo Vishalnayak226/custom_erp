@@ -63,7 +63,8 @@ func SweepIntegrationLogRetention(tenantID string) (map[string]int64, error) {
 	return out, nil
 }
 
-// StartIntegrationLogRetentionSweeper runs the sweep hourly on the leader.
+// StartIntegrationLogRetentionSweeper runs the sweep hourly on the leader,
+// and SweepPersonalFieldRetention with it (49.6.2a).
 func StartIntegrationLogRetentionSweeper(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	go func() {
@@ -75,6 +76,10 @@ func StartIntegrationLogRetentionSweeper(ctx context.Context, interval time.Dura
 			case <-ticker.C:
 				if !IsSchedulerLeader() || db.DB == nil {
 					continue
+				}
+				// 47.18.3: an expired sandbox is suspended on the same tick.
+				if _, err := SweepExpiredSandboxTenants(); err != nil {
+					LogBackgroundJobError("SANDBOX-EXPIRY-SWEEP", "sweep", "public", err)
 				}
 				schemas, err := listRegisteredTenantSchemas()
 				if err != nil {
@@ -88,6 +93,15 @@ func StartIntegrationLogRetentionSweeper(ctx context.Context, interval time.Dura
 					}
 					if _, err := SweepIntegrationLogRetention(tenantID); err != nil {
 						LogBackgroundJobError("INTEGRATION-LOG-SWEEP", "sweep", schema, err)
+					}
+					// Stage 49.6.2a: personal fields kept only for a while
+					// (a gate pass's driver phone) ride the same sweep.
+					if _, err := SweepPersonalFieldRetention(tenantID); err != nil {
+						LogBackgroundJobError("INTEGRATION-LOG-SWEEP", "personal-fields", schema, err)
+					}
+					// 47.18.3: raw import files on the same hourly tick.
+					if _, err := SweepImportFileRetention(tenantID); err != nil {
+						LogBackgroundJobError("IMPORT-FILE-SWEEP", "sweep", schema, err)
 					}
 				}
 			}

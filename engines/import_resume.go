@@ -180,7 +180,8 @@ func ResumeImportJob(ctx context.Context, tenantID, jobID string, r io.Reader, u
 		return nil, "", err
 	}
 
-	records, err := readCSVRecordsContext(ctx, tenantID, r)
+	src := newImportSourceReader(r) // 47.13.3: the corrected file's own lineage
+	records, err := readCSVRecordsContext(ctx, tenantID, src)
 	if err != nil {
 		return nil, "", err
 	}
@@ -236,6 +237,10 @@ func ResumeImportJob(ctx context.Context, tenantID, jobID string, r io.Reader, u
 		res, err = RunPIMImportTemplateContext(ctx, tenantID, st.template, &buf, userID, role, dryRun)
 	} else {
 		res, err = BulkImportCSVContext(ctx, tenantID, st.doctype, &buf, userID, role, dryRun)
+	}
+	if err == nil {
+		// The run parsed a rebuilt buffer; the lineage is the file uploaded.
+		stampImportSource(res, src, userID)
 	}
 	if err != nil || dryRun {
 		return res, "", err
@@ -313,5 +318,8 @@ func ImportJobSummary(tenantID, jobID string) (map[string]interface{}, error) {
 		"resolved_rows": numFromInterface(st.data["resolved_rows"]), "resumable": st.header != nil && len(st.open) > 0,
 		"keeps_failed_rows": st.header != nil, "resumed_from": st.data["resumed_from"], "resumes": resumes,
 		"created_by": createdBy,
+		// 47.13.3: totals, the rules version and the file's lineage.
+		"control_totals": st.data["control_totals"], "rules_version": st.data["rules_version"], "source": st.data["source"],
+		"raw_rows_expired_at": st.data["raw_rows_expired_at"], // 47.18.3
 	}, nil
 }

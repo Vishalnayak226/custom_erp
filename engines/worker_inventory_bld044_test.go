@@ -34,6 +34,7 @@ var workerOwner = map[string]string{
 	"StartBackupFreshnessMonitor":         "",
 	"StartUnicommerceWorker":              "oms",
 	"StartPineLabsReconciliationWorker":   "",
+	"StartAcquirerSettlementMatcher":      "",
 	"StartCleverTapWorker":                "crm_loyalty",
 	"StartReportExportWorker":             "reports",
 	"StartReportExportRetentionSweeper":   "reports",

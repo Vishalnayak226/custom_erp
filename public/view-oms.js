@@ -751,6 +751,8 @@ window.openOMSOrderDetail = async function(orderID) {
           <button class="btn btn-outline btn-sm" data-action="edit"${terminal ? ' disabled' : ''}>Edit</button>
           ${['Draft', 'On Hold', 'Reserved', 'Released'].includes(status) ? `<button class="btn btn-outline btn-sm" data-action="lines" title="Change quantities, remove or add lines until the warehouse starts picking">Edit lines</button>` : ''}
           ${['Shipped', 'Delivered', 'Closed', 'Dispatched', 'Partially Fulfilled'].includes(status) ? `<button class="btn btn-outline btn-sm" data-action="replace" title="Send lost, damaged or wrong goods again on a linked, no-charge order">Reship / replace</button>` : ''}
+          ${['Shipped', 'Delivered', 'Closed', 'Dispatched', 'Partially Fulfilled'].includes(status) ? `<button class="btn btn-outline btn-sm" data-action="return">Return / RTO</button>` : ''}
+          ${status === 'Cancelled' ? `<button class="btn btn-outline btn-sm" data-action="creditnote" title="Credit the customer for a cancelled, prepaid order">Credit note</button>` : ''}
           <button class="btn btn-outline btn-sm" data-action="reallocate"${terminal ? ' disabled' : ''}>Reallocate</button>
           <button class="btn btn-outline btn-sm" data-action="switch"${terminal ? ' disabled' : ''}>Switch facility</button>
           <button class="btn btn-outline btn-sm" data-action="priority"${terminal ? ' disabled' : ''}>${order.priority === 'Expedite' ? 'Set Normal' : 'Expedite'}</button>
@@ -867,6 +869,12 @@ window.openOMSOrderDetail = async function(orderID) {
     if (action === 'edit') return openOMSOrderEdit(orderID, order, after);
     if (action === 'lines') return openOMSOrderLinesEdit(orderID, d.lines || [], () => openOMSOrderDetail(orderID));
     if (action === 'replace') return openOMSReplacement(orderID, d.lines || []);
+    if (action === 'return') return openOMSReturn(orderID, d.lines || [], d.shipments || []);
+    if (action === 'creditnote') {
+      const reason = String((await showCustomPrompt('Reason code for the credit note?', 'CANCELLED', 'Credit note')) || '').trim();
+      if (!reason) return;
+      return omsPost(`/api/v1/orders/${encodeURIComponent(orderID)}/credit-notes`, { reason_code: reason }, 'The credit note was not raised.', after);
+    }
   }));
   overlay.querySelectorAll('[data-open-original]').forEach(btn => btn.addEventListener('click', () => openOMSOrderDetail(btn.dataset.openOriginal)));
   // The next step's button: an action on this order presses its action-bar
@@ -963,6 +971,64 @@ function openOMSOrderLinesEdit(orderID, lines, onSaved) {
 // Stage 73.2.15 - a no-charge Reship (same goods again) or Replacement (same
 // or exchanged item) linked to the shipped original. The request key is made
 // once per dialog, so a double click returns the first order, not a second.
+// 140.12.18: a customer return or an RTO raised on the order itself. The
+// store it comes back to may be left blank - it is routed to the nearest store
+// by the delivery pincode.
+function openOMSReturn(orderID, lines, shipments) {
+  const shipped = lines.filter(l => ['Dispatched', 'Partially Dispatched', 'Delivered', 'Shipped'].includes(l.line_status) || Number(l.shipped_qty) > 0);
+  const rtoBookings = shipments.filter(b => b.status === 'RTO');
+  const requestKey = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+  document.getElementById('oms-return-modal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'oms-return-modal';
+  overlay.innerHTML = `
+    <div class="modal-container">
+      <div class="modal-header"><h3 class="modal-title">Return - ${escapeHTMLText(orderID)}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label class="form-label" for="oms-ret-type">Type</label>
+          <select id="oms-ret-type" class="form-input"><option value="Customer Return">Customer return</option>${rtoBookings.length ? '<option value="RTO">RTO - parcel came back</option>' : ''}</select></div>
+        ${rtoBookings.length ? `<div class="form-group"><label class="form-label" for="oms-ret-booking">Booking</label>
+          <select id="oms-ret-booking" class="form-input">${rtoBookings.map(b => `<option value="${escapeHTMLText(b.id)}">${escapeHTMLText(b.detail || b.id)}</option>`).join('')}</select></div>` : ''}
+        <div class="table-wrapper"><table>
+          <thead><tr><th>SKU</th><th class="num">Shipped</th><th class="num">Return</th></tr></thead>
+          <tbody>${shipped.map(l => `<tr data-ret-sku="${escapeHTMLText(l.sku)}">
+            <td>${escapeHTMLText(l.sku)}</td><td class="num">${escapeHTMLText(String(l.shipped_qty || l.qty))}</td>
+            <td class="num"><input type="number" min="0" max="${escapeHTMLText(String(l.shipped_qty || l.qty))}" step="1" value="0" class="form-input oms-ret-qty" aria-label="Quantity of ${escapeHTMLText(l.sku)} coming back" style="max-width:90px;"></td></tr>`).join('')}</tbody>
+        </table></div>
+        <div class="form-group"><label class="form-label" for="oms-ret-loc">Back to store</label>
+          <input id="oms-ret-loc" class="form-input" placeholder="nearest by pincode"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-ret-cancel>Cancel</button>
+        <button type="button" class="btn btn-primary" data-ret-save>Raise return</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('.modal-close').addEventListener('click', close);
+  overlay.querySelector('[data-ret-cancel]').addEventListener('click', close);
+  overlay.querySelector('[data-ret-save]').addEventListener('click', async () => {
+    const items = [];
+    overlay.querySelectorAll('[data-ret-sku]').forEach(row => {
+      const qty = parseInt(row.querySelector('.oms-ret-qty').value, 10) || 0;
+      if (qty > 0) items.push({ sku: row.dataset.retSku, qty });
+    });
+    if (!items.length) { showToast('Enter how many of which item came back.'); return; }
+    const type = overlay.querySelector('#oms-ret-type').value;
+    const booking = overlay.querySelector('#oms-ret-booking');
+    const res = await apiFetch('/api/v1/returns', { method: 'POST', body: JSON.stringify({
+      request_type: type, original_order_id: orderID, booking_id: type === 'RTO' && booking ? booking.value : '',
+      return_location: overlay.querySelector('#oms-ret-loc').value.trim(), items, idempotency_key: requestKey }) });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'The return was not raised.'); return; }
+    const out = await res.json().catch(() => ({}));
+    close();
+    showToast(`Return ${out.id || ''} raised - approve and receive it under Returns.`, { variant: 'success' });
+    openOMSOrderDetail(orderID);
+  });
+}
+
 function openOMSReplacement(orderID, lines) {
   const shipped = lines.filter(l => !['Cancelled'].includes(l.line_status));
   const requestKey = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
@@ -1624,14 +1690,14 @@ async function submitMarketplaceReconcile() {
 // Falls back to the on-screen label rather than to window.print(): the
 // plain-text label is not a printable sheet, and someone whose QZ Tray is
 // down still needs to read the AWB off the screen to write the docket.
-window.printShippingLabel = async function(bookingId) {
-  if (await qzTryPrint('Shipping Label', { documentRef: bookingId, quiet: true })) return;
-  await viewShippingLabel(bookingId);
-};
+//
+// Stage 143.4: Print label shows the label first (viewShippingLabel); its
+// Print sends it, and on failure the label stays on screen.
+window.printShippingLabel = (bookingId) => viewShippingLabel(bookingId);
 
 // viewShippingLabel (Stage 26.12.4) shows GenerateShippingLabel's plain-text
-// label in a lightweight read-only modal, the same .modal-overlay/
-// .modal-container primitives viewPickList already uses.
+// label in a lightweight modal, the same .modal-overlay/.modal-container
+// primitives viewPickList already uses, with Close and Print.
 window.viewShippingLabel = async function(bookingId) {
   const res = await apiFetch(`/api/v1/marketplace/logistics/label?booking_id=${encodeURIComponent(bookingId)}`);
   if (!res) return;
@@ -1649,13 +1715,21 @@ window.viewShippingLabel = async function(bookingId) {
     <div class="modal-container">
       <div class="modal-header"><h3 class="modal-title">Shipping Label: ${escapeHTMLText(bookingId)}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
       <div class="modal-body"><pre style="white-space: pre-wrap; font-family: monospace; font-size: 13px;">${escapeHTMLText(label)}</pre></div>
-      <div class="modal-footer"><button type="button" class="btn btn-secondary">Close</button></div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary">Close</button><button type="button" class="btn btn-primary" data-label-send>Print</button></div>
     </div>`;
   document.body.appendChild(overlay);
   const close = () => overlay.remove();
   overlay.querySelector('.modal-close').addEventListener('click', close);
   overlay.querySelector('.modal-footer .btn-secondary').addEventListener('click', close);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  const send = overlay.querySelector('[data-label-send]');
+  send.addEventListener('click', async () => {
+    send.disabled = true;
+    if (await qzTryPrint('Shipping Label', { documentRef: bookingId, quiet: true })) { close(); showToast(`Label ${bookingId} sent to the printer.`, { variant: 'success' }); return; }
+    send.disabled = false;
+    showToast('The label printer is not reachable - read the AWB off this label.', { variant: 'warning' });
+  });
+  send.focus();
 };
 
 // Approvals inbox (Stage 13.8) - the checker side of the maker-checker

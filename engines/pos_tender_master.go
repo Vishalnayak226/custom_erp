@@ -190,6 +190,12 @@ func cartTenderTotals(data map[string]interface{}) map[string]float64 {
 		if paise == 0 {
 			continue
 		}
+		if kind == TenderGiftCard {
+			paise = splitStoredValueTenders(data, paise, out)
+			if paise == 0 {
+				continue
+			}
+		}
 		label := kind
 		if n, ok := names[kind]; ok {
 			label = n
@@ -197,6 +203,44 @@ func cartTenderTotals(data map[string]interface{}) map[string]float64 {
 		out[label] += PaiseToRupees(paise)
 	}
 	return out
+}
+
+// Tender lines the X-report shows for stored value that is not a gift card
+// (140.12.2). The sale's allocation keeps them under Gift Card - a return
+// gives them back through the same stored-value path - so only the summary
+// splits them out, from the redemptions stored on the cart.
+const (
+	TenderAdvanceLabel     = "Advance"
+	TenderStoreCreditLabel = "Store Credit"
+)
+
+// splitStoredValueTenders moves the advance and store-credit part of a
+// cart's Gift Card total into their own lines and returns what is left.
+func splitStoredValueTenders(data map[string]interface{}, giftPaise int64, out map[string]float64) int64 {
+	list, _ := data["gift_card_tenders"].([]interface{})
+	for _, t := range list {
+		m, ok := t.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		label := ""
+		switch card := strField(m, "card"); {
+		case strings.HasPrefix(card, "Advance "):
+			label = TenderAdvanceLabel
+		case card == "Store credit":
+			label = TenderStoreCreditLabel
+		}
+		amount := int64(numFromInterface(m["amount_paise"]))
+		if label == "" || amount <= 0 {
+			continue
+		}
+		if amount > giftPaise {
+			amount = giftPaise
+		}
+		out[label] += PaiseToRupees(amount)
+		giftPaise -= amount
+	}
+	return giftPaise
 }
 
 // TenderTotals sums paid bills by tender: for one till session, or for a

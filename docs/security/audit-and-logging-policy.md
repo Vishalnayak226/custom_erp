@@ -9,8 +9,8 @@ audience: [engineering, operations, implementation, QA, domain reviewers]
 applies_to: source release 0.1.0; configuration-specific acceptance required
 authority: proposed-policy
 confidentiality: internal
-last_verified: 2026-10-25
-review_by: 2026-11-25
+last_verified: 2026-10-29
+review_by: 2026-11-29
 supersedes: none
 superseded_by: none
 ---
@@ -47,7 +47,7 @@ Every class below is an `audit_logs` row (`engines.LogAuditEvent(tenant, user, a
 | Sign-in success / failure / lock | `LOGIN` SUCCESS, PIN_SUCCESS, PIN_FAILED, PIN_LOCKED, ACCOUNT_LOCKED, LOCK_PASSED_REMEMBERED_DEVICE, BOOTSTRAP_CREDENTIAL_EXPIRED; a wrong password as `USERAC-0021` | `handlers_auth.go`, store-app PIN |
 | Login abuse | `LOGIN_ABUSE` PASSWORD_SPRAY_SUSPECTED, DISTRIBUTED_GUESSING_SUSPECTED | `login_abuse.go` (134.5) |
 | MFA / credential / session lifecycle | `LOGIN` MFA_ENROLLMENT_REQUIRED, MFA_CHALLENGE_ISSUED, MFA_VERIFIED, MFA_ENROLLED_AND_VERIFIED, MFA_RECOVERY_CODES_ISSUED, MFA_RECOVERY_CODE_USED, MFA_DEVICE_REMEMBERED; `PROFILE` PASSWORD_CHANGED, MFA_REENROLL_*, MFA_RECOVERY_CODES_REGENERATED; `AUTH` PASSWORD_RESET_REQUESTED / COMPLETED; `USER_MANAGEMENT` PASSWORD_RESET_BY_ADMIN, PASSWORD_RESET_REQUESTED_DUAL_CONTROL, MFA_RESET_BY_ADMIN | auth, profile, password reset, admin identity |
-| Authorization denial | `GLOBAL-0011` (route capability, scope); an out-of-scope record read is answered as not found and still logged as `GLOBAL-0011` (49.4.7) | `apiMiddleware`, `handleGenericDoc` |
+| Authorization denial | `GLOBAL-0011` (route capability, scope); an out-of-scope record read, update, delete or files list is answered as not found and still logged as `GLOBAL-0011` (49.4.7) | `apiMiddleware`, `handleGenericDoc`, `refuseAsNotFound` |
 | Privilege change | `ROLE_PERMISSIONS` GRANT_UPDATED; `USER_MANAGEMENT` USER_CREATED, ROLE_CREATED, USER_STATUS_CHANGED, USER_STORES_CHANGED, ROLE_STORES_CHANGED, USER_LOCATION_CHANGED, USER_DEPARTMENT_CHANGED, USER_SUPPLIER_LINK_SET | admin identity, users, roles |
 | Configuration change | `SETTINGS` UPDATED (each key = value, 47.18.3) | `handlers_settings.go` |
 | Secret / integration change | `INTEGRATION` SHOPIFY_*; `API_CREDENTIAL_ISSUED` SUCCESS | connectors, API access |
@@ -59,8 +59,11 @@ Every class below is an `audit_logs` row (`engines.LogAuditEvent(tenant, user, a
 | Bulk export (2026-10-26) | `DATA_EXPORT` SUCCESS (a delivered export or report download), REFUSED_FROZEN | `apiMiddleware` (`isBulkExport`) |
 | Detection (2026-10-26) | `SECURITY_ALERT` URGENT / REVIEW - one row per fired rule, naming the rows behind it | `security_detection.go` (49.11.4) |
 | Emergency control (2026-10-26) | `USER_MANAGEMENT` SESSIONS_REVOKED, ALL_SESSIONS_REVOKED; `SECURITY_CONTROL` EXPORTS_FROZEN / EXPORTS_UNFROZEN; `EVIDENCE_EXPORTED` SUCCESS | `security_emergency.go`, `security_posture.go` (49.12) |
+| Sensitive read (2026-10-29) | `SENSITIVE_READ` BULK - a list page of a doctype whose sensitive fields (`sensitive_fields.go`) this role may read, naming the type, row count, fields and filter; `SENSITIVE_READ` REPORT - a report with a sensitive column run unmasked, naming the report, rows, columns and filter. A masked role, an empty page or a user's own records write nothing | `handlers_core_doc_engine.go` (list), `report_registry.go` (`RunReportContext`); `security_events.go` |
+| Fraud / invariant exception (2026-10-29) | `INVARIANT` REFUSED - an invariant stopped a write (`rule=posted_amounts_frozen`, a posted document's money); `INVARIANT` FLAGGED - the books found disagreeing without a refusal (`rule=control_totals:<report>`, once a day per report). The 49.5.4 fraud patterns stay one `SECURITY_ALERT` row per firing (above) | `transactional_validation.go`, `control_totals.go`; `security_events.go` |
+| Verifier failure (2026-10-29) | `AUDIT_VERIFY` FAILED - the audit-chain verifier found tampered rows or bad checkpoints (ids in `details`); `AUDIT_VERIFY` UNVERIFIED - it could not run. A clean run writes no row; Activity Log → Security shows the last run and its outcome (`last_verify`) from the job itself | `audit_evidence.go` (`runAuditVerifyJob`), `handlers_admin_identity.go` (on-demand verify); `security_events.go` |
 
-Not emitted as single events: other sensitive reads, and fraud / invariant exceptions beyond the till-reversal detection. Audit-verifier failure is now the `audit_verify_failed` detection.
+The `audit_verify_failed` detection (49.11.4) still pages on the verifier's system-error row; the `AUDIT_VERIFY` row is the evidence-grade record of the same finding.
 
 **Event schema (Stage 49.11.2).** Each row carries trusted server time (UTC for signed rows), the client (its schema), the actor, `action` / `status` / `details` and, for a request, its **correlation id** (`LogAuditEventCtx`) - the same id as its system-error rows, jobs and outbox events, so one lookup (Activity Log → Security → Trace a request) finds them all instead of copying payloads. `details` passes the same redaction as system logs (passwords, tokens, keys, bearer values) and is bounded to 16 KiB before it is signed. The software version is not repeated per row: it is the release live at that time (`public.deployments`), which the evidence pack includes. An attack is told from a user's mistake by the catalog: only `AuditRequired` refusals (permission, scope, sign-in) are audited; validation errors a user corrects are not. A lost audit write is counted and paged (`AUDIT_WRITE_FAILED`, 49.13.7), never only logged.
 

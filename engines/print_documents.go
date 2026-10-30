@@ -811,10 +811,26 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 		d.Party, d.PartyTitle = loadPrintCustomer(tenantID, customer), "Ship to"
 		d.Fields["sales_order"] = DocumentNumber(tenantID, "SalesOrder", orderID)
 		d.Fields["customer"] = customer
+		// 140.12.20: where each item is - bin, zone / aisle / rack - from the
+		// task's own bin reservation, in walk order.
+		where := map[string][]string{}
+		if bins, err := GenerateBinPickList(tenantID, id); err == nil {
+			for _, b := range bins {
+				if b.BinCode == "" {
+					continue
+				}
+				spot := b.BinCode
+				if zar := strings.Trim(strings.Join([]string{b.Zone, b.Aisle, b.Rack}, "/"), "/"); zar != "" {
+					spot += " (" + zar + ")"
+				}
+				where[b.Sku] = append(where[b.Sku], fmt.Sprintf("%s x%d", spot, b.PickQty))
+			}
+		}
 		for _, it := range jsonLines(data["items"]) {
 			// What is still to pick; a short-picked remainder will not be found.
 			qty := numFromInterface(it["qty"]) - numFromInterface(it["short_qty"])
-			d.addLine(tenantID, printLineIn{SKU: strField(it, "sku"), Qty: qty, Extra: map[string]interface{}{"picked_qty": numFromInterface(it["picked_qty"])}}, cache, withImages)
+			d.addLine(tenantID, printLineIn{SKU: strField(it, "sku"), Qty: qty, Extra: map[string]interface{}{"picked_qty": numFromInterface(it["picked_qty"]),
+				"bin_location": strings.Join(where[strField(it, "sku")], ", ")}}, cache, withImages)
 		}
 	case PrintTxnSalesInvoice, PrintTxnOMSBill:
 		d.Title = "Tax Invoice"
