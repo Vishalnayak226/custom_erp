@@ -44,6 +44,16 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 318. "Release all changes until now from all work" - 0.21.0, every session's work, deployed to app and minn (2026-10-31, release, session erp-b6)
+
+User, 2026-10-31: *"You can ask everyone to stop working unill you say. & Release all changes untill now from all work"* (after *"Relase now. That is high priority to test"* for the barcode print, 143.6).
+
+- **Freeze:** all 13 peer sessions messaged to stop editing; all acknowledged, none asked to hold anything. erp-1f's `%TEMP%\erp-1f-*` worktrees held only line-ending noise - its batch was already in the main tree. A first, narrower run (143.6 + 132.24 only, everything else in `hold.txt`) was stopped for the whole-tree release.
+- **4b80806** (0.21.0; live was 0.20.0 at 99b1416): §315 erp-1f/erp-fe's next-20 batch, §316 Stage 145, §317 Stage 147, 132.23-132.24 and 143.6 (this session), Stages 146/148/150 docs, 149 (PIM workbench + blurb removal, partly done), 151 (HR sidebar entries).
+- **What the combined tree broke, fixed before commit:** G10 stopped once on `TestStage49104AuthenticatedDAST` - `q=%00` made the new Stock on Hand page answer 500 (Postgres 22021); the NUL is now dropped in the shared `GetCurrentStockPage` (the older Current Stock route had the same hole), regression test added. Cold core was 88 B over budget - an `app.js` comment condensed. `platform.import_file_retention_days` shipped in 0.20.0 with Default 30 (an hourly sweep deleting old import files and failed rows on client books) - now 0 = keep everything until a client sets it (flagged by erp-6b).
+- **Deploy:** 5 migrations (49.10.6b, 49.11.2 audit columns, 72.8, 130.16.4 strict money/stock transitions, 140.13 indexes) after the user's yes to the client-data list; first signed deploy - key `%USERPROFILE%\.erp-release\signing.key` created (fingerprint 9b45a45fa8006d0b), pinned on the box, `release/signing.pub` committed after; both hosts 200 on 0.21.0.
+- **Not done here:** the user's own barcode print on the Y468BT (143.6); the signing key's off-machine copy is the user's.
+
 ## 317. Stage 147 — Item boxes find by Design ID, Combination ID or barcode; the OMS order line shows stock and fills the price (2026-10-31, code + tests + docs, session erp-oms; NOT COMMITTED)
 
 The user's ask (an OMS ▸ New order screenshot, then two corrections: Design ID, Combination ID / SKU and barcode may all carry letters) is quoted on the Stage 147 header in micro_checklist.md.
