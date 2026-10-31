@@ -1,12 +1,15 @@
 package engines
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 // Stage 75.4.1: the ERP server's own file store - product media, their
@@ -70,26 +73,45 @@ func (s localMediaStore) Write(key string, data []byte, o MediaWrite) error {
 		dirPerm, filePerm = 0750, 0640
 	}
 	if err := os.MkdirAll(filepath.Dir(p), dirPerm); err != nil {
-		return fmt.Errorf("failed to prepare media storage: %v", err)
+		return mediaDiskError(key, fmt.Errorf("failed to prepare media storage: %w", err))
 	}
 	flags := os.O_WRONLY | os.O_CREATE | os.O_TRUNC
 	if o.Exclusive {
 		flags = os.O_WRONLY | os.O_CREATE | os.O_EXCL
 	}
-	f, err := os.OpenFile(p, flags, filePerm)
+	f, err := openMediaFile(p, flags, filePerm)
 	if err != nil {
-		return err
+		return mediaDiskError(key, err)
 	}
 	_, werr := f.Write(data)
 	cerr := f.Close()
 	if werr != nil || cerr != nil {
+		// Never a half-written file that would be served as if whole.
 		_ = os.Remove(p)
 		if werr != nil {
-			return werr
+			return mediaDiskError(key, werr)
 		}
-		return cerr
+		return mediaDiskError(key, cerr)
 	}
 	return nil
+}
+
+// openMediaFile opens the file a write goes to; a variable so a test can
+// stand in a disk that fills up part-way (49.13.7).
+var openMediaFile = func(name string, flag int, perm os.FileMode) (io.WriteCloser, error) {
+	return os.OpenFile(name, flag, perm)
+}
+
+// mediaDiskError (Stage 49.13.7): a write the disk had no room for is said in
+// words - the caller and the person uploading see "the server's disk is full",
+// not a path and an errno - and logged in full for the operator. The error
+// still matches syscall.ENOSPC. Any other error passes through as it was.
+func mediaDiskError(key string, err error) error {
+	if !errors.Is(err, syscall.ENOSPC) {
+		return err
+	}
+	log.Printf("[MEDIA] disk full writing %s: %v", key, err)
+	return fmt.Errorf("the server's disk is full - the file was not saved (%w)", syscall.ENOSPC)
 }
 
 func (s localMediaStore) Read(key string) ([]byte, error) {

@@ -20,7 +20,7 @@ screens: [reports]
 
 # Report catalog
 
-**430** reports across **26** categories, all reachable from
+**431** reports across **26** categories, all reachable from
 **Sales & Marketplace » Reports**.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -50,7 +50,7 @@ open the right page.
 - [E-commerce & Integration](#e-commerce-integration) - 12 reports
 - [Exceptions](#exceptions) - 6 reports
 - [Expense Management](#expense-management) - 11 reports
-- [Finance](#finance) - 39 reports
+- [Finance](#finance) - 40 reports
 - [GST & Compliance](#gst-compliance) - 8 reports
 - [HR](#hr) - 2 reports
 - [HRMS](report-catalog-2.md#hrms) - 15 reports
@@ -1827,6 +1827,21 @@ open the right page.
 - **To (optional)** (`end`) - date, optional
 
 **Columns:** Account Code · Account Name · Document Type · Document ID · Debit *(sensitive)* · Credit *(sensitive)* · Date
+
+**Drill-down:** no.
+
+### R5087 Threshold splitting
+
+**Report id:** `threshold-splitting`
+
+**Parameters:**
+
+- **From (default 30 days ago)** (`from`) - date, optional
+- **To (default today)** (`to`) - date, optional
+- **Within % under the limit (default 10)** (`band_pct`) - text, optional
+- **At least this many a day (default 2)** (`min_count`) - text, optional
+
+**Columns:** Day · User · Record type · Store · Limit · Records · Together · Together over limit · Record numbers
 
 **Drill-down:** no.
 

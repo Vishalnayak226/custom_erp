@@ -51,7 +51,7 @@ Center** have no flyout and open straight away.
 | **Procurement** | Purchase Requisitions · Purchase Order · ASN · Goods Receipt · Vendors · RFQ / Quotes |
 | **Inventory** | Dashboard · Stock on Hand · Inventory Ledger · Stock Movement · Stock Adjustment · MRP Change · Move Stock · Stock Locations · Sticker Printing |
 | **WMS** | Warehouse Cockpit, then **Inbound** (Appointment Calendar, Dock Doors, Yard Board, Trailers, RF Receiving, Putaway, Cross-Dock Plans), **Storage & Control** (Bin, Bin Conditions, LPN, Replenishment, Location Movement, Cycle Count, RF Lot & Serial, Holds) and **Outbound** (Waves, Picking, Sortation, Loading) |
-| **HRM** | HR · Fixed Assets · Expenses |
+| **HRM** | My Requests · Attendance · Leave · Shift Roster · Payroll · Payroll Export · Loans/Advances · Onboarding/Offboarding · Appraisals · Training · Grievances · Fixed Assets · Expenses |
 | **Manufacturing** | Production Orders · Production Schedule · Subcontracting · MRP Suggestions · Supply Proposals · Quality Inspections · Certificates · Non-conformance · Maintenance Orders |
 | **PIM** | Dashboard · Workbench · My Work · Media Library · Supplier Submissions · Catalogs · PIM Reports |
 | **Setup** | The module names; point at one and its reference lists (Items, Locations, Bins, Brands, Currencies and the rest) open beside it. |

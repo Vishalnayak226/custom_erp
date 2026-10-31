@@ -44,7 +44,7 @@ covering all four categories:
 | `ci_tool` | `govulncheck`, installed via `go install ...@<pinned version>` rather than vendored. |
 | `os_runner` | The GitHub-hosted runner image (`ubuntu-24.04`). |
 | `os_container_image` | The CI Postgres service container and the (dormant) Dockerfile's base images. |
-| `vendored_asset` | Third-party JavaScript/CSS vendored under `public/` (`public/qrcode.min.js` today), each with version, licence, size and the SHA-256 of the bytes on disk (Stage 47.18.4). |
+| `vendored_asset` | Third-party JavaScript/CSS vendored under `public/`, each with version, licence, size and the SHA-256 of the bytes on disk (Stage 47.18.4). None today: the only one, `public/qrcode.min.js`, was loaded by nothing and was deleted with its entry (Stage 47.18.4a). |
 
 ## What is enforced automatically, and what is not
 

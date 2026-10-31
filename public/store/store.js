@@ -273,7 +273,7 @@
       <form class="signin" id="pin-form" autocomplete="off">
         <img class="signin-mark" src="icon.svg" alt="">
         <h1>${esc(dev.store_name || dev.store)}</h1>
-        <p class="hint">This phone belongs to the store. Sign in with your own name and PIN.</p>
+        <p class="hint">Sign in with your name and PIN.</p>
         ${message ? `<div class="msg msg-info" role="alert">${esc(message)}</div>` : ''}
         <div class="msg msg-error" id="pin-error" role="alert" hidden></div>
         <label class="field"><span>Your username</span>
@@ -282,7 +282,7 @@
         <label class="field"><span>PIN</span>
           <input class="input pin-input" id="pin-code" type="password" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" autocomplete="off" required></label>
         <button class="btn btn-primary btn-block" id="pin-submit" type="submit">Sign in</button>
-        <p class="hint">First time on this phone? Sign in with your password once, then set your PIN in Settings.</p>
+        <p class="hint">No PIN yet? Sign in with your password.</p>
         <div class="links"><button type="button" class="link" id="pin-password">Sign in with password instead</button></div>
       </form>`;
     $('#pin-password').addEventListener('click', () => showSignIn('', true));
@@ -696,7 +696,7 @@
       </form>
       ${cameraSupported()
         ? `<button type="button" class="btn btn-block scan-cam">${ICON.camera}Scan with camera</button>`
-        : '<p class="hint">This browser cannot read barcodes with the camera. Use a Bluetooth scanner, or type the code.</p>'}`;
+        : '<p class="hint">No camera scanning in this browser.</p>'}`;
     const input = $('input', container);
     const fire = () => {
       const code = input.value.trim();
@@ -941,7 +941,7 @@
 
   async function settingsAlerts(box) {
     if (!pushSupported()) {
-      box.innerHTML = `<h2>Alerts on this phone</h2><p class="sub">This browser cannot show alerts from the app. On an iPhone, add the app to the Home Screen first (Share > Add to Home Screen), then open it from there.</p>`;
+      box.innerHTML = `<h2>Alerts on this phone</h2><p class="sub">This browser cannot show alerts. On an iPhone, open the app from the Home Screen.</p>`;
       return;
     }
     let status = { subscribed: false, approvals: true, low_stock: true };
@@ -953,7 +953,7 @@
     }
     box.innerHTML = `
       <h2>Alerts on this phone</h2>
-      <p class="sub">${status.subscribed ? `On for ${esc(storeName(status.store || workingStore()))}.` : 'Off.'} An alert comes when something new needs you, even when the app is closed.</p>
+      <p class="sub">${status.subscribed ? `On for ${esc(storeName(status.store || workingStore()))}.` : 'Off.'}</p>
       <label class="check"><input type="checkbox" id="al-appr" ${status.approvals !== false ? 'checked' : ''}> Approvals waiting for me</label>
       <label class="check"><input type="checkbox" id="al-low" ${status.low_stock !== false ? 'checked' : ''}> Items running low at my store</label>
       ${status.last_error ? `<p class="hint">Last alert: ${esc(status.last_error)}</p>` : ''}
@@ -987,12 +987,12 @@
       return;
     }
     if (!st.allowed) {
-      box.innerHTML = '<h2>Your PIN</h2><p class="sub">PIN sign-in is for store roles. An administrator signs in with the password and the two-factor code.</p>';
+      box.innerHTML = '<h2>Your PIN</h2><p class="sub">PIN sign-in is for store roles.</p>';
       return;
     }
     box.innerHTML = `
       <h2>Your PIN</h2>
-      <p class="sub">${st.set ? 'You have a PIN.' : 'No PIN yet.'} On a phone registered to your store, you sign in with your username and PIN. After 5 wrong PINs, PIN sign-in stops for 15 minutes.</p>
+      <p class="sub">${st.set ? 'You have a PIN.' : 'No PIN yet.'} 5 wrong PINs lock it for 15 minutes.</p>
       <form id="pin-set" autocomplete="off">
         <label class="field"><span>Your password (to confirm it is you)</span><input class="input" id="ps-pass" type="password" autocomplete="current-password" required></label>
         <label class="field"><span>New PIN (4 to 8 digits)</span><input class="input pin-input" id="ps-pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" autocomplete="off" required></label>
@@ -1018,7 +1018,7 @@
   function settingsPhone(box) {
     const dev = device();
     if (dev) {
-      box.innerHTML = `<h2>This phone</h2><p class="sub">Registered to ${esc(dev.store_name || dev.store)} as "${esc(dev.label)}". Everyone signs in on it with their own PIN.</p>
+      box.innerHTML = `<h2>This phone</h2><p class="sub">Registered to ${esc(dev.store_name || dev.store)} as "${esc(dev.label)}".</p>
         ${pinSession() ? '' : '<div class="actions"><button type="button" class="btn" id="ph-forget">Forget the registration on this phone</button></div>'}`;
       const forget = $('#ph-forget', box);
       if (forget) forget.addEventListener('click', () => {
@@ -1029,11 +1029,11 @@
       return;
     }
     if (!isManager() || pinSession()) {
-      box.innerHTML = '<h2>This phone</h2><p class="sub">This is a personal phone: sign in with your password. A store manager can register a shared store phone so staff sign in with a PIN.</p>';
+      box.innerHTML = '<h2>This phone</h2><p class="sub">Personal phone.</p>';
       return;
     }
     box.innerHTML = `<h2>This phone</h2>
-      <p class="sub">Register it as a shared phone for ${esc(storeName(workingStore()))}. After that, staff sign in on it with their own PIN, it locks after a few minutes without use, and it works at this store only.</p>
+      <p class="sub">Once registered, it works at this store only.</p>
       <form id="ph-reg"><label class="field"><span>Name for this phone</span><input class="input" id="ph-label" maxlength="160" placeholder="e.g. Counter phone 1" required></label>
       <div class="actions"><button type="submit" class="btn btn-primary">Register to ${esc(storeName(workingStore()))}</button></div></form>`;
     $('#ph-reg', box).addEventListener('submit', async (e) => {
@@ -1059,7 +1059,7 @@
     box.innerHTML = `<h2>Store phones</h2>
       ${devices.length ? `<ul class="rows">${devices.map(d => `<li><span>${esc(d.label)}<small>${esc(d.store_name || d.store)} · registered by ${esc(d.registered_by)}${d.last_user ? ` · last used by ${esc(d.last_user)}` : ''}</small></span>
         <button type="button" class="btn btn-danger btn-small" data-remove="${esc(d.id)}">Remove</button></li>`).join('')}</ul>
-        <p class="hint">Remove a phone that is lost, stolen or no longer used: everyone signed in on it is signed out at once.</p>` : '<p class="sub">No shared phones are registered at your stores.</p>'}`;
+        <p class="hint">Removing signs everyone out of it.</p>` : '<p class="sub">No shared phones are registered at your stores.</p>'}`;
     box.querySelectorAll('[data-remove]').forEach(b => b.addEventListener('click', async () => {
       if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Tap again to remove'; return; }
       try {

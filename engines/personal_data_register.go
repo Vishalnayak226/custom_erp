@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"time"
 )
 
 // Stage 49.6.2 - data minimization: the field-purpose register.
@@ -35,6 +36,8 @@ import (
 // Nothing here deletes or stops collecting anything unless the owner decided
 // it: 49.6.2a answered the five questions the sweep raised (the rows marked
 // 49.6.2a), and personalFieldClearings is the one field cleared on a timer.
+// Personal data outside any doctype - a security event's address and device
+// (Stage 49.11.2) - is personalDataSystemColumns, cleared the same way.
 
 // Legal bases. These name the DPDP Act 2023's grounds in plain words; which
 // clause of section 7 a "statutory" or "employment" field rests on is for
@@ -121,7 +124,78 @@ func SweepPersonalFieldRetention(tenantID string) (map[string]int64, error) {
 				fmt.Sprintf("%s.%s cleared on %d record(s) made more than %d days ago (49.6.2a)", c.Doctype, c.Field, n, c.Days))
 		}
 	}
+	// Stage 49.11.2: a security event's address and device, on the same tick.
+	n, err := clearAuditSourceFields(tenantID, schema, auditSourceRetentionDays)
+	if err != nil {
+		return out, err
+	}
+	if n > 0 {
+		out["audit_logs.source_ip"] = n
+		LogAuditEvent(tenantID, "system", "PERSONAL_DATA_RETENTION", "Success",
+			fmt.Sprintf("audit_logs.source_ip and device cleared on %d event(s) older than %d days (49.11.2)", n, auditSourceRetentionDays))
+	}
 	return out, nil
+}
+
+// auditSourceRetentionDays is how long a security event keeps the address and
+// device it came from: CERT-In's rolling 180 days of logs, then cleared while
+// the event itself stays (Stage 49.11.2).
+const auditSourceRetentionDays = 180
+
+// personalDataSystemColumns (Stage 49.11.2) is the register for personal data
+// the server writes into its own tables rather than a doctype - one row per
+// "table.column", the same fields as personalDataRegister.
+// TestStage49112SourceAndDeviceAreRegisteredAndCleared holds it to the schema.
+var personalDataSystemColumns = map[string]PersonalDataField{
+	"audit_logs.source_ip": pdField("identity", "Trace a security event to where it came from and tell an attack from a user's mistake (CERT-In log directions)",
+		BasisStatutory, retainAuditSource, readersAudit),
+	"audit_logs.device": pdField("identity", "The browser or tool family and operating system of a security event - no versions, never the raw user agent",
+		BasisStatutory, retainAuditSource, readersAudit),
+}
+
+const (
+	retainAuditSource = "cleared 180 days after the event (auditSourceRetentionDays, the hourly retention sweep); kept while the client is under legal hold; never archived"
+	readersAudit      = "the client's administrators (Activity Log > Security: Trace a request, the evidence pack) and the platform operator"
+)
+
+// PersonalDataSystemColumns returns the system-column register, sorted by key.
+func PersonalDataSystemColumns() []string {
+	out := make([]string, 0, len(personalDataSystemColumns))
+	for k := range personalDataSystemColumns {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// clearAuditSourceFields nulls the address and device of audit rows older than
+// days, in batches and never under a legal hold. Those rows are signed and
+// stamped in naive UTC (utcStamp); neither column is in the signature or a
+// checkpoint digest, so the evidence still verifies.
+func clearAuditSourceFields(tenantID, schema string, days int) (int64, error) {
+	if days <= 0 {
+		return 0, nil
+	}
+	if held, err := tenantLegalHold(tenantID); err != nil || held {
+		return 0, err
+	}
+	stmt := fmt.Sprintf(`UPDATE %[1]s.audit_logs SET source_ip = NULL, device = NULL
+		WHERE ctid IN (SELECT ctid FROM %[1]s.audit_logs WHERE (source_ip IS NOT NULL OR device IS NOT NULL)
+			AND created_at < $1::timestamp LIMIT %[2]d)`, schema, retentionBatchRows)
+	cutoff := utcStamp(time.Now().AddDate(0, 0, -days))
+	var total int64
+	for i := 0; i < retentionMaxBatches; i++ {
+		res, err := db.DB.Exec(stmt, cutoff)
+		if err != nil {
+			return total, err
+		}
+		n, _ := res.RowsAffected()
+		total += n
+		if n < retentionBatchRows {
+			break
+		}
+	}
+	return total, nil
 }
 
 func pdField(kind, purpose, basis, retention, readers string) PersonalDataField {

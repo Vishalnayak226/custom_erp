@@ -44,6 +44,51 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 317. Stage 147 — Item boxes find by Design ID, Combination ID or barcode; the OMS order line shows stock and fills the price (2026-10-31, code + tests + docs, session erp-oms; NOT COMMITTED)
+
+The user's ask (an OMS ▸ New order screenshot, then two corrections: Design ID, Combination ID / SKU and barcode may all carry letters) is quoted on the Stage 147 header in micro_checklist.md.
+
+- **Built:** `SearchIdentityFields` for Item is now id, code, barcode, design (`parent_product_code`, `family`) - no name - so every item picker that sends `@identity` follows the rule at once; the PO's entry and line boxes and the RFQ's ask for the name as well. `GET /api/v1/availability` without `location` answers every location (new `engines/availability_network.go`, the same ATS math, bundles via `GetBundleAvailability`). OMS ▸ New order has an Available column (hover: by store, names not codes) and fills Unit price from sale price, else MRP. Hint text on the inventory, job work and sales invoice item boxes now reads "Add by Design, Combination ID or barcode".
+- **Found:** no code builds the dashed design-plus-values ID any more; D00004-Red-Temple-Red-Temple is a combination from before 117.1. Renumbering those is 147.3, waiting on the user (recommended: the 76.6 clean-up widened to Item).
+- **Verified:** build, vet, `node --check`; `TestNetworkAvailableToSellSumsEveryLocation`, `TestItemIdentitySearchDesignCombinationBarcode`, `TestSearchIdentityScope` (moved from a name match to a barcode match), `TestCurrentStockReportUsesReservationSellableMath`; Chromium on a scratch server (5490 `custom_erp`): design search lists its four combinations, a name finds nothing, a pick fills Available 6 / price 999, a barcode line 8, one stock call per pick, no console errors.
+- **At release:** no migration, route, setting or worker; JS changed.
+
+## 316. Stage 145 — Inventory: a one-page management dashboard, every inventory page on the top-bar store, Stock on Hand by design with columns each user picks (2026-10-31, code + tests + docs, session erp-inv; NOT COMMITTED)
+
+The user's ask is quoted in full on the Stage 145 header in micro_checklist.md; items 145.1-145.4 carry the detail.
+
+- **Built:** the dashboard is tiles (Designs, Qty, Combinations, Stock value, Awaiting approval) and two ranked tables, By item (short name) and By store / By category, sized to the window; low stock and latest movements gone. Stock on Hand moved to its own route `GET /api/v1/inventory/stock`: Design No, Combination ID, Barcode, the short Item Name, one column per active Item Attribute, and a Columns popover saved per user as a `UserShortcut` (no migration). Dashboard, Stock on Hand and the Inventory Ledger follow the top-bar store by the 106.6 rule; the other inventory pages already did.
+- **Found on the way:** the app's automatic link sweep rewrites any code-looking cell into the record's name, which would have put the long item names back - the new table's code cells opt out. `.table-wrapper`'s `contain: paint` clips a wide table with no scrollbar, so this table scrolls inside its panel (the phone rule). The first cut put the styles in `styles.css` and broke the cold-core budget (184,827 of 184,320 gzip bytes); they moved to `public/inventory.css`, loaded with the screen. The shared `custom_erp` lacks Stage 106.6's `store_view` column, so live checks need a fresh database.
+- **Verified:** build, vet, gofmt; engine and server tests (`TestInventoryStockPageByDesign`, `TestStage145InventoryFollowsTopBarStore`, the existing dashboard / current-stock / route classification tests); `cmd/releasebudget`, `internal/supplychain` green, `internal/securityscan` green but the attack-surface manifest (already drifted by erp-1f's batch, G6 regenerates); a fresh database migrated from zero, seeded jewellery catalogue, Chromium walk at 1366x768 with no console errors.
+- **At release:** a new route (G6 regenerates the attack surface); JS / CSS changed (the release bumps `VIEW_MODULE_VERSION`). No migration, no setting, no worker.
+
+## 315. "Start next 20 items ... all recommended approved" (session erp-1f / erp-fe): insider controls, signed releases, media retention, store-scoped creates, retry-safe money commands, security events and views (2026-10-30/31, code + tests + docs; NOT COMMITTED)
+
+micro_checklist run header "Once all the push and deploy done start next 20 items" (2026-10-30); each item's status names its tests.
+
+- **How:** five builders in worktrees `%TEMP%\erp-1f-{a..e}` at `4f13a07`, four items each, combined in `%TEMP%\erp-1f-wt`, then ported into the main tree (123 files copied, `view-pos-customer.js` / `view-pos-extras.js` three-way merged with a peer's 143.4 edits, `qrcode.min.js` deleted). Two builders were stopped twice by session restarts and resumed from their saved context.
+- **Built:** 49.10.6b (threshold-splitting report R5087; self-approval off for new clients; signed release binary checked on the box; reset / purge by a second admin), 47.16.4g, 47.16.4h, 47.16.4i (keep), 49.10.6c.1, 49.4.7a (GLOBAL-4971 / 4972), 49.3.8a, 47.18.4a, 49.10.5, 49.11.2, 49.11.4, 49.11.7, 49.13.7, 49.18.2, 49.5.3, 49.8.5, and 143.4's Left part.
+- **Found and fixed on the way:** a backup that ran out of disk left the plain dump behind; retry backoff overflowed to an instant retry from attempt 30; `/api/v1/health` hung on an exhausted pool; the limiter read the client cap under its global lock; 11 hourly sweeps read their whole table (no index).
+- **Combined-tree fixes:** E's two new in-memory stores given C's payload / SLO entries; C's index migration renamed `140_13_state_sweep_indexes_49_18_2` (under 49.18.2 a fresh database had no `crm_events` / `crm_pref_tokens` yet - the 130.16.3 trap); report catalog regenerated for R5087.
+- **Verified:** build, vet, gofmt, `node --check`; the whole suite on a fresh database (engines in three groups, server, small packages) green except `TestAttackSurfaceManifestIsCurrent` (5 migrations, a tool, a worker - G6 regenerates); the 49.18.2 test re-run on a fresh database after the rename.
+- **Behaviour at the next deploy:** store-limited roles can't create or import a record for another store; 14 more doctypes strict; a new client's lone admin can't approve their own documents; reset / purge need `tenantctl request-removal` and a second admin; audit rows gain address / device (cleared after 180 days); Shopify Disconnect removes its webhooks. The first deploy creates the release signing key on this PC and pins it on the server (needs OpenSSL 3; `release/signing.pub` then needs committing). By hand: narrow the R2 lifecycle rule to the database and tenant prefixes.
+
+## 314. Stage 143 — MINN's purchase file through Guide on app; every print page a preview and one Print button (2026-10-29/31, Guide runs + code + docs, session erp-19 / erp-34)
+
+The user: *"MINN_Bulk_Purchase_Upload_v1.6.xlsx upload by guid in app. do po grn and test till barcode print... Once all fine need to do in minn next. One req was i need all print page preview and one print button. If not build release and test and confirm"*. Detail in micro_checklist Stage 143.
+
+- **The file (143.1, 143.3).** 1,002 rows, 16 PO Refs, 18 bills. As sent, every row is refused on app and on minn: its store "Main Store" exists on neither (minn has BLR HSR and BLR Warehouse). Its bills mostly do not add up: Excel drag-fill invoice numbers (tatva, Pashwa, gagan), whole vendors carrying another vendor's bill (tanush, bhavana, rangeela), a ₹6,20,055 total for ₹62,055 of rows, likely duplicate vendors (tatva / tatwa, bhvana / bhavana), and Design No `D00001`-`D01002`, which the importer reads as Wholeops design numbers. minn waits on the user's store choice and the client's corrected file (143.3, recommendations recorded).
+- **On app (143.1, 143.2).** An app-only test copy (store -> Guide Test Store, four unambiguous bill fixes) made 20 of 21 POs and posted 6 GRNs (22-69 lines). The 21st PO was refused because `D00001` is an existing app design, which is the label trap in action. A new Guide suite, `printpreview`, opened GRNGTS00009/2627's stickers and screenshotted the preview: 30 stickers, Seznik vertical × 3. Screenshots are in `Downloads\MansoorBusiness\po\screenshots`.
+- **One Print, preview first (143.4).** Of ~40 print entry points, transaction documents already previewed in their dialog. Changed:
+  - Sticker Printing: Print Selected, row Print and Print Stickers open the preview; both Preview buttons are gone.
+  - The till's Print Receipt opens the receipt preview.
+  - Advance and refund vouchers get `previewVoucher`.
+  - The channel label file has one Print.
+  - Transfers have one Print; Print as picks Out or In.
+  - OMS Print label shows the label with Print; View label is gone.
+
+  It shipped inside 0.20.0 (`99b1416`, erp-1f released the whole tree) and was verified live on app with Guide (`print143`). The gift-card slip followed as 143.5 (built, not yet released). Guide's stickers suite now presses Print inside the preview.
+
 ## 313. "Push and deploy properly ... all approved" - 0.20.0, everything in the tree, deployed to app and minn (2026-10-30, release, session erp-1f)
 
 micro_checklist run header "Push and deploy properly" (2026-10-30).

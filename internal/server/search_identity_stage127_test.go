@@ -25,7 +25,7 @@ func TestSearchIdentityScope(t *testing.T) {
 	cleanup()
 	defer cleanup()
 	for id, data := range map[string]string{
-		"T1277-KADA": `{"code":"T1277-KADA","name":"Qzxq Antique Kada","status":"Active"}`,
+		"T1277-KADA": `{"code":"T1277-KADA","name":"Antique Kada","barcode":"QZXQ1277","status":"Active"}`,
 		"T1277-RING": `{"code":"T1277-RING","name":"Plain Ring","category":"qzxq-cat","status":"Active"}`,
 	} {
 		if _, err := db.DB.Exec(`INSERT INTO tenant_default.documents (id, doctype, data, status, created_by) VALUES ($1, 'Item', $2, 'Active', 'system')`, id, data); err != nil {
@@ -58,7 +58,7 @@ func TestSearchIdentityScope(t *testing.T) {
 		t.Errorf("any-field search finds both: %v", got)
 	}
 	if got := list("q=qzxq&q_fields=@identity&limit=50"); len(got) != 1 || got[0] != "T1277-KADA" {
-		t.Errorf("@identity finds the name, not the category: %v", got)
+		t.Errorf("@identity finds the barcode, not the category: %v", got)
 	}
 	fields := engines.SearchIdentityFields("default", "Item")
 	for _, f := range fields {

@@ -344,7 +344,7 @@ func saveOwnedMediaFile(tenantID, ownerDoctype string, fileBytes []byte, filenam
 		storedPath = filepath.Join(mediaStoreDir, key)
 		if !serverMedia.Exists(key) {
 			if err := serverMedia.Write(key, fileBytes, MediaWrite{}); err != nil {
-				return nil, fmt.Errorf("failed to store file: %v", err)
+				return nil, fmt.Errorf("failed to store file: %w", err)
 			}
 		}
 		if thumbOK {

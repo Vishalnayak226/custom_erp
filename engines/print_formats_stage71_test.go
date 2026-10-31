@@ -3,6 +3,7 @@ package engines
 import (
 	"custom_erp/db"
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -107,6 +108,17 @@ func TestStage71PrintFormats(t *testing.T) {
 		}
 		if l["accepted_qty"] != 8.0 || l["po_qty"] != 12.0 || d.Fields["vendor_invoice_no"] != "INV-71" || d.Number != grn {
 			t.Errorf("vendor copy lost its quantities / references: %v %v", l, d.Fields)
+		}
+		// 132.24: its CSV has no empty MRP column; the GRN's own keeps it.
+		for txn, want := range map[string]bool{PrintTxnGRNVendorCopy: false, PrintTxnGRN: true} {
+			doc, err := BuildPrintDocument(tenantID, txn, grn, "", false)
+			if err != nil {
+				t.Fatalf("BuildPrintDocument %s: %v", txn, err)
+			}
+			csv, _, _, err := BuildPrintExport(doc, "csv")
+			if err != nil || strings.Contains(string(csv), ",MRP,") != want {
+				t.Errorf("%s CSV MRP column = %v, want %v (err %v)", txn, !want, want, err)
+			}
 		}
 	})
 

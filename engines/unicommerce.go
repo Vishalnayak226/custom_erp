@@ -220,6 +220,26 @@ func ListUnicommerceInventorySyncs(tenantID string) ([]map[string]interface{}, e
 	return syncs, nil
 }
 
+// unicommerceCredentialForCall (49.8.5) is the read a Unicommerce call makes
+// before it goes: the store's credential, its last use stamped (at most
+// hourly). found is false when the store has none saved; refusal says why a
+// saved one may not be used (switched off, expired).
+func unicommerceCredentialForCall(schema, storeCode string) (found bool, refusal string) {
+	var active bool
+	var expires sql.NullTime
+	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT active, expires_at FROM %s.unicommerce_credentials WHERE store_code = $1`, schema), storeCode).Scan(&active, &expires); err != nil {
+		return false, ""
+	}
+	if !active {
+		return true, fmt.Sprintf("the Unicommerce credential for store %s is switched off", storeCode)
+	}
+	if credentialExpired(expires) {
+		return true, fmt.Sprintf("the Unicommerce credential for store %s expired on %s - save new ones", storeCode, expires.Time.UTC().Format("2006-01-02"))
+	}
+	touchCredentialUse(schema, "unicommerce_credentials", "store_code", storeCode)
+	return true, ""
+}
+
 // StartUnicommerceWorker starts a background worker that processes pending
 // Unicommerce outbox events (inventory sync, order notifications).
 func StartUnicommerceWorker(ctx context.Context, interval time.Duration) {
@@ -281,14 +301,30 @@ func processUnicommerceOutbox(schema string) {
 		nextAttempts := ev.Attempts + 1
 		status := "Dispatched"
 		errMsg := ""
+		logStatus, logError := "Success", sql.NullString{}
 
 		log.Printf("[UNICOMMERCE] Processing event %s (%s) - Attempt %d", ev.EventName, ev.ID, nextAttempts)
+
+		// 49.8.5: the store's credential is read before the call, as every
+		// other connector's is - its last use is stamped, and a switched-off
+		// or expired one stops the dispatch instead of calling with it.
+		var evPayload struct {
+			StoreCode string `json:"store_code"`
+		}
+		_ = json.Unmarshal([]byte(ev.Payload), &evPayload)
+		refusal := ""
+		if evPayload.StoreCode != "" {
+			_, refusal = unicommerceCredentialForCall(schema, evPayload.StoreCode)
+		}
 
 		// In a real deployment, this would make HTTP calls to Unicommerce's API.
 		// For now, we log the dispatch and mark it as successful (the outbox
 		// infrastructure is real; the actual HTTP client integration is deferred
 		// until Unicommerce API credentials are configured).
-		if ev.EventName == "unicommerce.inventory.sync" {
+		if refusal != "" {
+			status, errMsg = "Failed", refusal
+			logStatus, logError = "Failed", sql.NullString{String: refusal, Valid: true}
+		} else if ev.EventName == "unicommerce.inventory.sync" {
 			var payloadMap map[string]interface{}
 			if err := json.Unmarshal([]byte(ev.Payload), &payloadMap); err == nil {
 				sku, _ := payloadMap["sku"].(string)
@@ -313,7 +349,7 @@ func processUnicommerceOutbox(schema string) {
 
 		_, errLog := tx.Exec(fmt.Sprintf(`
 			INSERT INTO %s.integration_event_log (event_id, channel, status, error_message)
-			VALUES ($1, $2, $3, $4)`, schema), ev.ID, "Unicommerce", "Success", nil)
+			VALUES ($1, $2, $3, $4)`, schema), ev.ID, "Unicommerce", logStatus, logError)
 		if errLog != nil {
 			status = "Failed"
 			errMsg = errLog.Error()

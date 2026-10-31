@@ -861,7 +861,7 @@ window.openPIMProductGroupActionsModal = async function() {
         <p class="text-muted" style="font-size:13px;" id="pim-group-count">Resolving membership&hellip;</p>
         <div class="form-group"><label class="form-label" for="pim-group-field">Field to edit</label><select class="form-select" id="pim-group-field">${fields.map(f => `<option value="${escapeHTMLText(f.fieldname)}">${escapeHTMLText(getTranslatedLabel(f.label))}</option>`).join('')}</select></div>
         <div class="form-group"><label class="form-label" id="pim-group-value-label">New value</label><div id="pim-group-value"></div></div>
-        <p class="text-muted" style="font-size:13px; margin:0;">A dynamic group is re-resolved by the server at the moment you confirm, so the edit applies to whatever matches then - not to the count shown above if the catalog changed in between.</p>
+        <p class="text-muted" style="font-size:13px; margin:0;">Applies to the group's members at confirm time.</p>
 
         <div style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border-color);">
           <label class="form-label" style="margin-bottom:8px;" title="Seeds a Draft in the target language, copied from each product's Approved content in the source language - not a machine translation. A human still has to translate the text and submit it for approval like any other content.">Bulk Catalog Translation (Stage 36.7.5)</label>
@@ -1032,7 +1032,7 @@ window.openPIMCatalogShareModal = async function(id, name) {
     <div class="modal-container">
       <div class="modal-header"><h3 class="modal-title">Share Link: ${escapeHTMLText(name)}</h3><button type="button" class="modal-close" aria-label="Close">&times;</button></div>
       <div class="modal-body">
-        <p class="text-muted" style="font-size:13px;">Anyone with this link can view this catalog's live product list without signing in. It will not be shown again after you close this window - mint a new link if it is lost.</p>
+        <p class="text-muted" style="font-size:13px;">Anyone with this link can view it. Shown once.</p>
         <div class="form-group"><input class="form-input" id="pim-catalog-share-url" readonly value="${escapeHTMLText(shareURL)}" ${actionAttrs('selectFieldText', [ACTION_ARG_ELEMENT])}></div>
       </div>
       <div class="modal-footer">
@@ -1233,7 +1233,7 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
   if (currentDoctype === 'CycleCountLine' && !isEdit) {
     const note = document.createElement('p');
     note.className = 'form-group-wide';
-    note.textContent = 'Blind count: enter what you physically see. The expected quantity and variance are calculated only when the session is reconciled.';
+    note.textContent = 'Blind count: enter what you see.';
     body.appendChild(note);
   }
 
@@ -2035,7 +2035,7 @@ async function renderDocTypeBuilderView(container) {
       </li>
     `;
   });
-  listHTML += `</ul><div id="doctype-fields-config">Hover a module on the left, then select a record type to configure its metadata schema properties.</div>`;
+  listHTML += `</ul><div id="doctype-fields-config">Select a record type.</div>`;
   panel.innerHTML = listHTML;
   container.appendChild(panel);
   setupModuleFlyouts();

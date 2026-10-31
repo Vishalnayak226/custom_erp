@@ -115,6 +115,8 @@ func Run() {
 	// backup directory (every dev box), and no-ops in delivery until
 	// OPS_ALERT_WEBHOOK_URL is set - see engines/alerting.go.
 	engines.StartBackupFreshnessMonitor(workerCtx, 1*time.Hour, 36*time.Hour)
+	// Stage 49.11.7: the public addresses' certificates, for the Control Panel and CERT_EXPIRING.
+	engines.StartCertificateExpiryWatch(workerCtx, 6*time.Hour)
 
 	// Start Stage 9.1 Integration Workers (Unicommerce, Pine Labs, CleverTap)
 	engines.StartUnicommerceWorker(workerCtx, 30*time.Second)
@@ -393,9 +395,10 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/stock-locations/move", apiMiddleware(handleMoveStock))
 	// Stage 88.5: Inventory ▸ Dashboard, MRP Change and Stock Adjustment (handlers_inventory_erp.go).
 	http.HandleFunc("GET /api/v1/inventory/dashboard", apiMiddleware(moduleGate("inventory", handleInventoryDashboard)))
+	http.HandleFunc("GET /api/v1/inventory/stock", apiMiddleware(moduleGate("inventory", handleInventoryStock))) // Stage 145
 	http.HandleFunc("POST /api/v1/inventory/mrp-changes", apiMiddleware(moduleGate("inventory", handleCreateMRPChange)))
 	http.HandleFunc("POST /api/v1/inventory/mrp-changes/{id}/cancel", apiMiddleware(moduleGate("inventory", handleCancelMRPChange)))
-	http.HandleFunc("POST /api/v1/inventory/adjustments", apiMiddleware(moduleGate("inventory", handleCreateInventoryAdjustment)))
+	http.HandleFunc("POST /api/v1/inventory/adjustments", apiMiddleware(moduleGate("inventory", commandKeyed("inventory.adjustment.create", handleCreateInventoryAdjustment))))
 	http.HandleFunc("POST /api/v1/inventory/adjustments/{id}/post", apiMiddleware(moduleGate("inventory", handlePostInventoryAdjustment)))
 	// Stage 130.14 (74.2.3b): preview before saving; the linked reversal.
 	http.HandleFunc("POST /api/v1/inventory/adjustments/preview", apiMiddleware(moduleGate("inventory", handlePreviewInventoryAdjustment)))
@@ -418,7 +421,7 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/pos/high-value-policy", apiMiddleware(handlePOSHighValuePolicy))
 	// Stage 85.D3: customer advances.
 	http.HandleFunc("GET /api/v1/pos/advances", apiMiddleware(handlePOSAdvances))
-	http.HandleFunc("POST /api/v1/pos/advances", apiMiddleware(handlePOSAdvances))
+	http.HandleFunc("POST /api/v1/pos/advances", apiMiddleware(commandKeyed("pos.advance.take", handlePOSAdvances)))
 	http.HandleFunc("POST /api/v1/pos/advances/refund", apiMiddleware(handlePOSAdvanceRefund))
 	// Stage 85.E2/85.E3: the store's tenders and salesmen.
 	http.HandleFunc("GET /api/v1/pos/tenders", apiMiddleware(handlePOSTenders))
@@ -796,7 +799,7 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/inventory/attribute-value", apiMiddleware(handleAddItemAttributeValue))
 	http.HandleFunc("POST /api/v1/inventory/treatment-correction/preview", apiMiddleware(handleTreatmentCorrectionPreview))
 	http.HandleFunc("POST /api/v1/inventory/treatment-correction/apply", apiMiddleware(handleTreatmentCorrectionApply))
-	http.HandleFunc("POST /api/v1/pos/gift-card/issue", apiMiddleware(handleIssueGiftCard))
+	http.HandleFunc("POST /api/v1/pos/gift-card/issue", apiMiddleware(commandKeyed("pos.gift_card.issue", handleIssueGiftCard)))
 	http.HandleFunc("POST /api/v1/pos/gift-card/balance", apiMiddleware(handleGiftCardBalance))
 	http.HandleFunc("POST /api/v1/stored-value/cards", apiMiddleware(handleRegisterGiftCards))
 	http.HandleFunc("POST /api/v1/stored-value/cards/action", apiMiddleware(handleGiftCardAction))
@@ -821,7 +824,7 @@ func registerRoutes() {
 	// SalesInvoice post/settle (the AR side Receivables Ageing reads).
 	http.HandleFunc("POST /api/v1/finance/bank-reconcile", apiMiddleware(handleBankReconcile))
 	http.HandleFunc("POST /api/v1/finance/payment-proposal", apiMiddleware(handlePaymentProposal))
-	http.HandleFunc("POST /api/v1/finance/payment-proposal/{id}/execute", apiMiddleware(handleExecutePaymentProposal))
+	http.HandleFunc("POST /api/v1/finance/payment-proposal/{id}/execute", apiMiddleware(commandKeyed("finance.payment_proposal.execute", handleExecutePaymentProposal)))
 	// Stage 26.6.5: bank-file generation + duplicate-UTR check for an
 	// Executed proposal.
 	http.HandleFunc("GET /api/v1/finance/payment-proposal/{id}/payment-file", apiMiddleware(handleGeneratePaymentFile))
@@ -856,7 +859,7 @@ func registerRoutes() {
 	// recurring templates. Submit-for-approval/approve/reject reuse the
 	// generic /api/v1/approval/submit|decide endpoints below (doctype
 	// "JournalVoucher") - no new endpoint needed for that part.
-	http.HandleFunc("POST /api/v1/finance/journal-voucher", apiMiddleware(handleCreateJournalVoucher))
+	http.HandleFunc("POST /api/v1/finance/journal-voucher", apiMiddleware(commandKeyed("finance.journal_voucher.create", handleCreateJournalVoucher)))
 	http.HandleFunc("POST /api/v1/finance/journal-voucher/{id}/reverse", apiMiddleware(handleReverseJournalVoucher))
 	http.HandleFunc("POST /api/v1/finance/journal-voucher/{id}/retry-post", apiMiddleware(handleRetryPostJournalVoucher))
 	http.HandleFunc("POST /api/v1/finance/journal-voucher/recurring", apiMiddleware(handleCreateRecurringJournalTemplate))
@@ -1016,9 +1019,9 @@ func registerRoutes() {
 
 	// HR/Payroll Maturity Sprint (Stage 26.8, module-gated - "hr")
 	http.HandleFunc("GET /api/v1/hr/salary-components", apiMiddleware(moduleGate("hr", handleSalaryComponentsPreview)))
-	http.HandleFunc("POST /api/v1/hr/run-payroll", apiMiddleware(moduleGate("hr", handleRunPayroll)))
+	http.HandleFunc("POST /api/v1/hr/run-payroll", apiMiddleware(moduleGate("hr", commandKeyed("hr.payroll.run", handleRunPayroll))))
 	http.HandleFunc("POST /api/v1/hr/post-payslip", apiMiddleware(moduleGate("hr", handlePostPayslip)))
-	http.HandleFunc("POST /api/v1/hr/disburse-loan", apiMiddleware(moduleGate("hr", handleDisburseEmployeeLoan)))
+	http.HandleFunc("POST /api/v1/hr/disburse-loan", apiMiddleware(moduleGate("hr", commandKeyed("hr.loan.disburse", handleDisburseEmployeeLoan))))
 	http.HandleFunc("GET /api/v1/hr/my-employee", apiMiddleware(moduleGateAny([]string{"hr", "expenses"}, handleMyEmployeeRecord))) // 132.10 (m): Expenses reads it too
 	http.HandleFunc("GET /api/v1/hr/leave-balance", apiMiddleware(moduleGate("hr", handleLeaveBalance)))                            // Stage 55.14
 	// Stage 55.14 guided HR journeys (handlers_hr_journeys.go).
@@ -1047,13 +1050,13 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/attachments/file/{attachmentID}/remove", apiMiddleware(handleRemoveAttachment))
 
 	// CRM / Loyalty (Stage 14.1: module-gated - "crm_loyalty")
-	http.HandleFunc("POST /api/v1/loyalty/redeem", apiMiddleware(moduleGate("crm_loyalty", handleRedeemLoyaltyPoints)))
+	http.HandleFunc("POST /api/v1/loyalty/redeem", apiMiddleware(moduleGate("crm_loyalty", commandKeyed("loyalty.points.redeem", handleRedeemLoyaltyPoints))))
 	http.HandleFunc("GET /api/v1/loyalty/ledger", apiMiddleware(moduleGate("crm_loyalty", handleLoyaltyLedger)))
 	// Stage 26.7.2/26.7.3: voucher redemption (create/list/bulk-issue reuse
 	// the generic doctype/CSV-import endpoints - Voucher is a flat-schema
 	// Master) and the loyalty tier rules admin config.
 	http.HandleFunc("POST /api/v1/crm/voucher/validate", apiMiddleware(moduleGate("crm_loyalty", handleValidateVoucher)))
-	http.HandleFunc("POST /api/v1/crm/voucher/redeem", apiMiddleware(moduleGate("crm_loyalty", handleRedeemVoucher)))
+	http.HandleFunc("POST /api/v1/crm/voucher/redeem", apiMiddleware(moduleGate("crm_loyalty", commandKeyed("crm.voucher.redeem", handleRedeemVoucher))))
 	http.HandleFunc("/api/v1/crm/loyalty-tier-rules", apiMiddleware(moduleGate("crm_loyalty", handleLoyaltyTierRules)))
 	// Stage 26.7.5: OTP + fraud/staff-restriction gated redemption - an
 	// opt-in alternative to the immediate /loyalty/redeem above.

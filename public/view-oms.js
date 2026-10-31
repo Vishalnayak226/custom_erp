@@ -489,7 +489,7 @@ function renderOMSOrderTable(result) {
         </tr></thead>
         <tbody>
         ${rows.length === 0
-          ? `<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:24px;">No orders match this filter. Clear the filters above, use <b>New manual order</b>, or let a channel import create one &mdash; all of them land here.</td></tr>`
+          ? `<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:24px;">No orders match this filter.</td></tr>`
           : rows.map(o => {
             const channel = o.channel || 'Manual';
             const source = `${escapeHTMLText(channel)}${o.channel_order_id ? `<div class="oms-channel-ref" title="The order id in ${escapeHTMLText(channel)}">${escapeHTMLText(o.channel_order_id)}</div>` : ''}`;
@@ -595,7 +595,7 @@ async function runOMSGlobalSearch() {
   if (!res.ok) { await showApiError(res, 'Search failed.'); return; }
   const { results = [] } = await res.json();
   if (results.length === 0) {
-    host.innerHTML = `<div class="text-muted" style="padding:12px 0;">Nothing matched “${escapeHTMLText(query)}”. Order id, channel order id, AWB, phone, customer name and SKU are all searchable.</div>`;
+    host.innerHTML = `<div class="text-muted" style="padding:12px 0;">Nothing matched “${escapeHTMLText(query)}”.</div>`;
     return;
   }
   host.innerHTML = `
@@ -759,7 +759,7 @@ window.openOMSOrderDetail = async function(orderID) {
           <button class="btn btn-outline btn-sm" data-action="split"${terminal ? ' disabled' : ''}>Split selected lines</button>
           <button class="btn btn-outline btn-sm" data-action="cancel"${terminal ? ' disabled' : ''}>Cancel order</button>
         </div>
-        ${terminal ? `<p class="text-muted oms-detail-empty">This order is ${escapeHTMLText(status)}, so its actions are closed. A tenant can reopen any of them by configuring a StatusTransitionRule.</p>` : ''}
+        ${terminal ? `<p class="text-muted oms-detail-empty">This order is ${escapeHTMLText(status)}, so its actions are closed.</p>` : ''}
 
         <h4 class="oms-detail-heading">Lines <span class="text-muted">(${(d.lines || []).length})</span></h4>
         <div class="table-wrapper"><table>
@@ -923,7 +923,7 @@ function openOMSOrderLinesEdit(orderID, lines, onSaved) {
         </div>
         <div class="form-group"><label class="form-label" for="oms-lines-reason">Reason (kept on the order's history)</label>
           <input id="oms-lines-reason" class="form-input" placeholder="e.g. customer called to add a second pair"></div>
-        <p class="text-muted">Lines change only until the warehouse starts picking and before the order is invoiced. More stock is reserved for any increase; if the confirmed payment no longer covers the new total, the order waits for payment.</p>
+        <p class="text-muted">If payment no longer covers it, the order waits for payment.</p>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-lines-cancel>Cancel</button>
@@ -1057,7 +1057,7 @@ function openOMSReplacement(orderID, lines) {
         </table></div>
         <div class="form-group"><label class="form-label" for="oms-repl-reason">Reason</label>
           <input id="oms-repl-reason" class="form-input" placeholder="e.g. courier lost the parcel"></div>
-        <p class="text-muted">The new order is free of charge, ships from available stock and links both ways. Collect the damaged or wrong item with a return request.</p>
+        <p class="text-muted">Free of charge; ships from available stock.</p>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-repl-cancel>Cancel</button>
@@ -1126,7 +1126,7 @@ function openOMSOrderEdit(orderID, order, onSaved) {
           <select id="oms-edit-payment" class="form-input">
             ${['Pending', 'Confirmed', 'COD'].map(v => `<option value="${v}"${order.payment_status === v ? ' selected' : ''}>${v}</option>`).join('')}
           </select></div>
-        <p class="text-muted">Saving re-runs the same address and payment checks a new order goes through. If the edit leaves the order unfulfillable it is placed On Hold with a reason rather than saved silently broken.</p>
+        <p class="text-muted">An unfulfillable edit puts the order On Hold.</p>
       </form>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-edit-cancel>Cancel</button>
@@ -1226,12 +1226,12 @@ function renderManualOrderPanel(panel) {
     </div>
     <div class="table-wrapper">
       <table class="po-lines">
-        <thead><tr><th style="min-width:200px;">Item</th><th class="num" style="width:90px;">Qty</th><th class="num" style="width:130px;">Unit price</th><th style="width:36px;"></th></tr></thead>
+        <thead><tr><th style="min-width:200px;">Item</th><th class="num" style="width:90px;">Available</th><th class="num" style="width:90px;">Qty</th><th class="num" style="width:130px;">Unit price</th><th style="width:36px;"></th></tr></thead>
         <tbody id="mo-lines-body"></tbody>
       </table>
     </div>
     <div class="po-footer">
-      <div class="po-total-hint" id="mo-hint">The order appears in the table below the moment it is created, with its source and reference shown.</div>
+      <div class="po-total-hint" id="mo-hint"></div>
       <div class="po-actions">
         <div id="mo-error" class="login-error hidden"></div>
         <button class="btn btn-primary" id="mo-create">Create Order</button>
@@ -1259,7 +1259,8 @@ function renderManualOrderLines() {
   if (!body) return;
   body.innerHTML = manualOrderLines.map((l, i) => `
     <tr data-mo-line="${i}">
-      <td><input type="text" class="form-input" data-mo-field="sku" value="${escapeHTMLText(l.sku)}" placeholder="Search item..." aria-label="Item for line ${i + 1}"></td>
+      <td><input type="text" class="form-input" data-mo-field="sku" value="${escapeHTMLText(l.sku)}" placeholder="Design, Combination ID or barcode" aria-label="Item for line ${i + 1}"></td>
+      <td class="num" style="vertical-align:middle;" data-mo-avail="${i}" title="${escapeHTMLText(l.availTitle || '')}">${manualOrderAvailHTML(l.avail)}</td>
       <td><input type="number" class="form-input num" data-mo-field="qty" min="1" step="1" value="${escapeHTMLText(l.qty)}" aria-label="Quantity for line ${i + 1}"></td>
       <td><input type="number" class="form-input num" data-mo-field="unit_price" min="0" step="0.01" value="${escapeHTMLText(l.unit_price)}" aria-label="Unit price for line ${i + 1}"></td>
       <td><button type="button" class="po-line-remove" data-mo-remove="${i}" aria-label="Remove line ${i + 1}">&times;</button></td>
@@ -1273,6 +1274,7 @@ function renderManualOrderLines() {
       const commit = () => { manualOrderLines[i][field] = input.value.trim(); };
       input.addEventListener('change', commit);
       input.addEventListener('blur', commit);
+      if (field === 'sku') input.addEventListener('change', () => fillManualOrderItem(i, input.value.trim()));
     });
   });
   body.querySelectorAll('[data-mo-remove]').forEach(btn => {
@@ -1282,6 +1284,42 @@ function renderManualOrderLines() {
       renderManualOrderLines();
     });
   });
+}
+
+// Stage 147.1: a picked item shows what can be sold - every store and
+// warehouse, as the order is sourced from any of them, by store on hover -
+// and fills its price (sale price, else MRP, as Sales Invoice does).
+function manualOrderAvailHTML(avail) {
+  if (avail === undefined || avail === null || avail === '') return '';
+  return Number(avail) > 0 ? escapeHTMLText(String(avail)) : '<span class="badge badge-danger">0</span>';
+}
+
+async function fillManualOrderItem(i, sku) {
+  const line = manualOrderLines[i];
+  if (!line || line.filledSku === sku) return; // a pick fires change twice
+  line.filledSku = sku;
+  const row = () => document.querySelector(`[data-mo-line="${i}"]`);
+  const show = (avail, title = '') => {
+    line.avail = avail; line.availTitle = title;
+    const cell = row()?.querySelector('[data-mo-avail]');
+    if (cell) { cell.innerHTML = manualOrderAvailHTML(avail); cell.title = title; }
+  };
+  const item = sku ? await lookupLinkDoc('Item', sku) : null;
+  if (manualOrderLines[i] !== line || line.sku !== sku) return;
+  if (!item) { show(''); return; }
+  const price = Number(item.sale_price || item.price || item.mrp) || 0;
+  if (price > 0) {
+    line.unit_price = String(price);
+    const input = row()?.querySelector('[data-mo-field="unit_price"]');
+    if (input) input.value = String(price);
+  }
+  const res = await apiFetch(`/api/v1/availability?sku=${encodeURIComponent(item.code || item.id || sku)}`).catch(() => null);
+  if (manualOrderLines[i] !== line || line.sku !== sku || !res || !res.ok) return;
+  const data = await res.json();
+  const top = (data.locations || []).slice(0, 6);
+  const names = await Promise.all(top.map(l => lookupLinkDoc('Location', l.location_code).then(d => linkDisplayName(d) || l.location_code)));
+  const more = (data.locations || []).length - top.length;
+  show(Number(data.ats) || 0, top.map((l, k) => `${names[k]} ${l.ats}`).join(' · ') + (more > 0 ? ` · +${more} more` : ''));
 }
 
 async function createManualOrder() {
@@ -1420,7 +1458,7 @@ async function renderOMSSettlementsView(container) {
       </thead>
       <tbody>
         ${settlements.length === 0
-          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No settlements yet. Click <b>+ Reconcile Payout</b> once a marketplace payout file is available.</td></tr>`
+          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No settlements yet.</td></tr>`
           : settlements.map(s => `
             <tr>
               <td style="font-family: monospace;">${s.code || s.id}</td>
@@ -1462,7 +1500,7 @@ function renderOMSSettlementOrderSelection() {
   if (!host) return;
   host.innerHTML = omsSettlementOrderIDs.length
     ? omsSettlementOrderIDs.map(id => `<span class="badge badge-secondary" style="margin:4px 4px 0 0;">${escapeHTMLText(id)} <button type="button" class="action-btn" data-remove-settlement-order="${escapeHTMLText(id)}" aria-label="Remove order ${escapeHTMLText(id)}">×</button></span>`).join('')
-    : '<small class="text-muted">Choose saved orders; no comma-separated IDs needed.</small>';
+    : '<small class="text-muted">No orders chosen.</small>';
   host.querySelectorAll('[data-remove-settlement-order]').forEach(button => button.addEventListener('click', () => {
     omsSettlementOrderIDs = omsSettlementOrderIDs.filter(id => id !== button.dataset.removeSettlementOrder);
     renderOMSSettlementOrderSelection();

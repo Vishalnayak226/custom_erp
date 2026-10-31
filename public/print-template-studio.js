@@ -378,7 +378,10 @@ function renderTop() {
   q('versions')?.addEventListener('click', showVersions);
   q('close').addEventListener('click', closeStudio);
   // Stage 127.2: a test print goes where a real one would, with no browser dialog once set up.
-  q('test').addEventListener('click', () => T.printLayout(S.txn, S.layout, S.sample));
+  // Stage 143.4: it shows the pages first; Print there prints them.
+  q('test').addEventListener('click', async () => {
+    if (await T.previewLayout(S.layout, S.sample, 'Test print')) T.printLayout(S.txn, S.layout, S.sample);
+  });
   const sampleEl = q('sample');
   const doctype = (T.TRANSACTIONS.find(t => t.key === S.txn) || {}).doctype;
   if (window.attachLinkTypeahead && doctype) window.attachLinkTypeahead(sampleEl, doctype);
@@ -566,10 +569,7 @@ function templateInspector() {
     <div class="form-group"><label class="form-label">Only for vendor</label><input class="form-input" data-tm="vendor" value="${esc(S.vendor)}" placeholder="any vendor"></div>
     <div class="form-group"><label class="form-label">Only for designs / families</label><input class="form-input" data-tm="families" value="${esc(S.families)}" placeholder="any - comma-separated"></div>
     <div class="form-group"><label class="form-label">Only for categories</label><input class="form-input" data-tm="categories" value="${esc(S.categories)}" placeholder="any - comma-separated"></div>
-    <div class="form-group"><label class="form-label">Status</label><select class="form-input" data-tm="status">${opt('Active', 'Active', S.status)}${opt('Inactive', 'Inactive', S.status)}</select></div>
-    <p class="pts-hint">When printing, the most specific template that fits is offered first: vendor, then design / family, then category, then the default. The brand name always prints - if this layout does not place it, it goes at the top of every page.</p>
-    <div class="pts-section-title">How to</div>
-    <p class="pts-hint">Drag a field from the left onto the page. Drop line fields (or item master fields) onto the items table to add a column. Arrows move 0.5 mm, Shift+arrows 5 mm, Alt while dragging skips snapping, Delete removes, Ctrl+D duplicates, Ctrl+Z undoes, Ctrl+S saves.</p>`;
+    <div class="form-group"><label class="form-label">Status</label><select class="form-input" data-tm="status">${opt('Active', 'Active', S.status)}${opt('Inactive', 'Inactive', S.status)}</select></div>`;
 }
 
 function elementInspector(el) {
@@ -629,8 +629,7 @@ function elementInspector(el) {
             <div class="pts-col-under">${(c.under || []).map((u, j) => `<span class="pts-chip">${esc(u)} <button type="button" data-underdel="${i}" data-j="${j}" title="Remove this line">&times;</button></span>`).join('')}
               <select class="form-input" data-underadd="${i}" aria-label="Add a line under this column"><option value="">+ line under...</option>${(S.catalog.line || []).map(f => opt(f.key, `${f.group}: ${f.label}`, '')).join('')}</select></div>
           </div>`).join('')}</div>
-        <div class="form-group" style="margin-top:8px;"><label class="form-label">Add column</label><select class="form-input" data-addcol><option value="">Choose...</option>${(S.catalog.line || []).map(f => opt(f.key, `${f.group}: ${f.label}`, '')).join('')}</select></div>
-        <p class="pts-hint">Rows that do not fit continue on the next page with the column headings repeated. Everything above the table prints on the first page only, everything below it (tax summary, totals, signatures) on the last page only.</p>`;
+        <div class="form-group" style="margin-top:8px;"><label class="form-label">Add column</label><select class="form-input" data-addcol><option value="">Choose...</option>${(S.catalog.line || []).map(f => opt(f.key, `${f.group}: ${f.label}`, '')).join('')}</select></div>`;
       break;
     case 'totals': {
       const rows = el.rows && el.rows.length ? el.rows : T.DEFAULT_TOTAL_ROWS;
@@ -640,11 +639,7 @@ function elementInspector(el) {
       break;
     }
     case 'qr':
-      extra = `<div class="form-group"><label class="form-label">Value to encode</label><select class="form-input" data-prop="key">${headerFields.map(f => opt(f.key, `${f.group}: ${f.label}`, el.key)).join('')}</select></div>
-        <p class="pts-hint">Prints nothing while the value is blank - an e-invoice QR appears once the IRP has acknowledged the document.</p>`;
-      break;
-    case 'taxSummary':
-      extra = '<p class="pts-hint">One row per GST rate: taxable value with CGST + SGST within a state, or IGST across states - chosen automatically per document.</p>';
+      extra = `<div class="form-group"><label class="form-label">Value to encode</label><select class="form-input" data-prop="key">${headerFields.map(f => opt(f.key, `${f.group}: ${f.label}`, el.key)).join('')}</select></div>`;
       break;
   }
   return `${common}${extra}
@@ -802,7 +797,7 @@ export async function renderPrintTemplateGallery(container, { only = null, title
             </div>`).join('')}
           <div class="pts-card">
             <h3>Standard layout <span class="badge badge-secondary">Built-in</span></h3>
-            <div class="pts-card-meta">${list.length ? 'Used when none of the templates above fits.' : 'Used today - nothing customised yet.'} Brand, store and vendor blocks, items, GST split, totals, amount in words, signature.</div>
+            <div class="pts-card-meta">${list.length ? 'Used when none above fits.' : 'In use - not customised yet.'}</div>
             <div class="pts-card-actions"><button type="button" class="btn btn-outline btn-sm" data-gal-std="${t.key}">Customise</button></div>
           </div>
         </div>`;

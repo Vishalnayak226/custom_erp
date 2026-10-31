@@ -37,7 +37,7 @@ var egressKinds = map[string]*regexp.Regexp{
 	"default-client": regexp.MustCompile(`\bhttp\.Default(Client|Transport)\b`),
 	"http-request":   regexp.MustCompile(`\bhttp\.NewRequest(WithContext)?\(`),
 	"http-shorthand": regexp.MustCompile(`\bhttp\.(Get|Post|PostForm|Head)\(`),
-	"dial":           regexp.MustCompile(`\bnet\.Dial(Timeout)?\(|\bnet\.Dialer\{|\btls\.Dial(WithDialer)?\(`),
+	"dial":           regexp.MustCompile(`\bnet\.Dial(Timeout)?\(|\bnet\.Dialer\{|\btls\.(Dial(WithDialer)?|Client)\(`),
 	"smtp":           regexp.MustCompile(`\bsmtp\.(SendMail|Dial|NewClient)\(`),
 	"dns":            regexp.MustCompile(`\bnet\.(Lookup[A-Za-z]+\(|DefaultResolver\b)`),
 }
@@ -150,6 +150,19 @@ var reviewedEgress = map[string]egressEntry{
 		KillSwitch: `Not switched: the drive is the client's own storage, not a message to a third party,
 			and media reads and writes are part of saving a product.`,
 		Evidence: []string{"guardedDial("},
+	},
+	"engines/cert_expiry.go": {
+		Uses: map[string]int{"dial": 1},
+		Destination: `This platform's own public addresses (the https origins in CORS_ALLOWED_ORIGINS and each
+			client's <slug>.<TENANT_BASE_DOMAIN>): a TLS handshake that reads the certificate's expiry for
+			the Control Panel and CERT_EXPIRING (Stage 49.11.7). Nothing is sent after the handshake.`,
+		Guard: `The outbound guard's dial (outboundDial): an address resolving inside the network is
+			refused; the handshake verifies as usual (no InsecureSkipVerify) and reads an untrusted or
+			expired certificate's date from the verification error. 8 s per host, four at a time, at most
+			200 hosts.`,
+		KillSwitch: `Only where outside calls run - production or ERP_ENABLE_EXTERNAL_SIDE_EFFECTS=1 - and
+			not under the emergency switch (ExternalSideEffectsEnabled).`,
+		Evidence: []string{"outboundDial", viaKillCheck},
 	},
 	"engines/alerting.go": {
 		Uses:        map[string]int{"http-client": 1, "http-request": 1},

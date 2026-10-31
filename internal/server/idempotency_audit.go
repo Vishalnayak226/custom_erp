@@ -167,6 +167,9 @@ func IdempotencyAuditRows(routesGo, handlerDir string) ([]IdempotencyAuditRow, e
 		switch {
 		case strings.HasPrefix(rt.Path, "/api/public/"):
 			row.Key, row.Window = "yes (Idempotency-Key header, required)", "public API retention (BeginIdempotentRequest)"
+		case rt.CommandKey != "":
+			// Stage 49.4.7a: the route's commandKeyed wrapper claims the key.
+			row.Key, row.Window = "yes (command key `"+rt.CommandKey+"`)", "7 days (command claim)"
 		case idempotencyKeyedSource.MatchString(src):
 			row.Key, row.Window = "yes (command key)", "7 days (command claim)"
 			if !strings.Contains(src, "ClaimCommand(") {
@@ -257,6 +260,14 @@ new document each time (a journal voucher, an adjustment) is the case a key
 exists for. Each finding is therefore either given a key through
 ` + "`engines.ClaimCommand`" + ` (as checkout, returns and offline sales are) or justified
 in the tracker item that closes it; the list below is the open work.
+
+Stage 49.4.7a keyed the commands that create a new money or stock record each
+time they run - journal voucher create, payment-proposal execute, payroll run,
+loan disbursement, stock adjustment create, POS advance, gift card issue,
+loyalty and voucher redemption - through ` + "`commandKeyed`" + ` in routes.go
+(internal/server/command_keys.go): an ` + "`Idempotency-Key`" + ` header or an
+` + "`idempotency_key`" + ` body field. The findings left are commands that move an
+existing record on, guarded by that record's status.
 
 `)
 	fmt.Fprintf(&b, "Routes audited: **%d**; keyed: **%d**; findings (money / stock without a key): **%d**.\n\n", len(rows), keyed, len(findings))

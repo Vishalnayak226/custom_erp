@@ -25,8 +25,11 @@ type RouteAccess struct {
 	Handler     string
 	ModuleGate  string
 	FeatureGate string
-	Level       string // public, signed-in, admin, background, or no session
-	Capability  string
+	// CommandKey is the command name the route's commandKeyed wrapper claims
+	// its key under (Stage 49.4.7a); "" when the route has none.
+	CommandKey string
+	Level      string // public, signed-in, admin, background, or no session
+	Capability string
 	// Roles are the role names checkRouteCapability allows; nil means every
 	// signed-in role (or, for public routes, anyone).
 	Roles  []string
@@ -37,6 +40,7 @@ var (
 	inventoryRouteLine = regexp.MustCompile(`http\.HandleFunc\(\s*"((?:([A-Z]+) )?([^"]+))"\s*,\s*(.*)$`)
 	inventoryGate      = regexp.MustCompile(`(moduleGate|featureGate)\("([^"]+)"`)
 	inventoryHandler   = regexp.MustCompile(`\b(handle[A-Za-z0-9_]*)\b`)
+	inventoryCmdKey    = regexp.MustCompile(`commandKeyed\("([^"]+)"`)
 )
 
 // InventoryRoles is every role the inventory evaluates: Super Admin, a
@@ -80,6 +84,9 @@ func RouteAccessTable(routesGo string) ([]RouteAccess, error) {
 			} else {
 				route.FeatureGate = gate[2]
 			}
+		}
+		if k := inventoryCmdKey.FindStringSubmatch(m[4]); k != nil {
+			route.CommandKey = k[1]
 		}
 		if h := inventoryHandler.FindAllString(m[4], -1); len(h) > 0 {
 			route.Handler = h[len(h)-1]

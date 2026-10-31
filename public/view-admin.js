@@ -1034,7 +1034,6 @@ async function renderExtensionHooksView(container) {
   tokenPanel.style.padding = '24px';
   tokenPanel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">Issue an Extension Token</h2>
-    <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">Scoped read-only credential for a client's own hired developer - locked to one tenant + one doctype, no role, cannot log into the UI.</p>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="token-scope-doctype">Scope Doctype</label>
@@ -1598,10 +1597,11 @@ async function renderSetupPathPanel(host) {
   const next = remaining > 0 ? steps.find(s => s.next && !s.done) : null;
   const badge = s => s.done ? ['badge-success', 'Done'] : s.next ? ['badge-warning', 'Next']
     : s.optional ? ['', 'Optional'] : s.waiting_for.length ? ['', 'Waiting'] : ['', 'To do'];
+  const toCheck = steps.reduce((n, s) => n + setupFailingChecks(s).length, 0);
   details.innerHTML = `
-    <summary style="cursor:pointer;font-weight:600;">Guided setup - ${remaining === 0 ? 'everything a client needs is in place' : `${remaining} step${remaining === 1 ? '' : 's'} to go`}${next
+    <summary style="cursor:pointer;font-weight:600;">Guided setup - ${remaining === 0 ? 'everything a client needs is in place' : `${remaining} step${remaining === 1 ? '' : 's'} to go`}${toCheck
+      ? ` <span class="badge badge-warning" style="margin-left:6px;">${toCheck} to check</span>` : ''}${next
       ? ` <span class="text-muted" style="font-weight:400;">· Next: ${escapeHTMLText(next.label)}</span> <button type="button" class="btn btn-primary btn-sm" data-setup-next style="margin-left:10px;">Continue</button>` : ''}</summary>
-    <p class="text-muted" style="margin:8px 0 0;">Work down the list: each step opens a plain form, and every code is given for you on save. Come back here any time - it picks up where you are.</p>
     <ol style="margin:12px 0 0;padding-left:20px;display:grid;gap:10px;">${steps.map(s => {
       const [cls, text] = badge(s);
       return `<li data-step-id="${escapeHTMLText(s.id)}"${s.next ? ' style="font-weight:500;"' : ''}>
@@ -1612,6 +1612,7 @@ async function renderSetupPathPanel(host) {
           ? `<button class="${s.next ? 'btn btn-primary btn-sm' : 'action-btn'}" data-setup-view="${escapeHTMLText(s.view)}">${s.next ? 'Start here' : 'Open'}</button>`
           : (s.doctypes || []).map(dt => `<button class="${s.next ? 'btn btn-primary btn-sm' : 'action-btn'}" data-setup-doctype="${escapeHTMLText(dt)}">${escapeHTMLText(getDoctypeLabel(dt))}</button>`).join(' ')}
         ${s.note ? `<div class="text-muted" style="font-size:12.5px;margin-top:2px;">${escapeHTMLText(s.note)}</div>` : ''}
+        ${setupCheckLines(s)}
       </li>`;
     }).join('')}</ol>`;
   host.replaceChildren(details);
@@ -1629,6 +1630,28 @@ async function renderSetupPathPanel(host) {
     const target = row && row.querySelector('[data-setup-view], [data-setup-doctype]');
     if (target) target.click(); else details.open = true;
   });
+}
+
+// Stage 47.16.4h.2 (47.12.4's screen part): what a step's records still fail,
+// from the same checks GET /api/v1/setup/path returns. A warning never holds
+// the step; a blocking check is shown once the step has records - on a step
+// not started its "none yet" is already the To do badge.
+function setupFailingChecks(s) {
+  const started = s.state !== 'Draft' && s.state !== 'Waived';
+  return (s.checks || []).filter(c => !c.passed && (c.severity !== 'Blocking' || started));
+}
+
+function setupCheckLines(s) {
+  const lines = setupFailingChecks(s).map(c => {
+    const warn = c.severity !== 'Blocking';
+    return `<div data-setup-check="${escapeHTMLText(c.id)}" style="font-size:12.5px;margin-top:4px;font-weight:400;">
+      <span class="badge ${warn ? 'badge-warning' : 'badge-danger'}">${warn ? 'Warning' : 'Fix'}</span>
+      ${escapeHTMLText(c.label)}${c.detail ? `<span class="text-muted"> - ${escapeHTMLText(c.detail)}</span>` : ''}</div>`;
+  });
+  if (s.state === 'Awaiting Approval') {
+    lines.unshift('<div style="font-size:12.5px;margin-top:4px;font-weight:400;"><span class="badge">Awaiting approval</span></div>');
+  }
+  return lines.join('');
 }
 
 // mountSetupGuideCard (91.3) puts "finish setting up" on an admin's Home
@@ -2067,14 +2090,12 @@ function configIntegrationSectionHtml(def, rows, unavailable) {
   return `
     <section style="margin-bottom:30px; max-width:760px;" data-cfgint-section="${cfgEsc(def.id)}">
       <h3 style="margin:0 0 4px; font-size:15px; font-weight:600;">${cfgEsc(def.title)}</h3>
-      <p class="page-subtitle" style="margin:0 0 4px; font-size:12.5px;">${cfgEsc(def.blurb)}</p>
       ${existing}
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 16px;">${inputs}
         <div class="form-group" style="margin:0 0 12px;"><label class="form-label" for="cfgint-${def.id}-expires_at">Expires (optional)</label>
           <input type="date" class="form-input" id="cfgint-${def.id}-expires_at"></div>
       </div>
       <button class="btn btn-secondary" id="cfgint-save-${def.id}">Save ${cfgEsc(def.title.split(' ')[0])} entry</button>
-      <span class="page-subtitle" style="margin-left:10px; font-size:12.5px;">Saving an existing ${cfgEsc(def.keyField.replace('_', ' '))} updates it in place.</span>
     </section>`;
 }
 
@@ -2090,7 +2111,8 @@ function wireConfigIntegrationSection(def) {
     b.disabled = false;
     if (!res) return;
     if (!res.ok) { await showApiError(res, 'Could not disconnect.'); return; }
-    showToast(`${code} disconnected.`, { variant: 'success' });
+    const out = await res.json().catch(() => ({}));
+    showToast(out.warning ? `${code} disconnected. ${out.warning}` : `${code} disconnected.`, { variant: out.warning ? 'warning' : 'success' });
     renderConfigFields();
   }));
   btn.addEventListener('click', async () => {
@@ -2480,7 +2502,7 @@ async function renderTenantEntitlementsView(container) {
         <div class="form-group" style="margin-bottom:0;">
           <label class="form-label" for="provision-trial-days">Free trial (days)</label>
           <input type="number" id="provision-trial-days" class="form-input" min="0" max="365" value="30" style="width:140px;">
-          <div class="text-muted" style="font-size:11px; margin-top:4px;">Empty or 0 for a paying client. When the trial ends the client is paused until you extend it or mark it paid (Control Panel).</div>
+          <div class="text-muted" style="font-size:11px; margin-top:4px;">0 = paying client; paused when the trial ends.</div>
         </div>
       </div>
       <div>
@@ -2564,7 +2586,6 @@ async function renderTenantEntitlementsView(container) {
     bodyContainer.innerHTML = `
       <div class="table-panel" style="margin-top:20px;">
         <h3 style="font-size:16px; font-weight:600; margin-bottom:4px; padding:16px 16px 0;">Apply a Plan</h3>
-        <p style="font-size:12px; color:var(--text-muted); margin:0; padding: 0 16px 12px;">Enables that plan's modules and disables every other optional module for this tenant.</p>
         <div style="padding:0 16px 16px; display:flex; flex-wrap:wrap; gap:8px;">
           ${packages.map(p => `<button class="btn btn-outline btn-sm" title="${(p.modules || []).join(', ')}" ${actionAttrs('applyTenantPackage', [tenantId, p.package_key])}>${p.display_name}</button>`).join('')}
         </div>
@@ -2902,7 +2923,7 @@ function openConsoleEditor(results, row) {
   editor.innerHTML = `
     <div style="border-top: 1px solid var(--border-color); margin-top: 16px; padding-top: 12px;">
       <h3 style="margin: 0 0 8px;">Edit ${escapeHTMLText(page.table)} ${escapeHTMLText(Object.values(key).join(' / '))}</h3>
-      <p class="text-muted">Saved exactly as entered - the record's own screen rules are not re-run, so check the values. Hidden values keep what is stored.</p>
+      <p class="text-muted">Screen rules are not re-run.</p>
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">${page.columns.map(fieldFor).join('')}</div>
       <div style="display: flex; gap: 8px; margin-top: 12px;">
         <button class="btn btn-primary" id="pc-save">Save changes</button>

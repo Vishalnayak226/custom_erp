@@ -21,7 +21,7 @@ import (
 
 // VendoredAsset is one third-party file found under public/.
 type VendoredAsset struct {
-	Path   string // repository-relative, forward slashes: public/qrcode.min.js
+	Path   string // repository-relative, forward slashes: public/vendor/x.min.js
 	Bytes  int64
 	SHA256 string
 }

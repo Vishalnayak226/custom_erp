@@ -133,7 +133,7 @@ async function renderPending(container) {
     <div class="table-wrapper"><table>
       <thead><tr><th style="width:32px;"><input type="checkbox" data-pending-all aria-label="Select every pending order"></th>
         <th>Order</th><th>Source</th><th>Customer</th><th class="num">Lines</th><th>Location</th><th>Waiting</th><th class="num">Value</th><th>Actions</th></tr></thead>
-      <tbody>${rows.length === 0 ? emptyRow(9, 'No order is waiting. Channel and website orders land here once their stock is reserved; Accept sends them to Pick.') : rows.map(o => `<tr>
+      <tbody>${rows.length === 0 ? emptyRow(9, 'No order is waiting.') : rows.map(o => `<tr>
         <td><input type="checkbox" data-pending-pick="${esc(o.order_id)}" aria-label="Select order ${esc(o.order_number || o.order_id)}"${pendingSelected.has(o.order_id) ? ' checked' : ''}></td>
         <td class="oms-mono">${esc(o.order_number || o.order_id)}${o.priority === 'Expedite' ? '<div class="badge badge-warning">Expedite</div>' : ''}${o.acceptance_status === 'Accepted' ? '<div class="badge badge-secondary" title="Accepted before, then changed - accepting it again re-releases it without telling the channel twice">Changed after acceptance</div>' : ''}</td>
         <td>${esc(o.channel || 'Manual')}${o.channel_order_id ? `<div class="oms-channel-ref">${esc(o.channel_order_id)}</div>` : ''}</td>
@@ -199,7 +199,6 @@ async function renderOnHold(container) {
   const host = panel(container);
   host.innerHTML = `
     <div class="oms-console-head"><h2>On hold · ${rows.length}</h2></div>
-    <p class="text-muted oms-step-note" style="margin:0 0 10px;">Arrived, but not reserved yet. Fix the cause (receive the stock, confirm the payment, complete the address) and click Retry; the order then comes to the list above.</p>
     <div class="table-wrapper"><table>
       <thead><tr><th>Order</th><th>Source</th><th>Customer</th><th class="num">Lines</th><th>Why</th><th>Waiting</th><th class="num">Value</th><th>Actions</th></tr></thead>
       <tbody>${rows.map(o => `<tr>
@@ -356,7 +355,7 @@ async function renderPick(container) {
     <div class="oms-facets">${locationFilter(open, stepLocation)}</div>
     <div class="table-wrapper"><table>
       <thead><tr><th>Order</th><th>Location</th><th class="num">To pick</th><th>Status</th><th>Waiting</th><th>Actions</th></tr></thead>
-      <tbody>${shown.length === 0 ? emptyRow(6, 'Nothing to pick. Orders appear here once they are accepted on Pending Orders; fully picked ones move to Pack.') : shown.map(t => {
+      <tbody>${shown.length === 0 ? emptyRow(6, 'Nothing to pick.') : shown.map(t => {
         const left = taskItems(t).reduce((n, it) => n + lineLeft(it), 0);
         const total = taskItems(t).reduce((n, it) => n + num(it.qty), 0);
         const actions = t.wave_id
@@ -535,7 +534,7 @@ async function renderPack(container) {
     <div class="oms-facets">${locationFilter(work, stepLocation)}</div>
     <div class="table-wrapper"><table>
       <thead><tr><th>Order</th><th>Location</th><th class="num">Units</th><th>Status</th><th>Actions</th></tr></thead>
-      <tbody>${shown.length === 0 ? emptyRow(5, 'Nothing to pack. Tasks arrive here once every line is picked on Pick.') : shown.map(t => {
+      <tbody>${shown.length === 0 ? emptyRow(5, 'Nothing to pack.') : shown.map(t => {
         const units = taskItems(t).reduce((n, it) => n + num(it.picked_qty), 0);
         const packed = t.status === 'Packed';
         return `<tr><td>${orderCell(t.order_id, orders[t.order_id], taskID(t))}</td><td>${esc(t.location_code || '—')}</td>
@@ -667,7 +666,7 @@ async function renderShip(container) {
   const book = panel(container, `<h2 class="oms-step-heading">Book the courier <span class="text-muted">(${toBook.length})</span></h2>
     <div class="table-wrapper"><table>
       <thead><tr><th>Order</th><th>Location</th><th>Pincode</th><th>Courier</th><th></th></tr></thead>
-      <tbody>${toBook.length === 0 ? emptyRow(5, 'Every packed parcel has a courier. A parcel packed without one waits here.') : toBook.map(t => {
+      <tbody>${toBook.length === 0 ? emptyRow(5, 'Every packed parcel has a courier.') : toBook.map(t => {
         const id = taskID(t), o = orders[t.order_id];
         const pin = context && context.fulfillment_task_id === id && context.destination_pincode ? context.destination_pincode : orderPincode(o);
         return `<tr data-book-row="${esc(id)}"><td>${orderCell(t.order_id, o, id)}</td><td>${esc(t.location_code || '—')}</td>
@@ -736,7 +735,7 @@ async function renderShip(container) {
   };
   const head = '<thead><tr><th>Manifest</th><th>Courier</th><th>Location</th><th class="num">Parcels</th><th>Gate pass</th><th>Status</th><th></th></tr></thead>';
   const man = panel(container, `<h2 class="oms-step-heading">Manifests <span class="text-muted">(${openManifests.length} open)</span></h2>
-    <div class="table-wrapper"><table>${head}<tbody>${openManifests.length === 0 ? emptyRow(7, 'No open manifest. Make one from the booked parcels above.') : openManifests.map(manifestRow).join('')}</tbody></table></div>
+    <div class="table-wrapper"><table>${head}<tbody>${openManifests.length === 0 ? emptyRow(7, 'No open manifest.') : openManifests.map(manifestRow).join('')}</tbody></table></div>
     ${handed.length ? `<details class="oms-related-docs"><summary>Handed over (last ${handed.length})</summary><div class="table-wrapper"><table>${head}<tbody>${handed.map(manifestRow).join('')}</tbody></table></div></details>` : ''}`);
   man.querySelectorAll('[data-gp-new]').forEach(btn => btn.addEventListener('click', () => newGatePass(btn.dataset.gpNew, btn.dataset.gpLoc)));
   man.querySelectorAll('[data-gp-issue]').forEach(btn => btn.addEventListener('click', async () => {

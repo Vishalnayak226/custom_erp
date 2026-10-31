@@ -162,7 +162,7 @@ func TestStage47164bLedgerRowsTheDatabaseWillNotChange(t *testing.T) {
 		t.Fatalf("suspend: %v", err)
 	}
 	exec(`INSERT INTO public.backup_runs (scope, tenant_schema, outcome, finished_at) VALUES ('tenant', $1, 'Success', NOW())`, schema)
-	if _, err := ResetTenantData(tenantID, "test", "G2 reset"); err != nil {
+	if _, err := ResetTenantData(tenantID, "test", "G2 reset", approvedClientRemoval(t, tenantID, ClientRemovalReset)); err != nil {
 		t.Fatalf("reset: %v", err)
 	}
 	var left int

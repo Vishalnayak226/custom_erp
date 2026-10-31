@@ -22,8 +22,9 @@ import (
 // number formats go back to the shipped ones.
 //
 // It runs from tenantctl only (operator authority, never a route): dry run by
-// default, refused unless the client is suspended and a backup from the last
-// 24 hours exists, one transaction, and evidenced in tenant_lifecycle_events.
+// default, refused unless the client is suspended, a backup from the last
+// 24 hours exists and (Stage 49.10.6b) a second admin approved the request,
+// one transaction, and evidenced in tenant_lifecycle_events.
 // Every table of the client is classified below; a table that is not - one
 // added after this was written - makes it refuse, so nothing new is ever
 // wiped or kept by accident (TestTenantResetClassifiesEveryTable).
@@ -313,8 +314,10 @@ func tenantResetTables(q queryRower, schema string) ([]string, error) {
 }
 
 // ResetTenantData applies the plan in one transaction. It refuses while any
-// blocker stands; reason and actor go into the evidence row.
-func ResetTenantData(tenantID, actor, reason string) (*TenantResetPlan, error) {
+// blocker stands, and (Stage 49.10.6b) without requestID: a reset request
+// another admin approved (engines/client_removal_approval.go), spent here.
+// Reason, actor and both people go into the evidence row.
+func ResetTenantData(tenantID, actor, reason, requestID string) (*TenantResetPlan, error) {
 	if strings.TrimSpace(reason) == "" {
 		return nil, fmt.Errorf("a reason is required and is recorded in the client's evidence trail")
 	}
@@ -331,7 +334,12 @@ func ResetTenantData(tenantID, actor, reason string) (*TenantResetPlan, error) {
 		return nil, err
 	}
 	defer tx.Rollback()
-	// Stage 47.16.4b: the one sanctioned delete of ledger rows.
+	approval, err := spendClientRemovalApprovalTx(tx, tenantID, ClientRemovalReset, requestID, actor)
+	if err != nil {
+		return plan, fmt.Errorf("not reset: %w", err)
+	}
+	// Stage 47.16.4b: the one sanctioned delete of ledger rows - and, from
+	// 47.16.4g, of gift card events.
 	if err := sanctionWriteTx(tx, sanctionPurge); err != nil {
 		return nil, err
 	}
@@ -360,7 +368,7 @@ func ResetTenantData(tenantID, actor, reason string) (*TenantResetPlan, error) {
 		removed += n
 	}
 	if err := recordTenantLifecycleEventTx(tx, tenantID, TenantEventDataReset, actor,
-		fmt.Sprintf("business data reset to a clean slate: %d record(s) removed, %d login(s) kept; reason: %s", removed, plan.Users, reason)); err != nil {
+		fmt.Sprintf("business data reset to a clean slate: %d record(s) removed, %d login(s) kept; reason: %s; %s", removed, plan.Users, reason, approval.evidence())); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {

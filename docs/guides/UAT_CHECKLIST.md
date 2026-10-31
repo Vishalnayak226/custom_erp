@@ -44,7 +44,7 @@ Companion to [USER_GUIDE.md](USER_GUIDE.md) (explains what each screen is *for*)
    | **Reports** | Opens directly - no flyout |
    | **Procurement** | Purchase Requisitions · Purchase Order · ASN · Goods Receipt · Vendors · RFQ / Quotes |
    | **Stock** | Inventory · Stock Transfer · Bin · Putaway · Bin Conditions · LPN / Cartons / Pallets · Bin Replenishment · Wave / Batch Picking · Mobile Picking · Cycle Count · Sticker Printing |
-   | **HRM** | HR · Fixed Assets · Expenses |
+   | **HRM** | My Requests · Attendance · Leave · Shift Roster · Payroll · Payroll Export · Loans/Advances · Onboarding/Offboarding · Appraisals · Training · Grievances · Fixed Assets · Expenses |
    | **Manufacturing** | Opens directly - no flyout |
    | **PIM** | Opens directly - no flyout |
    | **Setup** | A dynamic flyout of every Master record type in your tenant — 53 in a default install, grouped by module, with a filter box and an **Advanced** divider holding 15 system-internal lists |
@@ -225,12 +225,12 @@ Four tabs across the top: **Current Stock**, **Sales Register**, **Vendor Ledger
 
 ## 11. HR
 
-Three tabs: **Attendance**, **Leave**, **Payroll Export**.
+Each HR page is its own **HRM** menu entry; there is no tab strip.
 
-- [ ] **Attendance tab**: Employee dropdown is populated with real employees; **Location field has typeahead** (Stage 18). Marking attendance for an employee/date adds a row to the table below.
-- [ ] **Leave tab**: same Employee dropdown pattern; submitting a leave request adds it to the table.
-- [ ] **Payroll Export tab**: loads without error and offers an export action.
-- [ ] **Tabs by path.** Tabs are grouped **My work / Team / HR administration**. A Store Manager sees no Payroll, Payroll Export or Loans tab; a role without HR access sees only My Requests.
+- [ ] **Attendance**: Employee dropdown is populated with real employees; **Location field has typeahead** (Stage 18). Marking attendance for an employee/date adds a row to the table below.
+- [ ] **Leave**: same Employee dropdown pattern; submitting a leave request adds it to the table.
+- [ ] **Payroll Export**: loads without error and offers an export action.
+- [ ] **Pages by path.** The HRM menu groups them **My work / Team / HR administration**. A Store Manager sees no Payroll, Payroll Export or Loans entry; a role without HR access sees only My Requests. Refresh on any HR page reopens that page.
 - [ ] **Leave help.** Pick an employee and dates on **+ Apply Leave** → Days fills in (both ends counted), the type's balance for the year shows, and dates overlapping existing leave are warned about. On My Requests the balance is your own.
 - [ ] **Payroll.** **+ Run Payroll** defaults to last month; payslip rows show the deductions; **Reconcile payroll** opens Payroll Reconciliation.
 - [ ] **Onboarding checklist.** Onboarding/Offboarding → + New checklist with 3 steps → *0 of 3*. Open it and tick a step → "Done by <you> · <time>" and *1 of 3*; tick the rest → *Completed*. The employee's own linked login sees it read-only.

@@ -37,56 +37,61 @@ function goPage(page) {
 }
 
 // ---------------------------------------------------------------------------
-// 88.5.1 Dashboard
+// 88.5.1 Dashboard - Stage 145.1 (user, 2026-10-31: "Need management level
+// dashboard. It should not scrol."): how much stock there is at the top-bar
+// store, on one page - tiles, then By item (the short name) beside By store
+// (All stores) or By category (one store).
 // ---------------------------------------------------------------------------
 
-let dashboardStore = '';
-
 async function renderDashboard(container) {
-  const d = await getJSON(`/api/v1/inventory/dashboard?location=${encodeURIComponent(dashboardStore)}`, null);
+  const d = await getJSON('/api/v1/inventory/dashboard', null);
   bar(container, 'Inventory Dashboard', '<button type="button" class="btn btn-outline" data-inv-refresh>Refresh</button>');
   container.querySelector('[data-inv-refresh]').addEventListener('click', () => renderView('inventory:dashboard'));
   if (!d) { renderErrorPanel(container, 'Failed to load the inventory dashboard.', () => renderView('inventory:dashboard')); return; }
-  const stores = (d.by_location || []).map(r => r.location);
+  const showValue = !d.value_hidden;
+  const pending = (d.pending_adjustments || []).length;
   const tiles = document.createElement('div');
-  tiles.className = 'dashboard-stats-row';
+  tiles.className = 'dashboard-stats-row inv-dash-tiles';
   tiles.innerHTML = [
-    ['Units on hand', fmtQty(d.total_units)],
-    d.value_hidden ? null : ['Stock value', formatMoney(d.total_value)],
-    ['Low or out of stock', String((d.low_stock || []).length)],
-    ['Adjustments waiting approval', String((d.pending_adjustments || []).length)]
-  ].filter(Boolean).map(([label, val]) => `<div class="stat-card"><span class="stat-label">${esc(label)}</span><span class="stat-val">${esc(val)}</span></div>`).join('');
+    ['Designs', fmtQty(d.designs)],
+    ['Qty', fmtQty(d.total_units)],
+    ['Combinations', fmtQty(d.combinations)],
+    showValue ? ['Stock value', formatMoney(d.total_value)] : null,
+    pending ? ['Awaiting approval', fmtQty(pending), 'approvals'] : null
+  ].filter(Boolean).map(([label, val, go]) => `<div class="stat-card"${go ? ` data-inv-go="${go}"` : ''}><div class="stat-info"><span class="stat-label">${esc(label)}</span><span class="stat-val">${esc(val)}</span></div></div>`).join('');
   container.appendChild(tiles);
+  const approvals = tiles.querySelector('[data-inv-go="approvals"]');
+  if (approvals) makeClickable(approvals, () => { setActiveMenu('menu-approvals'); renderView('approvals'); });
 
-  panel(container, `<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
-      <h2 style="font-size:16px;margin:0;">By store</h2>
-      <label style="display:flex;gap:6px;align-items:center;font-size:13px;">Store <select class="form-input" data-inv-store style="width:auto;">
-        <option value="">All stores</option>${(dashboardStore && !stores.includes(dashboardStore) ? [dashboardStore, ...stores] : stores).map(s => `<option${s === dashboardStore ? ' selected' : ''}>${esc(s)}</option>`).join('')}</select></label>
-    </div>
-    <div class="table-wrapper"><table><thead><tr><th>Store</th><th class="num">Items</th><th class="num">Units</th>${d.value_hidden ? '' : '<th class="num">Value</th>'}</tr></thead>
-    <tbody>${(d.by_location || []).length ? d.by_location.map(r => `<tr><td>${esc(r.location)}</td><td class="num">${fmtQty(r.items)}</td><td class="num">${fmtQty(r.units)}</td>${d.value_hidden ? '' : `<td class="num">${formatMoney(r.value)}</td>`}</tr>`).join('')
-      : '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">No stock yet. Goods Receipt, transfers in and adjustments put stock here.</td></tr>'}</tbody></table></div>`)
-    .querySelector('[data-inv-store]').addEventListener('change', e => { dashboardStore = e.target.value; renderView('inventory:dashboard'); });
-
-  panel(container, `<h2 style="font-size:16px;margin:0 0 10px;">Low or out of stock</h2>
-    <div class="table-wrapper"><table><thead><tr><th>Item</th><th>Store</th><th class="num">Free to sell</th><th class="num">Safety stock</th></tr></thead>
-    <tbody>${(d.low_stock || []).length ? d.low_stock.map(r => `<tr><td>${esc(r.sku)}</td><td>${esc(r.location_code)}</td><td class="num">${fmtQty(r.free)}</td><td class="num">${num(r.safety) ? fmtQty(r.safety) : '—'}</td></tr>`).join('')
-      : '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">Nothing is at or under its safety stock.</td></tr>'}</tbody></table></div>`);
-
-  const recent = panel(container, `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-      <h2 style="font-size:16px;margin:0;">Latest movements</h2><button type="button" class="btn btn-outline btn-sm" data-inv-ledger>Inventory Ledger</button></div>
-    <div class="table-wrapper"><table><thead><tr><th>When</th><th>Item</th><th>Store</th><th class="num">Qty</th><th>Document</th></tr></thead>
-    <tbody>${(d.recent_movements || []).length ? d.recent_movements.map(r => `<tr><td>${when(r.created_at)}</td><td>${esc(r.sku)}</td><td>${esc(r.location)}</td><td class="num">${num(r.qty) > 0 ? '+' : ''}${fmtQty(r.qty)}</td><td>${esc(r.voucher_type)} <span class="text-muted">${esc(r.voucher_id || '')}</span></td></tr>`).join('')
-      : '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">No stock has moved yet.</td></tr>'}</tbody></table></div>`);
-  recent.querySelector('[data-inv-ledger]').addEventListener('click', () => goPage('ledger'));
-
-  if ((d.pending_adjustments || []).length) {
-    const pend = panel(container, `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-        <h2 style="font-size:16px;margin:0;">Adjustments waiting approval</h2><button type="button" class="btn btn-outline btn-sm" data-inv-approvals>Approvals</button></div>
-      <div class="table-wrapper"><table><thead><tr><th>Adjustment</th><th>Store</th><th class="num">Value</th><th>Since</th></tr></thead>
-      <tbody>${d.pending_adjustments.map(r => `<tr><td>${esc(r.code)}</td><td>${esc(r.location)}</td><td class="num">${formatMoney(r.amount)}</td><td>${when(r.created_at)}</td></tr>`).join('')}</tbody></table></div>`);
-    pend.querySelector('[data-inv-approvals]').addEventListener('click', () => { setActiveMenu('menu-approvals'); renderView('approvals'); });
-  }
+  // As many rows as the window holds, so the page never scrolls; the rest
+  // fold into one Others row.
+  const fit = Math.max(4, Math.min(12, Math.floor((window.innerHeight - 400) / 33)));
+  const ranked = (title, head, list) => {
+    list = list.filter(r => num(r.units) !== 0 || num(r.items) > 0);
+    const shown = list.length > fit ? list.slice(0, fit - 1) : list;
+    const rest = list.slice(shown.length);
+    const max = Math.max(1, ...shown.map(r => num(r.units)));
+    const line = r => `<tr title="${esc(`${r.name}: ${fmtQty(r.units)} qty in ${fmtQty(r.designs)} designs`)}"><td class="inv-dash-name">${esc(r.name)}</td>
+      <td class="num">${fmtQty(r.designs)}</td><td class="num">${fmtQty(r.units)}</td>
+      <td class="inv-dash-share"><div class="inv-dash-bar"><span style="width:${Math.max(0, Math.min(100, num(r.units) / max * 100)).toFixed(1)}%"></span></div></td>
+      ${showValue ? `<td class="num">${formatMoney(r.value)}</td>` : ''}</tr>`;
+    const others = rest.length ? `<tr class="inv-dash-other"><td class="inv-dash-name">Others (${rest.length})</td><td></td>
+      <td class="num">${fmtQty(rest.reduce((t, r) => t + num(r.units), 0))}</td><td></td>
+      ${showValue ? `<td class="num">${formatMoney(rest.reduce((t, r) => t + num(r.value), 0))}</td>` : ''}</tr>` : '';
+    const cols = showValue ? 5 : 4;
+    return `<div class="table-panel"><h2>${esc(title)}</h2><div class="table-wrapper"><table class="inv-dash-table">
+      <thead><tr><th>${esc(head)}</th><th class="num">Designs</th><th class="num">Qty</th><th aria-label="Share of qty"></th>${showValue ? '<th class="num">Value</th>' : ''}</tr></thead>
+      <tbody>${shown.length ? shown.map(line).join('') + others
+        : `<tr><td colspan="${cols}" style="text-align:center;color:var(--text-muted);padding:20px;">No stock here yet.</td></tr>`}</tbody></table></div></div>`;
+  };
+  const grid = document.createElement('div');
+  grid.className = 'inv-dash-grid';
+  grid.innerHTML = ranked('By item', 'Item', d.by_item || [])
+    + (d.store ? ranked('By category', 'Category', d.by_category || [])
+      : ranked('By store', 'Store', (d.by_location || []).map(r => ({ ...r, name: r.name || r.location }))));
+  // Names here are already names - the link sweep has nothing to decode.
+  grid.querySelectorAll('td').forEach(td => { td.dataset.linkSwept = '1'; });
+  container.appendChild(grid);
 }
 
 // ---------------------------------------------------------------------------
@@ -102,10 +107,15 @@ async function renderLedger(container) {
     const d = new Date(Date.now() - 30 * 86400000);
     ledgerFilter.start = d.toISOString().slice(0, 10);
   }
+  // Stage 145.2: the Store is the top-bar store, unless the lists show every store.
+  const working = await loadViewModule('/view-store.js?v=1').then(m => m.ensureWorkingStore()).catch(() => null);
+  const fixedStore = working && working.code && !window.erpStoreViewAll ? working : null;
   bar(container, 'Inventory Ledger');
   const filters = panel(container, `<div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
       <div class="form-group" style="margin:0;"><label class="form-label" for="inv-l-sku">Item</label><input class="form-input" id="inv-l-sku" style="width:180px;" value="${esc(ledgerFilter.sku)}" autocomplete="off"></div>
-      <div class="form-group" style="margin:0;"><label class="form-label" for="inv-l-loc">Store</label><input class="form-input" id="inv-l-loc" style="width:150px;" value="${esc(ledgerFilter.location_code)}" autocomplete="off"></div>
+      <div class="form-group" style="margin:0;"><label class="form-label" for="inv-l-loc">Store</label>${fixedStore
+        ? `<input class="form-input" id="inv-l-loc" style="width:150px;" value="${esc(fixedStore.name || fixedStore.code)}" readonly title="The store picked in the top bar">`
+        : `<input class="form-input" id="inv-l-loc" style="width:150px;" value="${esc(ledgerFilter.location_code)}" autocomplete="off">`}</div>
       <div class="form-group" style="margin:0;"><label class="form-label" for="inv-l-type">Document type</label><input class="form-input" id="inv-l-type" style="width:150px;" value="${esc(ledgerFilter.voucher_type)}" placeholder="GRN, POSCart, StockMove..."></div>
       <div class="form-group" style="margin:0;"><label class="form-label" for="inv-l-start">From</label><input type="date" class="form-input" id="inv-l-start" value="${esc(ledgerFilter.start)}"></div>
       <div class="form-group" style="margin:0;"><label class="form-label" for="inv-l-end">To</label><input type="date" class="form-input" id="inv-l-end" value="${esc(ledgerFilter.end)}"></div>
@@ -113,10 +123,10 @@ async function renderLedger(container) {
       <button type="button" class="btn btn-outline" data-inv-l-clear>Clear</button>
     </div>`);
   attachLinkTypeahead(document.getElementById('inv-l-sku'), 'Item', { noSetupHint: true });
-  attachLinkTypeahead(document.getElementById('inv-l-loc'), 'Location', { noSetupHint: true });
+  if (!fixedStore) attachLinkTypeahead(document.getElementById('inv-l-loc'), 'Location', { noSetupHint: true });
   const read = () => {
     ledgerFilter.sku = document.getElementById('inv-l-sku').value.trim();
-    ledgerFilter.location_code = document.getElementById('inv-l-loc').value.trim();
+    if (!fixedStore) ledgerFilter.location_code = document.getElementById('inv-l-loc').value.trim();
     ledgerFilter.voucher_type = document.getElementById('inv-l-type').value.trim();
     ledgerFilter.start = document.getElementById('inv-l-start').value;
     ledgerFilter.end = document.getElementById('inv-l-end').value;
@@ -124,7 +134,7 @@ async function renderLedger(container) {
   filters.querySelector('[data-inv-l-show]').addEventListener('click', () => { read(); renderView('inventory:ledger'); });
   filters.querySelector('[data-inv-l-clear]').addEventListener('click', () => { Object.keys(ledgerFilter).forEach(k => { ledgerFilter[k] = ''; }); renderView('inventory:ledger'); });
 
-  const params = new URLSearchParams(Object.entries(ledgerFilter).filter(([, v]) => v));
+  const params = new URLSearchParams(Object.entries({ ...ledgerFilter, ...(fixedStore ? { location_code: fixedStore.code } : {}) }).filter(([, v]) => v));
   const res = await apiFetch(`/api/v1/reports/run/stock-ledger?${params}`);
   const host = panel(container, '');
   // 134.6: past the report's row cap the server refuses (REPORT-0161) rather
@@ -191,7 +201,7 @@ async function renderMRPChanges(container) {
     </div>
     <div class="table-wrapper"><table><thead><tr><th>Item</th><th class="num">Current MRP</th><th class="num">Sale price</th><th class="num">New MRP</th><th></th></tr></thead><tbody data-mrp-lines></tbody></table></div>
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
-      <input class="form-input" data-mrp-add-input placeholder="Add an item by code, barcode or name" style="max-width:320px;" autocomplete="off">
+      <input class="form-input" data-mrp-add-input placeholder="Add by Design, Combination ID or barcode" style="max-width:320px;" autocomplete="off">
       <button type="button" class="btn btn-outline" data-mrp-add>Add item</button>
     </div>
     <div class="login-error hidden" data-mrp-error style="margin-top:12px;"></div>
@@ -325,7 +335,7 @@ async function renderAdjustments(container) {
     </div>
     <div class="table-wrapper"><table><thead><tr><th>Item</th><th class="num">Change (+ / -)</th><th>Reason</th><th>Bin</th><th>Lot</th><th>To Damaged</th><th>Note</th><th></th></tr></thead><tbody data-adj-lines></tbody></table></div>
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
-      <input class="form-input" data-adj-add-input placeholder="Add an item by code, barcode or name" style="max-width:320px;" autocomplete="off">
+      <input class="form-input" data-adj-add-input placeholder="Add by Design, Combination ID or barcode" style="max-width:320px;" autocomplete="off">
       <button type="button" class="btn btn-outline" data-adj-add>Add item</button>
     </div>
     <div class="login-error hidden" data-adj-error style="margin-top:12px;"></div>
@@ -411,7 +421,7 @@ async function renderAdjustments(container) {
     const bad = adjLines.find(l => !Number.isInteger(Number(l.qty)) || Number(l.qty) === 0 || !l.reason_code);
     if (bad) { fail(`${bad.sku} needs a whole-number change (+ or -) and a reason.`); return; }
     btn.disabled = true;
-    const res = await apiFetch('/api/v1/inventory/adjustments', { method: 'POST', body: JSON.stringify({
+    const res = await apiFetch('/api/v1/inventory/adjustments', { method: 'POST', commandKey: 'adjustment.create', body: JSON.stringify({
       // Stage 74.2.3: a Damage or Expiry loss books through its own posting profile.
       location: store, note: form.querySelector('#adj-note').value.trim(), loss_class: form.querySelector('#adj-loss').value,
       lines: adjLines.map(adjLinePayload) }) });
@@ -505,7 +515,7 @@ async function renderMaterials(container) {
     </div>
     <div class="table-wrapper"><table><thead><tr><th>Item</th><th class="num">Qty</th><th></th></tr></thead><tbody data-mi-lines></tbody></table></div>
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
-      <input class="form-input" data-mi-add-input placeholder="Add an item by code, barcode or name" style="max-width:320px;" autocomplete="off">
+      <input class="form-input" data-mi-add-input placeholder="Add by Design, Combination ID or barcode" style="max-width:320px;" autocomplete="off">
       <button type="button" class="btn btn-outline" data-mi-add>Add item</button>
     </div>
     <div class="login-error hidden" data-mi-error style="margin-top:12px;"></div>
@@ -679,7 +689,7 @@ async function renderChallans(container) {
     </div>
     <div class="table-wrapper"><table><thead><tr><th>Item</th><th class="num">Qty</th><th>Lot</th><th>Serial numbers</th><th class="num">Value</th><th></th></tr></thead><tbody data-dc-lines></tbody></table></div>
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
-      <input class="form-input" data-dc-add-input placeholder="Add an item by code, barcode or name" style="max-width:320px;" autocomplete="off">
+      <input class="form-input" data-dc-add-input placeholder="Add by Design, Combination ID or barcode" style="max-width:320px;" autocomplete="off">
       <button type="button" class="btn btn-outline" data-dc-add>Add item</button>
     </div>
     <div class="login-error hidden" data-dc-error style="margin-top:12px;"></div>
@@ -735,7 +745,7 @@ async function renderChallans(container) {
           ${['good', 'damaged', 'rejected'].map(c => `<td class="num"><input type="number" min="0" step="1" class="form-input" style="width:80px;text-align:right;" data-dcr="${c}" data-i="${i}" placeholder="0"></td>`).join('')}
           <td>${outSerials(x).length ? `<input class="form-input" data-dcr="serials" data-i="${i}" placeholder="${esc(outSerials(x).slice(0, 3).join(', '))}" style="min-width:160px;">` : '<span class="text-muted">-</span>'}</td>
           <td><input class="form-input" data-dcr="reason" data-i="${i}" style="min-width:140px;"></td></tr>`).join('')}</tbody></table></div>
-        <div class="txn-hint" style="margin-top:6px;">For an item that went out with serial numbers, list the serials that came back (comma separated) in the column of their condition's row - one condition per save.</div>
+        <div class="txn-hint" style="margin-top:6px;">Serials: one condition per save.</div>
         <div style="margin-top:10px;"><button type="button" class="btn btn-primary" data-dcr-go>Receive</button></div>`;
       pane.querySelector('[data-dcr-go]').addEventListener('click', () => {
         const v = (c, i) => pane.querySelector(`[data-dcr="${c}"][data-i="${i}"]`);
@@ -760,8 +770,7 @@ async function renderChallans(container) {
           <div class="form-group" style="margin:0;"><label class="form-label" for="dcw-kind">What happened</label><select class="form-select" id="dcw-kind" style="width:150px;"><option>Lost</option><option>Kept by party</option></select></div>
           ${field('dcw-serials', 'Serial numbers', 170, 'placeholder="if it has them"')}
           <div class="form-group" style="margin:0;flex:1;min-width:200px;"><label class="form-label" for="dcw-reason">Reason</label><input class="form-input" id="dcw-reason"></div>
-          <button type="button" class="btn btn-primary" data-dcw-go>Send for approval</button></div>
-        <div class="txn-hint" style="margin-top:6px;">It stays open on the challan until someone else approves the write-off.</div>`;
+          <button type="button" class="btn btn-primary" data-dcw-go>Send for approval</button></div>`;
       pane.querySelector('[data-dcw-go]').addEventListener('click', () => {
         const x = bal[Number(pane.querySelector('#dcw-line').value)];
         const serials = pane.querySelector('#dcw-serials').value.split(',').map(s => s.trim()).filter(Boolean);

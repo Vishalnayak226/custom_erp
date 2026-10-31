@@ -40,14 +40,14 @@ async function crmTemplateEdit(host, id) {
       <div id="tp-subj-row">${crmField('tp-subj', 'Email subject', crmInput('tp-subj', cur.subject || ''))}</div>
       ${crmField('tp-body', 'Message', `<textarea class="form-input" id="tp-body" rows="6" maxlength="4000">${crmEsc(cur.body || '')}</textarea>`)}
       <div class="crm-vars"><span class="crm-small">Insert:</span> ${vars.map(v => `<button type="button" class="crm-var" data-var="${crmEsc(v.Name)}" title="${crmEsc(v.Label)}">${crmEsc(v.Label)}</button>`).join('')}
-      <p class="text-muted crm-small">A value like {{customer.first_name|there}} uses "there" when the name is blank. Without a fallback, a blank value stops the message (TEMPLATE_DATA_MISSING) instead of sending a gap.</p></div>
+      <p class="text-muted crm-small">Without a |fallback, a blank value stops the message.</p></div>
       <div id="tp-dlt-row">${crmField('tp-dlt', 'DLT template ID (needed for SMS to Indian numbers; the text must match the registered template)', crmInput('tp-dlt', cur.dlt_template_id || ''))}</div>
       <div id="tp-wa-row" class="crm-form-row">${crmField('tp-wan', 'WhatsApp template name (as approved in WhatsApp Manager)', crmInput('tp-wan', cur.wa_template_name || ''))}
         ${crmField('tp-wal', 'WhatsApp language code', crmInput('tp-wal', cur.wa_language || '', 'placeholder="en"'))}</div>
       ${crmField('tp-st', 'Status', crmSelect('tp-st', ['Active', 'Inactive'], t.status))}
       ${crmMeta.can_manage ? `<div class="crm-form-actions"><button class="btn btn-primary" type="submit">Save</button>
         ${id && t.channel === 'WhatsApp' ? '<button class="btn btn-outline" type="button" id="tp-sync">Check approval with WhatsApp</button>' : ''}</div>` : ''}
-      ${id ? `<p class="text-muted crm-small">Version ${t.current_version}${cur.wa_status ? ` · WhatsApp: ${crmEsc(cur.wa_status)}` : ''}. Changing the text makes a new version; campaigns and journeys keep the version they use.</p>` : ''}
+      ${id ? `<p class="text-muted crm-small">Version ${t.current_version}${cur.wa_status ? ` · WhatsApp: ${crmEsc(cur.wa_status)}` : ''}.</p>` : ''}
     </form><aside class="crm-aside"><h3 class="crm-section">Preview</h3>
       <div class="crm-form-row"><input class="form-input" id="tp-pc" placeholder="Customer (blank = sample values)"><button class="btn btn-outline btn-sm" type="button" id="tp-prev">Preview</button></div>
       <div id="tp-pout" class="crm-preview"></div></aside></div>`;
@@ -111,7 +111,7 @@ async function crmCampaignEdit(host, id) {
   const editable = crmMeta.can_manage && (c.status === 'Draft' || c.status === 'Rejected' || c.status === 'Pending Approval' || c.status === 'Approved') && !c.legacy;
   const body = crmFrame(host, { title: id ? d.name : 'New campaign', back: () => crmGo('campaigns'), backLabel: 'Campaigns', actions: id ? crmStatus(c.status) : '' });
   if (c.legacy) {
-    body.innerHTML = `<div class="crm-note">An older trigger campaign (${crmEsc(d.trigger_type)}), kept as it was. Its replacement is the ready-made Birthday and Win back journeys (Journeys).</div>`;
+    body.innerHTML = `<div class="crm-note">An older trigger campaign (${crmEsc(d.trigger_type)}), kept as it was.</div>`;
     return;
   }
   const [segs, tpls] = await Promise.all([crmApi('segments'), crmApi('templates')]);
@@ -132,9 +132,9 @@ async function crmCampaignEdit(host, id) {
       ${crmField('cm-vv', 'Value', crmInput('cm-vv', v.discount_value || '', 'inputmode="numeric"'))}
       ${crmField('cm-vd', 'Valid for (days)', crmInput('cm-vd', v.valid_days || 30, 'inputmode="numeric"'))}
       ${crmField('cm-vc', 'Use at', crmSelect('cm-vc', [['Any', 'Store and web shop'], ['POS', 'Store only'], ['Online', 'Web shop only']], v.channel || 'Any'))}</div>
-      <p class="text-muted crm-small">Each customer gets their own single-use code ({{voucher.code}} in the message).</p></fieldset>
+      <p class="text-muted crm-small">Single-use code: {{voucher.code}}</p></fieldset>
     ${editable ? `<div class="crm-form-actions"><button class="btn btn-primary" type="submit">Save draft</button></div>` : ''}
-    ${c.status === 'Pending Approval' || c.status === 'Approved' ? '<p class="text-muted crm-small">Changing anything sends it back to Draft - it must be approved again.</p>' : ''}
+    ${c.status === 'Pending Approval' || c.status === 'Approved' ? '<p class="text-muted crm-small">Any change sends it back to Draft.</p>' : ''}
   </form>
   ${id ? `<div class="crm-actions-row">
     <button class="btn btn-outline" type="button" id="cm-check">Pre-send check</button>
@@ -291,7 +291,7 @@ async function crmJourneyEdit(host, id) {
       ${crmMeta.can_manage ? `<div class="crm-form-actions"><button class="btn btn-outline" type="submit">Save draft</button>
         ${id ? '<button class="btn btn-primary" type="button" id="jr-pub">Publish</button>' : ''}
         ${id && j.current_version ? `<button class="btn btn-outline" type="button" id="jr-onoff">${j.enabled ? 'Switch off' : 'Switch on'}</button>` : ''}</div>` : ''}
-      <p class="text-muted crm-small">${id ? `Published version ${j.current_version || '-'}${j.unpublished ? '; the draft has changes - publish them for new customers' : ''}. ` : ''}Customers already in a journey finish the version they started. A customer is in a journey once at a time.</p>
+      ${id ? `<p class="text-muted crm-small">Published version ${j.current_version || '-'}${j.unpublished ? '; the draft has unpublished changes' : ''}.</p>` : ''}
     </form><div id="jr-runs"></div>`;
     wire();
   };
@@ -398,8 +398,7 @@ async function crmMessageNew(host, p) {
     <div class="crm-form-row">${crmField('mn-ch', 'By', crmSelect('mn-ch', CH))}${crmField('mn-pu', 'For', crmSelect('mn-pu', [['service', 'Service (about their order, visit, request)'], ['marketing', 'An offer (needs their consent)']]))}</div>
     ${crmField('mn-t', 'Template', '<select class="form-input" id="mn-t"></select>')}
     ${crmField('mn-x', 'Or your own text (WhatsApp only within 24 hours of their last message; never by SMS)', '<textarea class="form-input" id="mn-x" rows="3" maxlength="2000"></textarea>')}
-    <div class="crm-form-actions"><button class="btn btn-primary" type="submit">Send</button></div></form><div id="mn-out"></div>
-    <p class="text-muted crm-small">The message goes through the same rules as every CRM message: consent, contact limits for offers, quiet hours, and the test list on a test server.</p>`;
+    <div class="crm-form-actions"><button class="btn btn-primary" type="submit">Send</button></div></form><div id="mn-out"></div>`;
   const pick = crmCustomerPicker(body.querySelector('#mn-c'), p.customer_id);
   const fill = () => { const ch = crmVal(body, 'mn-ch'); body.querySelector('#mn-t').innerHTML = '<option value="">None - my own text</option>' + tpls.filter(t => t.channel === ch && t.status === 'Active').map(t => `<option value="${crmEsc(t.id)}">${crmEsc(t.name)}</option>`).join(''); };
   fill();
@@ -428,7 +427,7 @@ async function crmSettings(host, st) {
       senders.senders, { empty: 'No senders yet. Without one, messages are recorded as NO_SENDER and nothing goes out.' }) + '<button class="btn btn-primary btn-sm" type="button" id="snd-new">+ New sender</button>'
       : '<p class="text-muted">Only an administrator can see and change senders.</p>'}
     <h3 class="crm-section">Contact rules, quiet hours, time zone, test list</h3>
-    <p>These are in Setup &gt; Configuration, under <b>CRM</b>: messages per customer per day and week, hours between offers, quiet hours, the customer time zone, the test numbers and emails, costs per message, the privacy-notice version and who sees full phone numbers. <button class="btn btn-outline btn-sm" type="button" id="crm-cfg">Open Configuration</button></p>
+    <p>In Setup &gt; Configuration, under <b>CRM</b>. <button class="btn btn-outline btn-sm" type="button" id="crm-cfg">Open Configuration</button></p>
     <h3 class="crm-section">Lifecycle</h3>
     ${life ? `<form class="crm-form crm-form-inline" id="lc-form">${crmField('lc-new', 'New for (days)', crmInput('lc-new', life.thresholds.new_days, 'inputmode="numeric"'))}
       ${crmField('lc-act', 'Active within (days)', crmInput('lc-act', life.thresholds.active_days, 'inputmode="numeric"'))}
@@ -438,7 +437,7 @@ async function crmSettings(host, st) {
     <h3 class="crm-section">Appointment hours at a store</h3>
     <form class="crm-form crm-form-inline" id="sl-form">${crmField('sl-store', 'Store code', crmInput('sl-store', store))}<button class="btn btn-outline btn-sm" type="button" id="sl-load">Open</button></form><div id="sl-out"></div>
     <h3 class="crm-section">Who approves</h3>
-    <p>Campaigns, customer merges and sales quotations go through Approvals (Setup &gt; Approval Rules). The usual rule - a Store Manager approves - is added for you; a campaign can be made to always need a second person (Configuration &gt; CRM).</p>`;
+    <p>In Setup &gt; Approval Rules.</p>`;
   body.querySelectorAll('[data-snd]').forEach(a => a.addEventListener('click', (e) => { e.preventDefault(); crmGo('settings', 'sender', { id: a.dataset.snd }); }));
   body.querySelector('#snd-new')?.addEventListener('click', () => crmGo('settings', 'sender', {}));
   body.querySelector('#crm-cfg').addEventListener('click', () => renderView('configuration'));
@@ -500,7 +499,7 @@ async function crmSenderEdit(host, id) {
       ${s.callback_url ? `<p class="crm-small"><b>Callback URL</b> (give this to the provider for delivery reports${s.provider === 'whatsapp_cloud' ? ' and customer replies' : ''}): <code>${crmEsc(s.callback_url.startsWith('/') ? location.origin + s.callback_url : s.callback_url)}</code></p>` : ''}
       ${(s.problems || []).length ? `<div class="crm-note crm-note-warn">${s.problems.map(crmEsc).join('<br>')}</div>` : ''}
       <div class="crm-form-actions"><button class="btn btn-primary" type="submit">Save</button>${s.provider === 'sms_http' ? ' <select class="form-select" id="sd-preset" style="width:auto;"><option value="">Fill from...</option></select>' : ''}${id ? ' <button class="btn btn-outline" type="button" id="sd-test">Test connection</button>' : ''}</div></form>
-      <p class="text-muted crm-small">Each channel uses its one Active sender; saving another as Active switches the old one off. Secrets are stored encrypted and never shown again. A server that is not production sends only to the test list (Configuration &gt; CRM).</p>`;
+      <p class="text-muted crm-small">Saving another as Active switches the old one off.</p>`;
     body.querySelector('#sd-ch').addEventListener('change', () => { s.channel = crmVal(body, 'sd-ch'); s.provider = crmProviders[s.channel][0][0]; paint(); });
     body.querySelector('#sd-pr').addEventListener('change', () => { s.provider = crmVal(body, 'sd-pr'); paint(); });
     // 140.12.26: provider presets fill the gateway's parameter names; Test connection asks the provider.

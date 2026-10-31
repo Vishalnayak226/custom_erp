@@ -1,8 +1,10 @@
 package engines
 
 import (
+	"context"
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // Stage 47.1.4 - scope semantics, enforced separately from role capability
@@ -443,6 +445,69 @@ func DocumentMatchesScope(constraints []ScopeConstraint, data map[string]interfa
 		}
 	}
 	return ""
+}
+
+// LocationOutOfScope (Stage 49.3.8a) is the write half of location scope: the
+// store a record names when this session may not file a record there, or ""
+// when it may. A read already hides another store's record and an update or
+// delete of one is refused (49.4.7); a save that names another store - a new
+// record above all - is refused the same way, so a store-limited user cannot
+// file a record they could never see again. It applies to a doctype
+// doctypeScopes scopes by location, to a role without the global location
+// scope. A record naming no store is left to the doctype's own validation (a
+// mandatory store is refused there; an optional one is "not applicable", as
+// on a read), and a session with no store of its own may name none - fail
+// closed, as a read does. Called by every generic write path: the record
+// save (handleGenericDoc, and the bulk uploads that replay it) and the CSV
+// import (importBatch).
+func LocationOutOfScope(doctype string, session SessionScope, data map[string]interface{}) string {
+	scope, known := ScopeForDoctype(doctype)
+	if !known || len(scope.LocationFields) == 0 || session.HasGlobalScope(ScopeLocation, doctype) {
+		return ""
+	}
+	for _, field := range scope.LocationFields {
+		raw, ok := data[field]
+		if !ok || raw == nil {
+			continue
+		}
+		named := fmt.Sprintf("%v", raw)
+		if strings.TrimSpace(named) == "" {
+			continue
+		}
+		if named != session.LocationCode {
+			return named
+		}
+		return ""
+	}
+	return ""
+}
+
+// LocationOutOfScopeMessage is what a refused write tells its user.
+func LocationOutOfScopeMessage(named, own string) string {
+	if strings.TrimSpace(own) == "" {
+		return fmt.Sprintf("This record is for store %s, and your user has no store - records are added for your own store only.", named)
+	}
+	return fmt.Sprintf("This record is for store %s - you can add records for your own store (%s) only.", named, own)
+}
+
+// sessionStoreKey carries a request's working store on its context (Stage
+// 49.3.8a), so a write path below the handler - the CSV import - holds the
+// rows it files to the same store the record save does.
+type sessionStoreKey struct{}
+
+// WithSessionStore stores the session's working store on ctx; apiMiddleware
+// sets it on every signed-in request, as it does WithJobActor.
+func WithSessionStore(ctx context.Context, store string) context.Context {
+	return context.WithValue(ctx, sessionStoreKey{}, store)
+}
+
+// SessionStoreFromContext is the store WithSessionStore set, "" when none.
+func SessionStoreFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	store, _ := ctx.Value(sessionStoreKey{}).(string)
+	return store
 }
 
 // ResolveSessionScope fills in the parts of a session's scope that need a

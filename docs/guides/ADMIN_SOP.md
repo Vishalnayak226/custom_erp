@@ -298,9 +298,9 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:8080/api/v1/approval/rules
 
 | Choice | What it means |
 |---|---|
-| **Anyone who can approve it** (as shipped) | The person who submitted a PO, requisition, voucher, transfer... may approve or reject it themselves, as long as their role is the one the amount band names (§B.9) or they are an admin. One person can run the whole purchasing flow alone. |
+| **Anyone who can approve it** (as shipped for a client created before 49.10.6b) | The person who submitted a PO, requisition, voucher, transfer... may approve or reject it themselves, as long as their role is the one the amount band names (§B.9) or they are an admin. One person can run the whole purchasing flow alone. |
 | **Admins only** | Only a Super Admin may decide their own; everyone else needs a second person. |
-| **Nobody - someone else always decides** | Strict maker-checker: whoever submits can never decide it, at any role or amount. |
+| **Nobody - someone else always decides** (where a new client starts, 49.10.6b) | Strict maker-checker: whoever submits can never decide it, at any role or amount. |
 
 Two things hold whatever you choose:
 

@@ -206,6 +206,29 @@ func CompleteCommandTx(tx *sql.Tx, schema, key, documentID string, response map[
 	return err
 }
 
+// CompleteCommand (Stage 49.4.7a) records the outcome of a command whose
+// business transaction is the handler's own, right after that transaction
+// committed - the HTTP command-key wrapper (internal/server/command_keys.go)
+// uses it for commands whose engines do not take the caller's transaction.
+// The gap between the two commits is the time one UPDATE takes; a process
+// killed inside it leaves the claim InProgress, which answers "still being
+// processed" until its lease ends.
+func CompleteCommand(tenantID, key, documentID string, response map[string]interface{}) error {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := CompleteCommandTx(tx, schema, key, documentID, response); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 // FailCommand marks a claim Failed so the operator can retry it. Called on the
 // error path, OUTSIDE any transaction - by then the business transaction has
 // rolled back, so this must be its own committed statement or the failure

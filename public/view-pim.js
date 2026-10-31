@@ -425,8 +425,7 @@ async function renderPIMMyWorkTab(container) {
   templatePanel.className = 'table-panel';
   templatePanel.style.cssText = 'padding:24px;margin-top:24px;';
   templatePanel.innerHTML = `
-    <h2 style="font-size:16px;margin:0 0 4px;">Run a task template</h2>
-    <p class="text-muted" style="font-size:13px;margin:0 0 14px;">Creates one task per product in the chosen group. A product that already has an open task from this template is skipped, so re-running the template picks up new products without duplicating work.</p>
+    <h2 style="font-size:16px;margin:0 0 14px;">Run a task template</h2>
     <div class="table-controls" style="flex-wrap:wrap;gap:12px;">
       <div class="form-group" style="margin:0;"><label class="form-label" for="pim-template-select">Template</label><select class="form-select" id="pim-template-select"></select></div>
       <div class="form-group" style="margin:0;"><label class="form-label" for="pim-template-group">Product group</label><select class="form-select" id="pim-template-group"></select></div>
@@ -439,8 +438,7 @@ async function renderPIMMyWorkTab(container) {
   workflowPanel.className = 'table-panel';
   workflowPanel.style.cssText = 'padding:24px;margin-top:24px;';
   workflowPanel.innerHTML = `
-    <h2 style="font-size:16px;margin:0 0 4px;">Workflow runs</h2>
-    <p class="text-muted" style="font-size:13px;margin:0 0 14px;">A run walks one product through a workflow's stages, creating each stage's tasks as it enters. Advance is automatic when a stage's last task closes; press Advance to re-check a run that is waiting on a condition.</p>
+    <h2 style="font-size:16px;margin:0 0 14px;">Workflow runs</h2>
     <div class="table-controls" style="flex-wrap:wrap;gap:12px;">
       <div class="form-group" style="margin:0;"><label class="form-label" for="pim-workflow-select">Workflow</label><select class="form-select" id="pim-workflow-select"></select></div>
       <div class="form-group" style="margin:0;"><label class="form-label" for="pim-workflow-target">Start for</label><select class="form-select" id="pim-workflow-target"><option value="item">One product</option><option value="group">A product group</option></select></div>
@@ -586,7 +584,7 @@ function renderPIMTaskTable(result) {
   if (!host) return;
   const tasks = result.tasks || [];
   if (tasks.length === 0) {
-    host.innerHTML = `<p class="text-muted" style="padding:16px;text-align:center;">No tasks match this filter. ${pimMyWorkState.filter.assignee === 'me' ? 'Switch Assignee to "Everyone" to see the whole queue.' : 'Run a task template below, or assign one from a PIM report row.'}</p>`;
+    host.innerHTML = `<p class="text-muted" style="padding:16px;text-align:center;">No tasks match this filter.</p>`;
     return;
   }
   const rows = tasks.map(task => {
@@ -1287,7 +1285,7 @@ async function openPIMImportTemplateRun(templateID) {
   overlay.innerHTML = `<div class="modal-container" style="max-width:820px;">
     <div class="modal-header"><h3 class="modal-title">Preview and import catalog CSV</h3><button type="button" class="modal-close" aria-label="Close">&times;</button></div>
     <div class="modal-body">
-      <p>Template: <strong>${escapeHTMLText(templateID)}</strong>. Check the source-to-target fields, then preview your CSV. Import is enabled only when that exact file passes validation.</p>
+      <p>Template: <strong>${escapeHTMLText(templateID)}</strong></p>
       <div id="pim-import-mapping" role="status">Loading field mapping…</div>
       <div class="form-group" style="margin-top:16px;"><label class="form-label" for="pim-import-file">CSV file</label><input class="form-input" type="file" id="pim-import-file" accept=".csv,text/csv"></div>
       <div id="pim-import-result" role="status"></div>
@@ -1386,7 +1384,7 @@ async function renderPIMRelatedProducts(itemCode) {
   if (!res || !res.ok) { el.textContent = 'Unable to load related products.'; return; }
   const related = await res.json();
   if (!related || related.length === 0) {
-    el.innerHTML = '<span class="text-muted">No related products found (needs a shared family and at least one shared attribute value).</span>';
+    el.innerHTML = '<span class="text-muted">No related products found.</span>';
     return;
   }
   el.innerHTML = `
@@ -1486,7 +1484,7 @@ async function renderPIMMediaGallery(itemCode) {
   const media = res && res.ok ? await res.json() : [];
 
   if (media.length === 0) {
-    gallery.innerHTML = `<div style="color: var(--text-muted); font-size: 13px;">No media uploaded yet. Use the upload control above to attach product images to this item.</div>`;
+    gallery.innerHTML = `<div style="color: var(--text-muted); font-size: 13px;">No media uploaded yet.</div>`;
     return;
   }
 
@@ -1590,7 +1588,7 @@ async function renderPIMPublishSection(itemCode) {
   const logRes = await apiFetch(`/api/v1/pim/publish-log?item=${encodeURIComponent(itemCode)}`);
   const log = logRes && logRes.ok ? await logRes.json() : [];
   logEl.innerHTML = log.length === 0
-    ? `<div style="color: var(--text-muted); font-size: 13px;">No publish attempts yet. Publish this item to a sales channel from the Channels section above.</div>`
+    ? `<div style="color: var(--text-muted); font-size: 13px;">No publish attempts yet.</div>`
     // error_code (Stage 26.4.8: marketplace error dictionary) lets a failed
     // attempt be triaged at a glance (missing credential vs. duplicate SKU
     // vs. a blank required field) instead of only reading the raw message.
@@ -1628,7 +1626,7 @@ async function checkPIMPublishReadiness(itemCode) {
     status.textContent = `Ready to publish to ${select.selectedOptions[0]?.textContent || channel}. This queues a local publish job; an external marketplace receipt must be checked separately.`;
   } else {
     const issues = readiness.missing_fields || [];
-    status.innerHTML = `<strong>Not ready for ${escapeHTMLText(select.selectedOptions[0]?.textContent || channel)}:</strong><ul style="margin:8px 0 0;padding-left:20px;">${issues.map(issue => `<li>${escapeHTMLText(issue)} ${pimReadinessCorrectionMarkup(issue)}</li>`).join('')}</ul><p style="margin:8px 0 0;">After correcting these, select the channel again to recheck.</p>`;
+    status.innerHTML = `<strong>Not ready for ${escapeHTMLText(select.selectedOptions[0]?.textContent || channel)}:</strong><ul style="margin:8px 0 0;padding-left:20px;">${issues.map(issue => `<li>${escapeHTMLText(issue)} ${pimReadinessCorrectionMarkup(issue)}</li>`).join('')}</ul>`;
     status.querySelectorAll('[data-pim-ready-action]').forEach(button => button.addEventListener('click', () => {
       const target = button.getAttribute('data-pim-ready-action');
       if (target === 'item') { window.location.hash = '#/setup/Item'; return; }
@@ -1675,7 +1673,7 @@ async function previewPIMPublish(itemCode) {
   }
   const preview = await res.json();
   previewEl.innerHTML = `
-    <h4 style="font-size:13px;font-weight:700;margin-bottom:8px;">${preview.has_prior_snapshot ? 'Diff vs. last publish attempt' : 'Outbound payload (no prior publish attempt for this channel to diff against)'}</h4>
+    <h4 style="font-size:13px;font-weight:700;margin-bottom:8px;">${preview.has_prior_snapshot ? 'Diff vs. last publish attempt' : 'Outbound payload'}</h4>
     <table><thead><tr><th>Field</th><th>Previously Published</th><th>About to Publish</th></tr></thead><tbody>${
       (preview.fields || []).map(f => `<tr style="${f.changed ? 'font-weight:600;' : ''}"><td>${escapeHTMLText(f.field)}</td><td>${escapeHTMLText(f.old || '')}</td><td>${escapeHTMLText(f.new || '')}</td></tr>`).join('')
     }</tbody></table>
@@ -1726,13 +1724,13 @@ async function renderPIMContentHistory(itemCode) {
   const versions = versionsRes && versionsRes.ok ? await versionsRes.json() : [];
 
   const logHTML = log.length === 0
-    ? `<div class="text-muted" style="font-size:13px;">No approval history yet. Entries appear here once a content change is submitted for approval.</div>`
+    ? `<div class="text-muted" style="font-size:13px;">No approval history yet.</div>`
     : `<table><thead><tr><th>Action</th><th>By</th><th>Comment</th><th>When</th></tr></thead><tbody>${
         log.map(l => `<tr><td>${escapeHTMLText(l.action)}</td><td>${escapeHTMLText(l.actor_user_id)}</td><td>${escapeHTMLText(l.comment || '')}</td><td>${escapeHTMLText(l.created_at || '')}</td></tr>`).join('')
       }</tbody></table>`;
 
   const versionsHTML = versions.length === 0
-    ? `<div class="text-muted" style="font-size:13px;">No approved versions yet. Once a content version is approved you can <b>Restore</b> it from here.</div>`
+    ? `<div class="text-muted" style="font-size:13px;">No approved versions yet.</div>`
     : `<table><thead><tr><th>Version</th><th>Title</th><th>Approved At</th><th></th></tr></thead><tbody>${
         versions.map(v => `<tr><td>${escapeHTMLText(v.version_no)}</td><td>${escapeHTMLText((v.data && v.data.title) || '')}</td><td>${escapeHTMLText(v.created_at || '')}</td><td><button class="btn btn-outline btn-sm" data-rollback-version="${escapeHTMLText(v.id)}">Restore</button></td></tr>`).join('')
       }</tbody></table>`;

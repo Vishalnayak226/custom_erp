@@ -15,7 +15,6 @@ if (!document.getElementById('view-pickers-css')) {
   style.textContent = `
 /* Inline quick-create (57.2) opens on top of a form that is already open. */
 .modal-overlay.quick-create-overlay { z-index: 120; }
-.quick-create-intro { font-size: 13px; color: var(--text-muted); margin: 0 0 12px; }
 .quick-create-overlay .modal-footer { align-items: center; }
 .quick-create-overlay .quick-create-full { margin-right: auto; font-size: 12.5px; }
 
@@ -396,7 +395,6 @@ async function openQuickCreateDialog(doctype, seedText) {
         </div>
         <form novalidate>
           <div class="modal-body">
-            <p class="quick-create-intro"></p>
             <div class="quick-create-fields"></div>
             <div class="login-error hidden" role="alert"></div>
           </div>
@@ -408,8 +406,6 @@ async function openQuickCreateDialog(doctype, seedText) {
         </form>
       </div>`;
     overlay.querySelector('.modal-title').textContent = `New ${label}`;
-    overlay.querySelector('.quick-create-intro').textContent =
-      `Only what a ${label} needs. You stay where you are, and it is filled in for you once created.`;
     const holder = overlay.querySelector('.quick-create-fields');
     const errorEl = overlay.querySelector('.login-error');
     const form = overlay.querySelector('form');
@@ -1238,7 +1234,7 @@ function parseLineCSV(text) {
   return rows.map(c => ({ code: c[0] || '', qty: parseFloat(c[1]) || 0 })).filter(r => r.code);
 }
 
-function openLineUpload({ title = 'Upload lines', hint = '', template = 'lines', onRows }) {
+function openLineUpload({ title = 'Upload lines', template = 'lines', onRows }) {
   document.getElementById('line-upload-dialog')?.remove();
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay open';
@@ -1250,7 +1246,6 @@ function openLineUpload({ title = 'Upload lines', hint = '', template = 'lines',
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button></div>
       <div class="modal-body" style="display:flex; flex-direction:column; gap:12px;">
-        <p style="margin:0;">${escapeHTMLText(hint || 'A CSV with two columns: Barcode (or item code) and Qty. Download the template, fill it in, then pick it here.')}</p>
         <div><button type="button" class="btn btn-outline btn-sm" data-lu-template>Download template</button></div>
         <input type="file" accept=".csv,text/csv,text/plain" class="form-input" data-lu-file aria-label="CSV file">
         <div data-lu-summary class="txn-hint"></div>
@@ -1417,7 +1412,7 @@ function wireLocationCodeEdit(body, record) {
     input.setSelectionRange(at, at);
   });
   input.closest('.form-group')?.insertAdjacentHTML('beforeend',
-    '<div class="empty-state-hint">Type a new code to rename this store everywhere it is used - stock, documents, users\' stores. Printed documents keep the old code.</div>');
+    '<div class="empty-state-hint">Renames it everywhere; printed documents keep the old code.</div>');
 }
 
 // The id to save under: unchanged, the new code once renamed, or null when

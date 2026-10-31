@@ -30,7 +30,8 @@ import (
 // whenever a check is added, removed or changes what it accepts, so a
 // readiness answer kept as evidence says which rules produced it.
 // v2 (47.16.4d): the tax step's e-invoice turnover warning.
-const SetupValidatorVersion = "47.12.4-v2"
+// v3 (47.16.4h.1): that warning counts the till's sales too.
+const SetupValidatorVersion = "47.12.4-v3"
 
 // Readiness states.
 const (
@@ -265,6 +266,11 @@ const einvoiceTurnoverLimit = 5_00_00_000.0
 // IRP environment is off or missing. A GSTIN is the one its store's legal
 // entity carries - the resolution the e-invoice itself uses (LoadPrintStore).
 // Credit notes are not deducted, so the warning errs early, never late.
+// Stage 47.16.4h.1: the till's sales count too - turnover is every supply,
+// not only invoiced ones. A paid or settled bill counts before tax on the
+// day it is dated (an offline sale is dated to the till's day), a bill with
+// no GST breakdown at its net amount, and returns are not deducted. Other
+// GSTINs under the same PAN are not added in yet.
 func (r *setupReadiness) einvoiceTurnoverChecks() []SetupCheck {
 	if r.country != "" && r.country != "IN" {
 		return nil
@@ -283,15 +289,21 @@ func (r *setupReadiness) einvoiceTurnoverChecks() []SetupCheck {
 	// Per store and month, so no date is ever cast: a record with an odd
 	// date falls back to when it was made, and an amount that is not a
 	// number counts as nothing rather than failing the whole answer.
-	num := func(field string) string {
-		return `CASE WHEN data->>'` + field + `' ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (data->>'` + field + `')::numeric END`
+	num := func(expr string) string {
+		return `CASE WHEN ` + expr + ` ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (` + expr + `)::numeric END`
 	}
+	field := func(f string) string { return num(`data->>'` + f + `'`) }
+	gst := func(f string) string { return num(`data->'gst_breakdown'->>'` + f + `'`) }
 	rows := r.codes(`SELECT concat_ws(chr(31), loc, ym, SUM(v)::text) FROM (
 			SELECT COALESCE(data->>'location', '') AS loc,
 			       CASE WHEN d ~ '^[0-9]{4}-[0-9]{2}' THEN substr(d, 1, 7) ELSE to_char(created_at, 'YYYY-MM') END AS ym,
-			       COALESCE(` + num("base_total_amount") + `, ` + num("total_amount") + `, 0) - COALESCE(` + num("total_tax") + `, 0) AS v
+			       COALESCE(` + field("base_total_amount") + `, ` + field("total_amount") + `, 0) - COALESCE(` + field("total_tax") + `, 0) AS v
 			FROM (SELECT data, created_at, COALESCE(NULLIF(data->>'invoice_date', ''), NULLIF(data->>'posting_date', ''), NULLIF(data->>'date', ''), '') AS d
 			      FROM %[1]s.documents WHERE doctype = 'SalesInvoice' AND deleted_at IS NULL AND status IN ('Approved', 'Paid')) inv
+			UNION ALL
+			SELECT COALESCE(data->>'location', ''), to_char(public.erp_local_date(created_at), 'YYYY-MM'),
+			       COALESCE(` + gst("total_amount") + `, ` + field("amount_paid") + `, 0) - COALESCE(` + gst("total_tax") + `, 0)
+			FROM %[1]s.documents WHERE doctype = 'POSCart' AND deleted_at IS NULL AND status IN ('Paid', 'Settled')
 		) s GROUP BY loc, ym`)
 	gstinOf := map[string]string{}
 	sales := map[string]map[string]float64{} // GSTIN -> financial year -> sales before tax

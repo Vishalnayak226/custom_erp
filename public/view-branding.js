@@ -19,13 +19,13 @@ export async function renderBrandingPanel(host) {
     <div class="form-group" style="margin-bottom: 18px;">
       <label class="form-label" style="font-weight: 600;">Branding for this company</label>
       <p class="page-subtitle" style="margin: 2px 0 8px; font-size: 12.5px;">${b.enabled
-        ? 'On: your logo leads on your sign-in page, in the header and the menu, and your accent colour is used. Wholeops shows small beside it: "Powered by Wholeops" next to your logo in the menu, and a slim Wholeops strip across the top of the sign-in page.'
-        : 'Off: the standard Wholeops look. Branding is part of the plan - ask Wholeops to switch it on.'}</p>
+        ? 'On.'
+        : 'Off - ask Wholeops to switch it on.'}</p>
       ${operator ? `<label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer;"><input type="checkbox" id="brand-mode" ${b.enabled ? 'checked' : ''} style="width: 16px; height: 16px;"> <span style="font-size: 13px;">Branding switched on for this client (platform operator)</span></label>` : ''}
     </div>
     <div class="form-group">
       <label class="form-label" for="brand-logo-file" style="font-weight: 600;">Company logo</label>
-      <p class="page-subtitle" style="margin: 2px 0 8px; font-size: 12.5px;">PNG, JPEG or WebP (no SVG), at most 300 KB. A wide logo on a transparent background looks best; it is shown at most 36 px high in the header and 64 px on the sign-in page.</p>
+      <p class="page-subtitle" style="margin: 2px 0 8px; font-size: 12.5px;">PNG, JPEG or WebP (no SVG), at most 300 KB.</p>
       <div id="brand-logo-preview" style="margin-bottom: 10px;">${b.logo_version
         ? `<img src="/api/v1/branding/logo?v=${encodeURIComponent(b.logo_version)}" alt="Current logo" style="max-height: 64px; max-width: 240px; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-card, #fff);">`
         : '<span class="text-muted" style="font-size: 13px;">No logo yet.</span>'}</div>

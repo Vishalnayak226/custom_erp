@@ -1056,4 +1056,5 @@ var reportNumbers = map[string]string{
 	"crm-pulse":                                                "R6075",
 	"customer-affinity":                                        "R6076",
 	"suggested-segments":                                       "R6077",
+	"threshold-splitting":                                      "R5087",
 }

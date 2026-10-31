@@ -18,8 +18,8 @@ superseded_by: none
 # Browser boundary inventory
 
 Scope is the ERP-owned native browser shell (`public/app.js`, `public/index.html`) and its 18 lazy
-view modules (`public/view-*.js`). The vendored `qrcode.min.js` is excluded from application-owned
-counts; it remains subject to the existing supply-chain controls.
+view modules (`public/view-*.js`). No third-party script is vendored under `public/` (the unused
+`qrcode.min.js` was deleted at Stage 47.18.4a); a new one would fall under the supply-chain controls.
 
 This revision records a **completed inline-handler migration**, an **enforced strict `script-src`**
 and (Stage 134.8, 2026-10-23) a **completed HTML-sink classification**: every interpolation the

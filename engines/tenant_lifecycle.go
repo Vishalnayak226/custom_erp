@@ -824,12 +824,14 @@ func validSQLIdentifier(name string) bool {
 //   - no legal hold;
 //   - the retention window must have elapsed;
 //   - a backup reference must be supplied, and it goes into the evidence trail
-//     as the answer to "where is this tenant's data if it is needed again".
+//     as the answer to "where is this tenant's data if it is needed again";
+//   - (Stage 49.10.6b) requestID must name a purge request another admin
+//     approved (engines/client_removal_approval.go); it is spent here.
 //
 // The drop and the registry delete share one transaction (PostgreSQL DDL is
 // transactional), so a failure cannot leave a registry row pointing at a
 // dropped schema.
-func PurgeTenant(tenantID, actor, backupRef string) (TenantResidueReport, error) {
+func PurgeTenant(tenantID, actor, backupRef, requestID string) (TenantResidueReport, error) {
 	refuse := func(why string) (TenantResidueReport, error) {
 		_ = RecordTenantLifecycleEvent(tenantID, TenantEventPurgeRefused, actor, why)
 		return TenantResidueReport{TenantID: tenantID}, errors.New(why)
@@ -863,6 +865,11 @@ func PurgeTenant(tenantID, actor, backupRef string) (TenantResidueReport, error)
 		return TenantResidueReport{TenantID: tenantID}, err
 	}
 	defer tx.Rollback()
+	approval, err := spendClientRemovalApprovalTx(tx, tenantID, ClientRemovalPurge, requestID, actor)
+	if err != nil {
+		_ = tx.Rollback()
+		return refuse("refused: " + err.Error())
+	}
 	if _, err := tx.Exec(fmt.Sprintf(`DROP SCHEMA IF EXISTS %s CASCADE`, life.SchemaName)); err != nil {
 		return TenantResidueReport{TenantID: tenantID}, err
 	}
@@ -870,7 +877,7 @@ func PurgeTenant(tenantID, actor, backupRef string) (TenantResidueReport, error)
 		return TenantResidueReport{TenantID: tenantID}, err
 	}
 	if err := recordTenantLifecycleEventTx(tx, tenantID, TenantEventPurged, actor,
-		fmt.Sprintf("schema %s dropped and registry row deleted; backup reference: %s", life.SchemaName, backupRef)); err != nil {
+		fmt.Sprintf("schema %s dropped and registry row deleted; backup reference: %s; %s", life.SchemaName, backupRef, approval.evidence())); err != nil {
 		return TenantResidueReport{TenantID: tenantID}, err
 	}
 	if err := tx.Commit(); err != nil {

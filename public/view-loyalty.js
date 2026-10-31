@@ -74,7 +74,6 @@ export async function renderLoyaltyView(root) {
         </table></div>
       </section>
       <section data-loy-pane="tiers" class="hidden">
-        <p class="txn-hint" style="margin:0 0 8px;">A customer's tier follows what they spent, net of offers and refunds (all time, or the period in Settings -> Loyalty -> Tier spend counted over the last). Grace days keep a tier after spend drops below it.</p>
         <div class="table-wrapper"><table>
           <thead><tr><th>Tier</th><th>Spend from</th><th>Earn multiplier</th><th>Benefits (shown at the till)</th><th>Grace days</th><th></th></tr></thead>
           <tbody id="loy-tiers"></tbody>
@@ -105,7 +104,6 @@ export async function renderLoyaltyView(root) {
           <tbody id="loy-campaigns"></tbody>
         </table></div>
         <div style="margin-top:8px;"><button class="btn btn-outline btn-sm" type="button" data-loy-open="Campaign">Add or edit campaigns</button></div>
-        <p class="txn-hint" style="margin:10px 0 0;">A campaign hands each message to CleverTap; whether it reached the customer is tracked there, not here. Only customers who agreed to offers on the campaign's channel (ticked on their Customer record) are sent to - no consent, no SMS or WhatsApp. A customer is picked at most once a day.</p>
       </section>
       <div id="loy-error" class="login-error hidden"></div>
     </div>`;
@@ -279,7 +277,7 @@ async function loadCustomerContext(panel, id) {
     : `<tr><td colspan="${cols}" class="txn-hint">${empty}</td></tr>`;
   const offers = c.consent_sms || c.consent_whatsapp
     ? `Agreed to offers by ${[c.consent_sms ? 'SMS' : '', c.consent_whatsapp ? 'WhatsApp' : ''].filter(Boolean).join(' and ')}.`
-    : 'Has not agreed to offers - no SMS or WhatsApp campaign reaches them (tick it on their Customer record once they agree).';
+    : 'Has not agreed to offers - no SMS or WhatsApp.';
   box.innerHTML = `<div class="txn-hint" style="margin:0 0 10px;">${loyEsc(offers)} Points worth <strong>${money(c.points_value)}</strong>.
       Spend counted for tiers: <strong>${money(c.spend)}</strong>${c.next_tier ? ` &middot; ${money(c.to_next_tier)} more reaches <strong>${loyEsc(c.next_tier)}</strong>` : ''}.</div>
     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; margin-bottom:12px;">

@@ -18,10 +18,20 @@ var searchIdentityNames = map[string]bool{
 	"short_code": true,
 }
 
+// itemIdentityFields (Stage 147.2, user 2026-10-31: "All search or erp, wms,
+// oms will work with design or combination id/sku or barcode ... Some places
+// it will work item name like po creation. Else above 3 only."): an item is
+// found by its Design ID, Combination ID / SKU or barcode - never its name. A
+// box that also takes the name (the PO's) asks for it with q_fields.
+var itemIdentityFields = []string{"id", "code", "barcode", "parent_product_code", "family"}
+
 // SearchIdentityFields lists the fields @identity stands for on a doctype:
 // the names above it has, its server-numbered fields, and any Data field
 // named *_number / *_no (not a bank account).
 func SearchIdentityFields(tenantID, doctype string) []string {
+	if doctype == "Item" {
+		return append([]string(nil), itemIdentityFields...)
+	}
 	out := []string{"id", "code", "name"}
 	seen := map[string]bool{"id": true, "code": true, "name": true}
 	fields, err := GetDocTypeMeta(tenantID, doctype)

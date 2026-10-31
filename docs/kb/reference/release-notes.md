@@ -19,13 +19,27 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **203** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **206** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
-- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-22
+- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-24
+
+## 2026-10-31
+
+**Stage 147 — Item boxes find by Design ID, Combination ID or barcode; the OMS order line shows stock and fills the price** *(code + tests + docs, session erp-oms; NOT COMMITTED)*
+
+The user's ask (an OMS ▸ New order screenshot, then two corrections: Design ID, Combination ID / SKU and barcode may all carry letters) is quoted on the Stage 147 header in micro_checklist.md.
+
+**Stage 145 — Inventory: a one-page management dashboard, every inventory page on the top-bar store, Stock on Hand by design with columns each user picks** *(code + tests + docs, session erp-inv; NOT COMMITTED)*
+
+The user's ask is quoted in full on the Stage 145 header in micro_checklist.md; items 145.1-145.4 carry the detail.
 
 ## 2026-10-30
+
+**"Push and deploy properly ... all approved" - 0.20.0, everything in the tree, deployed to app and minn** *(release, session erp-1f)*
+
+micro_checklist run header "Push and deploy properly" (2026-10-30).
 
 **"Build next 20 open items" (session erp-6b): twenty Stage 47 / 49 slices - a cross-store write hole, raw database text in errors, a screen burst refused, a posted GRN cancellable, strict posting transitions, revocable exports, job actors** *(code + tests + docs; NOT COMMITTED)*
 
@@ -452,20 +466,4 @@ Continued the priority order the 2026-09-24 thread handed off (BLD-038 first, th
 **Stage 51.9 — Jewellery field-set correction against real client data, and the `minn` PO&Inventory.xlsx master-data migration** *(code + tests + docs)*
 
 User supplied the client's actual business workbook and asked for the ERP's own bulk-import template (not molding the ERP to the client's format), with our own generated Design ID/SKU — see `docs/micro_checklist.md` 51.9 for full detail; this is the index-style summary.
-
-**Stage 50 — BLD-033 (task-oriented role navigation and onboarding): a new Home landing screen, permission-derived not role-name-branched** *(code + tests + docs)*
-
-Built on the priority order the 2026-09-23 thread handed off: BLD-033 first (READY, DEPENDS on BLD-009/021, both done), then BLD-038/BLD-037 next if time allowed. Confirmed genuinely unstarted first (`git status` showed no file evidence). Full per-item detail `docs/micro_checklist.md` 50.13, build checklist BLD-033 entry; this is the index-style summary.
-
-## 2026-09-23
-
-**Stage 50 — BLD-031 (providers, public API and extensions): two real bugs found and fixed via local failure campaigns** *(code + tests + docs)*
-
-Continuation of the same Stage 50 build thread as §160-163. HEAD unchanged at `82f5517`; nothing committed. Per the next-thread prompt's priority order, verified BLD-031 genuinely showed no file evidence in this tree (no outbox/webhook/contract test files, no matching mtime cluster from the 2026-09-20 dispatch) before starting — confirmed not started, built it.
-
-## 2026-09-22
-
-**Stage 50 — BLD-020 (pairwise compatibility and boundary matrix) built and verified, closing Wave 2; a second real timezone-skew bug found and fixed** *(code + tests + docs)*
-
-Same session as §160-162, immediately following BLD-019. BLD-020 formally `DEPENDS on BLD-002`, resolved earlier this session. HEAD unchanged at `82f5517`; nothing committed.
 

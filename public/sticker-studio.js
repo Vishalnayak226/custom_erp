@@ -364,7 +364,6 @@ function mount() {
           <button class="stk-icon-btn" data-sa="drawer" title="Close">${icon('close', 14)}</button>
         </div>
         <input type="search" class="form-input stk-drawer-search" placeholder="Search fields…" aria-label="Search fields">
-        <p class="stk-drawer-hint">Click to add, or drag onto the label. Every Item field is here - including ones added later.</p>
         <div class="stk-drawer-list"></div>
       </aside>
       <main class="stk-stage">
@@ -772,7 +771,6 @@ function elementTabHTML() {
       <div class="stk-empty">
         <div class="stk-empty-icon">${icon('dots', 28)}</div>
         <p><strong>Nothing selected.</strong></p>
-        <p>Click an element on the label, drag a box around several, or add one from the <b>Insert</b> rail.</p>
         <ul class="stk-tips">
           <li><kbd>Shift</kbd> / <kbd>Ctrl</kbd>-click to select several</li>
           <li>Arrow keys nudge 0.1 mm, <kbd>Shift</kbd> + arrow 1 mm</li>
@@ -786,7 +784,6 @@ function elementTabHTML() {
     return `
       <section class="stk-sec">
         <h4>${els.length} elements</h4>
-        <p class="stk-muted">Use the align tools in the bottom dock, or change shared settings below - they apply to every selected element.</p>
         ${allText ? `
           <div class="stk-row">${fontSelect(els[0].font_family || '')}</div>
           <div class="stk-row">${numInput('font_size_mm', els[0].font_size_mm, { label: 'Size', step: 0.1, min: 0.5 })}
@@ -833,7 +830,7 @@ function elementTabHTML() {
         ${scanBadge(fit)}
       </section>`;
   } else if (el.kind === 'line') {
-    content = `<section class="stk-sec"><h4>Line</h4><div class="stk-row">${numInput('thickness_mm', el.thickness_mm, { label: 'Thickness', step: 0.05, min: 0.05 })}</div><p class="stk-muted">Draws along the longer side of its box.</p></section>`;
+    content = `<section class="stk-sec"><h4>Line</h4><div class="stk-row">${numInput('thickness_mm', el.thickness_mm, { label: 'Thickness', step: 0.05, min: 0.05 })}</div></section>`;
   } else if (el.kind === 'box') {
     content = `<section class="stk-sec"><h4>Box</h4>
       <div class="stk-row">${numInput('thickness_mm', el.thickness_mm, { label: 'Border', step: 0.05, min: 0.05 })}${numInput('radius_mm', el.radius_mm || 0, { label: 'Corner', step: 0.1, min: 0 })}</div>
@@ -842,8 +839,7 @@ function elementTabHTML() {
     content = `<section class="stk-sec"><h4>Logo / image</h4>
       <button class="btn btn-outline btn-sm" data-sa="replace-image">Replace image…</button>
       <label class="stk-range"><span>Ink threshold</span><input type="range" min="20" max="235" step="1" data-el="threshold" data-type="num" value="${el.threshold}"><em>${el.threshold}</em></label>
-      <label class="stk-check"><input type="checkbox" data-el="invert" data-type="bool" ${el.invert ? 'checked' : ''}> Invert (negative)</label>
-      <p class="stk-muted">Thermal printers burn black or nothing - turn on <b>Printer view</b> to tune the threshold.</p></section>`;
+      <label class="stk-check"><input type="checkbox" data-el="invert" data-type="bool" ${el.invert ? 'checked' : ''}> Invert (negative)</label></section>`;
   }
   const canInvert = el.kind === 'text' || el.kind === 'barcode' || el.kind === 'qr';
   return `
@@ -901,8 +897,7 @@ function affixHTML(el) {
         ${[0, 1, 2, 3, 4].map(d => `<option value="${d}" ${String(el.decimals) === String(d) ? 'selected' : ''}>${d}</option>`).join('')}
       </select></label>
       ${numeric ? `<label class="stk-check"><input type="checkbox" data-el="group_digits" data-type="bool" ${el.group_digits ? 'checked' : ''}> 1,23,456 grouping</label>` : ''}
-    </div>
-    <p class="stk-muted">If the item has no value, the whole element is left off - no stray "W: gm".</p>`;
+    </div>`;
 }
 
 function fontSelect(current, scope = 'el', key = 'font_family') {
@@ -951,7 +946,6 @@ function labelTabHTML() {
         ${numInput('h', t.h, { label: 'Height', min: 3, scope: 'tpl' })}
       </div>
       <div class="stk-row"><span class="stk-row-label">Printer DPI</span>${seg('s.dpi', s.dpi, [{ v: 203, label: '203' }, { v: 300, label: '300' }, { v: 600, label: '600' }])}</div>
-      <p class="stk-muted">Used for the scan checks and Printer view. When printing, the Printer record's own DPI wins.</p>
     </section>
     <section class="stk-sec">
       <h4>Roll</h4>
@@ -963,7 +957,7 @@ function labelTabHTML() {
         ${numInput('gap_v_mm', s.gap_v_mm, { label: 'Gap ↕', min: 0, scope: 's' })}
         ${numInput('media_w_mm', s.media_w_mm, { label: 'Roll width', min: 0, scope: 's' })}
       </div>
-      <p class="stk-muted">Roll width blank = ${autoMedia} mm (labels + gaps). Set it when the liner is wider than the labels. ${s.direction === 'vertical' ? 'You design it as it reads; it prints turned, as below.' : ''}</p>
+      <p class="stk-muted">Roll width blank = ${autoMedia} mm.</p>
       <div class="stk-one-print-wrap"><span class="stk-row-label">One print</span><canvas class="stk-one-print"></canvas></div>
     </section>
     <section class="stk-sec">
@@ -975,7 +969,6 @@ function labelTabHTML() {
         ${numInput('speed', s.speed, { label: 'Speed', step: 1, min: 1, max: 14, unit: 'in/s', scope: 's' })}
       </div>
       <label class="stk-check"><input type="checkbox" data-s="flip" data-type="bool" ${s.flip ? 'checked' : ''}> Rotate the print 180° (label comes out upside down)</label>
-      <p class="stk-muted">Print is off-centre? Do a <b>Test print</b>, measure, and shift. Blank darkness/speed keep the printer's own settings.</p>
     </section>
     <section class="stk-sec">
       <h4>Text</h4>
@@ -983,7 +976,6 @@ function labelTabHTML() {
     </section>
     <section class="stk-sec">
       <h4>Office printer / PDF</h4>
-      <p class="stk-muted">Used when the printer is not a TSC (TSPL) or Zebra (ZPL) thermal printer, or the print agent isn't running.</p>
       <div class="stk-row">${seg('s.sheet.mode', s.sheet.mode, [{ v: 'roll', label: 'Roll - a page per row' }, { v: 'a4', label: 'A4 sticker sheet' }])}</div>
       ${s.sheet.mode === 'a4' ? `
         <div class="stk-grid2">
@@ -1013,7 +1005,7 @@ function a4Summary() {
 function layersTabHTML() {
   if (!S.t.elements.length) return '<div class="stk-empty"><p>No elements yet.</p></div>';
   const list = [...S.t.elements].reverse();
-  return `<p class="stk-muted stk-layers-hint">Top of the list prints on top.</p><ul class="stk-layers">${list.map(el => `
+  return `<ul class="stk-layers">${list.map(el => `
     <li class="${S.sel.has(el.id) ? 'is-sel' : ''} ${el.hidden ? 'is-hidden' : ''}" data-layer="${esc(el.id)}">
       <span class="stk-layer-icon">${icon(el.kind === 'text' ? (el.field === 'custom' ? 'text' : 'data') : el.kind, 15)}</span>
       <span class="stk-layer-name">${esc(elementName(el))}</span>
@@ -1289,7 +1281,6 @@ function showStarter() {
   box.innerHTML = `
     <div class="stk-starter-card">
       <h3>Start a new label</h3>
-      <p class="stk-muted">Pick the size of the roll you print on - you can change it any time.</p>
       ${groups.map(g => `<h5>${esc(g)}</h5><div class="stk-starter-grid">${E.LABEL_PRESETS.filter(p => p.group === g).map(p => {
         const vertical = p.direction === 'vertical', cw = vertical ? p.h : p.w, ch = vertical ? p.w : p.h;
         const across = p.per_row || 1, down = p.per_col || 1;
@@ -1897,12 +1888,12 @@ async function testPrint(anchor) {
   pop.className = 'stk-pop';
   pop.innerHTML = `
     <h4>Test print</h4>
-    <p class="stk-muted">One ${S.t.settings.per_row * S.t.settings.per_col > 1 ? 'print' : 'label'} of this design${S.previewName ? ` with <b>${esc(S.previewName)}</b>` : ' with sample data'} - nothing is logged.</p>
+    <p class="stk-muted">One ${S.t.settings.per_row * S.t.settings.per_col > 1 ? 'print' : 'label'}${S.previewName ? ` with <b>${esc(S.previewName)}</b>` : ' with sample data'} - not logged.</p>
     <label class="stk-field"><span>Printer</span><select class="stk-pop-printer">
       <option value="">Browser print dialog</option>
       ${printers.map(p => `<option value="${esc(p.code || p.id)}">${esc(p.name || p.code)}${p.printer_language ? ` · ${esc(p.printer_language)}` : ''}</option>`).join('')}
     </select></label>
-    <div class="stk-actions"><button class="btn btn-outline btn-sm" data-pop="cancel">Cancel</button><button class="btn btn-primary btn-sm" data-pop="go">Print</button></div>`;
+    <div class="stk-actions"><button class="btn btn-outline btn-sm" data-pop="cancel">Cancel</button><button class="btn btn-primary btn-sm" data-pop="go">Preview</button></div>`;
   S.root.appendChild(pop);
   const r = anchor.getBoundingClientRect();
   pop.style.top = r.bottom + 8 + 'px';
@@ -1918,6 +1909,7 @@ async function testPrint(anchor) {
     try { localStorage.setItem('stk.testPrinter', code); } catch (err) { /* private mode */ }
     const printer = printers.find(p => (p.code || p.id) === code) || null;
     pop.remove();
+    // Stage 143.4: the print shows first; Print there prints it.
     await E.printTestLabel(S.t, S.label, printer);
   });
 }
@@ -1945,7 +1937,7 @@ export async function renderStickerTemplateGallery(container, { onChange } = {})
       </div>
     </div>
     ${templates.length === 0 ? `
-      <p class="stk-muted stk-gallery-hint">No templates of your own yet, so every sticker prints the standard label below. Duplicate it to change it, or start a new one.</p>` : ''}
+      <p class="stk-muted stk-gallery-hint">No templates of your own yet.</p>` : ''}
       <div class="stk-cards">
         <article class="stk-card is-builtin" data-name="standard label built-in">
           <button class="stk-card-thumb" data-g="std-dup" title="Duplicate to edit"><canvas></canvas></button>
@@ -1970,7 +1962,6 @@ export async function renderStickerTemplateGallery(container, { onChange } = {})
                 <span class="badge">Built-in</span>
               </div>
               <div class="stk-card-meta">${round2(d.w)} × ${round2(d.h)} mm · ${d.dpi} dpi${layoutText({ per_row: d.per_row || 1, per_col: d.per_col || 1, direction: d.direction })} · ${d.elements.length} elements</div>
-              <div class="stk-card-cats"><span class="stk-muted">Pick it on Print or in a template rule; Duplicate it to change it</span></div>
               <div class="stk-card-actions">
                 <button class="btn btn-outline btn-sm" data-g="design-dup" data-design="${esc(d.id)}">Duplicate</button>
               </div>
@@ -2084,7 +2075,7 @@ export async function renderStickerTemplateRules(container) {
   panel.className = 'table-panel stk-gallery stk-rules';
   panel.innerHTML = `
     <div class="stk-gallery-head"><h2>Template rules</h2></div>
-    ${off ? '<p class="stk-muted stk-gallery-hint">No Active templates yet, so every label prints the standard label. Make one on the Sticker templates tab, then set the rules here.</p>' : ''}
+    ${off ? '<p class="stk-muted stk-gallery-hint">No Active templates yet.</p>' : ''}
     <ol class="stk-rules-list">
       <li class="stk-rule">
         <div class="stk-rule-head"><span class="stk-rule-n">1</span><strong>Item</strong><span class="stk-muted">Item form → Sticker template</span></div>

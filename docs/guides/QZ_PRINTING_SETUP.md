@@ -200,8 +200,9 @@ any PC there that has not chosen its own label printer.
 
 ### 3. Test it
 
-Back on **Sticker Printing → Print Setup**, click **Test Print**. A test label
-should come out with no dialog.
+Back on **Sticker Printing → Print Setup**, click **Test Print**. It shows the
+test page and the printer it goes to; click **Print**. A test label should come
+out with no dialog.
 
 ---
 

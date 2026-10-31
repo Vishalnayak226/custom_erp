@@ -918,6 +918,18 @@ function wrapLines(ctx, text, maxW) {
   return out;
 }
 
+// 143.6: shrink-to-fit stops at a size a thermal printer still prints
+// legibly; past it the line is cut with … (an 80-character item name on a
+// 26 mm box printed as a hairline). The box's height still wins.
+const MIN_TEXT_MM = 1.6;
+
+function cutToWidth(ctx, line, maxW) {
+  if (ctx.measureText(line).width <= maxW) return line;
+  let k = line.length;
+  while (k > 1 && ctx.measureText(line.slice(0, k).trimEnd() + '…').width > maxW) k--;
+  return line.slice(0, k).trimEnd() + '…';
+}
+
 function drawTextContent(ctx, el, text, iw, ih, scale, family, ink) {
   let px = Math.max(1, el.font_size_mm * scale);
   setFont(ctx, el, px, family);
@@ -929,8 +941,14 @@ function drawTextContent(ctx, el, text, iw, ih, scale, family, ink) {
     if (el.fit === 'shrink') {
       const widest = Math.max(...lines.map(l => ctx.measureText(l).width));
       const lh = px * 1.15 * lines.length;
-      const k = Math.min(1, widest > 0 ? iw / widest : 1, lh > 0 ? ih / lh : 1);
-      if (k < 1) { px = Math.max(1, px * k * 0.995); setFont(ctx, el, px, family); }
+      const kh = Math.min(1, lh > 0 ? ih / lh : 1);
+      const k = Math.min(kh, widest > 0 ? iw / widest : 1);
+      if (k < 1) {
+        const floor = Math.min(px * kh, MIN_TEXT_MM * scale);
+        px = Math.max(1, floor, px * k * 0.995);
+        setFont(ctx, el, px, family);
+        if (lines.some(l => ctx.measureText(l).width > iw)) lines = lines.map(l => cutToWidth(ctx, l, iw));
+      }
     }
   }
   const lh = px * 1.15;
@@ -1532,7 +1550,13 @@ export async function previewStickerLabels(labels, { printer, copies = 1, apiFet
   if (!labels || labels.length === 0) return false;
   defaultTemplate();
   const templates = await loadTemplates(labels, apiFetch || window.apiFetch);
-  const segments = tuned(expandRuns(labels, templates, copies), printer);
+  return previewSegments(tuned(expandRuns(labels, templates, copies), printer), printer, 'Sticker preview');
+}
+
+// previewSegments is the preview dialog itself, for segments already tuned to
+// the printer (Stage 143.4: the studio's Test print and the alignment test
+// show it too). Above any screen, the sticker studio included.
+async function previewSegments(segments, printer, title) {
   const dpi = Number(printer && printer.dpi) || 0;
   const same =(a, b) => a.t === b.t && a.cells.length === b.cells.length &&
     a.cells.every((c, k) => c.label === b.cells[k].label && c.x === b.cells[k].x && c.y === b.cells[k].y);
@@ -1548,16 +1572,17 @@ export async function previewStickerLabels(labels, { printer, copies = 1, apiFet
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
+  overlay.style.zIndex = '3100';
   overlay.innerHTML = `
     <div class="modal-container" style="max-width: 920px;" role="dialog" aria-modal="true" aria-labelledby="stk-preview-title">
       <div class="modal-header">
-        <h3 class="modal-title" id="stk-preview-title">Sticker preview</h3>
+        <h3 class="modal-title" id="stk-preview-title">${esc(title)}</h3>
         <button type="button" class="modal-close" aria-label="Close dialog" data-stk-preview="close">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
       <div class="modal-body">
-        <p style="margin: 0 0 12px; color: var(--text-muted);">${stickers} sticker${stickers === 1 ? '' : 's'}${printer && printer.name ? ` on ${esc(printer.name)}` : ''}. Grey dashes mark each label's edge; they do not print.</p>
+        <p style="margin: 0 0 12px; color: var(--text-muted);">${stickers} sticker${stickers === 1 ? '' : 's'}${printer && printer.name ? ` on ${esc(printer.name)}` : ''}.</p>
         <div data-stk-preview="pages" style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;"></div>
       </div>
       <div class="modal-footer">
@@ -1705,11 +1730,14 @@ export async function printStickerLabels(labels, { printer, copies = 1, apiFetch
 }
 
 // One design, one print - the studio's Test Print (no print-log row: nothing
-// real is being labelled).
-export async function printTestLabel(t, label, printer) {
+// real is being labelled). Stage 143.4: it shows the print first, as every
+// print does; Print there prints it. Resolves true when it printed.
+export async function printTestLabel(t, label, printer, title = 'Test print') {
   await ensureTemplateAssets(t);
   const segments = [{ t, items: Array(t.settings.per_row * t.settings.per_col).fill(label) }];
+  if (!await previewSegments(tuned(segments, printer), printer, title)) return false;
   await printStickersNoDialog(segments, printer, 'Test print');
+  return true;
 }
 
 // Stage 137.3: Test alignment - on every label of the roll, a box 0.5 mm in
@@ -1727,7 +1755,7 @@ export async function printAlignmentTest(roll, preset) {
     { kind: 'line', x_mm: w / 2 - 0.15, y_mm: 0, w_mm: 0.3, h_mm: h, thickness_mm: 0.3 },
     { kind: 'text', field: 'custom', text: shift, x_mm: 1.2, y_mm: 1.2, w_mm: w / 2 - 2, h_mm: Math.min(4, h / 2 - 2), font_size_mm: 2.2, fit: 'shrink' }
   ].map(normaliseElement);
-  await printTestLabel(t, { sku: '', name: '' }, preset);
+  return printTestLabel(t, { sku: '', name: '' }, preset, 'Alignment test');
 }
 
 // Stage 137.3: Calibrate roll - the printer feeds a few labels and measures

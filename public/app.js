@@ -334,7 +334,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '71';
+const VIEW_MODULE_VERSION = '72';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -948,6 +948,24 @@ async function apiFetch(url, options = {}) {
   return response && response.clone();
 }
 
+// Stage 49.4.7a: apiFetch's commandKey option names a money / stock command
+// (a journal voucher, a payroll run...). The call carries an Idempotency-Key;
+// the same call sent again after no answer (a timeout, a dropped line) reuses
+// it, so the server answers the first result instead of posting twice. Any
+// answer but "still being processed" retires the key.
+const pendingCommandKeys = new Map();
+function commandKeyFor(scope, url, body) {
+  let sig = `${url}|`;
+  if (typeof body === 'string') {
+    try { const o = JSON.parse(body); if (o && typeof o === 'object') delete o.idempotency_key; sig += JSON.stringify(o); } catch { sig += body; }
+  }
+  const held = pendingCommandKeys.get(scope);
+  if (held && held.sig === sig) return held.key;
+  const key = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  pendingCommandKeys.set(scope, { sig, key });
+  return key;
+}
+
 async function apiFetchOnce(url, options = {}, retried = false) {
   const token = localStorage.getItem('erp_token');
   const isRead = !options.method || options.method === 'GET';
@@ -962,6 +980,7 @@ async function apiFetchOnce(url, options = {}, retried = false) {
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
+  if (options.commandKey) headers['Idempotency-Key'] = commandKeyFor(options.commandKey, url, options.body);
 
   const timeoutMs = options.timeoutMs === 0 ? 0 : (options.timeoutMs || DEFAULT_API_TIMEOUT_MS);
   const controller = options.signal ? null : new AbortController();
@@ -995,6 +1014,7 @@ async function apiFetchOnce(url, options = {}, retried = false) {
     if (timeoutId) clearTimeout(timeoutId);
     if (viewSignal) viewSignal.removeEventListener('abort', onViewAbort);
   }
+  if (options.commandKey && response.status !== 409) pendingCommandKeys.delete(options.commandKey);
 
   if (response.status === 401) {
     logout(await getErrorMessage(response, 'Session expired. Please log in again.'));
@@ -3785,6 +3805,17 @@ const MENU_PERMISSION_MAP = {
   // 132.18: or files their own leave / grievance (self-service, e.g. Cashier) - HR shows such a
   // role My Requests and its own Leave / Grievances (view-hr.js hides every tab it cannot read).
   'menu-hr': { doctypes: ['Employee', 'Leave', 'Grievance'] },
+  // Stage 151: each HR page's own entry, on top of menu-hr's rule - the record it shows; payroll needs hr.payroll.
+  'menu-hr-attendance': { doctypes: ['Attendance'] },
+  'menu-hr-leave': { doctypes: ['Leave'] },
+  'menu-hr-roster': { doctypes: ['ShiftAssignment'] },
+  'menu-hr-payroll': { capability: 'hr.payroll' },
+  'menu-hr-payroll-export': { capability: 'hr.payroll' },
+  'menu-hr-loans': { capability: 'hr.payroll' },
+  'menu-hr-onboarding': { doctypes: ['OnboardingChecklist'] },
+  'menu-hr-appraisals': { doctypes: ['Appraisal'] },
+  'menu-hr-training': { doctypes: ['TrainingRecord'] },
+  'menu-hr-grievances': { doctypes: ['Grievance'] },
   'menu-assets': { doctypes: ['Asset'] },
   'menu-expenses': { doctypes: ['ExpenseClaim'] },
 
@@ -4821,13 +4852,6 @@ function setupEventListeners() {
     renderView('stickers');
   });
 
-  document.getElementById('menu-hr').addEventListener('click', (e) => {
-    e.preventDefault();
-    setActiveMenu('menu-hr');
-    closeSubmenus();
-    renderView('hr');
-  });
-
   document.getElementById('menu-assets').addEventListener('click', (e) => {
     e.preventDefault();
     setActiveMenu('menu-assets');
@@ -5718,6 +5742,8 @@ function restoreActiveMenuState(view, doctype) {
   // sidebar entry of its own, e.g. the Profile screen - setActiveMenu(undefined)
   // still clears every .active class even though it won't find an element to add one to.
   // Stage 88.1: an entry declared for this exact view (or list) wins.
+  // Stage 151: a bare "hr" link names no tab; the screen sets the one it opened.
+  if (!doctype && !view.includes(':') && view === currentView && currentViewTab) view = `${view}:${currentViewTab}`;
   const own = document.querySelector(doctype ? `.sidebar-menu [data-doctype="${doctype}"]` : `.sidebar-menu [data-go="${view}"]`);
   setActiveMenu(own ? own.id : STATIC_VIEW_MENU_IDS[view.split(':')[0]]);
   scrollActiveMenuIntoView();
@@ -5820,22 +5846,11 @@ async function renderView(view) {
   placeholder.innerHTML = '<div class="view-loading-bar"></div><span>Loading&hellip;</span>';
   root.appendChild(placeholder);
 
-  // Built in a container that is NOT #view-root, so a stale call has
-  // something harmless to throw away instead of DOM nodes that were ever
-  // actually visible - but it must still be attached to the live document
-  // (off-screen, not display:none - Chromium skips layout for display:none
-  // subtrees, which broke position:sticky table headers the first time this
-  // was tried), not a fully detached node: a render*View function's own
-  // document.getElementById(...) calls for elements it just created (the
-  // overwhelming majority of them, e.g. renderPutawayView's
-  // "putaway-submit-btn" wiring) only find those elements while they live
-  // in the actual document - detached, getElementById simply can never see
-  // them, however deep an await this function is awaiting. Found live
-  // (Stage 42.2.7's own Playwright pass): every renderer that wires an event
-  // listener or reads/writes an input's value right after building it was
-  // silently broken by this the moment Stage 45 introduced the detached
-  // scratch buffer - confirmed on Putaway, Bin Conditions and Wave Picking,
-  // so this is not a one-screen bug, it is the buffering mechanism itself.
+  // Built off #view-root, so a stale call throws away nodes never shown -
+  // but attached to the document, off-screen (display:none skips layout and
+  // broke sticky headers): a renderer's getElementById for elements it just
+  // made finds nothing in a detached node (Stage 42.2.7: Putaway, Bin
+  // Conditions and Wave Picking all broke that way).
   const scratch = document.createElement('div');
   scratch.style.cssText = 'position:absolute; left:-99999px; top:0; width:1px; overflow:hidden;';
   document.body.appendChild(scratch);
@@ -6195,7 +6210,7 @@ function buildRecoveryCodesNode(codes) {
 
   const warning = document.createElement('p');
   warning.style.cssText = 'font-size: 13px; margin: 0 0 10px;';
-  warning.textContent = 'These are shown only once. Store them somewhere safe and away from your phone. Any codes you had before have stopped working.';
+  warning.textContent = 'Shown only once - save them. Old codes no longer work.';
   wrap.appendChild(warning);
 
   const list = document.createElement('pre');
@@ -6251,7 +6266,7 @@ function buildAuthenticatorSecretNode(secret) {
 
   const intro = document.createElement('p');
   intro.style.cssText = 'font-size: 13px; margin: 0 0 10px;';
-  intro.textContent = 'Add a new account in your authenticator app (Google Authenticator, Authy, etc) using this manual-entry code. Your current device keeps working until you confirm the new one.';
+  intro.textContent = 'Add this code to your authenticator app.';
   wrap.appendChild(intro);
 
   const code = document.createElement('code');
@@ -6278,18 +6293,18 @@ async function renderMFARecoveryPanel(panel) {
   let statusBadge, statusNote;
   if (remaining === 0) {
     statusBadge = '<span class="badge badge-danger">No recovery codes</span>';
-    statusNote = 'If you lose your phone you will be locked out and an administrator will have to reset your two-factor setup. Generate a set now.';
+    statusNote = 'Lose your phone and you are locked out. Generate a set now.';
   } else if (remaining <= 2) {
     statusBadge = `<span class="badge badge-warning">${remaining} of ${perSet} left</span>`;
-    statusNote = 'You are nearly out. Generate a fresh set before the last one is used.';
+    statusNote = 'Nearly out. Generate a fresh set.';
   } else {
     statusBadge = `<span class="badge badge-success">${remaining} of ${perSet} left</span>`;
-    statusNote = 'Each code signs you in once if your authenticator is unavailable.';
+    statusNote = 'Each code works once.';
   }
 
   const pendingNote = info.reenroll_in_progress
     ? `<p style="font-size: 13px; color: var(--warning-strong); margin: 0 0 12px;">
-         A device change is part-finished. Your current authenticator still works &mdash; start it again to pick up where you left off, or cancel it.</p>`
+         Device change part-finished. Resume or cancel it.</p>`
     : '';
 
   panel.innerHTML = `
@@ -6539,7 +6554,6 @@ async function renderHomeView(container) {
     tile.className = 'home-action-card';
     tile.innerHTML = `
       <span class="card-title">${escapeHTMLText(action.label)}</span>
-      <span class="card-desc">${escapeHTMLText(action.desc)}</span>
     `;
     tile.addEventListener('click', () => navigateHomeAction(action));
     grid.appendChild(tile);

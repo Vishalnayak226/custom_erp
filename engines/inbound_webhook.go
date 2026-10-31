@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"custom_erp/db"
@@ -144,4 +145,65 @@ func inboundEventID(eventID string, body []byte) string {
 	}
 	sum := sha256.Sum256(body)
 	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+// --- Stage 49.11.4: the events behind the webhook detections ---------------
+//
+// A refused signature and a repeated delivery are each one signed
+// WEBHOOK_INBOUND audit row (status SIGNATURE_REFUSED / REPLAYED) naming the
+// source - never the body or a header - with the request's address and
+// correlation id (LogAuditEventCtx). The detection sweep counts them per
+// client (security_detection.go: webhook_signature_surge,
+// webhook_replay_surge). Rows are capped per client and outcome per window on
+// each server, so a flood of forged calls cannot grow the audit log without
+// bound: past the cap the alert has long since fired.
+
+const (
+	InboundWebhookAction    = "WEBHOOK_INBOUND"
+	WebhookSignatureRefused = "SIGNATURE_REFUSED"
+	WebhookReplayed         = "REPLAYED"
+	webhookEventWindow      = 15 * time.Minute
+	webhookEventRowCap      = 100
+)
+
+var webhookEventCounts = struct {
+	sync.Mutex
+	window time.Time
+	n      map[string]int
+}{n: map[string]int{}}
+
+// NoteInboundWebhookEvent records one refused signature or repeated delivery
+// for source (e.g. "shopify:web"). outcome is WebhookSignatureRefused or
+// WebhookReplayed.
+func NoteInboundWebhookEvent(ctx context.Context, tenantID, source, outcome string) {
+	if outcome != WebhookSignatureRefused && outcome != WebhookReplayed {
+		return
+	}
+	if !webhookEventAllowed(tenantID, outcome, time.Now()) {
+		return
+	}
+	src := boundPlain(source, 120)
+	if src == "" {
+		src = "unknown"
+	}
+	LogAuditEventCtx(ctx, tenantID, "system", InboundWebhookAction, outcome, "source="+src)
+}
+
+// webhookEventAllowed counts one event for tenant and outcome in the current
+// window and says whether it is still under webhookEventRowCap. The map is
+// emptied when the window turns, so it holds at most one window's keys.
+func webhookEventAllowed(tenantID, outcome string, now time.Time) bool {
+	window := now.Truncate(webhookEventWindow)
+	webhookEventCounts.Lock()
+	defer webhookEventCounts.Unlock()
+	if !webhookEventCounts.window.Equal(window) {
+		webhookEventCounts.window = window
+		webhookEventCounts.n = map[string]int{}
+	}
+	key := tenantID + "|" + outcome
+	if webhookEventCounts.n[key] >= webhookEventRowCap {
+		return false
+	}
+	webhookEventCounts.n[key]++
+	return true
 }

@@ -124,11 +124,9 @@ async function showBasketSent(ctx, bill) {
   main.innerHTML = `
     <article class="card basket-ticket">
       <h2>Basket ${esc(short)}</h2>
-      <div class="sub">Send the customer to the till with this number.</div>
       <div id="bk-code"></div>
       <div class="basket-number">${esc(bill.cart_number)}</div>
     </article>
-    <p class="hint">At the till: More... > Resume a held bill, then pick it, or type or scan ${esc(short)} in Find a basket. The till prices it again when it is resumed.</p>
     <a class="btn btn-primary btn-block" href="#/basket">New basket</a>`;
   $$(main, '#bk-code').innerHTML = await barcodeSVG(bill.cart_number);
 }
@@ -152,7 +150,7 @@ async function renderOrder(ctx, params) {
       <option value="">Let the order desk choose</option>
       ${others.map(s => `<option value="${esc(s.store)}">${esc(s.name)} · ${qty(s.available)} available</option>`).join('')}
     </select></label>
-    ${others.length ? '' : '<p class="hint">No other store you can see has it free; the order desk sources it (another store or the warehouse).</p>'}
+    ${others.length ? '' : '<p class="hint">No other store you can see has it free.</p>'}
     <h3 class="section-title">Deliver to</h3>
     <label class="field"><span>Customer name</span><input class="input" id="ord-name" autocomplete="name" required></label>
     <label class="field"><span>Phone</span><input class="input" id="ord-phone" type="tel" inputmode="tel" autocomplete="tel" required></label>
@@ -188,7 +186,6 @@ async function renderOrder(ctx, params) {
       ctx.setBar('Order booked', true);
       main.innerHTML = `<div class="msg ${res.hold_reason ? 'msg-error' : 'msg-info'}" role="status">${esc(res.message)}</div>
         <article class="card"><h2>${esc(res.order_id)}</h2><div class="sub">${esc(item.name)} · ${esc(money(res.total, item.currency))}${res.from_store ? ` · ships from ${esc(ctx.storeName(res.from_store))}` : ''}</div></article>
-        <p class="hint">It is on the order desk now (OMS > Pick, Pack, Ship), like any other order.</p>
         <a class="btn btn-block" href="#/home">Done</a>`;
     } catch (ex) {
       btn.disabled = false;

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": "cmd/genkb",
   "generator_version": "stage48-v1",
-  "release": "0.20.0",
+  "release": "0.21.0",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "schema": "source registries",
   "tenant": "none",
@@ -91,7 +91,7 @@
     },
     {
       "path": "internal/kb/content/articles/error-code-reference-2.html",
-      "sha256": "dc610c738de9e091632f796be5b8429b541526e3e474f215aad5fbfa48b428ac",
+      "sha256": "672377ca7d24a9bd3883a5bf3d9445a53895e743acfa096fcf5b13586cb467a7",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -100,7 +100,7 @@
     },
     {
       "path": "internal/kb/content/articles/error-code-reference.html",
-      "sha256": "db03ff293d78862c15ddc083b6b6e3131ea39f2af9bb4831314dcb832d14ca8f",
+      "sha256": "c644858d30850234b3887be2c39b9b9252108d002d4e2648de3ec9db180c0804",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -145,7 +145,7 @@
     },
     {
       "path": "internal/kb/content/articles/finding-your-way-around.html",
-      "sha256": "bca39b5383dda41c45bb8ef4f13c61f8d1e6609a2b0abade9069babb02181775",
+      "sha256": "bde74529a42b3ea4379136ffedb53b54fff5cc2e65dbf510a6bbf2e369dee68f",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -181,7 +181,7 @@
     },
     {
       "path": "internal/kb/content/articles/hr-payroll.html",
-      "sha256": "6e2b3cc6f92bb81622afe380624d17a65dea5c6767d54451655266907f610d88",
+      "sha256": "1b940e9794f59e34759d63c3f0c8320b5ed7543320fb0cf69ef1842ce66a5318",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -388,7 +388,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes-2.html",
-      "sha256": "31b840c15f4fdad9894bc95095c6155de8d92448b30cd0ace2ef0d9f21d951d7",
+      "sha256": "2117c57c7b22adb7a01e00819a676dfe533eed11259113ccf8fd6155c9b691c4",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -397,7 +397,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes.html",
-      "sha256": "f0dfc925a0962a43abbc5abbe56ad8baefd6c4689cbc3e54d7a5cf410f82ffa5",
+      "sha256": "e5fd28a9c161141f9c7b72ba5cfc285ded776788a1fd4b2a32a29e626fdb4856",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -433,7 +433,7 @@
     },
     {
       "path": "internal/kb/content/articles/report-catalog.html",
-      "sha256": "d9996d03e7add97bc5513d62779cb270d61d5e3d847c39a26caa2b4a9d36dfad",
+      "sha256": "fb8e9968b0af0d01f39f05f2dadbaf4cadb85bf580584fd4d24f373b261983ec",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -550,7 +550,7 @@
     },
     {
       "path": "internal/kb/content/index.json",
-      "sha256": "83f794fc4e605377262e5dddc678bab7676d2fc79edf368fbc9d922823737578",
+      "sha256": "9b01fd855ea02cc89b906351e1aea285fd87deb7c2eb0e818e6c942aa64c2708",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -559,7 +559,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "54bfe3b0e7f12ee20ec60ad2dc15630b27e931c8b057a50eda3c1657313bcca8",
+      "sha256": "d5496531fe99ccadd3c087093a5a9ed9e13d6c4dc66581cfbd64c49047215c0b",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

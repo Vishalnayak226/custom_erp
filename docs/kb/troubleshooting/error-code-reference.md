@@ -19,7 +19,7 @@ applies_to: source registries; not release acceptance
 
 # Error code reference
 
-Every refusal in this application carries a code. There are **580** of them,
+Every refusal in this application carries a code. There are **582** of them,
 across **75** areas. This page is produced from the running catalog, so it
 cannot describe a code the application does not have, or miss one it does.
 
@@ -70,7 +70,7 @@ open the right page.
 - [Finance & Accounting](#finance-accounting) - 47 codes
 - [Fixed Assets](#fixed-assets) - 9 codes
 - [GST](#gst) - 1 codes
-- [Global](#global) - 11 codes
+- [Global](#global) - 13 codes
 - [Global / Common](#global-common) - 25 codes
 - [Goods Receipt](#goods-receipt) - 19 codes
 - [Goods Receipt / GRN](#goods-receipt-grn) - 8 codes
@@ -80,7 +80,7 @@ open the right page.
 - [Integrations](#integrations) - 1 codes
 - [Inventory](#inventory) - 10 codes
 - [Inventory / Warehouse](#inventory-warehouse) - 29 codes
-- [Item Master](#item-master) - 2 codes
+- [Item Master](error-code-reference-2.md#item-master) - 2 codes
 - [Manufacturing / Production](error-code-reference-2.md#manufacturing-production) - 16 codes
 - [Master Data](error-code-reference-2.md#master-data) - 43 codes
 - [Mobile App / Device](error-code-reference-2.md#mobile-app-device) - 7 codes
@@ -447,6 +447,8 @@ open the right page.
 | `GLOBAL-0311` | Identifier mixes look-alike alphabets | A code or identifier mixes letters from different alphabets. | Retype the field named below in one alphabet - a look-alike letter (for example a Cyrillic letter inside a Latin code) was pasted in. | Low | 422 |
 | `GLOBAL-1315` | Reprint refused (no Document Reprint permission, no reason, approval needed or already used, no approver set) | This document can't be printed again yet. | Give the reason; ask a manager for the Document Reprint permission or send a Reprint Request and print once it is approved. | Medium | 422 |
 | `GLOBAL-1319` | Print refused: a tax document from a store with no GSTIN, or a template version that cannot be decided (not waiting, own change, not found) | This can't be printed or changed yet. | Add the GSTIN to the store's legal entity (Setup > Legal Entities); a template change is approved by someone other than the person who saved it. | Medium | 422 |
+| `GLOBAL-4971` | Same command key still being processed | This is still being processed. | Wait a moment and check whether it went through before trying again - do not enter it again. | Medium | 409 |
+| `GLOBAL-4972` | Command key reused for a different request | This request key was already used for a different request. | Send a new key for a new request; resend the same request to get the first answer. | Medium | 409 |
 
 ## Global / Common
 
@@ -612,11 +614,4 @@ open the right page.
 | `INVENT-0499` | Tasks cannot go into that wave | These tasks cannot go into a wave. | Choose tasks at the wave's location that are still Pending or Picking and in no other wave, and a wave that is Planned, Released or In Progress. | Medium | 422 |
 | `INVENT-0500` | Billing review without an owner or a valid period | Choose whose charges and which period to review. | Pick the owner (client), a start date and an end date on or after it. | Low | 422 |
 | `INVENT-0971` | Putaway refused: bin missing, inactive, blocked or full, over capacity, hazmat zone, or not enough unbinned stock | This putaway cannot be made. | Read the reason: scan a bin that exists and is Active and Available, put away no more than the location's unbinned stock, or choose a bin with room (or a hazmat zone for a hazmat item). | Medium | 422 |
-
-## Item Master
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `MASTER-1302` | Item release approval: no Item approval rule, or an item waiting for release edited to another status | This item waits for its approval. | Add an Item rule under Settings > Approval Rules if there is none; an item in Draft, Pending Approval or Blocked is released only by its approval. | Medium | 422 |
-| `MASTER-1306` | Scheduled tax change incomplete or malformed (no date, no rate or HSN, rate 0, HSN not 4/6/8 digits) | The scheduled tax change is not complete. | Give the date it applies from and the new GST rate (more than 0), the new HSN code (4, 6 or 8 digits), or both - or clear all three. | Low | 422 |
 

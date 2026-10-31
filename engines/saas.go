@@ -338,6 +338,13 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 	if err = narrowNewClientSeedGrantsTx(tx, schemaName); err != nil {
 		return "", err
 	}
+	// Stage 49.10.6b (2): a new client starts with self-approval off. Saved as
+	// the client's own setting, so the registered default - what an existing
+	// client that never chose reads - is unchanged, and no live client moves.
+	if _, err = tx.Exec(fmt.Sprintf(`INSERT INTO %s.system_settings (key, value, updated_at, updated_by)
+		VALUES ($1, $2, now(), 'system') ON CONFLICT (key) DO NOTHING`, schemaName), SettingSelfApproval, NewClientSelfApproval); err != nil {
+		return "", fmt.Errorf("failed to set the new client's self-approval: %v", err)
+	}
 
 	// 6. (49.1.5) Record the one-time credential and its expiry, and open the
 	// tenant's evidence trail. The stored hash is the same value written into
@@ -391,6 +398,9 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 	}
 
 	InvalidateTenantLifecycleCache(tenantID)
+	settingsCacheMu.Lock()
+	delete(settingsCache, settingsCacheKey(schemaName, SettingSelfApproval))
+	settingsCacheMu.Unlock()
 	return password, nil
 }
 

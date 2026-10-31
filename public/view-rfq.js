@@ -17,6 +17,9 @@ let selectedRFQId = '';
 let rfqDraftLines = [];
 let rfqEditingId = '';
 let rfqCompare = null;
+// 147.2: an item box finds by Design ID, Combination ID or barcode; a buying
+// screen by the name too.
+const RFQ_ITEM_FIELDS = 'name,code,barcode,parent_product_code,family';
 
 const esc = v => escapeHTMLText(v == null ? '' : String(v));
 const parseList = s => { try { const v = typeof s === 'string' ? JSON.parse(s || '[]') : s; return Array.isArray(v) ? v : []; } catch (e) { return []; } };
@@ -77,7 +80,7 @@ async function renderRFQView(container) {
   listPanel.innerHTML = `<table>
     <thead><tr><th>RFQ Number</th><th>Source requisition</th><th>Items</th><th>Deliver to</th><th>Quotes due</th><th>Vendors</th><th>Status</th><th></th></tr></thead>
     <tbody>${rfqs.length === 0
-      ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No RFQs yet. Convert an approved requisition to an RFQ, or click <b>+ New RFQ</b>.</td></tr>`
+      ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No RFQs yet.</td></tr>`
       : rfqs.map(r => {
         const lines = parseList(r.lines);
         const inv = parseList(r.vendor_invitations).length ? parseList(r.vendor_invitations) : parseList(r.invited_vendors).map(v => ({ vendor: v, status: 'Invited' }));
@@ -100,7 +103,7 @@ async function renderRFQView(container) {
 
   attachLinkTypeahead(document.getElementById('rfq-location'), 'Location');
   const itemInput = document.getElementById('rfq-line-item');
-  attachLinkTypeahead(itemInput, 'Item');
+  attachLinkTypeahead(itemInput, 'Item', { filters: { q_fields: RFQ_ITEM_FIELDS } });
   document.getElementById('rfq-line-add').addEventListener('click', addRFQLine);
   document.getElementById('rfq-create-btn').addEventListener('click', () =>
     guardAgainstDoubleSubmit(document.getElementById('rfq-create-btn'), 'Saving...', saveRFQForm));
@@ -126,7 +129,7 @@ function renderRFQDraftLines() {
   const el = document.getElementById('rfq-lines');
   if (!el) return;
   el.innerHTML = rfqDraftLines.length === 0
-    ? '<p style="color: var(--text-muted); margin: 0;">No lines yet. Pick an item (or describe what you need), its unit and quantity, then <b>Add line</b>.</p>'
+    ? '<p style="color: var(--text-muted); margin: 0;">No lines yet.</p>'
     : `<table><thead><tr><th>#</th><th>Item</th><th>Description</th><th>Unit</th><th class="num">Qty</th><th></th></tr></thead><tbody>
       ${rfqDraftLines.map((l, i) => `<tr><td>${i + 1}</td><td>${esc(l.sku || '—')}</td><td>${esc(l.description || '')}</td><td>${esc(l.uom)}</td><td class="num">${num(l.qty)}</td>
         <td><button class="action-btn action-btn-danger" type="button" ${actionAttrs('removeRFQDraftLine', [i])}>Remove</button></td></tr>`).join('')}
@@ -233,7 +236,7 @@ async function renderRFQDetail(container, rfqId, rfqRow) {
     ${cmp.awarded_po_id ? `<div class="notice" style="margin-bottom: 12px;">Awarded: purchase order <b>${esc(cmp.awarded_po_id)}</b> was created from quote ${esc(cmp.awarded_quote_id)}. <button class="action-btn" ${actionAttrs('openAwardedPO', [cmp.awarded_po_id])}>Open purchase orders</button></div>` : ''}
     ${lines.length ? `<table><thead><tr><th>#</th><th>Item</th><th>Description</th><th>Unit</th><th class="num">Qty</th></tr></thead><tbody>
       ${lines.map(l => `<tr><td>${l.line_no}</td><td>${esc(l.sku || '—')}</td><td>${esc(l.description)}</td><td>${esc(l.uom)}</td><td class="num">${num(l.qty)}</td></tr>`).join('')}</tbody></table>`
-      : `<p style="margin: 0;">This RFQ has no item lines yet (it was made before RFQs had lines, or from a requisition). ${cmp.status === 'Draft' ? 'Use <b>Edit lines</b> to add them before inviting vendors.' : ''}</p>`}`;
+      : `<p style="margin: 0;">This RFQ has no item lines yet.</p>`}`;
   container.appendChild(head);
 
   // Invited vendors and their responses.
@@ -276,9 +279,8 @@ async function renderRFQDetail(container, rfqId, rfqRow) {
   panel.style.overflowX = 'auto';
   const best = cmp.best_by_line || {};
   panel.innerHTML = quotes.length === 0
-    ? `<p style="margin: 0; color: var(--text-muted);">No quotes recorded yet.${open && lines.length ? ' Click <b>+ Record Quote</b> when a vendor replies.' : ''}</p>`
-    : `<p style="margin: 0 0 10px; color: var(--text-muted);">Each cell is the vendor's price, and below it the landed cost of one unit as the RFQ asks for it (price + tax + its share of freight). <span class="badge badge-success">best</span> marks the lowest per line; <b>Recommended</b> is the lowest landed total among complete, valid quotes.</p>
-      <table><thead><tr><th>Line</th>${quotes.map(q => `<th class="num">${esc(q.vendor_name || q.vendor)}<div style="font-size: 11px; font-weight: 400;">${esc(q.number)}${q.recommended ? ' · <b>Recommended</b>' : ''}${q.status === 'Selected' ? ' · <b>Awarded</b>' : ''}</div></th>`).join('')}</tr></thead>
+    ? `<p style="margin: 0; color: var(--text-muted);">No quotes recorded yet.</p>`
+    : `<table><thead><tr><th>Line</th>${quotes.map(q => `<th class="num">${esc(q.vendor_name || q.vendor)}<div style="font-size: 11px; font-weight: 400;">${esc(q.number)}${q.recommended ? ' · <b>Recommended</b>' : ''}${q.status === 'Selected' ? ' · <b>Awarded</b>' : ''}</div></th>`).join('')}</tr></thead>
       <tbody>${lines.map(l => `<tr><td>${l.line_no}. ${esc(l.description)} <span style="color: var(--text-muted);">(${num(l.qty)} ${esc(l.uom)})</span></td>
         ${quotes.map(q => { const ql = (q.lines || []).find(x => x.line_no === l.line_no); if (!ql || ql.not_quoted) return '<td class="num" style="color: var(--text-muted);">not quoted</td>';
           return `<td class="num">₹${money(ql.unit_price)}${ql.uom && ql.uom !== l.uom ? `/${esc(ql.uom)}` : ''}${ql.tax_rate ? ` +${num(ql.tax_rate)}%` : ''}<div style="font-size: 11.5px;">₹${money((q.landed_unit || {})[l.line_no])} landed${best[l.line_no] === q.quote_id ? ' <span class="badge badge-success">best</span>' : ''}</div></td>`; }).join('')}</tr>`).join('')}
@@ -324,7 +326,7 @@ async function renderRFQDetail(container, rfqId, rfqRow) {
         <td><input type="number" class="form-input ql-tax" style="width: 80px;" min="0" value="18" aria-label="Tax rate, line ${l.line_no}"></td>
         <td><input type="number" class="form-input ql-lead" style="width: 80px;" min="0" aria-label="Lead days, line ${l.line_no}"></td>
         <td><input type="checkbox" class="ql-skip" aria-label="Line ${l.line_no} not quoted"></td></tr>`).join('')}</tbody></table>
-    <p style="margin: 8px 0 0; color: var(--text-muted);">A vendor quoting in a different unit (a box of 10, a dozen) needs <b>RFQ units in one</b>, unless the item has a unit conversion set up. A newer quote from the same vendor replaces their earlier one.</p>
+    <p style="margin: 8px 0 0; color: var(--text-muted);">A newer quote from this vendor replaces their earlier one.</p>
     <div style="display: flex; gap: 12px; margin-top: 14px;"><button class="btn btn-primary" id="quote-submit-btn">Record Quote</button></div>
     <div id="quote-form-error" class="login-error hidden" style="margin-top: 12px;"></div>`;
   const { txnPagedSection, txnRestorePane } = await loadTxnScreen();
@@ -387,7 +389,7 @@ async function awardRFQQuote(rfqId, quoteId) {
       <div class="modal-header"><h3 class="modal-title" id="rfq-award-title">Award to ${esc(q.vendor_name || q.vendor)}</h3>
         <button type="button" class="modal-close" aria-label="Close dialog" data-award-close><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div>
       <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px;">
-        <p style="margin: 0;">A Draft purchase order is created from quote ${esc(q.number)} - ₹${money(q.subtotal)} + tax, freight ₹${money(q.freight_amount)}, ${esc(q.payment_terms || 'no stated terms')}. The other quotes are rejected and the RFQ closes. This can be done once.</p>
+        <p style="margin: 0;">Draft PO from quote ${esc(q.number)} - ₹${money(q.subtotal)} + tax, freight ₹${money(q.freight_amount)}, ${esc(q.payment_terms || 'no stated terms')}. Other quotes are rejected; cannot be undone.</p>
         <div class="form-group"><label class="form-label" for="award-location">Deliver to</label><input id="award-location" class="form-input" autocomplete="off" value="${esc(cmp.location || '')}"></div>
         ${freeText.map(l => `<div class="form-group" data-freeline="${l.line_no}"><label class="form-label" for="award-item-${l.line_no}">Line ${l.line_no}: ${esc(l.description)} - item for the PO</label>
           <div style="display: flex; gap: 10px; align-items: center;"><input id="award-item-${l.line_no}" class="form-input award-item" autocomplete="off" style="flex: 1;">
@@ -400,7 +402,7 @@ async function awardRFQQuote(rfqId, quoteId) {
   const close = () => overlay.remove();
   overlay.querySelectorAll('[data-award-close]').forEach(b => b.addEventListener('click', close));
   attachLinkTypeahead(overlay.querySelector('#award-location'), 'Location');
-  overlay.querySelectorAll('.award-item').forEach(el => attachLinkTypeahead(el, 'Item'));
+  overlay.querySelectorAll('.award-item').forEach(el => attachLinkTypeahead(el, 'Item', { filters: { q_fields: RFQ_ITEM_FIELDS } }));
   requestAnimationFrame(() => overlay.classList.add('open'));
   const btn = overlay.querySelector('#award-submit');
   btn.addEventListener('click', () => guardAgainstDoubleSubmit(btn, 'Creating...', async () => {

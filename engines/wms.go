@@ -842,6 +842,9 @@ func PostCycleCountAdjustment(tenantID, lineID, userID string) error {
 	if err := tx.Commit(); err != nil {
 		return err
 	}
+	// Stage 49.11.4: a posted variance is a stock adjustment - the
+	// stock_adjustment_burst detection counts it with the adjustment documents.
+	LogAuditEvent(tenantID, userID, "POST_CYCLE_COUNT_ADJUSTMENT", "SUCCESS", fmt.Sprintf("%s: %s at %s, variance %+d", lineID, sku, location, variance))
 	logTaskCompletion(tenantID, "CycleCount", userID, location, lineID, 1)
 	// Stage 42.2.2: additive WarehouseTask retrofit.
 	LogCompletedWarehouseTask(tenantID, NewWarehouseTask{

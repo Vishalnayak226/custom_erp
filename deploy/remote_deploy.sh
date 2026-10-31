@@ -20,10 +20,13 @@
 # backup.sh) sidesteps both classes of bug entirely.
 #
 # Invoked by deploy.ps1 over ssh, after it has already scp'd
-# erp-server.new / public/ / db/ / this file into REMOTE_DIR:
+# erp-server.new (+ its signature erp-server.new.sig and the release public
+# key deploy/release-signing.pub, Stage 49.10.6b.3) / public/ / db/ / this
+# file into REMOTE_DIR:
 #   REMOTE_DIR=/opt/erp DEPLOY_COMMIT=abc1234 bash remote_deploy.sh
 #
-# Exits 0 only on DEPLOY-OK. Exits 1 on DEPLOY-ROLLED-BACK (new build was
+# Exits 0 only on DEPLOY-OK. Exits 1 on DEPLOY-REFUSED (49.10.6b.3: the new
+# binary's signature did not check out; nothing was run or swapped), on DEPLOY-ROLLED-BACK (new build was
 # unhealthy but the previous one is confirmed serving again) or
 # DEPLOY-ROLLBACK-FAILED (worse: needs a human on the box right now) --
 # deploy.ps1 treats both as a failed deploy, distinguished only for whoever
@@ -121,6 +124,62 @@ wait_healthy() {
   done
   return 1
 }
+
+# --- Stage 49.10.6b.3: the new binary runs only if the release machine
+# signed it. deploy.ps1 signs erp-server.new with the release key (a file on
+# the release machine, never in the repo) and ships erp-server.new.sig and
+# the matching public key beside it. Checked here, before anything below runs
+# the new binary (migrate.sh is the first that would) and before anything is
+# swapped, with this box's own openssl against the key this box already
+# trusts (RELEASE_SIGNING_PIN). The first signed deploy pins the key it
+# brings - there is nothing to compare it with yet; from then on a missing
+# signature, a changed binary or another key stops the deploy here
+# (DEPLOY-REFUSED) with the live build untouched. The refused binary is kept,
+# not executable, as erp-server.failed-unsigned-<time> for whoever looks into
+# it (server_cleanup.sh drops it after 7 days, like any failed build).
+RELEASE_SIGNING_PIN="${RELEASE_SIGNING_PIN:-/etc/erp/release-signing.pub}"
+refuse_deploy() {
+  echo "[REFUSED] $1" >&2
+  if [ -f erp-server.new ]; then
+    held="erp-server.failed-unsigned-$(date -u +%Y%m%dT%H%M%SZ)"
+    if mv erp-server.new "$held"; then chmod 600 "$held" || true; fi
+  fi
+  rm -rf public.new
+  alert_ops "deploy of $DEPLOY_COMMIT REFUSED before the swap: $1 - production stays on the live build."
+  echo DEPLOY-REFUSED
+  exit 1
+}
+# The key's short name: the first 16 hex digits of the SHA-256 of its DER,
+# as cmd/releasesign fingerprint prints it on the release machine.
+key_fingerprint() {
+  openssl pkey -pubin -in "$1" -outform DER 2>/dev/null | sha256sum | cut -c1-16
+}
+verify_release_signature() {
+  local shipped="deploy/release-signing.pub" sig="erp-server.new.sig" help
+  [ -f erp-server.new ] || refuse_deploy "there is no erp-server.new to deploy"
+  [ -s "$sig" ] || refuse_deploy "erp-server.new came without its signature ($sig) - deploy with deploy/deploy.ps1, which signs it"
+  [ -s "$shipped" ] || refuse_deploy "the release public key did not come with the build ($shipped)"
+  help="$(openssl pkeyutl -help 2>&1 || true)"
+  case "$help" in
+    *-rawin*) ;;
+    *) refuse_deploy "this server's openssl ($(openssl version 2>/dev/null || echo 'not installed')) cannot check an ed25519 signature - OpenSSL 3 is needed" ;;
+  esac
+  if [ ! -s "$RELEASE_SIGNING_PIN" ]; then
+    openssl pkey -pubin -in "$shipped" -noout >/dev/null 2>&1 \
+      || refuse_deploy "the shipped release key ($shipped) is not a public key"
+    install -m 644 "$shipped" "$RELEASE_SIGNING_PIN" 2>/dev/null \
+      || sudo -n install -m 644 "$shipped" "$RELEASE_SIGNING_PIN" 2>/dev/null \
+      || refuse_deploy "could not pin the release key at $RELEASE_SIGNING_PIN"
+    echo "RELEASE-KEY-PINNED $(key_fingerprint "$RELEASE_SIGNING_PIN") at $RELEASE_SIGNING_PIN (first signed deploy)"
+  elif [ "$(tr -d ' \r\n' < "$RELEASE_SIGNING_PIN")" != "$(tr -d ' \r\n' < "$shipped")" ]; then
+    refuse_deploy "the release key changed: this server trusts $(key_fingerprint "$RELEASE_SIGNING_PIN"), the build is signed by $(key_fingerprint "$shipped"). If the key was replaced on purpose, put the new release/signing.pub at $RELEASE_SIGNING_PIN by hand first"
+  fi
+  if ! openssl pkeyutl -verify -pubin -inkey "$RELEASE_SIGNING_PIN" -rawin -in erp-server.new -sigfile "$sig" >/dev/null 2>&1; then
+    refuse_deploy "the signature on erp-server.new does not verify against the release key $(key_fingerprint "$RELEASE_SIGNING_PIN") - it is not the binary the release machine signed"
+  fi
+  echo "RELEASE-SIGNATURE-OK $(key_fingerprint "$RELEASE_SIGNING_PIN")"
+}
+verify_release_signature
 
 # --- Snapshot the pre-deploy release before touching anything. db/ is
 # deliberately not snapshotted: migrations are additive and applied below

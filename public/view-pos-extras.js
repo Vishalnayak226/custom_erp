@@ -75,7 +75,6 @@ export function renderPOSReturnPanel(panel) {
         </thead>
         <tbody id="pos-return-body"></tbody>
       </table>
-      <p class="txn-empty">Prices come from the original bill and cannot be changed here. The refund is calculated by the server after the goods are received and inspected.</p>
     </div>
   `;
   attachCodeNamePicker(
@@ -217,16 +216,16 @@ function renderPOSReturnTable() {
   const explain = document.getElementById('pos-return-eligibility');
   if (explain) {
     if (!posReturnEligibility) {
-      explain.innerHTML = '<span style="color: var(--text-muted);">Enter a bill number and look it up to see what can be returned.</span>';
+      explain.innerHTML = '<span style="color: var(--text-muted);">No bill looked up yet.</span>';
     } else {
       const ok = posReturnEligibility.found && posReturnEligibility.within_window;
       explain.innerHTML = `
         <div style="padding:10px 12px; border-radius:6px; border:1px solid ${ok ? 'var(--border-color)' : 'var(--warning-soft-border, var(--border-color))'};
                     background: ${ok ? 'var(--bg-color)' : 'var(--warning-soft-bg, var(--bg-color))'};">
           ${cfgEsc(posReturnEligibility.explanation || '')}
-          ${posReturnBillStore && posReturnBillStore !== posLocation ? `<div style="margin-top:4px;"><b>Sold at ${cfgEsc(posReturnBillStore)}.</b> The return is taken here: the goods come back into this store's stock, and the return keeps the store that sold it.</div>` : ''}
+          ${posReturnBillStore && posReturnBillStore !== posLocation ? `<div style="margin-top:4px;"><b>Sold at ${cfgEsc(posReturnBillStore)}.</b> Goods come back into this store.</div>` : ''}
           ${posReturnEligibility.sale_date ? `<span style="color:var(--text-muted);"> Sold ${cfgEsc(posReturnEligibility.sale_date)}; return window ${posReturnEligibility.window_days} days.</span>` : ''}
-          ${posBillCancellable() ? `<div style="margin-top:8px;"><button type="button" class="btn btn-outline btn-sm" ${actionAttrs('cancelWholePOSBill', [])}>Cancel the whole bill</button> <span style="color:var(--text-muted);">Today's bill: everything comes back and the money goes back to how it was paid.</span></div>` : ''}
+          ${posBillCancellable() ? `<div style="margin-top:8px;"><button type="button" class="btn btn-outline btn-sm" ${actionAttrs('cancelWholePOSBill', [])}>Cancel the whole bill</button> <span style="color:var(--text-muted);">Refunds everything.</span></div>` : ''}
         </div>`;
     }
   }
@@ -417,7 +416,7 @@ export async function checkPOSLoyaltyBalance() {
       <div>Offers: ${c.consent_sms || c.consent_whatsapp ? `agreed by ${[c.consent_sms ? 'SMS' : '', c.consent_whatsapp ? 'WhatsApp' : ''].filter(Boolean).join(' and ')}` : 'not agreed - no SMS or WhatsApp offers are sent'}</div>
       <div>${c.next_tier ? `${money(c.to_next_tier)} more to ${cfgEsc(c.next_tier)}` : 'At the top tier'} (spend counted: ${money(c.spend)})${c.below_tier_since ? ` &middot; below this tier since ${cfgEsc(c.below_tier_since)}` : ''}</div>
     </div>`
-    + section('Vouchers they can use now (type the code in Coupon code)', (c.vouchers || []).map(v => `<strong>${cfgEsc(v.code)}</strong> - ${cfgEsc(v.offer)}${v.expires ? `, until ${cfgEsc(v.expires)}` : ''}${v.uses_left ? `, ${v.uses_left} use(s) left` : ''}`), 'None issued to this customer.')
+    + section('Vouchers they can use now', (c.vouchers || []).map(v => `<strong>${cfgEsc(v.code)}</strong> - ${cfgEsc(v.offer)}${v.expires ? `, until ${cfgEsc(v.expires)}` : ''}${v.uses_left ? `, ${v.uses_left} use(s) left` : ''}`), 'None issued to this customer.')
     + section('Recent bills', (c.recent_bills || []).map(b => `${cfgEsc(b.date)} &middot; ${cfgEsc(b.cart_number)} &middot; ${money(b.amount)} (${b.lines} line${b.lines === 1 ? '' : 's'})`), 'No bills yet.')
     + section('Recent returns', (c.recent_returns || []).map(r => `${cfgEsc(r.date)} &middot; ${cfgEsc(r.id)} against ${cfgEsc(r.bill)} &middot; ${cfgEsc(r.status)}${r.refund ? ` &middot; ${money(r.refund)}` : ''}`), 'No returns.');
   await posFormDialog('Customer', '', html, () => true);
@@ -639,7 +638,7 @@ async function openPOSCashMovement() {
     <div class="form-group"><label class="form-label">Reason</label>${posReasonSelect(codes)}</div>
     <div class="form-group"><label class="form-label">Reference (voucher, bag no.)</label><input class="form-input" data-cm="ref"></div>`;
   const picked = await posFormDialog('Cash in / out',
-    `${pos ? posCashBreakdown(pos) + ' ' : ''}Paid In: cash brought in from the safe. Paid Out: a petty expense paid from the till. Safe Drop: cash taken to the safe.`,
+    `${pos ? posCashBreakdown(pos) : ''}`,
     html, extra => ({
       movement_type: extra.querySelector('[data-cm="type"]').value,
       amount: parseFloat(extra.querySelector('[data-cm="amount"]').value) || 0,
@@ -731,7 +730,7 @@ export async function openPOSPackaging(t) {
       <input class="form-input" data-pkg="reason" placeholder="Reason${p.reason_required ? ' (needed if changed)' : ''}" value="${cfgEsc(o ? o.reason : '')}">
     </div>`;
   }).join('');
-  const picked = await posFormDialog('Packaging', 'Each item already has its usual packaging. Change it only if the customer gets something else.', html,
+  const picked = await posFormDialog('Packaging', '', html,
     extra => Array.from(extra.querySelectorAll('[data-key]')).map(el => ({
       key: el.dataset.key,
       component: el.querySelector('[data-pkg="choice"]').value,
@@ -803,7 +802,7 @@ async function registerPOSTillForPINs() {
 }
 
 async function setMyPOSPin() {
-  const picked = await posFormDialog('Set my PIN', 'Your PIN signs you in at a registered till or store phone. Store roles only - an administrator uses their password.',
+  const picked = await posFormDialog('Set my PIN', '',
     `<input class="form-input" data-pin="pass" type="password" placeholder="Your password" autocomplete="current-password" style="margin-top:10px;">
      <input class="form-input" data-pin="pin" type="password" inputmode="numeric" placeholder="New PIN (4-8 digits)" autocomplete="new-password" style="margin-top:8px;">`,
     extra => ({ password: extra.querySelector('[data-pin="pass"]').value, pin: extra.querySelector('[data-pin="pin"]').value.trim() }),
@@ -819,7 +818,7 @@ async function switchPOSStaff(locked) {
   const device = tillDeviceToken();
   if (!device) { await showCustomAlert('A store manager first registers this till for staff PINs (More… → Register this till for staff PINs).', 'Switch staff'); return false; }
   const title = locked ? 'Till locked' : 'Switch staff';
-  const picked = await posFormDialog(title, locked ? 'Enter your name and PIN to carry on - the bill on screen is kept.' : 'Who is at the till? Their PIN signs them in here; the bill on screen is kept.',
+  const picked = await posFormDialog(title, 'The bill on screen is kept.',
     `<input class="form-input" data-sw="user" placeholder="Username" autocomplete="off" style="margin-top:10px;">
      <input class="form-input" data-sw="pin" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off" style="margin-top:8px;">`,
     extra => ({ user: extra.querySelector('[data-sw="user"]').value.trim(), pin: extra.querySelector('[data-sw="pin"]').value.trim() }),
@@ -914,7 +913,7 @@ async function openPOSExchange() {
       <span>${cfgEsc(l.sku)} <span style="color:var(--text-muted);">&middot; ${Number(l.unit_price).toFixed(2)} each, ${l.remaining_qty} can come back</span></span>
       <input type="number" min="0" max="${l.remaining_qty}" step="1" class="form-input" data-exq placeholder="Qty">
       <select class="form-select" data-exc><option>Sellable</option><option>Damaged</option><option>Repairable</option></select></div>`).join('');
-  const picked = await posFormDialog('Exchange', `${elig.explanation || ''} Type how many of each are coming back and their condition.`, html,
+  const picked = await posFormDialog('Exchange', `${elig.explanation || ''}`, html,
     extra => Array.from(extra.querySelectorAll('[data-ex]')).map(el => ({ sku: el.dataset.ex, qty: parseInt(el.querySelector('[data-exq]').value, 10) || 0, cond: el.querySelector('[data-exc]').value })).filter(x => x.qty > 0));
   if (!picked || !picked.length) return;
   const res = await apiFetch('/api/v1/pos/exchange/start', {
@@ -986,7 +985,7 @@ async function resumePOSBill() {
       <span style="color:var(--text-muted);">&middot; ${cfgEsc(b.cashier)}, ${cfgEsc(b.held_at || '')}</span></label>`).join('')
     + `<div class="form-group" style="margin-top:12px;"><label class="form-label">Do</label><select class="form-select" data-held="act"><option value="resume">Resume it on this till</option><option value="discard">Discard it (the customer is not coming back)</option></select></div>
        <input class="form-input" data-held="reason" placeholder="Reason (needed to discard)">`;
-  const picked = await posFormDialog('Resume a held bill', 'Bills held at this store, oldest first.', html, extra => {
+  const picked = await posFormDialog('Resume a held bill', '', html, extra => {
     const find = extra.querySelector('[data-held="find"]').value.trim().toUpperCase();
     const match = find ? bills.find(b => String(b.cart_number).toUpperCase() === find || basketCode(b).toUpperCase() === find) : null;
     return {
@@ -1037,7 +1036,7 @@ export async function openPOSMore(t) {
   till = t;
   const html = POS_MORE_ACTIONS.map(([key, label], i) =>
     `<label style="display:block; margin-top:8px;"><input type="radio" name="pos-more" value="${key}" ${i === 0 ? 'checked' : ''}> ${cfgEsc(label)}</label>`).join('');
-  const picked = await posFormDialog('More', 'Choose what to do.', html,
+  const picked = await posFormDialog('More', '', html,
     extra => (extra.querySelector('input[name="pos-more"]:checked') || {}).value || null);
   const action = POS_MORE_ACTIONS.find(([key]) => key === picked);
   if (action) await action[2]();
@@ -1065,7 +1064,7 @@ async function openPOSSplitPayment() {
       <input type="number" min="0" step="0.01" id="pos-split-${i}" class="form-input" data-split="${cfgEsc(t.kind)}" data-name="${cfgEsc(t.name)}" placeholder="0.00" value="${current[t.name] ? current[t.name].toFixed(2) : ''}">
     </div>`).join('');
   const picked = await posFormDialog('Split payment',
-    `The bill is ${due.toFixed(2)}. Enter what is paid each way; whatever is left is taken by ${rest} (the Payment Mode). Leave all blank to pay one way.`,
+    `The bill is ${due.toFixed(2)}. The rest goes to ${rest}.`,
     html, extra => Array.from(extra.querySelectorAll('[data-split]')).map(el => ({ mode: el.dataset.split, name: el.dataset.name, amount: Math.round((parseFloat(el.value) || 0) * 100) / 100 })).filter(s => s.amount > 0));
   if (picked === null) return;
   const fixed = picked.reduce((s, p) => s + p.amount, 0);
@@ -1126,7 +1125,7 @@ export async function openPOSGiftCard(t) {
     const action = extra.querySelector('[data-gc="action"]').value;
     extra.querySelectorAll('[data-show]').forEach(el => { el.style.display = el.dataset.show.split(' ').includes(action) ? '' : 'none'; });
   };
-  const picked = await posFormDialog('Gift Card', 'A gift card is stored value - it is never a line on the bill.', html,
+  const picked = await posFormDialog('Gift Card', '', html,
     extra => {
       const v = k => (extra.querySelector(`[data-gc="${k}"]`) || {}).value || '';
       return { action: v('action'), card: v('card').trim(), amount: parseFloat(v('amount')) || 0, mode: v('mode'), reason: v('reason').trim(), profile: v('profile').trim(), generate: parseInt(v('generate'), 10) || 0, numbers: v('numbers'), cardId: v('cardid').trim() };
@@ -1195,7 +1194,7 @@ async function posIssueGiftCard(p) {
   const ok = await showCustomConfirm(`Load ${p.amount.toFixed(2)} on card ending ${p.card.slice(-4)}, paid by ${p.mode}? Take the payment first - the card is funded only now.`, 'Issue Gift Card');
   if (!ok) return;
   const key = `gc-${posLocation}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const res = await apiFetch('/api/v1/pos/gift-card/issue', { method: 'POST', body: JSON.stringify({
+  const res = await apiFetch('/api/v1/pos/gift-card/issue', { method: 'POST', commandKey: 'pos.gift-card.issue', body: JSON.stringify({
     card_number: p.card, amount: p.amount, payment_mode: p.mode, location: posLocation,
     customer_id: (document.getElementById('pos-customer') || {}).value || '', idempotency_key: key }) });
   if (!res) return;
@@ -1205,7 +1204,7 @@ async function posIssueGiftCard(p) {
 }
 
 // The issue receipt is separate from any sale bill (blueprint 16.1).
-function posPrintGiftCardReceipt(r) {
+async function posPrintGiftCardReceipt(r) {
   const store = till.storeLabel();
   const slip = `<div style="text-align:center; font-weight:bold;">GIFT CARD ${r.event === 'RELOAD' ? 'TOP-UP' : 'ISSUE'}</div>
     <div style="text-align:center;">${cfgEsc(store)}</div><hr>
@@ -1223,8 +1222,12 @@ function posPrintGiftCardReceipt(r) {
     w.focus();
     w.print();
   };
+  // Stage 143.4: the slip is shown first; Close prints nothing.
+  const v = new URL(import.meta.url).search;
+  const pc = await import('./view-pos-customer.js' + v).catch(() => null);
+  if (pc && !await pc.previewVoucher(slip)) return;
   // Stage 127.2: on the receipt printer like the bill, no browser dialog once set up.
-  import('./trade-docs.js' + new URL(import.meta.url).search)
+  import('./trade-docs.js' + v)
     .then(docs => docs.printSlip(slip, `GC-${r.entry_id}`, browser))
     .catch(e => { console.debug('[POS] gift card slip unavailable, using the browser', e); browser(); });
 }

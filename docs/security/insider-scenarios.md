@@ -77,8 +77,10 @@ below carries a build tag.
 - `TestStage474ExceptionPathsAreSupervisorOnlyAndEvidenced` (same file) — a no-receipt return is a supervisor's, with a reason and the approver recorded.
 - `TestBLD017RefundNeverExceedsPaid` (engines/bld017_economic_properties_test.go) — randomised: refunds never exceed what was paid.
 - `TestStage84SelfApprovalIsCoded` (engines/approval_self_decision_stage84_test.go) — with self-approval set to nobody, a submitter cannot decide their own voucher.
+- `TestStage49106bThresholdSplittingReport` (engines/insider_findings_stage49_10_6b_test.go) — several records just under an approval limit by one user on one day show on the Threshold splitting report; records clear of or at the limit, on other days or by other people do not.
+- `TestStage49106bSelfApprovalOffForNewClients` (same file) — a client provisioned from 49.10.6b on starts with self-approval off, and its admin cannot approve their own record; existing clients keep their choice.
 
-**Not covered:** threshold splitting (two bills or adjustments each under an approval limit) has no detector or test. By default (`TestStage92SubmitterMayDecideOwn`, a deliberate small-business setting) a submitter may approve their own purchase order or voucher; a client that needs the control turns self-approval off.
+**Not covered:** the threshold-splitting report is a review, not a block - nothing stops the records when they are made. Clients that existed before 49.10.6b keep self-approval as they had it (by default anyone, `TestStage92SubmitterMayDecideOwn`) until they turn it off.
 
 ## 7. Owner crossover
 
@@ -101,7 +103,7 @@ below carries a build tag.
 - `TestStage49106BackupLeavesTheBoxEncrypted` (internal/server/stage49_10_6_insider_test.go) — the backup script refuses to run without its encryption key, encrypts the database dump with AES-256, removes the plain dump, and copies only encrypted files off the box.
 - `TestStage49106aMediaCopyLeavesTheBoxEncrypted` (same file) — runs the real deploy/backup.sh under bash with pg_dump, psql and curl stubbed: without the key nothing is dumped or sent, and `media_sync` alone refuses too; with it the dump and every media file (product images, expense receipts, vendor invoice copies) reach the bucket sealed with the same key and cipher, with no plain byte in them; deploy/restore_media.sh brings the files back exactly with the key and restores nothing with a wrong one.
 
-**Not covered:** the scripts run under Git for Windows' bash in the test, not on the Linux host, and the upload is a stub - the real curl signing against the bucket is proven only by a live run (deploy/restore_drill.sh and a restore from the bucket are the operational proof). Media copied before 49.10.6a sits in the bucket as plain files until the bucket's lifecycle rule ages it out or the operator deletes it (docs/operations/backup_restore.md). Someone with root on the host holds the key in /etc/erp/erp.env and reads everything regardless.
+**Not covered:** the scripts run under Git for Windows' bash in the test, not on the Linux host, and the upload is a stub - the real curl signing against the bucket is proven only by a live run (deploy/restore_drill.sh and a restore from the bucket are the operational proof). Media copied before 49.10.6a sits in the bucket as plain files until the operator deletes it - media is kept out of the bucket's lifecycle rule (49.10.6c.1, docs/operations/backup_restore.md). Someone with root on the host holds the key in /etc/erp/erp.env and reads everything regardless.
 
 ## 10. Compromised CI artifact
 
@@ -109,12 +111,17 @@ below carries a build tag.
 - `TestDependencyLedgerCoversGoModules` (same file) — every Go module is in the ledger with a checksum matching go.sum.
 - `TestVerifyMigrationChecksums` (db/migrate_checksum_test.go) — an applied migration whose file changed is reported.
 
-**Not covered:** the deployed binary is not signed, and the deploy does not verify a signature or a build checksum before it runs.
+- `TestStage49106b3DeployRefusesABinaryTheReleaseMachineDidNotSign` (cmd/releasesign/main_test.go) — the real deploy/remote_deploy.sh refuses an unsigned binary, one changed after signing, and one signed by another key (even when shipped with the pinned public key) before it runs or is swapped; the first signed deploy pins its key.
+- `TestStage49106b3OpenSSLAcceptsTheReleaseSignature` (same file) — the server's openssl verifies what the release machine signs, and refuses a changed binary.
+- `TestStage49106b3NoReleasePrivateKeyInTheRepo` (same file) — no private key is committed beside the release or deploy scripts.
+
+**Not covered:** the signing key lives on the release machine: whoever controls that machine, or root on the server (who can replace the binary or the pinned key directly), is outside this control. The first signed deploy trusts the key it brings (pinned on first use). `public/` and the deploy scripts are shipped beside the binary unsigned.
 
 ## 11. Destructive operator
 
 - `TestStage91TenantDataReset` (engines/tenant_reset_stage91_test.go) — a data reset is refused while the client is active, without a fresh backup or without a reason, and is recorded.
 - `TestStage4915PurgeRefusesUntilItIsSafeAndProvesRemoval` (engines/tenant_lifecycle_test.go) — a purge is refused for a live client, inside retention, under legal hold or without a backup reference.
 - `TestStage4936RoleGrantChangeEvidenceSessionsAndRollback` (engines/privilege_change_stage49_3_6_test.go) — a role change is recorded with its before and after, and can be rolled back without restoring obsolete access.
+- `TestStage49106bRemovalNeedsASecondPerson` (engines/client_removal_stage49_10_6b_test.go) — a reset or purge runs only with a request another admin of the operator's client approved through the approval engine; the asker cannot approve it; it is spent once, for that client and act, within a week; both people are evidenced.
 
-**Not covered:** a purge or reset is one operator's decision (no second person), and the backup reference a purge asks for is not checked against a real backup.
+**Not covered:** the backup reference a purge asks for is not checked against a real backup. tenantctl names the asking admin with -actor (the approver signs in); someone with the server's shell can still reach the database directly. A sandbox's own reset and delete (Admin → Sandbox) need no second person.

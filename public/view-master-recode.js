@@ -47,7 +47,7 @@ export async function renderMasterRecodePanel(host, doctype, label) {
     panel.innerHTML = `
       <div style="font-weight: 600; margin-bottom: 8px;">${n} ${esc(label)} record${n === 1 ? ' is' : 's are'} still on an old long code</div>
       ${plan.configured
-        ? `<div class="txn-hint" style="margin-bottom: 8px;">${esc(label)} codes are <b>${esc(plan.prefix)}</b> and ${plan.length} digits - set before, so not asked again.</div>`
+        ? `<div class="txn-hint" style="margin-bottom: 8px;">${esc(label)} codes are <b>${esc(plan.prefix)}</b> and ${plan.length} digits.</div>`
         : `<div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 8px;">
             <span class="form-label" style="margin: 0;">${esc(label)} code format (asked once)<span class="required">*</span></span>
             <label style="display: flex; gap: 6px; align-items: center;">Prefix
@@ -62,7 +62,7 @@ export async function renderMasterRecodePanel(host, doctype, label) {
       </table>
       <div class="txn-hint" style="margin: 8px 0 8px;">${plan.references
         ? `${plan.references} other record${plan.references === 1 ? ' points' : 's point'} at these codes.`
-        : ''} Everything that points at them - records, users' home stores and departments, the ledger, stock - is updated in the same step. After this the codes do not change again; searching an old code still finds its record.
+        : ''} All updated in one step; codes cannot change again.
         <button type="button" class="btn btn-ghost btn-sm" data-mr-detail>Show what changes</button></div>
       <div data-mr-touches></div>
       ${plan.warning ? `<div style="margin: 8px 0; padding: 10px 12px; border-radius: 6px; background: var(--warning-soft-bg); color: var(--warning-strong);">${esc(plan.warning)}

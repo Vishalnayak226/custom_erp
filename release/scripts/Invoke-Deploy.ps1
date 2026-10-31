@@ -90,6 +90,33 @@ if ($target.StartsWith($liveCommit) -and $liveCommit.Length -ge 7) {
 & git -C $repo cat-file -e "$liveCommit^{commit}" 2>$null
 if ($LASTEXITCODE -ne 0) { Stop-Deploy "the live commit $liveCommit is not in this repo - fetch it, or check what production runs" }
 
+# ------------------------------------------------------ D0c release signature
+# Stage 49.10.6b.3: deploy.ps1 signs the binary with the release key on this
+# machine and remote_deploy.sh checks it with the server's openssl before the
+# binary runs. A missing key or an openssl that cannot check ed25519 is found
+# here, before the backup, not after the build.
+Write-Gate 'D0c Release signature'
+$signKey = if ($env:ERP_RELEASE_SIGNING_KEY) { $env:ERP_RELEASE_SIGNING_KEY } else { Join-Path $env:USERPROFILE '.erp-release\signing.key' }
+& git -C $repo cat-file -e "$($target):release/signing.pub" 2>$null
+$pubCommitted = ($LASTEXITCODE -eq 0)
+if (Test-Path -LiteralPath $signKey) {
+    Note "release signing key: $signKey$(if (-not $pubCommitted) { ' (release/signing.pub not committed yet - commit it with the next release)' })"
+} elseif ($pubCommitted) {
+    $why = "the release signing key is not at $signKey but release/signing.pub is committed - restore the key from its safe copy (or set ERP_RELEASE_SIGNING_KEY)"
+    if (-not $Check) { Stop-Deploy $why }
+    Note "NOTE (would stop a real deploy): $why"
+} else {
+    Note "no release signing key yet: this deploy creates $signKey and writes release/signing.pub (commit it with the next release) - keep a safe copy of the key off this machine"
+}
+$ssl = (Remote "openssl version 2>&1 || true") -join ' '
+if ($ssl -notmatch 'OpenSSL [3-9]\.') {
+    $why = "the server's openssl ('$ssl') cannot check an ed25519 release signature - OpenSSL 3 is needed (Ubuntu 22.04+)"
+    if (-not $Check) { Stop-Deploy $why }
+    Note "NOTE (would stop a real deploy): $why"
+} else { Note "server: $ssl" }
+$pinState = (Remote "test -s /etc/erp/release-signing.pub && echo pinned || echo none") -join ''
+Note $(if ($pinState -eq 'pinned') { 'server trusts the release key in /etc/erp/release-signing.pub' } else { 'server has no release key yet - this deploy pins the one it brings' })
+
 # ------------------------------------------------- D1 what changes client data
 Write-Gate 'D1 What this deploy changes in client data'
 $newMig = @((Invoke-Git @('diff', '--name-only', '--diff-filter=A', $liveCommit, $target, '--', 'db/')) | Where-Object { $_ -like '*.sql' })
@@ -185,8 +212,13 @@ Invoke-Native -Exe 'git' -Arguments @('-C', $repo, '-c', 'core.autocrlf=false', 
 $relVer = ((& git -C $repo show "$($target):internal/server/VERSION") -join '').Trim()
 if ($relVer -notmatch '^\d+\.\d+\.\d+$') { Stop-Deploy "internal/server/VERSION at $short is '$relVer', not a release number" }
 Note "release $relVer"
-$out = @(& (Join-Path $wt 'deploy\deploy.ps1') -Target $cfg.target -Version $relVer *>&1 | ForEach-Object { $s = "$_"; Write-Host "   $s"; $s })
-$out | Where-Object { $_ -match 'Release |\[apply\]|Applied|\[sync|\[cost-center\]|WARN|DEPLOY-|recorded|actions=' } | ForEach-Object { $report.Add("- $_") }
+# 49.10.6b.3: -PubOut - the first signed deploy writes release/signing.pub into
+# the main tree (not the throwaway worktree), so the next Release.cmd ships it.
+# Only to a deploy.ps1 that has the parameter (a commit from before it has not).
+$deployArgs = @{ Target = $cfg.target; Version = $relVer }
+if ((Get-Content -LiteralPath (Join-Path $wt 'deploy\deploy.ps1') -Raw) -match '\[string\]\$PubOut') { $deployArgs.PubOut = Join-Path $repo 'release\signing.pub' }
+$out = @(& (Join-Path $wt 'deploy\deploy.ps1') @deployArgs *>&1 | ForEach-Object { $s = "$_"; Write-Host "   $s"; $s })
+$out | Where-Object { $_ -match 'Release |\[apply\]|Applied|\[sync|\[cost-center\]|WARN|DEPLOY-|RELEASE-|REFUSED|signing key|Signed|recorded|actions=' } | ForEach-Object { $report.Add("- $_") }
 if (-not ($out | Where-Object { $_.Trim() -eq 'DEPLOY-OK' })) {
     # 49.17.6: a rollback that leaves a known, fixed vulnerability live is said
     # out loud, with the containment to use until a fixed build is live.

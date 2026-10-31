@@ -31,8 +31,7 @@ async function crmBoard(out) {
     return `<section class="crm-col"><h4>${crmEsc(s.name)} <small>${s.probability}% · ${cards.length} · ${crmMoney(total)}</small></h4>
       ${cards.map(o => `<button type="button" class="crm-card" data-deal="${crmEsc(o.id)}"><b>${crmEsc(o.title)}</b><span>${crmEsc(o.customer_name)}</span>
         <span>${crmMoney(o.value)}${o.expected_close ? ' · ' + crmDate(o.expected_close) : ''}</span><small>${crmEsc(o.owner || 'No owner')}${o.quotation_status ? ' · quotation ' + crmEsc(o.quotation_status) : ''}</small></button>`).join('') || '<p class="text-muted crm-small">None</p>'}</section>`;
-  }).join('')}</div>
-  <p class="text-muted crm-small">Won and lost deals leave the board; find them in the Sales Pipeline report or the Forecast.</p>`;
+  }).join('')}</div>`;
   out.querySelectorAll('[data-deal]').forEach(b => b.addEventListener('click', () => crmGo('pipeline', 'deal', { id: b.dataset.deal })));
 }
 
@@ -67,7 +66,7 @@ async function crmDeal(host, id) {
       ${open ? '<div class="crm-form-actions"><button class="btn btn-outline" type="submit">Save</button></div>' : ''}</form>
       ${open ? `<h3 class="crm-section">Move to</h3><div class="crm-form-row">${crmSelect('dl-s', stages.filter(s => s.active || s.kind !== 'open').map(s => [s.id, `${s.name}${s.kind === 'open' ? ` (${s.probability}%)` : ''}${(s.requires || []).length ? ' - needs ' + s.requires.join(', ') : ''}`]), o.stage_id)}
         ${crmInput('dl-lr', '', 'placeholder="Why it was lost (for Lost)"')}<button class="btn btn-primary" type="button" id="dl-move">Move</button></div>
-        <p class="text-muted crm-small">Won needs the quotation approved, and raises one Sales Order from it.</p>` : ''}
+        <p class="text-muted crm-small">Won raises a Sales Order.</p>` : ''}
       ${o.status === 'Won' && !o.sales_order_id ? '<button class="btn btn-primary" type="button" id="dl-order">Raise the Sales Order</button>' : ''}
       <h3 class="crm-section">Follow-ups</h3>${crmTable([{ label: 'Task', html: t => `${crmChip(t.kind_label)} ${crmEsc(t.title)}` }, { label: 'Due', html: t => crmDate(t.due_at, true) }, { label: 'Status', html: t => crmStatus(t.status) }, { label: 'Outcome', key: 'outcome' }], tasks, { empty: 'No follow-ups.' })}
       <button class="btn btn-outline btn-sm" type="button" id="dl-fu">+ Call, meeting or task</button>
@@ -155,8 +154,7 @@ async function crmLead(host, id) {
     ${done ? `<p>Converted: <a href="#" data-cust="${crmEsc(l.customer_id)}">the customer</a> · <a href="#" data-deal="${crmEsc(l.opportunity_id)}">the deal</a></p>` : `
     <div class="crm-actions-row"><button class="btn btn-outline btn-sm" data-ls="Contacted">Contacted</button><button class="btn btn-outline btn-sm" data-ls="Qualified">Qualified</button><button class="btn btn-outline btn-sm" data-ls="Disqualified">Disqualify</button></div>
     <h3 class="crm-section">Convert to a customer and a deal</h3><form class="crm-form crm-form-inline" id="lc-form">${crmField('lc-t', 'Deal', crmInput('lc-t', (l.company || l.name) + ' - first order'))}
-      ${crmField('lc-v', 'Value', crmInput('lc-v', '', 'inputmode="decimal"'))}${crmField('lc-d', 'Expected close', crmInput('lc-d', '', 'type="date"'))}<button class="btn btn-primary" type="submit">Convert</button></form>
-    <p class="text-muted crm-small">Converting again returns the same customer and deal. A phone number already on a customer joins that customer.</p>`}
+      ${crmField('lc-v', 'Value', crmInput('lc-v', '', 'inputmode="decimal"'))}${crmField('lc-d', 'Expected close', crmInput('lc-d', '', 'type="date"'))}<button class="btn btn-primary" type="submit">Convert</button></form>`}
     <h3 class="crm-section">Follow-ups</h3>${crmTable([{ label: 'Task', html: t => `${crmChip(t.kind_label)} ${crmEsc(t.title)}` }, { label: 'Due', html: t => crmDate(t.due_at, true) }, { label: 'Status', html: t => crmStatus(t.status) }, { label: 'Outcome', key: 'outcome' }], tasks, { empty: 'No follow-ups.' })}
     <button class="btn btn-outline btn-sm" type="button" id="ld-fu">+ Call, meeting or task</button>`;
   body.querySelectorAll('[data-cust]').forEach(a => a.addEventListener('click', (e) => { e.preventDefault(); crmGo('customers', 'customer', { id: a.dataset.cust }); }));
@@ -180,8 +178,7 @@ async function crmForecast(out) {
   out.innerHTML = crmTable([{ label: 'Month', key: 'month' }, { label: 'Open deals', key: 'open', num: true }, { label: 'Pipeline', num: true, html: x => crmMoney(x.pipeline) },
     { label: 'Weighted', num: true, html: x => crmMoney(x.weighted) }, { label: 'Committed', num: true, html: x => crmMoney(x.committed) }, { label: 'Booked (won)', num: true, html: x => crmMoney(x.booked) }],
     r.rows, { empty: 'No deals yet.' }) +
-    `<p class="text-muted crm-small">Weighted = value × chance. Committed = deals in a stage marked committed. Booked = won deals' orders. They are never added together.</p>
-    <form class="crm-form crm-form-inline" id="fc-form">${crmField('fc-l', 'Snapshot name', crmInput('fc-l', '', 'placeholder="e.g. Oct 2026"'))}<button class="btn btn-outline" type="submit">Take a snapshot</button></form>
+    `<form class="crm-form crm-form-inline" id="fc-form">${crmField('fc-l', 'Snapshot name', crmInput('fc-l', '', 'placeholder="e.g. Oct 2026"'))}<button class="btn btn-outline" type="submit">Take a snapshot</button></form>
     <h3 class="crm-section">Snapshots (never changed once taken)</h3>${(r.snapshots || []).map(s => `<details class="crm-details"><summary>${crmEsc(s.label)} - ${crmDate(s.taken_at, true)} by ${crmEsc(s.taken_by)}</summary>
       ${crmTable([{ label: 'Month', key: 'month' }, { label: 'Weighted', num: true, html: x => crmMoney(x.weighted) }, { label: 'Committed', num: true, html: x => crmMoney(x.committed) }, { label: 'Booked', num: true, html: x => crmMoney(x.booked) }], s.rows)}</details>`).join('') || '<p class="text-muted">None yet.</p>'}`;
   out.querySelector('#fc-form').addEventListener('submit', async (e) => {
@@ -200,11 +197,9 @@ async function crmPipelineSetup(out, pre) {
       <td>${req.map(([k, l]) => `<label class="crm-check"><input type="checkbox" data-req="${k}" ${(s.requires || []).includes(k) ? 'checked' : ''}> ${l}</label>`).join(' ')}</td>
       <td><input type="checkbox" data-com ${s.committed ? 'checked' : ''}></td><td><input type="checkbox" data-act ${s.active ? 'checked' : ''}></td></tr>`).join('')}</tbody></table>
     <button class="btn btn-outline btn-sm" type="button" id="ps-add">+ Stage</button> <button class="btn btn-primary btn-sm" type="button" id="ps-save">Save stages</button>
-    <p class="text-muted crm-small">Won (needs an approved quotation) and Lost (needs a reason) are always there.</p>
     <h3 class="crm-section">Who gets new leads</h3><table class="crm-table" id="lr"><thead><tr><th>Source</th><th>Goes to (user name)</th><th></th></tr></thead><tbody>
     ${rules.rules.map((r, i) => `<tr><td>${crmSelect('lr-s-' + i, ['Any'].concat(crmMeta.lead_sources || []), r.source)}</td><td>${crmInput('lr-o-' + i, r.owner)}</td><td><button class="action-btn" data-lrm="${i}">Remove</button></td></tr>`).join('')}</tbody></table>
-    <button class="btn btn-outline btn-sm" type="button" id="lr-add">+ Rule</button> <button class="btn btn-primary btn-sm" type="button" id="lr-save">Save rules</button>
-    <p class="text-muted crm-small">Among the rules that fit a lead's source, it goes to the person with the fewest open leads. No rule: it waits in Unassigned.</p>`;
+    <button class="btn btn-outline btn-sm" type="button" id="lr-add">+ Rule</button> <button class="btn btn-primary btn-sm" type="button" id="lr-save">Save rules</button>`;
   const readStages = () => [...out.querySelectorAll('#ps tbody tr')].map((tr, i) => ({ id: stages[i] ? stages[i].id : '', name: crmVal(out, 'ps-n-' + i), probability: Number(crmVal(out, 'ps-p-' + i)) || 0,
     requires: [...tr.querySelectorAll('[data-req]:checked')].map(x => x.dataset.req), committed: tr.querySelector('[data-com]').checked, active: tr.querySelector('[data-act]').checked }));
   out.querySelector('#ps-add').addEventListener('click', () => {

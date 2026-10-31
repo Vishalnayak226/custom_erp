@@ -7,7 +7,7 @@
 > **Generated 2026-09-10.** This page is produced from `docs/micro_checklist.md` open items, `docs/product/erp-build-checklist.md` JRN table, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-BLD-002: the 307 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
+BLD-002: the 355 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
 
 | Journey | Reference configuration | Owner | Open | Needs decision | Blocked |
 |---|---|---|---:|---:|---:|
@@ -32,13 +32,13 @@ BLD-002: the 307 open checklist items reconciled into the business journeys they
 | JRN-19 projects/service | deferred - outside both | Service/project owner; Experimental scope preserved | 0 | 0 | 0 |
 | JRN-20 reports/analysis | REF-RETAIL-IN, REF-WAREHOUSE-IN | Data/finance/QA; 26.10/47.10 | 1 | 0 | 0 |
 | JRN-21 platform/integrations | REF-RETAIL-IN, REF-WAREHOUSE-IN | Integrator/security; Stage 38/49.8 | 22 | 3 | 0 |
-| JRN-22 identity/approval/audit | REF-RETAIL-IN, REF-WAREHOUSE-IN | Tenant admin/security; 47.1/47.7/Stage 49 | 91 | 14 | 0 |
+| JRN-22 identity/approval/audit | REF-RETAIL-IN, REF-WAREHOUSE-IN | Tenant admin/security; 47.1/47.7/Stage 49 | 87 | 14 | 0 |
 | JRN-23 knowledge/implementation | REF-RETAIL-IN, REF-WAREHOUSE-IN | Documentation/implementation; Stage 39/47.15/48.7 | 34 | 0 | 1 |
 | Cross-journey acceptance and audits | - | - | 70 | 2 | 8 |
-| Engineering housekeeping | - | - | 15 | 3 | 0 |
-| Unmapped - place these stages | - | - | 5 | 1 | 0 |
+| Engineering housekeeping | - | - | 17 | 4 | 0 |
+| Unmapped - place these stages | - | - | 55 | 14 | 0 |
 
-**Unmapped:** Stage 140 (3), Stage 143 (2) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
+**Unmapped:** Stage 140 (3), Stage 143 (3), Stage 146 (1), Stage 147 (1), Stage 148 (43), Stage 149 (2), Stage 150 (1), Stage 151 (1) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
 
 ## JRN-01 POS/store
 
@@ -209,8 +209,6 @@ BLD-002: the 307 open checklist items reconciled into the business journeys they
 - **49.10.7** Independent penetration test and retest
 - **49.10.8** Finding discipline *(decision)*
 - **49.11** Security events, tamper evidence, detection and response-ready observability
-- **49.11.2** High-quality event schema
-- **49.11.4** Actionable detections
 - **49.11.5** Alert engineering
 - **49.11.6** Optional export adapter
 - **49.11.7** Security operations views
@@ -227,7 +225,6 @@ BLD-002: the 307 open checklist items reconciled into the business journeys they
 - **49.13.4** Backup threat model
 - **49.13.5** Restore is a security control
 - **49.13.6** Ransomware/destructive-admin drill
-- **49.13.7** Graceful dependency failure
 - **49.14** Secure human operations, support, devices and anti-social-engineering controls
 - **49.14.2** Privileged/admin UX
 - **49.14.3** Floor/shared-device posture
@@ -252,7 +249,6 @@ BLD-002: the 307 open checklist items reconciled into the business journeys they
 - **49.17.8** Honest disclosure and improvement
 - **49.18** Security weight, performance and storage budget ledger
 - **49.18.1** Per-control before/after measurement:
-- **49.18.2** Bounded state everywhere
 - **49.18.7** Multi-year forecast and cleanup drill
 - **92.1** The submitter may approve or reject their own document
 - **92.2** Flows whose whole point is a second admin keep it, whatever the setting:
@@ -384,6 +380,8 @@ BLD-002: the 307 open checklist items reconciled into the business journeys they
 - **132.15** What the ERP could add for Guide (to release)
 - **132.16** Future: a text helper that sets a client up
 - **132.22** Finished goods came into stock with no cost
+- **132.23** Guide tests GRN printing
+- **132.25** Built-in GRN layout: headings break mid-word; app's HO has no address *(decision)*
 - **132.3** Configuration screens
 - **132.4** Whole ERP, every screen and form, each role; production read-only pass when the user says
 
@@ -393,4 +391,54 @@ BLD-002: the 307 open checklist items reconciled into the business journeys they
 - **140.12.20** Pickers do not see the rack
 - **140.13.1** Release, deploy, re-run Guide on app
 - **143.3** The same file on minn *(decision)*
-- **143.4** Every print page shows its preview and has one Print button
+- **143.5** Gift-card issue / top-up slip shows its preview first
+- **143.6** Barcode print sorted: select the GRN and print
+- **146.0** Blueprint and gap plan from the recordings
+- **147.3** IDs are text, never design plus values *(decision)*
+- **148.1** Cost follows the stock in hand
+- **148.2** Channel shipping charge on the invoice
+- **148.3** Credit control on the order
+- **148.4** Accounts by item / customer / vendor group
+- **148.5** Chart of accounts from the app
+- **148.6** Vendor price agreements
+- **148.7** PO discounts and free qty
+- **148.8** Charge codes that cost themselves
+- **148.9** Vendor master basics
+- **148.10** Vendor changes wait for approval
+- **148.11** PO line control
+- **148.12** Purchase price kept current
+- **148.13** Vendor scorecard from the data
+- **148.14** Requisition with item lines
+- **148.15** Vendor advance against a PO
+- **148.16** Memo / consignment stock *(decision)*
+- **148.17** Volume rebates *(decision)*
+- **148.18** Vendor PO link and follow-up *(decision)*
+- **148.38** Goods received before the PO *(decision)*
+- **148.39** PO approval rules beyond amount
+- **148.40** Correct a piece's attributes
+- **148.19** Bills without a PO
+- **148.20** Journal lines with dimensions
+- **148.21** Journal templates
+- **148.22** Free-text invoice lines to their own account
+- **148.23** Customer-vendor set-off
+- **148.24** Screens for API-only features
+- **148.25** Lock a month after GST filing *(decision)*
+- **148.42** GST credit eligibility and value bands
+- **148.26** Pricing reaches B2B
+- **148.27** Promise date on order lines
+- **148.28** Returns drive the next document
+- **148.29** Quote expiry
+- **148.41** Reserve a piece for a customer
+- **148.30** Sales incentives *(decision)*
+- **148.31** One invoice per customer per period *(decision)*
+- **148.32** Drop-ship *(decision)*
+- **148.33** Inspection asked for by rule
+- **148.34** Expected arrivals
+- **148.35** Buy in packs, stock in pieces *(decision)*
+- **148.36** Custom-order configurator *(decision)*
+- **148.37** Read-only access for AI assistants *(decision)*
+- **148.43** Brand-restricted dealers *(decision)*
+- **149.1** Remove every descriptive / instructional blurb from dialogs, panels and section intros,...
+- **149.2** PIM ▸ Workbench does not load
+- **150.0** Find what moves when the store changes, and keep it still
+- **151.1** HR tabs become HRM sidebar entries

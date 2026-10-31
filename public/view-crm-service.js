@@ -18,8 +18,7 @@ function crmWireCust(root) {
 async function crmInbox(host, st) {
   if (st.page === 'thread') return crmThread(host, st.params.id);
   const body = crmFrame(host, { title: 'Inbox' });
-  body.innerHTML = `<div class="crm-filters">${crmField('ib-s', 'Show', crmSelect('ib-s', [['Open', 'Open'], ['Closed', 'Closed'], ['', 'All']], (st.params || {}).status ?? 'Open'))}</div><div id="ib-list"></div>
-    <p class="text-muted crm-small">Customers' WhatsApp replies arrive here (set the WhatsApp sender's callback URL at Meta). A reply is never consent. STOP stops offers on WhatsApp.</p>`;
+  body.innerHTML = `<div class="crm-filters">${crmField('ib-s', 'Show', crmSelect('ib-s', [['Open', 'Open'], ['Closed', 'Closed'], ['', 'All']], (st.params || {}).status ?? 'Open'))}</div><div id="ib-list"></div>`;
   const load = async () => {
     const r = await crmApi('conversations?status=' + encodeURIComponent(crmVal(body, 'ib-s')));
     if (!r) return;
@@ -154,8 +153,7 @@ async function crmFeedback(host, st) {
     { label: 'On', html: s => s.enabled ? crmChip('On', 'ok') : crmChip('Off', 'muted') }, { label: 'Scale', html: s => s.scale === 'nps' ? '0-10 (NPS)' : '1-5 rating' }, { label: 'By', key: 'channel' },
     { label: '', html: s => `<button class="action-btn" data-sum="${crmEsc(s.id)}">Results</button>` }], r.surveys,
     { empty: 'No survey yet. Journeys > Add the ready-made journeys adds "After a bill" (off until you switch it on).' }) +
-    `<p class="text-muted crm-small">When a survey is on, each bill's customer gets one link (not again within its cool-down). A low score opens a ticket for the store.</p>
-    <h3 class="crm-section">Referrals</h3>
+    `<h3 class="crm-section">Referrals</h3>
     <form class="crm-form crm-form-inline" id="rf-form">${crmField('rf-f', 'New customer (the friend)', crmInput('rf-f'))}${crmField('rf-c', 'Referral code they gave', crmInput('rf-c'))}<button class="btn btn-outline" type="submit">Record</button></form>
     ${crmTable([{ label: 'Referred by', html: x => crmCustLink(x.referrer_id, x.referrer_name) }, { label: 'Friend', html: x => crmCustLink(x.friend_id, x.friend_name) }, { label: 'Code', key: 'code' },
       { label: 'Status', html: x => crmStatus(x.status) + (x.flag_reason ? `<small class="crm-reason">${crmEsc(x.flag_reason)}</small>` : '') },
@@ -190,7 +188,7 @@ async function crmSurveyEdit(host, id) {
     ${crmField('sv-low', 'A score this low or lower opens a ticket', crmInput('sv-low', s.low_score, 'inputmode="numeric"'))}</div>
     <label class="crm-check"><input type="checkbox" id="sv-on" ${s.enabled ? 'checked' : ''}> On - ask after every bill</label>
     <div class="crm-form-actions"><button class="btn btn-primary" type="submit">Save</button></div>
-    <p class="text-muted crm-small">Changing the question or scale starts a new version; results are always read against the question they answered.</p></form>`;
+    <p class="text-muted crm-small">Changing the question or scale starts a new version.</p></form>`;
   body.querySelector('#sv-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const r = await crmApi(id ? 'surveys/' + encodeURIComponent(id) : 'surveys', { method: id ? 'PUT' : 'POST', body: { name: crmVal(body, 'sv-n'), question: crmVal(body, 'sv-q'), scale: crmVal(body, 'sv-sc'),
@@ -206,8 +204,7 @@ async function crmSurveySummary(host, id) {
   body.innerHTML = crmTable([{ label: 'Version', key: 'version', num: true }, { label: 'Question', key: 'question' }, { label: 'Asked', key: 'asked', num: true }, { label: 'Answers', key: 'responses', num: true },
     { label: 'Promoters', key: 'promoters', num: true }, { label: 'Detractors', key: 'detractors', num: true }, { label: 'NPS', html: v => v.nps == null ? (v.average == null ? '-' : 'avg ' + v.average) : String(v.nps), num: true }], r.versions) +
     `<h3 class="crm-section">Latest answers</h3>` + crmTable([{ label: 'When', html: x => crmDate(x.at, true) }, { label: 'Customer', key: 'customer' }, { label: 'Store', key: 'store' },
-      { label: 'Score', key: 'score', num: true }, { label: 'Comment', key: 'comment' }, { label: 'Ticket', key: 'ticket_id' }], r.recent, { empty: 'No answers yet.' }) +
-    '<p class="text-muted crm-small">NPS = % of 9-10 answers minus % of 0-6 answers, over the answers shown.</p>';
+      { label: 'Score', key: 'score', num: true }, { label: 'Comment', key: 'comment' }, { label: 'Ticket', key: 'ticket_id' }], r.recent, { empty: 'No answers yet.' });
 }
 
 // --- worklist ------------------------------------------------------------------------
@@ -344,8 +341,7 @@ async function crmHoldNew(host, p) {
   const body = crmFrame(host, { title: 'Hold request', back: () => crmGo('worklist', '', { view: 'holds' }), backLabel: 'Worklist' });
   body.innerHTML = `<form class="crm-form" id="nh-form"><div class="crm-form-row">${crmField('nh-c', 'Customer', crmInput('nh-c', p.name || ''))}${crmField('nh-i', 'Item code or barcode', crmInput('nh-i', p.item_code || ''))}</div>
     <div class="crm-form-row">${crmField('nh-s', 'Store that keeps it (blank = yours)', crmInput('nh-s'))}${crmField('nh-q', 'Qty', crmInput('nh-q', '1', 'inputmode="numeric"'))}${crmField('nh-u', 'Keep until', crmInput('nh-u', '', 'type="date"'))}</div>
-    ${crmField('nh-n', 'Note', crmInput('nh-n'))}<div class="crm-form-actions"><button class="btn btn-primary" type="submit">Ask the store</button></div>
-    <p class="text-muted crm-small">The store confirms or declines on its worklist. The customer is told only after the store confirms.</p></form>`;
+    ${crmField('nh-n', 'Note', crmInput('nh-n'))}<div class="crm-form-actions"><button class="btn btn-primary" type="submit">Ask the store</button></div></form>`;
   const pick = crmCustomerPicker(body.querySelector('#nh-c'), p.customer_id);
   body.querySelector('#nh-form').addEventListener('submit', async (e) => {
     e.preventDefault();

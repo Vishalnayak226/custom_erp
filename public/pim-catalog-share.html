@@ -18,7 +18,6 @@
   .share-wrap { max-width: 960px; margin: 0 auto; padding: 32px 20px 64px; }
   .share-header { margin-bottom: 24px; }
   .share-header h1 { margin: 0 0 4px; font-size: 24px; }
-  .share-header p { margin: 0; color: var(--text-muted); font-size: 14px; }
   .share-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
   .share-card { border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; background: var(--surface-subtle); }
   .share-card-thumb { width: 100%; aspect-ratio: 1; border-radius: 6px; background: var(--border-color); display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 12px; margin-bottom: 10px; }
@@ -34,7 +33,6 @@
 <div class="share-wrap">
   <div class="share-header">
     <h1 id="share-title">Loading catalog&hellip;</h1>
-    <p id="share-subtitle"></p>
   </div>
   <p class="share-count" id="share-count" hidden></p>
   <div class="share-grid" id="share-grid"></div>
@@ -52,7 +50,6 @@
   var token = params.get('token') || '';
   var tenantID = params.get('tenant_id') || 'default';
   var titleEl = document.getElementById('share-title');
-  var subtitleEl = document.getElementById('share-subtitle');
   var countEl = document.getElementById('share-count');
   var gridEl = document.getElementById('share-grid');
   var stateEl = document.getElementById('share-state');
@@ -78,7 +75,6 @@
     })
     .then(function (view) {
       titleEl.textContent = view.catalog_name || 'Shared Catalog';
-      subtitleEl.textContent = 'Live product list - refresh this page any time to see the current catalog.';
       var products = view.products || [];
       if (products.length === 0) {
         showState('This catalog currently has no products.');

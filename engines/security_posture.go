@@ -64,7 +64,9 @@ func InvestigationTrail(tenantID, correlationID string) ([]TrailEntry, error) {
 		return rows.Err()
 	}
 	// Signed audit rows are naive UTC (see utcStamp); the others are session-local.
-	if err := add("audit", fmt.Sprintf(`SELECT created_at, COALESCE(user_id, ''), action, COALESCE(status, ''), COALESCE(details, '')
+	// Stage 49.11.2: who includes the address and device the event came from.
+	if err := add("audit", fmt.Sprintf(`SELECT created_at, COALESCE(user_id, '') || COALESCE(' · ' || source_ip, '') || COALESCE(' · ' || device, ''),
+		action, COALESCE(status, ''), COALESCE(details, '')
 		FROM %s.audit_logs WHERE correlation_id = $1 ORDER BY seq LIMIT %d`, schema, trailRowCap), correlationID); err != nil {
 		return nil, err
 	}
@@ -266,6 +268,7 @@ func BuildForensicPack(tenantID string, from, to time.Time, actor string) ([]byt
 		// window is applied to each in its own clock and the row says which.
 		{"audit_logs.jsonl", fmt.Sprintf(`SELECT row_to_json(t)::text FROM (
 			SELECT seq, id, created_at, user_id, action, status, details, entity_type, entity_id, correlation_id,
+			       source_ip, device, capability, policy_version,
 			       signature, sig_version, (signature IS NOT NULL) AS signed_utc
 			FROM %s.audit_logs
 			WHERE (signature IS NOT NULL AND created_at >= $1::timestamp AND created_at < $2::timestamp)

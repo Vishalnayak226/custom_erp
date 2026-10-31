@@ -104,9 +104,16 @@ def main():
             env.pop('OPS_ALERT_WEBHOOK_URL', None)
             env.update(REMOTE_DIR=box.as_posix(), AUDIT_CASE=case, DEPLOY_COMMIT='synthetic-audit')
             # Git Bash receives its PATH in POSIX form from a literal script in this fixture.
-            (box/'run.sh').write_text('REMOTE_DIR="$(cygpath -u "$REMOTE_DIR")"\nexport REMOTE_DIR\nexport PATH="$REMOTE_DIR/bin:$PATH"\nchmod +x "$REMOTE_DIR"/bin/*\nbash "$REMOTE_DIR/deploy/remote_deploy.sh"\n', newline='\n')
+            # Stage 49.10.6b.3: remote_deploy.sh refuses an unsigned binary, so the
+            # fixture signs erp-server.new with a throwaway key, as deploy.ps1 does
+            # with the release key, and pins nothing beforehand (a first signed deploy).
+            sign = ('openssl genpkey -algorithm ed25519 -out "$REMOTE_DIR/fixture.key" 2>/dev/null\n'
+                    'openssl pkey -in "$REMOTE_DIR/fixture.key" -pubout -out "$REMOTE_DIR/deploy/release-signing.pub"\n'
+                    'openssl pkeyutl -sign -rawin -inkey "$REMOTE_DIR/fixture.key" -in "$REMOTE_DIR/erp-server.new" -out "$REMOTE_DIR/erp-server.new.sig"\n'
+                    'export RELEASE_SIGNING_PIN="$REMOTE_DIR/pinned-release-signing.pub"\n')
+            (box/'run.sh').write_text('REMOTE_DIR="$(cygpath -u "$REMOTE_DIR")"\nexport REMOTE_DIR\nexport PATH="$REMOTE_DIR/bin:$PATH"\nchmod +x "$REMOTE_DIR"/bin/*\n' + sign + 'bash "$REMOTE_DIR/deploy/remote_deploy.sh"\n', newline='\n')
             result = subprocess.run([str(a.bash), str(box/'run.sh')], cwd=box, env=env,
-                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=90)  # 49.10.6b.3: the signature check adds a few openssl runs; Git Bash spawns slowly
             actual = {'binary':(box/'erp-server').read_text() if (box/'erp-server').exists() else 'absent',
                       'public':(box/'public/app.js').read_text()}
             expected = {'binary':'NEW_BINARY','public':'NEW_PUBLIC'} if case == 'healthy' else {'binary':'OLD_BINARY','public':'OLD_PUBLIC'}

@@ -46,6 +46,11 @@ type ControlPanelClient struct {
 	Errors24h        int        `json:"errors_24h"`
 	LastErrorAt      *time.Time `json:"last_error_at,omitempty"`
 	Problem          string     `json:"problem,omitempty"`
+	// Stage 49.11.7: the newest successful backup that holds this client -
+	// the whole-database nightly or an export of its own schema - and
+	// whether that is older than controlPanelBackupMaxAge (or missing).
+	LastBackupAt *time.Time `json:"last_backup_at,omitempty"`
+	BackupStale  bool       `json:"backup_stale"`
 }
 
 // ControlPanelDeployment is one row of the deployments ledger.
@@ -83,7 +88,16 @@ type ControlPanel struct {
 	// and limits - engines/capability_maturity.go, the same list as
 	// docs/product/capability-maturity.md.
 	CapabilityMaturity []CapabilityMaturity `json:"capability_maturity"`
+	// Stage 49.11.7: each public address's certificate, as this server last
+	// checked it (cert_expiry.go); CertificatesNote says why there is none.
+	Certificates          []CertificateStatus `json:"certificates"`
+	CertificatesCheckedAt *time.Time          `json:"certificates_checked_at,omitempty"`
+	CertificatesNote      string              `json:"certificates_note,omitempty"`
 }
+
+// controlPanelBackupMaxAge is when a client's newest backup counts as stale:
+// the backup monitor's own limit (StartBackupFreshnessMonitor in routes.go).
+const controlPanelBackupMaxAge = 36 * time.Hour
 
 // GetControlPanel builds the summary. One client's unreadable schema is
 // reported on its row (Problem) rather than failing the page.
@@ -154,9 +168,52 @@ func GetControlPanel() (ControlPanel, error) {
 	if db.DB.QueryRow(`SELECT MAX(finished_at) FROM public.backup_runs WHERE scope = 'database' AND outcome = 'Success'`).Scan(&good) == nil {
 		out.LastGoodBackupAt = nullTimePtr(good)
 	}
+	fillClientBackups(out.Clients, out.LastGoodBackupAt, time.Now())
+	out.Certificates = []CertificateStatus{}
+	if certs, at := CertificateStatuses(); !at.IsZero() {
+		out.Certificates, out.CertificatesCheckedAt = certs, &at
+		if len(certs) == 0 {
+			out.CertificatesNote = "No public address to check: set CORS_ALLOWED_ORIGINS or TENANT_BASE_DOMAIN."
+		}
+	} else if !ExternalSideEffectsEnabled() {
+		out.CertificatesNote = "Checked only where outside calls run (production)."
+	} else {
+		out.CertificatesNote = "Not checked yet - the first check runs a minute after the server starts."
+	}
 	out.SlowQueries = SlowQueries(20)
 	out.CapabilityMaturity = CapabilityMaturityRegistry()
 	return out, nil
+}
+
+// fillClientBackups sets each client's newest successful backup: the later of
+// the whole-database nightly and a backup of its own schema.
+func fillClientBackups(clients []ControlPanelClient, wholeDB *time.Time, now time.Time) {
+	own := map[string]time.Time{}
+	if rows, err := db.DB.Query(`SELECT tenant_schema, MAX(finished_at) FROM public.backup_runs
+		WHERE scope = 'tenant' AND outcome = 'Success' AND tenant_schema IS NOT NULL GROUP BY tenant_schema`); err == nil {
+		for rows.Next() {
+			var schema string
+			var at time.Time
+			if rows.Scan(&schema, &at) == nil {
+				own[schema] = at
+			}
+		}
+		rows.Close()
+	}
+	for i := range clients {
+		c := &clients[i]
+		var last *time.Time
+		if wholeDB != nil {
+			t := *wholeDB
+			last = &t
+		}
+		if at, ok := own[c.Schema]; ok && (last == nil || at.After(*last)) {
+			t := at
+			last = &t
+		}
+		c.LastBackupAt = last
+		c.BackupStale = last == nil || now.Sub(*last) > controlPanelBackupMaxAge
+	}
 }
 
 func fillControlPanelClient(c *ControlPanelClient) {

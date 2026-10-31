@@ -75,7 +75,7 @@ async function renderJournalVouchersView(container) {
           <thead><tr><th>Voucher</th><th>Date</th><th>Narration</th><th class="num">Lines</th><th class="num">Amount</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>
             ${vouchers.length === 0
-              ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No journal vouchers yet. Click <b>+ New Journal Voucher</b>, fill in the lines and <b>Save as Draft</b>.</td></tr>`
+              ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No journal vouchers yet.</td></tr>`
               : vouchers.map(v => `
                 <tr>
                   <td style="font-family: monospace;">${escapeHTMLText(v.voucher_number || v.id)}</td>
@@ -137,7 +137,6 @@ async function openJournalVoucherForm() {
         <input type="text" id="jv-department" class="form-input" autocomplete="off" placeholder="Optional">
       </div>
     </div>
-    <div class="txn-hint"><span>Manual entries - accruals, corrections, opening balances. Debits must equal credits; a voucher posts only after a second person approves it.</span></div>
     <datalist id="jv-account-options">${accounts.map(a => `<option value="${escapeHTMLText(a.code)}">${escapeHTMLText(a.code + ' · ' + a.name)}</option>`).join('')}</datalist>
     <div class="txn-grid">
       <table>
@@ -228,7 +227,7 @@ async function saveJournalVoucher() {
   if (dr !== cr || dr === 0) return fail(`Debits (${dr}) must equal credits (${cr}).`);
 
   const res = await apiFetch('/api/v1/finance/journal-voucher', {
-    method: 'POST',
+    method: 'POST', commandKey: 'jv.create', // 49.4.7a: a re-send after no answer posts once
     body: JSON.stringify({
       voucher_date: voucherDate, narration, lines,
       cost_center: document.getElementById('jv-cost-center').value.trim(),

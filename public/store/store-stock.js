@@ -55,7 +55,6 @@ async function renderReceive(ctx, params) {
   if (ctx.routeName() !== 'receive') return;
   const docs = res.documents || [];
   main.innerHTML = docs.length ? `
-    <p class="hint">Deliveries waiting at this store. Open one and scan what arrived; the phone shows what is short or extra before you save.</p>
     ${docs.map(d => `<a class="card card-link" href="#/receive?kind=${esc(d.kind)}&id=${encodeURIComponent(d.id)}">
       <h2>${d.kind === 'grn' ? 'Goods receipt' : 'Transfer'} · ${esc(d.number)}</h2>
       <div class="sub">From ${esc(d.from || '—')} · ${esc(d.status)}${d.lines ? ` · ${qty(d.units)} item${d.units === 1 ? '' : 's'} on the way` : ''}${d.created ? ` · ${esc(ctx.fmtDate(d.created))}` : ''}</div></a>`).join('')}`
@@ -130,7 +129,7 @@ async function renderReceiveDoc(ctx, kind, id) {
         ${over.length ? `<div class="card"><h2>More than the PO</h2>${over.map(l => `<label class="field"><span>${esc(l.name)}: keep the extra or send it back?</span>
           <select class="input" data-excess="${esc(l.key)}"><option value="keep">Keep it (needs approval)</option><option value="return">Send it back</option></select></label>`).join('')}</div>` : ''}
         <button type="button" class="btn btn-primary btn-block" id="rcv-save">Save the check</button>
-        <p class="hint">Saving records what you counted as the goods receipt quantity (its Verify step). Prices and posting stay on the computer.</p>`;
+        <p class="hint">Saves counts only - prices and posting stay on the computer.</p>`;
     } else {
       box.innerHTML = `
         ${short ? `<div class="card"><h2>Some items are short</h2>
@@ -212,7 +211,6 @@ async function renderCount(ctx, params) {
   const open = storedCounts(ls).filter(c => !queue.includes(c.key));
   main.innerHTML = `
     <button type="button" class="btn btn-primary btn-block" id="cnt-spot">Start a spot count</button>
-    <p class="hint">Scan every item on a shelf or in a bin and send the count. It works without a connection: the count stays on this phone and is sent when you are back online.</p>
     ${open.length ? `<h3 class="section-title">Counts on this phone</h3>${open.map(s => `<a class="card card-link" href="#/count?session=${encodeURIComponent(s.key)}"><h2>${esc(s.label)}</h2><div class="sub">${Object.keys(s.lines || {}).length} code(s) scanned · started ${esc(ctx.ago(s.created))}</div></a>`).join('')}` : ''}
     ${queue.length ? `<div class="msg msg-info" role="status">${queue.length} finished count(s) waiting for a connection to be sent.</div>` : ''}
     <h3 class="section-title">Full counts at this store</h3>
@@ -229,7 +227,7 @@ async function renderCount(ctx, params) {
     const list = res.full_counts || [];
     full.innerHTML = list.length ? list.map(p => `<button type="button" class="card card-link" data-pi="${esc(p.id)}">
       <h2>Full count ${esc(p.id)}${p.zone ? ` · ${esc(p.zone)}` : ''}</h2><div class="sub">${p.counted} of ${p.lines} items counted · started ${esc(p.started)}</div></button>`).join('')
-      : '<p class="empty">No full count is open here. A full count (physical inventory) is started by the warehouse team; it shows here while it is open.</p>';
+      : '<p class="empty">No full count is open here.</p>';
     full.querySelectorAll('[data-pi]').forEach(b => b.addEventListener('click', () => {
       const s = { key: ctx.newKey(), mode: 'full', pi: b.dataset.pi, label: `Full count ${b.dataset.pi}`, lines: {}, names: {}, created: new Date().toISOString(), store: ctx.workingStore() };
       ls.setJSON(countKey(s.key), s);
@@ -247,7 +245,7 @@ function renderCountSession(ctx, key) {
   setBar(s.mode === 'full' ? 'Full count' : 'Spot count', '#/count');
   const persist = () => ls.setJSON(countKey(key), s);
   main.innerHTML = `
-    <article class="card"><h2>${esc(s.label)}</h2><div class="sub">Scan each item once per piece. Fix a number by tapping − / +.</div></article>
+    <article class="card"><h2>${esc(s.label)}</h2></article>
     <div id="cnt-scan"></div>
     <div class="toolbar"><span id="cnt-summary"></span><button type="button" class="link" id="cnt-discard">Discard this count</button></div>
     <ul class="rows count-rows" id="cnt-lines"></ul>
@@ -329,7 +327,7 @@ function showCountResult(ctx, r) {
   setBar('Count sent', '#/count');
   main.innerHTML = `<div class="msg ${r.refused ? 'msg-error' : 'msg-info'}" role="status">${esc(r.message)}</div>
     ${(r.unknown || []).length ? `<p class="hint">Not items, so not counted: ${r.unknown.map(esc).join(', ')}</p>` : ''}
-    ${r.pending_approval ? '<p class="hint">A count that differs from the stock goes to the store manager for approval before stock changes.</p>' : ''}
+    ${r.pending_approval ? '<p class="hint">Differences need the store manager\'s approval.</p>' : ''}
     <a class="btn btn-block" href="#/count">Back to counts</a>`;
 }
 
@@ -357,7 +355,7 @@ async function renderLabels(ctx, params) {
   const form = $$(main, '#lbl-form');
   const drawAsk = async (c) => {
     if (!c) {
-      form.innerHTML = '<p class="hint">Scan an item to ask the store\'s computer to print its labels.</p><div id="lbl-scan"></div>';
+      form.innerHTML = '<div id="lbl-scan"></div>';
       ctx.scanBox($$(form, '#lbl-scan'), (x) => drawAsk(x), { button: 'Look up' });
       return;
     }
@@ -388,8 +386,7 @@ async function renderLabels(ctx, params) {
     const res = await api('/api/v1/store-app/labels');
     const list = res.requests || [];
     $$(main, '#lbl-list').innerHTML = list.length ? `<ul class="rows">${list.map(r => `<li><span>${esc(r.items.map(i => i.name || i.sku).join(', '))}<small>${esc(r.id)} · ${r.labels} label(s) · asked by ${esc(r.requested_by)} ${esc(r.created)}</small></span>
-      <span class="tag ${r.status === 'Printed' ? 'tag-ok' : ''}">${r.status === 'Printed' ? `Printed${r.printed_at ? ` ${esc(r.printed_at.slice(11))}` : ''}` : 'Waiting'}</span></li>`).join('')}</ul>
-      <p class="hint">A phone cannot reach the label printer itself. The store's computer prints these from Sticker Printing > Print from Transaction > Store Label Request.</p>`
+      <span class="tag ${r.status === 'Printed' ? 'tag-ok' : ''}">${r.status === 'Printed' ? `Printed${r.printed_at ? ` ${esc(r.printed_at.slice(11))}` : ''}` : 'Waiting'}</span></li>`).join('')}</ul>`
       : '<p class="empty">No labels asked for yet.</p>';
   } catch (e) {
     if (!e.quiet) $$(main, '#lbl-list').innerHTML = `<p class="empty">${esc(e.message)}</p>`;
@@ -420,7 +417,7 @@ async function renderAsk(ctx, params) {
       ${list.map(s => `<option value="${esc(s.code)}">${esc(s.name)}${s.type ? ` (${esc(s.type)})` : ''}${s.stock !== undefined ? ` · ${qty(s.stock)} available` : ''}</option>`).join('')}
     </select></label>
     <label class="field"><span>How many</span><input class="input qty-input" id="ask-qty" type="number" inputmode="numeric" min="1" value="1" required></label>
-    <p class="hint">This makes a transfer request and sends it for approval, the same as Stock Movement on the computer.</p>
+    <p class="hint">Sent for approval as a transfer request.</p>
     <div class="actions"><a class="btn" href="#/scan?code=${encodeURIComponent(code)}">Cancel</a><button type="submit" class="btn btn-primary">Ask for it</button></div></form>`;
   $$(main, '#ask-form').addEventListener('submit', async (e) => {
     e.preventDefault();

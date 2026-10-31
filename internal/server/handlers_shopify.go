@@ -232,14 +232,14 @@ func handleShopifyWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// 134.3: the current secret or, for a week after a change, the previous one.
+	source, eventID := "shopify:"+channel, r.Header.Get("X-Shopify-Webhook-Id")
 	if !engines.VerifyWebhookHMACAny(body, r.Header.Get("X-Shopify-Hmac-Sha256"), "", "base64", engines.GetChannelWebhookSecrets(tenantID, channel)...) {
-		writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "Invalid webhook signature")
+		refuseWebhookSignature(w, r, source)
 		return
 	}
 	// A repeat of a delivery already handled (same X-Shopify-Webhook-Id) is
 	// answered OK and not processed again.
-	source, eventID := "shopify:"+channel, r.Header.Get("X-Shopify-Webhook-Id")
-	if dup, err := engines.ClaimInboundWebhook(tenantID, source, eventID, body); err == nil && dup {
+	if dup, err := claimInboundWebhook(r, tenantID, source, eventID, body); err == nil && dup {
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "result": "duplicate"})
 		return
 	}

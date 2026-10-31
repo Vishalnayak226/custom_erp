@@ -58,7 +58,6 @@ export async function renderBulkSales(host, { onBack } = {}) {
       <section>
         <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">1. Template</h4>
         <button type="button" class="btn btn-outline" data-bs="template">Download template</button>
-        <span class="text-muted" style="font-size:13px; margin-left:10px;">Sales rows by barcode, a discount per line; Customers for anyone new.</span>
       </section>
       <section>
         <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">2. Upload and check</h4>
@@ -112,7 +111,7 @@ async function bsPreview(screen, btn) {
     <section>
       <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">3. Preview - nothing has changed yet</h4>
       ${bsTotalsHtml(t, false)}
-      ${result.can_post ? '' : '<p style="font-size:13px; margin:0 0 10px;">Your role may not post invoices: they are saved as Drafts, to be posted from the invoice list.</p>'}
+      ${result.can_post ? '' : '<p style="font-size:13px; margin:0 0 10px;">Your role cannot post: saved as Drafts.</p>'}
       ${bsResultHtml(result, false)}
       <div style="display:flex; gap:12px; align-items:center; margin-top:12px; flex-wrap:wrap;">
         <button type="button" class="btn btn-primary" data-bs="apply"${work ? '' : ' disabled'}>${work ? bsApplyLabel(newInv, toPost, result.can_post) : 'Nothing to do'}</button>
@@ -166,7 +165,7 @@ async function bsFollow(screen, runID) {
       <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">${run.status === 'Completed' ? 'Done' : bsEsc(run.status || 'Finished')}${run.file_name ? ` - ${bsEsc(run.file_name)}` : ''}</h4>
       ${run.message ? `<p style="font-size:13px;">${bsEsc(run.message)}</p>` : ''}
       ${bsTotalsHtml(t, true)}
-      ${(t.failed || t.errors) ? '<p style="font-size:13px; margin:0 0 10px;">Fix what is marked Failed or Problem, then upload the same file again: what is already made is found again, not made twice.</p>' : ''}
+      ${(t.failed || t.errors) ? '<p style="font-size:13px; margin:0 0 10px;">Fix Failed or Problem rows, then upload the same file again - nothing is made twice.</p>' : ''}
       ${run.result ? bsResultHtml(run.result, true) : ''}
     </section>`;
   bsRenderRuns(screen);

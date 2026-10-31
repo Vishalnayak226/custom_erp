@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 )
@@ -563,9 +564,11 @@ func onHandAll(schema, sku string) int {
 // 88.5.1 Dashboard
 // ---------------------------------------------------------------------------
 
-// InventoryDashboard is the Inventory module's first page: stock units and
-// value per store, low stock, the latest movements and the adjustments
-// waiting for approval. location narrows it to one store.
+// InventoryDashboard is the Inventory module's first page - how much stock
+// there is: designs, combinations, units and value, by store, by item (the
+// short name, Stage 145) and by category, and the adjustments waiting for
+// approval. location narrows it to one store. Stage 145.1 dropped the low
+// stock and latest movements lists (user, 2026-10-31: "not required").
 func InventoryDashboard(tenantID, location string) (map[string]interface{}, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -573,45 +576,112 @@ func InventoryDashboard(tenantID, location string) (map[string]interface{}, erro
 	}
 	out := map[string]interface{}{}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT ia.location_code, SUM(ia.on_hand), COUNT(*) FILTER (WHERE ia.on_hand <> 0),
-		       COALESCE(SUM(ia.on_hand * COALESCE(ic.avg_unit_cost_paise, 0)), 0)
+		SELECT ia.location_code, ia.sku, ia.on_hand, COALESCE(ic.avg_unit_cost_paise, 0)
 		  FROM %s.inventory_availability ia LEFT JOIN %s.item_cost ic ON ic.item_code = ia.sku
-		 WHERE ($1 = '' OR ia.location_code = $1)
-		 GROUP BY ia.location_code ORDER BY ia.location_code`, schema, schema), location)
+		 WHERE ($1 = '' OR ia.location_code = $1)`, schema, schema), location)
 	if err != nil {
 		return nil, err
 	}
-	byLocation := []map[string]interface{}{}
-	var totalUnits, totalValue int64
+	type stockRow struct {
+		loc, sku     string
+		units, value int64
+	}
+	stock, skus, seenSKU := []stockRow{}, []string{}, map[string]bool{}
 	for rows.Next() {
-		var loc string
-		var units, items, valuePaise int64
-		if err := rows.Scan(&loc, &units, &items, &valuePaise); err != nil {
+		var s stockRow
+		var cost int64
+		if err := rows.Scan(&s.loc, &s.sku, &s.units, &cost); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		totalUnits += units
-		totalValue += valuePaise
-		byLocation = append(byLocation, map[string]interface{}{"location": loc, "units": units, "items": items, "value": PaiseToRupees(valuePaise)})
+		s.value = s.units * cost
+		stock = append(stock, s)
+		if !seenSKU[s.sku] {
+			seenSKU[s.sku] = true
+			skus = append(skus, s.sku)
+		}
 	}
 	rows.Close()
-	out["by_location"], out["total_units"], out["total_value"] = byLocation, totalUnits, PaiseToRupees(totalValue)
-
-	lowStock, err := inventoryLowStock(schema, location, 20)
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	items, err := loadStockItems(tenantID, schema, skus)
 	if err != nil {
 		return nil, err
 	}
-	out["low_stock"] = lowStock
 
-	recent, err := queryMaps(fmt.Sprintf(`
-		SELECT created_at, data->>'item_id' AS sku, data->>'warehouse_id' AS location, (data->>'qty')::numeric AS qty,
-		       data->>'voucher_type' AS voucher_type, data->>'voucher_id' AS voucher_id
-		  FROM %s.documents WHERE doctype = 'StockLedgerEntry' AND ($1 = '' OR data->>'warehouse_id' = $1)
-		 ORDER BY created_at DESC, id DESC LIMIT 15`, schema), location)
-	if err != nil {
-		return nil, err
+	// A design or combination counts where some of it is in stock.
+	type group struct {
+		name          string
+		designs, skus map[string]bool
+		units, value  int64
 	}
-	out["recent_movements"] = recent
+	newGroup := func(name string) *group {
+		return &group{name: name, designs: map[string]bool{}, skus: map[string]bool{}}
+	}
+	addTo := func(g *group, s stockRow, it *StockItem) {
+		g.units += s.units
+		g.value += s.value
+		if s.units > 0 {
+			g.designs[it.Design], g.skus[s.sku] = true, true
+		}
+	}
+	total := newGroup("")
+	byLoc, byItem, byCat := map[string]*group{}, map[string]*group{}, map[string]*group{}
+	add := func(m map[string]*group, key, name string, s stockRow, it *StockItem) {
+		g := m[key]
+		if g == nil {
+			g = newGroup(name)
+			m[key] = g
+		}
+		addTo(g, s, it)
+	}
+	for _, s := range stock {
+		it := items[s.sku]
+		addTo(total, s, it)
+		add(byLoc, s.loc, s.loc, s, it)
+		add(byItem, strings.ToLower(it.Name), it.Name, s, it)
+		cat := firstNonEmpty(it.Category, "No category")
+		add(byCat, strings.ToLower(cat), cat, s, it)
+	}
+	row := func(g *group) map[string]interface{} {
+		return map[string]interface{}{"name": g.name, "designs": int64(len(g.designs)), "items": int64(len(g.skus)),
+			"units": g.units, "value": PaiseToRupees(g.value)}
+	}
+	locs := make([]string, 0, len(byLoc))
+	for loc := range byLoc {
+		locs = append(locs, loc)
+	}
+	sort.Strings(locs)
+	byLocation := []map[string]interface{}{}
+	for _, loc := range locs {
+		r := row(byLoc[loc])
+		r["location"], r["name"] = loc, masterDisplayName(schema, "Location", loc)
+		byLocation = append(byLocation, r)
+	}
+	// Most units first; a group with nothing in it is not shown.
+	ranked := func(m map[string]*group) []map[string]interface{} {
+		gs := []*group{}
+		for _, g := range m {
+			if g.units != 0 || len(g.skus) > 0 {
+				gs = append(gs, g)
+			}
+		}
+		sort.Slice(gs, func(i, j int) bool {
+			if gs[i].units != gs[j].units {
+				return gs[i].units > gs[j].units
+			}
+			return gs[i].name < gs[j].name
+		})
+		list := make([]map[string]interface{}, len(gs))
+		for i, g := range gs {
+			list[i] = row(g)
+		}
+		return list
+	}
+	out["by_location"], out["by_item"], out["by_category"] = byLocation, ranked(byItem), ranked(byCat)
+	out["designs"], out["combinations"] = int64(len(total.designs)), int64(len(total.skus))
+	out["total_units"], out["total_value"] = total.units, PaiseToRupees(total.value)
 
 	pending, err := queryMaps(fmt.Sprintf(`
 		SELECT id, COALESCE(data->>'code', id) AS code, data->>'location' AS location, (data->>'amount')::numeric AS amount, created_at

@@ -29,13 +29,12 @@ const HR_TAB_DOCTYPE = {
 // refuses every one of their commands without it).
 const HR_PAYROLL_TABS = ['payroll', 'payroll-export', 'loans'];
 const hrCanRunPayroll = () => state.permissions.isAdmin || state.permissions.capabilities.has('hr.payroll');
-const HR_TAB_GROUPS = [
-  { label: 'My work', tabs: ['my-requests'] },
-  { label: 'Team', tabs: ['attendance', 'leave', 'roster'] },
-  { label: 'HR administration', tabs: ['payroll', 'payroll-export', 'loans', 'onboarding', 'appraisals', 'training', 'grievances'] }
-];
+// Stage 151: each tab is its own HRM sidebar entry ("hr:<tab>"), so the tab strip is gone.
+const hrMenuId = tab => tab === 'my-requests' ? 'menu-hr' : `menu-hr-${tab}`;
+const hrReload = () => renderView(`hr:${currentHRTab}`);
 
 async function renderHRView(container) {
+  if (currentViewTab) currentHRTab = currentViewTab;
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
@@ -45,52 +44,13 @@ async function renderHRView(container) {
   `;
   container.appendChild(header);
 
-  const tabBar = document.createElement('div');
-  tabBar.style.display = 'flex';
-  tabBar.style.gap = '8px';
-  tabBar.style.marginBottom = '16px';
-  // Stage 45: at a narrow enough width/zoom this row is wider than the page
-  // - .page-container clips overflow-x rather than scrolling it, so without
-  // this the trailing tabs were just gone with no way back to them. Scoping
-  // the scroll to the bar itself (not the whole page) keeps the rest of the
-  // screen from picking up a horizontal scrollbar too.
-  //
-  // flex-shrink: 0 is load-bearing, not decorative. Verified live: setting
-  // only overflow-x on a flex item inside .page-container's column flexbox
-  // let the whole bar collapse to 0px height whenever the page's other
-  // content was tall enough to overflow vertically - overflow-x non-visible
-  // suppresses this item's automatic min-height (content-based sizing only
-  // applies when overflow is 'visible'), and per the CSS Overflow spec the
-  // *used* value of overflow-y becomes 'auto' here regardless of what's
-  // declared (confirmed: getComputedStyle still reports 'auto' even with
-  // overflow-y explicitly set to 'visible' below - that line documents
-  // intent but does not itself prevent the collapse). flex-shrink: 0 is what
-  // actually fixes it: it exempts the item from shrinking at all, which
-  // sidesteps the automatic-minimum-size calculation entirely rather than
-  // trying to win it.
-  tabBar.style.overflowX = 'auto';
-  tabBar.style.overflowY = 'visible';
-  tabBar.style.flexShrink = '0';
-  // Stage 55.14: three distinct paths - the employee's own requests, the
-  // team a manager runs, and HR administration - and only the tabs this role
-  // can actually read (no tab that opens on a permission error).
+  // Stage 55.14: only a tab this role can actually read (no page that opens
+  // on a permission error) - a link to one it cannot falls back to the first it can.
   const visible = HR_TABS.filter(t => (!HR_TAB_DOCTYPE[t.id] || canReadDoctype(HR_TAB_DOCTYPE[t.id]))
     && (!HR_PAYROLL_TABS.includes(t.id) || hrCanRunPayroll()));
   if (!visible.some(t => t.id === currentHRTab)) currentHRTab = (visible[0] || HR_TABS[HR_TABS.length - 1]).id;
-  tabBar.style.alignItems = 'center';
-  tabBar.innerHTML = HR_TAB_GROUPS.map(g => {
-    const tabs = visible.filter(t => g.tabs.includes(t.id));
-    if (tabs.length === 0) return '';
-    return `<span style="font-size:12px;color:var(--text-muted);white-space:nowrap;margin-left:8px">${g.label}</span>` + tabs.map(t =>
-      `<button class="btn ${t.id === currentHRTab ? 'btn-primary' : 'btn-outline'} btn-sm" data-hr-tab="${t.id}">${t.label}</button>`).join('');
-  }).join('');
-  container.appendChild(tabBar);
-  tabBar.querySelectorAll('[data-hr-tab]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      currentHRTab = btn.getAttribute('data-hr-tab');
-      renderView('hr');
-    });
-  });
+  currentViewTab = currentHRTab;
+  setActiveMenu(hrMenuId(currentHRTab));
 
   // Stage 30.5.8: the whole Employee list used to be fetched here, on every
   // HR tab render, purely to build <option>s - including for the eight tabs
@@ -241,7 +201,7 @@ async function saveAttendance() {
     return;
   }
   txnDone('hr-att');
-  renderView('hr');
+  hrReload();
 }
 
 async function renderLeaveTab(container) {
@@ -398,7 +358,7 @@ async function saveLeave() {
     return;
   }
   txnDone('hr-leave');
-  renderView('hr');
+  hrReload();
 }
 
 async function decideLeave(leaveId, decision) {
@@ -424,7 +384,7 @@ async function decideLeave(leaveId, decision) {
     await showApiError(res, 'Failed to update leave status.', 'Update Failed');
     return;
   }
-  renderView('hr');
+  hrReload();
 }
 
 function renderPayrollExportTab(container) {
@@ -504,7 +464,6 @@ async function renderPayrollTab(container) {
   formPanel.style.padding = '24px';
   formPanel.style.marginBottom = '24px';
   formPanel.innerHTML = `
-    <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 12px;">Salary structures are configured under Setup &rarr; Salary Structure.</p>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
 ${employeePickerField('payroll-run-employee', '200px')}
       <div class="form-group" style="margin-bottom: 0;">
@@ -583,7 +542,7 @@ async function runPayrollForEmployee() {
   }
 
   const res = await apiFetch('/api/v1/hr/run-payroll', {
-    method: 'POST',
+    method: 'POST', commandKey: 'payroll.run',
     body: JSON.stringify({ employee_id: employeeId, period_from: periodFrom, period_to: periodTo })
   });
   if (!res) return;
@@ -592,7 +551,7 @@ async function runPayrollForEmployee() {
     return;
   }
   txnDone('hr-payroll');
-  renderView('hr');
+  hrReload();
 }
 
 async function postPayslipToGL(payslipId) {
@@ -608,7 +567,7 @@ async function postPayslipToGL(payslipId) {
     await showApiError(res, 'Failed to post payslip.', 'Posting Failed');
     return;
   }
-  renderView('hr');
+  hrReload();
 }
 
 // Stage 26.8.4: Loans/advances against salary. Custom create form + action
@@ -702,7 +661,7 @@ async function createEmployeeLoanInner() {
     return;
   }
   txnDone('hr-loans');
-  renderView('hr');
+  hrReload();
 }
 
 async function disburseEmployeeLoan(loanId) {
@@ -710,7 +669,7 @@ async function disburseEmployeeLoan(loanId) {
   if (!confirmed) return;
 
   const res = await apiFetch('/api/v1/hr/disburse-loan', {
-    method: 'POST',
+    method: 'POST', commandKey: 'loan.disburse',
     body: JSON.stringify({ loan_id: loanId })
   });
   if (!res) return;
@@ -718,7 +677,7 @@ async function disburseEmployeeLoan(loanId) {
     await showApiError(res, 'Failed to disburse loan.', 'Disbursement Failed');
     return;
   }
-  renderView('hr');
+  hrReload();
 }
 
 // Stage 26.8.5: Employee self-service - leave request + expense-claim
@@ -934,7 +893,7 @@ async function submitMyGrievanceInner(employee) {
     return;
   }
   txnDone('hr-myreq');
-  renderView('hr');
+  hrReload();
 }
 
 async function submitMyLeaveRequest(employee) {
@@ -972,7 +931,7 @@ async function submitMyLeaveRequestInner(employee) {
     return;
   }
   txnDone('hr-myreq');
-  renderView('hr');
+  hrReload();
 }
 
 async function submitMyExpenseClaim(employee) {
@@ -1010,7 +969,7 @@ async function submitMyExpenseClaimInner(employee) {
     return;
   }
   txnDone('hr-myreq');
-  renderView('hr');
+  hrReload();
 }
 
 // ---------------------------------------------------------------------------
@@ -1363,7 +1322,7 @@ function wireOnboardingForm(records, emps) {
     if (!res) return;
     if (!res.ok) { hrShowError('hr-onb-error', await getErrorMessage(res, 'The checklist was not created.')); return; }
     txnDone('hr-onb');
-    renderView('hr');
+    hrReload();
   }));
 }
 
@@ -1437,8 +1396,8 @@ async function renderAppraisalsTab(container) {
   container.appendChild(section);
   if (canCreate && cycle) drawAppraisalEditor(newPanel, ctx, null, '');
 
-  listPanel.querySelector('#hr-apr-cycle').addEventListener('change', e => { hrAprCycleId = e.target.value; renderView('hr'); });
-  listPanel.querySelector('#hr-apr-filter').addEventListener('change', e => { hrAprFilter = e.target.value; renderView('hr'); });
+  listPanel.querySelector('#hr-apr-cycle').addEventListener('change', e => { hrAprCycleId = e.target.value; hrReload(); });
+  listPanel.querySelector('#hr-apr-filter').addEventListener('change', e => { hrAprFilter = e.target.value; hrReload(); });
   listPanel.querySelector('#hr-apr-cycles')?.addEventListener('click', () => window.openSetupDoctype('AppraisalCycle'));
   listPanel.querySelectorAll('[data-hr-apr-open]').forEach(b => b.addEventListener('click', () => {
     hrAprOpenId = b.dataset.hrAprOpen;
@@ -1579,7 +1538,7 @@ async function drawAppraisalEditor(pane, ctx, a, employee) {
       if (!(await hrDecide('Appraisal', id, 'Rejected', reason.trim()))) return;
     }
     txnDone('hr-apr');
-    renderView('hr');
+    hrReload();
   })));
 }
 
@@ -1689,18 +1648,18 @@ ${employeePickerField('hr-trn-employee', '240px')}
       });
       if (!saved) return;
       txnDone('hr-trn');
-      renderView('hr');
+      hrReload();
     }));
     return true;
   };
 
   container.appendChild(section);
-  listPanel.querySelector('#hr-trn-program').addEventListener('change', e => { hrTrnProgramId = e.target.value; renderView('hr'); });
-  listPanel.querySelector('#hr-trn-filter').addEventListener('change', e => { hrTrnFilter = e.target.value; renderView('hr'); });
+  listPanel.querySelector('#hr-trn-program').addEventListener('change', e => { hrTrnProgramId = e.target.value; hrReload(); });
+  listPanel.querySelector('#hr-trn-filter').addEventListener('change', e => { hrTrnFilter = e.target.value; hrReload(); });
   listPanel.querySelector('#hr-trn-programs')?.addEventListener('click', () => window.openSetupDoctype('TrainingProgram'));
   listPanel.querySelectorAll('[data-hr-trn-enrol]').forEach(b => b.addEventListener('click', () => guardAgainstDoubleSubmit(b, 'Enrolling...', async () => {
     await enrol([b.dataset.hrTrnEnrol]);
-    renderView('hr');
+    hrReload();
   })));
   listPanel.querySelectorAll('[data-hr-trn-result]').forEach(b => b.addEventListener('click', () => {
     hrTrnResultId = b.dataset.hrTrnResult;
@@ -1714,7 +1673,7 @@ ${employeePickerField('hr-trn-employee', '240px')}
   }));
   bulk?.addEventListener('click', () => guardAgainstDoubleSubmit(bulk, 'Enrolling...', async () => {
     await enrol(picks());
-    renderView('hr');
+    hrReload();
   }));
   if (canCreate && program) {
     attachEmployeePicker('hr-trn-employee');
@@ -1726,7 +1685,7 @@ ${employeePickerField('hr-trn-employee', '240px')}
       if (current && current.status !== 'Failed') { hrShowError('hr-trn-enrol-error', `${code} is already ${current.status === 'Enrolled' ? 'enrolled in' : 'through'} this program.`); return; }
       if (!(await enrol([code]))) return;
       txnDone('hr-trn');
-      renderView('hr');
+      hrReload();
     }));
   }
   hrRestore('hr-trn', drawOpen);
@@ -1822,7 +1781,7 @@ ${employeePickerField('hr-grv-employee', '220px')}
       hrShowError('hr-grv-open-error', '');
       const act = btn.dataset.hrGrvAct;
       if (act === 'send') {
-        if (await hrSubmitForReview('Grievance', r.id)) renderView('hr');
+        if (await hrSubmitForReview('Grievance', r.id)) hrReload();
         return;
       }
       const notesEl = open.querySelector('#hr-grv-notes');
@@ -1835,13 +1794,13 @@ ${employeePickerField('hr-grv-employee', '220px')}
       // field-protected - so it stays neutral and the notes stay on the case.
       const comment = act === 'Approved' ? 'Resolved - see the resolution notes on the case' : 'Closed without action - see the resolution notes on the case';
       if (!(await hrDecide('Grievance', r.id, act, comment))) return;
-      renderView('hr');
+      hrReload();
     })));
     return true;
   };
 
   container.appendChild(section);
-  listPanel.querySelector('#hr-grv-filter').addEventListener('change', e => { hrGrvFilter = e.target.value; renderView('hr'); });
+  listPanel.querySelector('#hr-grv-filter').addEventListener('change', e => { hrGrvFilter = e.target.value; hrReload(); });
   listPanel.querySelectorAll('[data-hr-grv-open]').forEach(b => b.addEventListener('click', async () => {
     hrGrvOpenId = b.dataset.hrGrvOpen;
     if (await drawOpen()) window.txnShowPane('hr-grv:open');
@@ -1861,7 +1820,7 @@ ${employeePickerField('hr-grv-employee', '220px')}
       if (!res.ok) { hrShowError('hr-grv-error', data.error || 'The grievance was not saved.'); return; }
       await hrSubmitForReview('Grievance', data.id);
       txnDone('hr-grv');
-      renderView('hr');
+      hrReload();
     }));
   }
   const onCase = txnPageOf('hr-grv', 'list') === 'open';

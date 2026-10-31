@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"database/sql"
 	_ "embed"
 	"encoding/json"
@@ -886,9 +887,18 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	if err := db.DB.Ping(); err != nil {
+	// Stage 49.10.5: bounded. With every pool connection held, a bare Ping
+	// waited for a free one indefinitely, so the deploy check and a load
+	// balancer saw a hang rather than an answer; it now answers 503 within
+	// readinessDBTimeout (the readiness probe's own bound), with the pool's
+	// figures so the cause is visible.
+	ctx, cancel := context.WithTimeout(r.Context(), readinessDBTimeout)
+	defer cancel()
+	if err := db.DB.PingContext(ctx); err != nil {
+		stats := db.DB.Stats()
 		w.WriteHeader(http.StatusServiceUnavailable)
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "unavailable", "error": err.Error()})
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "unavailable", "error": err.Error(),
+			"db_pool": map[string]interface{}{"max_open_connections": stats.MaxOpenConnections, "in_use": stats.InUse, "wait_count": stats.WaitCount}})
 		return
 	}
 	stats := db.DB.Stats()

@@ -194,9 +194,6 @@ async function renderFinanceWorkPanel(container) {
   const heading = document.createElement('h2');
   heading.textContent = 'Finance work to review';
   panel.appendChild(heading);
-  const help = document.createElement('p');
-  help.textContent = 'Open a source list to inspect its actual status and balance before posting, paying or closing.';
-  panel.appendChild(help);
   const list = document.createElement('div');
   list.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px';
   cards.forEach(card => {
@@ -606,7 +603,7 @@ async function renderVendorInvoicesView(container) {
   const STATUS_BADGE = { Draft: 'badge-secondary', Matched: 'badge-success', MismatchHold: 'badge-danger', Paid: 'badge-success' };
   financeListScreen(container, {
     title: 'Vendor Invoice',
-    hint: `3-way match against PO/GRN, then pay - plain or TDS-withheld.${fromGRN ? ` <b>From GRN ${escapeHTMLText(fromGRN.grnId)}</b>: confirm the vendor's invoice number, amount and financial year before matching.` : ''}`,
+    hint: fromGRN ? `<b>From GRN ${escapeHTMLText(fromGRN.grnId)}</b>: confirm the vendor's invoice number, amount and financial year before matching.` : '',
     count: invoices.length,
     total: invoices.reduce((s, v) => s + (Number(v.invoice_amount) || 0), 0),
     newId: 'vi-new-btn',
@@ -878,7 +875,7 @@ async function renderPaymentProposalsView(container) {
 async function executePaymentProposal(proposalId) {
   const confirmed = await showCustomConfirm('Execute this payment run? Every invoice in it will be paid via the standard vendor-invoice payment path.', 'Execute Payment Proposal');
   if (!confirmed) return;
-  const res = await apiFetch(`/api/v1/finance/payment-proposal/${proposalId}/execute`, { method: 'POST' });
+  const res = await apiFetch(`/api/v1/finance/payment-proposal/${proposalId}/execute`, { method: 'POST', commandKey: 'payment-proposal.execute' });
   if (!res) return;
   if (!res.ok) {
     await showApiError(res, 'Execution failed.');
@@ -1198,7 +1195,6 @@ async function renderFinanceNotesView(container) {
         ['fn-screen:customer-credit', `Customer credit notes (${creditNotes.length})`]])}
       ${txnContext()}
     </div>
-    <div class="txn-hint"><span>Post-facto vendor and customer adjustments, GL-reversing on Post.</span></div>
     ${pane('debit', 'Debit Notes (to Vendors)', 'dn-new-btn', '+ New Debit Note',
       vendorNotesTable(debitNotes, 'DebitNote', 'No debit notes yet. A goods receipt billed above the PO price raises one automatically; use <b>+ New Debit Note</b> for any other claim on a vendor.'))}
     ${pane('vendor-credit', 'Credit Notes (to Vendors)', 'vcn-new-btn', '+ New Vendor Credit Note',
@@ -1301,7 +1297,7 @@ function financeListScreen(container, { title, hint, count, total, newId, newLab
       <div class="txn-sum"><span><b>${count}</b> document${count === 1 ? '' : 's'}</span>${total == null ? '' : `<span class="txn-total" title="Total of the documents listed">${txnMoney(total)}</span>`}</div>
       <div class="txn-actions"><button class="btn btn-primary" id="${newId}">${newLabel}</button></div>
     </div>
-    <div class="txn-hint"><span>${hint}</span></div>
+    ${hint ? `<div class="txn-hint"><span>${hint}</span></div>` : ''}
     <div class="txn-grid">${table}</div>`;
   container.appendChild(screen);
 }
@@ -1314,7 +1310,6 @@ async function renderSalesInvoicesView(container) {
   const STATUS_BADGE = { Draft: 'badge-secondary', Approved: 'badge-warning', Paid: 'badge-success', Cancelled: 'badge-danger' };
   financeListScreen(container, {
     title: 'Sales Invoice',
-    hint: 'Credit sales to customers - Post to recognize the receivable, Settle as the customer pays, in part or in full.',
     count: invoices.length,
     total: invoices.reduce((s, v) => s + (Number(v.total_amount) || 0), 0),
     newId: 'si-new-btn',

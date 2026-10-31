@@ -276,7 +276,7 @@ func handleShopifyProductMap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !verifyShopifyWebhookSignature(r, body) {
-		writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "Invalid webhook signature")
+		refuseWebhookSignature(w, r, "shopify:legacy")
 		return
 	}
 
@@ -321,7 +321,7 @@ func handleShopifyOrderWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !verifyShopifyWebhookSignature(r, body) {
-		writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "Invalid webhook signature")
+		refuseWebhookSignature(w, r, "shopify:legacy")
 		return
 	}
 

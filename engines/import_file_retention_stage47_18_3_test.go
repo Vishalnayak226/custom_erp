@@ -180,7 +180,7 @@ func TestStage47183ExpiredSandboxIsSuspendedThenPurgedTheOrdinaryWay(t *testing.
 	if _, err := RequestTenantDeprovision(tenantID, "tester", "sandbox expired and not reset", 0); err != nil {
 		t.Fatalf("RequestTenantDeprovision: %v", err)
 	}
-	rep, err := PurgeTenant(tenantID, "tester", "pg_dump s3://erp-backups/sandbox.dump")
+	rep, err := PurgeTenant(tenantID, "tester", "pg_dump s3://erp-backups/sandbox.dump", approvedClientRemoval(t, tenantID, ClientRemovalPurge))
 	if err != nil {
 		t.Fatalf("PurgeTenant: %v", err)
 	}

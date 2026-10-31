@@ -7,7 +7,7 @@
 > **Generated 2026-09-10.** This page is produced from `engines`' report registry (`report_definitions.go`), for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-Every report reachable from **Sales & Marketplace -> Reports**. There are **430**
+Every report reachable from **Sales & Marketplace -> Reports**. There are **431**
 across **26** categories.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -29,7 +29,7 @@ table has the same shape whoever runs it.
 - [E-commerce & Integration](#e-commerce--integration) - 12 reports
 - [Exceptions](#exceptions) - 6 reports
 - [Expense Management](#expense-management) - 11 reports
-- [Finance](#finance) - 39 reports
+- [Finance](#finance) - 40 reports
 - [GST & Compliance](#gst--compliance) - 8 reports
 - [HR](#hr) - 2 reports
 - [HRMS](#hrms) - 15 reports
@@ -1816,6 +1816,21 @@ table has the same shape whoever runs it.
 - **To (optional)** (`end`) - date, optional
 
 **Columns:** Account Code · Account Name · Document Type · Document ID · Debit *(sensitive)* · Credit *(sensitive)* · Date
+
+**Drill-down:** no.
+
+### Threshold splitting
+
+**Report id:** `threshold-splitting`
+
+**Parameters:**
+
+- **From (default 30 days ago)** (`from`) - date, optional
+- **To (default today)** (`to`) - date, optional
+- **Within % under the limit (default 10)** (`band_pct`) - text, optional
+- **At least this many a day (default 2)** (`min_count`) - text, optional
+
+**Columns:** Day · User · Record type · Store · Limit · Records · Together · Together over limit · Record numbers
 
 **Drill-down:** no.
 

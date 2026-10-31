@@ -216,7 +216,7 @@ The POS till is the exception: it opens ready to sell, and its **Sale** / **Retu
 | **Procurement** | Purchase Requisitions · Purchase Order (§6) · ASN · **Goods Receipt** · **Purchase Return** (§6.5) · Vendors · RFQ / Quotes |
 | **Inventory** | Dashboard (§5.3) · Stock on Hand (§5) · Inventory Ledger (§5.4) · Stock Movement (§7) · Stock Adjustment (§5.5) · MRP Change (§5.6) · Move Stock · Stock Locations · Sticker Printing (§7A) |
 | **WMS** | Warehouse Cockpit, then three groups that each open beside it: **Inbound** (Appointment Calendar · Dock Doors · Yard Board · Trailers · RF Receiving · Putaway · Cross-Dock Plans) · **Storage & Control** (Bin · Bin Conditions · LPN / Cartons / Pallets · Bin Replenishment · Location Movement · Cycle Count · RF Lot & Serial · Holds · Place Hold · Hold Release Requests) · **Outbound** (Waves · Wave / Batch Picking · Mobile Picking · Sortation / Put-Wall · Loading) |
-| **HRM** | HR · Fixed Assets (§6.7) · Expenses |
+| **HRM** | My Requests · Attendance · Leave · Shift Roster · Payroll · Payroll Export · Loans/Advances · Onboarding/Offboarding · Appraisals · Training · Grievances · Fixed Assets (§6.7) · Expenses |
 | **Manufacturing** | Production: Production Orders · Production Schedule · Job Work — Planning: MRP Suggestions · Supply Proposals — Quality: Quality Inspections · Certificates · Non-conformance — Maintenance: Maintenance Orders |
 | **PIM** | Dashboard · Workbench · My Work · Media Library · Supplier Submissions · Catalogs · PIM Reports. PIM's setup lists (families, attributes, workflows, channel maps, import and export templates) are under **Setup → PIM**. |
 | **Setup** | The module names; point at one and its reference lists open beside it (§8) |
@@ -276,11 +276,13 @@ A row number that is not one of the job's open failed rows is refused, so a row 
 
 **Dates in a file are read day first** unless your admin has set another **Date order** (Admin Guide §B.3.0.2a). `03/02/2026`, `03-02-2026` and `3-Feb-2026` all mean 3 February 2026; `2026-02-03` works too. A date that only makes sense month first, such as `02/13/2026`, is refused with its row number. It is never swapped. Lists show dates as *03 Feb 2026*. With **month first**, `03/02/2026` is 2 March, `13/02/2026` is refused and lists show *Feb 03, 2026*; with **year first**, type `2026/02/03` and lists show *2026 Feb 03*. `2026-02-03` and a month written as a word (`3-Feb-2026`) work in every order.
 
+
+**Pressing Save again after "Request Timed Out" (Stage 49.4.7a).** A journal voucher, a stock adjustment, a payroll run, a loan disbursement, a payment proposal's **Execute**, and at the till an advance or a gift card issue are sent with a one-time key. If the screen says the request timed out or the server could not be reached, press the same button again without changing anything: if the first one went through you get its result and nothing is entered twice; if it did not, it is entered now. *This is still being processed* means the first one is still running - wait a moment and look before pressing again. Change any field and it is a new entry.
 ---
 
 ## 3A. Keyboard Shortcuts and Quick Codes
 
-Press **?** on any screen (when you are not typing in a box) to see every key and code, with **Report numbers** (every report's number), **Guide** (this section, in the Knowledge Center) and **Print** (a shortcut card to keep by the keyboard). On a Mac, use **⌘** wherever this section says **Ctrl**. Hover over a button to see its key.
+Press **?** on any screen (when you are not typing in a box) to see every key and code, with **Report numbers** (every report's number), **Guide** (this section, in the Knowledge Center) and **Print** (a shortcut card to keep by the keyboard; it shows the card on paper first, then **Print**). On a Mac, use **⌘** wherever this section says **Ctrl**. Hover over a button to see its key.
 
 ### 3A.1 The search box: Ctrl+K
 
@@ -688,18 +690,20 @@ A sale rung up while the till was offline is **held**, not posted, when it reach
 
 ## 5. Checking Stock
 
-1. Click **Inventory** in the sidebar.
-2. Use the search box to find an item by its code (SKU) or a location by its code - part of either is enough. The list shows 100 rows at a time, every store's matching rows searched on the server; **Previous** / **Next** under the table move through a longer list (*1-100 of 1,240*). Reports → Current Stock shows the first 200 rows and points here for the rest.
-3. Read **On hand** for physical book stock and **Available to sell** for the
+1. Click **Inventory → Stock on Hand**. It shows the store picked in the top bar; with **All stores** picked there it shows every store, with a **Store** column.
+2. Each row is one combination: **Design No**, **Combination ID**, **Barcode**, the short **Item** name (the Item Name, for example *Antique Necklace*; point at it to see the full name), one column per attribute (*Colour*, *Polish*, *Size*...), then the quantities. A table wider than the screen scrolls sideways inside its panel.
+3. Use the search box to find stock by design, combination, barcode, item name or store - part of any is enough. The list shows 100 rows at a time, searched on the server; **Previous** / **Next** under the table move through a longer list (*1-100 of 1,240*). Reports → Current Stock shows the first 200 rows and points here for the rest.
+4. **Columns** (top right of the table): tick a column to add it, untick it to remove it - **Full name** and **Category** start off, **Store** starts off when one store is picked. Your choice is kept for you, on any computer; **Reset** brings back the standard columns.
+5. Read **On hand** for physical book stock and **Available to sell** for the
    quantity the system will let an order reserve. The latter subtracts
    reservations, safety stock, active holds, blocked/QC/damaged stock and
    channel buffer from base availability. Open **Breakdown** on a row to see
    the component amounts. A hold does not remove physical stock.
-4. **Butter paper, tape, ribbon — Consumption Entry** (store managers). Things used up without a sale to hang them on are posted here. Click **Consumption Entry** at the top of the Inventory screen, choose the **Store** and the **Type**:
+6. **Butter paper, tape, ribbon — Consumption Entry** (store managers). Things used up without a sale to hang them on are posted here. Click **Consumption Entry** at the top of the Inventory screen, choose the **Store** and the **Type**:
    - **Periodic count** — count what is left and type the **Counted closing qty**; the system posts *book stock − counted* as consumed (book 1,000, counted 250 → 750 consumed).
    - **Manual issue** — type the **Qty used**.
    Add each item (its book stock appears), type the quantities, add a **Count reference** (e.g. *Week 42 count*), and click **Post Consumption**, then confirm. The stock leaves the store and the cost goes to the item's expense account. A count higher than the book, or a quantity used larger than the stock, is refused — receive the difference on a GRN first. Services and other items that keep no stock can't be added.
-5. Use that row's **Transfer**, **Count** or **Hold** link for the next task. **Movements** opens **Reports → Stock Ledger** on that item and location, already run: every movement in and out with its document and the running balance.
+7. Use that row's **Transfer**, **Count** or **Hold** link for the next task. **Movements** opens **Reports → Stock Ledger** on that item and location, already run: every movement in and out with its document and the running balance.
    **Hold** carries the item and location into Place Hold; choose a Hold Code,
    quantity and reason, then save. Before you save, the screen shows the item's
    on-hand, already-held and available-to-sell quantities there and what the
@@ -792,11 +796,11 @@ Inside every store the stock sits in **locations**: **Main** (the selling floor)
 
 ### 5.3 Inventory Dashboard
 
-**Inventory → Dashboard** is the stock picture on one page: **Units on hand**, **Stock value** (at the moving-average cost; shown only to roles that may see cost), how many items are **low or out of stock**, and **adjustments waiting approval**. Below: units and value **by store** (pick a store at the top right to see just that one), the **low or out of stock** items (free stock at or under its safety stock, or none left), the **latest movements** (with **Inventory Ledger** for the rest) and, when there are any, the adjustments waiting for approval (with **Approvals**).
+**Inventory → Dashboard** is how much stock there is, on one page that fits the screen, for the store picked in the top bar (**All stores**: every store). Tiles: **Designs** and **Combinations** in stock, **Qty** (units on hand), **Stock value** (at the moving-average cost; shown only to roles that may see cost) and, when any wait, **Awaiting approval** (click it for **Approvals**). Below, **By item** - designs, qty and value per item name (*Antique Necklace*), most first - and beside it **By store** when all stores are shown, or **By category** for one store. When there are more rows than fit, the rest are added up in one **Others** row. Every movement is in the **Inventory Ledger** (§5.4).
 
 ### 5.4 Inventory Ledger
 
-**Inventory → Inventory Ledger** lists every stock movement: when, the item, the store, what came **In** or went **Out**, the item's **Balance** at that store after it, the document that moved it (goods receipt, sale, transfer, move, adjustment, dispatch…), from and to where, and who. It opens on the last 30 days; filter by **Item**, **Store**, **Document type** and dates, then **Show**. The latest 500 movements are listed — narrow the dates or pick an item to see older ones.
+**Inventory → Inventory Ledger** lists every stock movement: when, the item, the store, what came **In** or went **Out**, the item's **Balance** at that store after it, the document that moved it (goods receipt, sale, transfer, move, adjustment, dispatch…), from and to where, and who. It opens on the last 30 days; filter by **Item**, **Document type** and dates, then **Show**. The **Store** is the one picked in the top bar; with **All stores** picked there, type any store or leave it empty for all. The latest 500 movements are listed — narrow the dates or pick an item to see older ones.
 
 ### 5.5 Stock Adjustment
 
@@ -804,7 +808,7 @@ Use a stock adjustment when the stock on the system is wrong and no other docume
 
 1. **Inventory → Stock Adjustment → + New Stock Adjustment**.
 2. **Store** — whose stock changes (your own store is filled in). **Loss class** — for stock taken off, what kind of loss it is: **Shrinkage**, **Damage**, **Expiry** or **Theft** (leave it at *None* for stock found or added). Damage and expiry can be booked to their own accounts (your administrator sets them). **Note** is optional.
-3. Add each item (search by code, barcode or name). For each, enter the **Change**: **-3** takes three off, **4** adds four. Pick the **Reason** — every line needs one (Damaged - written off, Expired, Shrinkage, Stock found…). A line **Note** is optional.
+3. Add each item (search by Design ID, Combination ID or barcode). For each, enter the **Change**: **-3** takes three off, **4** adds four. Pick the **Reason** — every line needs one (Damaged - written off, Expired, Shrinkage, Stock found…). A line **Note** is optional.
 4. **Save adjustment.**
 
 If your business has an **approval rule** for stock adjustments (Settings → Users & Access → Approval Rules, document *InventoryAdjustment*), it waits as **Pending Approval** and posts when someone else approves it (**Approvals**). Otherwise it posts at once. Posting changes the stock, writes each line to the Inventory Ledger and books its value at the item's cost: stock taken off is charged to **5190 Stock Adjustment**, stock added is credited to it. You cannot take off more than is free to sell at that store — the message says how many are. If stock went between raising and approving, the adjustment stays **Approved** with the reason; **Post** on its row tries again.
@@ -825,7 +829,7 @@ The list is the history: each adjustment's number (**ADJ/<store>/2627/0001**), s
 
 1. **+ New MRP Change**.
 2. **Effective from** — today applies the new MRP at once; a later date waits as **Scheduled** and applies that morning.
-3. Add each item (search by code, barcode or name): its **Current MRP** and **Sale price** are shown. Enter the **New MRP**. *Sale price is above this MRP* warns you when you would be selling above the new MRP — change the sale price too.
+3. Add each item (search by Design ID, Combination ID or barcode): its **Current MRP** and **Sale price** are shown. Enter the **New MRP**. *Sale price is above this MRP* warns you when you would be selling above the new MRP — change the sale price too.
 4. **Reason** (optional), then **Save MRP change**.
 
 When the change applies at once and any of the items is in stock, you are asked whether to print new stickers: **OK** opens Sticker Printing with those items added and the reprint reason filled in (the reason **Price (MRP) changed** picked, and the change's number as the note). **Reprint stickers** on an applied change's row does the same later. A **Scheduled** change can be **Cancel**led before its date; to undo an applied one, make another change. MRP is the item's, not a batch's.
@@ -868,7 +872,7 @@ The list's **Show** picks *Open returns*, *Due back in 7 days*, *Exceptions* (ov
 
    **An address is wrong?** Click **Edit store** under it. That store's own form opens with its address; correct it and **Save**, and you come straight back to your purchase order with the new address shown. The address belongs to the store, so the correction applies everywhere that store is used — later orders, receipts and prints. (You only see **Edit store** if your role may edit stores.)
 3. **Add your items.** The add row sits under the header boxes. For each line:
-   - **Item name or SKU** — type to search. The list shows **Item names** first (from **Setup → Item Name**), then **Items (SKU)** (every item in **Inventory → Items**). Only the name, code or barcode is matched: typing *a* lists the names containing "a", such as *Antique Kundan Kada*. Pick an item (or scan / type its exact SKU or barcode) to add that one item. Text that is neither picked from the list nor an exact SKU / barcode is not added — the row says it *is not an item*: pick it from the list, or choose **Create "…"** to make it. Pick an **item name** to choose its colour, size and other attributes right there — see *Buying a new design?* below. Picking a plain item (not a design's colour / size version) whose item name has attributes opens that item name's choices too, so the variants are never skipped; an item with no item name goes on as it is, with a note on how to give it one (**Setup → Item Name**).
+   - **Item name or SKU** — type to search. The list shows **Item names** first (from **Setup → Item Name**), then **Items (SKU)** (every item in **Inventory → Items**). Only the name, Design ID, Combination ID or barcode is matched: typing *a* lists the names containing "a", such as *Antique Kundan Kada*. (The purchase order and the RFQ are the item boxes that search by name. Every other item box in Inventory, WMS, OMS and Accounts finds an item by its Design ID, Combination ID or barcode only.) Pick an item (or scan / type its exact SKU or barcode) to add that one item. Text that is neither picked from the list nor an exact SKU / barcode is not added — the row says it *is not an item*: pick it from the list, or choose **Create "…"** to make it. Pick an **item name** to choose its colour, size and other attributes right there — see *Buying a new design?* below. Picking a plain item (not a design's colour / size version) whose item name has attributes opens that item name's choices too, so the variants are never skipped; an item with no item name goes on as it is, with a note on how to give it one (**Setup → Item Name**).
    - **Qty** (starts at 1) and **Purchase price** — what you're ordering and what you're paying per unit.
    - **MRP** — optional. Record it if you're tracking it; leave it blank if not. **It never appears on the vendor's printed copy** — it's for you, not for them.
 
@@ -1387,7 +1391,9 @@ This is the normal way to print. You don't type SKUs — you point at the docume
 
 1. Go to **Sticker Printing**. The **Print** tab opens by default, on the **Print history** — every run, who printed it, from which document, and when.
 2. Click **+ Print Stickers**. In the **Print from Transaction** panel, pick **Goods Receipt (GRN)** or **Transfer Order** in the **Module** dropdown - or any other transaction your company has that carries items (purchase order, purchase return, sales invoice, return, shipping package, ASN, vendor quote, RFQ...; a new one appears in the list by itself). You see only the transactions you may open.
-3. Click **Document** to see the latest ones, or start typing the number — the list narrows as you type; pick the one you want. You can also type just the end of the number (for example `00048`) and click **Load**: when only one document ends that way it loads; when several do, or none, a message says so. The list shows your store's documents (all stores for an Admin), newest first, without cancelled ones - and it works for anyone who may print stickers, including a Store Manager or Cashier who cannot open the receipt itself. Hover a row for its date, store and status.
+3. **The quick way: pick the receipt, press Print.** The latest documents drop down by themselves under **Document**; pick one and its stickers' preview opens straight away - every line, its own quantity, on this computer's printer. Press **Print** there and they print. To change copies, a line's template or the printer first, **Close** the preview: the lines stay below (steps 4-6). GRN steps' **Print stickers** opens the same preview for that receipt.
+
+   Or click **Document** to see the latest ones, or start typing the number — the list narrows as you type; pick the one you want. You can also type just the end of the number (for example `00048`) and click **Load**: when only one document ends that way it loads; when several do, or none, a message says so. The list shows your store's documents (all stores for an Admin), newest first, without cancelled ones - and it works for anyone who may print stickers, including a Store Manager or Cashier who cannot open the receipt itself. Hover a row for its date, store and status.
 4. The line list appears, one row per SKU (or per SKU-and-lot, if a SKU arrived on more than one lot):
    - **Category** — what that item's Item Master says.
    - **Template** — the label layout that line will print with, and in brackets the rule that picked it: *item*, *item type*, *product type*, *category* or *default* (§7A.5), or **Standard label (no rule)** when no rule applies. To print a line on a different layout **this time only**, pick it in that line's dropdown — **Standard label** or any Active template. **Template for every line**, above the table, sets every line at once; choose **As per template rules** to go back. Nothing is saved to the item — the next print follows the rules again. To keep a pick for good, press **Keep for *(product type)*** beside it: that template becomes the product type's rule (the same setting as **Template rules → Product type**, where you can change it later), and every item of that type prints with it from then on — unless the item or its item type names a template of its own. When the chosen **Printer** has a roll set in its preset (§7A.6), a line whose template does not fit that roll shows ***roll* (printer preset)** and prints with it, and the dropdowns offer only templates that fit the roll.
@@ -1395,7 +1401,7 @@ This is the normal way to print. You don't type SKUs — you point at the docume
    - **Copies** — pre-filled with that line's own quantity. Overtype it if you want a different number.
 5. Check the **Printer** in the panel just below the line list, and give a **Reprint reason** if this is a re-run of labels already printed once (optional, but it is kept in the print history against the run): pick one from the list beside the box when your company has reprint reasons (Setup → Reason Codes), and type a note if you like. When your company makes reasons compulsory (**Settings → Reasons must be picked from the reason codes**), a typed note alone is refused - pick from the list. The printer is already chosen for you: the one last used on this computer, or the first time, the printer set as **Default For: Sticker** for your store (Setup → Printing → Printer), or the only printer there is. Pick another for this print if you need to; the one you pick is remembered for the next print. If the label printer is off, out of labels or not answering, a box says the stickers did not print: **Retry** once it is fixed (it carries on from the labels that had not gone out), or **Print with the browser instead**.
 6. Then either:
-   - untick any rows you don't want and click **Print Selected** — the whole document in one run; or
+   - untick any rows you don't want and click **Print Selected** — the ticked lines in one run; or
    - click **Print** on a single row — just that one line.
 
 Three things it does for you:
@@ -1473,6 +1479,7 @@ The **Insert** rail on the left adds elements to the middle of the label:
 - **Preview with** (top bar): search an item and the label redraws with that item's real data — the quickest way to catch a name that's too long or a missing weight. The **×** goes back to sample data.
 - The status line at the bottom right says **✓ Ready to print**, or warns about anything that runs off the label or won't scan.
 - **Test print** prints one label (one row on a multi-up roll) of the current design on the printer you choose — nothing is written to the print history. Use it to set **Shift**, **Darkness** and **Rotate 180°** before the real run.
+- **Test prints show first too (Stage 143.4).** Choose the printer and click **Preview**: the label shows as that printer will print it, with its shift. **Print** there prints it; **Close** prints nothing. **Test alignment** on the sticker page, the template studio's **Test print**, **Test Print** under **Print Setup** and **Print** on the **?** key list work the same way: the print shows first, with one **Print**.
 - **Save** (or **Ctrl+S**). An orange dot beside the name means there are unsaved changes; leaving the studio with unsaved changes asks first.
 
 What you see in the studio is what prints — the canvas, Printer view, the print dialog and the thermal printer all use the same drawing code.
@@ -1532,7 +1539,7 @@ Set it once per printer. Every computer that prints to that printer uses it, and
 1. **Sticker Printing → + Print Stickers**, pick the **Printer**, and click **Printer preset** beside it (it reads **Roll: *name*** once a roll is set).
 2. **Roll loaded** — the template for the roll in the printer, for example *Seznik vertical × 3*. From then on every sticker on this printer prints on that roll: an item whose template rule picks a design of another size prints with the roll's template instead, so a print can no longer cross the tags; a design of the same roll size (a Square and a Ring design, say) still prints as itself. **None** leaves it to the template rules (§7A.5).
 3. Load the roll and click **Calibrate roll**: the printer feeds a few labels and measures the label and the gap. Do it again after changing to a different roll.
-4. Click **Test alignment**. Each label of the roll gets a box 0.5 mm inside its edges, a cross through the middle and the shift in use. Even gaps all round mean the printer is aligned. If the box sits nearer one edge, change **Shift right** / **Shift down** (mm; a negative number moves the other way) and test again - the test uses the numbers on screen, saved or not.
+4. Click **Test alignment**, check the label it shows, and click **Print**. Each label of the roll gets a box 0.5 mm inside its edges, a cross through the middle and the shift in use. Even gaps all round mean the printer is aligned. If the box sits nearer one edge, change **Shift right** / **Shift down** (mm; a negative number moves the other way) and test again - the test uses the numbers on screen, saved or not.
 5. **Darkness** (0-15) and **Speed**: leave blank to keep each template's own; set them when every tag is too faint or smudged.
 6. **Save**. The preset is kept on the Printer record (**Setup → Printing → Printer** shows the same fields), so it holds for every computer and every template. Only roles that may change printers can save.
 
@@ -1551,7 +1558,7 @@ If your administrator has set a **print profile** for a document (Stage 127.4), 
 
 - **Print as** — for a PO: **Purchase Order** or **Vendor PO** (the vendor's copy, with item pictures); for a GRN: **Goods Receipt Note** or **Vendor Copy**; for a transfer: **Transfer Out** or **Transfer In**.
 - **Template** — the best-matching designed template is chosen for you (marked "best match"); pick another, or **Standard layout (built-in)**. A till sale or sales invoice also offers **3-inch roll bill (built-in)**; printing a roll layout goes to the till's receipt printer (§4.3).
-- **Generating store** — the store the print is issued from. It starts as the document's own store; pick another and its name, address, state and GSTIN go in the store block.
+- **Generating store** — the store the print is issued from. It starts as the document's own store; pick another and its name, address, state and GSTIN go in the store block. Once a document has been printed, every later print (and its CSV / Excel) is that first copy, store included, so the box is locked and reads "(as first printed)".
 - The **preview** shows every page exactly as it will print.
 - **Print** — on a computer with **QZ Tray**, it goes straight to that computer's printer for this kind of document, with no dialog (§7B.3); the window shows which printer, with **Change**. Without QZ Tray your browser's print dialog opens. Once a computer has a printer for a kind, a print of that kind never opens the browser's dialog by itself: if PrintBridge is not running or the printer does not answer, a box says *<kind> did not print* and why, with **Retry**, **Print with the browser instead** and **Cancel**. When the cause is the setup instead (no printer chosen for this computer, or a Printer record with no **OS Printer Name**), the box says exactly what to fix and where; fix it, then **Retry**.
 - **PDF** downloads what the preview shows, page for page, named after the document (for example *Purchase-Order-PO-HO-26-27-00045.pdf*). It is a picture of each page: it looks exactly like the print, but its text cannot be selected or copied.
@@ -1598,7 +1605,7 @@ The designer works like the Sticker Studio:
 2. **Items table columns.** Line fields (quantity, rates, HSN, GST, batch, PO…) and **every Item master field** (and **Item image**) are listed under *Items table*. Drag one **onto the table** to add it as a column. In the right panel, rename columns, set their relative width, alignment (L / C / R), move them, or remove them; set the table's font size, picture size and header shade. **+ line under…** prints another field under a column's own, one per line (the roll bill shows the barcode and HSN under the item name this way); **×** on a line removes it, and a blank or zero value prints nothing. Rows that do not fit carry on to the next page with the column headings repeated; later pages start at the top margin and pages before the last run to the bottom margin.
 3. **Insert** adds a Text box (type text and insert `{fields}`), a Field, a Store / Vendor / Ship-to block (tick which lines to show), the Items table, the **Tax summary** (one row per GST rate — CGST + SGST within a state, IGST across states, chosen automatically), **Totals** (edit, reorder or add rows), a **Logo / image** (PNG or JPG up to 400 KB), a Line, a Box, the Page number or a **QR code** (pick the value it encodes — for a credit note, **E-invoice: IRN signed QR**; it prints only once the value exists, and shows as a dashed box while you design). The standard **Credit Note** layout already places the e-invoice QR with the IRN, Ack No and Ack Date beside it, and "IRN PENDING" there while the IRN is on its way; a note that is not e-invoiced prints none of it.
 4. **Place it.** Drag to move (it snaps to the margins, the centre and other elements; hold **Alt** to place freely), drag the handles to resize, or type exact **X / Y / W / H** in mm. Where it sits decides the page: anything **above the items table** (the header) prints on the **first page only**, anything **below it** (tax summary, totals, amount in words, terms, signatures) on the **last page only** — **Prints on** shows this and cannot be changed for them. For the **page number** and anything **beside the table**, **Prints on** decides **first page**, **every page** or **last page**. Arrows nudge 0.5 mm (Shift: 5 mm); **Delete** removes; **Ctrl+D** duplicates; **Ctrl+Z / Ctrl+Y** undo / redo.
-5. **Preview with** a real document number to see it filled in; **Test print** prints the preview. Click an empty part of the page to see the template settings: page size (A4 / A5 / Letter, or **80 mm roll (3 inch)** / **58 mm roll (2 inch)** receipt paper), orientation, margin and font. On a roll the page is as long as the bill: the items table grows with its lines and everything under it moves down. Choosing a roll size for a till sale or sales invoice offers to lay the page out as the 3-inch bill (Undo brings your old layout back).
+5. **Preview with** a real document number to see it filled in; **Test print** shows the pages as they will print, and **Print** there prints them. Click an empty part of the page to see the template settings: page size (A4 / A5 / Letter, or **80 mm roll (3 inch)** / **58 mm roll (2 inch)** receipt paper), orientation, margin and font. On a roll the page is as long as the bill: the items table grows with its lines and everything under it moves down. Choosing a roll size for a till sale or sales invoice offers to lay the page out as the 3-inch bill (Undo brings your old layout back).
 6. **When to use it.** Leave it for any vendor and product, or limit it: **Only for vendor**, **Only for designs / families**, **Only for categories** (comma-separated). When printing, the most specific template that fits is offered first — vendor, then design, then category, then the default.
 7. **Save** (Ctrl+S).
 
@@ -1606,7 +1613,7 @@ The designer works like the Sticker Studio:
 
 Every computer that prints silently needs **QZ Tray** installed once (your administrator does it — [QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)). After that, each computer remembers **its own printer for each kind of print**: Purchase Order, Goods Receipt, Transfer, Sales Invoice, Returns and Notes, Receipt (the till bill), Sticker, Shipping Label, Pick List and **Other Documents** (every other transaction - see below). The choice is kept on the server under the computer's name, so clearing the browser does not lose it.
 
-1. **The first time** a kind is printed on a computer, the printer is chosen for you when the choice is clear — A4 / A5 documents go to the computer's **default printer**, bills to its one **receipt printer**, stickers and shipping labels to its one **label printer** — and a note at the top of the screen says which. Only when two printers could fit does it ask, once: *Printer for Goods Receipt — which printer prints Goods Receipt on this computer?*
+1. **The first time** a kind is printed on a computer, the printer is chosen for you when the choice is clear — A4 / A5 documents go to the computer's **default printer** (unless it is a label or receipt printer - TSC, TVS, Zebra, Gprinter, Y468BT and the like - then to its one ordinary printer), bills to its one **receipt printer**, stickers and shipping labels to its one **label printer** — and a note at the top of the screen says which. Only when two printers could fit does it ask, once: *Printer for Goods Receipt — which printer prints Goods Receipt on this computer?*
 2. **Every later print** of that kind on that computer goes straight to that printer. It never asks again.
 3. **To change it**, open any print of that kind: the print window shows *Purchase Order prints on HP LaserJet · Change*. **Change** asks which printer, and that becomes the new choice.
 4. **To see every computer**, open **Setup → Printing → Printer Assignment**: one row per computer and kind of print, with its printer and store. Set a row to **Inactive** and that computer chooses again at its next print.
@@ -1634,6 +1641,8 @@ Barcode labels and stickers are reprinted from **Sticker Printing → Print hist
 The **Setup** menu lists **module names** only (Core, Finance, HR, Inventory, Master Data, OMS, PIM, Printing, Sales, WMS and so on). **Printing** holds the print setup in one place: **Templates** (every print layout and sticker label, module by module — §7B.2), **Printer** and **Printer Assignment**. **OMS** starts with **OMS settings** (§9A.13), then its lists. point at one and its reference lists open beside it — a long one in two columns. The technical lists most businesses never touch come last in each module's list, under **Advanced**. The **filter box** at the top searches every list at once: type a few letters and every match is listed under its module, Advanced ones included, so nothing is ever hidden from a search. On a phone, a module's lists open under its row.
 
 > **Your shop is a Location.** Setup → Core → **Location**, with its **Type** set to Store, Warehouse or HO — this is the record every transaction points at. A Location also holds the shop's **Address, City, Contact Phone** and **Manager**. (Earlier versions had a separate "Stores" list under the Stock menu that nothing else read; it was retired and its fields folded into Location.)
+
+**Records you add are for your store (Stage 49.3.8a).** If you work at one store, a record you add - a bin, a purchase order, a stock move - must be for that store. Naming another store is refused with *This record is for store X - you can add records for your own store (Y) only*; in a CSV import only those rows are refused. If you are allowed several stores, switch store at the top of the screen first. Head-office roles that see every store are not limited.
 
 Adding a new one always works the same way, no matter which list you're in:
 
@@ -2088,7 +2097,11 @@ Use this for a phone order, a walk-in wholesale order, a replacement, or anythin
    - **Customer PO / reference** — optional. For a business customer, their own purchase order number (e.g. *PO-4500123*). It is shown on the order, copied onto the invoice raised from it and printed on that invoice, and **Reports → Sales → Sales by Customer Reference** finds every order and invoice for it. Change it later with the order's **Edit**. A sales invoice made directly (Financial Accounting → Sales Invoice → **+ New Sales Invoice**) has the same **Customer PO / Reference** box.
    - **Payment** — Confirmed (paid), Pending, or Cash on delivery. **Confirmed** and **Cash on delivery** go straight through; **Pending** puts the order On Hold (*PAYMENT_PENDING*) until you edit it to Confirmed once the money arrives.
    - **Address line 1** and **PIN code** — **required.** The order engine has to know where it's going, and stock sourcing and couriers go by the 6-digit PIN code. **Address line 2**, **City** and **State** (picked from the list) complete it; the order shows them together as *Ship to*.
-3. Add items with **+ Add item**: search for the item, set the quantity and the unit price.
+3. Add items with **+ Add item**: find the item by its **Design ID**, **Combination ID** or **barcode** (letters are fine, e.g. *D100000* or *100000D*; the item name is not searched here). Picking it fills **Available** and **Unit price**:
+   - **Available** is the quantity you can sell across every store and warehouse, because the order is sourced from whichever one can fill it. Hover over the number to see it by store. A red **0** means nothing is sellable anywhere, and the order will be refused for stock.
+   - **Unit price** comes from the item's sale price, or its MRP if it has no sale price. Change it if you agreed a different price.
+
+   Then set the quantity.
 4. Click **Create Order**. The confirmation names the order by its number — `SO/<store>/2627/00001`, from the store that fulfils it — and you're back on the Orders console, with the order in its **Orders** table. That number is what the Orders table shows, and searching for it finds the order.
 
 **A manual order skips Pending Orders.** You keyed it in, so you have already accepted it: once its stock is reserved it goes straight to **Pick**. (A channel order waits on **Pending Orders** for someone to accept it — §9A.8.)
@@ -2554,9 +2567,9 @@ Birthday and Lapsed Customer campaigns set up earlier (**Setup → Campaign**, w
 
 ## 9E. People — HR, leave, payroll and expense claims
 
-**HRM → HR** groups its tabs by who does the work: **My work** (My Requests — your own leave, expense claims and grievances), **Team** (Attendance, Leave, Shift Roster) and **HR administration** (Payroll, Payroll Export, Loans/Advances, Onboarding, Appraisals, Training, Grievances). You only see the tabs your role can open; Payroll, Payroll Export and Loans need the payroll permission.
+Each HR page is its own entry in the **HRM** menu, grouped by who does the work: **My work** (My Requests — your own leave, expense claims and grievances), **Team** (Attendance, Leave, Shift Roster) and **HR administration** (Payroll, Payroll Export, Loans/Advances, Onboarding, Appraisals, Training, Grievances). You only see the pages your role can open; Payroll, Payroll Export and Loans need the payroll permission.
 
-**Applying for leave** (Team → Leave → **+ Apply Leave**, or My Requests → **+ Request Leave**):
+**Applying for leave** (HRM → Leave → **+ Apply Leave**, or HRM → My Requests → **+ Request Leave**):
 
 1. Choose the employee (on My Requests it is you), the **Leave Type**, **From** and **To**. **Days** fills itself in — calendar days, counting both ends.
 2. Under the form you see the balance for that type this year — for example "Casual 2026: 12 days a year, 3 approved, 9 left (1 awaiting approval - up to 8 more can be applied for)": *left* drops when leave is approved, and days awaiting approval are held back from a new application — and a warning if the dates overlap leave already on the list. You only ever see your own balance unless you are HR or a store manager.
@@ -2661,7 +2674,7 @@ If your role can approve things (e.g. a manager approving a purchase order), you
 
 **My work.** The **Approvals** menu opens **My work**: one list of everything waiting for you, overdue first, then oldest:
 
-- **Approvals** routed to your role (by the amount rules your administrator set) — including ones you submitted yourself, while **Who can approve their own documents** allows it (as shipped: anyone who can approve it). When it does not, your own are left out, and trying one says *"You cannot approve or reject a document you submitted"* (APPROV-0840: another approver with the required role must decide it);
+- **Approvals** routed to your role (by the amount rules your administrator set) — including ones you submitted yourself, while **Who can approve their own documents** allows it (as shipped: anyone who can approve it; a new client starts at *Nobody*, 49.10.6b). When it does not, your own are left out, and trying one says *"You cannot approve or reject a document you submitted"* (APPROV-0840: another approver with the required role must decide it);
 - **Order desk** queues with orders in them (§9A.6), if you can read orders;
 - **Catalog** tasks assigned to you, or to your role with nobody named yet (PIM → My Work).
 
@@ -2865,7 +2878,7 @@ Reset will warn you before it runs, and it discards anything unsaved on screen �
 
 Everything above is per-screen. This section is the opposite: one continuous path from an empty system to money in the till, so you can see how the pieces connect. Allow about half an hour.
 
-**One login is enough as shipped:** whoever raises the purchase order may approve it too. If your administrator set **Who can approve their own documents** to *Nobody*, you need a second login to approve it (ADMIN_SOP §B.10).
+**One login is enough while self-approval is allowed:** whoever raises the purchase order may approve it too. If **Who can approve their own documents** is *Nobody* - where a new client starts (49.10.6b) - you need a second login to approve it (ADMIN_SOP §B.10).
 
 ### Step 1 — Create the place you trade from
 

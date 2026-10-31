@@ -9,7 +9,7 @@
 
 Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.
 
-There are **580** codes. Each row says what the user is shown, what to do about
+There are **582** codes. Each row says what the user is shown, what to do about
 it, and how serious it is.
 
 **How to read an error dialog** - it has up to three lines: the *headline* (the
@@ -52,7 +52,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 - [Finance & Accounting](#finance--accounting) - 47 codes
 - [Fixed Assets](#fixed-assets) - 9 codes
 - [GST](#gst) - 1 codes
-- [Global](#global) - 11 codes
+- [Global](#global) - 13 codes
 - [Global / Common](#global--common) - 25 codes
 - [Goods Receipt](#goods-receipt) - 19 codes
 - [Goods Receipt / GRN](#goods-receipt--grn) - 8 codes
@@ -431,6 +431,8 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `GLOBAL-0311` | Identifier mixes look-alike alphabets | A code or identifier mixes letters from different alphabets. | Retype the field named below in one alphabet - a look-alike letter (for example a Cyrillic letter inside a Latin code) was pasted in. | Low | 422 |
 | `GLOBAL-1315` | Reprint refused (no Document Reprint permission, no reason, approval needed or already used, no approver set) | This document can't be printed again yet. | Give the reason; ask a manager for the Document Reprint permission or send a Reprint Request and print once it is approved. | Medium | 422 |
 | `GLOBAL-1319` | Print refused: a tax document from a store with no GSTIN, or a template version that cannot be decided (not waiting, own change, not found) | This can't be printed or changed yet. | Add the GSTIN to the store's legal entity (Setup > Legal Entities); a template change is approved by someone other than the person who saved it. | Medium | 422 |
+| `GLOBAL-4971` | Same command key still being processed | This is still being processed. | Wait a moment and check whether it went through before trying again - do not enter it again. | Medium | 409 |
+| `GLOBAL-4972` | Command key reused for a different request | This request key was already used for a different request. | Send a new key for a new request; resend the same request to get the first answer. | Medium | 409 |
 
 ## Global / Common
 

@@ -26,7 +26,7 @@ function renderQZSetupPanel(container) {
         <button class="btn btn-primary" id="qz-doc-preview-btn" type="button">Print</button>
       </div>
       <p class="page-subtitle" style="margin: 6px 0 0;">
-        Goes to whichever Printer has <strong>Default For = Shipping Label</strong>, exactly as the channel issued it.
+        Prints to the <strong>Shipping Label</strong> default printer.
       </p>
     </div>
   `;
@@ -50,9 +50,8 @@ async function qzPreviewPickedDocument() {
   const pdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
   const url = pdf ? URL.createObjectURL(file) : '';
   const body = pdf
-    ? `<p style="margin: 0;">A PDF prints exactly as the channel issued it. <a href="${url}" target="_blank" rel="noopener">Open the PDF</a> to look at it first.</p>`
-    : `<p style="margin: 0 0 8px; color: var(--text-muted);">This file is the label printer's own commands; the printer draws the label from them.</p>
-        <pre style="white-space: pre-wrap; font-family: monospace; font-size: 12px; max-height: 60vh; overflow: auto; margin: 0;">${escapeHTMLText(await file.text())}</pre>`;
+    ? `<p style="margin: 0;"><a href="${url}" target="_blank" rel="noopener">Open the PDF</a></p>`
+    : `<pre style="white-space: pre-wrap; font-family: monospace; font-size: 12px; max-height: 60vh; overflow: auto; margin: 0;">${escapeHTMLText(await file.text())}</pre>`;
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
@@ -120,7 +119,7 @@ async function qzDetectPrinters() {
     let def = '';
     try { def = await window.QZPrint.getDefaultPrinter(); } catch (e) { /* optional */ }
     out.innerHTML = `
-      <p class="page-subtitle" style="margin: 0 0 6px;">Copy the exact name into the matching Printer record:</p>
+      <p class="page-subtitle" style="margin: 0 0 6px;">Detected printers:</p>
       <ul style="margin: 0; padding-left: 18px; line-height: 1.7;">
         ${list.map(n => `<li><code>${escapeHTMLText(n)}</code>${n === def ? ' <em>(system default)</em>' : ''}</li>`).join('')}
       </ul>`;
@@ -147,17 +146,52 @@ async function qzTestPrint() {
     return;
   }
   const raw = ['ZPL', 'TSPL', 'ESC-POS'].includes((target.printer_language || '').toUpperCase());
+  const stamp = new Date().toLocaleString();
+  // Stage 143.4: the test page shows first; Print there sends it.
+  if (!await qzPreviewTestPage(target, raw ? 'ERP test label' : 'ERP test print', stamp)) return;
   const items = raw
     ? [{ type: 'raw', format: 'command', flavor: 'plain',
-         data: '^XA^CI28^FO30,30^A0N,40,40^FDERP test label^FS^FO30,90^A0N,28,28^FD' + new Date().toLocaleString() + '^FS^XZ' }]
+         data: '^XA^CI28^FO30,30^A0N,40,40^FDERP test label^FS^FO30,90^A0N,28,28^FD' + stamp + '^FS^XZ' }]
     : [{ type: 'pixel', format: 'html', flavor: 'plain',
-         data: '<h2>ERP test print</h2><p>' + escapeHTMLText(new Date().toLocaleString()) + '</p>' }];
+         data: '<h2>ERP test print</h2><p>' + escapeHTMLText(stamp) + '</p>' }];
   try {
     await window.QZPrint.printItems(target.qz_printer_name, items, 1);
     showToast(`Test page sent to ${target.qz_printer_name}.`, { variant: 'success' });
   } catch (err) {
     await showCustomAlert(err.message || String(err), 'Test Print Failed');
   }
+}
+
+// qzPreviewTestPage (Stage 143.4) shows the test page and the printer it goes
+// to, with Close and Print; resolves true on Print.
+function qzPreviewTestPage(target, heading, stamp) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay open';
+    overlay.innerHTML = `
+      <div class="modal-container" style="max-width: 440px;" role="dialog" aria-modal="true" aria-labelledby="qz-test-preview-title">
+        <div class="modal-header"><h3 class="modal-title" id="qz-test-preview-title">Test print</h3>
+          <button type="button" class="modal-close" aria-label="Close dialog" data-qz-test="close">×</button></div>
+        <div class="modal-body">
+          <p style="margin: 0 0 8px; color: var(--text-muted);">On ${escapeHTMLText(target.name || target.qz_printer_name)}</p>
+          <div style="max-width: 100%; box-sizing: border-box; padding: 4mm 5mm; background: #fff; color: #000; font: 13px/1.4 system-ui, sans-serif; box-shadow: 0 1px 3px rgba(0,0,0,.25);">
+            <div style="font-size: 18px; font-weight: 700;">${escapeHTMLText(heading)}</div><div>${escapeHTMLText(stamp)}</div></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" data-qz-test="close">Close</button>
+          <button type="button" class="btn btn-primary" data-qz-test="print">Print</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const done = (v) => { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
+    const onKey = (e) => { if (e.key === 'Escape') done(false); };
+    document.addEventListener('keydown', onKey);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) done(false); });
+    overlay.querySelectorAll('[data-qz-test="close"]').forEach(b => b.addEventListener('click', () => done(false)));
+    const print = overlay.querySelector('[data-qz-test="print"]');
+    print.addEventListener('click', () => done(true));
+    print.focus();
+  });
 }
 
 async function qzPrintPickedDocument() {
@@ -203,6 +237,8 @@ function stickerSourceDoctypes() {
 }
 let stickerSourceDoctype = BULK_STICKER_SOURCE_DOCTYPES[0].doctype;
 let stickerSourceDocId = '';
+let stickerSourceChosen = '';   // 143.6: the document whose preview choosing it opened
+let stickerSourceAwaiting = null; // 143.6: lines whose preview waits for a printer
 let stickerSourceLines = [];    // last GET /api/v1/stickers/preview response
 let stickerSourceSelected = {}; // line index -> bool, defaults to all-selected on load
 let stickerSourceCopies = {};   // line index -> int, defaults to the line's own qty
@@ -318,7 +354,7 @@ async function renderStickerPrintTab(container) {
       <tbody>
   `;
   historyHtml += history.length === 0
-    ? `<tr><td colspan="10" style="text-align:center; color:var(--text-muted);">No print history yet. Click <b>+ Print Stickers</b>, add SKUs or load a transaction, then print.</td></tr>`
+    ? `<tr><td colspan="10" style="text-align:center; color:var(--text-muted);">No print history yet.</td></tr>`
     : history.map((h, i) => `
         <tr>
           <td style="font-family: monospace;">${escapeHTMLText(h.sku)}</td>
@@ -361,6 +397,7 @@ async function renderStickerPrintTab(container) {
     try { localStorage.setItem('sticker-printer', printerSel.value); } catch (_) { /* storage off */ }
     renderStickerPresetButton();
     renderStickerSourceLines();
+    if (stickerSourceAwaiting && printerSel.value) previewSourceThenPrint(stickerSourceAwaiting);
   });
   document.getElementById('sticker-preset-btn').addEventListener('click', openPrinterPreset);
   renderStickerPresetButton();
@@ -495,12 +532,18 @@ function renderStickerSourcePanel(container, printers) {
   doctypeSelect.addEventListener('change', () => {
     stickerSourceDoctype = doctypeSelect.value;
     docInput.value = '';
+    stickerSourceChosen = '';
+    stickerSourceAwaiting = null;
     stickerSourceLines = [];
     document.getElementById('sticker-source-lines').innerHTML = '';
     attachSourcePicker();
   });
-  docInput.addEventListener('change', loadStickerSourcePreview);
-  document.getElementById('sticker-source-load-btn').addEventListener('click', loadStickerSourcePreview);
+  docInput.addEventListener('change', () => chooseStickerSourceDoc());
+  document.getElementById('sticker-source-load-btn').addEventListener('click', () => chooseStickerSourceDoc(true));
+  // 143.6: + Print Stickers opens on the latest documents, ready to pick one.
+  container.closest('#sticker-print')?.querySelector('.page-section-actions')?.addEventListener('click', () => setTimeout(() => {
+    if (!docInput.value.trim() && !stickerSKUs.length && docInput.offsetParent) docInput.focus();
+  }, 0));
 
   // Stage 94: "Print stickers" on a posted child GRN opens here with that
   // receipt loaded and only that child's lines ticked.
@@ -516,14 +559,43 @@ function renderStickerSourcePanel(container, printers) {
     stickerSourceDoctype = 'GRN';
     attachSourcePicker();
     docInput.value = pending.id;
-    loadStickerSourcePreview().then(() => {
-      if (!Array.isArray(pending.skus) || !pending.skus.length) return;
-      stickerSourceLines.forEach((l, i) => { stickerSourceSelected[i] = pending.skus.includes(l.sku); });
-      renderStickerSourceLines();
+    stickerSourceChosen = pending.id;
+    loadStickerSourcePreview().then(loaded => {
+      if (!loaded) return;
+      if (Array.isArray(pending.skus) && pending.skus.length) {
+        stickerSourceLines.forEach((l, i) => { stickerSourceSelected[i] = pending.skus.includes(l.sku); });
+        renderStickerSourceLines();
+      }
+      // 143.6: straight to its preview; Print there prints.
+      previewSourceThenPrint(stickerSourceLines.map((l, i) => i).filter(i => stickerSourceSelected[i]));
     });
   }
 }
 
+// chooseStickerSourceDoc (143.6, user: "Select grn and print thats all"):
+// choosing a document shows its stickers' preview at once - every line, its
+// own copies, this computer's printer - so Print there is the one other
+// click. Close leaves the lines below to change and Print Selected. The same
+// document chosen again (the box's own change on blur) does not reopen it;
+// Load does.
+async function chooseStickerSourceDoc(force = false) {
+  const value = document.getElementById('sticker-source-doc').value.trim();
+  if (!value || (!force && value === stickerSourceChosen)) return;
+  stickerSourceChosen = value;
+  if (await loadStickerSourcePreview()) previewSourceThenPrint(stickerSourceLines.map((l, i) => i));
+}
+
+// previewSourceThenPrint: Stage 143.4 - every Print shows the preview first;
+// its Print prints.
+async function previewSourceThenPrint(indexes) {
+  // 143.6: no printer yet (a new computer) - picking one opens this preview.
+  stickerSourceAwaiting = document.getElementById('sticker-printer').value ? null : indexes;
+  const body = stickerSourceRequest(indexes);
+  if (body && await previewStickerRequest(body, 1, document.getElementById('sticker-source-error'))) printStickerSourceLines(indexes);
+}
+
+// loadStickerSourcePreview loads the document's lines, all ticked; true when
+// there is a line to print.
 async function loadStickerSourcePreview() {
   const errorEl = document.getElementById('sticker-source-error');
   errorEl.classList.add('hidden');
@@ -568,6 +640,7 @@ async function loadStickerSourcePreview() {
     stickerSourceCopies[i] = l.qty;
   });
   renderStickerSourceLines();
+  return stickerSourceLines.length > 0;
 }
 
 // Active templates, then the built-in designs not saved yet (Stage 113.2).
@@ -692,6 +765,7 @@ async function openPrinterPreset() {
     btn.disabled = true;
     try {
       if (act === 'test') {
+        // Stage 143.4: the test label shows first; Print there prints it.
         await E.printAlignmentTest(await rollTemplate(p.sticker_template), Object.assign({}, printer, p));
       } else if (act === 'calibrate') {
         await E.calibrateRoll(printer);
@@ -862,16 +936,11 @@ function renderStickerSourceLines() {
     keepStickerTemplateFor([stickerSourceLines[i].product_type], stickerSourceTemplates[i]);
   }));
   document.getElementById('sticker-source-keep-all')?.addEventListener('click', () => keepStickerTemplateFor(allTypes, runValue));
-  // Stage 143.4: every Print shows the preview first; its Print prints.
-  const previewThenPrint = async (indexes) => {
-    const body = stickerSourceRequest(indexes);
-    if (body && await previewStickerRequest(body, 1, document.getElementById('sticker-source-error'))) printStickerSourceLines(indexes);
-  };
   el.querySelectorAll('[data-source-print-one]').forEach(btn => {
-    btn.addEventListener('click', () => previewThenPrint([Number(btn.getAttribute('data-source-print-one'))]));
+    btn.addEventListener('click', () => previewSourceThenPrint([Number(btn.getAttribute('data-source-print-one'))]));
   });
   const selectedLines = () => stickerSourceLines.map((l, i) => i).filter(i => stickerSourceSelected[i]);
-  document.getElementById('sticker-source-print-btn').addEventListener('click', () => previewThenPrint(selectedLines()));
+  document.getElementById('sticker-source-print-btn').addEventListener('click', () => previewSourceThenPrint(selectedLines()));
 }
 
 // previewStickerRequest (Stage 133.3) asks for a print's labels without

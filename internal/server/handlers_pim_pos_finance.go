@@ -240,12 +240,12 @@ func handleBigCommerceWebhook(w http.ResponseWriter, r *http.Request) {
 
 	// 134.3: one answer for every refusal; the current secret or, for a week
 	// after a change, the previous one.
+	source := "bigcommerce:" + channelCode
 	if !engines.VerifyWebhookHMACAny(body, r.Header.Get("X-Bc-Webhook-Signature"), "", "hex", engines.GetChannelWebhookSecrets(tenantID, channelCode)...) {
-		writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "Invalid webhook signature")
+		refuseWebhookSignature(w, r, source)
 		return
 	}
-	source := "bigcommerce:" + channelCode
-	if dup, err := engines.ClaimInboundWebhook(tenantID, source, "", body); err == nil && dup {
+	if dup, err := claimInboundWebhook(r, tenantID, source, "", body); err == nil && dup {
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "duplicate"})
 		return
 	}
@@ -331,12 +331,19 @@ func handleGetAvailability(w http.ResponseWriter, r *http.Request) {
 	sku := r.URL.Query().Get("sku")
 	location := r.URL.Query().Get("location")
 
-	if sku == "" || location == "" {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameters 'sku' and 'location' are required")
+	if sku == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameter 'sku' is required")
 		return
 	}
 
-	res, err := engines.GetAvailableToSell(tenantID, sku, location)
+	// Stage 147.1: no location is every location - the total and where it is.
+	var res map[string]interface{}
+	var err error
+	if location == "" {
+		res, err = engines.GetNetworkAvailableToSell(tenantID, sku)
+	} else {
+		res, err = engines.GetAvailableToSell(tenantID, sku, location)
+	}
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return

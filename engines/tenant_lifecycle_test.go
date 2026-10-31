@@ -318,7 +318,7 @@ func TestStage4915PurgeRefusesUntilItIsSafeAndProvesRemoval(t *testing.T) {
 	}
 
 	t.Run("a live tenant cannot be purged at all", func(t *testing.T) {
-		if _, err := PurgeTenant(tenantID, "tester", "backup-1"); err == nil {
+		if _, err := PurgeTenant(tenantID, "tester", "backup-1", ""); err == nil {
 			t.Fatal("expected a purge of an active tenant to be refused")
 		} else if !strings.Contains(err.Error(), "deprovision it first") {
 			t.Errorf("refusal reason = %q, want it to name the missing deprovisioning step", err)
@@ -333,7 +333,7 @@ func TestStage4915PurgeRefusesUntilItIsSafeAndProvesRemoval(t *testing.T) {
 		if time.Until(until) < 24*time.Hour {
 			t.Errorf("retention_until is %s, want the 30-day policy default", until)
 		}
-		if _, err := PurgeTenant(tenantID, "tester", "backup-1"); err == nil {
+		if _, err := PurgeTenant(tenantID, "tester", "backup-1", ""); err == nil {
 			t.Fatal("expected the retention window to refuse the purge")
 		} else if !strings.Contains(err.Error(), "retention window") {
 			t.Errorf("refusal reason = %q, want it to name retention", err)
@@ -352,7 +352,7 @@ func TestStage4915PurgeRefusesUntilItIsSafeAndProvesRemoval(t *testing.T) {
 		if err := SetTenantLegalHold(tenantID, true, "tester", "matter 2026-14"); err != nil {
 			t.Fatalf("SetTenantLegalHold: %v", err)
 		}
-		if _, err := PurgeTenant(tenantID, "tester", "backup-1"); err == nil {
+		if _, err := PurgeTenant(tenantID, "tester", "backup-1", ""); err == nil {
 			t.Fatal("expected the legal hold to refuse the purge")
 		} else if !strings.Contains(err.Error(), "legal hold") {
 			t.Errorf("refusal reason = %q, want it to name the hold", err)
@@ -363,7 +363,7 @@ func TestStage4915PurgeRefusesUntilItIsSafeAndProvesRemoval(t *testing.T) {
 	})
 
 	t.Run("a purge with no backup reference is refused", func(t *testing.T) {
-		if _, err := PurgeTenant(tenantID, "tester", "   "); err == nil {
+		if _, err := PurgeTenant(tenantID, "tester", "   ", ""); err == nil {
 			t.Fatal("expected a purge with no backup reference to be refused")
 		}
 	})
@@ -380,7 +380,7 @@ func TestStage4915PurgeRefusesUntilItIsSafeAndProvesRemoval(t *testing.T) {
 		_, _ = ResolveLiveUserState(tenantID, "admin")
 		_, _ = TenantIsOperational(tenantID)
 
-		rep, err := PurgeTenant(tenantID, "tester", "pg_dump s3://erp-backups/2026-09-06.dump")
+		rep, err := PurgeTenant(tenantID, "tester", "pg_dump s3://erp-backups/2026-09-06.dump", approvedClientRemoval(t, tenantID, ClientRemovalPurge))
 		if err != nil {
 			t.Fatalf("PurgeTenant: %v", err)
 		}

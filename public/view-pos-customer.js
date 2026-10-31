@@ -39,7 +39,7 @@ export function posAttachCustomer(c) {
 // posCustomerSummary is the one line under the box (85.C5): who, their
 // number, and B2B when the bill will be a GST invoice.
 export function posCustomerSummary(code, shown) {
-  if (!code) return 'Ask the mobile number - Enter looks it up. Walk-in if they will not give one.';
+  if (!code) return 'No customer attached.';
   const c = attached && attached.id === code ? attached : null;
   if (c && c.walk_in) return 'Walk-in - no number taken. No points, not on the bill.';
   const parts = [c ? c.name : (shown || code)];
@@ -138,7 +138,6 @@ async function posAskMobile() {
         <div class="modal-header"><h3 class="modal-title" id="pos-ask-title">Customer's mobile number</h3></div>
         <div class="modal-body" style="display:flex; flex-direction:column; gap:10px;">
           <input id="pos-ask-phone" class="form-input" type="tel" inputmode="tel" placeholder="Mobile number" autocomplete="off">
-          <p class="txn-hint" style="margin:0;">Ask on every bill. If the customer will not give a number, use Walk-in.</p>
         </div>
         <div class="modal-footer"><button type="button" class="btn btn-outline" data-ask="cancel">Cancel</button>
           <button type="button" class="btn btn-outline" data-ask="walkin">Walk-in</button>
@@ -289,8 +288,8 @@ function voucherHTML(title, rows, note) {
 }
 
 // previewVoucher (Stage 143.4) shows the slip as it will print, with Close
-// and Print; resolves true on Print.
-function previewVoucher(html) {
+// and Print; resolves true on Print. The gift-card slip uses it too.
+export function previewVoucher(html) {
   return new Promise(resolve => {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay open';
@@ -430,7 +429,7 @@ async function takeAdvance(pane) {
     expected_date: pane.querySelector('#adv-expected').value, supply_type: pane.querySelector('#adv-supply').value,
     gst_rate: parseFloat(pane.querySelector('#adv-rate').value) || 0, idempotency_key: `adv-${posLocation}-${Date.now()}`,
   };
-  const res = await apiFetch('/api/v1/pos/advances', { method: 'POST', body: JSON.stringify(body) });
+  const res = await apiFetch('/api/v1/pos/advances', { method: 'POST', body: JSON.stringify(body), commandKey: 'pos.advance' });
   if (!res) return;
   if (!res.ok) { await showApiError(res, 'The advance was not taken.'); return; }
   const a = await res.json();

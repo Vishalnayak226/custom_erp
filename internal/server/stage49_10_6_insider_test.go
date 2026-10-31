@@ -191,7 +191,8 @@ printf 'PGDMP dump %s\n' "` + marker + `" > "$out"`,
 		"psql": `cat >/dev/null; exit 0`,
 		"curl": `cat >/dev/null
 src=""; url=""
-while [ $# -gt 0 ]; do case "$1" in -T) src="$2"; shift 2;; -m|-K|-H|--retry|--retry-delay|--aws-sigv4) shift 2;; -*) shift;; *) url="$1"; shift;; esac; done
+while [ $# -gt 0 ]; do case "$1" in -T) src="$2"; shift 2;; -m|-K|-H|-o|-w|--retry|--retry-delay|--aws-sigv4) shift 2;; -*) shift;; *) url="$1"; shift;; esac; done
+if [ -z "$src" ]; then printf 404; exit 0; fi # 49.10.6c.1's lifecycle GET: no rule
 obj="${url#https://bucket.invalid/erp-backups/}"
 mkdir -p "$FAKE_BUCKET/$(dirname "$obj")"
 cp "$src" "$FAKE_BUCKET/$obj"

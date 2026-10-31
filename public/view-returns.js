@@ -60,8 +60,6 @@ async function renderReturnsView(root) {
         <button class="btn btn-primary btn-sm" id="returns-new-btn" type="button">+ New Return</button>
       </div>
     </div>
-    <div class="txn-hint"><span>A return moves Requested &rarr; Approved &rarr; Received &rarr; QC Complete &rarr; Closed.
-      Stock is only received back at inspection, and no refund is paid until the goods have been inspected.</span></div>
     <div id="returns-error" class="login-error hidden"></div>
     <div class="txn-grid">
       <table>
@@ -152,7 +150,7 @@ function renderReturnsTable() {
   const emptyEl = document.getElementById('returns-empty');
   if (emptyEl) {
     emptyEl.textContent = rows.length ? '' :
-      (returnsViewRows.length ? 'No returns match this filter.' : 'No returns have been raised yet. Click + New Return to take one back at the till, against the original bill.');
+      (returnsViewRows.length ? 'No returns match this filter.' : 'No returns have been raised yet.');
   }
 
   rows.forEach(r => {
@@ -278,7 +276,7 @@ async function openReturnQCDialog(row) {
   // Stage 106.5: where the goods checked Sellable land, for this return only.
   let stockTo = {};
   const dialog = posFormDialog(`Inspect ${row.number}`,
-    'Record the condition of each item. Sellable goes back to stock; an exchange applies only to Sellable, Repairable or Damaged items.',
+    'Sellable goes back to stock.',
     txnStockFromTo('Sales Return') + html, (el) => {
       stockTo = readStockFromTo(el);
       return [...el.querySelectorAll('[data-qc-sku]')].map(s => ({

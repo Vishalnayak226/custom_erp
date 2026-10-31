@@ -3,6 +3,7 @@ package engines
 import (
 	"bytes"
 	"encoding/csv"
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -84,6 +85,16 @@ func TestBuildPrintExportColumnsAndPrices(t *testing.T) {
 		if strings.Contains(head, cost) {
 			t.Errorf("transfer export must carry MRP only, has %q: %s", cost, head)
 		}
+	}
+
+	// 132.24: a printed document exports its frozen copy, read back from
+	// JSON - its attributes are no longer map[string]string.
+	var frozen PrintDocument
+	if raw, err := json.Marshal(doc(PrintTxnPurchaseOrder)); err != nil || json.Unmarshal(raw, &frozen) != nil {
+		t.Fatalf("round trip: %v", err)
+	}
+	if got := strings.Join(headerRow(read(t, frozen)), "|"); !strings.Contains(got, "Colour") || !strings.Contains(got, "Ring Size") {
+		t.Errorf("frozen copy export lost its attribute columns: %s", got)
 	}
 
 	sale := doc(PrintTxnSalesInvoice)

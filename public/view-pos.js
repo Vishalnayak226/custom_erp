@@ -366,7 +366,7 @@ function renderPOSCustomerNote() {
   if (newBtn) newBtn.textContent = code ? 'Edit Customer' : '+ New Customer';
   // Stage 85.C5: one line - who, their number, GST bill when it is one.
   note.textContent = posCustomerRef ? posCustomerRef.posCustomerSummary(code, shown)
-    : (code ? shown || code : 'Ask the mobile number - Enter looks it up. Walk-in if they will not give one.');
+    : (code ? shown || code : 'No customer attached.');
 }
 
 // Stage 20.7: reflects whether the acting cashier already has an Open

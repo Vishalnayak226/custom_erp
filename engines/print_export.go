@@ -42,6 +42,7 @@ func exportPriceColumns(txn string) []exportColumn {
 // exportLineColumns are the line columns in order. A column no line fills is
 // left out - a PO export has no "Received", a business without brands no
 // "Brand" - except Sr., SKU, item name, qty and MRP, which every export has.
+// MRP too is left out of the GRN's vendor copy, which prints no price (132.24).
 func exportLineColumns(d PrintDocument) []exportColumn {
 	cols := []exportColumn{{"sr", "Sr.", false}, {"design", "Design ID", false}, {"sku", "Combination ID / SKU", false},
 		{"barcode", "Barcode", false}, {"item_name", "Item name", false}, {"variant", "Variant", false}}
@@ -60,7 +61,7 @@ func exportLineColumns(d PrintDocument) []exportColumn {
 		{"condition", "Condition", false}, {"reason", "Reason", false}}...)
 	out := []exportColumn{}
 	for _, c := range cols {
-		keep := c.key == "sr" || c.key == "sku" || c.key == "item_name" || c.key == "qty" || c.key == "mrp"
+		keep := c.key == "sr" || c.key == "sku" || c.key == "item_name" || c.key == "qty" || (c.key == "mrp" && d.Transaction != PrintTxnGRNVendorCopy)
 		for _, l := range d.Lines {
 			if keep {
 				break
@@ -82,7 +83,10 @@ func exportLineColumns(d PrintDocument) []exportColumn {
 
 func exportValue(l map[string]interface{}, key string) interface{} {
 	if code, ok := strings.CutPrefix(key, "attributes."); ok {
-		if attrs, ok := l["attributes"].(map[string]string); ok {
+		switch attrs := l["attributes"].(type) {
+		case map[string]string:
+			return attrs[code]
+		case map[string]interface{}: // a frozen copy, read back from JSON (132.24)
 			return attrs[code]
 		}
 		return nil

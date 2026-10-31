@@ -59,7 +59,6 @@ async function renderLowStock(ctx) {
   if (ctx.routeName() !== 'low-stock') return;
   const items = res.items || [];
   main.innerHTML = items.length ? `
-    <p class="hint">Items at or under their safety stock here, or with none left. Tap one to see where else it is.</p>
     <ul class="rows">${items.map(i => `<li><a class="row-link" href="#/scan?code=${encodeURIComponent(i.sku)}"><span>${esc(i.name)}<small>${esc(i.sku)}${i.safety ? ` · keep at least ${qty(i.safety)}` : ''}</small></span>
       <span class="qty${i.free > 0 ? '' : ' zero'}">${i.free > 0 ? `${qty(i.free)} left` : 'None left'}</span></a></li>`).join('')}</ul>`
     : '<p class="empty">Nothing is running low at this store.</p>';

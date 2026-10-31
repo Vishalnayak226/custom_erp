@@ -205,7 +205,7 @@ async function crmOverview(host) {
     <h3 class="crm-section">Customers by lifecycle</h3>
     <div class="crm-bars">${lc.map(l => `<button type="button" class="crm-bar" data-life="${crmEsc(l.state)}"><span class="crm-bar-label">${crmEsc(l.state)}</span>
       <span class="crm-bar-track"><span style="width:${Math.round(100 * l.count / max)}%"></span></span><span class="crm-bar-n">${l.count}</span></button>`).join('')}</div>
-    <p class="text-muted crm-small">Counted now, in ${crmEsc(d.time_zone)} time. Lifecycle comes from each customer's bills; a return or merge shows the next time you look.</p>`;
+    <p class="text-muted crm-small">Counted now, in ${crmEsc(d.time_zone)} time.</p>`;
   body.querySelectorAll('[data-go-tab]').forEach(b => b.addEventListener('click', () => crmGo(b.dataset.goTab)));
   body.querySelectorAll('[data-life]').forEach(b => b.addEventListener('click', () => crmGo('customers', '', { lifecycle: b.dataset.life })));
 }
@@ -370,7 +370,6 @@ async function crmProfileEdit(host, id) {
     ['preferred_salesman', 'Preferred salesman'], ['tags', 'Tags (comma-separated)'], ['city', 'City']];
   body.innerHTML = `<form class="crm-form" id="crm-prof">${fields.map(([k, l, t, opts]) => crmField('pf-' + k, l,
     t === 'select' ? crmSelect('pf-' + k, opts, doc[k] || '') : crmInput('pf-' + k, doc[k] || '', t === 'date' ? 'type="date"' : ''))).join('')}
-    <p class="text-muted crm-small">Consent is recorded on the customer page, not here.</p>
     <div class="crm-form-actions"><button class="btn btn-primary" type="submit">Save</button></div></form>`;
   body.querySelector('#crm-prof').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -389,8 +388,7 @@ async function crmDuplicates(host) {
   const body = crmFrame(host, { title: 'Possible duplicates', back: () => crmGo('customers'), backLabel: 'Customers' });
   const r = await crmApi('duplicates');
   if (!r) return;
-  body.innerHTML = `<p class="text-muted crm-small">Two records with the same email, the same name and birthday, or the same CleverTap identity. One phone is always one customer, so a duplicate has another number. A merge waits in Approvals when your business requires it.</p>
-    ${crmTable([{ label: 'Customer A', html: p => `${crmEsc(p.a.name)}<small class="crm-sub">${crmEsc(p.a.phone)} · ${p.a.visits} bills</small>` },
+  body.innerHTML = `${crmTable([{ label: 'Customer A', html: p => `${crmEsc(p.a.name)}<small class="crm-sub">${crmEsc(p.a.phone)} · ${p.a.visits} bills</small>` },
       { label: 'Customer B', html: p => `${crmEsc(p.b.name)}<small class="crm-sub">${crmEsc(p.b.phone)} · ${p.b.visits} bills</small>` },
       { label: 'Why', html: p => crmEsc(p.reasons.join(', ')) },
       { label: '', html: (p, i) => `<button class="action-btn" data-merge="${i}" data-keep="a">Keep A</button> <button class="action-btn" data-merge="${i}" data-keep="b">Keep B</button>` }], r.pairs, { empty: 'No possible duplicates found.' })}
@@ -487,7 +485,7 @@ async function crmSegmentEdit(host, id) {
       <div class="crm-form-row">${crmField('sg-name', 'Name', crmInput('sg-name', seg.name))}${crmField('sg-desc', 'About', crmInput('sg-desc', seg.description || ''))}</div>
       <div id="sg-tree"></div>
       ${crmMeta.can_manage ? `<div class="crm-form-actions"><button class="btn btn-primary" type="button" id="sg-save">Save${id ? ' as a new version' : ''}</button></div>` : ''}
-      ${id ? `<p class="text-muted crm-small">Version ${seg.current_version}. Saving a change makes a new version; campaigns keep the version they were approved with.</p>` : ''}
+      ${id ? `<p class="text-muted crm-small">Version ${seg.current_version}.</p>` : ''}
     </div><aside class="crm-aside"><h3 class="crm-section">Who is in it now</h3>
       ${crmField('sg-ch', 'For a message by', crmSelect('sg-ch', [['', 'Any channel'], 'WhatsApp', 'SMS', 'Email']))}
       <div id="sg-count" class="crm-waterfall"><p class="text-muted">Counting…</p></div>
@@ -509,7 +507,7 @@ async function crmSegmentEdit(host, id) {
         <div class="crm-wf crm-wf-total"><span>Can be messaged</span><b>${r.final}</b></div>` : ''}
         <p class="text-muted crm-small">${(r.lifecycle || []).filter(l => l.count).map(l => `${crmEsc(l.state)} ${l.count}`).join(' · ')}</p>
         ${(r.sample || []).length ? `<p class="crm-small">For example: ${r.sample.slice(0, 5).map(s => crmEsc(s.name)).join(', ')}</p>` : ''}
-        <p class="text-muted crm-small">Days are counted in ${crmEsc(r.time_zone)} time. A customer is checked again for consent when the message goes.</p>`;
+        <p class="text-muted crm-small">Days are counted in ${crmEsc(r.time_zone)} time.</p>`;
     }, 350);
   };
   const paint = () => {
@@ -573,7 +571,7 @@ async function crmLists(host) {
       ${crmField('ls-exp', 'Use until', crmInput('ls-exp', '', 'type="date"'))}
       ${crmField('ls-file', 'CSV file (a phone column)', '<input class="form-input" type="file" id="ls-file" accept=".csv,text/csv" required>')}
       <button class="btn btn-primary" type="submit">Upload</button></form>
-      <p class="text-muted crm-small">A list never gives consent: everyone on it is still checked for consent when a message goes. An expired list matches nobody.</p>` : ''}
+      <p class="text-muted crm-small">A list never gives consent.</p>` : ''}
     <div id="ls-out"></div>
     ${crmTable([{ label: 'List', key: 'name' }, { label: 'Source', key: 'source' }, { label: 'Numbers', key: 'rows', num: true }, { label: 'Customers found', key: 'matched', num: true },
       { label: 'Until', html: l => l.expires_on ? crmDate(l.expires_on) + (l.expired ? ' ' + crmChip('Expired', 'muted') : '') : 'No end' }, { label: 'Added', html: l => crmDate(l.created_at) }], r.lists, { empty: 'No lists uploaded.' })}`;

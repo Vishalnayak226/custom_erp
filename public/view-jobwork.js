@@ -78,7 +78,7 @@ export async function renderJobWorkTab(container) {
     </div>
     <div class="table-wrapper"><table><thead><tr><th>Item sent</th><th class="num">Qty</th><th>Lot</th><th class="num">Gross wt</th><th class="num">Net wt</th><th class="num">Fine wt</th><th>Purity</th><th>Comes back as</th><th class="num">Output per unit</th><th></th></tr></thead><tbody data-jw-lines></tbody></table></div>
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
-      <input class="form-input" data-jw-add-input placeholder="Add an item by code, barcode or name" style="max-width:320px;" autocomplete="off">
+      <input class="form-input" data-jw-add-input placeholder="Add by Design, Combination ID or barcode" style="max-width:320px;" autocomplete="off">
     </div>
     <div class="login-error hidden" data-jw-error style="margin-top:12px;"></div>
     <div style="margin-top:16px;"><button type="button" class="btn btn-primary" data-jw-save>Save order</button></div>`;
@@ -118,8 +118,7 @@ export async function renderJobWorkTab(container) {
     if (act === 'charge') {
       pane.innerHTML = `<h3 style="margin:0 0 8px;">Job worker's bill for ${esc(d.code || d.id)}</h3>
         <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">${field('jwc-bill', 'Bill no', 150)}${field('jwc-amt', 'Amount', 130, 'type="number" min="0" step="0.01"')}
-          <button type="button" class="btn btn-primary" data-jwc-go>Book</button></div>
-        <div class="txn-hint" style="margin-top:6px;">Booked to job-work conversion cost and spread over the lines by what was accepted.</div>`;
+          <button type="button" class="btn btn-primary" data-jwc-go>Book</button></div>`;
       pane.querySelector('[data-jwc-go]').addEventListener('click', () => post('/api/v1/manufacturing/subcontract-order/charge', { id: d.id,
         bill_no: pane.querySelector('#jwc-bill').value.trim(), amount: num(pane.querySelector('#jwc-amt').value) }, 'Bill booked.'));
       return;
@@ -135,7 +134,7 @@ export async function renderJobWorkTab(container) {
         <td class="num"><input type="number" min="0" step="0.001" class="form-input" style="width:80px;text-align:right;" data-jwr="net_weight" data-i="${i}"></td>
         <td class="num"><input type="number" min="0" step="0.001" class="form-input" style="width:80px;text-align:right;" data-jwr="fine_weight" data-i="${i}"></td>
         <td><input class="form-input" data-jwr="reason" data-i="${i}" style="min-width:140px;"></td></tr>`).join('')}</tbody></table></div>
-      <div class="txn-hint" style="margin-top:6px;">Quantities are in the item sent. Rejected pieces go to QC hold, never to sellable stock. Scrap and loss over the allowed share wait for approval.</div>
+      <div class="txn-hint" style="margin-top:6px;">Rejected goes to QC hold; excess loss needs approval.</div>
       <div style="margin-top:10px;"><button type="button" class="btn btn-primary" data-jwr-go>Receive</button></div>`;
     pane.querySelector('[data-jwr-go]').addEventListener('click', () => {
       const v = (k, i) => pane.querySelector(`[data-jwr="${k}"][data-i="${i}"]`);
@@ -163,7 +162,7 @@ export async function renderJobWorkTab(container) {
         <td>${cell('purity', i, 70, 'text')}</td><td><input class="form-input" data-jwl="output_sku" data-i="${i}" value="${esc(l.output_sku || '')}" style="width:150px;" placeholder="same item"></td>
         <td class="num">${cell('output_per_unit', i, 80)}</td>
         <td><button type="button" class="action-btn action-btn-danger" data-jw-remove="${i}">Remove</button></td></tr>`).join('')
-      : '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:16px;">Add what goes to the job worker. Leave "Comes back as" blank when the same item comes back (polishing, repair); name the output item and how many come out of one unit when it is made into something else.</td></tr>';
+      : '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:16px;">No lines yet.</td></tr>';
     form.querySelectorAll('[data-jwl]').forEach(el => el.addEventListener('input', () => { jwLines[Number(el.dataset.i)][el.dataset.jwl] = el.value; }));
     form.querySelectorAll('[data-jwl="output_sku"]').forEach(el => attachLinkTypeahead(el, 'Item', { keepCode: true, noSetupHint: true, onPick: (doc) => { jwLines[Number(el.dataset.i)].output_sku = doc.code || doc.id; } }));
     form.querySelectorAll('[data-jw-remove]').forEach(el => el.addEventListener('click', () => { jwLines.splice(Number(el.dataset.jwRemove), 1); draw(); }));

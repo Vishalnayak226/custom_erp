@@ -119,9 +119,9 @@ export async function renderShopifyPage(root, channel) {
   }));
   // 49.8.5: Disconnect removes the token and cancels queued syncs; links and settings stay.
   $('shp-disconnect')?.addEventListener('click', (e) => busy(e.currentTarget, async () => {
-    if (!await showCustomConfirm('Disconnect this shop? The saved token is removed and queued syncs are cancelled; product links and settings stay.', 'Disconnect')) return;
+    if (!await showCustomConfirm('Disconnect this shop? Its webhooks are removed at Shopify, the saved token is removed and queued syncs are cancelled; product links and settings stay.', 'Disconnect')) return;
     const r = await call('/api/v1/integrations/credentials/disconnect', { kind: 'channel', code: channel });
-    if (r) { showToast('Disconnected.', { variant: 'success' }); again(); }
+    if (r) { showToast(r.warning ? `Disconnected. ${r.warning}` : 'Disconnected.', { variant: r.warning ? 'warning' : 'success' }); again(); }
   }));
   $('shp-check').addEventListener('click', (e) => busy(e.currentTarget, async () => {
     const r = await call(`${base}/do/check`, {});

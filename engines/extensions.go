@@ -285,7 +285,8 @@ func logHookCall(tenantID, hookID, payloadHash string, status int, latencyMs int
 	}
 	var errText sql.NullString
 	if callErr != nil {
-		errText = sql.NullString{String: callErr.Error(), Valid: true}
+		// 49.18.2: bounded and redacted, as the system error log is.
+		errText = sql.NullString{String: redactAndBoundLogField(callErr.Error(), maxSystemErrorMessageBytes), Valid: true}
 	}
 	var statusVal sql.NullInt64
 	if status > 0 {

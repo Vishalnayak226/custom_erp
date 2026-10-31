@@ -507,6 +507,29 @@ func claimJobs(schema string, limit int) ([]Job, error) {
 	return claimed, nil
 }
 
+// jobMaxBackoff caps a retry's wait (Stage 49.10.5). The doubling overflowed
+// a 64-bit duration from the 30th attempt to a negative wait (a time in the
+// past), so a job allowed that many attempts would be retried on every tick -
+// a storm - instead of ever more slowly. max_attempts is 5 by default; the
+// cap keeps any larger setting bounded too.
+const jobMaxBackoff = time.Hour
+
+// jobRetryBackoff is the wait before attempt n+1 after n failed attempts:
+// 30 s doubling each time, never more than jobMaxBackoff.
+func jobRetryBackoff(attempts int) time.Duration {
+	if attempts < 1 {
+		attempts = 1
+	}
+	backoff := jobBaseBackoff
+	for i := 1; i < attempts && backoff < jobMaxBackoff; i++ {
+		backoff *= 2
+	}
+	if backoff > jobMaxBackoff {
+		backoff = jobMaxBackoff
+	}
+	return backoff
+}
+
 func finishJob(schema string, job Job, result map[string]interface{}, jobErr error) {
 	if jobErr == nil {
 		resultBytes, merr := json.Marshal(result)
@@ -551,7 +574,7 @@ func finishJob(schema string, job Job, result map[string]interface{}, jobErr err
 	// Exponential backoff: 30s, 60s, 120s, ... - the same "cheap, bounded,
 	// no external scheduling library" shape as every other retry loop in
 	// this codebase.
-	backoff := jobBaseBackoff * time.Duration(1<<uint(nextAttempts-1))
+	backoff := jobRetryBackoff(nextAttempts)
 	_, err := db.DB.Exec(fmt.Sprintf(`
 		UPDATE %s.async_jobs SET status = 'Pending', attempts = $1, last_error = $2, next_attempt_at = CURRENT_TIMESTAMP + $3, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $4 AND status = 'Leased'`, schema), nextAttempts, errMsg, fmt.Sprintf("%d seconds", int(backoff.Seconds())), job.ID)

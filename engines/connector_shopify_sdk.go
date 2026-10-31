@@ -824,9 +824,10 @@ const shopifyWebhookCreateMutation = `mutation create($topic: WebhookSubscriptio
 
 const shopifyWebhookDeleteMutation = `mutation del($id: ID!) { webhookSubscriptionDelete(id: $id) { userErrors { field message } } }`
 
-// RegisterWebhooks points every topic at callback: subscriptions already on
-// it are replaced ("Register again"), others' are left alone.
-func (shopifySDKConnector) RegisterWebhooks(ctx context.Context, cred map[string]string, callback string) ([]string, error) {
+// shopifyHooksAt lists the shop's webhook subscriptions pointing at callback
+// (compared without its query string) and deletes them: how many went, and
+// the error of any the shop refused to delete.
+func shopifyHooksAt(ctx context.Context, cred map[string]string, callback string) (removed int, refused error, err error) {
 	var list struct {
 		Subs struct {
 			Edges []struct {
@@ -841,15 +842,46 @@ func (shopifySDKConnector) RegisterWebhooks(ctx context.Context, cred map[string
 		} `json:"webhookSubscriptions"`
 	}
 	if err := shopifyGQL(ctx, cred, shopifyWebhooksQuery, nil, &list); err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 	base := strings.SplitN(callback, "?", 2)[0]
 	for _, e := range list.Subs.Edges {
 		if strings.SplitN(e.Node.Endpoint.CallbackURL, "?", 2)[0] == base {
-			if err := shopifyGQL(ctx, cred, shopifyWebhookDeleteMutation, map[string]interface{}{"id": e.Node.ID}, nil); err != nil {
-				return nil, err
+			var out struct {
+				Delete struct {
+					UserErrors []shopifyUserError `json:"userErrors"`
+				} `json:"webhookSubscriptionDelete"`
 			}
+			if err := shopifyGQL(ctx, cred, shopifyWebhookDeleteMutation, map[string]interface{}{"id": e.Node.ID}, &out); err != nil {
+				return removed, refused, err
+			}
+			if uerr := shopifyUserErrors(out.Delete.UserErrors, "removing the "+e.Node.Topic+" webhook"); uerr != nil {
+				refused = uerr
+				continue
+			}
+			removed++
 		}
+	}
+	return removed, refused, nil
+}
+
+// DeregisterWebhooks (49.8.5) removes the subscriptions pointing at callback -
+// Disconnect's cleanup at the shop; another app's are left alone.
+func (shopifySDKConnector) DeregisterWebhooks(ctx context.Context, cred map[string]string, callback string) (int, error) {
+	removed, refused, err := shopifyHooksAt(ctx, cred, callback)
+	if err == nil {
+		err = refused
+	}
+	return removed, err
+}
+
+// RegisterWebhooks points every topic at callback: subscriptions already on
+// it are replaced ("Register again"), others' are left alone.
+func (shopifySDKConnector) RegisterWebhooks(ctx context.Context, cred map[string]string, callback string) ([]string, error) {
+	// A subscription the shop will not delete is replaced by the new one
+	// anyway, so only a failed call stops the registration.
+	if _, _, err := shopifyHooksAt(ctx, cred, callback); err != nil {
+		return nil, err
 	}
 	done := []string{}
 	for _, topic := range ShopifyWebhookTopics {

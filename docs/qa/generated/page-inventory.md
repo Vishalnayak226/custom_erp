@@ -13,8 +13,8 @@ Stage 135.5. Each front-end file, the screens the shell routes to it, and each A
 |---|---|
 | Front-end files with screens or API calls | 80 |
 | Screens in the shell registry | 67 |
-| File-to-route actions | 917 |
-| Registered `/api` routes | 855 |
+| File-to-route actions | 920 |
+| Registered `/api` routes | 856 |
 | Routes no front-end file calls | 187 |
 | Calls matching no route | 2 |
 
@@ -796,6 +796,7 @@ Owners: M02, M14. Live inspection: not recorded.
 | GET | `/api/v1/inventory/item-setup` | `handleGetItemSetup` |  | signed-in: doc.default | every signed-in role |
 | POST | `/api/v1/inventory/material-requests` | `handleCreateMaterialRequest` | inventory | signed-in: inventory.default | every signed-in role |
 | POST | `/api/v1/inventory/mrp-changes` | `handleCreateMRPChange` | inventory | signed-in: inventory.default | every signed-in role |
+| GET | `/api/v1/inventory/stock` | `handleInventoryStock` | inventory | signed-in: inventory.default | every signed-in role |
 | POST | `/api/v1/inventory/treatment-correction/apply` | `handleTreatmentCorrectionApply` |  | signed-in: doc.default | every signed-in role |
 | POST | `/api/v1/inventory/treatment-correction/preview` | `handleTreatmentCorrectionPreview` |  | signed-in: doc.default | every signed-in role |
 
@@ -937,6 +938,7 @@ Owners: M12, M13, M28. Live inspection: not recorded.
 
 | Method | Route | Handler | Gate | Capability | Roles |
 |---|---|---|---|---|---|
+| GET | `/api/v1/availability` | `handleGetAvailability` |  | signed-in: availability.default | every signed-in role |
 | GET | `/api/v1/doc/{doctype}/meta` | `handleGetDocTypeMeta` |  | signed-in: doc.default | every signed-in role |
 | ANY | `/api/v1/doc/{doctype}/{id}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
 | ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
@@ -1237,6 +1239,7 @@ Owners: M25, M26. Live inspection: not recorded.
 | GET | `/api/v1/doc/{doctype}/meta` | `handleGetDocTypeMeta` |  | signed-in: doc.default | every signed-in role |
 | ANY | `/api/v1/doc/{doctype}/{id}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
 | ANY | `/api/v1/doc/{doctype}` | `handleGenericDoc` |  | signed-in: doc.default | every signed-in role |
+| GET | `/api/v1/inventory/stock` | `handleInventoryStock` | inventory | signed-in: inventory.default | every signed-in role |
 | GET | `/api/v1/pim/media/{id}/thumbnail` | `handlePIMMediaThumbnail` | pim | signed-in: pim.default | every signed-in role |
 | GET | `/api/v1/reports/catalog` | `handleReportCatalog` | reports | signed-in: reports.default | every signed-in role |
 | GET | `/api/v1/reports/current-stock` | `handleCurrentStockReport` | reports | signed-in: reports.default | every signed-in role |
@@ -1528,7 +1531,7 @@ Owners: M08–M11. Live inspection: not recorded.
 | GET | `/api/v1/wms/labor/plan` | `handleLaborPlan` | wms | signed-in: wms.default | every signed-in role |
 | GET | `/api/v1/wms/labor/standard-preview` | `handleLaborStandardPreview` | wms | signed-in: wms.default | every signed-in role |
 
-No screen and no API call: `charts.js`, `db.js`, `print-pdf.js`, `qrcode.min.js`, `store/sw.js`, `templates-page.js`, `theme-boot.js`, `view-crm-messaging.js`, `view-crm-sales.js`, `view-crm-service.js`, `view-document-links.js`.
+No screen and no API call: `charts.js`, `db.js`, `print-pdf.js`, `store/sw.js`, `templates-page.js`, `theme-boot.js`, `view-crm-messaging.js`, `view-crm-sales.js`, `view-crm-service.js`, `view-document-links.js`.
 
 ## Screens missing an owner or a help article
 

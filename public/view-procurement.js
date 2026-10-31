@@ -47,8 +47,9 @@ async function renderApprovalsView(container) {
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   // Stage 139.6e: tick rows to decide them together. A password reset is
-  // decided alone - its one-time password shows only to whoever approves it.
-  const bulkable = item => item.doctype !== 'PasswordResetRequest';
+  // decided alone - its one-time password shows only to whoever approves it -
+  // and so is a client's reset or purge (49.10.6b).
+  const bulkable = item => item.doctype !== 'PasswordResetRequest' && item.doctype !== 'ClientDataRemoval';
   let html = `
     <div class="bulk-edit-bar hidden" id="appr-bulk" style="padding:10px 16px;margin:0;">
       <span id="appr-bulk-count"></span>
@@ -359,7 +360,7 @@ async function renderPurchaseOrdersView(container) {
       <tbody>
   `;
   if (orders.length === 0) {
-    html += `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No purchase orders yet. Click <b>+ New Purchase Order</b>, add a vendor and at least one item, then <b>Create Draft</b>.</td></tr>`;
+    html += `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No purchase orders yet.</td></tr>`;
   }
   orders.forEach(po => {
     const statusBadge = po.status === 'Approved' ? 'badge-success'
@@ -494,7 +495,7 @@ window.showPOBalance = async function(poId) {
         ${rec.status === 'Approved' && totalOpen > 0 ? `
         <div class="table-panel" style="padding: 12px;">
           <b>Short-close the open balance</b>
-          <p style="margin: 4px 0 8px; color: var(--text-muted);">Rejected units stay open for the vendor to replace. If no replacement is coming, close the remaining ${n(totalOpen)} unit(s): the PO closes, takes no more receipts, and any rejected or damaged goods still held go on a Draft purchase return (the claim).</p>
+          <p style="margin: 4px 0 8px; color: var(--text-muted);">Closes ${n(totalOpen)} open unit(s); the PO takes no more receipts.</p>
           ${reasons.length ? `<div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
             <div class="form-group" style="margin: 0;"><label class="form-label" for="po-sc-reason">Reason</label>
               <select id="po-sc-reason" class="form-select"><option value="">Choose a reason...</option>${reasons.map(r => `<option value="${escapeHTMLText(r.id)}">${escapeHTMLText(r.code || r.id)}${r.description ? ` - ${escapeHTMLText(r.description)}` : ''}</option>`).join('')}</select></div>
@@ -806,7 +807,7 @@ async function poEntrySearch(q) {
     const rows = res && res.ok ? await res.json() : [];
     return Array.isArray(rows) ? rows : [];
   };
-  const [names, items] = await Promise.all([list('ItemName', 'name,code', 5), list('Item', 'name,code,barcode', 8)]);
+  const [names, items] = await Promise.all([list('ItemName', 'name,code', 5), list('Item', 'name,code,barcode,parent_product_code,family', 8)]);
   return [...names.map(doc => ({ ...doc, _group: PO_ENTRY_NAMES })), ...items.map(doc => ({ ...doc, _group: PO_ENTRY_ITEMS }))];
 }
 
@@ -1018,7 +1019,7 @@ function renderPOLines() {
   body.querySelectorAll('[data-po-line]').forEach(tr => {
     const i = Number(tr.getAttribute('data-po-line'));
     const skuInput = tr.querySelector('[data-po-field="sku"]');
-    attachLinkTypeahead(skuInput, 'Item', { filters: { q_fields: 'name,code,barcode' } });
+    attachLinkTypeahead(skuInput, 'Item', { filters: { q_fields: 'name,code,barcode,parent_product_code,family' } }); // 147.2: the PO also by name
     tr.querySelectorAll('[data-po-field]').forEach(input => {
       const field = input.getAttribute('data-po-field');
       const commit = () => {
@@ -1348,7 +1349,7 @@ function renderPOEntryAttrs() {
     </div>
     ${otherAttrs.length ? `<div class="po-design-row">${otherAttrs.map(a => `
       <div class="form-group"><label class="form-label">${escapeHTMLText(a.label)}</label><input type="${a.value_type === 'Number' ? 'number' : a.value_type === 'Date' ? 'date' : 'text'}" class="form-input" style="width:150px;" data-pod-typed="${escapeHTMLText(a.code)}" value="${escapeHTMLText(d.typed[a.code] || '')}"></div>`).join('')}</div>` : ''}
-    ${selectAttrs.length === 0 && otherAttrs.length === 0 ? `<p class="text-muted">No product attributes yet.${canAddAttr ? ' Add one with <b>+ Attribute</b> below (e.g. <i>Colour</i> with <i>Gold</i>).' : ' Ask an administrator to add them under Setup &rarr; Item Attribute.'}</p>` : ''}
+    ${selectAttrs.length === 0 && otherAttrs.length === 0 ? `<p class="text-muted">No product attributes yet.</p>` : ''}
     <div class="table-wrapper">
       <table class="po-lines pod-variants">
         <thead><tr>${selectAttrs.map(a => `<th>${escapeHTMLText(a.label)}</th>`).join('')}${selectAttrs.length ? '' : '<th>Item</th>'}<th class="num" style="width:90px;">Qty</th><th class="num" style="width:120px;">Purchase price</th><th class="num" style="width:110px;">MRP</th>${d.loaded ? '<th>Combination ID</th>' : ''}<th style="width:36px;"></th></tr></thead>
@@ -1372,7 +1373,6 @@ function renderPOEntryAttrs() {
         <input type="text" class="form-input" id="pod-new-attr-value" placeholder="first value, e.g. Ruby">
         <button type="button" class="btn btn-outline btn-sm" id="pod-new-attr-add">+ Attribute</button>
       </span>` : ''}
-      <span class="text-muted">Price and MRP come from the row above; change any one here. Qty is per variant.</span>
     </div>
   `;
 
@@ -1811,7 +1811,7 @@ function renderPOSupplyBanner() {
 
   if (!pos || (!pos.derived && !d.vendor && !d.location)) {
     el.className = 'po-supply-banner po-supply-idle';
-    el.innerHTML = `<span>Pick a vendor and a billing address &mdash; the supply type is worked out from their states.</span>`;
+    el.innerHTML = `<span>Supply type: pick a vendor and billing address.</span>`;
     return;
   }
 
@@ -2521,7 +2521,7 @@ async function renderGRNWorkbenchView(container) {
       <tbody>
   `;
   if (grns.length === 0) {
-    html += `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No goods receipts yet. Click <b>+ New Goods Receipt</b>, add an approved Purchase Order with <b>Add PO &amp; Load Items</b>, then <b>Post Receipt</b>.</td></tr>`;
+    html += `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No goods receipts yet.</td></tr>`;
   }
   // Newest first (the list API returns creation order), so a receipt just
   // posted - and the notes it raised - is the row at the top.
@@ -2901,8 +2901,8 @@ function renderGRNTotals() {
   // Stage 94: nothing is settled here - Verify sets what was really received
   // and at what price, and the note is invoice total against that.
   if (notesEl) notesEl.innerHTML = `
-      ${up > 0.004 || down > 0.004 ? `<span class="text-muted">Invoice prices differ from the PO on some lines. Verify (next step) settles what you pay; any difference to the invoice becomes a debit or credit note.</span>` : '<span class="text-muted">Invoice prices match the PO.</span>'}
-      ${gapBad ? `<span class="grn-gap-note">The bill's total and the items below do not add up (${formatMoney(Math.abs(gap))} ${gap < 0 ? 'less' : 'more'} than the items). Check the total you typed against the bill, then each line's invoice qty and rate. Verify waits until they match.</span>` : ''}
+      ${up > 0.004 || down > 0.004 ? `<span class="text-muted">Invoice prices differ from the PO on some lines.</span>` : '<span class="text-muted">Invoice prices match the PO.</span>'}
+      ${gapBad ? `<span class="grn-gap-note">The bill's total and the items do not add up (${formatMoney(Math.abs(gap))} ${gap < 0 ? 'less' : 'more'} than the items). Verify waits until they match.</span>` : ''}
       ${billMismatch.length ? `<span class="grn-gap-note">Invoice qty is not the accepted qty on ${billMismatch.map(escapeHTMLText).join(', ')}. Check the vendor's invoice before saving.</span>` : ''}
       ${excessLines.length ? `<span class="text-muted">More than the PO arrived on ${excessLines.map(escapeHTMLText).join(', ')}. Keep or return is decided at Verify.</span>` : ''}`;
 }
@@ -3644,7 +3644,7 @@ async function renderASNView(container) {
       <tbody>
   `;
   if (asns.length === 0) {
-    html += `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No ASNs yet. Click <b>+ New ASN</b> to record a shipment your vendor has despatched.</td></tr>`;
+    html += `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No ASNs yet.</td></tr>`;
   }
   asns.forEach(a => {
     let lines = [];
@@ -3844,9 +3844,6 @@ async function renderPurchaseReturnsView(container) {
           <input type="text" id="prt-reason" class="form-input" placeholder="${reasonPicker ? 'note (optional)' : 'e.g. wrong size supplied, QC rejected'}" autocomplete="off" aria-label="Reason for return, note">
         </div>
       </div>
-      <div class="txn-hint"><span>Send goods back to the vendor against the GRN they arrived on. ${approvalRequired
-        ? 'Returns need approval before they can be posted.'
-        : 'Saved as a Draft; posting takes the stock out and raises the vendor\'s debit note.'}</span></div>
       <div class="txn-grid"><div id="prt-lines" class="txn-empty">Choose a GRN to see what can be returned.</div></div>
     </div>
 
@@ -3856,7 +3853,7 @@ async function renderPurchaseReturnsView(container) {
           <thead><tr><th>Return #</th><th>GRN</th><th>Vendor</th><th>Reason</th><th>Value (ex-GST)</th><th>Debit Note</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>
             ${returns.length === 0
-              ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No purchase returns yet. Click <b>+ New Purchase Return</b> and choose a GRN to raise one.</td></tr>`
+              ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No purchase returns yet.</td></tr>`
               : returns.map(r => `
                 <tr>
                   <td style="font-family: monospace;">${escapeHTMLText(r.code || r.id)}</td>
@@ -3931,7 +3928,7 @@ async function loadPurchaseReturnLines(grnID) {
   }
   linesEl.className = '';
   linesEl.innerHTML = `
-    <div class="txn-hint prt-context">Vendor <b data-link-doctype="Vendor" data-link-ref="${escapeHTMLText(prtContext.vendor_id || '')}">${escapeHTMLText(prtContext.vendor_id || '-')}</b>, returning from <b data-link-doctype="Location" data-link-ref="${escapeHTMLText(prtContext.location || '')}">${escapeHTMLText(prtContext.location || '-')}</b>. Enter the quantity going back on each line.</div>
+    <div class="txn-hint prt-context">Vendor <b data-link-doctype="Vendor" data-link-ref="${escapeHTMLText(prtContext.vendor_id || '')}">${escapeHTMLText(prtContext.vendor_id || '-')}</b>, returning from <b data-link-doctype="Location" data-link-ref="${escapeHTMLText(prtContext.location || '')}">${escapeHTMLText(prtContext.location || '-')}</b>.</div>
     <table>
       <thead><tr><th>SKU</th><th>Lot</th><th>Stock</th><th>Received</th><th>Returned</th><th>On open returns</th><th>Can return</th><th>Unit cost (ex-GST)</th><th>Return qty</th></tr></thead>
       <tbody>

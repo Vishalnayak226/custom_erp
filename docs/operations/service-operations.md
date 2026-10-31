@@ -60,6 +60,8 @@ Verify the release on an isolated representative fixture; run the migration sequ
 
 Use the existing deployment/migration tooling from [deployment](../../deploy/README.md). Apply the reviewed migrations in order, record results, start the intended artifact and verify readiness, identity/tenant access, a reconciled business smoke test, jobs and backup monitoring. Watch the agreed observation window before customer acceptance.
 
+**Release binary signature (49.10.6b.3).** The production deploy signs the server binary on the release machine (ed25519, key `%USERPROFILE%\.erp-release\signing.key`, never in the repository) and `deploy/remote_deploy.sh` checks it with the server's openssl against the pinned public key `/etc/erp/release-signing.pub` before the new binary first runs (its migration). No signature, a changed binary or another key ends the deploy as `DEPLOY-REFUSED` with nothing run or swapped; the refused file stays as `erp-server.failed-unsigned-<time>` for inspection. The first signed deploy pins the key it brings; replacing the key is a by-hand step on the server. The key file is a release secret: back it up off the machine, and treat its loss like a lost signing certificate (restore the copy; a new key needs the server's pin replaced). Details: `release/README.md` (gate D0c / D3) and the Administrator Guide §C.2.
+
 ### Rollback decision
 
 Stop further release actions when an acceptance gate fails. Compare the failure with the pre-approved rollback triggers and compatibility assessment. Reverting a binary is safe only when the current schema and newly written data remain compatible. Do not undo additive migrations or restore a database casually: that can discard valid business activity and external outcomes.

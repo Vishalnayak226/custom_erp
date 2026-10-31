@@ -169,7 +169,7 @@ func init() {
 			{Value: SelfApprovalAdmins, Label: "Admins only"},
 			{Value: SelfApprovalNobody, Label: "Nobody - someone else always decides"},
 		},
-		Description: "Whether the person who submitted a document (a PO, a requisition, a voucher...) can approve or reject it themselves. They still need the role the approval rule names. Each one is marked \"decided by the submitter\" in the approval history and the audit log. A Super Admin's password reset and a second-admin treatment correction always need a second admin.",
+		Description: "Whether the person who submitted a document (a PO, a requisition, a voucher...) can approve or reject it themselves. They still need the role the approval rule names. Each one is marked \"decided by the submitter\" in the approval history and the audit log. A Super Admin's password reset and a second-admin treatment correction always need a second admin. A new client starts at Nobody.",
 	})
 	RegisterSetting(SettingDefinition{
 		Key: "security.loyalty_otp_validity_minutes", Module: "Security",
@@ -647,7 +647,10 @@ func registerStage282Settings() {
 	})
 	RegisterSetting(SettingDefinition{
 		Key: "platform.import_file_retention_days", Module: "Platform",
-		Label: "Import file retention", Type: SettingTypeInt, Default: "30", Unit: "days",
+		// Default 0 (keep everything) until the client picks a value: a release
+		// never starts deleting client data by itself (flagged by erp-6b,
+		// shipped as 30 in 0.20.0).
+		Label: "Import file retention", Type: SettingTypeInt, Default: "0", Unit: "days",
 		Min: settingBound(0), Max: settingBound(3650),
 		Description: "How long raw import files are kept: the CSVs a scheduled import moved into its drop folder's imported/ and failed/ subfolders, and an import job's stored failed rows and error file (its counts, totals and source lineage stay). Swept hourly (Stage 47.18.3). 0 keeps everything (a hold).",
 	})

@@ -47843,6 +47843,90 @@
       "number": "R5083"
     },
     {
+      "id": "threshold-splitting",
+      "label": "Threshold splitting",
+      "category": "Finance",
+      "module_key": "finance",
+      "columns": [
+        {
+          "key": "day",
+          "label": "Day",
+          "sensitive": false
+        },
+        {
+          "key": "user",
+          "label": "User",
+          "sensitive": false
+        },
+        {
+          "key": "doctype",
+          "label": "Record type",
+          "sensitive": false
+        },
+        {
+          "key": "location",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "sensitive": false
+        },
+        {
+          "key": "count",
+          "label": "Records",
+          "sensitive": false
+        },
+        {
+          "key": "total",
+          "label": "Together",
+          "sensitive": false
+        },
+        {
+          "key": "over_limit",
+          "label": "Together over limit",
+          "sensitive": false
+        },
+        {
+          "key": "documents",
+          "label": "Record numbers",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From (default 30 days ago)",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To (default today)",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "band_pct",
+          "label": "Within % under the limit (default 10)",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "min_count",
+          "label": "At least this many a day (default 2)",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Is anyone splitting work to stay under an approval limit?",
+      "description": "Days one user made several records just under an approval limit (Approval Rules) - POs, till discounts, redemptions, refunds.",
+      "number": "R5087"
+    },
+    {
       "id": "batch-near-expiry",
       "label": "Batch Near-Expiry Watchlist",
       "category": "WMS",

@@ -46,8 +46,7 @@ export async function renderReprintView(container) {
         <thead><tr><th>When</th><th>Document</th><th>Number</th><th>Store</th><th>How</th><th>By</th><th>Reprint reason</th><th></th></tr></thead>
         <tbody id="rp-rows"><tr><td colspan="8" class="text-muted">Loading…</td></tr></tbody>
       </table>
-    </div>
-    <p class="text-muted" style="margin-top: 12px; font-size: 12.5px;">Labels and barcode stickers are reprinted from Sticker Printing → Print history.</p>`;
+    </div>`;
 
   const q = document.getElementById('rp-q');
   const typeSel = document.getElementById('rp-doctype');
@@ -88,7 +87,7 @@ async function loadReprintRows() {
       <td style="white-space: nowrap;">${esc(when(r.printed_at))}</td><td>${esc(label(r))}</td><td>${esc(r.number || r.doc_id)}</td>
       <td>${esc(r.store)}</td><td>${esc(r.action)}${r.reprinted && r.action !== 'Reprint' ? ' (again)' : ''}${printRunNote(r)}</td><td>${esc(r.printed_by)}</td><td>${esc(r.reprint_reason || '')}</td>
       <td><button class="action-btn" type="button" data-rp="${i}">Reprint</button></td></tr>`).join('')
-    : '<tr><td colspan="8" class="text-muted">Nothing printed yet matches. A document printed before this list began can still be printed with Print this number.</td></tr>';
+    : '<tr><td colspan="8" class="text-muted">Nothing printed yet matches.</td></tr>';
 }
 
 // printRunNote (Stage 130.16, 74.1.4) is a print run's detail: revision,

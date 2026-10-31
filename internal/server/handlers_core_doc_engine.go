@@ -866,6 +866,16 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 			return
 		}
+		// Stage 49.3.8a: a record is filed under the session's own store - a
+		// new one naming another store is refused, as an update of another
+		// store's record already is (49.4.7, above). Judged on the record as
+		// it will be saved: defaults filled, an update merged with its stored
+		// keys. The bulk uploads replay this save, so they are held too.
+		if named := engines.LocationOutOfScope(doctype, docScope, payload); named != "" {
+			engines.LogAuditEvent(tenantID, userID, "GLOBAL-0011", "Error", fmt.Sprintf("[GLOBAL-0011] save of %s naming store %s refused - session store %q", doctype, named, location))
+			writeAPIErrorDetail(w, r, "GLOBAL-0011", "", engines.LocationOutOfScopeMessage(named, location))
+			return
+		}
 
 		// 2. Server-side metadata validation engine check
 		err = engines.ValidateDocument(tenantID, doctype, payload)

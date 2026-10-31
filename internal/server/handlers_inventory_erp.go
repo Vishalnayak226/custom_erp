@@ -4,30 +4,72 @@ import (
 	"custom_erp/engines"
 	"encoding/json"
 	"net/http"
+	"strconv"
 )
 
 // Stage 88.5: the Inventory module's own routes - its dashboard and the MRP
 // Change document, behind the inventory module gate (as Consumption is); each
 // write is checked against its doctype's create right.
 
+// inventoryStore is the store an inventory page reads (Stage 145.2, user
+// 2026-10-31: "Store is already selected in the top it will wired to stores
+// inventory"): the top-bar store whenever lists follow it (Stage 106.6), else
+// the ?location= asked for, "" = every store. The second value is the
+// top-bar store, "" under "All stores".
+func inventoryStore(r *http.Request, asked string) (string, string) {
+	if loc := r.Header.Get("Resolved-Location"); r.Header.Get("Resolved-Store-View") == engines.StoreViewStore && loc != "" {
+		return loc, loc
+	}
+	return asked, ""
+}
+
 // handleInventoryDashboard is Inventory ▸ Dashboard. Stock value is cost, so a
 // role that may not see cost gets the units without it.
 func handleInventoryDashboard(w http.ResponseWriter, r *http.Request) {
-	out, err := engines.InventoryDashboard(r.Header.Get("Resolved-Tenant-ID"), r.URL.Query().Get("location"))
+	location, store := inventoryStore(r, r.URL.Query().Get("location"))
+	out, err := engines.InventoryDashboard(r.Header.Get("Resolved-Tenant-ID"), location)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to load the inventory dashboard")
 		return
 	}
+	out["store"] = store
 	if !engines.RoleMaySeeCost(r.Header.Get("Resolved-Role")) {
 		delete(out, "total_value")
-		if rows, ok := out["by_location"].([]map[string]interface{}); ok {
-			for _, row := range rows {
-				delete(row, "value")
+		for _, key := range []string{"by_location", "by_item", "by_category"} {
+			if rows, ok := out[key].([]map[string]interface{}); ok {
+				for _, row := range rows {
+					delete(row, "value")
+				}
 			}
 		}
 		out["value_hidden"] = true
 	}
 	_ = json.NewEncoder(w).Encode(out)
+}
+
+// handleInventoryStock is Inventory ▸ Stock on Hand (Stage 145): one page of
+// stock at the top-bar store (every store under "All stores"), each SKU by its
+// design, with the client's attribute columns. ?q= ?limit= ?offset= as
+// /reports/current-stock, which stays the report's own.
+func handleInventoryStock(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	q := r.URL.Query()
+	limit := defaultListLimitFor(tenantID)
+	if v, err := strconv.Atoi(q.Get("limit")); err == nil && v > 0 {
+		limit = v
+	}
+	if max := maxListLimitFor(tenantID); limit > max {
+		limit = max
+	}
+	offset, _ := strconv.Atoi(q.Get("offset"))
+	location, store := inventoryStore(r, q.Get("location"))
+	rows, total, attrs, err := engines.InventoryStockPage(tenantID, engines.CurrentStockFilter{Q: q.Get("q"), Location: location, Limit: limit, Offset: offset})
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to load stock")
+		return
+	}
+	w.Header().Set("X-Total-Count", strconv.Itoa(total))
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"rows": rows, "total": total, "attributes": attrs, "store": store})
 }
 
 // requireCreate answers GLOBAL-0011 unless the role may create the doctype.

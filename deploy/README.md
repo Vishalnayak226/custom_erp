@@ -349,12 +349,22 @@ script via `set -e` with no rollback attempted, or — if the old process was
 still up — get treated as a healthy new deploy when it was really the old
 one still answering). If the new build never comes up healthy under its own
 commit, the script **automatically restores `erp-server.prev`/`public.prev`
-and restarts** — no manual SSH rollback needed. `deploy.ps1` prints one of
-three end states:
+and restarts** — no manual SSH rollback needed.
+
+**Before any of that, the signature (Stage 49.10.6b.3).** `deploy.ps1` signs the
+binary with the release key on the release machine and ships
+`erp-server.new.sig` and `deploy/release-signing.pub` with it;
+`remote_deploy.sh` checks the signature with the box's openssl (OpenSSL 3)
+against `/etc/erp/release-signing.pub` before the new binary runs at all.
+The first signed deploy pins the key it brings. See the Administrator Guide
+§C.2 and `release/README.md` (gate D0c / D3).
+
+`deploy.ps1` prints one of four end states:
 
 | Marker | Meaning |
 |---|---|
 | `Deployed <commit> to <target>.` | New build is live and healthy. |
+| `DEPLOY-REFUSED` (throws) | The binary's release signature is missing, does not match the binary, or is from a key the box does not trust (49.10.6b.3). Nothing ran or was swapped; the binary is kept as `erp-server.failed-unsigned-<time>`. |
 | `DEPLOY-ROLLED-BACK` (throws) | New build failed its health check; the box is back on the previous build and confirmed healthy. Check the `journalctl` tail printed above to see why the new one didn't come up. |
 | `DEPLOY-ROLLBACK-FAILED` (throws) | Worse — the new build failed AND the rollback didn't come back healthy either (or there was no `.prev` snapshot to restore, e.g. the very first deploy to a box). Needs a human on the box immediately. |
 

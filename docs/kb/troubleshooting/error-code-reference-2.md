@@ -2,7 +2,7 @@
 title: Error code reference (part 2)
 section: Troubleshooting
 order: 21
-summary: Error codes for Manufacturing / Production to WMS / Logistics, continued from the error code reference.
+summary: Error codes for Item Master to WMS / Logistics, continued from the error code reference.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -20,11 +20,12 @@ applies_to: source registries; not release acceptance
 # Error code reference (part 2)
 
 This page continues the [error code reference](error-code-reference.md), which
-lists every area and explains how to read a code. It holds **289** codes, from
-Manufacturing / Production to WMS / Logistics.
+lists every area and explains how to read a code. It holds **291** codes, from
+Item Master to WMS / Logistics.
 
 ## Contents
 
+- [Item Master](#item-master) - 2 codes
 - [Manufacturing / Production](#manufacturing-production) - 16 codes
 - [Master Data](#master-data) - 43 codes
 - [Mobile App / Device](#mobile-app-device) - 7 codes
@@ -57,6 +58,13 @@ Manufacturing / Production to WMS / Logistics.
 - [Vendor Invoice / AP](#vendor-invoice-ap) - 4 codes
 - [WMS](#wms) - 1 codes
 - [WMS / Logistics](#wms-logistics) - 3 codes
+
+## Item Master
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `MASTER-1302` | Item release approval: no Item approval rule, or an item waiting for release edited to another status | This item waits for its approval. | Add an Item rule under Settings > Approval Rules if there is none; an item in Draft, Pending Approval or Blocked is released only by its approval. | Medium | 422 |
+| `MASTER-1306` | Scheduled tax change incomplete or malformed (no date, no rate or HSN, rate 0, HSN not 4/6/8 digits) | The scheduled tax change is not complete. | Give the date it applies from and the new GST rate (more than 0), the new HSN code (4, 6 or 8 digits), or both - or clear all three. | Low | 422 |
 
 ## Manufacturing / Production
 

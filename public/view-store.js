@@ -28,7 +28,10 @@ function loadMyStores(fresh) {
       stores = Array.isArray(data.stores) ? data.stores : [];
       canViewAll = !!data.can_view_all;
       viewAll = !!data.view_all;
-      window.erpWorkingStore = stores.find(s => s.code === data.working) || { code: data.working || '', name: data.working || '' };
+      // Stage 145.2: a page with its own store filter (Inventory Ledger) shows
+      // the top-bar store unless the lists show every store.
+      window.erpStoreViewAll = viewAll;
+      window.erpWorkingStore =stores.find(s => s.code === data.working) || { code: data.working || '', name: data.working || '' };
       return data;
     });
   }

@@ -41,7 +41,7 @@
       <form id="password-change-form" class="hidden" novalidate>
         <p class="login-subtitle">Set your own password</p>
         <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
-          The password you signed in with was set by an administrator. Choose your own to continue.
+          Set your own password to continue.
         </p>
         <div class="form-group">
           <label class="form-label" for="pwchange-current">Password you signed in with</label>
@@ -64,7 +64,7 @@
       <div id="mfa-enroll-screen" class="hidden">
         <p class="login-subtitle">Set up two-factor authentication</p>
         <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
-          This role requires an authenticator app (Google Authenticator, Authy, etc). Add an account using the code below, then enter the 6-digit code it shows.
+          Add the code to your authenticator app, then enter its 6-digit code.
         </p>
         <div class="form-group">
           <label class="form-label">Manual entry code</label>
@@ -104,7 +104,7 @@
       <div id="mfa-recovery-screen" class="hidden">
         <p class="login-subtitle">Save your recovery codes</p>
         <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
-          Each code signs you in once if you lose your phone. <strong>They are shown only now</strong> &mdash; store them somewhere safe and away from your phone.
+          Each code works once. <strong>Shown only now</strong> - save them.
         </p>
         <pre id="mfa-recovery-codes" class="recovery-code-list"></pre>
         <div style="display: flex; gap: 8px; margin-bottom: 12px;">
@@ -354,7 +354,22 @@
             </svg>
           </a>
           <ul class="menu-flyout">
-            <li><a class="menu-item" id="menu-hr"><span>HR</span></a></li>
+            <!-- Stage 151: each HR page is its own entry ("hr:<tab>"), like PIM's (88.1.6). -->
+            <li class="submenu-group-label" role="presentation">My work</li>
+            <li><a class="menu-item" id="menu-hr" data-go="hr:my-requests"><span>My Requests</span></a></li>
+            <li class="submenu-group-label" role="presentation">Team</li>
+            <li><a class="menu-item" id="menu-hr-attendance" data-go="hr:attendance" data-like="menu-hr"><span>Attendance</span></a></li>
+            <li><a class="menu-item" id="menu-hr-leave" data-go="hr:leave" data-like="menu-hr"><span>Leave</span></a></li>
+            <li><a class="menu-item" id="menu-hr-roster" data-go="hr:roster" data-like="menu-hr"><span>Shift Roster</span></a></li>
+            <li class="submenu-group-label" role="presentation">HR administration</li>
+            <li><a class="menu-item" id="menu-hr-payroll" data-go="hr:payroll" data-like="menu-hr"><span>Payroll</span></a></li>
+            <li><a class="menu-item" id="menu-hr-payroll-export" data-go="hr:payroll-export" data-like="menu-hr"><span>Payroll Export</span></a></li>
+            <li><a class="menu-item" id="menu-hr-loans" data-go="hr:loans" data-like="menu-hr"><span>Loans/Advances</span></a></li>
+            <li><a class="menu-item" id="menu-hr-onboarding" data-go="hr:onboarding" data-like="menu-hr"><span>Onboarding/Offboarding</span></a></li>
+            <li><a class="menu-item" id="menu-hr-appraisals" data-go="hr:appraisals" data-like="menu-hr"><span>Appraisals</span></a></li>
+            <li><a class="menu-item" id="menu-hr-training" data-go="hr:training" data-like="menu-hr"><span>Training</span></a></li>
+            <li><a class="menu-item" id="menu-hr-grievances" data-go="hr:grievances" data-like="menu-hr"><span>Grievances</span></a></li>
+            <li class="submenu-group-label" role="presentation">Assets &amp; expenses</li>
             <li><a class="menu-item" id="menu-assets"><span>Fixed Assets</span></a></li>
             <li><a class="menu-item" id="menu-expenses"><span>Expenses</span></a></li>
           </ul>
@@ -628,7 +643,7 @@
             <label class="form-label" for="add-field-name">Field Name (Technical Identifier)</label>
             <input type="text" class="form-input" id="add-field-name" placeholder="e.g. material_weight" autocomplete="off" required>
             <div class="empty-state-hint hidden" id="add-field-rename-warning">
-              Renaming a field changes which key the form reads from each saved record. Data stored under the old name is not deleted &mdash; it simply stops being shown until the old name is restored.
+              Renaming hides data saved under the old name.
             </div>
           </div>
           <div class="form-group">
@@ -709,9 +724,6 @@
       </div>
       <form id="import-modal-form" data-act="handleBulkImportSubmit" data-act-on="submit" data-act-args="[&quot;$event&quot;]">
         <div class="modal-body">
-          <p style="margin-bottom: 12px; font-size:13px; line-height: 1.5; color: var(--text-muted);">
-            Download the structured CSV template containing header validation configurations, edit it with records data, and select/upload the file below.
-          </p>
           <div style="margin-bottom: 16px;">
             <button type="button" class="btn btn-secondary btn-sm" data-act="downloadImportTemplate">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -796,7 +808,7 @@
   <!-- 21.14: this app's first Web Component - plain <script>, no build
        step, registers <erp-typeahead> globally before app.js runs. -->
   <script src="/components/erp-typeahead.js?v=1"></script>
-  <script src="/app.js?v=71"></script>
+  <script src="/app.js?v=72"></script>
   <!-- 31.1: QZ Tray bridge for silent printing. Loaded after app.js because
        it calls apiFetch() for the certificate and per-request signature. -->
   <script src="/qz-print.js?v=2"></script>

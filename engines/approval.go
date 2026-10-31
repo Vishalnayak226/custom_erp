@@ -294,6 +294,10 @@ const (
 	SelfApprovalAnyone  = "anyone" // the default (the user, 2026-10-18: "Any one approve. Its ok.")
 	SelfApprovalAdmins  = "admins"
 	SelfApprovalNobody  = "nobody"
+	// NewClientSelfApproval (Stage 49.10.6b) is what a client provisioned
+	// from then on starts with (ProvisionTenantSchema saves it); clients that
+	// existed before keep their choice, or the default above.
+	NewClientSelfApproval = SelfApprovalNobody
 )
 
 // SubmitterMayDecideOwn reports whether a submitter in this role may decide

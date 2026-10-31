@@ -564,19 +564,19 @@ Reached via the **Stock** flyout → **Sticker Printing**.
 
 ## 23. HR
 
-Reached via the **HRM** flyout → **HR**. Tabs along the top: **Attendance**, **Leave**, **Payroll Export**, **Shift Roster**, **Payroll**, **Loans/Advances**, **Onboarding/Offboarding**, **Appraisals**, **Training**, **Grievances**, **My Requests**. Each tab that records something opens on its list with a **+ New …** button (§1): **+ Mark Attendance**, **+ Apply Leave**, **+ Run Payroll**, **+ New Loan/Advance**, and on **My Requests** **+ Request Leave**, **+ Expense Claim** and **+ Grievance**.
+Each HR page is its own entry in the **HRM** flyout: **My Requests**, **Attendance**, **Leave**, **Shift Roster**, **Payroll**, **Payroll Export**, **Loans/Advances**, **Onboarding/Offboarding**, **Appraisals**, **Training**, **Grievances**. Each page that records something opens on its list with a **+ New …** button (§1): **+ Mark Attendance**, **+ Apply Leave**, **+ Run Payroll**, **+ New Loan/Advance**, and on **My Requests** **+ Request Leave**, **+ Expense Claim** and **+ Grievance**.
 
-### 23.1 Attendance tab
+### 23.1 Attendance
 
 1. Click **+ Mark Attendance**. Pick an **Employee**, a **Date**, a **Location**, and a **Status** (Present/Absent/Late/Leave/Holiday/WeeklyOff). **Attendance Code** is issued on save (see §1).
 2. Click **Save**. You're back on the attendance list with the new record on it.
 
-### 23.2 Leave tab
+### 23.2 Leave
 
 1. Click **+ Apply Leave**, fill in **Employee**, **Leave Type** (Casual/Sick/Earned/Unpaid), **From**/**To Date**, and **Days**, then click **Apply**. It starts **Applied** and you're back on the leave list. **Leave Code** is issued on save (see §1).
 2. If you have approval rights, an **Applied** leave request shows **Approve** and **Reject** buttons right in the list — click one to decide it directly (no separate Approvals-screen trip needed for this particular doctype).
 
-### 23.3 Payroll Export tab
+### 23.3 Payroll Export
 
 1. Pick a **From** and **To** date, click **Export**.
 2. A table shows, per employee: Present Days, Absent Days, Late Days, and Approved Leave Days for that period — ready to hand to payroll.

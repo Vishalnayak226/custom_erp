@@ -303,6 +303,12 @@ func runDocDataImportContext(ctx context.Context, tenantID, doctype, userID, rol
 	if err != nil {
 		return nil, err
 	}
+	// Stage 49.3.8a: an operator's rows are filed under their own store, as
+	// a record saved on screen is (LocationOutOfScope). The system paths (no
+	// role) have no store to hold them to.
+	if role != "" {
+		lk.session = &SessionScope{Role: role, UserID: userID, LocationCode: SessionStoreFromContext(ctx)}
+	}
 	// Stage 47.13.3: the file's Number columns, read before validation
 	// touches a row.
 	result.controls = newImportControls(lk.validation.fields, docRows)
@@ -367,6 +373,7 @@ type importLookups struct {
 	isMasterErr    error
 	itemDefaults   *ItemDefaultsMemo // Stage 89: one import's item-name / category lookups
 	rules          importWriteRules
+	session        *SessionScope // 49.3.8a: the operator's store; nil on a system path
 }
 
 // importWriteRules (Stage 49.3.4 / 49.3.5) are what the file's rows may do to
@@ -801,6 +808,14 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 		// permissions, create or update); from here on it is the merged record.
 		sentStatus := strings.TrimSpace(strField(docData, "status"))
 		docData = mergedRows[i]
+		// Stage 49.3.8a: a row for another store - a new record, or a stored
+		// record of another store merged above - is refused, as on screen.
+		if lk.session != nil {
+			if named := LocationOutOfScope(doctype, *lk.session, docData); named != "" {
+				recordImportError(result, rowNumber, LocationOutOfScopeMessage(named, lk.session.LocationCode))
+				continue
+			}
+		}
 
 		// Stage 51.8: an imported Item under a parent design gets its variant
 		// values and the duplicate-combination check exactly as the

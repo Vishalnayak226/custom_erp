@@ -33,8 +33,9 @@ func reportSQLLimit(tenantID string) int {
 }
 
 // CurrentStockFilter is one page of current stock (134.6): Q matches part of
-// the SKU or the location code, Location narrows to one location; the filter,
-// the count and the page are all done in SQL.
+// the SKU or the location code - or, since Stage 145, of the item's name,
+// barcode or design - Location narrows to one location; the filter, the count
+// and the page are all done in SQL.
 type CurrentStockFilter struct {
 	Q        string
 	Location string
@@ -49,9 +50,15 @@ func GetCurrentStockPage(tenantID string, f CurrentStockFilter) ([]map[string]in
 		return nil, 0, err
 	}
 	where, args := "TRUE", []interface{}{}
-	if q := strings.ToLower(strings.TrimSpace(f.Q)); q != "" {
+	// A NUL in the search text is refused by Postgres (22021) - a 500 the
+	// release DAST found on Stock on Hand (Stage 145); it can match nothing.
+	if q := strings.ToLower(strings.TrimSpace(strings.ReplaceAll(f.Q, "\x00", ""))); q != "" {
 		args = append(args, "%"+q+"%")
-		where += fmt.Sprintf(" AND (LOWER(sku) LIKE $%d OR LOWER(location_code) LIKE $%[1]d)", len(args))
+		where += fmt.Sprintf(` AND (LOWER(sku) LIKE $%[1]d OR LOWER(location_code) LIKE $%[1]d OR sku IN (
+			SELECT v.ref FROM %[2]s.documents d, LATERAL (VALUES (d.id), (d.data->>'code')) v(ref)
+			 WHERE d.doctype = 'Item' AND d.deleted_at IS NULL AND v.ref IS NOT NULL
+			   AND (LOWER(COALESCE(d.data->>'name', '')) LIKE $%[1]d OR LOWER(COALESCE(d.data->>'barcode', '')) LIKE $%[1]d
+			        OR LOWER(COALESCE(NULLIF(d.data->>'family', ''), d.data->>'parent_product_code', '')) LIKE $%[1]d)))`, len(args), schema)
 	}
 	if loc := strings.TrimSpace(f.Location); loc != "" {
 		args = append(args, loc)

@@ -122,6 +122,11 @@ func handlePrintDocument(w http.ResponseWriter, r *http.Request) {
 		writeEngineError(w, r, err, http.StatusNotFound)
 		return
 	}
+	// Stage 130.16 (74.1.4): once issued, the frozen copy, marked a reprint.
+	// 132.24: the CSV / Excel too, so they never differ from the PDF.
+	if issued, err := engines.IssuedPrint(tenantID, doc, firstNonBlank(r.Header.Get("Resolved-Username"), r.Header.Get("Resolved-User-ID"))); err == nil {
+		doc = issued
+	}
 	// Stage 98.1: ?format=csv|xlsx downloads the lines instead.
 	if format != "" {
 		body, name, contentType, err := engines.BuildPrintExport(doc, format)
@@ -133,10 +138,6 @@ func handlePrintDocument(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
 		_, _ = w.Write(body)
 		return
-	}
-	// Stage 130.16 (74.1.4): once issued, the frozen copy, marked a reprint.
-	if issued, err := engines.IssuedPrint(tenantID, doc, firstNonBlank(r.Header.Get("Resolved-Username"), r.Header.Get("Resolved-User-ID"))); err == nil {
-		doc = issued
 	}
 	templates, err := engines.PrintTemplatesFor(tenantID, doc)
 	if err != nil {

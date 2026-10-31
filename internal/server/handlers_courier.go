@@ -185,12 +185,12 @@ func handleCourierTrackingWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tenantID, provider := r.Header.Get("Resolved-Tenant-ID"), r.PathValue("provider")
+	source := "courier:" + provider
 	if err := engines.VerifyCourierWebhook(tenantID, provider, r.Header.Get("X-Courier-Signature"), body); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "Invalid webhook signature") // 134.3: one answer, whatever failed
+		refuseWebhookSignature(w, r, source) // 134.3: one answer, whatever failed
 		return
 	}
-	source := "courier:" + provider
-	if dup, err := engines.ClaimInboundWebhook(tenantID, source, "", body); err == nil && dup {
+	if dup, err := claimInboundWebhook(r, tenantID, source, "", body); err == nil && dup {
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "duplicate"})
 		return
 	}

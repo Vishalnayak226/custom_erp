@@ -672,7 +672,9 @@ function openKeys() {
   box.querySelector('[data-sc="close"]').addEventListener('click', closeKeys);
   // Printed through the shell's invoice print area - the one thing its print
   // rules let onto paper (styles.css), as the tax invoice sheet does.
-  box.querySelector('[data-sc="print"]').addEventListener('click', () => {
+  // Stage 143.4: Print shows the card as it will print first; Print there prints.
+  box.querySelector('[data-sc="print"]').addEventListener('click', async () => {
+    if (!await previewKeysCard(box.querySelector('.sc-keys-panel'))) return;
     const area = document.getElementById('invoice-print-area');
     if (!area) { window.print(); return; }
     area.replaceChildren(box.querySelector('.sc-keys-panel').cloneNode(true));
@@ -694,6 +696,30 @@ function openKeys() {
   });
   box.hidden = false;
   box.querySelector('[data-sc="close"]').focus();
+}
+// previewKeysCard (Stage 143.4) shows the key list on paper - black on white,
+// the card's print styles - with Close and Print; resolves true on Print.
+// Above the key list; its Escape closes only the preview.
+function previewKeysCard(panel) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay open';
+    overlay.style.zIndex = '1400';
+    overlay.innerHTML = `<div class="modal-container" style="max-width: 900px;" role="dialog" aria-modal="true" aria-label="Preview">
+      <div class="modal-header"><h3 class="modal-title">Preview</h3><button type="button" class="modal-close" aria-label="Close dialog" data-kp="close">×</button></div>
+      <div class="modal-body"><div class="sc-keys-card" data-kp="paper" style="width: 210mm; max-width: 100%; margin: 0 auto; box-sizing: border-box; padding: 10mm; background: #fff; color: #000; box-shadow: 0 1px 3px rgba(0,0,0,.25);"></div></div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline" data-kp="close">Close</button><button type="button" class="btn btn-primary" data-kp="print">Print</button></div></div>`;
+    overlay.querySelector('[data-kp="paper"]').appendChild(panel.cloneNode(true));
+    document.body.appendChild(overlay);
+    const done = (v) => { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
+    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); done(false); } };
+    document.addEventListener('keydown', onKey);
+    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) done(false); });
+    overlay.querySelectorAll('[data-kp="close"]').forEach(b => b.addEventListener('click', () => done(false)));
+    const print = overlay.querySelector('[data-kp="print"]');
+    print.addEventListener('click', () => done(true));
+    print.focus();
+  });
 }
 function closeKeys() {
   const box = document.getElementById('sc-keys');

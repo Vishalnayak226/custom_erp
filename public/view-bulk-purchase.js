@@ -247,7 +247,7 @@ async function bpFollow(screen, runID, withPhotos) {
       <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">${run.status === 'Completed' ? 'Done' : bpEsc(run.status || 'Finished')}${run.file_name ? ` - ${bpEsc(run.file_name)}` : ''}</h4>
       ${run.message ? `<p style="font-size:13px;">${bpEsc(run.message)}</p>` : ''}
       ${bpTotalsHtml(t, true)}
-      ${(t.failed || t.errors || t.waiting) ? '<p style="font-size:13px; margin:0 0 10px;">Fix what is marked Failed or Problem (or approve what is Waiting), then upload the same file again: what is already made is found again, not made twice.</p>' : ''}
+      ${(t.failed || t.errors || t.waiting) ? '<p style="font-size:13px; margin:0 0 10px;">Fix Failed or Problem rows (or approve Waiting ones), then upload the same file again - nothing is made twice.</p>' : ''}
       ${run.result ? bpResultHtml(run.result, true) : ''}
     </section>`;
   bpWireStickers(out);

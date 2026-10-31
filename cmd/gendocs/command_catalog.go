@@ -412,6 +412,7 @@ var (
 	handlerIdent   = regexp.MustCompile(`\b(handle[A-Za-z0-9_]+)\b`)
 	moduleGateOne  = regexp.MustCompile(`moduleGate\("([a-z_]+)"`)
 	moduleGateAny  = regexp.MustCompile(`moduleGateAny\(\[\]string\{([^}]*)\}`)
+	commandKeyedAt = regexp.MustCompile(`commandKeyed\("([^"]+)"`)
 )
 
 // readCommandFacts parses routes.go and the two packages' function bodies.
@@ -440,6 +441,10 @@ func readCommandFacts(root string) codeFacts {
 		}
 		if rf.Handler != "" {
 			c := &factCollector{idx: idx, visited: map[string]bool{}}
+			// Stage 49.4.7a: the route's commandKeyed wrapper claims the key.
+			if k := commandKeyedAt.FindStringSubmatch(rest); k != nil {
+				c.note(&c.idem, "ClaimCommand("+k[1]+") via commandKeyed")
+			}
 			c.collect("server", rf.Handler, 0)
 			rf.AuditRows, rf.Idempotency = sortedSet(c.audit), sortedSet(c.idem)
 			rf.ApprovalGated, rf.StatusTransition = c.approval, c.transition

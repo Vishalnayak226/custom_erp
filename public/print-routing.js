@@ -38,6 +38,10 @@ export const printKindFor = (txnOrJob) => KIND_OF[txnOrJob] || (KINDS.has(txnOrJ
 const RECEIPT_RE = /(pos|thermal|receipt|\btm-?[a-z]?\d|\brp-?\d|xp-?\d|80\s?mm|58\s?mm|retsol|xprinter)/i;
 const LABEL_RE = /(zebra|\bzd\d|\bgk4|\bgx4|\btsc|\btte|\btlp|godex|argox|label|barcode|datamax|honeywell|snbc)/i;
 const VIRTUAL_RE = /(pdf|xps|onenote|fax|send to|microsoft print)/i;
+// 132.24: thermal brands LABEL_RE leaves out - some also make receipt
+// printers, so they are not label printers for stickers - are never picked
+// by themselves for a document (an A4 GRN went to a TSPL label printer).
+const THERMAL_RE = /(tvs|gprinter|\bgp-|tspl|zpl|\by\d{3})/i;
 
 let computerName = null;
 // printComputer is this computer's name: QZ Tray's, else one remembered in
@@ -69,7 +73,7 @@ export async function chosenPrinter(kind, location) {
 }
 
 function autoPick(kind, printers, def) {
-  const plain = (n) => !RECEIPT_RE.test(n) && !LABEL_RE.test(n) && !VIRTUAL_RE.test(n);
+  const plain = (n) => !RECEIPT_RE.test(n) && !LABEL_RE.test(n) && !VIRTUAL_RE.test(n) && !THERMAL_RE.test(n);
   const only = (list) => (list.length === 1 ? list[0] : '');
   if (kind === 'Receipt') return only(printers.filter(n => RECEIPT_RE.test(n)));
   if (kind === 'Sticker' || kind === 'Shipping Label') return only(printers.filter(n => LABEL_RE.test(n)));
@@ -101,7 +105,7 @@ function askPrinter(kind, printers, preselect, computer) {
     const extra = document.getElementById('custom-dialog-extra');
     document.getElementById('custom-dialog-title').textContent = `Printer for ${kind}`;
     document.getElementById('custom-dialog-message').textContent =
-      `Which printer prints ${kind} on this computer (${computer})? It is asked once; change it any time from the print dialog.`;
+      `Which printer prints ${kind} on this computer (${computer})?`;
     extra.innerHTML = `<select id="custom-dialog-printer" class="form-input" style="width:100%;margin-top:12px;">${printers.map(n =>
       `<option${n === preselect ? ' selected' : ''}>${window.escapeHTMLText(n)}</option>`).join('')}</select>`;
     extra.classList.remove('hidden');

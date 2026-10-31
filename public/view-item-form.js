@@ -390,8 +390,8 @@ function lockTreatment(body, setup, { target, ref, label, anchor }) {
   const note = document.createElement('div');
   note.className = 'item-locked-note';
   note.textContent = setup.is_admin
-    ? `This ${what}, so how it is stocked, valued and accounted changes only through a correction, which shows the effect first.`
-    : `This ${what}. Only an admin can correct how it is stocked, valued or accounted - tell your admin.`;
+    ? `Locked - this ${what}.`
+    : `Locked - this ${what}. Ask an admin.`;
   host.appendChild(note);
   if (setup.is_admin) {
     const btn = document.createElement('button');
@@ -496,7 +496,7 @@ async function openTreatmentCorrection({ target, ref, label, form, preset = {} }
       <h4 style="margin:16px 0 6px;">From now on</h4>
       <ul style="margin:0 0 0 18px;">${pv.from_now.map(t => `<li>${escapeHTMLText(t)}</li>`).join('')}</ul>
       ${pv.open_documents.length ? `<h4 style="margin:16px 0 6px;">Open documents that name it</h4><ul style="margin:0 0 0 18px;">${pv.open_documents.map(t => `<li>${escapeHTMLText(t)}</li>`).join('')}</ul>
-        <p class="text-muted" style="font-size:12.5px;">They are not changed; lines posted after this follow the new treatment.</p>` : ''}
+        <p class="text-muted" style="font-size:12.5px;">Not changed; later lines use the new treatment.</p>` : ''}
       ${pv.blockers.length ? `<div class="login-error" style="margin-top:14px;"><strong>Cannot be made yet:</strong><ul style="margin:6px 0 0 18px;">${pv.blockers.map(t => `<li>${escapeHTMLText(t)}</li>`).join('')}</ul></div>` : `
       <h4 style="margin:18px 0 6px;">Confirm</h4>
       <div class="form-group"><label class="form-label" for="tc-reason">Why is this being corrected?<span class="required">*</span></label>
@@ -604,11 +604,11 @@ async function wireAttributeMapForm(body, doctype, record) {
   };
   const what = doctype === 'Category' ? 'category' : 'type';
   const note = setup && !setup.attribute_mapping
-    ? `Used only once "Attributes follow the item's type" is on (Configuration → Inventory). Until then every item offers every attribute.`
-    : `Tick what a ${what} offers; pick values to offer only those. Nothing ticked = everything is offered.`;
+    ? `Off until "Attributes follow the item's type" is on.`
+    : '';
   const draw = (used) => {
     if (!attrs.length) { host.innerHTML = '<p class="text-muted" style="font-size:12.5px;">No item attributes yet - add them under Setup → Item Attribute.</p>'; return; }
-    host.innerHTML = `<div class="attr-map-note">${escapeHTMLText(note)}</div>` + attrs.map(a => {
+    host.innerHTML = (note ? `<div class="attr-map-note">${escapeHTMLText(note)}</div>` : '') + attrs.map(a => {
       const code = String(a.code || a.id).toUpperCase();
       const on = map.has(code);
       const picked = map.get(code) || [];
@@ -701,10 +701,9 @@ async function renderConfigItemFields(outer) {
         ${fields.map(rowHTML).join('')}
       </tbody>
     </table></div>
-    <p class="attr-map-note" style="margin-top:10px;">Name, code, kind of item, item name, category, type, HSN, GST, tax treatment, prices, barcode and design are always asked on the item. A hidden field keeps what items already hold.</p>
     <div class="item-fields-actions">
       <button type="button" class="btn btn-primary" data-save-fields>Save item fields</button>
-      ${setup.attribute_mapping ? `<span>Attributes follow the item's type: map them on each <a href="#" data-open="ProductType">Product Type</a> or <a href="#" data-open="Category">Category</a>.</span>` : `<span class="text-muted">To offer only some attributes per type, turn on "Attributes follow the item's type" under Inventory, then map them on each Product Type.</span>`}
+      ${setup.attribute_mapping ? `<span>Map on <a href="#" data-open="ProductType">Product Type</a> or <a href="#" data-open="Category">Category</a>.</span>` : ''}
     </div>`;
 
   host.addEventListener('change', e => {

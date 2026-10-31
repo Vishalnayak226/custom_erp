@@ -10,6 +10,13 @@ Prereqs on the box (done once during setup, per README):
   - deploy/ scripts, /etc/erp/erp.env, and the systemd unit are already in place
   - passwordless sudo for the restart, e.g. in /etc/sudoers.d/erp-deploy:
       <deployuser> ALL=(root) NOPASSWD: /bin/systemctl restart erp
+  - OpenSSL 3 (Ubuntu 22.04+): remote_deploy.sh checks the binary's release
+    signature with it (Stage 49.10.6b.3)
+
+On this machine: the release signing key (Stage 49.10.6b.3) at
+%USERPROFILE%\.erp-release\signing.key (or -SigningKey / ERP_RELEASE_SIGNING_KEY).
+The first deploy without one creates it and writes release/signing.pub; keep a
+safe copy of the key, and commit release/signing.pub with the next release.
 
 Usage:
   .\deploy\deploy.ps1 -Target erp@203.0.113.10
@@ -23,7 +30,15 @@ param(
     [string]$Version = "",
     # Stage 109: Deploy.cmd passes the number Release.cmd wrote into
     # internal/server/VERSION, and says so in the ledger note.
-    [string]$ReleaseNote = ""   # not $Notes: PowerShell names are case-insensitive and $notes below would wipe it
+    [string]$ReleaseNote = "",  # not $Notes: PowerShell names are case-insensitive and $notes below would wipe it
+    # Stage 49.10.6b.3: the release signing key - a file on this machine, never
+    # in the repo. Default: $env:ERP_RELEASE_SIGNING_KEY, else
+    # %USERPROFILE%\.erp-release\signing.key (created on the first deploy).
+    [string]$SigningKey = "",
+    # Where to write release/signing.pub while the repo has none yet. Deploy.cmd
+    # deploys from a temporary worktree, so it passes the main tree's path here
+    # and the next Release.cmd ships the file.
+    [string]$PubOut = ""
 )
 $ErrorActionPreference = "Stop"
 
@@ -106,6 +121,45 @@ if (-not $by) { $by = $env:USERNAME }
 $by = ($by -replace "[^A-Za-z0-9 ._-]", "").Trim()
 Write-Host "Release $Version - $($notes -replace "`n", '; ')" -ForegroundColor Cyan
 
+# Stage 49.10.6b.3: the binary is signed here with the release key, and the
+# server checks the signature (remote_deploy.sh, with its own openssl) before
+# the binary runs. The key is found - or, the very first time, made - before
+# the slow build, so a missing key stops the deploy before anything is shipped.
+# The signing tool is built for this machine into deploy/build (git-ignored,
+# replaced each deploy); it prints what it makes and this script writes the
+# files (Controlled Folder Access stops a freshly built binary from writing
+# under Documents).
+New-Item -ItemType Directory -Force -Path (Join-Path $PSScriptRoot "build") | Out-Null
+$signTool = Join-Path $PSScriptRoot "build\releasesign.exe"
+Push-Location $RepoRoot
+try {
+    & $GoBin build -o $signTool ./cmd/releasesign
+    if ($LASTEXITCODE -ne 0) { throw "go build ./cmd/releasesign failed" }
+} finally { Pop-Location }
+if (-not $SigningKey) {
+    $SigningKey = if ($env:ERP_RELEASE_SIGNING_KEY) { $env:ERP_RELEASE_SIGNING_KEY } else { Join-Path $env:USERPROFILE '.erp-release\signing.key' }
+}
+$committedPub = Join-Path $RepoRoot 'release\signing.pub'
+if (-not (Test-Path -LiteralPath $SigningKey)) {
+    if (Test-Path -LiteralPath $committedPub) {
+        throw "The release signing key is not at $SigningKey, but release/signing.pub is committed - restore the key from its safe copy (or point ERP_RELEASE_SIGNING_KEY at it). A new key would be refused: the server trusts the committed one."
+    }
+    & $signTool keygen -key $SigningKey
+    if ($LASTEXITCODE -ne 0) { throw "could not create the release signing key at $SigningKey" }
+    Write-Host "Created the release signing key at $SigningKey. Keep a copy somewhere safe off this machine (password manager or encrypted USB); never commit it or send it anywhere." -ForegroundColor Yellow
+}
+$pubPem = ((& $signTool pub -key $SigningKey) -join "`n") + "`n"
+if ($LASTEXITCODE -ne 0) { throw "the release signing key at $SigningKey could not be read" }
+if (-not (Test-Path -LiteralPath $committedPub)) {
+    # First signed deploy: the server pins this key; the repo should carry it too.
+    if (-not $PubOut) { $PubOut = $committedPub }
+    if ((Test-Path -LiteralPath $PubOut) -and (((Get-Content -LiteralPath $PubOut -Raw) -replace '\s', '') -ne ($pubPem -replace '\s', ''))) {
+        throw "$PubOut names another release key than $SigningKey - sort out which key is the release key before deploying"
+    }
+    [IO.File]::WriteAllText($PubOut, $pubPem)
+    Write-Host "Wrote $PubOut - commit it with the next release (the server pins this key on this deploy)." -ForegroundColor Yellow
+}
+
 $ldflags   = "-s -w -X custom_erp/internal/server.gitCommit=$commit -X custom_erp/internal/server.buildTime=$buildTime -X custom_erp/internal/server.releaseVersion=$Version"
 
 $buildDir = Join-Path $PSScriptRoot "build"
@@ -123,11 +177,28 @@ try {
     Remove-Item Env:\GOOS, Env:\GOARCH, Env:\CGO_ENABLED -ErrorAction SilentlyContinue
 }
 
+# Stage 49.10.6b.3: sign the binary, and check the signature against the
+# committed release/signing.pub before anything leaves this machine - a key
+# that is not the committed one would only be refused on the server.
+$sigB64 = "$(& $signTool sign -key $SigningKey -in $out)".Trim()
+if ($LASTEXITCODE -ne 0 -or -not $sigB64) { throw "could not sign $out with $SigningKey" }
+[IO.File]::WriteAllBytes("$out.sig", [Convert]::FromBase64String($sigB64))
+$shipPub = Join-Path $buildDir 'release-signing.pub'
+[IO.File]::WriteAllText($shipPub, $pubPem)
+$checkPub = if (Test-Path -LiteralPath $committedPub) { $committedPub } else { $shipPub }
+& $signTool verify -pub $checkPub -in $out -sig "$out.sig" | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "the signing key at $SigningKey is not the key release/signing.pub names - nothing was shipped" }
+Write-Host "Signed erp-server with release key $((& $signTool fingerprint -pub $checkPub) -join '')" -ForegroundColor Cyan
+
 Write-Host "Shipping binary, public/, and db/ to $Target`:$RemoteDir ..." -ForegroundColor Cyan
 # Upload the new binary under a temp name so a failed transfer never leaves a
 # half-copied binary in place of the running one.
 & scp $out "${Target}:$RemoteDir/erp-server.new"
 if ($LASTEXITCODE -ne 0) { throw "scp of binary failed" }
+# Stage 49.10.6b.3: its signature and the release public key; remote_deploy.sh
+# refuses the binary without them.
+& scp "$out.sig" "${Target}:$RemoteDir/erp-server.new.sig"
+if ($LASTEXITCODE -ne 0) { throw "scp of the binary's signature failed" }
 # Stage 50/BLD-005: this used to scp straight over the LIVE $RemoteDir/public,
 # overwriting the running frontend before remote_deploy.sh ever got a chance
 # to snapshot the pre-deploy one for rollback - its "pre-deploy snapshot" was
@@ -152,6 +223,8 @@ if ($LASTEXITCODE -ne 0) { throw "scp of db/ failed" }
 if ($LASTEXITCODE -ne 0) { throw "could not create $RemoteDir/deploy on remote" }
 & scp "$RepoRoot\deploy\remote_deploy.sh" "${Target}:$RemoteDir/deploy/remote_deploy.sh"
 if ($LASTEXITCODE -ne 0) { throw "scp of deploy/remote_deploy.sh failed" }
+& scp $shipPub "${Target}:$RemoteDir/deploy/release-signing.pub"
+if ($LASTEXITCODE -ne 0) { throw "scp of the release public key failed" }
 # Stage 56.9: backup.sh is shipped fresh too. The server's backup monitor reads
 # the run row this script writes to public.backup_runs; a stale remote copy
 # from before 56.9 writes no row, so the monitor would report every nightly as
@@ -199,6 +272,8 @@ $remoteOut | ForEach-Object { Write-Host $_ }
 # code alone.
 if ($remoteOut -contains "DEPLOY-OK") {
     Write-Host "Deployed $Version ($commit) to $Target." -ForegroundColor Green
+} elseif ($remoteOut -contains "DEPLOY-REFUSED") {
+    throw "Deploy of $commit REFUSED on $Target before the swap: the binary's release signature did not check out (reason above). Nothing ran; production stays on the live build."
 } elseif ($remoteOut -contains "DEPLOY-ROLLED-BACK") {
     throw "Deploy of $commit FAILED its health check and was automatically rolled back -- $Target is back on the previous build and confirmed healthy. See the journalctl tail above for why the new build didn't come up."
 } elseif ($remoteOut -contains "DEPLOY-ROLLBACK-FAILED") {

@@ -197,8 +197,7 @@ async function renderExecDashboardBody(panel) {
   ).join('');
 
   panel.innerHTML = `
-    <div style="padding: 16px 16px 0; display:flex; flex-wrap:wrap; align-items:center; gap:8px;">
-      <p style="color: var(--text-muted); font-size: 13px; margin: 0; flex: 1 1 auto;">Click a tile to drill into that report in the Report Catalog tab.</p>
+    <div style="padding: 16px 16px 0; display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:8px;">
       <select id="dashboard-layout-picker" class="form-input" style="width:auto;">
         <option value="">Default</option>
         ${layoutOptions}
@@ -321,6 +320,8 @@ function renderExecDashboardTrendChart(container, labels, values) {
 // search-by-item stock screen. Reuses the same /api/v1/reports/current-stock
 // endpoint Reports > Current Stock already calls (no new backend), but adds
 // the client-side search box that endpoint's own report tab never had.
+// Stage 145: the screen reads /api/v1/inventory/stock now (stockOnHandHTML);
+// stockTableHTML stays the Current Stock report's.
 let inventorySearchQuery = '';
 function stockTableHTML(rows, showTasks = false, searched = false) {
   const quantity = value => Number.isFinite(Number(value)) ? Number(value).toLocaleString() : '—';
@@ -345,24 +346,96 @@ function stockTableHTML(rows, showTasks = false, searched = false) {
         }).join('')}</tbody></table>`;
 }
 
+// Stage 145.3 / 145.4 (user, 2026-10-31): Stock on Hand by design - Design
+// No, Combination ID, Barcode, the short Item name ("Antique Necklace"), each
+// attribute a column - at the top-bar store, with the columns each user adds
+// and removes. The choice is the user's own UserShortcut (Stage 139's shape),
+// so it follows them to any computer.
+const STOCK_COLUMNS_TARGET = 'inventory:stock';
+const STOCK_ITEM_COLUMNS = [
+  { key: 'design_no', label: 'Design No' },
+  { key: 'sku', label: 'Combination ID' },
+  { key: 'barcode', label: 'Barcode' },
+  { key: 'item_name', label: 'Item' },
+  { key: 'full_name', label: 'Full name', off: true },
+  { key: 'category', label: 'Category', off: true }
+];
+const STOCK_QTY_COLUMNS = [
+  { key: 'location_code', label: 'Store' },
+  { key: 'on_hand', label: 'On hand', num: true, title: 'Book stock before reservations and holds' },
+  { key: 'available_to_sell', label: 'Available to sell', num: true, title: 'Matches the reservation admission calculation' },
+  { key: 'reserved', label: 'Reserved', num: true },
+  { key: 'hold_qty', label: 'Held', num: true },
+  { key: 'breakdown', label: 'Why unavailable' }
+];
+
+async function loadStockColumnPrefs() {
+  const user = localStorage.getItem('erp_username') || '';
+  const res = await apiFetch(`/api/v1/doc/UserShortcut?owner=${encodeURIComponent(user)}&kind=List%20view&target=${encodeURIComponent(STOCK_COLUMNS_TARGET)}&limit=1`).catch(() => null);
+  const list = res && res.ok ? await res.json().catch(() => []) : [];
+  const rec = Array.isArray(list) && list[0];
+  let cols = {};
+  try { cols = (rec && JSON.parse(rec.params || '{}').cols) || {}; } catch (_) { /* unreadable: defaults */ }
+  return { id: rec ? rec.id : '', cols };
+}
+
+async function saveStockColumnPrefs(prefs) {
+  const body = { kind: 'List view', name: 'Stock on Hand columns', target: STOCK_COLUMNS_TARGET, params: JSON.stringify({ cols: prefs.cols }),
+    owner: localStorage.getItem('erp_username') || '', status: 'Active' };
+  const res = await apiFetch(prefs.id ? `/api/v1/doc/UserShortcut/${encodeURIComponent(prefs.id)}` : '/api/v1/doc/UserShortcut', { method: 'POST', body: JSON.stringify(body) });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Could not save your columns.'); return; }
+  if (!prefs.id) prefs.id = (await res.json().catch(() => ({}))).id || '';
+}
+
+function stockOnHandHTML(rows, cols, showTasks, searched) {
+  const quantity = value => Number.isFinite(Number(value)) ? Number(value).toLocaleString() : '—';
+  const span = cols.length + (showTasks ? 1 : 0);
+  // Every cell but Store opts out of the link sweep, which would turn a code
+  // back into the item's long name.
+  const cell = (c, r) => {
+    if (c.attr) return `<td data-link-swept="1">${escapeHTMLText((r.attributes || {})[c.attr] || '')}</td>`;
+    if (c.num) return `<td class="num" data-link-swept="1">${quantity(r[c.key])}</td>`;
+    switch (c.key) {
+      case 'design_no': case 'sku': case 'barcode':
+        return `<td data-link-swept="1">${r[c.key] ? copyableCell(r[c.key], r[c.key]) : '—'}</td>`;
+      case 'item_name':
+        return `<td data-link-swept="1" title="${escapeHTMLText(r.full_name || '')}">${escapeHTMLText(r.item_name || r.sku || '')}</td>`;
+      case 'location_code':
+        return `<td data-link-doctype="Location" data-link-ref="${escapeHTMLText(r.location_code || '')}">${copyableCell(r.location_code, r.location_code)}</td>`;
+      case 'breakdown':
+        return `<td data-link-swept="1"><details><summary>Breakdown</summary><span>Base available: ${quantity(r.available)}; committed: ${quantity(r.committed)}; safety: ${quantity(r.safety_stock)}; blocked: ${quantity(r.blocked)}; QC hold: ${quantity(r.qc_hold)}; damaged: ${quantity(r.damaged)}; channel buffer: ${quantity(r.channel_buffer)}.</span></details></td>`;
+    }
+    return `<td data-link-swept="1">${escapeHTMLText(r[c.key] || '')}</td>`;
+  };
+  const tasks = r => {
+    const attrs = `data-stock-sku="${escapeHTMLText(r.sku || '')}" data-stock-location="${escapeHTMLText(r.location_code || '')}"`;
+    return `<td data-link-swept="1"><a href="#/view/transfers" data-stock-task="transfer" ${attrs}>Transfer</a> · <a href="#/view/cycle-count" data-stock-task="count" ${attrs}>Count</a> · <a href="#/view/place-hold" data-stock-task="hold" ${attrs}>Hold</a> · <a href="#/view/reports%3Astock-ledger" data-stock-task="movements" ${attrs} title="Every movement of this item here, with its source document">Movements</a></td>`;
+  };
+  return `<table>
+    <thead><tr>${cols.map(c => `<th${c.num ? ' class="num"' : ''}${c.title ? ` title="${escapeHTMLText(c.title)}"` : ''}>${escapeHTMLText(c.label)}</th>`).join('')}${showTasks ? '<th>Next task</th>' : ''}</tr></thead>
+    <tbody>${rows.length === 0
+      ? `<tr><td colspan="${span}" class="text-center py-8 text-muted" data-link-swept="1">${searched ? 'Nothing matches this search.' : 'No stock here yet. Post a Goods Receipt to add stock.'}</td></tr>`
+      : rows.map(r => `<tr>${cols.map(c => cell(c, r)).join('')}${showTasks ? tasks(r) : ''}</tr>`).join('')}</tbody></table>`;
+}
+
 async function renderInventoryView(container) {
+  await loadViewStyles('inventory.css'); // Stage 145: the dashboard's and Stock on Hand's own styles
   // Stage 88.5: Inventory's Dashboard, Ledger and MRP Change are pages of their own (inventory:<page>).
   if (currentViewTab && await (await import('./view-inventory-erp.js' + new URL(import.meta.url).search)).renderInventoryPage(currentViewTab, container)) return;
   // 134.6 (47.10.3): one page at a time, searched on the server - the whole
   // stock table no longer comes to the browser.
   const pageSize = 100;
   let offset = 0;
-  let rows = [];
-  let total = 0;
+  let data = { rows: [], total: 0, attributes: [], store: '' };
   const load = async () => {
-    const res = await apiFetch(`/api/v1/reports/current-stock?limit=${pageSize}&offset=${offset}&q=${encodeURIComponent(inventorySearchQuery)}`);
+    const res = await apiFetch(`/api/v1/inventory/stock?limit=${pageSize}&offset=${offset}&q=${encodeURIComponent(inventorySearchQuery)}`);
     if (!res || !res.ok) return res;
-    rows = await res.json();
-    total = Number(res.headers.get('X-Total-Count')) || rows.length;
+    data = await res.json();
     return res;
   };
   inventorySearchQuery = '';
-  const first = await load();
+  const [first, prefs] = await Promise.all([load(), loadStockColumnPrefs()]);
   if (!first) return;
   if (!first.ok) { renderErrorPanel(container, 'Failed to load inventory.', () => renderView('inventory')); return; }
 
@@ -392,12 +465,12 @@ async function renderInventoryView(container) {
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.innerHTML = `
-    <p style="padding:16px 16px 0; color:var(--text-muted); font-size:13px;">On hand is book stock. Available to sell subtracts reservations, safety stock, blocked/QC/damaged stock, channel buffer and active holds from base availability. Open Breakdown for the exact buckets; a hold does not change physical on-hand.</p>
     <div class="table-controls">
       <div class="search-box">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-        <input type="text" id="inventory-search-input" placeholder="Search by SKU or location...">
+        <input type="text" id="inventory-search-input" placeholder="Search design, barcode, item...">
       </div>
+      <div class="stock-cols"><button type="button" class="btn btn-outline btn-sm" aria-haspopup="dialog" aria-expanded="false">Columns</button></div>
     </div>
     <div class="table-wrapper" id="inventory-table-wrapper"></div>
     <div class="table-controls" id="inventory-pager" style="justify-content: flex-end; gap: 8px;"></div>
@@ -419,13 +492,21 @@ async function renderInventoryView(container) {
     }
   });
 
+  // The columns: the item's, one per attribute, then the quantities. Store
+  // starts hidden when the top bar has picked one.
+  const allColumns = () => [...STOCK_ITEM_COLUMNS,
+    ...(data.attributes || []).map(a => ({ key: `attr:${a.code}`, label: a.label || a.code, attr: a.code })),
+    ...STOCK_QTY_COLUMNS];
+  const visible = c => (prefs.cols[c.key] !== undefined ? !!prefs.cols[c.key] : c.key === 'location_code' ? !data.store : !c.off);
+
   // Only the table body redraws on each keystroke - the search input itself
   // stays untouched so it doesn't lose focus/cursor position while typing
   // (matches renderDocTable()'s existing #doc-table-wrapper pattern).
   function draw() {
     const wrapper = document.getElementById('inventory-table-wrapper');
     if (!wrapper) return;
-    wrapper.innerHTML = stockTableHTML(rows, true, !!inventorySearchQuery);
+    const rows = data.rows || [], total = Number(data.total) || 0;
+    wrapper.innerHTML = stockOnHandHTML(rows, allColumns().filter(visible), true, !!inventorySearchQuery);
     sweepLinkNames(wrapper);
     const pager = document.getElementById('inventory-pager');
     pager.innerHTML = total > rows.length || offset > 0
@@ -447,6 +528,53 @@ async function renderInventoryView(container) {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(async () => { offset = 0; if (await load()) draw(); }, 250);
   });
+
+  // Columns: tick to add, untick to remove; saved for this user a moment later.
+  const colsWrap = panel.querySelector('.stock-cols');
+  const colsBtn = colsWrap.querySelector('button');
+  let saveTimer = null;
+  const scheduleSave = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => saveStockColumnPrefs(prefs), 600); };
+  const onOutside = e => { if (!colsWrap.contains(e.target)) closePop(); };
+  const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); closePop(); colsBtn.focus(); } };
+  function closePop() {
+    colsWrap.querySelector('.stock-cols-pop')?.remove();
+    colsBtn.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('mousedown', onOutside, true);
+    document.removeEventListener('keydown', onKey, true);
+  }
+  function fillPop(pop) {
+    pop.innerHTML = allColumns().map(c => `<label><input type="checkbox" data-col="${escapeHTMLText(c.key)}"${visible(c) ? ' checked' : ''}>${escapeHTMLText(c.label)}</label>`).join('')
+      + '<div class="stock-cols-foot"><button type="button" class="btn btn-outline btn-sm" data-cols-reset>Reset</button></div>';
+  }
+  colsBtn.addEventListener('click', () => {
+    if (colsWrap.querySelector('.stock-cols-pop')) { closePop(); return; }
+    const pop = document.createElement('div');
+    pop.className = 'stock-cols-pop';
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', 'Columns');
+    fillPop(pop);
+    pop.addEventListener('change', e => {
+      const cb = e.target.closest('[data-col]');
+      if (!cb) return;
+      // At least one column stays.
+      if (!cb.checked && allColumns().filter(visible).length <= 1) { cb.checked = true; return; }
+      prefs.cols[cb.dataset.col] = cb.checked;
+      draw();
+      scheduleSave();
+    });
+    pop.addEventListener('click', e => {
+      if (!e.target.closest('[data-cols-reset]')) return;
+      prefs.cols = {};
+      fillPop(pop);
+      draw();
+      scheduleSave();
+    });
+    colsWrap.appendChild(pop);
+    colsBtn.setAttribute('aria-expanded', 'true');
+    pop.querySelector('input')?.focus();
+    document.addEventListener('mousedown', onOutside, true);
+    document.addEventListener('keydown', onKey, true);
+  });
 }
 
 async function renderCurrentStockReport(panel) {
@@ -455,7 +583,7 @@ async function renderCurrentStockReport(panel) {
   const rows = res.ok ? await res.json() : [];
   const total = Number(res.headers.get('X-Total-Count')) || rows.length;
   panel.innerHTML = stockTableHTML(rows) + (total > rows.length
-    ? `<p class="text-muted" style="padding: 12px 16px; font-size: 13px;">The first ${rows.length} of ${total.toLocaleString()} rows. Search any item or location in <a href="#/view/inventory">Inventory → Stock on Hand</a>.</p>` : '');
+    ? `<p class="text-muted" style="padding: 12px 16px; font-size: 13px;">The first ${rows.length} of ${total.toLocaleString()} rows.</p>` : '');
   sweepLinkNames(panel);
 }
 
@@ -469,7 +597,7 @@ async function renderSalesRegisterReport(panel) {
       <tbody>
   `;
   html += rows.length === 0
-    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No completed sales yet. Sales appear here as soon as a cart is checked out at <b>Point of Sale</b>.</td></tr>`
+    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No completed sales yet.</td></tr>`
     : rows.map(r => `
         <tr>
           <td style="font-family: monospace;">${escapeHTMLText(r.cart_number)}</td>
@@ -494,7 +622,7 @@ async function renderVendorLedgerReport(panel) {
       <tbody>
   `;
   html += rows.length === 0
-    ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No purchase orders yet. Raise one under <b>Procurement &raquo; Purchase Order</b>; this ledger follows each one through receipt and payment.</td></tr>`
+    ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No purchase orders yet.</td></tr>`
     : rows.map(r => `
         <tr>
           <td>${escapeHTMLText(r.vendor || '')}</td>
@@ -513,9 +641,6 @@ async function renderPayablesAgeingReport(panel) {
   if (!res) return;
   const buckets = res.ok ? await res.json() : [];
   panel.innerHTML = `
-    <p style="padding: 16px 16px 0; font-size: 13px; color: var(--text-muted);">
-      Goods received and not yet paid (GRN Suspense 2100), by age from the bill's due date or else the receipt date. Open purchase orders are in the Report Catalog as Open Purchase Commitments.
-    </p>
     <table>
       <thead><tr><th>Age Bucket</th><th>Open Items</th><th>Outstanding Amount</th></tr></thead>
       <tbody>
@@ -536,9 +661,6 @@ async function renderReceivablesAgeingReport(panel) {
   if (!res) return;
   const buckets = res.ok ? await res.json() : [];
   panel.innerHTML = `
-    <p style="padding: 16px 16px 0; font-size: 13px; color: var(--text-muted);">
-      Buckets Approved-but-not-yet-Paid sales invoices (Finance &gt; Sales Invoice) by age since creation.
-    </p>
     <table>
       <thead><tr><th>Age Bucket</th><th>Invoice Count</th><th>Outstanding Amount</th></tr></thead>
       <tbody>
@@ -573,9 +695,6 @@ async function renderGSTReturnSummaryReport(panel) {
       </div>
       <button class="btn btn-primary" id="gst-summary-btn">Run</button>
     </div>
-    <p style="padding: 0 16px; font-size: 13px; color: var(--text-muted);">
-      Report-only summary of output tax already calculated per-transaction - not e-invoice/IRN filing.
-    </p>
     <div id="gst-summary-result" style="padding: 0 16px 16px;"></div>
   `;
   const runReport = async () => {
@@ -1019,7 +1138,7 @@ async function renderMyReportExports() {
   if (!res) return;
   if (!res.ok) { body.innerHTML = `<p class="login-error">${escapeHTMLText(await getErrorMessage(res, 'Could not load your exports.'))}</p>`; return; }
   const { jobs } = await res.json();
-  body.innerHTML = jobs.length === 0 ? '<p style="color:var(--text-muted)">You have not exported a report yet. Use "Export in Background" above.</p>' : `
+  body.innerHTML = jobs.length === 0 ? '<p style="color:var(--text-muted)">You have not exported a report yet.</p>' : `
     <table><thead><tr><th>Report</th><th>Filters</th><th>Requested</th><th>Status</th><th></th></tr></thead><tbody>
     ${jobs.map(j => `<tr><td>${escapeHTMLText(j.report_label || j.report_id)}</td>
       <td><small>${escapeHTMLText(Object.entries(j.params || {}).map(([k, v]) => `${k}=${v}`).join(', ') || '-')}</small></td>
@@ -1055,7 +1174,7 @@ async function renderRecentReportRuns() {
   if (!res.ok) { body.innerHTML = `<p class="login-error">${escapeHTMLText(await getErrorMessage(res, 'Could not load recent runs.'))}</p>`; return; }
   const { runs } = await res.json();
   if (def.id !== reportCatalogSelectedId) return; // the selection moved on while this loaded
-  body.innerHTML = runs.length === 0 ? `<p style="color:var(--text-muted)">No runs of ${escapeHTMLText(def.label)} yet. Press Run above.</p>` : `
+  body.innerHTML = runs.length === 0 ? `<p style="color:var(--text-muted)">No runs of ${escapeHTMLText(def.label)} yet.</p>` : `
     <table><thead><tr><th>Run by</th><th>When</th><th>Took</th><th>Rows</th></tr></thead><tbody>
     ${runs.map(r => `<tr><td>${escapeHTMLText(r.run_by || 'Schedule')}</td><td>${escapeHTMLText(reportCellText(r.run_at))}</td>
       <td>${escapeHTMLText(formatRunDuration(r.duration_ms))}</td><td>${escapeHTMLText(String(r.row_count))}</td></tr>`).join('')}
@@ -1102,9 +1221,7 @@ async function renderReportSchedulesPanel(panel) {
   const setupLinks = [['ScheduledReport', 'Set up a scheduled report'], ['DashboardDigest', 'Set up a dashboard digest']]
     .filter(([doctype]) => typeof canCreateDoctype === 'function' && canCreateDoctype(doctype))
     .map(([doctype, label]) => `<button class="btn btn-outline btn-sm" data-sched-setup="${doctype}">${label}</button>`).join('');
-  const empty = setupLinks
-    ? 'No scheduled reports or digests yet. Set one up in Setup > Reports: a Scheduled Report sends one report, a Dashboard Digest sends every tile of a saved dashboard layout - pick the frequency, the first run date and the recipient email.'
-    : 'No scheduled reports or digests yet. Ask a Store Manager or Super Admin to set one up for you.';
+  const empty = 'No scheduled reports or digests yet.';
   panel.innerHTML = `
     <div style="padding: 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--border-color);">
       ${setupLinks}<button class="btn btn-outline btn-sm" data-sched-refresh="1">Refresh</button>
@@ -1215,7 +1332,7 @@ function renderReportCatalogResultTable(container, result, params) {
   if (canAssign) html += `<th>Task</th>`;
   html += `</tr></thead><tbody>`;
   if (rows.length === 0) {
-    html += `<tr><td colspan="${columns.length + extraCols}" style="text-align:center; color:var(--text-muted);">No rows matched. Widen the date range or clear a filter above, then run the report again.</td></tr>`;
+    html += `<tr><td colspan="${columns.length + extraCols}" style="text-align:center; color:var(--text-muted);">No rows matched.</td></tr>`;
   }
   rows.forEach((row, idx) => {
     html += `<tr>`;
@@ -1287,7 +1404,7 @@ async function runReportCatalogDrillDown(reportId, rowKey, rowIdx) {
   const scope = Object.entries(params).map(([k, v]) => `${k} ${v}`).join(', ');
   let inner = `<div style="padding:8px 0;"><div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${drillRows.length} line(s) behind "${escapeHTMLText(rowKey)}"${scope ? ` - same filters (${escapeHTMLText(scope)})` : ''}</div><table style="width:100%;"><thead><tr>${keys.map(k => `<th>${escapeHTMLText(k.replace(/_/g, ' '))}</th>`).join('')}</tr></thead><tbody>`;
   inner += drillRows.length === 0
-    ? `<tr><td colspan="${keys.length || 1}" style="text-align:center; color:var(--text-muted);">No underlying rows for this figure &mdash; it is a computed total with no individual transactions behind it in the selected period.</td></tr>`
+    ? `<tr><td colspan="${keys.length || 1}" style="text-align:center; color:var(--text-muted);">No underlying rows for this figure.</td></tr>`
     : drillRows.map(r => `<tr>${keys.map(k => `<td>${escapeHTMLText(reportCellText(r[k] === null || r[k] === undefined ? '' : r[k]))}</td>`).join('')}</tr>`).join('');
   inner += `</tbody></table></div>`;
   targetRow.classList.remove('hidden');

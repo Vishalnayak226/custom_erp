@@ -16,7 +16,10 @@ import (
 //
 //   - "purge": deleting rows. Only a client's data reset does it
 //     (ResetTenantData, operator-run). A sandbox reset TRUNCATEs, which a
-//     row trigger does not see; a purged client's schema is dropped.
+//     row trigger does not see; a purged client's schema is dropped. Stage
+//     47.16.4g: stored_value_ledger's append-only trigger accepts it too
+//     (db/migrations_stage72_8_stored_value_purge_47_16_4g.sql), so a client
+//     with gift card events can be reset.
 //   - "recode": a master renumber (recodeInSchemaTx) carries a renumbered
 //     store, entity, cost center, department or project code onto the rows
 //     that name it - the reference columns only, never money or dates.

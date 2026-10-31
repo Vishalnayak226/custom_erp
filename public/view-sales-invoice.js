@@ -43,7 +43,7 @@ export async function renderSalesInvoiceEntry(container, onDone) {
     </div>
     <div class="txn-hint" data-si="supply" style="margin-bottom:10px;"></div>
     <div class="table-wrapper"><table><thead><tr><th>Item</th><th>HSN</th><th class="num">Qty</th><th class="num">Rate (before GST)</th><th class="num">Discount (₹)</th><th class="num">GST %</th><th class="num">Taxable</th><th class="num">GST</th><th class="num">Amount</th><th></th></tr></thead><tbody data-si="lines"></tbody></table></div>
-    <div style="display:flex;gap:8px;margin-top:12px;"><input class="form-input" data-si="add" placeholder="Add an item by code, barcode or name" style="max-width:320px;" autocomplete="off"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;"><input class="form-input" data-si="add" placeholder="Add by Design, Combination ID or barcode" style="max-width:320px;" autocomplete="off"></div>
     <div data-si="totals" style="margin-top:14px;max-width:320px;margin-left:auto;"></div>
     <div class="login-error hidden" data-si="error" style="margin-top:12px;"></div>
     <div style="margin-top:16px;"><button type="button" class="btn btn-primary" data-si="save">Save as draft</button> <span class="text-muted" style="font-size:12px;">Post it from the invoice list.</span></div>`;

@@ -174,7 +174,7 @@ Sections 1-6 are about the service being up. This section is for someone **attac
 
 ### 7.5 Malicious connector, webhook or poison job
 
-- **Signs:** *Background jobs giving up*; a webhook burst in the integration log.
+- **Signs:** *Background jobs giving up*; *Many webhook calls with a bad signature* (urgent) or *Many repeated webhook deliveries* (Stage 49.11.4 - `WEBHOOK_INBOUND` rows naming the source and address); a webhook burst in the integration log. A bad-signature burst right after a platform's webhook secret changed is that change: save the new secret on the channel.
 - **Contain:** disconnect the connector (Integrations); `ERP_DISABLE_EXTERNAL_SIDE_EFFECTS=1` (exactly `1`, then restart) stops every outbound effect on the server - email, webhooks, notification webhooks, phone alerts, CRM sends, extension hooks (a before-save hook then stops the save) and every connector or courier write (it waits, Queued, with CONN-0225); connector and courier reads still run so orders and tracking can be reconciled. For **one client** only: **Settings → Configuration → Platform → Outside calls** Off does the same for that client, no restart (password-reset mail and ops alerts still go). Do not retry a poison job in a loop - Activity Log → Async Jobs shows it; fix the cause first.
 - **Recover:** reconnect with a new credential; replay only the jobs you have read.
 

@@ -678,6 +678,7 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/stock-locations/defaults":                         {LevelAdmin, "admin.stock_locations"},
 	"POST /api/v1/stock-locations/move":                             {LevelAuthenticated, "inventory.default"},
 	"GET /api/v1/inventory/dashboard":                               {LevelAuthenticated, "inventory.default"}, // Stage 88.5
+	"GET /api/v1/inventory/stock":                                   {LevelAuthenticated, "inventory.default"}, // Stage 145
 	"POST /api/v1/inventory/mrp-changes":                            {LevelAuthenticated, "inventory.default"}, // Stage 88.5
 	"POST /api/v1/inventory/mrp-changes/{id}/cancel":                {LevelAuthenticated, "inventory.default"}, // Stage 88.5
 	"POST /api/v1/inventory/adjustments":                            {LevelAuthenticated, "inventory.default"}, // Stage 88.5

@@ -152,8 +152,22 @@ SQL
 on_exit() {
   rc=$?
   [ "$rc" -eq 0 ] && return 0
+  # Stage 49.13.7: a run that stops part-way - a full disk is the usual cause -
+  # leaves no plain dump behind (it must never sit on disk unencrypted, and
+  # retention only prunes *.enc, so it would also hold the disk full for good)
+  # and no half-written .enc or checksum that would pass for a backup.
+  if [ -n "${dump:-}" ]; then rm -f -- "$dump"; fi
+  if [ -n "${enc:-}" ] && [ -z "${enc_done:-}" ]; then rm -f -- "$enc" "$enc.sha256"; fi
   detail="exit code $rc"
   [ -n "$failed_stage" ] && detail="$detail during '$failed_stage' (line $failed_line)"
+  # Say so when the disk is the reason, so the alert names the fix.
+  free_kb="$(df -Pk "${BACKUP_DIR:-/opt/erp/backups}" 2>/dev/null | awk 'NR==2{print $4}')" || free_kb=""
+  case "$free_kb" in
+    ''|*[!0-9]*) ;;
+    *) if [ "$free_kb" -lt 102400 ]; then
+         detail="$detail; the disk under ${BACKUP_DIR:-/opt/erp/backups} is full (${free_kb} KB free) - partial files removed, nothing kept unencrypted"
+       fi ;;
+  esac
   record_run Failed "" "" "" "$detail" || true
   alert_ops BACKUP_FAILED "${TENANT_SCHEMA:-whole-database} backup FAILED -- $detail. See /var/log/erp-backup.log" || true
 }
@@ -165,7 +179,8 @@ trap on_exit EXIT
 # ---------------------------------------------------------------------------
 # Set in /etc/erp/erp.env to turn it on (any S3-compatible bucket; Cloudflare
 # R2 is the plan - a private bucket, a token scoped to it, a 30-day lifecycle
-# rule):
+# rule on <prefix>/database/ and <prefix>/tenant/ only, never on media/ -
+# media_retention_check below says why, and checks it every night):
 #   OFFSITE_S3_ENDPOINT           e.g. https://<account-id>.r2.cloudflarestorage.com
 #   OFFSITE_S3_BUCKET             e.g. erp-backups
 #   OFFSITE_S3_ACCESS_KEY_ID
@@ -258,7 +273,80 @@ media_sync() {
   return 0
 }
 
+# media_retention_check (Stage 49.10.6c.1): media_sync is upload-only - a file
+# that never changes goes up once - so a bucket lifecycle rule that expires
+# objects under <prefix>/media/ deletes the only off-box copy of every
+# unchanged image, receipt and invoice copy once it is older than the rule:
+# the copy would hold only the last 30 days of uploads. The rule lives in the
+# bucket, set by hand in the provider's console (docs/operations/backup_restore.md:
+# scope the 30-day rule to <prefix>/database/ and <prefix>/tenant/). This reads
+# the bucket's lifecycle rules - one signed, read-only GET - and alerts
+# BACKUP_MEDIA_EXPIRES when an enabled expiry rule covers media/. Returns 0
+# when media is safe, 1 when a rule expires it, 3 when the rules could not be
+# read (logged, not alerted: a token limited to objects may not read bucket
+# settings - check the console by hand then).
+offsite_lifecycle_get() { # OUT_FILE - prints the HTTP status
+  printf 'user = "%s:%s"\n' "$OFFSITE_S3_ACCESS_KEY_ID" "$OFFSITE_S3_SECRET_ACCESS_KEY" \
+    | curl -sS -m 60 -K - \
+        --aws-sigv4 "aws:amz:${OFFSITE_S3_REGION:-auto}:s3" \
+        -H "x-amz-content-sha256: UNSIGNED-PAYLOAD" \
+        -o "$1" -w '%{http_code}' "${OFFSITE_S3_ENDPOINT%/}/$OFFSITE_S3_BUCKET?lifecycle"
+}
+media_retention_check() {
+  local media body code="" rules line rule_prefix expiry days when id hits=""
+  media="$(offsite_prefix)/media/"
+  body="$(mktemp)"
+  code="$(offsite_lifecycle_get "$body" 2>/dev/null)" || true
+  # A 404 is "no rule" only when the bucket says so - not a missing bucket.
+  if [ "$code" = 404 ] && ! grep -q NoSuchLifecycleConfiguration "$body" 2>/dev/null; then
+    code="404, $(sed -n 's#.*<Code>\([^<]*\)</Code>.*#\1#p;T;q' "$body" 2>/dev/null || true)"
+  fi
+  case "$code" in
+    200) ;;
+    404)
+      rm -f "$body"
+      echo "media retention: the bucket has no lifecycle rule - nothing in it expires, media included"
+      return 0
+      ;;
+    *)
+      rm -f "$body"
+      echo "[WARN] media retention: could not read the bucket's lifecycle rules (HTTP ${code:-none}) - check by hand that no expiry rule covers $media (docs/operations/backup_restore.md)" >&2
+      return 3
+      ;;
+  esac
+  # One <Rule> per line. A rule deletes media when it is enabled, expires
+  # current objects (Days or Date - not only delete markers, not a transition)
+  # and its prefix - none, empty, or a parent of media/ - covers media/. A rule
+  # filtered by tag passes media by: media objects carry no tags.
+  rules="$(tr -d '\r\n' < "$body" | sed -e 's#<Rule>#\n<Rule>#g')"
+  rm -f "$body"
+  while IFS= read -r line; do
+    case "$line" in "<Rule>"*) ;; *) continue ;; esac
+    line="${line%%</Rule>*}"
+    case "$line" in *"<Status>Enabled</Status>"*) ;; *) continue ;; esac
+    case "$line" in *"<Expiration>"*) ;; *) continue ;; esac
+    case "$line" in *"<Tag>"*) continue ;; esac
+    expiry="${line#*<Expiration>}"
+    expiry="${expiry%%</Expiration>*}"
+    case "$expiry" in *"<Days>"*|*"<Date>"*) ;; *) continue ;; esac
+    rule_prefix="$(printf '%s' "$line" | sed -n 's#.*<Prefix>\([^<]*\)</Prefix>.*#\1#p')"
+    case "$media" in "$rule_prefix"*) ;; *) continue ;; esac
+    days="$(printf '%s' "$expiry" | sed -n 's#.*<Days>\([0-9]*\)</Days>.*#\1#p')"
+    id="$(printf '%s' "$line" | sed -n 's#.*<ID>\([^<]*\)</ID>.*#\1#p')"
+    when="on a set date"
+    if [ -n "$days" ]; then when="after $days days"; fi
+    hits="$hits${hits:+; }rule '${id:-unnamed}' (prefix '${rule_prefix}', $when)"
+  done <<< "$rules"
+  if [ -n "$hits" ]; then
+    alert_ops BACKUP_MEDIA_EXPIRES "the bucket deletes the media copy: $hits. Media goes up once, so an unchanged file loses its only off-box copy - scope the rule to $(offsite_prefix)/database/ and $(offsite_prefix)/tenant/ (docs/operations/backup_restore.md)"
+    return 1
+  fi
+  echo "media retention: no expiry rule covers $media"
+  return 0
+}
+
 TENANT_SCHEMA="${TENANT_SCHEMA:-}"
+check_media_retention=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --tenant)
@@ -269,13 +357,30 @@ while [ $# -gt 0 ]; do
       TENANT_SCHEMA="${1#--tenant=}"
       shift
       ;;
+    --check-media-retention)
+      check_media_retention=1
+      shift
+      ;;
     *)
       echo "unknown argument: $1" >&2
-      echo "usage: backup.sh [--tenant <schema>]" >&2
+      echo "usage: backup.sh [--tenant <schema>] [--check-media-retention]" >&2
       exit 2
       ;;
   esac
 done
+
+# --check-media-retention (49.10.6c.1): only the bucket's lifecycle check - no
+# dump, no upload, no run record. Run it after changing the rule.
+if [ -n "$check_media_retention" ]; then
+  trap - EXIT
+  if ! offsite_enabled; then
+    echo "no off-box bucket is set (OFFSITE_S3_* in /etc/erp/erp.env)" >&2
+    exit 2
+  fi
+  rc=0
+  media_retention_check || rc=$?
+  exit "$rc"
+fi
 
 : "${DATABASE_URL:?set DATABASE_URL (source /etc/erp/erp.env)}"
 : "${BACKUP_ENCRYPTION_KEY:?set BACKUP_ENCRYPTION_KEY in /etc/erp/erp.env}"
@@ -317,6 +422,7 @@ fi
 openssl enc -aes-256-cbc -pbkdf2 -salt -in "$dump" -out "$enc" -pass pass:"$BACKUP_ENCRYPTION_KEY"
 rm -f "$dump"
 sha256sum "$enc" > "$enc.sha256"
+enc_done=1 # 49.13.7: from here a failed run keeps the finished, checksummed backup
 
 # Retention: drop encrypted backups (and their sidecars) older than
 # RETAIN_DAYS. Scoped by filename prefix so a one-off tenant export never
@@ -354,4 +460,6 @@ echo "backup complete: $enc${OFFSITE_OUTCOME:+ (off-box: $OFFSITE_OUTCOME)}"
 # turn the database run, already recorded as a success, into a failure.
 if offsite_enabled && [ -z "$TENANT_SCHEMA" ]; then
   media_sync || true
+  # 49.10.6c.1: and says when the bucket would delete that copy.
+  media_retention_check || true
 fi

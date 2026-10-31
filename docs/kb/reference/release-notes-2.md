@@ -2,7 +2,7 @@
 title: Release notes (part 2)
 section: Reference
 order: 26
-summary: Earlier releases, 2026-07-27 to 2026-09-22, continued from the release notes.
+summary: Earlier releases, 2026-07-27 to 2026-09-24, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,9 +19,25 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **97** earlier entries, 2026-07-27 to 2026-09-22.
+This page continues the [release notes](release-notes.md) with **100** earlier entries, 2026-07-27 to 2026-09-24.
+
+## 2026-09-24
+
+**Stage 50 — BLD-033 (task-oriented role navigation and onboarding): a new Home landing screen, permission-derived not role-name-branched** *(code + tests + docs)*
+
+Built on the priority order the 2026-09-23 thread handed off: BLD-033 first (READY, DEPENDS on BLD-009/021, both done), then BLD-038/BLD-037 next if time allowed. Confirmed genuinely unstarted first (`git status` showed no file evidence). Full per-item detail `docs/micro_checklist.md` 50.13, build checklist BLD-033 entry; this is the index-style summary.
+
+## 2026-09-23
+
+**Stage 50 — BLD-031 (providers, public API and extensions): two real bugs found and fixed via local failure campaigns** *(code + tests + docs)*
+
+Continuation of the same Stage 50 build thread as §160-163. HEAD unchanged at `82f5517`; nothing committed. Per the next-thread prompt's priority order, verified BLD-031 genuinely showed no file evidence in this tree (no outbox/webhook/contract test files, no matching mtime cluster from the 2026-09-20 dispatch) before starting — confirmed not started, built it.
 
 ## 2026-09-22
+
+**Stage 50 — BLD-020 (pairwise compatibility and boundary matrix) built and verified, closing Wave 2; a second real timezone-skew bug found and fixed** *(code + tests + docs)*
+
+Same session as §160-162, immediately following BLD-019. BLD-020 formally `DEPENDS on BLD-002`, resolved earlier this session. HEAD unchanged at `82f5517`; nothing committed.
 
 **Stage 50 — BLD-019 (targeted mutation proof) built and verified, three real test gaps found and closed** *(code + tests + docs)*
 

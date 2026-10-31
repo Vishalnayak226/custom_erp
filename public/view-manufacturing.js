@@ -88,7 +88,6 @@ async function renderManufacturingOrdersTab(container) {
   bomFormPanel.style.marginBottom = '24px';
   bomFormPanel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">New BOM</h2>
-    <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 12px;">For multi-level sub-assemblies, per-line scrap %, by-products, default/effective-dated alternates, QC requirement, or standard cost, edit the BOM under Setup &rarr; BOM after creating it here.</p>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="bom-code">BOM Code</label>
@@ -152,7 +151,7 @@ async function renderManufacturingOrdersTab(container) {
   // Stage 55.12: what each BOM makes, and where each order stands.
   const bomOutput = Object.fromEntries(boms.map(b => [b.code || b.id, b.parent_item || '']));
   html += orders.length === 0
-    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No production orders yet. Use <b>+ New BOM</b> first if you have none, then <b>+ New Production Order</b>.</td></tr>`
+    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No production orders yet.</td></tr>`
     : orders.map(o => `
         <tr>
           <td style="font-family: monospace;">${escapeHTMLText(o.code || o.id)}</td>
@@ -473,7 +472,7 @@ async function runMRPSuggestions() {
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   if (suggestions.length === 0) {
-    panel.innerHTML = `<div style="padding: 24px; text-align:center; color:var(--text-muted);">No manufactured items are below their reorder point at this location. Set a reorder point on a manufactured Item, or pick a different location above.</div>`;
+    panel.innerHTML = `<div style="padding: 24px; text-align:center; color:var(--text-muted);">No manufactured items are below their reorder point at this location.</div>`;
   } else {
     let html = `
       <table>
@@ -506,8 +505,7 @@ async function renderProductionScheduleTab(container) {
   panel.className = 'table-panel';
   panel.style.padding = '16px';
   panel.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-      <p class="text-muted" style="margin:0; font-size:13px;">Every open, routed production order's operations, sequenced earliest-due-first against each work center's daily capacity. Finite respects that capacity (pushing overflow to a later day); Infinite ignores it - the gap between the two columns is how much capacity is actually stretching the schedule out.</p>
+    <div style="display:flex; justify-content:flex-end; align-items:center; margin-bottom:12px;">
       <button class="btn btn-outline" id="mfg-schedule-refresh">Refresh</button>
     </div>
     <div id="mfg-schedule-results"></div>
@@ -529,7 +527,7 @@ async function loadProductionSchedule() {
   }
   const entries = await res.json();
   if (!entries || entries.length === 0) {
-    resultsEl.innerHTML = `<div style="padding:24px; text-align:center; color:var(--text-muted);">No open, routed production orders to schedule. Create one under the <b>Orders</b> tab; its BOM needs a Routing before it can be scheduled.</div>`;
+    resultsEl.innerHTML = `<div style="padding:24px; text-align:center; color:var(--text-muted);">No open, routed production orders to schedule.</div>`;
     return;
   }
   let html = `

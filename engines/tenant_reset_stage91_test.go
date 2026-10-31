@@ -78,7 +78,7 @@ func TestStage91TenantDataReset(t *testing.T) {
 	if plan.DocumentsRemoved["Item"] != 1 || plan.DocumentsRemoved["POSTender"] != 1 || plan.DocumentsKept["StatusTransitionRule"] == 0 {
 		t.Fatalf("documents plan: removed %v kept %v", plan.DocumentsRemoved, plan.DocumentsKept)
 	}
-	if _, err := ResetTenantData(tenantID, "test", "clean slate"); err == nil || !strings.Contains(err.Error(), "suspend it first") {
+	if _, err := ResetTenantData(tenantID, "test", "clean slate", ""); err == nil || !strings.Contains(err.Error(), "suspend it first") {
 		t.Fatalf("an active client must not be reset, got %v", err)
 	}
 	if err := SuspendTenant(tenantID, "test", "reset"); err != nil {
@@ -86,15 +86,15 @@ func TestStage91TenantDataReset(t *testing.T) {
 	}
 	// A server that has recorded backups needs one from the last day.
 	exec(`INSERT INTO public.backup_runs (scope, tenant_schema, outcome, finished_at) VALUES ('tenant', $1, 'Success', NOW() - INTERVAL '3 days')`, schema)
-	if _, err := ResetTenantData(tenantID, "test", "clean slate"); err == nil || !strings.Contains(err.Error(), "backup") {
+	if _, err := ResetTenantData(tenantID, "test", "clean slate", ""); err == nil || !strings.Contains(err.Error(), "backup") {
 		t.Fatalf("a stale backup must refuse the reset, got %v", err)
 	}
 	exec(`INSERT INTO public.backup_runs (scope, tenant_schema, outcome, finished_at) VALUES ('tenant', $1, 'Success', NOW())`, schema)
-	if _, err := ResetTenantData(tenantID, "test", ""); err == nil {
+	if _, err := ResetTenantData(tenantID, "test", "", ""); err == nil {
 		t.Fatalf("a reset without a reason must be refused")
 	}
 
-	done, err := ResetTenantData(tenantID, "test", "clean slate")
+	done, err := ResetTenantData(tenantID, "test", "clean slate", approvedClientRemoval(t, tenantID, ClientRemovalReset))
 	if err != nil || !done.Applied {
 		t.Fatalf("reset: %v %+v", err, done)
 	}

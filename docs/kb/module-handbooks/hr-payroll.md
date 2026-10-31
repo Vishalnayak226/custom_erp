@@ -36,9 +36,9 @@ that runs payroll in outside software and just needs the attendance/leave
 numbers handed over; it never touches the GL and keeps working unchanged
 whether or not you also use the processing engine.
 
-Everything on this page lives under one **HR** screen with tabs across the
-top: Attendance, Leave, Payroll Export, Roster, Payroll, Loans, Onboarding,
-Appraisals, Training, Grievances.
+Each page below is its own entry in the **HRM** menu: My Requests,
+Attendance, Leave, Shift Roster, Payroll, Payroll Export, Loans/Advances,
+Onboarding/Offboarding, Appraisals, Training, Grievances.
 
 ## Setting up an employee
 
@@ -87,7 +87,7 @@ per-employee, not all-or-nothing.
 
 ## Payroll Export — for external payroll software
 
-**HR → Payroll Export** (`GET /api/v1/hr/payroll-export`, a date range) is
+**HRM → Payroll Export** (`GET /api/v1/hr/payroll-export`, a date range) is
 the older, simpler path: it does not compute pay or touch the GL at all — it
 totals each employee's Present/Absent/Late days and Approved leave days for
 the period and hands that back as a flat export, for you to feed into
@@ -188,7 +188,7 @@ engine with its own approval chain.
 
 ## Appraisals, training and grievances
 
-All three are tabs under **HRM → HR → HR administration**, each with its own
+All three are entries under **HRM → HR administration**, each with its own
 steps (User Guide §9E):
 
 - **Appraisals** — choose the **Appraisal cycle** (set up under **Manage

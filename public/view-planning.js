@@ -31,8 +31,7 @@ async function renderSupplyProposalsTab(container) {
       <button class="btn btn-primary" id="sp-generate" type="button">Generate proposals</button>
       <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="sp-status">Show</label>
         <select id="sp-status" class="form-select">${['Proposed', 'Converted', 'Rejected', ''].map(s => `<option value="${s}"${s === planStatus ? ' selected' : ''}>${s || 'All'}</option>`).join('')}</select></div>
-    </div>
-    <p style="margin: 8px 0 0; color: var(--text-muted);">A proposal is kept until you decide it; generating again refreshes the open ones instead of adding duplicates. An item's own reorder point (Setup → Reorder Point Config) wins over the lead time and safety stock here.</p>`;
+    </div>`;
   container.appendChild(panel);
   attachLinkTypeahead(document.getElementById('sp-location'), 'Location');
   document.getElementById('sp-generate').addEventListener('click', generateProposals);

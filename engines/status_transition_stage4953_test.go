@@ -171,7 +171,9 @@ func TestStage4953UnruledStatusDoctypesListed(t *testing.T) {
 		if len(strings.Split(options, ",")) > 1 {
 			open = append(open, name)
 		}
-		if _, posting := stage4953Matrix[name]; posting {
+		_, posting := stage4953Matrix[name]
+		_, moneyStock := stage4953bMatrix[name] // 49.5.3 (rest)
+		if posting || moneyStock {
 			t.Errorf("%s still fails open", name)
 		}
 	}

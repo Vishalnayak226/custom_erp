@@ -75,6 +75,14 @@ func publicAddress(ip net.IP) bool {
 	return true
 }
 
+// outboundResolver answers guardedDial's lookups. A failed lookup is an
+// explicit error ("does not resolve"), never a fallback to another address;
+// a variable so a test can stand in a DNS that is down (49.13.7) with no
+// network at all.
+var outboundResolver interface {
+	LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr, error)
+} = net.DefaultResolver
+
 // outboundDial resolves, refuses any non-public answer, and connects to the
 // address it checked.
 func outboundDial(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -92,7 +100,7 @@ func guardedDial(ctx context.Context, network, addr string, allowPrivate bool) (
 	if err != nil {
 		return nil, err
 	}
-	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	ips, err := outboundResolver.LookupIPAddr(ctx, host)
 	if err != nil || len(ips) == 0 {
 		return nil, fmt.Errorf("host %q does not resolve", host)
 	}

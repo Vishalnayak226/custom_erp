@@ -146,7 +146,7 @@ async function renderInspections(container) {
   };
   const list = document.createElement('div');
   list.className = 'table-panel';
-  list.innerHTML = qis.length === 0 ? '<p style="padding: 24px; color: var(--text-muted);">No inspections yet. Use <b>+ New Inspection</b>.</p>' : `<div style="overflow-x: auto;"><table>
+  list.innerHTML = qis.length === 0 ? '<p style="padding: 24px; color: var(--text-muted);">No inspections yet.</p>' : `<div style="overflow-x: auto;"><table>
     <thead><tr><th>Inspection</th><th>Inspecting</th><th>Item / lot</th><th class="num">Qty</th><th>Result</th><th>Decision</th><th></th></tr></thead>
     <tbody>${qis.map(q => {
       const type = q.source_type || 'Production', src = q.source_id || q.production_order_id || '';
@@ -194,9 +194,9 @@ async function renderInspections(container) {
   txnRestorePane('qi-screen');
 
   const hint = {
-    Incoming: 'Name the GRN and an item received on it. A failed inspection holds the inspected quantity at the location until a hold release is approved.',
-    Production: 'Name the production order; item and location come from the order. A failed inspection, once approved, blocks completing the order.',
-    Outgoing: 'Name the sales order, the item, where it is and how many. A failed inspection holds that quantity so it cannot be sold.'
+    Incoming: 'A fail holds the inspected quantity.',
+    Production: 'A fail blocks completing the order.',
+    Outgoing: 'A fail holds the quantity from sale.'
   };
   const typeSel = form.querySelector('#qi-type');
   const setType = () => {
@@ -247,7 +247,7 @@ async function decideInspection(q) {
   const body = pass
     ? `<p style="margin: 0;">${resultBadge('Pass')} ${esc(q.item)}${q.batch_no ? ' lot ' + esc(q.batch_no) : ''}: every reading passed. Accepting changes no stock.</p>
        <input type="hidden" id="qd-disp" value="Accept">`
-    : `<p style="margin: 0;">${resultBadge('Fail')} ${esc(q.item)}${q.batch_no ? ' lot ' + esc(q.batch_no) : ''}, ${num(q.qty_inspected)} at ${esc(q.location)}. A failed inspection cannot be accepted, and it raises a non-conformance report.</p>
+    : `<p style="margin: 0;">${resultBadge('Fail')} ${esc(q.item)}${q.batch_no ? ' lot ' + esc(q.batch_no) : ''}, ${num(q.qty_inspected)} at ${esc(q.location)}. Raises a non-conformance report.</p>
        <div class="form-group" style="margin: 0;"><label class="form-label" for="qd-disp">Decision</label>
          <select id="qd-disp" class="form-select">
            <option value="Hold stock">Hold stock - stays on hand, cannot be sold or issued until a hold release is approved</option>
@@ -278,7 +278,7 @@ async function renderCertificates(container) {
   const [coas, plans] = await Promise.all([listOf('CertificateOfAnalysis'), listOf('InspectionPlan')]);
   const list = document.createElement('div');
   list.className = 'table-panel';
-  list.innerHTML = coas.length === 0 ? '<p style="padding: 24px; color: var(--text-muted);">No certificates yet. Use <b>+ New Certificate</b> to record a lot\'s test results.</p>' : `<div style="overflow-x: auto;"><table>
+  list.innerHTML = coas.length === 0 ? '<p style="padding: 24px; color: var(--text-muted);">No certificates yet.</p>' : `<div style="overflow-x: auto;"><table>
     <thead><tr><th>Certificate</th><th>Item</th><th>Lot</th><th>Plan</th><th>Result</th><th>Status</th><th></th></tr></thead>
     <tbody>${coas.map(c => `<tr><td style="font-family: monospace;">${esc(c.code || c.id)}</td><td>${esc(c.item)}</td><td>${esc(c.batch_no)}</td><td>${esc(c.inspection_plan || '')}</td>
       <td>${resultBadge(c.overall_result)}</td><td><span class="badge ${c.status === 'Released' ? 'badge-success' : c.status === 'Rejected' ? 'badge-danger' : 'badge-secondary'}">${esc(c.status)}</span></td>
@@ -298,7 +298,7 @@ async function renderCertificates(container) {
         <select id="coa-plan" class="form-select"><option value="">No plan</option>${plans.filter(p => (p.status || 'Active') === 'Active').map(p => `<option value="${esc(p.id)}">${esc(p.code || p.id)} - ${esc(p.item || '')}</option>`).join('')}</select></div>
     </div>
     <div style="margin-top: 16px;">${readingsTable('coa-results', false)}</div>
-    <p style="color: var(--text-muted); font-size: 12px;">One failed result fails the certificate. A passed certificate can be released; rejecting one moves every bin holding this lot to QC-Hold. A certificate records your own test results - it is not a regulatory certification.</p>
+    <p style="color: var(--text-muted); font-size: 12px;">Rejecting moves every bin of this lot to QC-Hold.</p>
     <button class="btn btn-primary" id="coa-save">Save certificate</button>`;
 
   container.appendChild(txnPagedSection({ id: 'coa-screen', title: 'Certificates of Analysis', heading: 'h2', list, count: coas.length,
@@ -338,7 +338,7 @@ async function renderNonConformance(container) {
   const t = today();
   const list = document.createElement('div');
   list.className = 'table-panel';
-  list.innerHTML = ncrs.length === 0 ? '<p style="padding: 24px; color: var(--text-muted);">No non-conformance reports. Failed inspections raise one automatically; use <b>+ New Report</b> for anything else.</p>' : `<div style="overflow-x: auto;"><table>
+  list.innerHTML = ncrs.length === 0 ? '<p style="padding: 24px; color: var(--text-muted);">No non-conformance reports.</p>' : `<div style="overflow-x: auto;"><table>
     <thead><tr><th>Report</th><th>What went wrong</th><th>Source</th><th>Item / lot</th><th>Root cause</th><th>Corrective action</th><th>Status</th><th></th></tr></thead>
     <tbody>${ncrs.map(n => {
       const overdue = n.due_date && n.due_date < t && n.status !== 'Closed';
@@ -415,7 +415,7 @@ async function renderMaintenance(container) {
   const open = s => s === 'Draft' || s === 'Scheduled' || s === 'InProgress';
   const list = document.createElement('div');
   list.className = 'table-panel';
-  list.innerHTML = orders.length === 0 ? '<p style="padding: 24px; color: var(--text-muted);">No maintenance orders yet. Use <b>+ New Order</b>, or <b>+ New Schedule</b> for recurring work - the scheduler raises its orders on the due date.</p>' : `<div style="overflow-x: auto;"><table>
+  list.innerHTML = orders.length === 0 ? '<p style="padding: 24px; color: var(--text-muted);">No maintenance orders yet.</p>' : `<div style="overflow-x: auto;"><table>
     <thead><tr><th>Order</th><th>Asset</th><th>Work</th><th>Scheduled</th><th>Status</th><th>Checklist</th><th>Done</th><th></th></tr></thead>
     <tbody>${orders.map(o => {
       const tasks = rowsOf(o.checklist), parts = rowsOf(o.parts_used);

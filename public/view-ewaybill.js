@@ -64,7 +64,6 @@ export async function renderEWBView(container) {
     };
     const [inner, label] = forms[act];
     pane.innerHTML = `${title}<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">${inner}<button type="button" class="btn btn-primary" data-ewb-go>${label}</button></div>
-      ${act === 'record' ? '<div class="txn-hint" style="margin-top:6px;">Made on the e-way bill portal? Record its number and validity so the register and the expiry watch know it.</div>' : ''}
       ${act === 'extend' ? '<div class="txn-hint" style="margin-top:6px;">Allowed within 8 hours before or after it expires.</div>' : ''}`;
     pane.querySelector('[data-ewb-go]').addEventListener('click', () => {
       if (act === 'generate') send(r, 'generate', vals(), 'E-way bill generated.');

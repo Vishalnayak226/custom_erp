@@ -159,7 +159,7 @@ export async function renderDashboardsTab(panel, openId) {
   const shared = dashboards.filter(d => !d.mine && d.owner);
   const ready = dashboards.filter(d => !d.owner);
   panel.innerHTML = `<div style="padding:16px 20px;">
-    <div class="dash-bar"><div class="text-muted">Charts and numbers from your data, for the stores you may see.</div>
+    <div class="dash-bar">
       <div class="dash-actions">${meta.can_build ? '<button type="button" class="btn btn-primary" id="dash-new">+ New dashboard</button>' : ''}</div></div>
     ${mine.length ? `<h3 class="dash-section-title">Yours</h3><div class="dash-list">${mine.map(card).join('')}</div>` : ''}
     ${shared.length ? `<h3 class="dash-section-title">Shared with you</h3><div class="dash-list">${shared.map(card).join('')}</div>` : ''}
@@ -264,7 +264,7 @@ async function openDashboard(panel, id, { edit = false, draft = null } = {}) {
            ${cd.mine || (cd.can_edit && cd.owner) ? '<button type="button" class="btn btn-outline btn-sm" id="dash-mail">Email me this</button>' : ''}
            ${cd.mine ? '<button type="button" class="btn btn-outline btn-sm" id="dash-delete">Delete</button>' : ''}`}</div>
     </div>
-    <div class="dash-bar" id="dash-filters">${filterBar(cd, f, stores)}${editing ? '<span class="dash-note">These filters are saved with the dashboard as where it starts.</span>' : ''}</div>
+    <div class="dash-bar" id="dash-filters">${filterBar(cd, f, stores)}</div>
     <div class="dash-grid" id="dash-grid">${cd.widgets.map((w, i) => widgetBox(w, i, editing)).join('') || '<p class="dash-empty">No widgets yet - add one.</p>'}</div>
     <p class="dash-note" id="dash-asof"></p></div>`;
   const root = panel.firstElementChild;
@@ -586,8 +586,7 @@ async function openShareDialog(cd) {
     roles = (Array.isArray(data) ? data : data.roles || []).map(r => (typeof r === 'string' ? r : r.name || r.role)).filter(Boolean);
   }
   const chips = (name, list, picked) => `<div class="dash-chips">${list.map(v => `<label><input type="checkbox" data-dsh-${name}="${esc(v.code || v)}"${picked.includes(v.code || v) ? ' checked' : ''}> ${esc(v.name || v)}</label>`).join('') || '<span class="dash-note">None to pick.</span>'}</div>`;
-  dialog('Share and home', `<p class="dash-note">Everyone it is shared with sees only their own stores' figures, and money only if their role may.</p>
-    <div class="dash-share">
+  dialog('Share and home', `<div class="dash-share">
       <div class="form-group"><label class="form-label" for="dsh-users">Users (their sign-in names, comma between)</label><input id="dsh-users" class="form-input" value="${esc((cd.share_users || []).join(', '))}"></div>
       <div class="form-group"><span class="form-label">Roles</span>${roles.length ? chips('role', roles, cd.share_roles || []) : `<input id="dsh-roles" class="form-input" value="${esc((cd.share_roles || []).join(', '))}" placeholder="e.g. Store Manager">`}</div>
       <div class="form-group"><span class="form-label">Stores (everyone working at them)</span>${chips('store', stores, cd.share_stores || [])}</div>
@@ -690,11 +689,9 @@ async function exportPDF(cd, f) {
 function scheduleDigest(cd) {
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  dialog('Email me this dashboard', `<p class="dash-note">The email carries each widget as numbers and bars, with the rows attached as a CSV - for the stores you may see.</p>
-    <div class="form-group"><label class="form-label" for="dmail-to">Email to</label><input id="dmail-to" class="form-input" type="email" placeholder="you@example.com"></div>
+  dialog('Email me this dashboard', `<div class="form-group"><label class="form-label" for="dmail-to">Email to</label><input id="dmail-to" class="form-input" type="email" placeholder="you@example.com"></div>
     <div class="dash-editor-row"><label class="form-label" for="dmail-freq" style="margin:0;">How often</label><select id="dmail-freq" class="form-select"><option>Daily</option><option>Weekly</option><option>Monthly</option></select>
-      <label class="form-label" for="dmail-first" style="margin:0;">First email on</label><input id="dmail-first" class="form-input" type="date" value="${localDay(tomorrow)}"></div>
-    <p class="dash-note">See and stop it under Reports → Schedules.</p>`, null, { wide: false, ok: 'Schedule', onOk: async (b) => {
+      <label class="form-label" for="dmail-first" style="margin:0;">First email on</label><input id="dmail-first" class="form-input" type="date" value="${localDay(tomorrow)}"></div>`, null, { wide: false, ok: 'Schedule', onOk: async (b) => {
     const res = await apiFetch(`/api/v1/dashboards/custom/${encodeURIComponent(cd.id)}/digest`, { method: 'POST', body: JSON.stringify({
       email: b.querySelector('#dmail-to').value, frequency: b.querySelector('#dmail-freq').value, first_run: b.querySelector('#dmail-first').value }) });
     if (!res || !res.ok) return res ? getErrorMessage(res, 'It was not scheduled.') : 'It was not scheduled.';

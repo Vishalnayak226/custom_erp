@@ -20,6 +20,16 @@ const day = (v) => {
   return isNaN(d) ? escapeHTMLText(String(v)) : escapeHTMLText(d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }));
 };
 const size = (b) => (b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : b > 1024 ? `${Math.round(b / 1024)} KB` : `${b || 0} B`);
+// Stage 49.11.7: how old a client's newest backup is - red when stale or none.
+const ago = (v) => {
+  const h = (Date.now() - new Date(v).getTime()) / 3600000;
+  return h < 1 ? 'under 1h ago' : h < 48 ? `${Math.round(h)}h ago` : `${Math.round(h / 24)}d ago`;
+};
+const backupCell = (c) => {
+  if (!c.last_backup_at) return '<span style="color:var(--danger-color); font-weight:600;">none</span>';
+  const text = escapeHTMLText(ago(c.last_backup_at));
+  return c.backup_stale ? `<span style="color:var(--danger-color); font-weight:600;" title="${escapeHTMLText(new Date(c.last_backup_at).toLocaleString('en-IN'))}">${text}</span>` : `<span title="${escapeHTMLText(new Date(c.last_backup_at).toLocaleString('en-IN'))}">${text}</span>`;
+};
 
 function statusBadge(c) {
   const s = (c.status || 'active').toLowerCase();
@@ -128,10 +138,10 @@ async function renderControlPanelView(container) {
       <table>
         <thead><tr>
           <th>Client</th><th>Status</th><th>Address</th><th>Created</th><th>Version</th>
-          <th>Modules</th><th class="num">Users</th><th class="num">Records</th><th>Last activity</th><th class="num">Errors (24h)</th><th>Actions</th>
+          <th>Modules</th><th class="num">Users</th><th class="num">Records</th><th>Last activity</th><th>Backup</th><th class="num">Errors (24h)</th><th>Actions</th>
         </tr></thead>
         <tbody>
-          ${clients.length === 0 ? '<tr><td colspan="11" style="text-align:center; color:var(--text-muted);">No clients yet. Create one under Tenant Entitlements &rarr; Provision New Tenant.</td></tr>' : ''}
+          ${clients.length === 0 ? '<tr><td colspan="12" style="text-align:center; color:var(--text-muted);">No clients yet. Create one under Tenant Entitlements &rarr; Provision New Tenant.</td></tr>' : ''}
           ${clients.map((c, i) => `
             <tr>
               <td><strong>${escapeHTMLText(c.name || c.tenant_id)}</strong><div class="text-muted" style="font-size:12px;">${escapeHTMLText(c.tenant_id)} &middot; ${escapeHTMLText(c.schema)}</div>${c.problem ? `<div class="po-line-error">${escapeHTMLText(c.problem)}</div>` : ''}</td>
@@ -143,6 +153,7 @@ async function renderControlPanelView(container) {
               <td class="num">${c.active_users}</td>
               <td class="num">${Number(c.records || 0).toLocaleString('en-IN')}</td>
               <td>${when(c.last_activity_at)}</td>
+              <td>${backupCell(c)}</td>
               <td class="num">${c.errors_24h ? `<span style="color:var(--danger-color); font-weight:600;">${c.errors_24h}</span>` : '0'}${c.last_error_at ? `<div class="text-muted" style="font-size:11px;">last ${when(c.last_error_at)}</div>` : ''}</td>
               <td class="po-row-actions">
                 <button class="action-btn" type="button" data-cp-open="tenant-entitlements" data-cp-tenant="${escapeHTMLText(c.tenant_id)}">Modules</button>
@@ -151,7 +162,7 @@ async function renderControlPanelView(container) {
                 ${lifecycleActions(c, i, c.tenant_id === cp.operator_tenant)}
               </td>
             </tr>
-            <tr class="cp-modules-row hidden" data-cp-modules-row="${i}"><td colspan="11" style="font-size:12px;">
+            <tr class="cp-modules-row hidden" data-cp-modules-row="${i}"><td colspan="12" style="font-size:12px;">
               <b>On:</b> ${escapeHTMLText((c.modules_enabled || []).join(', ') || 'none')}<br>
               <b>Off:</b> ${escapeHTMLText((c.modules_disabled || []).join(', ') || 'none')}
             </td></tr>`).join('')}
@@ -177,6 +188,30 @@ async function renderControlPanelView(container) {
     </div>
   `;
   container.appendChild(rel);
+
+  // Stage 49.11.7: each public address's certificate, as the server last saw it.
+  const certs = cp.certificates || [];
+  const cert = document.createElement('div');
+  cert.className = 'table-panel';
+  cert.innerHTML = `
+    <h3 style="font-size:16px; font-weight:600; padding:16px 16px 0;">Certificates</h3>
+    <div class="table-wrapper">
+      <table>
+        <thead><tr><th>Address</th><th>Expires</th><th class="num">Days left</th><th>Issuer</th><th>Checked</th></tr></thead>
+        <tbody>
+          ${certs.length === 0 ? `<tr><td colspan="5" style="color:var(--text-muted);">${escapeHTMLText(cp.certificates_note || 'No address checked.')}</td></tr>` : ''}
+          ${certs.map(c => {
+            const bad = c.expiring || !c.not_after;
+            return `<tr><td>${escapeHTMLText(c.host)}${c.problem ? `<div class="po-line-error">${escapeHTMLText(c.problem)}</div>` : ''}</td>
+              <td>${day(c.not_after)}</td>
+              <td class="num">${c.not_after ? `<span style="${bad ? 'color:var(--danger-color); font-weight:600;' : ''}">${c.days_left}</span>` : '<span class="text-muted">&mdash;</span>'}</td>
+              <td>${escapeHTMLText(c.issuer || '')}</td><td>${when(c.checked_at)}</td></tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  container.appendChild(cert);
 
   // Stage 47.17.5: capability maturity, per configuration.
   const mat = document.createElement('div');

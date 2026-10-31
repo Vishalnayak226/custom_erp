@@ -42,7 +42,15 @@ exists for. Each finding is therefore either given a key through
 `engines.ClaimCommand` (as checkout, returns and offline sales are) or justified
 in the tracker item that closes it; the list below is the open work.
 
-Routes audited: **533**; keyed: **8**; findings (money / stock without a key): **148**.
+Stage 49.4.7a keyed the commands that create a new money or stock record each
+time they run - journal voucher create, payment-proposal execute, payroll run,
+loan disbursement, stock adjustment create, POS advance, gift card issue,
+loyalty and voucher redemption - through `commandKeyed` in routes.go
+(internal/server/command_keys.go): an `Idempotency-Key` header or an
+`idempotency_key` body field. The findings left are commands that move an
+existing record on, guarded by that record's status.
+
+Routes audited: **533**; keyed: **17**; findings (money / stock without a key): **139**.
 
 ## Findings
 
@@ -55,7 +63,6 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/assets/transfer` | `handleTransferAsset` | stock |
 | `POST /api/v1/crm/loyalty-redemption/initiate` | `handleInitiateSecureLoyaltyRedemption` | money |
 | `POST /api/v1/crm/voucher-holds/{action}` | `handleCRMVoucherHold` | money |
-| `POST /api/v1/crm/voucher/redeem` | `handleRedeemVoucher` | money |
 | `POST /api/v1/einvoice/documents/{id}/{action}` | `handleEInvoiceDocumentAction` | money |
 | `POST /api/v1/einvoice/profiles` | `handleSaveEInvoiceProfile` | money |
 | `POST /api/v1/einvoice/run` | `handleRunEInvoiceWorker` | money |
@@ -66,14 +73,12 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/finance/credit-note/{id}/post` | `handlePostCreditNote` | money, stock |
 | `POST /api/v1/finance/debit-note/{id}/post` | `handlePostDebitNote` | stock |
 | `POST /api/v1/finance/fx-revaluation` | `handleFXRevaluation` | money |
-| `POST /api/v1/finance/journal-voucher` | `handleCreateJournalVoucher` | money |
 | `POST /api/v1/finance/journal-voucher/recurring` | `handleCreateRecurringJournalTemplate` | money |
 | `POST /api/v1/finance/journal-voucher/{id}/retry-post` | `handleRetryPostJournalVoucher` | money |
 | `POST /api/v1/finance/journal-voucher/{id}/reverse` | `handleReverseJournalVoucher` | money |
 | `POST /api/v1/finance/landed-cost-voucher` | `handleCreateLandedCostVoucher` | money |
 | `POST /api/v1/finance/landed-cost-voucher/{id}/apply` | `handleApplyLandedCostVoucher` | money |
 | `POST /api/v1/finance/payment-proposal` | `handlePaymentProposal` | money |
-| `POST /api/v1/finance/payment-proposal/{id}/execute` | `handleExecutePaymentProposal` | money |
 | `POST /api/v1/finance/payment-proposal/{id}/record-utr` | `handleRecordPaymentUTR` | money |
 | `POST /api/v1/finance/period-reopen/{request}/apply` | `handlePeriodReopenApply` | money |
 | `POST /api/v1/finance/periods` | `handleAccountingPeriods` | money |
@@ -94,10 +99,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/grn-steps/{id}/price` | `handleGRNStepsPrice` | money, stock |
 | `POST /api/v1/grn-steps/{id}/receive` | `handleGRNStepsReceive` | stock |
 | `POST /api/v1/gst/ewaybills/{doctype}/{id}/{action}` | `handleEWBAction` | money |
-| `POST /api/v1/hr/disburse-loan` | `handleDisburseEmployeeLoan` | money |
 | `POST /api/v1/hr/post-payslip` | `handlePostPayslip` | stock |
-| `POST /api/v1/hr/run-payroll` | `handleRunPayroll` | money |
-| `POST /api/v1/inventory/adjustments` | `handleCreateInventoryAdjustment` | stock |
 | `POST /api/v1/inventory/adjustments/{id}/post` | `handlePostInventoryAdjustment` | stock |
 | `POST /api/v1/inventory/adjustments/{id}/reverse` | `handleReverseInventoryAdjustment` | stock |
 | `POST /api/v1/inventory/challans` | `handleCreateDeliveryChallan` | stock |
@@ -111,7 +113,6 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/inventory/material-requests/{id}/return` | `handleReturnMaterial` | stock |
 | `POST /api/v1/inventory/mrp-changes` | `handleCreateMRPChange` | stock |
 | `POST /api/v1/inventory/mrp-changes/{id}/cancel` | `handleCancelMRPChange` | stock |
-| `POST /api/v1/loyalty/redeem` | `handleRedeemLoyaltyPoints` | money |
 | `POST /api/v1/manufacturing/complete` | `handleCompleteProductionOrder` | stock |
 | `POST /api/v1/manufacturing/confirm-operation` | `handleConfirmProductionOperation` | stock |
 | `POST /api/v1/manufacturing/issue-material` | `handleIssueProductionMaterial` | stock |
@@ -132,9 +133,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/oms/settlements/{id}/write-off` | `handleWriteOffSettlementVariance` | money |
 | `POST /api/v1/oms/shipping-packages/{id}/invoice` | `handleInvoiceShippingPackage` | money |
 | `POST /api/v1/orders/{id}/credit-notes` | `handleOrderCreditNotes` | money |
-| `POST /api/v1/pos/advances` | `handlePOSAdvances` | money |
 | `POST /api/v1/pos/gift-card/balance` | `handleGiftCardBalance` | money |
-| `POST /api/v1/pos/gift-card/issue` | `handleIssueGiftCard` | money, stock |
 | `POST /api/v1/pos/offline-sales/{id}/reject` | `handleRejectOfflineSale` | money, stock |
 | `POST /api/v1/pos/payment/confirm` | `handlePOSPaymentConfirm` | money |
 | `POST /api/v1/pos/payment/void` | `handlePOSPaymentVoid` | money |
@@ -342,7 +341,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/crm/public/unsubscribe` | `handleCRMPublicUnsubscribe` | no | - | document |
 | `POST /api/v1/crm/senders/{id}/test` | `handleCRMSenderTest` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/crm/voucher-holds/{action}` | `handleCRMVoucherHold` | no | - | money |
-| `POST /api/v1/crm/voucher/redeem` | `handleRedeemVoucher` | no | - | money |
+| `POST /api/v1/crm/voucher/redeem` | `handleRedeemVoucher` | yes (command key `crm.voucher.redeem`) | 7 days (command claim) | money |
 | `POST /api/v1/crm/voucher/validate` | `handleValidateVoucher` | n.a. (a question, not a command) | - | money |
 | `POST /api/v1/dashboards/custom` | `handleCustomDashboards` | no | - | document |
 | `POST /api/v1/dashboards/custom/{id}/copy` | `handleCopyCustomDashboard` | no | - | document |
@@ -366,14 +365,14 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/finance/fx-revaluation` | `handleFXRevaluation` | no | - | money |
 | `POST /api/v1/finance/intercompany-transaction` | `handleCreateIntercompanyTransaction` | no | - | document |
 | `POST /api/v1/finance/intercompany-transaction/{id}/retry-post` | `handleRetryPostIntercompanyTransaction` | no | - | document |
-| `POST /api/v1/finance/journal-voucher` | `handleCreateJournalVoucher` | no | - | money |
+| `POST /api/v1/finance/journal-voucher` | `handleCreateJournalVoucher` | yes (command key `finance.journal_voucher.create`) | 7 days (command claim) | money |
 | `POST /api/v1/finance/journal-voucher/recurring` | `handleCreateRecurringJournalTemplate` | no | - | money |
 | `POST /api/v1/finance/journal-voucher/{id}/retry-post` | `handleRetryPostJournalVoucher` | no | - | money |
 | `POST /api/v1/finance/journal-voucher/{id}/reverse` | `handleReverseJournalVoucher` | no | - | money |
 | `POST /api/v1/finance/landed-cost-voucher` | `handleCreateLandedCostVoucher` | no | - | money |
 | `POST /api/v1/finance/landed-cost-voucher/{id}/apply` | `handleApplyLandedCostVoucher` | no | - | money |
 | `POST /api/v1/finance/payment-proposal` | `handlePaymentProposal` | no | - | money |
-| `POST /api/v1/finance/payment-proposal/{id}/execute` | `handleExecutePaymentProposal` | no | - | money |
+| `POST /api/v1/finance/payment-proposal/{id}/execute` | `handleExecutePaymentProposal` | yes (command key `finance.payment_proposal.execute`) | 7 days (command claim) | money |
 | `POST /api/v1/finance/payment-proposal/{id}/record-utr` | `handleRecordPaymentUTR` | no | - | money |
 | `POST /api/v1/finance/period-reopen/{request}/apply` | `handlePeriodReopenApply` | no | - | money |
 | `POST /api/v1/finance/periods` | `handleAccountingPeriods` | no | - | money |
@@ -396,10 +395,10 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/grn-steps/{id}/verify` | `handleGRNStepsVerify` | n.a. (a question, not a command) | - | stock |
 | `POST /api/v1/gst/calculate` | `handleCalculateGST` | no | - | document |
 | `POST /api/v1/gst/ewaybills/{doctype}/{id}/{action}` | `handleEWBAction` | no | - | money |
-| `POST /api/v1/hr/disburse-loan` | `handleDisburseEmployeeLoan` | no | - | money |
+| `POST /api/v1/hr/disburse-loan` | `handleDisburseEmployeeLoan` | yes (command key `hr.loan.disburse`) | 7 days (command claim) | money |
 | `POST /api/v1/hr/onboarding/{id}/steps` | `handleOnboardingStep` | no | - | document |
 | `POST /api/v1/hr/post-payslip` | `handlePostPayslip` | no | - | stock |
-| `POST /api/v1/hr/run-payroll` | `handleRunPayroll` | no | - | money |
+| `POST /api/v1/hr/run-payroll` | `handleRunPayroll` | yes (command key `hr.payroll.run`) | 7 days (command claim) | money |
 | `POST /api/v1/images` | `handleUploadOwnerImage` | no | - | document |
 | `POST /api/v1/images/main` | `handleOwnerImageAction` | no | - | document |
 | `POST /api/v1/images/remove` | `handleOwnerImageAction` | no | - | document |
@@ -413,7 +412,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/integration/shopify/webhook` | `handleShopifyWebhook` | no | - | document |
 | `POST /api/v1/integrations/clevertap/segment-sync` | `handleCleverTapSegmentSync` | no | - | document |
 | `POST /api/v1/integrations/credentials/disconnect` | `handleConnectorDisconnect` | no | - | document |
-| `POST /api/v1/inventory/adjustments` | `handleCreateInventoryAdjustment` | no | - | stock |
+| `POST /api/v1/inventory/adjustments` | `handleCreateInventoryAdjustment` | yes (command key `inventory.adjustment.create`) | 7 days (command claim) | stock |
 | `POST /api/v1/inventory/adjustments/preview` | `handlePreviewInventoryAdjustment` | n.a. (a question, not a command) | - | stock |
 | `POST /api/v1/inventory/adjustments/{id}/post` | `handlePostInventoryAdjustment` | no | - | stock |
 | `POST /api/v1/inventory/adjustments/{id}/reverse` | `handleReverseInventoryAdjustment` | no | - | stock |
@@ -436,7 +435,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/jobs/{id}/retry` | `handleRetryJob` | no | - | document |
 | `POST /api/v1/lines/resolve` | `handleResolveLineCodes` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/login` | `handleLogin` | n.a. (a question, not a command) | - | document |
-| `POST /api/v1/loyalty/redeem` | `handleRedeemLoyaltyPoints` | no | - | money |
+| `POST /api/v1/loyalty/redeem` | `handleRedeemLoyaltyPoints` | yes (command key `loyalty.points.redeem`) | 7 days (command claim) | money |
 | `POST /api/v1/manufacturing/acknowledge-bom-variance` | `handleAcknowledgeBOMVariance` | no | - | document |
 | `POST /api/v1/manufacturing/complete` | `handleCompleteProductionOrder` | no | - | stock |
 | `POST /api/v1/manufacturing/confirm-operation` | `handleConfirmProductionOperation` | no | - | stock |
@@ -547,12 +546,12 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/platform/tenants/{tenant}/status` | `handleControlPanelTenantStatus` | no | - | document |
 | `POST /api/v1/platform/tenants/{tenant}/tables/{table}/row` | `handlePlatformUpdateRow` | no | - | document |
 | `POST /api/v1/platform/tenants/{tenant}/trial` | `handleControlPanelTenantTrial` | no | - | document |
-| `POST /api/v1/pos/advances` | `handlePOSAdvances` | no | - | money |
+| `POST /api/v1/pos/advances` | `handlePOSAdvances` | yes (command key `pos.advance.take`) | 7 days (command claim) | money |
 | `POST /api/v1/pos/advances/refund` | `handlePOSAdvanceRefund` | yes (command key) | per engine (see handler) | money |
 | `POST /api/v1/pos/bills/{id}/cancel` | `handleCancelPOSBill` | no | - | document |
 | `POST /api/v1/pos/exchange/start` | `handleStartPOSExchange` | no | - | document |
 | `POST /api/v1/pos/gift-card/balance` | `handleGiftCardBalance` | no | - | money |
-| `POST /api/v1/pos/gift-card/issue` | `handleIssueGiftCard` | no | - | money, stock |
+| `POST /api/v1/pos/gift-card/issue` | `handleIssueGiftCard` | yes (command key `pos.gift_card.issue`) | 7 days (command claim) | money, stock |
 | `POST /api/v1/pos/held-bills` | `handleHoldPOSBill` | no | - | document |
 | `POST /api/v1/pos/held-bills/{id}/{action}` | `handleHeldPOSBillAction` | no | - | document |
 | `POST /api/v1/pos/loyalty/redemption/start` | `handleStartPOSRedemption` | no | - | document |

@@ -50,16 +50,24 @@ Lifecycle
   resume    -tenant <id> -reason <text> -actor <who> -yes
   deprovision -tenant <id> -reason <text> -actor <who> [-retention-days N] -yes
   legal-hold  -tenant <id> -on|-off -reason <text> -actor <who> -yes
-  purge     -tenant <id> -backup-ref <where the data was preserved> -actor <who> -yes
+  purge     -tenant <id> -backup-ref <where the data was preserved> -request <id> -actor <who> -yes
+
+Second person (Stage 49.10.6b) - a purge or a reset needs one
+  request-removal -tenant <id> -action reset|purge -reason <text> -actor <your login>
+                                            files the request in the operator's own client
+                                            (-actor: your admin login there); another admin
+                                            approves it in Approvals; then pass its id to
+                                            purge / reset-data with -request
 
 Clean slate (Stage 91)
-  reset-data -tenant <id> -reason <text> -actor <who> -yes
+  reset-data -tenant <id> -reason <text> -request <id> -actor <who> -yes
                                             empty the client back to a fresh one: every record,
                                             stock, ledger, setting and integration goes; logins
                                             (password hashes untouched), permissions, shipped
                                             reference records and evidence stay; numbering
-                                            restarts from 1. Needs the client suspended and a
-                                            backup from the last 24 hours. Prints the plan first.
+                                            restarts from 1. Needs the client suspended, a
+                                            backup from the last 24 hours and an approved
+                                            request-removal. Prints the plan first.
 
 Key rotation (Stage 49.6.5)
   reencrypt-channel-credentials -tenant <id> -reason <text> -actor <who> -yes
@@ -114,6 +122,8 @@ func main() {
 		err = cmdLegalHold(args)
 	case "purge":
 		err = cmdPurge(args)
+	case "request-removal":
+		err = cmdRequestRemoval(args)
 	case "reset-data":
 		err = cmdResetData(args)
 	case "reencrypt-channel-credentials":
@@ -507,6 +517,7 @@ func cmdPurge(args []string) error {
 	tenant := fs.String("tenant", "", "Tenant id (required).")
 	backupRef := fs.String("backup-ref", "",
 		"Where this tenant's data has been preserved - a dump filename, backup id or archive location (required, recorded permanently).")
+	request := fs.String("request", "", "The purge request another admin approved (tenantctl request-removal; required with -yes).")
 	reason, actor, confirm := commonFlags(fs, "Not used by purge; the backup reference and the deprovisioning reason are the record")
 	_ = reason
 	if err := fs.Parse(args); err != nil {
@@ -528,11 +539,14 @@ func cmdPurge(args []string) error {
 		fmt.Printf("  current status  : %s\n", life.Status)
 		fmt.Printf("  legal hold      : %s\n", yesNo(life.LegalHold))
 		fmt.Printf("  retention until : %s\n", stamp(life.RetentionUntil))
+		if strings.TrimSpace(*request) == "" {
+			fmt.Printf("A second admin approves it first: tenantctl request-removal -tenant %s -action purge -reason <why> -actor <your login>, then -request <id>.\n", *tenant)
+		}
 		fmt.Println("Re-run with -yes to destroy it. This cannot be undone from here - only from the backup above.")
 		return nil
 	}
 
-	rep, err := engines.PurgeTenant(*tenant, *actor, *backupRef)
+	rep, err := engines.PurgeTenant(*tenant, *actor, *backupRef, *request)
 	if err != nil {
 		return err
 	}
@@ -554,6 +568,7 @@ func cmdResetData(args []string) error {
 	fs := flag.NewFlagSet("reset-data", flag.ExitOnError)
 	tenant := fs.String("tenant", "", "Tenant id (required).")
 	reason, actor, confirm := commonFlags(fs, "Why this client is being reset to a clean slate")
+	request := fs.String("request", "", "The reset request another admin approved (tenantctl request-removal; required with -yes).")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -574,18 +589,45 @@ func cmdResetData(args []string) error {
 			}
 			return nil
 		}
-		fmt.Println("DRY RUN - nothing changed. Re-run with -yes (and -reason) to reset this client.")
+		fmt.Println("DRY RUN - nothing changed. Re-run with -yes, -reason and -request to reset this client.")
+		if strings.TrimSpace(*request) == "" {
+			fmt.Printf("A second admin approves it first: tenantctl request-removal -tenant %s -action reset -reason <why> -actor <your login>, then -request <id>.\n", *tenant)
+		}
 		return nil
 	}
 	if *reason == "" {
 		return fmt.Errorf("-reason is required and is recorded in the client's evidence trail")
 	}
-	done, err := engines.ResetTenantData(*tenant, *actor, *reason)
+	done, err := engines.ResetTenantData(*tenant, *actor, *reason, *request)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("\n%s is reset to a clean slate. %d login(s) kept, unchanged. Resume it with: tenantctl resume -tenant %s -reason \"clean slate ready\" -yes\n",
 		*tenant, done.Users, *tenant)
+	return nil
+}
+
+// cmdRequestRemoval (Stage 49.10.6b) files a reset or purge request for a
+// second admin of the operator's client to approve in Approvals. It changes
+// nothing in the client it names.
+func cmdRequestRemoval(args []string) error {
+	fs := flag.NewFlagSet("request-removal", flag.ExitOnError)
+	tenant := fs.String("tenant", "", "Tenant id (required).")
+	action := fs.String("action", "", "reset or purge (required).")
+	reason := fs.String("reason", "", "Why (required - recorded in the evidence trail).")
+	actor := fs.String("actor", "", "Your admin login on the operator's client (required) - the approver must be another one.")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *tenant == "" || *action == "" || *reason == "" || *actor == "" {
+		return fmt.Errorf("-tenant, -action, -reason and -actor are required")
+	}
+	id, err := engines.RequestClientDataRemoval(*tenant, *action, *reason, *actor)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Request %s filed: %s of %s.\nAnother admin of %s approves it in Approvals; then run tenantctl %s -tenant %s ... -request %s -yes (good for %d days after approval).\n",
+		id, *action, *tenant, engines.ClientRemovalTenant(), map[string]string{"reset": "reset-data", "purge": "purge"}[strings.ToLower(*action)], *tenant, id, engines.ClientRemovalValidDays)
 	return nil
 }
 

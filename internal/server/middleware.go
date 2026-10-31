@@ -318,8 +318,15 @@ const lightAdmissionWait = 1500 * time.Millisecond
 
 // acquireClassWait is acquireClass that, for an ordinary request, keeps
 // trying every 10 ms until wait is up or the caller has gone.
+//
+// Stage 49.10.5: the tenant's cap is read once per request, outside the
+// limiter's lock. It was read on every 10 ms poll, under the one lock every
+// tenant's admission and release share - a read that waits on the database
+// (a client's schema look-up while the pool is exhausted) held that lock, so
+// every client's sign-in and health check stalled behind it.
 func (l *tenantConcurrencyLimiter) acquireClassWait(done <-chan struct{}, tenantID string, heavy, priority bool, wait time.Duration) bool {
-	if l.acquireClass(tenantID, heavy, priority) {
+	limit := perTenantMaxConcurrentRequestsFor(tenantID)
+	if l.acquireClassLimit(tenantID, heavy, priority, limit) {
 		return true
 	}
 	if heavy || wait <= 0 {
@@ -334,7 +341,7 @@ func (l *tenantConcurrencyLimiter) acquireClassWait(done <-chan struct{}, tenant
 			return false
 		case <-tick.C:
 		}
-		if l.acquireClass(tenantID, heavy, priority) {
+		if l.acquireClassLimit(tenantID, heavy, priority, limit) {
 			return true
 		}
 		if time.Now().After(deadline) {
@@ -353,9 +360,14 @@ func (l *tenantConcurrencyLimiter) acquire(tenantID string, heavy bool) bool {
 // acquireClass is acquire with the priority lane: a priority request may go
 // up to the cap plus priorityReserve.
 func (l *tenantConcurrencyLimiter) acquireClass(tenantID string, heavy, priority bool) bool {
+	return l.acquireClassLimit(tenantID, heavy, priority, perTenantMaxConcurrentRequestsFor(tenantID))
+}
+
+// acquireClassLimit is acquireClass against a cap the caller already read;
+// nothing under the lock touches the database.
+func (l *tenantConcurrencyLimiter) acquireClassLimit(tenantID string, heavy, priority bool, limit int) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	limit := perTenantMaxConcurrentRequestsFor(tenantID)
 	capFor := limit
 	if priority {
 		capFor += priorityReserve
@@ -1044,6 +1056,10 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// stamped with the same id without every enqueue call site having to
 		// accept and forward a header value. See engines/correlation.go.
 		r = r.WithContext(engines.WithCorrelationID(r.Context(), correlationID))
+		// Stage 49.11.2: the client address (the trusted-proxy rule's answer)
+		// and a short device summary, for every security event this request
+		// writes - set here so a refusal before sign-in records them too.
+		r = r.WithContext(engines.WithRequestSource(r.Context(), clientIP(r), r.UserAgent()))
 
 		// 1. CORS Headers (explicit allowlist - never reflect an arbitrary Origin)
 		origin := r.Header.Get("Origin")
@@ -1366,6 +1382,8 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		r = r.WithContext(engines.WithOutsideCallsTenant(r.Context(), tenantID))
 		// 49.8.6: every job this request queues is stamped with its user.
 		r = r.WithContext(engines.WithJobActor(r.Context(), userID))
+		// 49.3.8a: and every row a CSV import files is held to its store.
+		r = r.WithContext(engines.WithSessionStore(r.Context(), locationCode))
 		r.Header.Set("Resolved-User-ID", userID)
 		r.Header.Set("Resolved-Username", username)
 		// Stage 40.3: canonicalise the role once, here, so a token minted
@@ -1401,7 +1419,12 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// for why it is a dedicated lookup mux, not http.DefaultServeMux).
 		if purpose != "extension" {
 			pattern := matchedRoutePattern(r)
-			if allowed, _, _ := checkRouteCapability(pattern, role); !allowed {
+			allowed, classification, _ := checkRouteCapability(pattern, role)
+			// Stage 49.11.2: the capability this request needed and the policy
+			// that decided it, on every security event it writes - a refusal
+			// below included.
+			r = r.WithContext(engines.WithRequestPolicy(r.Context(), classification.Capability, policyVersion()))
+			if !allowed {
 				// GLOBAL-0011 "Permission denied" - exact scenario match,
 				// audited (AuditRequired: true in the catalog entry).
 				writeAPIError(w, r, "GLOBAL-0011", "")

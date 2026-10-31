@@ -41,6 +41,5 @@ export async function renderTemplatesPage(container) {
     <div class="pts-section-title">Shipping label</div>
     <div class="pts-gallery"><div class="pts-card">
       <h3>Courier label <span class="badge badge-secondary">Built-in</span></h3>
-      <div class="pts-card-meta">Ship-to pincode, courier, AWB and order. A thermal label printer gets it with the AWB as a barcode; any other printer gets the label sheet. Printed from OMS ▸ Ship or right after Pack.</div>
     </div></div>`);
 }

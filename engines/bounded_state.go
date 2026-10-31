@@ -103,6 +103,12 @@ type StateStore struct {
 	Bound     string // what keeps it from growing without limit
 	Cleanup   string // the function that enforces Bound ("" when Bound needs none)
 	LegalHold string // what a legal hold does to it
+	// Stage 49.18.2 (the remaining part), from stateStoreLimits: the most one
+	// row or entry holds and what caps it, the index its lookups or its sweep
+	// read ("" for memory and files) and the time they are held to.
+	MaxPayload string
+	Index      string
+	QuerySLO   string
 }
 
 // SecurityStateStores lists every bounded store. Tables are tenant-schema
@@ -113,7 +119,7 @@ func SecurityStateStores() []StateStore {
 		notEvidence = "not evidence; removed when it expires"
 		evidence    = "evidence; never swept"
 	)
-	return []StateStore{
+	base := []struct{ name, kind, key, bound, cleanup, hold string }{
 		{"audit_logs", "table", "event", "archived and removed by the audit archive policy", "writeArchiveWindow", "audit_legal_hold blocks the archive"},
 		{"audit_archives", "table", "archive batch", "one row per archived range; never deleted inside 8 years (withAuditLogFloor)", "", evidence},
 		{"audit_checkpoints", "table", "checkpoint", "one row per hour per tenant", "", evidence},
@@ -155,5 +161,86 @@ func SecurityStateStores() []StateStore {
 		{"tenantGateCache", "memory", "tenant", "authStateCacheMaxEntries, cleared when full", "", notEvidence},
 		{"rateLimiter.requests", "memory", "address or session", "rateLimitMaxKeys; stale keys evicted first", "", notEvidence},
 		{"loginAbuse", "memory", "address, name, backoff", "pruneLoginAbuse drops expired entries", "", notEvidence},
+		{"webhookEventCounts", "memory", "client + outcome", "emptied every webhookEventWindow; at most webhookEventRowCap audit rows per key per window", "webhookEventAllowed", notEvidence},
+		{"certificateWatch", "memory", "public host", "replaced on every check; at most certificateHostCap hosts", "CheckCertificates", notEvidence},
 	}
+	stores := make([]StateStore, len(base))
+	for i, b := range base {
+		l := stateStoreLimits[b.name]
+		stores[i] = StateStore{b.name, b.kind, b.key, b.bound, b.cleanup, b.hold, l.payload, l.index, l.slo}
+	}
+	return stores
 }
+
+// The query SLOs a state store is held to, on its index.
+const (
+	stateSLOLookup = "a key lookup within 10 ms"
+	stateSLOSweep  = "one sweep batch (5,000 rows) within 1 s"
+	stateSLOBoth   = "a key lookup within 10 ms; one sweep batch within 1 s"
+	stateSLOMemory = "in memory: a map lookup"
+)
+
+// stateStoreLimits (Stage 49.18.2, the remaining part) is each store's
+// maximum payload - every large column of the table named with what caps it -
+// and the index and SLO of its lookups or its sweep.
+// TestStage49182StatePayloadAndQuerySLO holds both to the schema: a store
+// without an entry, a large column its payload does not name, or an index the
+// table does not have fails it. Found writing it: eleven swept tables had no
+// index on the column their sweep ages them by (each sweep read the whole
+// table) - added by db/migrations_stage140_13_state_sweep_indexes_49_18_2.sql - and
+// the extension hook log stored a hook's error text uncapped.
+var stateStoreLimits = func() map[string]struct{ payload, index, slo string } {
+	const (
+		fixed   = "fixed columns: ids, codes, hashes and times"
+		bodyCap = "the request body cap, 2 MiB (envelopeMaxBody)"
+	)
+	return map[string]struct{ payload, index, slo string }{
+		"audit_logs":             {"details ≤ 16 KB (maxAuditDetailBytes)", "idx_audit_logs_created_desc", stateSLOBoth},
+		"audit_archives":         {"file_path and counts; the archive itself is a file", "idx_audit_archives_created", stateSLOLookup},
+		"audit_checkpoints":      {fixed, "idx_audit_checkpoints_range", stateSLOLookup},
+		"audit_legal_hold":       {"reason: typed, within " + bodyCap, "idx_audit_legal_hold_active", stateSLOLookup},
+		"audit_retention_policy": {"note: typed, within " + bodyCap, "audit_retention_policy_pkey", stateSLOLookup},
+		"async_jobs": {"payload ≤ 64 KB (jobMaxPayloadBytes), result ≤ 64 KB (jobMaxResultBytes), last_error ≤ 2,000 bytes",
+			"idx_async_jobs_completed", stateSLOBoth},
+		"command_idempotency":      {"response: the command's answer (a document id and status) or its error", "idx_command_idempotency_completed", stateSLOBoth},
+		"api_idempotency_keys":     {"response_body ≤ 256 KB (maxStoredBody), path ≤ 512 (truncateForLog)", "idx_api_idempotency_created", stateSLOBoth},
+		"api_request_log":          {"path ≤ 512 (truncateForLog); " + fixed, "idx_api_request_log_time", stateSLOBoth},
+		"api_oauth_tokens":         {"scopes: the client's granted scopes; " + fixed, "idx_api_oauth_tokens_expires", stateSLOBoth},
+		"inbound_webhook_receipts": {fixed, "idx_inbound_webhook_receipts_at", stateSLOBoth},
+		"integration_event_outbox": {"payload: one event, built from a record saved within " + bodyCap, "idx_outbox_created", stateSLOBoth},
+		"integration_event_log":    {"error_message: written empty (deliveries only); " + fixed, "idx_integration_event_log_created", stateSLOSweep},
+		"clevertap_event_log":      {"event_data: one profile or bill event", "idx_clevertap_event_log_created", stateSLOBoth},
+		"pim_publish_log":          {"payload_snapshot: one item's channel payload; error_message: the channel's answer", "idx_pim_publish_log_created", stateSLOBoth},
+		"extension_hook_log":       {"error ≤ 4 KB (maxSystemErrorMessageBytes); the payload is kept as its hash", "idx_extension_hook_log_called", stateSLOBoth},
+		"system_error_logs": {"error_message ≤ 4 KB (maxSystemErrorMessageBytes), stack_trace ≤ 32 KB (maxSystemErrorStackBytes)",
+			"idx_system_error_logs_created", stateSLOSweep},
+		"documents (ImportJob raw rows: open_failed_rows, source_header, error_csv)": {"one upload ≤ 16 MiB and platform.max_import_rows rows",
+			"idx_documents_doctype_status", stateSLOBoth},
+		"PIM import drop folders (imported/, failed/)": {"one dropped file", "", "one directory listing per sweep"},
+		"public.tenants (sandbox)":                     {"one client's registry row", "tenants_pkey", stateSLOLookup},
+		"mfa_recovery_codes":                           {fixed, "idx_mfa_recovery_codes_user", stateSLOLookup},
+		"mfa_trusted_devices":                          {fixed, "mfa_trusted_devices_user_idx", stateSLOLookup},
+		"crm_pref_tokens":                              {fixed, "crm_pref_tokens_created_idx", stateSLOBoth},
+		"crm_events":                                   {"payload: one store event (a bill, a visit, a message)", "crm_events_occurred_idx", stateSLOBoth},
+		"irp_attempts":                                 {"response_body ≤ 1 MiB (irpResponseBodyMax), error_message ≤ 500 bytes", "irp_attempts_pkey", stateSLOLookup},
+		"irp_events":                                   {"detail ≤ 2,000 bytes", "irp_events_doc_idx", stateSLOLookup},
+		"print_job_log":                                {"reprint_reason ≤ 500 (clip); error_detail: one printer error", "idx_print_job_log_document", stateSLOLookup},
+		"sticker_print_log":                            {"reprint_reason: typed, within " + bodyCap, "uq_sticker_print_log_request", stateSLOLookup},
+		"approval_log":                                 {"comment: typed, within " + bodyCap, "idx_approval_log_doc", stateSLOLookup},
+		"payment_utr_log":                              {fixed, "payment_utr_log_utr_key", stateSLOLookup},
+		"period_close_log":                             {"detail: one close step's result", "idx_period_close_log_period", stateSLOLookup},
+		"irp_documents": {"payload, signed_invoice, signed_qr: one e-invoice as the IRP returns it, ≤ 1 MiB (irpResponseBodyMax); last_error: its validation issues or the IRP's error; reason, cancel_reason: one line each",
+			"irp_documents_due_idx", stateSLOLookup},
+		"irp_profiles":                   {"one registration's settings", "irp_profiles_environment_gstin_key", stateSLOLookup},
+		"public.ops_run_log":             {"detail: one run's summary", "idx_ops_run_log_type_finished", stateSLOLookup},
+		"web_push_seen":                  {"ref_key ≤ 300 (its column)", "web_push_seen_pkey", stateSLOLookup},
+		"public.tenant_lifecycle_events": {"detail: one change's summary", "idx_tenant_lifecycle_events_tenant", stateSLOLookup},
+		"public.backup_runs":             {"detail, offsite_key: one run's summary", "idx_backup_runs_latest", stateSLOLookup},
+		"authStateCache":                 {"one user's role, store and status", "", stateSLOMemory},
+		"tenantGateCache":                {"one client's state", "", stateSLOMemory},
+		"rateLimiter.requests":           {"the request times inside one window", "", stateSLOMemory},
+		"loginAbuse":                     {"a counter and a backoff time", "", stateSLOMemory},
+		"webhookEventCounts":             {"a count per client and outcome", "", stateSLOMemory},
+		"certificateWatch":               {"one host's expiry, issuer and the dial / TLS error line", "", stateSLOMemory},
+	}
+}()

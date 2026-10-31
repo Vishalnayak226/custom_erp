@@ -94,12 +94,14 @@ func handleConnectorDisconnect(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "kind and code are required")
 		return
 	}
-	cleaned, err := engines.DisconnectConnectorCredential(r.Header.Get("Resolved-Tenant-ID"), req.Kind, req.Code, credentialActor(r))
+	res, err := engines.DisconnectConnectorCredentialContext(r.Context(), r.Header.Get("Resolved-Tenant-ID"), req.Kind, req.Code, credentialActor(r))
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "disconnected", "kind": req.Kind, "code": req.Code, "cleaned": cleaned})
+	// 49.8.5: warning names a cleanup that failed (Shopify's webhooks still
+	// registered at the shop); the credential is gone either way.
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "disconnected", "kind": req.Kind, "code": req.Code, "cleaned": res.Cleaned, "warning": res.Warning})
 }
 func handleChannelOrderPull(w http.ResponseWriter, r *http.Request) {
 	processed, failed, err := engines.PullChannelOrders(r.Context(), r.Header.Get("Resolved-Tenant-ID"), r.PathValue("channel"))

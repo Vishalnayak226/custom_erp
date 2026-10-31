@@ -193,7 +193,7 @@ function cancelForm(el, r, act) {
   const box = el.querySelector('#einv-form');
   box.innerHTML = `<div class="table-panel" style="margin:12px 0;padding:12px;">
     <h3>Cancel IRN</h3>
-    <p style="color:var(--text-muted);">The IRP allows a cancel within 24 hours of the acknowledgement. Another Accountant approves it (Approvals); the number is never used again. After 24 hours, issue a credit note.</p>
+    <p style="color:var(--text-muted);">Within 24 hours only; the number is never reused.</p>
     <div class="po-header-grid">
       <div class="form-group"><label class="form-label" for="einv-c-code">Reason code</label>
         <select class="form-select" id="einv-c-code"><option value="1">1 - Duplicate</option><option value="2">2 - Data entry mistake</option><option value="3">3 - Order cancelled</option><option value="4">4 - Others</option></select></div>
@@ -207,7 +207,6 @@ function manualForm(el, r, act) {
   const box = el.querySelector('#einv-form');
   box.innerHTML = `<div class="table-panel" style="margin:12px 0;padding:12px;">
     <h3>Enter the IRN made on the portal</h3>
-    <p style="color:var(--text-muted);">For an outage: the IRN was generated on the IRP's own portal. Copy what the portal shows; a second person checks it against the portal before it counts (Approvals).</p>
     <div class="po-header-grid">
       <div class="form-group" style="grid-column:span 2;"><label class="form-label" for="einv-m-irn">IRN (64 characters)</label><input class="form-input" id="einv-m-irn" maxlength="64" autocomplete="off"></div>
       <div class="form-group"><label class="form-label" for="einv-m-ack">Ack No</label><input class="form-input" id="einv-m-ack" autocomplete="off"></div>
@@ -291,7 +290,7 @@ async function renderProfileForm(container, gstin) {
      <div class="form-group"><label><input type="checkbox" id="einv-enabled" ${p.enabled ? 'checked' : ''}> E-invoicing is on for this GSTIN</label></div>
      <div class="form-group"><label><input type="checkbox" id="einv-auto" ${p.auto_submit ? 'checked' : ''}> Send each posted invoice automatically (otherwise Submit from the workbench)</label></div>
      <h3>Provider credentials</h3>
-     <p style="color:var(--text-muted);">Stored encrypted and never shown again${p.credential_set ? ' - <b>stored</b>; leave blank to keep them' : ''}. The test provider needs none.</p>
+     <p style="color:var(--text-muted);">Never shown again${p.credential_set ? ' - <b>stored</b>; leave blank to keep them' : ''}.</p>
      <div class="po-header-grid">
        <div class="form-group"><label class="form-label" for="einv-user">API user name</label><input class="form-input" id="einv-user" autocomplete="off"></div>
        <div class="form-group"><label class="form-label" for="einv-pass">API password</label><input class="form-input" type="password" id="einv-pass" autocomplete="new-password"></div>

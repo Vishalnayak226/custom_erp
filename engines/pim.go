@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // PIM Foundation MVP (Stage 15, PIM Module Developer Blueprint v1.0) plus
@@ -104,7 +107,7 @@ func fetchMandatoryFamilyAttributes(tenantID, family string) ([]familyAttribute,
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT data->>'attribute' FROM %s.documents
-		WHERE doctype = 'ProductFamilyAttribute' AND data->>'family' = $1 AND data->>'mandatory' = 'Yes'`, schema), family)
+		WHERE doctype = 'ProductFamilyAttribute' AND data->>'family' = $1 AND data->>'mandatory' = 'Yes' ORDER BY id`, schema), family)
 	if err != nil {
 		return nil, err
 	}
@@ -274,6 +277,45 @@ func channelFieldFilled(tenantID, itemCode string, itemData map[string]interface
 	return attributeValueFilled(tenantID, itemCode, sourceField, locale, channelID)
 }
 
+// scoreCoreCompleteness is the scoring rule shared by CalculateCompleteness
+// (one item) and ListWorkbench (many, from bulk lookups): the core fields,
+// the family's mandatory attributes, then approved content for the locale.
+func scoreCoreCompleteness(data map[string]interface{}, attrs []familyAttribute, filledAttrs map[string]bool, hasContent bool, locale string) (passed, total int, missing []string) {
+	missing = []string{}
+	for _, f := range coreItemFields {
+		total++
+		if isFieldFilled(data, f) {
+			passed++
+		} else if f == "family" {
+			missing = append(missing, "Product Family")
+		} else {
+			missing = append(missing, f)
+		}
+	}
+	for _, a := range attrs {
+		total++
+		if filledAttrs[a.AttributeCode] {
+			passed++
+		} else {
+			missing = append(missing, a.Label)
+		}
+	}
+	total++
+	if hasContent {
+		passed++
+	} else {
+		missing = append(missing, fmt.Sprintf("Approved Content (%s)", locale))
+	}
+	return passed, total, missing
+}
+
+func completenessScore(passed, total int) float64 {
+	if total == 0 {
+		return 0
+	}
+	return math.Round(float64(passed)/float64(total)*1000) / 10
+}
+
 // CalculateCompleteness scores an Item 0-100 against its core ERP fields,
 // its family's mandatory attributes (if a family is set), whether it has
 // approved PIM content for the given locale, and (if channelID is set) that
@@ -294,49 +336,27 @@ func CalculateCompleteness(tenantID, itemCode, locale, channelID string) (*Compl
 	family, _ := data["family"].(string)
 
 	result := &CompletenessResult{ItemCode: itemCode, Family: family, Locale: locale, ChannelID: channelID}
-	missing := []string{}
-
-	for _, f := range coreItemFields {
-		result.TotalChecks++
-		if isFieldFilled(data, f) {
-			result.PassedChecks++
-		} else {
-			if f == "family" {
-				missing = append(missing, "Product Family")
-			} else {
-				missing = append(missing, f)
-			}
-		}
-	}
 
 	attrs, err := fetchMandatoryFamilyAttributes(tenantID, family)
 	if err != nil {
 		return nil, err
 	}
+	filledAttrs := make(map[string]bool, len(attrs))
 	for _, a := range attrs {
-		result.TotalChecks++
 		filled, err := attributeValueFilled(tenantID, itemCode, a.AttributeCode, locale, channelID)
 		if err != nil {
 			return nil, err
 		}
-		if filled {
-			result.PassedChecks++
-		} else {
-			missing = append(missing, a.Label)
-		}
+		filledAttrs[a.AttributeCode] = filled
 	}
 
-	result.TotalChecks++
 	hasContent, err := hasApprovedContent(tenantID, itemCode, locale)
 	if err != nil {
 		return nil, err
 	}
 	result.HasApprovedContent = hasContent
-	if hasContent {
-		result.PassedChecks++
-	} else {
-		missing = append(missing, fmt.Sprintf("Approved Content (%s)", locale))
-	}
+	var missing []string
+	result.PassedChecks, result.TotalChecks, missing = scoreCoreCompleteness(data, attrs, filledAttrs, hasContent, locale)
 
 	if channelID != "" {
 		channelFields, err := fetchChannelMandatoryFields(tenantID, channelID)
@@ -358,9 +378,7 @@ func CalculateCompleteness(tenantID, itemCode, locale, channelID string) (*Compl
 	}
 
 	result.MissingFields = missing
-	if result.TotalChecks > 0 {
-		result.Score = math.Round(float64(result.PassedChecks)/float64(result.TotalChecks)*1000) / 10
-	}
+	result.Score = completenessScore(result.PassedChecks, result.TotalChecks)
 
 	pending, err := hasPendingContent(tenantID, itemCode, locale)
 	if err != nil {
@@ -381,65 +399,184 @@ type itemRow struct {
 	Status string
 }
 
-// 134.6 (47.10.1): most Items the Product Workbench scores per request (each is scored one by one).
+// 134.6 (47.10.1): most Items the Product Workbench scores per request.
 const pimWorkbenchItemCap = 2000
-
-func listItemsForWorkbench(tenantID, familyFilter string) ([]itemRow, error) {
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return nil, err
-	}
-	query := fmt.Sprintf(`SELECT id, COALESCE(data->>'name', ''), COALESCE(data->>'family', ''), status FROM %s.documents WHERE doctype = 'Item'`, schema)
-	args := []interface{}{}
-	if familyFilter != "" {
-		query += " AND data->>'family' = $1"
-		args = append(args, familyFilter)
-	}
-	query += fmt.Sprintf(" ORDER BY id LIMIT %d", pimWorkbenchItemCap)
-
-	rows, err := db.DB.Query(query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var out []itemRow
-	for rows.Next() {
-		var r itemRow
-		if err := rows.Scan(&r.ID, &r.Name, &r.Family, &r.Status); err != nil {
-			return nil, err
-		}
-		out = append(out, r)
-	}
-	return out, rows.Err()
-}
 
 // ListWorkbench is the Product Workbench data source (blueprint section
 // 7): every Item with its completeness score, sorted worst-first so the
 // least-ready products surface at the top - the most actionable default
 // for a daily triage screen.
+//
+// 149.2: scored from five set-based queries with the same rule as
+// CalculateCompleteness (locale "en", no channel), not by calling it per
+// Item - ~10 round trips and a profile write each ran a full catalog past
+// the request deadline, so the screen never loaded. A PIMProductProfile is
+// written back only when its derived status, score or missing list changed.
 func ListWorkbench(tenantID, familyFilter string) ([]WorkbenchEntry, error) {
-	items, err := listItemsForWorkbench(tenantID, familyFilter)
+	const locale = "en"
+	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
 	}
-
-	out := make([]WorkbenchEntry, 0, len(items))
-	for _, it := range items {
-		c, err := CalculateCompleteness(tenantID, it.ID, "en", "")
+	// queryStrings runs q (%[1]s is the schema) and returns each row's n text columns.
+	queryStrings := func(q string, n int, args ...interface{}) ([][]string, error) {
+		rows, err := db.DB.Query(fmt.Sprintf(q, schema), args...)
 		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		var out [][]string
+		for rows.Next() {
+			row := make([]string, n)
+			ptrs := make([]interface{}, n)
+			for i := range row {
+				ptrs[i] = &row[i]
+			}
+			if err := rows.Scan(ptrs...); err != nil {
+				return nil, err
+			}
+			out = append(out, row)
+		}
+		return out, rows.Err()
+	}
+
+	itemQuery := `SELECT id, data, COALESCE(status, ''), COALESCE(data->>'name', ''), COALESCE(data->>'family', '') FROM %[1]s.documents WHERE doctype = 'Item'`
+	args := []interface{}{}
+	if familyFilter != "" {
+		itemQuery += " AND data->>'family' = $1"
+		args = append(args, familyFilter)
+	}
+	itemRows, err := queryStrings(itemQuery+fmt.Sprintf(" ORDER BY id LIMIT %d", pimWorkbenchItemCap), 5, args...)
+	if err != nil {
+		return nil, err
+	}
+	if len(itemRows) == 0 {
+		return []WorkbenchEntry{}, nil
+	}
+	ids := make([]string, 0, len(itemRows))
+	profileIDs := make([]string, 0, len(itemRows))
+	for _, r := range itemRows {
+		ids = append(ids, r[0])
+		profileIDs = append(profileIDs, pimProductProfileID(r[0]))
+	}
+
+	attrRows, err := queryStrings(`
+		SELECT fa.data->>'family', fa.data->>'attribute', COALESCE(def.data->>'label', '')
+		FROM %[1]s.documents fa
+		LEFT JOIN %[1]s.documents def ON def.doctype = 'ProductAttributeDef' AND def.id = fa.data->>'attribute'
+		WHERE fa.doctype = 'ProductFamilyAttribute' AND fa.data->>'mandatory' = 'Yes'
+			AND COALESCE(fa.data->>'family', '') <> '' AND COALESCE(fa.data->>'attribute', '') <> ''
+		ORDER BY fa.id`, 3)
+	if err != nil {
+		return nil, err
+	}
+	familyAttrs := map[string][]familyAttribute{}
+	for _, r := range attrRows {
+		label := r[2]
+		if label == "" {
+			label = r[1]
+		}
+		familyAttrs[r[0]] = append(familyAttrs[r[0]], familyAttribute{AttributeCode: r[1], Label: label})
+	}
+
+	// The most specific value per item+attribute, as ResolveAttributeValue picks it.
+	valueRows, err := queryStrings(`
+		SELECT DISTINCT ON (data->>'item', data->>'attribute') data->>'item', data->>'attribute', COALESCE(data->>'value', '')
+		FROM %[1]s.documents
+		WHERE doctype = 'ProductAttributeValue' AND data->>'item' = ANY($1) AND data->>'attribute' IS NOT NULL
+			AND COALESCE(data->>'locale', '') IN ($2, '') AND COALESCE(data->>'channel', '') = ''
+		ORDER BY data->>'item', data->>'attribute', COALESCE(data->>'locale', '') = $2 DESC`, 3, pq.Array(ids), locale)
+	if err != nil {
+		return nil, err
+	}
+	filledAttrs := map[string]map[string]bool{}
+	for _, r := range valueRows {
+		if filledAttrs[r[0]] == nil {
+			filledAttrs[r[0]] = map[string]bool{}
+		}
+		filledAttrs[r[0]][r[1]] = strings.TrimSpace(r[2]) != ""
+	}
+
+	contentRows, err := queryStrings(`
+		SELECT DISTINCT data->>'product_id', status FROM %[1]s.documents
+		WHERE doctype = 'ProductContent' AND data->>'product_id' = ANY($1) AND data->>'language' = $2
+			AND status IN ('Approved', 'Pending Approval')`, 2, pq.Array(ids), locale)
+	if err != nil {
+		return nil, err
+	}
+	approved, pending := map[string]bool{}, map[string]bool{}
+	for _, r := range contentRows {
+		if r[1] == "Approved" {
+			approved[r[0]] = true
+		} else {
+			pending[r[0]] = true
+		}
+	}
+
+	profileRows, err := queryStrings(`
+		SELECT id, COALESCE(data->>'enrichment_status', ''), COALESCE(data->>'completeness_score', ''), COALESCE(data->>'missing_fields_json', '')
+		FROM %[1]s.documents WHERE doctype = 'PIMProductProfile' AND id = ANY($1)`, 4, pq.Array(profileIDs))
+	if err != nil {
+		return nil, err
+	}
+	profiles := make(map[string][]string, len(profileRows))
+	for _, r := range profileRows {
+		profiles[r[0]] = r
+	}
+
+	out := make([]WorkbenchEntry, 0, len(itemRows))
+	var changedProfiles []map[string]interface{}
+	for _, r := range itemRows {
+		id := r[0]
+		var data map[string]interface{}
+		if json.Unmarshal([]byte(r[1]), &data) != nil {
 			continue // skip an item that fails to score rather than fail the whole workbench
 		}
+		family, _ := data["family"].(string)
+		var attrs []familyAttribute
+		if family != "" {
+			attrs = familyAttrs[family]
+		}
+		passed, total, missing := scoreCoreCompleteness(data, attrs, filledAttrs[id], approved[id], locale)
+		score := completenessScore(passed, total)
+
+		// Same write-through as deriveAndPersistProfileStatus, skipped when nothing changed.
+		profile, exists := profiles[pimProductProfileID(id)]
+		if !exists || !publishOwnedStatuses[profile[1]] {
+			status := deriveProfileStatus(family, score, approved[id], pending[id])
+			missingJSON, _ := json.Marshal(missing)
+			changed := !exists || profile[1] != status || profile[3] != string(missingJSON)
+			if !changed {
+				stored, err := strconv.ParseFloat(profile[2], 64)
+				changed = err != nil || stored != score
+			}
+			if changed {
+				changedProfiles = append(changedProfiles, pimProductProfileData(id, status, score, string(missingJSON)))
+			}
+		}
+
 		out = append(out, WorkbenchEntry{
-			ItemCode:     it.ID,
-			Name:         it.Name,
-			Family:       it.Family,
-			Status:       it.Status,
-			Score:        c.Score,
-			MissingCount: len(c.MissingFields),
+			ItemCode:     id,
+			Name:         r[3],
+			Family:       r[4],
+			Status:       r[2],
+			Score:        score,
+			MissingCount: len(missing),
 		})
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Score < out[j].Score })
+	if len(changedProfiles) > 0 {
+		batch, err := json.Marshal(changedProfiles)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := db.DB.Exec(fmt.Sprintf(`
+			INSERT INTO %s.documents (id, doctype, data, status, created_by)
+			SELECT p->>'id', 'PIMProductProfile', p, p->>'enrichment_status', 'system' FROM jsonb_array_elements($1::jsonb) p
+			ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, status = EXCLUDED.status, updated_at = CURRENT_TIMESTAMP`, schema), batch); err != nil {
+			return nil, err
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Score < out[j].Score })
 	return out, nil
 }
 
@@ -486,16 +623,7 @@ func upsertPIMProductProfile(tenantID, itemCode, status string, score float64, m
 		return err
 	}
 	profileID := pimProductProfileID(itemCode)
-	data := map[string]interface{}{
-		"id":                  profileID,
-		"code":                profileID,
-		"product_id":          itemCode,
-		"enrichment_status":   status,
-		"completeness_score":  score,
-		"missing_fields_json": string(missingJSON),
-		"last_scored_at":      time.Now().Format(time.RFC3339),
-	}
-	marshaled, err := json.Marshal(data)
+	marshaled, err := json.Marshal(pimProductProfileData(itemCode, status, score, string(missingJSON)))
 	if err != nil {
 		return err
 	}
@@ -505,6 +633,21 @@ func upsertPIMProductProfile(tenantID, itemCode, status string, score float64, m
 		ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, status = EXCLUDED.status, updated_at = CURRENT_TIMESTAMP`, schema),
 		profileID, marshaled, status)
 	return err
+}
+
+// pimProductProfileData is a PIMProductProfile's data, as upsertPIMProductProfile
+// and ListWorkbench's batch write both store it.
+func pimProductProfileData(itemCode, status string, score float64, missingJSON string) map[string]interface{} {
+	profileID := pimProductProfileID(itemCode)
+	return map[string]interface{}{
+		"id":                  profileID,
+		"code":                profileID,
+		"product_id":          itemCode,
+		"enrichment_status":   status,
+		"completeness_score":  score,
+		"missing_fields_json": missingJSON,
+		"last_scored_at":      time.Now().Format(time.RFC3339),
+	}
 }
 
 // EnsurePIMProductProfile auto-creates a PIMProductProfile (status Draft)
@@ -555,22 +698,24 @@ func deriveAndPersistProfileStatus(tenantID, itemCode, family string, score floa
 		return existing, nil
 	}
 
-	status := "Draft"
-	switch {
-	case family == "":
-		status = "Draft"
-	case hasPendingContent:
-		status = "Pending Approval"
-	case score >= 100 && hasApprovedContent:
-		status = "Approved"
-	default:
-		status = "Enrichment In Progress"
-	}
-
+	status := deriveProfileStatus(family, score, hasApprovedContent, hasPendingContent)
 	if err := upsertPIMProductProfile(tenantID, itemCode, status, score, missingFields); err != nil {
 		return "", err
 	}
 	return status, nil
+}
+
+func deriveProfileStatus(family string, score float64, hasApprovedContent, hasPendingContent bool) string {
+	switch {
+	case family == "":
+		return "Draft"
+	case hasPendingContent:
+		return "Pending Approval"
+	case score >= 100 && hasApprovedContent:
+		return "Approved"
+	default:
+		return "Enrichment In Progress"
+	}
 }
 
 // normalizeVariantOptions parses the "Key:Value;Key:Value" shorthand

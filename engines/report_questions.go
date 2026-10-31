@@ -36,6 +36,8 @@ var reportQuestions = map[string]reportQuestion{
 	"pos-sale-reconciliation": {"Did every till sale post correctly?", "Each POS sale against the tender, revenue, tax and stock it posted."},
 	"stored-value-liability":  {"What do we owe on gift cards?", "Outstanding gift card balances against the liability account."},
 	"payroll-reconciliation":  {"Does payroll agree from gross pay to the bank and the ledger?", "Payslip gross, deductions and net against the GL, salary paid, and payments confirmed on the bank statement."},
+	// Stage 49.10.6b: the insider check on approval limits.
+	"threshold-splitting": {"Is anyone splitting work to stay under an approval limit?", "Days one user made several records just under an approval limit (Approval Rules) - POs, till discounts, redemptions, refunds."},
 
 	// Selling.
 	"sales-register":            {"What did we sell at the till?", "Paid and settled POS sales with their total; control totals tie them to revenue and output GST."},

@@ -919,7 +919,13 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
       if (!data) { close(); return; }
       S.data = data;
     }
-    if (!q('store').value) q('store').placeholder = `${data.document.store.name || 'Document store'} (document's own)`;
+    // 132.24: once printed, every print is the first copy (Stage 130.16),
+    // store and all, so the store box is locked.
+    const frozen = !!data.document.issue?.reprint;
+    q('store').disabled = frozen;
+    q('store').title = frozen ? 'Printed before: every print keeps the first copy' : '';
+    if (frozen) { q('store').value = ''; S.store = ''; }
+    if (!q('store').value) q('store').placeholder = `${data.document.store.name || 'Document store'} (${frozen ? 'as first printed' : "document's own"})`;
     paint();
   };
   q('template').addEventListener('change', async () => {
@@ -1198,6 +1204,15 @@ export async function previewPOSBill(cartNumber, cashTendered = 0) {
   if (layoutUsesImages(layout)) data = (await get(true)) || data;
   await qrEncoderReady(layout);
   return previewPages(renderPages(layout, data.document), layout, 'Receipt preview');
+}
+
+// previewLayout (Stage 143.4) shows a layout over print data as it will
+// print - every copy, as printLayout prints them - with Close and Print;
+// resolves true on Print. The template studio's Test print opens it.
+export async function previewLayout(layout, doc, title) {
+  await tradeStylesReady;
+  await qrEncoderReady(layout);
+  return previewPages(renderCopies(layout, doc), layout, title);
 }
 
 // previewPages shows rendered pages the way the print dialog's preview does,

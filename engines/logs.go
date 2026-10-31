@@ -62,17 +62,33 @@ const maxAuditDetailBytes = 16 * 1024
 
 // LogAuditEvent writes an audit log entry for the specified tenant
 func LogAuditEvent(tenantID, userID, action, status, details string) {
-	logAuditEvent(tenantID, userID, action, status, details, "")
+	logAuditEvent(tenantID, userID, action, status, details, auditRequestMeta{})
 }
 
-// LogAuditEventCtx is LogAuditEvent plus the request's correlation id from
-// ctx (Stage 49.11.2), so a security event links to the request, its system
-// log rows and the jobs it queued (InvestigationTrail) instead of copying them.
+// LogAuditEventCtx is LogAuditEvent plus what ctx knows of the request
+// (Stage 49.11.2): its correlation id, so a security event links to the
+// request, its system log rows and the jobs it queued (InvestigationTrail)
+// instead of copying them; its client address and device summary; and the
+// route capability and policy fingerprint it was authorised under.
 func LogAuditEventCtx(ctx context.Context, tenantID, userID, action, status, details string) {
-	logAuditEvent(tenantID, userID, action, status, details, CorrelationIDFromContext(ctx))
+	logAuditEvent(tenantID, userID, action, status, details, auditRequestMetaFrom(ctx))
 }
 
-func logAuditEvent(tenantID, userID, action, status, details, correlationID string) {
+// auditRequestMeta is the request context an audit row carries besides its
+// signed content. Only correlationID is signed; the rest is metadata, and the
+// address and device are cleared after auditSourceRetentionDays.
+type auditRequestMeta struct {
+	correlationID string
+	source        RequestSource
+	policy        RequestPolicy
+}
+
+func auditRequestMetaFrom(ctx context.Context) auditRequestMeta {
+	return auditRequestMeta{correlationID: CorrelationIDFromContext(ctx), source: RequestSourceFromContext(ctx), policy: RequestPolicyFromContext(ctx)}
+}
+
+func logAuditEvent(tenantID, userID, action, status, details string, meta auditRequestMeta) {
+	correlationID := meta.correlationID
 	// Stage 49.11.2: never a secret or a whole payload in the evidence. The
 	// same redaction system_error_logs gets, applied before signing so the
 	// signature covers what is stored.
@@ -125,7 +141,17 @@ func logAuditEvent(tenantID, userID, action, status, details, correlationID stri
 
 	query := `INSERT INTO audit_logs (user_id, action, status, details, checksum, created_at, signature, sig_version, correlation_id, sig_key)
 	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
-	_, err = tx.Exec(query, userID, action, status, details, checksum, now, signature, AuditSigVersion, nullIfEmpty(correlationID), auditSigningKeyFingerprint())
+	args := []interface{}{userID, action, status, details, checksum, now, signature, AuditSigVersion, nullIfEmpty(correlationID), auditSigningKeyFingerprint()}
+	// Stage 49.11.2: the request's source and policy, only when there is one
+	// to record - a background write keeps the old statement, so a database
+	// mid-upgrade (new binary, migration not yet applied) still records it.
+	if m := meta.source; m.Address != "" || m.Device != "" || meta.policy.Capability != "" || meta.policy.Version != "" {
+		query = `INSERT INTO audit_logs (user_id, action, status, details, checksum, created_at, signature, sig_version, correlation_id, sig_key,
+	                                  source_ip, device, capability, policy_version)
+	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`
+		args = append(args, nullIfEmpty(m.Address), nullIfEmpty(m.Device), nullIfEmpty(meta.policy.Capability), nullIfEmpty(meta.policy.Version))
+	}
+	_, err = tx.Exec(query, args...)
 	if err != nil {
 		noteAuditWriteFailure(tenantID, action, "cannot insert entry", err)
 		return

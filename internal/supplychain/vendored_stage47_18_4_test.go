@@ -22,9 +22,15 @@ func TestStage47184VendoredAssetsAreInTheLedger(t *testing.T) {
 	for _, a := range assets {
 		found[a.Path] = true
 	}
-	// The scan must still see what is known to be there, or it is broken.
-	if !found["public/qrcode.min.js"] {
-		t.Fatalf("ParseVendoredAssets did not find public/qrcode.min.js - the scan is broken (found %v)", assets)
+	// Stage 47.18.4a deleted public/qrcode.min.js, the only vendored file
+	// (nothing loaded it), so the scan finds none today; that it would find
+	// one is TestStage47184VendoredScanRefusesMissingAndGoneEntries. It
+	// must still have walked public/, where the app's own files are.
+	if _, err := os.Stat(filepath.Join(repoRoot, "public", "app.js")); err != nil {
+		t.Fatalf("public/app.js not found under %s - the scan looked in the wrong place: %v", repoRoot, err)
+	}
+	if found["public/qrcode.min.js"] {
+		t.Errorf("public/qrcode.min.js is back - it was deleted at Stage 47.18.4a as loaded by nothing")
 	}
 	if problems := ValidateVendoredCoverage(ledger, assets); len(problems) > 0 {
 		t.Fatalf("vendored assets are out of step with %s:\n- %s", ledgerPath, joinProblems(problems))

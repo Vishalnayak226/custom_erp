@@ -113,6 +113,16 @@ var securityDetectionRules = []SecurityDetectionRule{
 		Owner: "Platform operator", Threshold: 5, WindowMinutes: 60, DedupMinutes: 240,
 		FirstResponse: "Open Activity Log -> Async Jobs; fix the cause before retrying, never retry a poison job in a loop.",
 		Runbook:       runbookDoc + " §7.5", actions: []string{"JOB"}, statuses: []string{"DEAD_LETTERED"}},
+	// Stage 49.11.4: inbound webhooks (inbound_webhook.go's WEBHOOK_INBOUND
+	// rows), counted per client - a forger can vary the channel it names.
+	{Key: "webhook_signature_surge", Title: "Many webhook calls with a bad signature", Severity: DetectionUrgent,
+		Owner: "Platform operator", Threshold: 10, WindowMinutes: 15, DedupMinutes: 60,
+		FirstResponse: "Nothing was processed. Read the sources the rows name: if that platform's webhook secret was just changed, save the new one on the channel (its orders wait until then); if not, someone is sending forged calls - block their addresses at the edge.",
+		Runbook:       runbookDoc + " §7.5", actions: []string{InboundWebhookAction}, statuses: []string{WebhookSignatureRefused}},
+	{Key: "webhook_replay_surge", Title: "Many repeated webhook deliveries", Severity: DetectionReview,
+		Owner: "Platform operator", Threshold: 20, WindowMinutes: 15, DedupMinutes: 60,
+		FirstResponse: "Repeats are answered OK and never processed twice. A platform retries what it thinks failed - check its webhook status; repeats from an address that is not the platform's mean a signed delivery was captured: change the channel's webhook secret.",
+		Runbook:       runbookDoc + " §7.5", actions: []string{InboundWebhookAction}, statuses: []string{WebhookReplayed}},
 	{Key: "disabled_user_activity", Title: "A disabled user acted after being disabled", Severity: DetectionUrgent,
 		Owner: "Platform operator", Threshold: 1, WindowMinutes: 15, DedupMinutes: 60,
 		FirstResponse: "A disabled session should be dead. Sign the user out everywhere and treat it as a control failure.",
@@ -142,7 +152,9 @@ var securityDetectionRules = []SecurityDetectionRule{
 	{Key: "stock_adjustment_burst", Title: "Many stock adjustments by one user", Severity: DetectionReview,
 		Owner: "Inventory controller", Threshold: 10, WindowMinutes: 60, DedupMinutes: 240,
 		FirstResponse: "Recount a few of the adjusted items; a write-off can hide a theft as easily as fix a count.",
-		Runbook:       runbookDoc + " §7.13", actions: []string{"POST_INVENTORY_ADJUSTMENT", "REVERSE_INVENTORY_ADJUSTMENT"}, byActor: true},
+		// Stage 49.11.4: a posted cycle-count variance moves stock like an
+		// adjustment, so it counts toward the same burst.
+		Runbook: runbookDoc + " §7.13", actions: []string{"POST_INVENTORY_ADJUSTMENT", "REVERSE_INVENTORY_ADJUSTMENT", "POST_CYCLE_COUNT_ADJUSTMENT"}, byActor: true},
 	{Key: "negative_stock_burst", Title: "Many sales below zero stock at one store", Severity: DetectionReview,
 		Owner: "Store manager", Threshold: 5, WindowMinutes: 60, DedupMinutes: 240,
 		FirstResponse: "Count the items named in the negative-stock records; receive what came in unbooked, or find where the goods went.",
