@@ -1283,13 +1283,13 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	// FinalizePOSCheckout caps the redemption at the sale value and returns the
 	// unusable remainder to the customer's balance, so mirror that here rather
 	// than reporting a negative amount due.
-	if float64(outcome.LoyaltyDiscount) > outcome.SaleTotal {
-		outcome.LoyaltyDiscount = int(outcome.SaleTotal)
+	if outcome.LoyaltyDiscount > outcome.SaleTotal {
+		outcome.LoyaltyDiscount = outcome.SaleTotal
 	}
 	response["sale_total"] = outcome.SaleTotal
 	response["loyalty_discount"] = outcome.LoyaltyDiscount
 	response["bill_number"] = outcome.BillNumber
-	response["amount_due"] = engines.PaiseToRupees(engines.RupeesToPaise(outcome.SaleTotal - float64(outcome.LoyaltyDiscount) - quote.OfferDiscount + quote.RoundOff - giftPaid - exchangeUse)) // 94.15: to the rupee
+	response["amount_due"] = engines.PaiseToRupees(engines.RupeesToPaise(outcome.SaleTotal - outcome.LoyaltyDiscount - quote.OfferDiscount + quote.RoundOff - giftPaid - exchangeUse)) // 94.15: to the rupee
 	response["round_off"] = quote.RoundOff
 	response["gift_card_paid"] = giftPaid
 	if req.ExchangeCreditID != "" {

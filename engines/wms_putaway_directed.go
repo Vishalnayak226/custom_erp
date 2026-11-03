@@ -49,6 +49,23 @@ func SuggestPutawayBin(tenantID, sku, locationCode string, qty int, batchNo stri
 	if qty <= 0 {
 		return "", "", fmt.Errorf("qty must be positive")
 	}
+	// Stage 146.3.1: the SKU's home bins come first; when none can take it the
+	// directed logic below runs as today, with the home-bin reason in front.
+	home, note, err := suggestHomeBin(tenantID, sku, locationCode, qty, batchNo)
+	if err != nil {
+		return "", "", err
+	}
+	if home != "" {
+		return home, note, nil
+	}
+	binCode, reason, err = suggestDirectedPutawayBin(tenantID, sku, locationCode, qty, batchNo)
+	if note != "" && err == nil {
+		reason = note + "; " + reason
+	}
+	return binCode, reason, err
+}
+
+func suggestDirectedPutawayBin(tenantID, sku, locationCode string, qty int, batchNo string) (binCode, reason string, err error) {
 	criteria, err := resolvePutawayCriteria(tenantID, locationCode)
 	if err != nil {
 		return "", "", err
@@ -65,6 +82,7 @@ func SuggestPutawayBin(tenantID, sku, locationCode string, qty int, batchNo stri
 	if err != nil {
 		return "", "", err
 	}
+	candidates = dropMixRefusedBins(schema, sku, batchNo, candidates)
 	if len(candidates) == 0 {
 		return "", "no Active, available bin at this location currently has room for this putaway", nil
 	}

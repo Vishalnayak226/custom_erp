@@ -21,6 +21,7 @@ import (
 // cache fails the test until it is listed here with that answer.
 var reviewedCaches = map[string]string{
 	"authStateCache":         "tenant + user",
+	"privSessionCache":       "tenant + token id (jti); only whether that one session was ended",
 	"tenantGateCache":        "tenant",
 	"datasetCache":           "tenant + store scope + money visibility + query",
 	"itemTypeCache":          "tenant",

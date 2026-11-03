@@ -1301,7 +1301,7 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
     // stable id here - one association point for every field type below,
     // rather than a per-branch fix that a new fieldtype could miss.
     const fieldId = `dyn-field-${currentDoctype}-${f.fieldname}`;
-    fg.innerHTML = `<label class="form-label" for="${escapeHTMLText(fieldId)}">${escapeHTMLText(taxIdLabel(f.fieldname, getTranslatedLabel(f.label)))}${f.mandatory && !isCodeField ? '<span class="required">*</span>' : ''}</label>`;
+    fg.innerHTML = `<label class="form-label" for="${escapeHTMLText(fieldId)}"${f.help ? ` title="${escapeHTMLText(f.help)}"` : ''}>${escapeHTMLText(taxIdLabel(f.fieldname, getTranslatedLabel(f.label)))}${f.mandatory && !isCodeField ? '<span class="required">*</span>' : ''}</label>`;
 
     if (f.fieldtype === 'Data' && isStateFieldName(f.fieldname) && (window.FIELD_META?.regions || []).length) {
       // Stage 76.2: every state is chosen from the home country's list.

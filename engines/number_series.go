@@ -141,7 +141,7 @@ type seriesStore struct {
 
 // counterSeries mint values that are never a document id: barcode digits and
 // GRN batch numbers (Stage 61.7).
-var counterSeries = map[string]bool{"PIMBarcodeSeq": true, "PIMDatedBarcodeSeq": true, "GRNBatchSeq": true}
+var counterSeries = map[string]bool{"PIMBarcodeSeq": true, "PIMDatedBarcodeSeq": true, "GRNBatchSeq": true, "PieceCode": true}
 
 // seriesTextPattern is what a prefix, suffix or override may contain: letters,
 // digits and the few joiners people use in document numbers. No spaces - a

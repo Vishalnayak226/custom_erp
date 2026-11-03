@@ -930,6 +930,9 @@ func CancelTransferOrder(tenantID, transferOrderID, userID, reasonCode, note str
 		updatedBytes, transferOrderID); err != nil {
 		return err
 	}
+	if err := releaseTransferReservationTx(tx, schema, transferOrderID); err != nil { // 146.1.7
+		return err
+	}
 	if err := tx.Commit(); err != nil {
 		return err
 	}
@@ -1126,5 +1129,6 @@ func ApproveTransferOrderDirect(tenantID, transferOrderID, userID, role, userLoc
 		return v, err
 	}
 	LogAuditEvent(tenantID, userID, "APPROVE_TRANSFER_ORDER_DIRECT", "SUCCESS", fmt.Sprintf("Transfer order %s: %s", transferOrderID, comment))
+	SyncTransferReservation(tenantID, transferOrderID) // 146.1.7 (setting off = no-op)
 	return v, nil
 }

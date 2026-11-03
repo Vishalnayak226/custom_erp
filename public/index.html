@@ -9,7 +9,7 @@
   <!-- Absolute, not relative (Stage 39.4): the SPA is served for multi-segment
        URLs like /help/<article>, where a relative "styles.css" would resolve to
        /help/styles.css and be answered with the SPA shell itself. -->
-  <link rel="stylesheet" href="/styles.css?v=42">
+  <link rel="stylesheet" href="/styles.css?v=43">
   <!-- Stage 28.2/47.8: external same-origin theme bootstrap avoids an inline
        script exception in the strict CSP candidate. -->
   <script src="/theme-boot.js?v=2"></script>
@@ -151,6 +151,16 @@
           <a class="menu-item" id="menu-home">
             <span>Home</span>
           </a>
+        </li>
+        <!-- Stage 152.1: starred screens; shortcuts.js fills the flyout. -->
+        <li class="menu-item-container has-flyout">
+          <a class="menu-item menu-item-group" href="#" id="module-favourites">
+            <span>Favourites</span>
+            <svg class="menu-item-arrow flyout-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="9 6 15 12 9 18"></polyline>
+            </svg>
+          </a>
+          <ul class="menu-flyout" id="fav-flyout"><li><a class="menu-item fav-none"><span>No favourites yet</span></a></li></ul>
         </li>
 
         <!-- Module: POS (2026-07-26: renamed to "POS" per final SaaS naming decision; internal id left as module-pos) -->
@@ -325,6 +335,7 @@
             <li class="has-subflyout"><a class="menu-item submenu-parent">Storage &amp; Control</a><ul class="menu-subflyout">
               <li><a class="menu-item" id="menu-bins" data-doctype="Bin"><span>Bin</span></a></li>
               <li><a class="menu-item" id="menu-bin-conditions"><span>Bin Conditions</span></a></li>
+              <li><a class="menu-item" id="menu-bin-tools"><span>Bin Generator</span></a></li>
               <li><a class="menu-item" id="menu-lpn"><span>LPN / Cartons / Pallets</span></a></li>
               <li><a class="menu-item" id="menu-bin-replenishment"><span>Bin Replenishment</span></a></li>
               <!-- Stage 57.9 (user decision 2026-10-07): bin-to-bin moves inside one location. -->
@@ -447,6 +458,7 @@
           <ul class="menu-flyout">
             <!-- Stage 144: Configuration first, one click from Settings (was under Customize). -->
             <li><a class="menu-item" id="menu-configuration"><span>Configuration</span></a></li>
+            <li><a class="menu-item" id="menu-integration-credentials" data-go="configuration:credentials" data-like="menu-configuration"><span>Credentials</span></a></li>
             <li class="has-subflyout"><a class="menu-item submenu-parent">Users &amp; Access</a><ul class="menu-subflyout">
               <li><a class="menu-item" id="menu-users"><span>Users</span></a></li>
               <li><a class="menu-item" id="menu-roles"><span>Roles</span></a></li>
@@ -572,7 +584,7 @@
                one button before, which is why a stale screen had no cure short
                of a browser reload - and a browser reload restores from the same
                caches, so it was not a cure either. -->
-          <button class="btn btn-outline" id="reset-btn" title="Reset: clear every cached copy and all unsaved on-screen work, then reload from the server" style="margin-left: 8px;">
+          <button class="btn btn-outline" id="reset-btn" title="Reset: clear every cached copy and all unsaved on-screen work, then reload from the server">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path><path d="M12 8v5l3 2"></path>
             </svg>
@@ -581,7 +593,7 @@
           <!-- Stage 39.5: contextual help for the screen you are on. Opens a
                drawer over the current screen rather than navigating away, so
                half-entered work is never lost to reading the manual. -->
-          <button class="btn btn-outline btn-icon" id="help-btn" title="Help for this screen" aria-label="Help for this screen" style="margin-left: 8px;">
+          <button class="btn btn-outline btn-icon" id="help-btn" title="Help for this screen" aria-label="Help for this screen">
             <!-- stroke-linecap="round" is load-bearing here, not cosmetic: the
                  dot under the question mark is a zero-length <line>, which a
                  butt cap draws as a 0.01-unit sliver (invisible at 16px) -
@@ -729,6 +741,10 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <span>Download Template CSV</span>
             </button>
+            <button type="button" class="btn btn-secondary btn-sm" style="margin-left: 6px;" data-act="downloadImportTemplate" data-act-args="[&quot;dictionary&quot;]">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Column Guide</span>
+            </button>
             <button type="button" class="btn btn-secondary btn-sm" id="import-family-template-btn" style="display:none; margin-left: 6px;" data-act="downloadImportTemplate" data-act-args="[&quot;family&quot;]" title="No code column: each row's SKU is generated from its Product Family (Design) and variant attributes">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <span>Download Template (SKU from Design)</span>
@@ -808,7 +824,7 @@
   <!-- 21.14: this app's first Web Component - plain <script>, no build
        step, registers <erp-typeahead> globally before app.js runs. -->
   <script src="/components/erp-typeahead.js?v=1"></script>
-  <script src="/app.js?v=72"></script>
+  <script src="/app.js?v=73"></script>
   <!-- 31.1: QZ Tray bridge for silent printing. Loaded after app.js because
        it calls apiFetch() for the certificate and per-request signature. -->
   <script src="/qz-print.js?v=2"></script>

@@ -18,6 +18,13 @@ type ReplenishmentSuggestion struct {
 	SuggestedQty  int     `json:"suggested_qty"`
 	SafetyStock   int     `json:"safety_stock"`
 	LeadTimeDays  int     `json:"lead_time_days"`
+	// Stage 146.1.4: the position the reorder compares - available plus what
+	// is already coming, less what is waiting. Zero parts are left out.
+	Inward     int `json:"inward,omitempty"`
+	OnOrder    int `json:"on_order,omitempty"`
+	InTransit  int `json:"in_transit,omitempty"`
+	BackOrders int `json:"back_orders,omitempty"`
+	Position   int `json:"position"`
 }
 
 // CalculateSalesVelocity calculates average daily sales for a SKU at a location over the last N days
@@ -74,55 +81,13 @@ const optimizationScanRowCap = 5000
 
 // GetReplenishmentSuggestions checks stock levels and triggers reorder suggestions based on sales velocities
 func GetReplenishmentSuggestions(tenantID string, locationCode string, leadTimeDays int, safetyStock int) ([]ReplenishmentSuggestion, error) {
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return nil, err
+	// Stage 146.1.4: one calculation for both entry points (planning.go), so
+	// stock already on order, in transit or inward is counted here too.
+	suggestions, err := replenishmentSuggestions(tenantID, locationCode, leadTimeDays, safetyStock, false)
+	if len(suggestions) == 0 {
+		suggestions = nil
 	}
-
-	// Fetch all inventory availability records for the location
-	query := fmt.Sprintf(`
-		SELECT sku, available FROM %s.inventory_availability
-		WHERE location_code = $1
-		ORDER BY available, sku
-		LIMIT %d`, schema, optimizationScanRowCap)
-	rows, err := db.DB.Query(query, locationCode)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var suggestions []ReplenishmentSuggestion
-	for rows.Next() {
-		var sku string
-		var available int
-		if errScan := rows.Scan(&sku, &available); errScan == nil {
-			// Calculate historical daily velocity over 30 days
-			velocity, errVel := CalculateSalesVelocity(tenantID, locationCode, sku, 30)
-			if errVel != nil {
-				velocity = 0.0 // Default to zero velocity on error
-			}
-
-			// Formula: ReorderPoint = (DailySalesVelocity * LeadTimeDays) + SafetyStock
-			reorderPoint := int(math.Ceil(velocity*float64(leadTimeDays))) + safetyStock
-
-			// If stock is below reorder point, suggest replenishment
-			if available < reorderPoint {
-				suggestedQty := reorderPoint - available
-				suggestions = append(suggestions, ReplenishmentSuggestion{
-					SKU:           sku,
-					LocationCode:  locationCode,
-					Available:     available,
-					DailyVelocity: velocity,
-					ReorderPoint:  reorderPoint,
-					SuggestedQty:  suggestedQty,
-					SafetyStock:   safetyStock,
-					LeadTimeDays:  leadTimeDays,
-				})
-			}
-		}
-	}
-
-	return suggestions, nil
+	return suggestions, err
 }
 
 // SLABreachReport represents a fulfillment task exceeding standard completion times

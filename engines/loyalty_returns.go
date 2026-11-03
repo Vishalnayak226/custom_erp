@@ -79,9 +79,10 @@ func reverseEarnedPointsTx(tx *sql.Tx, schema, customerID, cartID, refundRequest
 	// Stage 101.11.1: a reversal of points still pending waits with them, so
 	// the two count (and cancel out) at the same moment.
 	if _, err := tx.Exec(fmt.Sprintf(`
-		INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id, pending_until)
+		INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id, pending_until, location)
 		VALUES ($1::text, $2, $3, 'RefundRequest', $4, (SELECT MAX(pending_until) FROM %s.loyalty_point_ledger
-		  WHERE customer_id = $1::text AND transaction_type = 'Earn' AND reference_doctype = 'POSCart' AND reference_id = $5 AND pending_until > LOCALTIMESTAMP))`, schema, schema),
+		  WHERE customer_id = $1::text AND transaction_type = 'Earn' AND reference_doctype = 'POSCart' AND reference_id = $5 AND pending_until > LOCALTIMESTAMP),
+		  (SELECT NULLIF(data->>'location','') FROM %s.documents WHERE id = $5::text AND doctype = 'POSCart'))`, schema, schema, schema),
 		customerID, LoyaltyTxnReversal, reverse, refundRequestID, cartID); err != nil {
 		return 0, err
 	}
@@ -116,8 +117,8 @@ func restoreRedeemedPointsTx(tx *sql.Tx, tenantID, schema, customerID, cartID, r
 		expires = latest.Time
 	}
 	_, err := tx.Exec(fmt.Sprintf(`
-		INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id, expires_at)
-		VALUES ($1, 'Earn', $2, 'RefundRequest', $3, $4)`, schema),
-		customerID, points, refundRequestID, expires)
+		INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id, expires_at, location)
+		VALUES ($1, 'Earn', $2, 'RefundRequest', $3, $4, (SELECT NULLIF(data->>'location','') FROM %s.documents WHERE id = $5::text AND doctype = 'POSCart'))`, schema, schema),
+		customerID, points, refundRequestID, expires, cartID)
 	return err
 }

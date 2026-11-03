@@ -529,7 +529,7 @@ type importWrite struct {
 // role only), a row never claims a decided status (Approved / Rejected) of an
 // approval-gated type, and an approved record is changed on screen - where it
 // goes back for approval - not rewritten by a file.
-func screenImportWrites(tx *sql.Tx, doctype string, rules importWriteRules, writes []importWrite, result *ImportResult) []importWrite {
+func screenImportWrites(tx *sql.Tx, tenantID, doctype string, rules importWriteRules, writes []importWrite, result *ImportResult) []importWrite {
 	if len(writes) == 0 {
 		return writes
 	}
@@ -544,14 +544,17 @@ func screenImportWrites(tx *sql.Tx, doctype string, rules importWriteRules, writ
 		ids[i] = w.id
 	}
 	existing := map[string]string{} // id -> status, this doctype only
-	rows, err := tx.Query(`SELECT id, COALESCE(status, '') FROM documents WHERE doctype = $1 AND id = ANY($2::text[])`, doctype, pq.Array(ids))
+	existingData := map[string][]byte{}
+	rows, err := tx.Query(`SELECT id, COALESCE(status, ''), data FROM documents WHERE doctype = $1 AND id = ANY($2::text[])`, doctype, pq.Array(ids))
 	if err == nil {
 		for rows.Next() {
 			var id, status string
-			if err = rows.Scan(&id, &status); err != nil {
+			var raw []byte
+			if err = rows.Scan(&id, &status, &raw); err != nil {
 				break
 			}
 			existing[id] = status
+			existingData[id] = raw
 		}
 		if err == nil {
 			err = rows.Err()
@@ -581,10 +584,33 @@ func screenImportWrites(tx *sql.Tx, doctype string, rules importWriteRules, writ
 					continue
 				}
 			}
+			if isUpdate {
+				if verr := importUpdateStateGuard(tenantID, doctype, w, prior, existingData[w.id]); verr != nil {
+					recordImportError(result, w.rowNumber, verr.Error())
+					continue
+				}
+			}
 			kept = append(kept, w)
 		}
 	}
 	return kept
+}
+
+// importUpdateStateGuard (Stage 49.3.5) holds an import update row to the
+// state guards a record-form save of the same record meets in
+// ValidateTransactionalRules: a posted document's money is fixed and a save
+// cannot un-post it (FIN-0844), and the status move must be one the doctype's
+// transition rules allow (GLOBAL-0019). The row is the merged record, so only
+// what the file really changes is compared against the stored record.
+func importUpdateStateGuard(tenantID, doctype string, w importWrite, priorStatus string, priorRaw []byte) error {
+	var payload, priorData map[string]interface{}
+	if json.Unmarshal([]byte(w.data), &payload) != nil || json.Unmarshal(priorRaw, &priorData) != nil {
+		return nil
+	}
+	if err := checkPostedAmountsFrozen(tenantID, doctype, w.id, priorStatus, priorData, payload); err != nil {
+		return err
+	}
+	return ValidateStatusTransition(tenantID, doctype, priorStatus, resolveWrittenStatus(payload), payload)
 }
 
 // prefetchLinks answers every Link value in one batch with one query per
@@ -811,7 +837,17 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 		// Stage 49.3.8a: a row for another store - a new record, or a stored
 		// record of another store merged above - is refused, as on screen.
 		if lk.session != nil {
-			if named := LocationOutOfScope(doctype, *lk.session, docData); named != "" {
+			// Stage 49.3.4: an update row is held to the STORED record's store
+			// too - the merged row carries the store the file names, so a row
+			// naming its own store would otherwise take over another store's.
+			named := ""
+			if priorRows[i] != nil {
+				named = LocationOutOfScope(doctype, *lk.session, priorRows[i])
+			}
+			if named == "" {
+				named = LocationOutOfScope(doctype, *lk.session, docData)
+			}
+			if named != "" {
 				recordImportError(result, rowNumber, LocationOutOfScopeMessage(named, lk.session.LocationCode))
 				continue
 			}
@@ -948,7 +984,7 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 		}
 		writes = append(writes, importWrite{rowNumber: rowNumber, id: id, data: string(marshaled), status: sentStatus})
 	}
-	writes = screenImportWrites(tx, doctype, lk.rules, writes, result)
+	writes = screenImportWrites(tx, tenantID, doctype, lk.rules, writes, result)
 	writes = screenActionOnlyImportFields(tx, doctype, writes, result) // 49.5.6c
 
 	// 49.4.4a: the batch's valid rows go in one statement instead of an

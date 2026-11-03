@@ -83,7 +83,7 @@ func SaveChannelCredentialBy(tenantID, channelCode string, fields map[string]str
 	_, err = db.DB.Exec(fmt.Sprintf(`
 		INSERT INTO %s.channel_credentials (channel_code, encrypted_payload, updated_at, saved_by, expires_at)
 		VALUES ($1, $2, CURRENT_TIMESTAMP, NULLIF($3, ''), $5)
-		ON CONFLICT (channel_code) DO UPDATE SET encrypted_payload = EXCLUDED.encrypted_payload, updated_at = CURRENT_TIMESTAMP,
+		ON CONFLICT (channel_code) DO UPDATE SET encrypted_payload = EXCLUDED.encrypted_payload, updated_at = CURRENT_TIMESTAMP, active = TRUE,
 			saved_by = COALESCE(EXCLUDED.saved_by, channel_credentials.saved_by),
 			expires_at = CASE WHEN $4 THEN EXCLUDED.expires_at ELSE channel_credentials.expires_at END`, schema),
 		channelCode, encrypted, strings.TrimSpace(savedBy), setExpiry, expiry)
@@ -102,9 +102,13 @@ func getChannelCredential(tenantID, channelCode string) (map[string]string, erro
 	}
 	var encrypted []byte
 	var expires sql.NullTime
-	err = db.DB.QueryRow(fmt.Sprintf(`SELECT encrypted_payload, expires_at FROM %s.channel_credentials WHERE channel_code = $1`, schema), channelCode).Scan(&encrypted, &expires)
+	active := true
+	err = db.DB.QueryRow(fmt.Sprintf(`SELECT encrypted_payload, expires_at, active FROM %s.channel_credentials WHERE channel_code = $1`, schema), channelCode).Scan(&encrypted, &expires, &active)
 	if err != nil {
 		return nil, fmt.Errorf("no credentials configured for channel %q", channelCode)
+	}
+	if !active {
+		return nil, fmt.Errorf("credentials for channel %q are switched off - switch them on in Integrations", channelCode)
 	}
 	if credentialExpired(expires) {
 		return nil, fmt.Errorf("credentials for channel %q expired on %s - save new ones", channelCode, expires.Time.UTC().Format("2006-01-02"))

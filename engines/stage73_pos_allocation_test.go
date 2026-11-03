@@ -285,8 +285,8 @@ func TestStage73RedemptionCapReturnsPoints(t *testing.T) {
 		t.Fatalf("finalize: %v", err)
 	}
 	// 200 points = Rs 400 against a Rs 300 bill: 150 points pay it, 50 go back.
-	if out.LoyaltyDiscount != 300 {
-		t.Errorf("points paid %d, want 300", out.LoyaltyDiscount)
+	if out.LoyaltyDiscount != 300.0 {
+		t.Errorf("points paid %v, want 300", out.LoyaltyDiscount)
 	}
 	if b, _ := GetLoyaltyBalance(tenantID, "CUST-CAP"); b != 350 {
 		t.Errorf("balance = %d, want 350 (500 less the 150 points used)", b)

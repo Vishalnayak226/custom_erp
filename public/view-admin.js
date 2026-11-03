@@ -160,6 +160,7 @@ window.editPrefixConfig = function(docType) {
 // monthly / never and the period in the sample is a date, not a year.
 const SERIES_DISPLAY_NAMES = {
   GRNBatchSeq: 'GRN batch number',
+  PieceCode: 'Piece code',
   PIMBarcodeSeq: 'Barcode (counter)',
   PIMDatedBarcodeSeq: 'Receipt-date barcode (counter)'
 };
@@ -199,7 +200,7 @@ const SERIES_GROUPS = {
   Manufacturing: ['PRO', 'JO', 'JR', 'BackflushRule'],
   Finance: ['JV', 'AST', 'CostCenter'],
   HR: ['ATT', 'LV', 'LOAN', 'GRV', 'EXP', 'Payslip', 'Employee'],
-  'Products & barcodes': ['ProductFamily', 'Item', 'ItemName', 'Category', 'ProductType', 'MRPRule', 'Brand', 'ItemAttribute', 'PIMBarcodeSeq', 'PIMDatedBarcodeSeq']
+  'Products & barcodes': ['ProductFamily', 'Item', 'ItemName', 'Category', 'ProductType', 'MRPRule', 'Brand', 'ItemAttribute', 'PIMBarcodeSeq', 'PIMDatedBarcodeSeq', 'PieceCode']
 };
 const SERIES_GROUP_OF = Object.fromEntries(Object.entries(SERIES_GROUPS).flatMap(([g, keys]) => keys.map(k => [k, g])));
 const SERIES_GROUP_ORDER = Object.keys(SERIES_GROUPS);
@@ -1279,7 +1280,7 @@ async function renderLogHubView(container) {
   // Tab switcher for the three log panes
   const tabBar = document.createElement('div');
   tabBar.className = 'tab-bar';
-  tabBar.style.cssText = 'display:flex; gap:0; margin-bottom:16px; border-bottom:2px solid var(--border-color);';
+  tabBar.style.cssText = 'display:flex; flex-wrap:wrap; gap:0; margin-bottom:16px; border-bottom:2px solid var(--border-color);';
   tabBar.innerHTML = `
     <button class="log-hub-tab active" data-tab="audit" style="padding:10px 20px; border:none; background:var(--card-bg); cursor:pointer; font-weight:600; border-bottom:2px solid var(--primary-color); margin-bottom:-2px; color:var(--primary-color);">Audit Logs</button>
     <button class="log-hub-tab" data-tab="system" style="padding:10px 20px; border:none; background:transparent; cursor:pointer; font-weight:500; color:var(--text-muted);">System Errors</button>
@@ -1529,7 +1530,12 @@ async function renderLogHubView(container) {
   window.viewStackTrace = async function(logId) {
     const log = systemLogs.find(x => x.log_id === logId);
     if (!log) return;
-    await showCustomAlert(`Stack Trace for ${logId}:\n\n${log.stack_trace || 'No trace available.'}`, 'Stack Trace');
+    // 47.14.1: named by module and time, not by the log row's UUID (kept as the last line for support).
+    await showCustomAlert(`${log.module_source || 'System'} - ${log.created_at ? new Date(log.created_at).toLocaleString() : ''}
+
+${log.stack_trace || 'No trace available.'}
+
+Reference: ${logId}`, 'Stack Trace');
   };
 }
 
@@ -1612,7 +1618,10 @@ async function renderSetupPathPanel(host) {
           ? `<button class="${s.next ? 'btn btn-primary btn-sm' : 'action-btn'}" data-setup-view="${escapeHTMLText(s.view)}">${s.next ? 'Start here' : 'Open'}</button>`
           : (s.doctypes || []).map(dt => `<button class="${s.next ? 'btn btn-primary btn-sm' : 'action-btn'}" data-setup-doctype="${escapeHTMLText(dt)}">${escapeHTMLText(getDoctypeLabel(dt))}</button>`).join(' ')}
         ${s.note ? `<div class="text-muted" style="font-size:12.5px;margin-top:2px;">${escapeHTMLText(s.note)}</div>` : ''}
+        ${s.state && !['Ready', 'Draft'].includes(s.state) ? `<span class="badge ${s.state === 'Invalid' ? 'badge-danger' : ''}" data-setup-state>${escapeHTMLText(s.state)}</span>` : ''}
+        <button type="button" class="action-btn" data-setup-history="${escapeHTMLText(s.id)}">History</button>
         ${setupCheckLines(s)}
+        <div data-setup-history-box="${escapeHTMLText(s.id)}" class="hidden"></div>
       </li>`;
     }).join('')}</ol>`;
   host.replaceChildren(details);
@@ -1622,6 +1631,8 @@ async function renderSetupPathPanel(host) {
   }));
   // The master's list, with a way back here (the Stage 57.2 detour).
   details.querySelectorAll('[data-setup-doctype]').forEach(btn => btn.addEventListener('click', () => window.openSetupDoctype(btn.dataset.setupDoctype)));
+  // Stage 47.12.4: a step's state history (who, when, from, to) and a note.
+  details.querySelectorAll('[data-setup-history]').forEach(btn => btn.addEventListener('click', () => toggleSetupHistory(details, btn.dataset.setupHistory)));
   // Continue = the next step's own first button.
   const nextBtn = details.querySelector('[data-setup-next]');
   if (nextBtn) nextBtn.addEventListener('click', event => {
@@ -1629,6 +1640,31 @@ async function renderSetupPathPanel(host) {
     const row = [...details.querySelectorAll('li[data-step-id]')].find(li => li.dataset.stepId === next.id);
     const target = row && row.querySelector('[data-setup-view], [data-setup-doctype]');
     if (target) target.click(); else details.open = true;
+  });
+}
+
+async function toggleSetupHistory(details, stepId) {
+  const box = details.querySelector(`[data-setup-history-box="${stepId}"]`);
+  box.classList.toggle('hidden');
+  if (box.classList.contains('hidden')) return;
+  const res = await apiFetch(`/api/v1/setup/path/${encodeURIComponent(stepId)}/history`);
+  if (!res || !res.ok) { box.textContent = 'Could not load.'; return; }
+  const { history = [] } = await res.json();
+  const line = h => h.kind === 'Note'
+    ? `<li><b>Note</b> ${escapeHTMLText(h.note)}${h.attachment ? ` <span class="text-muted">[${escapeHTMLText(h.attachment)}]</span>` : ''} <span class="text-muted">- ${escapeHTMLText(h.changed_by)}, ${escapeHTMLText(h.changed_at)}</span></li>`
+    : `<li>${h.from_state ? `${escapeHTMLText(h.from_state)} &rarr; ` : ''}<b>${escapeHTMLText(h.to_state)}</b> <span class="text-muted">- ${escapeHTMLText(h.changed_by)}, ${escapeHTMLText(h.changed_at)}</span></li>`;
+  box.innerHTML = `<ul data-setup-history-list style="margin:6px 0 0;padding-left:18px;font-size:12.5px;">${history.map(line).join('') || '<li class="text-muted">Nothing yet.</li>'}</ul>
+    <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
+      <input class="form-input" data-setup-note placeholder="Note" maxlength="2000" style="flex:2;min-width:160px;">
+      <input class="form-input" data-setup-attach placeholder="Attachment" maxlength="500" style="flex:1;min-width:120px;">
+      <button type="button" class="btn btn-outline btn-sm" data-setup-note-add>Add</button></div>`;
+  box.querySelector('[data-setup-note-add]').addEventListener('click', async () => {
+    const note = box.querySelector('[data-setup-note]').value, attachment = box.querySelector('[data-setup-attach]').value;
+    const r = await apiFetch(`/api/v1/setup/path/${encodeURIComponent(stepId)}/note`, { method: 'POST', body: JSON.stringify({ note, attachment }) });
+    if (!r) return;
+    if (!r.ok) { showCustomAlert(await getErrorMessage(r, 'Could not add the note.'), 'Note'); return; }
+    box.classList.add('hidden');
+    toggleSetupHistory(details, stepId);
   });
 }
 
@@ -1719,6 +1755,7 @@ let configModules = [];           // the modules this person can open
 let configRenderToken = -1;       // app.js viewRenderToken at the last Configuration render
 
 async function renderConfigurationView(container) {
+  if (currentViewTab === 'credentials') return (await loadViewModule('/view-integration-credentials.js' + new URL(import.meta.url).search)).renderIntegrationCredentialsView(container); // 49.8.5
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
@@ -2027,7 +2064,7 @@ const CONFIG_INTEGRATION_DEFS = [
   {
     id: 'unicommerce',
     title: 'Unicommerce (OMS middleware)',
-    blurb: 'Middleware endpoint and API credentials used for order push and inventory sync. One entry per store code.',
+    blurb: 'Not connected yet: logins are saved, nothing is sent. One entry per store code.',
     listUrl: '/api/v1/unicommerce/credentials',
     saveUrl: '/api/v1/unicommerce/credentials',
     keyField: 'store_code',

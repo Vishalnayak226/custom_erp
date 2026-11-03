@@ -114,6 +114,9 @@ func handlePrintDocument(w http.ResponseWriter, r *http.Request) {
 	if !requireDocPermission(w, r, doctype, "read", "You do not have permission to view this document") {
 		return
 	}
+	if !requirePrintInScope(w, r, txn, r.PathValue("id")) {
+		return
+	}
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	q := r.URL.Query()
 	format := q.Get("format")
@@ -160,6 +163,9 @@ func handlePrintDocumentSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !requireDocPermission(w, r, doctype, "read", "You do not have permission to view this document") {
+		return
+	}
+	if !requirePrintInScope(w, r, txn, r.PathValue("id")) {
 		return
 	}
 	isPO := doctype == "PurchaseOrder"
@@ -231,6 +237,9 @@ func handleVendorPOExcel(w http.ResponseWriter, r *http.Request) {
 	if !requireDocPermission(w, r, "PurchaseOrder", "read", "You do not have permission to view purchase orders") {
 		return
 	}
+	if !requirePrintInScope(w, r, engines.PrintTxnVendorPO, r.PathValue("id")) {
+		return
+	}
 	body, name, err := engines.BuildVendorPOWorkbook(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("id"), r.URL.Query().Get("store"))
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusNotFound)
@@ -273,4 +282,29 @@ func handleAddDesignAttributeValue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(attr)
+}
+
+// requirePrintInScope (Stage 49.3.4) holds a print by id to the one
+// object-level read rule the record itself meets (documentReadRule): a
+// record of another store answers "not found", as a read of it does. Every
+// route that prints, sends, logs or asks to reprint a document by id runs it
+// right after the doctype-level read check. A transaction with no stored
+// record of its own (a voucher, a statement) has nothing to scope.
+func requirePrintInScope(w http.ResponseWriter, r *http.Request, txn, id string) bool {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	data, ok := engines.PrintRecordData(tenantID, txn, id)
+	if !ok {
+		return true
+	}
+	doctype := engines.PrintTxnDoctype(tenantID, txn)
+	rule, err := sessionReadRule(r, tenantID, doctype)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to resolve the access scope for this session")
+		return false
+	}
+	if !rule.visible(data) {
+		refuseAsNotFound(w, r, tenantID, r.Header.Get("Resolved-User-ID"), "print", doctype, id)
+		return false
+	}
+	return true
 }

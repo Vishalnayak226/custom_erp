@@ -121,6 +121,8 @@ type posCartLine struct {
 	// OfferShare (Stage 73.1.1) is the quote's per-line share of the cart's
 	// OfferDiscount - see cartOfferShares for carts stored without it.
 	OfferShare float64 `json:"offer_share"`
+	// NoPoints (Stage 146.2.3): the line cannot be paid with points.
+	NoPoints bool `json:"no_points"`
 }
 
 // FinalizeOutcome is what one committed sale produced. Returned so the caller
@@ -131,7 +133,7 @@ type FinalizeOutcome struct {
 	BillNumber      string
 	SaleTotal       float64
 	CostTotal       float64
-	LoyaltyDiscount int
+	LoyaltyDiscount float64 // rupees (a point may be worth under Rs 1)
 	NegativeEvents  []NegativeStockEvent
 	CostingGaps     []CostingGapLine
 }
@@ -275,9 +277,11 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	lineQtys := make([]int, len(cart.Items))
 	lineGross := make([]int64, len(cart.Items))
 	storedOffer := make([]float64, len(cart.Items))
+	lineNoPoints := make([]bool, len(cart.Items))
 	for i, item := range cart.Items {
 		lineSKUs[i], lineQtys[i], storedOffer[i] = item.Sku, item.Qty, item.OfferShare
 		lineGross[i] = RupeesToPaise(item.SalePrice) * int64(item.Qty)
+		lineNoPoints[i] = item.NoPoints
 	}
 	lineOffer := cartOfferShares(lineGross, storedOffer, cart.OfferDiscount)
 	netSalePaise := totalSalePaise
@@ -311,37 +315,43 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	// the cart and completing the sale is caught rather than overdrawn - and a
 	// rolled-back sale un-burns the points by definition, which is what
 	// removed the compensating-reversal branches this function used to carry.
-	loyaltyDiscount, pointsUsed := 0, 0
-	valuePerPoint := redemptionValuePerPointFor(tenantID)
-	if valuePerPoint <= 0 {
-		valuePerPoint = 1
+	loyaltyDiscountPaise, pointsUsed := int64(0), 0
+	valuePerPointPaise := loyaltyPointValuePaise(tenantID)
+	// 146.2.3: points pay for the lines that can take them, never the others.
+	eligibleBillPaise := billPaise
+	for i := range lineGross {
+		if lineNoPoints[i] {
+			eligibleBillPaise -= lineGross[i] - lineOffer[i]
+		}
+	}
+	if eligibleBillPaise < 0 {
+		eligibleBillPaise = 0
 	}
 	if cart.RedeemPoints > 0 && cart.CustomerID != "" {
-		loyaltyDiscount, err = RedeemLoyaltyPointsTx(tx, schema, tenantID, cart.CustomerID, cart.RedeemPoints, cartNumber,
+		loyaltyDiscountPaise, err = RedeemLoyaltyPointsTx(tx, schema, tenantID, cart.CustomerID, cart.RedeemPoints, cartNumber,
 			LoyaltyRedemptionAuth{ChallengeID: cart.RedemptionChallengeID, ApprovalID: cart.RedemptionApprovalID})
 		if err != nil {
 			return nil, err
 		}
 		pointsUsed = cart.RedeemPoints
-		if RupeesToPaise(float64(loyaltyDiscount)) > billPaise {
+		if loyaltyDiscountPaise > eligibleBillPaise {
 			// Cap rather than reject: the points were already accepted, and a
 			// customer covering more than the bill simply pays nothing. The
 			// unused POINTS go straight back - in the same transaction, so they
 			// can no longer be lost to a failed compensating write. 73.1.1: the
 			// cap is the net bill, and what goes back is points, not rupees
 			// (the two differ whenever a point is worth more than Rs 1).
-			pointsUsed = int(billPaise / RupeesToPaise(float64(valuePerPoint)))
+			pointsUsed = loyaltyPaiseToPoints(tenantID, eligibleBillPaise)
 			if _, err := tx.Exec(fmt.Sprintf(`
-				INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id)
-				VALUES ($1, 'Earn', $2, 'POSCart', $3)`, schema),
-				cart.CustomerID, cart.RedeemPoints-pointsUsed, cartNumber+":REDEMPTION-REVERSAL"); err != nil {
+				INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id, location)
+				VALUES ($1, 'Earn', $2, 'POSCart', $3, (SELECT NULLIF(data->>'location','') FROM %s.documents WHERE id = $4::text AND doctype = 'POSCart'))`, schema, schema),
+				cart.CustomerID, cart.RedeemPoints-pointsUsed, cartNumber+":REDEMPTION-REVERSAL", cartNumber); err != nil {
 				return nil, err
 			}
-			loyaltyDiscount = pointsUsed * valuePerPoint
+			loyaltyDiscountPaise = int64(pointsUsed) * valuePerPointPaise
 		}
 	}
 
-	loyaltyDiscountPaise := RupeesToPaise(float64(loyaltyDiscount))
 	if err := postSalesFinanceBookingRoundedTx(tx, schema, tenantID, cartNumber, netSalePaise, roundOff, totalCostPaise, cart.PaymentMode, loyaltyDiscountPaise); err != nil {
 		return nil, fmt.Errorf("GL booking failed: %v", err)
 	}
@@ -419,8 +429,8 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	// Customer 360 read as the customer's spend; nothing stored it before.
 	// in the same transaction - a return, the drawer and the reports read it
 	// rather than re-deriving it.
-	allocation, err := json.Marshal(buildSaleAllocation(lineSKUs, lineQtys, lineGross, lineOffer, roundOff,
-		pointsUsed, RupeesToPaise(float64(valuePerPoint)), giftTotal, moneyParts))
+	allocation, err := json.Marshal(buildSaleAllocationEligible(lineSKUs, lineQtys, lineGross, lineOffer, roundOff,
+		pointsUsed, valuePerPointPaise, giftTotal, moneyParts, lineNoPoints))
 	if err != nil {
 		return nil, err
 	}
@@ -453,7 +463,7 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 		BillNumber:      billNumber,
 		SaleTotal:       PaiseToRupees(totalSalePaise),
 		CostTotal:       PaiseToRupees(totalCostPaise),
-		LoyaltyDiscount: loyaltyDiscount,
+		LoyaltyDiscount: PaiseToRupees(loyaltyDiscountPaise),
 		NegativeEvents:  negativeEvents,
 		CostingGaps:     costingGaps,
 	}

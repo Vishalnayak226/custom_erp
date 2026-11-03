@@ -105,7 +105,7 @@ async function swPreview(host, btn) {
     <section>
       <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">3. Preview - nothing has changed yet</h4>
       ${swTotalsHtml(t, false)}
-      ${plan.from_organisation && !plan.same_organisation ? `<p style="font-size:13px; margin:0 0 10px;">This workbook was downloaded from another organisation (${swEsc(plan.from_organisation)}): its codes are ignored and rows are matched by name, GSTIN and the other keys.</p>` : ''}
+      ${plan.from_organisation && !plan.same_organisation ? `<p style="font-size:13px; margin:0 0 10px;">From another organisation (${swEsc(plan.from_organisation)}): matched by name and GSTIN, not code.</p>` : ''}
       ${swSheetsHtml(plan.sheets || [], false)}
       <div style="display:flex; gap:12px; align-items:center; margin-top:12px; flex-wrap:wrap;">
         <button type="button" class="btn btn-primary" data-sw="apply"${toApply ? '' : ' disabled'}>${toApply ? `Apply ${toApply} row${toApply === 1 ? '' : 's'}` : 'Nothing to apply'}</button>
@@ -160,7 +160,7 @@ function swRunHtml(run) {
       <h4 style="font-size:14px; font-weight:600; margin:0 0 8px;">${ok ? 'Applied' : swEsc(run.status || 'Finished')}${run.file_name ? ` - ${swEsc(run.file_name)}` : ''}</h4>
       ${run.message ? `<p style="font-size:13px;">${swEsc(run.message)}</p>` : ''}
       ${swTotalsHtml(t, true)}
-      ${(t.Failed || t.Errors) ? '<p style="font-size:13px; margin:0 0 10px;">Fix the rows marked Failed or Problem in the workbook and upload it again - rows already applied show as Unchanged.</p>' : ''}
+      ${(t.Failed || t.Errors) ? '<p style="font-size:13px; margin:0 0 10px;">Fix the Failed and Problem rows and upload again.</p>' : ''}
       ${swSheetsHtml(run.sheets || [], true)}
     </section>`;
 }

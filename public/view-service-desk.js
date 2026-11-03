@@ -36,7 +36,7 @@ async function renderTicketDesk(panel) {
       <button class="btn btn-sm ${deskMineOnly ? 'btn-primary' : 'btn-outline'}" data-desk-scope="mine" aria-pressed="${deskMineOnly}">Mine and unassigned</button>
       <button class="btn btn-sm ${deskMineOnly ? 'btn-outline' : 'btn-primary'}" data-desk-scope="all" aria-pressed="${!deskMineOnly}">All open</button>
     </div>
-    ${tickets.length === 0 ? `<p class="text-muted oms-detail-empty">No open tickets ${deskMineOnly ? 'for you or unassigned' : ''}. New tickets appear here as they are logged.</p>` : `
+    ${tickets.length === 0 ? `<p class="text-muted oms-detail-empty">No open tickets ${deskMineOnly ? 'for you or unassigned' : ''}.</p>` : `
     <div class="table-wrapper"><table>
       <thead><tr><th>Ticket</th><th>Customer</th><th>Priority</th><th>Status</th><th>Assigned</th><th>Due</th><th>Contract</th><th>Next step</th></tr></thead>
       <tbody>${tickets.map(t => `<tr>
@@ -95,7 +95,7 @@ function renderContract(c) {
 function renderProjectLedger(p) {
   return `<p><strong>${escapeHTMLText(p.project)}</strong> ${escapeHTMLText(p.name || '')}${p.customer ? ` - ${escapeHTMLText(p.customer)}` : ''} <span class="text-muted">(${escapeHTMLText(p.status || '')})</span></p>
     <p>Revenue ${formatMoney(p.revenue)} - expense ${formatMoney(p.expense)} = <strong>net ${formatMoney(p.net)}</strong></p>
-    ${(p.documents || []).length === 0 ? '<p class="text-muted">Nothing has posted to this project yet. Journal vouchers and expense claims carry a Project field.</p>' : `<div class="table-wrapper"><table>
+    ${(p.documents || []).length === 0 ? '<p class="text-muted">Nothing has posted to this project yet.</p>' : `<div class="table-wrapper"><table>
       <thead><tr><th>Posted</th><th>Document</th><th class="num">Revenue</th><th class="num">Expense</th></tr></thead>
       <tbody>${p.documents.map(d => `<tr><td>${escapeHTMLText(deskWhen(d.posted_at))}</td><td>${escapeHTMLText(d.document_type)} ${escapeHTMLText(d.document_id)}</td><td class="num">${formatMoney(d.revenue)}</td><td class="num">${formatMoney(d.expense)}</td></tr>`).join('')}</tbody></table></div>`}`;
 }

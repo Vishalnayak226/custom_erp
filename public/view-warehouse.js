@@ -37,7 +37,7 @@ window.viewPickList = async function(taskId) {
   // six-column table it saw before.
   const hasBatches = (lines || []).some(l => l.batch_no);
   const rows = (!lines || lines.length === 0)
-    ? `<tr><td colspan="${hasBatches ? 7 : 6}" class="text-center text-muted">No bin-level pick lines for this task &mdash; it will be picked from general stock instead. Continue as normal.</td></tr>`
+    ? `<tr><td colspan="${hasBatches ? 7 : 6}" class="text-center text-muted">No bin-level pick lines; pick from general stock.</td></tr>`
     : lines.map(l => {
         const short = l.shortfall > 0
           ? `<span class="badge badge-danger">Short ${l.shortfall}</span>`
@@ -161,7 +161,6 @@ async function renderPutawayView(container) {
   xdockPanel.style.padding = '16px 0 0';
   xdockPanel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">Cross-Dock Staging</h2>
-    <p style="color: var(--text-muted); margin-bottom: 12px;">Check whether an open transfer/sale is already waiting on a SKU before shelving it - if so, stage it for immediate outbound instead.</p>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="xdock-sku">SKU</label>
@@ -194,7 +193,6 @@ async function renderPutawayView(container) {
   planPanel.style.padding = '24px 0 0';
   planPanel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">Planned Cross-Dock / Flow-Through / Transship</h2>
-    <p style="color: var(--text-muted); margin-bottom: 12px;">Stages against a Cross-Dock Plan raised ahead of receipt (see Cross-Dock Plans), rather than scanning for live demand.</p>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="xplan-sku">SKU</label>
@@ -367,7 +365,7 @@ async function loadPutawayWaiting() {
     fromGRN = `<p style="margin: 0 0 8px;">From goods receipt <b>${escapeHTMLText(putawayFromGRN.grn)}</b>: its items are listed first.</p>`;
   }
   if (!work.has_bins) {
-    el.innerHTML = `<p style="margin: 0; color: var(--text-muted);">No bins are set up${loc ? ' at ' + escapeHTMLText(loc) : ''} yet - putaway places stock into bins. <button type="button" class="action-btn" ${actionAttrs('openSetupDoctype', ['Bin'])}>Set up bins</button></p>`;
+    el.innerHTML = `<p style="margin: 0; color: var(--text-muted);">No bins are set up${loc ? ' at ' + escapeHTMLText(loc) : ''} yet. <button type="button" class="action-btn" ${actionAttrs('openSetupDoctype', ['Bin'])}>Set up bins</button></p>`;
     return;
   }
   el.innerHTML = fromGRN + (rows.length === 0 ? `<p style="margin: 0; color: var(--text-muted);">Nothing waiting${loc ? ' at ' + escapeHTMLText(loc) : ''} - every received unit is in a bin.</p>` : `<div style="overflow-x: auto;"><table>
@@ -435,7 +433,7 @@ async function renderPlaceHoldView(container) {
       </div>
       <button class="btn btn-primary" id="hold-submit-btn" type="button">Place Hold</button>
     </div>
-    <div id="hold-impact" aria-live="polite" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);">Choose the item and location to see what a hold takes out of sellable stock.</div>
+    <div id="hold-impact" aria-live="polite" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);"></div>
     <div id="hold-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
     <div id="hold-result" aria-live="polite" style="margin-top:16px;"></div>
   `;
@@ -500,7 +498,7 @@ async function submitPlaceHold() {
   }
   const saved = await res.json();
   const result = document.getElementById('hold-result');
-  if (result) result.innerHTML = `<span class="badge badge-success">Hold placed</span> ${documentSearchLink('Hold', saved.id)}. <button class="action-btn" ${actionAttrs('startHoldReleaseRequest', [saved.id])}>Request release of this hold</button> <small>Release needs a separate approval; this button does not free the stock.</small>`;
+  if (result) result.innerHTML = `<span class="badge badge-success">Hold placed</span> ${documentSearchLink('Hold', saved.id)}. <button class="action-btn" ${actionAttrs('startHoldReleaseRequest', [saved.id])}>Request release of this hold</button> <small>Needs separate approval.</small>`;
   await showCustomAlert(`Placed hold ${saved.id} for ${qty} x ${sku} at ${locationCode}.`, 'Hold Placed');
   document.getElementById('hold-qty').value = 1;
   document.getElementById('hold-reason').value = '';
@@ -863,7 +861,7 @@ async function loadAppointmentCalendar() {
   const allAppts = await apptRes.json();
 
   if (doors.length === 0) {
-    body.innerHTML = `<div class="table-panel" style="padding:24px; color:var(--text-muted);">No active dock doors yet - appointments are booked against a door. <button type="button" class="action-btn" ${actionAttrs('openSetupDoctype', ['DockDoor'])}>Set up dock doors</button></div>`;
+    body.innerHTML = `<div class="table-panel" style="padding:24px; color:var(--text-muted);">No active dock doors yet. <button type="button" class="action-btn" ${actionAttrs('openSetupDoctype', ['DockDoor'])}>Set up dock doors</button></div>`;
     return;
   }
 
@@ -1382,7 +1380,7 @@ async function loadSortationSlots() {
   const data = await res.json();
   const slots = data.slots || [];
   if (slots.length === 0) {
-    body.innerHTML = `<div class="table-panel" style="padding:24px; color:var(--text-muted);">No slots set up for station ${escapeHTMLText(station)} yet - type how many slots it has above and press Set up slots.</div>`;
+    body.innerHTML = `<div class="table-panel" style="padding:24px; color:var(--text-muted);">No slots set up for station ${escapeHTMLText(station)} yet.</div>`;
     return;
   }
   body.innerHTML = `
@@ -1814,7 +1812,12 @@ async function loadWarehouseCockpit(liveBody = null) {
     section('Wave Monitor', waveMonitorHtml) +
     section('Inbound Due Today', inboundHtml) +
     section("Today's Throughput", throughputHtml) +
-    section('Bin Utilisation', binUtilHtml);
+    section('Bin Utilisation', binUtilHtml) +
+    ((c.stale_transfer_holds || []).length === 0 ? '' : section('Stale Transfer Holds', `
+    <table>
+      <thead><tr><th>Transfer</th><th>Location</th><th>Qty</th><th>Days</th></tr></thead>
+      <tbody>${c.stale_transfer_holds.map(h => `<tr><td>${escapeHTMLText(h.transfer_id)}</td><td>${escapeHTMLText(h.location_code)}</td><td>${h.qty}</td><td>${h.days}</td></tr>`).join('')}</tbody>
+    </table>`));
 
   document.querySelectorAll('.wave-advance-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -1887,7 +1890,7 @@ async function renderBinConditionsView(container) {
       <button class="btn btn-primary" id="bincond-submit-btn" type="button">Move</button>
     </div>
     <div id="bincond-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
-    <p style="margin: 12px 0 0; color: var(--text-muted); font-size: 13px;">Each condition is a stock location of the store (Stock &rarr; Stock Locations): moving Good stock to Damaged, QC-Hold or RTV moves it to that location at once (on hand stays the same), and it sells only if that location is marked sellable; moving it back to Good returns it to Main. Units reserved for an open pick cannot change condition until that pick is short-picked or rejected. In a bin shared by several 3PL owners, name the owner.</p>
+    <p style="margin: 12px 0 0; color: var(--text-muted); font-size: 13px;">Moves the stock to that condition's location at once.</p>
   `;
   container.appendChild(panel);
   document.getElementById('bincond-to').value = 'Damaged';
@@ -2178,7 +2181,7 @@ async function loadLocationMovementHistory() {
       <thead><tr><th>Moved</th><th>Location</th><th>Item</th><th>From bin</th><th>To bin</th><th class="num">Qty</th><th>Batch</th><th>Reason</th></tr></thead>
       <tbody>
         ${moves.length === 0
-          ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No stock moved between bins yet. Click <b>+ New Movement</b>, choose a location, then <b>Move</b> on a bin's row.</td></tr>`
+          ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No stock moved between bins yet.</td></tr>`
           : moves.map(m => `
             <tr>
               <td>${m.updated_at ? escapeHTMLText(new Date(m.updated_at).toLocaleString()) : ''}</td>
@@ -2205,7 +2208,7 @@ async function loadLocationMovementStock() {
   if (!res.ok) { await showApiError(res, 'Failed to load bin stock.', 'Load Failed'); return; }
   locMoveRows = await res.json();
   if (locMoveRows.length === 0) {
-    resultEl.innerHTML = `<p style="color: var(--text-muted);">No bin at this location holds any stock yet. Stock gets into bins through Putaway.</p>`;
+    resultEl.innerHTML = `<p style="color: var(--text-muted);">No bin at this location holds any stock yet.</p>`;
     return;
   }
   resultEl.innerHTML = `
@@ -2368,7 +2371,7 @@ async function loadWaveWork() {
   body.innerHTML = `
     <div class="table-panel" style="padding: 20px; margin-bottom: 16px;">
       <h2 style="font-size: 16px; font-weight: 700; margin: 0 0 8px;">1. Orders ready to wave (${eligible.length})</h2>
-      ${eligible.length === 0 ? '<p style="margin: 0; color: var(--text-muted);">Nothing to wave - every Pending or Picking task here is already in a wave. Released orders appear here.</p>' : `
+      ${eligible.length === 0 ? '<p style="margin: 0; color: var(--text-muted);">Nothing to wave.</p>' : `
       <div style="overflow-x: auto;"><table>
         <thead><tr><th><input type="checkbox" id="wave-all" aria-label="Select all"></th><th>Task</th><th>Order</th><th>Status</th><th class="num">Lines</th><th class="num">Units</th><th>Owner</th></tr></thead>
         <tbody>${eligible.map(t => `<tr><td><input type="checkbox" class="wave-pick" value="${escapeHTMLText(t.id)}" aria-label="Select ${escapeHTMLText(t.id)}"></td>
@@ -2441,7 +2444,7 @@ async function submitWavePickList(waveId) {
   const waveHasBatches = (data.pick_lines || []).some(l => l.batch_no);
   let html = `<div class="table-panel" style="padding: 20px;"><h3 style="font-size: 14px; font-weight: 700; margin: 0 0 8px;">Pick list for ${escapeHTMLText(waveId)} (zone/aisle/rack walking order)</h3>`;
   if (waveHasBatches) {
-    html += `<p class="text-muted" style="font-size:12px; margin:0 0 8px;">Lines are allocated <b>FEFO</b> (first-expiry-first-out) &mdash; pick the exact batch shown. Expired lots and lots inside the item's minimum remaining shelf life are excluded automatically.</p>`;
+    html += `<p class="text-muted" style="font-size:12px; margin:0 0 8px;">Allocated <b>FEFO</b> &mdash; pick the exact batch shown.</p>`;
   }
   html += `<table><thead><tr><th>Zone</th><th>Aisle</th><th>Rack</th><th>Bin</th><th>SKU</th>${waveHasBatches ? '<th>Batch / Expiry</th>' : ''}<th>Pick Qty</th></tr></thead><tbody>`;
   html += data.pick_lines.length === 0
@@ -2451,7 +2454,7 @@ async function submitWavePickList(waveId) {
   html += `<h3 style="font-size: 14px; font-weight: 700; margin: 20px 0 8px;">Per-order allocation</h3>`;
   html += `<table><thead><tr><th>Task ID</th><th>SKU</th><th>Allocated Qty</th><th>Shortfall</th></tr></thead><tbody>`;
   html += data.allocations.length === 0
-    ? `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No allocations &mdash; no stock could be reserved for these orders. Check on-hand quantities under <b>Inventory</b>.</td></tr>`
+    ? `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No allocations &mdash; no stock could be reserved for these orders.</td></tr>`
     : data.allocations.map(a => `<tr><td>${escapeHTMLText(a.task_id)}</td><td>${escapeHTMLText(a.sku)}</td><td>${a.allocated_qty}</td><td>${a.shortfall ? `<span class="badge badge-warning">${a.shortfall}</span>` : '0'}</td></tr>`).join('');
   html += `</tbody></table></div>`;
   resultEl.innerHTML = html;
@@ -2730,10 +2733,9 @@ async function renderCycleCountView(container) {
   importPanel.style.padding = '24px';
   importPanel.style.marginBottom = '24px';
   importPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">1. Enter counted quantities</h2>
-    <p style="color: var(--text-muted); margin-bottom: 12px;">Count lines are entered the same way as any other bulk line-item load, via Bulk Import.</p>
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">1. Enter counted quantities</h2>
     <button class="btn btn-outline" id="cyclecount-open-lines-btn" type="button">Manage Count Lines</button>
-    ${stockContext?.sku && stockContext?.location ? `<div class="notice" style="margin-top:12px;">Count ${escapeHTMLText(stockContext.sku)} at ${escapeHTMLText(stockContext.location)}. The expected quantity stays hidden while you enter your count. <button class="btn btn-primary" id="cyclecount-start-source-btn" type="button">Start blind count for this item</button></div>` : ''}
+    ${stockContext?.sku && stockContext?.location ? `<div class="notice" style="margin-top:12px;">Count ${escapeHTMLText(stockContext.sku)} at ${escapeHTMLText(stockContext.location)}. <button class="btn btn-primary" id="cyclecount-start-source-btn" type="button">Start blind count for this item</button></div>` : ''}
   `;
   container.appendChild(importPanel);
 
@@ -2763,7 +2765,6 @@ async function renderCycleCountView(container) {
   linesPanel.style.marginTop = '24px';
   linesPanel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">3. Session lines</h2>
-    <p style="color: var(--text-muted); margin: 0 0 12px;">Lines of the session above. A difference needs a root-cause reason before it can post; a doubtful count can go back for a blind recount by someone else.</p>
     <button class="btn btn-outline" id="cyclecount-lines-btn" type="button">Show lines</button>
     <div id="cyclecount-lines" style="margin-top: 12px;"></div>
   `;
@@ -2849,7 +2850,7 @@ async function submitCycleCountReconcile() {
     ${data.awaiting_count ? `&nbsp;<span class="badge badge-secondary">${data.awaiting_count} recount${data.awaiting_count === 1 ? '' : 's'} not counted yet</span>` : ''}
     ${recounts.length ? `<table style="margin-top: 12px;"><thead><tr><th>Item</th><th>Location</th><th>Why</th><th>Recount line</th></tr></thead><tbody>
       ${recounts.map(rc => `<tr><td>${escapeHTMLText(rc.sku)}</td><td>${escapeHTMLText(rc.location)}</td><td>${escapeHTMLText(rc.trigger)}</td><td style="font-family: monospace;">${escapeHTMLText(rc.recount_line_id)}</td></tr>`).join('')}
-      </tbody></table><p style="color: var(--text-muted); margin-top: 8px;">Give each recount line to a different counter: under <b>3. Session lines</b> they enter it blind (the first count and the book are not shown), then reconcile this session again.</p>` : ''}
+      </tbody></table><p style="color: var(--text-muted); margin-top: 8px;">Give each recount line to a different counter.</p>` : ''}
   `;  await loadCycleCountLines(); // Stage 55.6
 }
 

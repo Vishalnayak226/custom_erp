@@ -117,6 +117,7 @@ func Run() {
 	engines.StartBackupFreshnessMonitor(workerCtx, 1*time.Hour, 36*time.Hour)
 	// Stage 49.11.7: the public addresses' certificates, for the Control Panel and CERT_EXPIRING.
 	engines.StartCertificateExpiryWatch(workerCtx, 6*time.Hour)
+	engines.StartStorageWatch(workerCtx, time.Hour) // Stage 49.13.3b: DISK_LOW, WAL_LARGE
 
 	// Start Stage 9.1 Integration Workers (Unicommerce, Pine Labs, CleverTap)
 	engines.StartUnicommerceWorker(workerCtx, 30*time.Second)
@@ -341,6 +342,8 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/setup/status", apiMiddleware(handleSetupStatus))
 	// Stage 55.3: the setup path in dependency order.
 	http.HandleFunc("GET /api/v1/setup/path", apiMiddleware(handleSetupPath))
+	http.HandleFunc("GET /api/v1/setup/path/{step}/history", apiMiddleware(handleSetupStepHistory)) // Stage 47.12.4
+	http.HandleFunc("POST /api/v1/setup/path/{step}/note", apiMiddleware(handleSetupStepNote))
 	http.HandleFunc("GET /api/v1/localization", apiMiddleware(handleGetLocalization))
 
 	// MFA recovery and device migration (Stage 32.5). Unlike the three
@@ -433,6 +436,8 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/admin/roles", apiMiddleware(handleCreateRole))
 	http.HandleFunc("GET /api/v1/admin/role-permissions", apiMiddleware(handleRolePermissions))
 	http.HandleFunc("POST /api/v1/admin/role-permissions", apiMiddleware(handleRolePermissions))
+	http.HandleFunc("GET /api/v1/admin/role-permissions/changes", apiMiddleware(handleRoleGrantChanges))
+	http.HandleFunc("POST /api/v1/admin/role-permissions/rollback", apiMiddleware(handleRoleGrantRollback))
 
 	// Stage 47.1.5-47.1.7: role templates, their reviewed/reversible tenant
 	// migration, the SoD conflict catalog and the "why allowed / why denied"
@@ -626,6 +631,7 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/wms/bin-replenishment/execute", apiMiddleware(moduleGate("wms", handleBinReplenishmentExecute)))
 	http.HandleFunc("GET /api/v1/wms/bin-contents", apiMiddleware(moduleGate("wms", handleBinContents)))
 	http.HandleFunc("POST /api/v1/wms/bin-move", apiMiddleware(moduleGate("wms", handleBinMove)))
+	http.HandleFunc("POST /api/v1/wms/bin-generator", apiMiddleware(moduleGate("wms", handleBinGenerator)))
 	http.HandleFunc("POST /api/v1/wms/wave/assign", apiMiddleware(moduleGate("wms", handleWaveAssign)))
 	http.HandleFunc("GET /api/v1/wms/wave/pick-list", apiMiddleware(moduleGate("wms", handleWavePickList)))
 	// Stage 130.13 (80.7 b, d): a picked line kept on the server; a wave sorted.
@@ -667,6 +673,8 @@ func registerRoutes() {
 	// future floor action (start/complete/except/cancel) funnels through.
 	http.HandleFunc("POST /api/v1/wms/tasks/next", apiMiddleware(moduleGate("wms", handleNextTask)))
 	http.HandleFunc("POST /api/v1/wms/tasks/transition", apiMiddleware(moduleGate("wms", handleTransitionTask)))
+	http.HandleFunc("POST /api/v1/wms/work-queue", apiMiddleware(moduleGate("wms", handleWorkQueue)))
+	http.HandleFunc("POST /api/v1/wms/piece-codes", apiMiddleware(moduleGate("wms", handlePieceCodeMint)))
 	// 42.2.7 - directed putaway suggestion; 42.2.10 - the warehouse cockpit.
 	http.HandleFunc("GET /api/v1/wms/putaway/suggest-bin", apiMiddleware(moduleGate("wms", handleSuggestPutawayBin)))
 	http.HandleFunc("GET /api/v1/wms/cockpit", apiMiddleware(moduleGate("wms", handleWarehouseCockpit)))
@@ -776,6 +784,9 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/pos/bills/{id}/cancel", apiMiddleware(moduleGate("oms", handleCancelPOSBill)))
 	// Stage 73.2.11: manual point adjustments (handlers_loyalty_admin.go).
 	http.HandleFunc("/api/v1/loyalty/adjustments", apiMiddleware(moduleGate("crm_loyalty", handleLoyaltyAdjustments)))
+	// Stage 146.2.6: points transfer between customers (handlers_loyalty_admin.go).
+	http.HandleFunc("/api/v1/loyalty/transfers", apiMiddleware(moduleGate("crm_loyalty", handleLoyaltyTransfers)))
+	http.HandleFunc("POST /api/v1/loyalty/transfers/{id}/confirm", apiMiddleware(moduleGate("crm_loyalty", handleLoyaltyTransferConfirm)))
 	// Stage 55.17: vouchers and campaigns in words, for the Loyalty screen.
 	http.HandleFunc("GET /api/v1/loyalty/vouchers", apiMiddleware(moduleGate("crm_loyalty", handleLoyaltyVoucherOverview)))
 	http.HandleFunc("GET /api/v1/loyalty/campaigns", apiMiddleware(moduleGate("crm_loyalty", handleLoyaltyCampaignOverview)))
@@ -823,6 +834,7 @@ func registerRoutes() {
 	// proposals/batch, TDS-aware vendor payment, debit/credit notes,
 	// SalesInvoice post/settle (the AR side Receivables Ageing reads).
 	http.HandleFunc("POST /api/v1/finance/bank-reconcile", apiMiddleware(handleBankReconcile))
+	http.HandleFunc("POST /api/v1/finance/reconciliation/exceptions", apiMiddleware(handleReconciliationException))
 	http.HandleFunc("POST /api/v1/finance/payment-proposal", apiMiddleware(handlePaymentProposal))
 	http.HandleFunc("POST /api/v1/finance/payment-proposal/{id}/execute", apiMiddleware(commandKeyed("finance.payment_proposal.execute", handleExecutePaymentProposal)))
 	// Stage 26.6.5: bank-file generation + duplicate-UTR check for an
@@ -1125,10 +1137,10 @@ func registerRoutes() {
 	http.HandleFunc("/api/v1/crm/public/preferences", apiMiddleware(moduleGate("crm_loyalty", handleCRMPublicPreferences)))
 	http.HandleFunc("POST /api/v1/crm/public/unsubscribe", apiMiddleware(moduleGate("crm_loyalty", handleCRMPublicUnsubscribe)))
 	http.HandleFunc("/api/v1/crm/public/feedback", apiMiddleware(moduleGate("crm_loyalty", handleCRMPublicFeedback)))
-	http.HandleFunc("/api/v1/crm/hooks/whatsapp", apiMiddleware(moduleGate("crm_loyalty", handleCRMHookWhatsApp)))
-	http.HandleFunc("/api/v1/crm/hooks/sms", apiMiddleware(moduleGate("crm_loyalty", handleCRMHook)))
-	http.HandleFunc("/api/v1/crm/hooks/email", apiMiddleware(moduleGate("crm_loyalty", handleCRMHook)))
-	http.HandleFunc("/api/v1/crm/hooks/webhook", apiMiddleware(moduleGate("crm_loyalty", handleCRMHook)))
+	http.HandleFunc("/api/v1/crm/hooks/whatsapp", apiMiddleware(inboundWebhookGate(moduleGate("crm_loyalty", handleCRMHookWhatsApp))))
+	http.HandleFunc("/api/v1/crm/hooks/sms", apiMiddleware(inboundWebhookGate(moduleGate("crm_loyalty", handleCRMHook))))
+	http.HandleFunc("/api/v1/crm/hooks/email", apiMiddleware(inboundWebhookGate(moduleGate("crm_loyalty", handleCRMHook))))
+	http.HandleFunc("/api/v1/crm/hooks/webhook", apiMiddleware(inboundWebhookGate(moduleGate("crm_loyalty", handleCRMHook))))
 	http.HandleFunc("POST /api/v1/integrations/clevertap/segment-sync", apiMiddleware(moduleGate("crm_loyalty", handleCleverTapSegmentSync)))
 
 	// Manufacturing (Stage 14.1: module-gated - "manufacturing")
@@ -1253,7 +1265,7 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/pim/content/{id}/rollback", apiMiddleware(moduleGate("pim", handlePIMContentRollback)))
 	// moduleGate("oms",...) added Stage 27 - this webhook had no gate of any
 	// kind before (not even the older feature-flag system).
-	http.HandleFunc("POST /api/v1/integration/bigcommerce/webhook/{channelCode}", apiMiddleware(moduleGate("oms", handleBigCommerceWebhook)))
+	http.HandleFunc("POST /api/v1/integration/bigcommerce/webhook/{channelCode}", apiMiddleware(inboundWebhookGate(moduleGate("oms", handleBigCommerceWebhook))))
 
 	// Shopify Integration Webhook APIs. moduleGate("oms",...) (Stage 27) now
 	// stacks alongside the pre-existing featureGate("oms_integration",...) -
@@ -1261,10 +1273,10 @@ func registerRoutes() {
 	// feature flag keeps answering its own narrower "is this specific
 	// integration configured" question (see middleware.go's moduleGate/
 	// featureGate doc comments for why both stay).
-	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleShopifyProductMap))))
-	http.HandleFunc("POST /api/v1/integration/shopify/order", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleShopifyOrderWebhook))))
+	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(inboundWebhookGate(moduleGate("oms", featureGate("oms_integration", handleShopifyProductMap)))))
+	http.HandleFunc("POST /api/v1/integration/shopify/order", apiMiddleware(inboundWebhookGate(moduleGate("oms", featureGate("oms_integration", handleShopifyOrderWebhook)))))
 	// Stage 99: Shopify - the setup page, its actions, and the public webhook.
-	http.HandleFunc("POST /api/v1/integration/shopify/webhook", apiMiddleware(moduleGate("oms", handleShopifyWebhook)))
+	http.HandleFunc("POST /api/v1/integration/shopify/webhook", apiMiddleware(inboundWebhookGate(moduleGate("oms", handleShopifyWebhook))))
 	http.HandleFunc("GET /api/v1/shopify/{channel}", apiMiddleware(moduleGate("oms", handleShopifyOverview)))
 	http.HandleFunc("GET /api/v1/shopify/{channel}/links", apiMiddleware(moduleGate("oms", handleShopifyLinks)))
 	http.HandleFunc("GET /api/v1/shopify/{channel}/mismatch", apiMiddleware(moduleGate("oms", handleShopifyMismatch)))
@@ -1408,7 +1420,7 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/marketplace/couriers/{provider}/cancel", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleCourierCancel))))
 	http.HandleFunc("POST /api/v1/marketplace/couriers/{provider}/resolve", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleCourierResolveBooking)))) // 47.11.8a
 	http.HandleFunc("GET /api/v1/marketplace/couriers/rates", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleCourierRates))))
-	http.HandleFunc("POST /api/v1/integration/courier/{provider}/tracking", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleCourierTrackingWebhook))))
+	http.HandleFunc("POST /api/v1/integration/courier/{provider}/tracking", apiMiddleware(inboundWebhookGate(moduleGate("oms", featureGate("oms_integration", handleCourierTrackingWebhook)))))
 	http.HandleFunc("POST /api/v1/marketplace/ndr/{id}/resolve", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleNDRResolve))))
 	http.HandleFunc("GET /api/v1/marketplace/logistics/label.pdf", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleShippingLabelPDF))))
 	// Stage 35.6: the full connector SDK and its operational surface.
@@ -1449,6 +1461,9 @@ func registerRoutes() {
 
 	// 49.8.5: Disconnect any connector credential (channel, courier, Pine Labs, CleverTap, Unicommerce).
 	http.HandleFunc("POST /api/v1/integrations/credentials/disconnect", apiMiddleware(handleConnectorDisconnect))
+	http.HandleFunc("GET /api/v1/integrations/credentials", apiMiddleware(handleListConnectorCredentials))
+	http.HandleFunc("POST /api/v1/integrations/credentials/rotate", apiMiddleware(handleRotateConnectorCredential))
+	http.HandleFunc("POST /api/v1/integrations/credentials/active", apiMiddleware(handleSetConnectorCredentialActive))
 
 	// Stage 9.1: CleverTap Integration APIs
 	http.HandleFunc("POST /api/v1/clevertap/credentials", apiMiddleware(handleCleverTapCredentials))
@@ -1486,6 +1501,7 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/platform/tenants/{tenant}/status", apiMiddleware(handleControlPanelTenantStatus))         // Stage 65.6
 	http.HandleFunc("POST /api/v1/platform/tenants/{tenant}/trial", apiMiddleware(handleControlPanelTenantTrial))           // Stage 65.6
 	http.HandleFunc("POST /api/v1/platform/tenants/{tenant}/open", apiMiddleware(handleControlPanelOpenTenant))             // Stage 125.2
+	http.HandleFunc("POST /api/v1/platform/query-baseline", apiMiddleware(handleControlPanelQueryBaseline))                 // Stage 47.9.3c
 	http.HandleFunc("GET /api/v1/platform/tenants/{tenant}/attribute-library", apiMiddleware(handleAttributeLibrary))       // Stage 81
 	http.HandleFunc("POST /api/v1/platform/tenants/{tenant}/attribute-library", apiMiddleware(handleApplyAttributeLibrary)) // Stage 81
 	http.HandleFunc("GET /api/v1/platform/tenants/{tenant}/tables", apiMiddleware(handlePlatformTables))
@@ -1576,6 +1592,10 @@ func registerRoutes() {
 	// Stage 93.11: the guided clean-up of a master's old long codes (admin).
 	http.HandleFunc("GET /api/v1/master-codes/{doctype}/clean", apiMiddleware(handleMasterCodeClean))
 	http.HandleFunc("POST /api/v1/master-codes/{doctype}/clean", apiMiddleware(handleMasterCodeClean))
+	// Stage 47.13.5: merge a duplicate supplier or item, and undo it (admin).
+	http.HandleFunc("GET /api/v1/admin/master-merges", apiMiddleware(handleMasterMerges))
+	http.HandleFunc("POST /api/v1/admin/master-merges", apiMiddleware(handleMasterMerges))
+	http.HandleFunc("POST /api/v1/admin/master-merges/{id}/undo", apiMiddleware(handleMasterMergeUndo))
 	// Stage 123.3: a store's own code, typed on its Edit form (admin).
 	http.HandleFunc("GET /api/v1/master-codes/Location/code", apiMiddleware(handleLocationCodeChange))
 	http.HandleFunc("POST /api/v1/master-codes/Location/code", apiMiddleware(handleLocationCodeChange))
@@ -1613,6 +1633,9 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/admin/security/sign-out-user", apiMiddleware(handleSignOutUserEverywhere))
 	http.HandleFunc("POST /api/v1/admin/security/sign-out-all", apiMiddleware(handleSignOutAllUsers))
 	http.HandleFunc("POST /api/v1/admin/security/freeze-exports", apiMiddleware(handleFreezeExports))
+	http.HandleFunc("POST /api/v1/admin/security/freeze-integrations", apiMiddleware(handleFreezeIntegrations))
+	http.HandleFunc("GET /api/v1/admin/security/sessions", apiMiddleware(handleListPrivilegedSessions))
+	http.HandleFunc("POST /api/v1/admin/security/sessions/end", apiMiddleware(handleEndPrivilegedSession))
 
 	// Stage 49.6.8 - data-subject rights request lifecycle (engines/privacy_rights.go).
 	http.HandleFunc("POST /api/v1/admin/privacy/requests", apiMiddleware(handleCreateDataSubjectRequest))

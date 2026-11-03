@@ -155,9 +155,24 @@ func loyaltyEarnMultiplierForCustomer(tenantID, customerID string) float64 {
 // with no formal Customer record (e.g. a walk-in identified only by ID) or
 // no configured rules is not an error - there's simply nothing to store.
 func RecomputeLoyaltyTier(tenantID, customerID string) (string, error) {
+	tier, _, err := recomputeLoyaltyTierChanged(tenantID, customerID)
+	return tier, err
+}
+
+// recomputeLoyaltyTierChanged is RecomputeLoyaltyTier that also says whether
+// the stored tier moved (Stage 146.1.1: the daily pass counts changes, and
+// every move lands on the customer's timeline).
+func recomputeLoyaltyTierChanged(tenantID, customerID string) (string, bool, error) {
+	return recomputeLoyaltyTier(tenantID, customerID, false)
+}
+
+// recomputeLoyaltyTier with dropOnly set never promotes: the re-check before an
+// earn may drop a lapsed tier, but a bill must not lift its own tier before it
+// earns (the post-earn pass promotes, as it always did).
+func recomputeLoyaltyTier(tenantID, customerID string, dropOnly bool) (string, bool, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	// Stage 73.3.1: spend is what the customer's paid bills took (amount_paid,
 	// recorded since 73.3.1; older bills' lines less their offer) less what was
@@ -166,12 +181,12 @@ func RecomputeLoyaltyTier(tenantID, customerID string) (string, error) {
 	// because nothing ever stored amount_paid, so no one was ever upgraded.
 	lifetimeSpend, err := customerTierSpend(tenantID, schema, customerID)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 
 	rules, err := GetLoyaltyTierRules(tenantID)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	newTier, newMin := "", -1.0
 	for _, r := range rules { // lowest threshold first: the last one reached wins
@@ -179,20 +194,23 @@ func RecomputeLoyaltyTier(tenantID, customerID string) (string, error) {
 			newTier, newMin = r.Tier, r.MinSpend
 		}
 	}
-	if newTier == "" {
-		return "", nil
+	if newTier == "" && !loyaltyTierLapses(tenantID, schema, customerID) {
+		return "", false, nil
 	}
 
 	var dataStr string
 	if err := db.DB.QueryRow(fmt.Sprintf(
 		`SELECT data FROM %s.documents WHERE doctype = 'Customer' AND id = $1`, schema), customerID).Scan(&dataStr); err != nil {
-		return newTier, nil
+		return newTier, false, nil
 	}
 	var data map[string]interface{}
 	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
-		return newTier, nil
+		return newTier, false, nil
 	}
 	existing, _ := data["loyalty_tier"].(string)
+	if dropOnly && newMin >= tierMinSpend(rules, existing) {
+		return existing, false, nil
+	}
 	since, _ := data["loyalty_tier_below_since"].(string)
 	grace := 0
 	for _, r := range rules {
@@ -216,7 +234,7 @@ func RecomputeLoyaltyTier(tenantID, customerID string) (string, error) {
 		}
 	}
 	if newTier == existing && nextSince == since {
-		return newTier, nil
+		return newTier, false, nil
 	}
 	if nextSince == "" {
 		delete(data, "loyalty_tier_below_since")
@@ -226,12 +244,17 @@ func RecomputeLoyaltyTier(tenantID, customerID string) (string, error) {
 	data["loyalty_tier"] = newTier
 	marshaled, err := json.Marshal(data)
 	if err != nil {
-		return newTier, err
+		return newTier, false, err
 	}
-	_, err = db.DB.Exec(fmt.Sprintf(
+	if _, err = db.DB.Exec(fmt.Sprintf(
 		`UPDATE %s.documents SET data = $1, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'Customer' AND id = $2`, schema),
-		marshaled, customerID)
-	return newTier, err
+		marshaled, customerID); err != nil {
+		return newTier, false, err
+	}
+	if newTier != existing {
+		recordLoyaltyTierChange(schema, customerID, existing, newTier)
+	}
+	return newTier, newTier != existing, nil
 }
 
 // customerTierSpend is what a customer's paid bills took over the tier window
@@ -362,6 +385,7 @@ func StartLoyaltyExpiryWorker(ctx context.Context, interval time.Duration) {
 				}
 				for _, schema := range schemas {
 					sweepLoyaltyExpiryForSchema(schema)
+					runDailyLoyaltyTierPass(schema) // 146.1.1: off unless loyalty.tier_daily_reevaluation
 				}
 			}
 		}

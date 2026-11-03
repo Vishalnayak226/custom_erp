@@ -76,6 +76,10 @@ func PutawayToBin(tenantID, binCode, sku string, qty int, userID string) error {
 	if err := checkHazmatCompatibility(tx, schema, sku, binZone, binCode); err != nil {
 		return err
 	}
+	// Stage 146.3.1: one item per bin / home-bin reservation.
+	if err := enforceBinMixRule(tx, schema, binCode, sku, ""); err != nil {
+		return err
+	}
 
 	var onHand int
 	err = tx.QueryRow(fmt.Sprintf(
@@ -142,6 +146,7 @@ func PutawayToBin(tenantID, binCode, sku string, qty int, userID string) error {
 	LogCompletedWarehouseTask(tenantID, NewWarehouseTask{
 		TaskType: "Putaway", LocationCode: location, ToBin: binCode, Item: sku, Qty: float64(qty),
 	}, userID)
+	closeWorkTasksForPutaway(tenantID, location, sku, float64(qty), userID) // 146.3.3: one hook
 	return nil
 }
 
@@ -314,17 +319,9 @@ func GenerateBinPickList(tenantID, taskID string) ([]PickListLine, error) {
 		}
 		sort.SliceStable(candidates, func(i, j int) bool {
 			a, b := candidates[i], candidates[j]
-			if a.Zone != b.Zone {
-				return a.Zone < b.Zone
-			}
-			if a.Aisle != b.Aisle {
-				return a.Aisle < b.Aisle
-			}
-			if a.Rack != b.Rack {
-				return a.Rack < b.Rack
-			}
-			if a.BinCode != b.BinCode {
-				return a.BinCode < b.BinCode
+			wa, wb := binWalk{a.PickSeq, a.Zone, a.Aisle, a.Rack, a.BinCode}, binWalk{b.PickSeq, b.Zone, b.Aisle, b.Rack, b.BinCode}
+			if wa != wb {
+				return walkBefore(wa, wb)
 			}
 			return a.BatchNo < b.BatchNo
 		})
@@ -656,6 +653,7 @@ func ReconcileCycleCountDetailed(tenantID, countSession, actorUserID, actorRole 
 				return res, execErr
 			}
 			posted++
+			releaseShortPickHolds(tenantID, sku, location) // 146.1.5
 			continue
 		}
 
@@ -851,6 +849,7 @@ func PostCycleCountAdjustment(tenantID, lineID, userID string) error {
 		TaskType: "Count", LocationCode: location, Item: sku, Qty: float64(variance),
 		SourceDocType: "CycleCountLine", SourceDocID: lineID,
 	}, userID)
+	releaseShortPickHolds(tenantID, sku, location) // 146.1.5: the count result frees a not-found hold
 	return nil
 }
 

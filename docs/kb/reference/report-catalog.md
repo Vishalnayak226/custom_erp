@@ -20,7 +20,7 @@ screens: [reports]
 
 # Report catalog
 
-**431** reports across **26** categories, all reachable from
+**432** reports across **26** categories, all reachable from
 **Sales & Marketplace » Reports**.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -50,7 +50,7 @@ open the right page.
 - [E-commerce & Integration](#e-commerce-integration) - 12 reports
 - [Exceptions](#exceptions) - 6 reports
 - [Expense Management](#expense-management) - 11 reports
-- [Finance](#finance) - 40 reports
+- [Finance](#finance) - 41 reports
 - [GST & Compliance](#gst-compliance) - 8 reports
 - [HR](#hr) - 2 reports
 - [HRMS](report-catalog-2.md#hrms) - 15 reports
@@ -1694,6 +1694,18 @@ open the right page.
 - **Rate Type (Closing/Spot/Average)** (`rate_type`) - text, optional
 
 **Columns:** Document Type · Document · Currency · Amount (txn) · Booked Rate · Booked (functional) · Carrying · Rate Now · Revalued · Unrealised Movement · Last Revalued · Note
+
+**Drill-down:** no.
+
+### R5088 Order to cash mismatches
+
+**Report id:** `order-to-cash`
+
+**Parameters:**
+
+- **Include dismissed** (`all`) - select, optional, one of: No,Yes
+
+**Columns:** Mismatch · Order · Invoice · Customer · Shipped qty · Invoiced qty · Invoiced *(sensitive)* · Paid *(sensitive)* · Difference · Owner · What it suggests · Exception · Note
 
 **Drill-down:** no.
 

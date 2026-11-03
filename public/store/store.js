@@ -229,7 +229,13 @@
   // A module's own page may name where Back goes (e.g. a delivery back to its
   // list); otherwise Back is home.
   barBack.addEventListener('click', () => { location.hash = barBack.dataset.to || '#/home'; });
-  storeChip.addEventListener('click', () => { if (!storeChip.disabled) location.hash = '#/stores'; });
+  // Stage 150.4: a switch comes back to the screen it was made from.
+  storeChip.addEventListener('click', () => {
+    if (storeChip.disabled) return;
+    if (routeName() !== 'stores') state.returnTo = location.hash;
+    location.hash = '#/stores';
+  });
+  const afterSwitch = () => (state.returnTo && !state.returnTo.startsWith('#/stores') ? state.returnTo : '#/home');
 
   function panelError(message, retry) {
     // Offline, the banner above already says so; just offer the retry.
@@ -666,7 +672,7 @@
   }
 
   async function switchStore(code, button) {
-    if (state.stores && code === state.stores.working) { location.hash = '#/home'; return; }
+    if (state.stores && code === state.stores.working) { location.hash = afterSwitch(); return; }
     button.disabled = true;
     try {
       const data = await api('/api/v1/me/working-store', { method: 'POST', body: { store: code } });
@@ -674,7 +680,7 @@
       state.stores.working = data.store;
       toast(`Working at ${storeName(data.store)}.`);
       refreshPushStore();
-      location.hash = '#/home';
+      location.hash = afterSwitch();
     } catch (e) {
       button.disabled = false;
       if (!e.quiet) toast(e.message, true);

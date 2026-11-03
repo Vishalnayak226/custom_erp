@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"custom_erp/db"
 
@@ -661,4 +662,45 @@ func VerifyRoleGrantChangeEvidence(tenantID, changeID string) error {
 		return fmt.Errorf("role change %s: its evidence no longer matches the audit log - it was edited after it was recorded", changeID)
 	}
 	return nil
+}
+
+// RoleGrantChangeRow is one line of a role's change history.
+type RoleGrantChangeRow struct {
+	ID               string           `json:"id"`
+	ChangedAt        time.Time        `json:"changed_at"`
+	ChangedBy        string           `json:"changed_by"`
+	Role             string           `json:"role"`
+	Reason           string           `json:"reason"`
+	DangerousGained  []DangerousGrant `json:"dangerous_gained"`
+	DangerousRemoved []DangerousGrant `json:"dangerous_removed"`
+	SessionsEnded    int              `json:"sessions_ended"`
+	RollbackOf       string           `json:"rollback_of,omitempty"`
+	RolledBackBy     string           `json:"rolled_back_by,omitempty"`
+}
+
+// ListRoleGrantChanges is a role's change history, newest first, at most 50.
+func ListRoleGrantChanges(tenantID, role string) ([]RoleGrantChangeRow, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, changed_at, changed_by, role, reason,
+		dangerous_gained::text, dangerous_removed::text, sessions_ended, COALESCE(rollback_of, ''), COALESCE(rolled_back_by, '')
+		FROM %s.role_grant_changes WHERE role = $1 ORDER BY changed_at DESC, id DESC LIMIT 50`, schema), role)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []RoleGrantChangeRow{}
+	for rows.Next() {
+		var c RoleGrantChangeRow
+		var gained, removed string
+		if err := rows.Scan(&c.ID, &c.ChangedAt, &c.ChangedBy, &c.Role, &c.Reason, &gained, &removed, &c.SessionsEnded, &c.RollbackOf, &c.RolledBackBy); err != nil {
+			return nil, err
+		}
+		_ = json.Unmarshal([]byte(gained), &c.DangerousGained)
+		_ = json.Unmarshal([]byte(removed), &c.DangerousRemoved)
+		out = append(out, c)
+	}
+	return out, rows.Err()
 }

@@ -470,6 +470,23 @@ if ($deployChanged.Count) {
         else { Note "deploy/$name changed - the deploy ships it" }
     }
 }
+# G9c (2026-10-31): a new retention / cleanup setting ships Off. 0.20.0 added
+# platform.import_file_retention_days at 30, so the hourly sweep deleted import files and
+# failed rows on app and minn the day it deployed. A setting this release adds whose key
+# names a retention, cleanup, purge or expiry must default to "0" or "" - the client picks
+# the value. A reviewed exception says so on its Key line: // G9c-ok: <why>.
+$settingsAdded = @((Invoke-Git @('diff', '--cached', '-U0', 'HEAD', '--', 'engines/settings_definitions.go') $wt) | Where-Object { $_ -like '+*' -and $_ -notlike '+++*' } | ForEach-Object { $_.Substring(1) })
+$pendingKey = $null; $keyOk = $false
+foreach ($l in $settingsAdded) {
+    if ($l -match 'Key:\s*"([^"]+)"') { $pendingKey = $Matches[1]; $keyOk = $l -match 'G9c-ok' }
+    if ($pendingKey -and $l -match 'Default:\s*"([^"]*)"') {
+        $def = $Matches[1]
+        if (-not $keyOk -and $pendingKey -match '(?i)retention|cleanup|purge|expir|sweep|delete_after|keep_days' -and $def -notin @('', '0')) {
+            Stop-Release "new setting $pendingKey defaults to `"$def`": a retention / cleanup setting ships Off (Default `"0`") so a deploy never starts deleting client data; or mark its Key line // G9c-ok: <why> (G9c)"
+        }
+        $pendingKey = $null
+    }
+}
 
 # ------------------------------------------------- G10 fresh database + tests
 # Every migration from empty (the shared custom_erp hides ordering and

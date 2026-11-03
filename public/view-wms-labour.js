@@ -60,7 +60,7 @@ async function renderLabourTab(container, location) {
       <tbody>${rows.map(p => `<tr><td>${esc(p.department)}</td><td class="num">${p.open_tasks}</td>
         <td class="num">${p.uncovered_tasks ? `<b style="color: var(--danger, #b91c1c);">${p.uncovered_tasks}</b>` : 0}</td>
         <td class="num">${num(p.planned_hours, 3)}</td><td class="num">${num(p.available_hours_per_worker, 2)}</td><td class="num"><b>${p.forecast_headcount}</b></td></tr>`).join('')}</tbody></table></div>
-      <p style="font-size: 12px; color: var(--text-muted); margin: 8px 0 0;">Headcount = planned hours ÷ hours one worker has in the period (from the department's weekly schedule and shift, or 8 h a day), rounded up. Tasks under <b>No standard</b> are not in the hours - give their task type a labour standard below.</p>`;
+      <p style="font-size: 12px; color: var(--text-muted); margin: 8px 0 0;">Tasks under <b>No standard</b> are not in the hours.</p>`;
   });
 
   const [standards, operations] = await Promise.all([listOf('LaborStandard'), listOf('LaborOperation')]);
@@ -72,7 +72,7 @@ async function renderLabourTab(container, location) {
       <h2 style="font-size: 16px; font-weight: 700; margin: 0; flex: 1;">Labour standards</h2>
       <button class="btn btn-primary" id="ls-new" type="button">+ New labour standard</button>
     </div>
-    ${standards.length === 0 ? '<p style="margin: 0; color: var(--text-muted);">No labour standards yet. A standard says how long one warehouse task takes: its work elements, travel and allowances.</p>' : `<div style="overflow-x: auto;"><table>
+    ${standards.length === 0 ? '<p style="margin: 0; color: var(--text-muted);">No labour standards yet.</p>' : `<div style="overflow-x: auto;"><table>
       <thead><tr><th>Standard</th><th>Operation</th><th>Elements</th><th>Travel</th><th>Allowances</th><th>Worked example</th></tr></thead>
       <tbody>${standards.map(s => {
         const op = operations.find(o => o.code === s.operation_code);
@@ -202,7 +202,6 @@ async function renderBillingTab(container) {
       <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="bl-end">To</label><input type="date" id="bl-end" class="form-input" value="${today()}"></div>
       <button class="btn btn-primary" id="bl-run" type="button">Review</button>
     </div>
-    <p style="font-size: 12px; color: var(--text-muted); margin: 8px 0 0;">Amounts follow your charge codes, rate groups and contracts. Review the points listed before raising an invoice - what to charge is your decision, the system only applies it.</p>
     <div id="bl-result" style="margin-top: 16px;"></div>`;
   container.appendChild(panel);
   panel.querySelector('#bl-run').addEventListener('click', () => loadBillingReview(panel));

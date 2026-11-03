@@ -33,6 +33,7 @@ var workerOwner = map[string]string{
 	"StartIdentityLifecycleSweep":         "",
 	"StartBackupFreshnessMonitor":         "",
 	"StartCertificateExpiryWatch":         "",
+	"StartStorageWatch":                   "",
 	"StartUnicommerceWorker":              "oms",
 	"StartPineLabsReconciliationWorker":   "",
 	"StartAcquirerSettlementMatcher":      "",

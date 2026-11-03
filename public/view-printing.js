@@ -681,7 +681,7 @@ function renderStickerPresetButton() {
   if (!p) return;
   const roll = stickerRoll();
   btn.textContent = roll ? `Roll: ${roll.name}` : 'Printer preset';
-  btn.title = `Roll, shift (right ${Number(p.shift_right_mm) || 0} mm, down ${Number(p.shift_down_mm) || 0} mm), darkness and speed of ${p.name || p.code}`;
+  btn.title = `Roll, shift (right ${Number(p.shift_right_mm) || 0} mm, down ${Number(p.shift_down_mm) || 0} mm, skew ${Number(p.skew_deg) || 0}°), darkness and speed of ${p.name || p.code}`;
 }
 
 // openPrinterPreset (Stage 137.1, 137.3; user, 2026-10-25: "preset i need in
@@ -696,7 +696,7 @@ async function openPrinterPreset() {
   if (!stickerTemplateChoices.length) stickerTemplateChoices = await loadStickerTemplateChoices();
   const may = typeof canUpdateDoctype !== 'function' || canUpdateDoctype('Printer');
   const fields = [['shift_right_mm', 'Shift right (mm)', '0'], ['shift_down_mm', 'Shift down (mm)', '0'],
-    ['darkness', 'Darkness (0-15)', 'Template'], ['print_speed', 'Speed (inches/s)', 'Template']];
+    ['darkness', 'Darkness (0-15)', 'Template'], ['print_speed', 'Speed (inches/s)', 'Template'], ['skew_deg', 'Skew (°)', '0']];
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
@@ -745,6 +745,7 @@ async function openPrinterPreset() {
     if (p.darkness !== '' && !(p.darkness >= 0 && p.darkness <= 15)) return 'Darkness is 0 to 15.';
     if (p.print_speed !== '' && !(p.print_speed > 0)) return 'Speed is more than 0.';
     if ([p.shift_right_mm, p.shift_down_mm].some(v => v !== '' && Math.abs(v) > 20)) return 'A shift is at most 20 mm either way.';
+    if (p.skew_deg !== '' && Math.abs(p.skew_deg) > 5) return 'Skew is at most 5° either way.';
     return '';
   };
   const rollTemplate = async (id) => {
@@ -883,7 +884,7 @@ function renderStickerSourceLines() {
       ${keepable(runValue) && allTypes.length ? `<button type="button" class="action-btn" id="sticker-source-keep-all" title="${escapeHTMLText(keepTitle(allTypes.join(', ')))}">Keep for ${escapeHTMLText(allTypes.join(', '))}</button>` : ''}
     </label>
     <table style="margin-top: 4px;">
-      <thead><tr><th></th><th>SKU</th><th>Name</th>${anyBatch ? '<th>Batch/Lot</th>' : ''}<th>Category</th><th>Template</th><th>Copies</th><th></th></tr></thead>
+      <thead><tr><th><input type="checkbox" id="sticker-source-select-all" aria-label="Select all lines"></th><th>SKU</th><th>Name</th>${anyBatch ? '<th>Batch/Lot</th>' : ''}<th>Category</th><th>Template</th><th>Copies</th><th></th></tr></thead>
       <tbody>
         ${stickerSourceLines.map((l, i) => `
           <tr>
@@ -906,11 +907,28 @@ function renderStickerSourceLines() {
       <button class="btn btn-primary" id="sticker-source-print-btn">Print Selected</button>
     </div>
   `;
-  el.querySelectorAll('[data-source-select]').forEach(cb => {
+  // Stage 153.1: the header box ticks / clears every line.
+  const selectAll = document.getElementById('sticker-source-select-all');
+  const lineBoxes = [...el.querySelectorAll('[data-source-select]')];
+  const syncSelectAll = () => {
+    const n = lineBoxes.filter(cb => cb.checked).length;
+    selectAll.checked = n === lineBoxes.length;
+    selectAll.indeterminate = n > 0 && n < lineBoxes.length;
+  };
+  lineBoxes.forEach(cb => {
     cb.addEventListener('change', () => {
       stickerSourceSelected[Number(cb.getAttribute('data-source-select'))] = cb.checked;
+      syncSelectAll();
     });
   });
+  selectAll.addEventListener('change', () => {
+    lineBoxes.forEach(cb => {
+      cb.checked = selectAll.checked;
+      stickerSourceSelected[Number(cb.getAttribute('data-source-select'))] = cb.checked;
+    });
+    syncSelectAll();
+  });
+  syncSelectAll();
   el.querySelectorAll('[data-source-copies]').forEach(inp => {
     inp.addEventListener('change', () => {
       const n = parseInt(inp.value, 10);

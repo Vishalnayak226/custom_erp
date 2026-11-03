@@ -608,7 +608,7 @@ func BuildReceiptPayload(tenantID, cartNumber string, printer QZPrinter) (*QZPri
 			}
 		}
 	} else if pts := int(numFromInterface(data["redeem_points"])); pts > 0 {
-		totals.loyaltyDiscount = float64(LoyaltyRedemptionValue(tenantID, pts))
+		totals.loyaltyDiscount = PaiseToRupees(LoyaltyRedemptionValuePaise(tenantID, pts))
 		if net := totals.saleTotal - totals.offerDiscount; totals.loyaltyDiscount > net {
 			// FinalizePOSCheckout caps an over-redemption at the net bill and
 			// returns the remainder; the receipt has to show the same cap or it

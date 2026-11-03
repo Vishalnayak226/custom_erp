@@ -1057,4 +1057,5 @@ var reportNumbers = map[string]string{
 	"customer-affinity":                                        "R6076",
 	"suggested-segments":                                       "R6077",
 	"threshold-splitting":                                      "R5087",
+	"order-to-cash":                                            "R5088",
 }

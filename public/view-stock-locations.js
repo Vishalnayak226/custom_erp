@@ -128,8 +128,7 @@ function editLocation(l) {
     <label style="display:flex; gap:8px; align-items:center;"><input type="checkbox" id="sl-default" ${l.default_for_new ? 'checked' : ''}> Give this location to every new store</label>
     ${l.bucket === 'available' ? '' : `<label style="display:flex; gap:8px; align-items:center;"><input type="checkbox" id="sl-active" ${l.active ? 'checked' : ''}> In use</label>`}
     <div class="form-group"><label class="form-label" for="sl-desc">What it is for</label>
-      <input id="sl-desc" class="form-input" value="${esc(l.description)}" autocomplete="off"></div>
-    ${isNew ? '<p class="txn-hint">Your own locations hold stock away from sale (Alteration, Display only, Reserved...). Main is what sells; QC Hold and Damage can be made sellable.</p>' : ''}`,
+      <input id="sl-desc" class="form-input" value="${esc(l.description)}" autocomplete="off"></div>`,
   async (o) => {
     const body = {
       code: o.querySelector('#sl-code').value.trim(), name: o.querySelector('#sl-name').value.trim(),
@@ -163,8 +162,7 @@ function drawStores() {
         ${locs.map(l => `<td><input type="checkbox" aria-label="${esc(s.name)}: ${esc(l.name)}" data-loc="${esc(l.code)}" ${uses.has(l.code) ? 'checked' : ''} ${l.bucket === 'available' ? 'disabled' : ''}></td>`).join('')}
         <td><button type="button" class="action-btn" data-save-store>Save</button></td>
       </tr>`;
-    }).join('')}</tbody></table>
-    <p class="txn-hint" style="padding: 8px 12px;">Main is always on. A store that has never been saved here uses every location marked for new stores. A location still holding stock at a store cannot be taken away from it.</p>`;
+    }).join('')}</tbody></table>`;
   host.querySelectorAll('[data-save-store]').forEach(btn => btn.addEventListener('click', () => guardAgainstDoubleSubmit(btn, 'Saving...', async () => {
     const tr = btn.closest('tr');
     const locations = [...tr.querySelectorAll('input[data-loc]:checked')].map(c => c.dataset.loc);
@@ -231,13 +229,13 @@ export async function renderStockMovesView(container) {
     <tbody>${(Array.isArray(moves) ? moves : []).map(m => `<tr>
       <td>${esc(m.id)}</td><td>${esc(storeName(m.location))}</td><td>${esc(m.item_name || m.sku)}<div class="txn-hint">${esc(m.sku)}</div></td>
       <td>${esc(m.qty)}</td><td>${esc(name(m.from_location))}</td><td>${esc(name(m.to_location))}</td><td>${esc(m.reason || '')}</td><td>${esc(m.moved_by || '')}</td>
-    </tr>`).join('') || '<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No stock moves yet. Use <b>+ New Move</b> to move stock between locations.</td></tr>'}</tbody></table>`;
+    </tr>`).join('') || '<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No stock moves yet.</td></tr>'}</tbody></table>`;
 
   const form = document.createElement('div');
   form.className = 'table-panel';
   form.style.padding = '24px';
   form.innerHTML = `
-    <p class="txn-hint" style="margin: 0 0 12px;">At <b>${esc(storeName(store))}</b> - switch store at the top of the screen.</p>
+    <p class="txn-hint" style="margin: 0 0 12px;">At <b>${esc(storeName(store))}</b>.</p>
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; align-items: end;">
       <div class="form-group" style="margin-bottom:0;"><label class="form-label" for="sm-item-display">Item</label>
         <input type="text" id="sm-item-display" class="form-input" placeholder="Scan or search the item" autocomplete="off">

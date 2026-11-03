@@ -59,6 +59,9 @@ type ShopifySettings struct {
 	LastFull     string            `json:"last_full_stock_at,omitempty"`
 	LastPayouts  string            `json:"last_payouts_at,omitempty"`
 	LastPull     string            `json:"last_pull_at,omitempty"`
+	// MetafieldDefs (Stage 146.5.1) are the custom.<key> definitions already
+	// created in the shop, "PRODUCT:key" / "PRODUCTVARIANT:key".
+	MetafieldDefs []string `json:"metafield_defs,omitempty"`
 	// Buffer (D3) is saved on the Channel record's inventory_buffer; nil
 	// leaves it as it is.
 	Buffer *int `json:"inventory_buffer,omitempty"`
@@ -502,6 +505,34 @@ func publishShopifyOne(ctx context.Context, tenantID, schema, channel string, s 
 		}
 	}
 	firstPublish := in.ProductGID == ""
+	// Stage 146.5.1: the approved PIM content, only when the setting is on.
+	pimOn := GetSettingBool(tenantID, shopifyPIMContentSetting) && len(skus) > 0
+	if pimOn {
+		pc, err := loadShopifyPIMContent(tenantID, schema, channel, design, skus)
+		if err != nil {
+			return 0, false, err
+		}
+		in.Title = firstNonEmpty(pc.Title, in.Title)
+		in.Description = firstNonEmpty(pc.Description, in.Description)
+		in.SEOTitle, in.SEODescription, in.Tags = pc.SEOTitle, pc.SEODescription, pc.Tags
+		in.ProductType = firstNonEmpty(pc.ProductType, in.ProductType)
+		in.Metafields = pc.ProductMF
+		productKeys, variantKeys := []string{}, []string{}
+		for _, m := range pc.ProductMF {
+			productKeys = append(productKeys, m.Key)
+		}
+		seenVariantKey := map[string]bool{}
+		for i := range in.Variants {
+			in.Variants[i].Metafields = pc.VariantMF[in.Variants[i].SKU]
+			for _, m := range in.Variants[i].Metafields {
+				if !seenVariantKey[m.Key] {
+					seenVariantKey[m.Key] = true
+					variantKeys = append(variantKeys, m.Key)
+				}
+			}
+		}
+		ensureShopifyMetafieldDefs(ctx, tenantID, channel, cred, productKeys, variantKeys)
+	}
 	productGID, links, err := conn.PublishShopifyProduct(ctx, cred, in)
 	if err != nil {
 		return 0, false, err
@@ -521,7 +552,38 @@ func publishShopifyOne(ctx context.Context, tenantID, schema, channel string, s 
 		_ = UpsertChannelSKUMapping(tenantID, ChannelSKUMapping{SKU: l.SKU, Channel: channel, ChannelSKU: l.SKU, ExternalProductID: l.VariantGID})
 	}
 	// Pictures go up with the first publish only, so they are never doubled.
-	if firstPublish {
+	// With the PIM content setting on they are also re-sent when the set has
+	// changed since the last send (a fingerprint compare): the old ones are
+	// removed, the current ones uploaded. A product published before the
+	// fingerprint existed is only recorded, never re-sent blindly.
+	resync := false
+	imagesHash := ""
+	if pimOn {
+		imagesHash = shopifyImagesHash(tenantID, design, skus)
+		if !firstPublish {
+			var stored string
+			_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(MAX(images_hash), '') FROM %s.shopify_links WHERE channel = $1 AND product_gid = $2`, schema), channel, productGID).Scan(&stored)
+			resync = stored != "" && stored != imagesHash
+			if stored == "" {
+				_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.shopify_links SET images_hash = $3 WHERE channel = $1 AND product_gid = $2`, schema), channel, productGID, imagesHash)
+			}
+		}
+	}
+	if resync {
+		if old, err := conn.ProductMediaIDs(ctx, cred, productGID); err != nil {
+			LogSystemError(tenantID, "", "WARN", "shopify.publish", fmt.Sprintf("product %s: pictures not re-sent: %v", productGID, err), "")
+			resync = false
+		} else if err := conn.DeleteProductMedia(ctx, cred, productGID, old); err != nil {
+			LogSystemError(tenantID, "", "WARN", "shopify.publish", fmt.Sprintf("product %s: old pictures not removed: %v", productGID, err), "")
+			resync = false
+		}
+	}
+	if firstPublish || resync {
+		if imagesHash != "" {
+			defer func() {
+				_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.shopify_links SET images_hash = $3 WHERE channel = $1 AND product_gid = $2`, schema), channel, productGID, imagesHash)
+			}()
+		}
 		imgs, forSKU := shopifyImages(tenantID, design, skus)
 		if ids, err := conn.UploadProductImages(ctx, cred, productGID, imgs); err == nil {
 			media := map[string]string{}

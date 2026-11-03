@@ -415,6 +415,7 @@ func validateGRNRules(tenantID, docID string, payload map[string]interface{}) er
 		}
 	}
 
+	grnStore, _ := payload["location"].(string)
 	for _, line := range lines {
 		if line.AcceptedQty != nil && *line.AcceptedQty > line.Qty+1e-9 {
 			return &ValidationError{Code: "GOODSR-0089", Message: fmt.Sprintf("accepted quantity (%v) for SKU %q cannot exceed received quantity (%v)", *line.AcceptedQty, line.Sku, line.Qty)}
@@ -456,7 +457,7 @@ func validateGRNRules(tenantID, docID string, payload map[string]interface{}) er
 		// accepted unit, checked against the same accepted-qty derivation
 		// PostGRNReceiptWithQC posts with. Same pre-write rationale as the
 		// batch check immediately above.
-		if err := ValidateReceiptSerialLine(tenantID, line.Sku, line.SerialNumbers, line.derivedAcceptedQty()); err != nil {
+		if err := ValidateReceiptPieceLine(tenantID, grnStore, line.Sku, line.SerialNumbers, line.derivedAcceptedQty()); err != nil {
 			return err
 		}
 		// Stage 42.3.7: a catch-weight item (Item.is_catch_weight = Yes) must

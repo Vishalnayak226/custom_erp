@@ -2,6 +2,7 @@ package engines
 
 import (
 	"context"
+	"custom_erp/db"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -326,6 +327,7 @@ func runReportRaced(ctx context.Context, def ReportDefinition, tenantID string, 
 	done := make(chan runOutcome, 1)
 	go func() {
 		defer releaseReportRun(tenantID)
+		defer db.ExemptStatementTimeout(reportRunHardTimeout)() // 49.13.3a: a report keeps its own bound
 		defer func() {
 			// A panic in one report must not take the process down through a
 			// goroutine nobody is recovering on, which is a new failure mode

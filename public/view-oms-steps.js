@@ -644,6 +644,65 @@ export async function resolveCourierBooking(b) {
   return true;
 }
 
+// 47.11.8b: Pickup and Cancel on a booked parcel. A step the courier may
+// already have done is held (pickup_state / cancel_state = uncertain) and the
+// server refuses another press until Resolve records what the portal shows.
+const pickupHeld = (b) => b.pickup_state === 'uncertain' && !b.pickup_reference;
+const cancelHeld = (b) => b.cancel_state === 'uncertain' && !b.courier_cancelled_at;
+const stepProvider = (b) => encodeURIComponent(b.awb_booking_provider || b.carrier || '');
+
+export async function courierPickupBooking(b) {
+  const { posFormDialog } = await import('./view-pos-extras.js' + Q);
+  const picked = await posFormDialog('Pickup', '',
+    '<div class="form-group"><label class="form-label" for="cp-name">Pickup name</label><input id="cp-name" class="form-input" autocomplete="off"></div>'
+    + '<div class="form-group"><label class="form-label" for="cp-at">Pickup at</label><input id="cp-at" type="datetime-local" class="form-input"></div>',
+    (el) => ({ name: el.querySelector('#cp-name').value.trim(), at: el.querySelector('#cp-at').value }));
+  if (!picked) return false;
+  if (!picked.at) { await showCustomAlert('Pick the date and time.', 'Pickup'); return false; }
+  const r = await post('/api/v1/marketplace/couriers/' + stepProvider(b) + '/pickup', { booking_id: b.code || b.id, pickup_name: picked.name, pickup_at: new Date(picked.at).toISOString() });
+  if (r.error) { await showCustomAlert(r.error, 'Pickup'); return false; }
+  showToast('Pickup scheduled.', { variant: 'success' });
+  return true;
+}
+
+export async function courierCancelBooking(b) {
+  if (!await showCustomConfirm('Cancel this booking at the courier?', 'Cancel booking')) return false;
+  const r = await post('/api/v1/marketplace/couriers/' + stepProvider(b) + '/cancel', { booking_id: b.code || b.id });
+  if (r.error) { await showCustomAlert(r.error, 'Cancel booking'); return false; }
+  showToast('Cancelled at the courier.', { variant: 'success' });
+  return true;
+}
+
+export async function resolveCourierStep(b, step) {
+  const { posFormDialog } = await import('./view-pos-extras.js' + Q);
+  const isPickup = step === 'pickup', title = isPickup ? 'Unconfirmed pickup' : 'Unconfirmed cancel';
+  const picked = await posFormDialog(title, 'Check the ' + (b.awb_booking_provider || b.carrier || 'courier') + ' portal.',
+    (isPickup ? '<div class="form-group"><label class="form-label" for="cs-ref">Pickup reference</label><input id="cs-ref" class="form-input" autocomplete="off"></div>' : '')
+    + '<label class="form-label"><input type="checkbox" id="cs-none"> ' + (isPickup ? 'Not scheduled there' : 'Not cancelled there') + '</label>',
+    (el) => ({ ref: isPickup ? el.querySelector('#cs-ref').value.trim() : '', none: el.querySelector('#cs-none').checked }));
+  if (!picked) return false;
+  if (isPickup && !picked.none && !picked.ref) { await showCustomAlert('Enter the reference, or tick Not scheduled there.', title); return false; }
+  const outcome = isPickup ? (picked.none ? 'not_scheduled' : 'scheduled') : (picked.none ? 'not_cancelled' : 'cancelled');
+  const r = await post('/api/v1/marketplace/couriers/' + stepProvider(b) + '/resolve', { booking_id: b.code || b.id, step, outcome, awb: picked.ref });
+  if (r.error) { await showCustomAlert(r.error, title); return false; }
+  showToast('Saved.', { variant: 'success' });
+  return true;
+}
+
+function courierStepCells(b) {
+  const id = esc(b.code || b.id);
+  const badges = (b.pickup_reference ? ' <span class="badge badge-success">Pickup ' + esc(b.pickup_reference) + '</span>' : '')
+    + (b.courier_cancelled_at ? ' <span class="badge badge-danger">Cancelled at courier</span>' : '')
+    + (pickupHeld(b) ? ' <span class="badge badge-warning">Unconfirmed pickup</span>' : '')
+    + (cancelHeld(b) ? ' <span class="badge badge-warning">Unconfirmed cancel</span>' : '');
+  if (b.courier_cancelled_at) return { badges, buttons: '' };
+  const buttons = (pickupHeld(b) ? ' <button type="button" class="action-btn" data-courier-step-resolve="pickup" data-booking="' + id + '">Resolve</button>'
+      : !b.pickup_reference && !cancelHeld(b) ? ' <button type="button" class="action-btn" data-courier-pickup="' + id + '">Pickup</button>' : '')
+    + (cancelHeld(b) ? ' <button type="button" class="action-btn" data-courier-step-resolve="cancel" data-booking="' + id + '">Resolve</button>'
+      : !pickupHeld(b) ? ' <button type="button" class="action-btn action-btn-danger" data-courier-cancel="' + id + '">Cancel</button>' : '');
+  return { badges, buttons };
+}
+
 async function renderShip(container) {
   await stepBar(container, 'Ship', 'ship');
   const [tasks, bookings, manifests, passes, orders] = await Promise.all([
@@ -702,14 +761,27 @@ async function renderShip(container) {
         <div class="oms-console-head"><h3>${esc(g.carrier || 'No courier')} at ${esc(g.loc || 'no location')} <span class="text-muted">(${g.rows.length})</span></h3>
           ${g.loc ? `<button type="button" class="btn btn-primary btn-sm" data-manifest-carrier="${esc(g.carrier)}" data-manifest-loc="${esc(g.loc)}">Make manifest</button>` : '<span class="text-muted">Booked without a task - cannot be manifested</span>'}</div>
         <div class="table-wrapper"><table><thead><tr><th>Booking</th><th>Order</th><th>AWB</th><th>Label</th><th></th></tr></thead>
-        <tbody>${g.rows.map(b => `<tr><td class="oms-mono">${esc(b.code || b.id)}</td><td>${orderCell(b.order_id, orders[b.order_id])}</td><td class="oms-mono">${esc(b.awb_number || '')}${courierUnconfirmed(b) ? ' <span class="badge badge-warning">Unconfirmed</span>' : ''}</td>
+        <tbody>${g.rows.map(b => `<tr><td class="oms-mono">${esc(b.code || b.id)}</td><td>${orderCell(b.order_id, orders[b.order_id])}</td><td class="oms-mono">${esc(b.awb_number || '')}${courierUnconfirmed(b) ? ' <span class="badge badge-warning">Unconfirmed</span>' : ''}${courierStepCells(b).badges}</td>
           <td>${b.label_generated_at ? '<span class="badge badge-success">Printed</span>' : '<span class="badge badge-warning">Not printed</span>'}</td>
-          <td class="oms-step-actions"><button type="button" class="action-btn" data-label-print="${esc(b.code || b.id)}">Print label</button>${courierUnconfirmed(b) ? ` <button type="button" class="action-btn" data-courier-resolve="${esc(b.code || b.id)}">Resolve</button>` : ''}</td></tr>`).join('')}</tbody></table></div>
+          <td class="oms-step-actions"><button type="button" class="action-btn" data-label-print="${esc(b.code || b.id)}">Print label</button>${courierUnconfirmed(b) ? ` <button type="button" class="action-btn" data-courier-resolve="${esc(b.code || b.id)}">Resolve</button>` : ''}${courierStepCells(b).buttons}</td></tr>`).join('')}</tbody></table></div>
       </div>`).join('')}`);
   manifestable.querySelectorAll('[data-label-print]').forEach(btn => btn.addEventListener('click', async () => { await window.printShippingLabel(btn.dataset.labelPrint); }));
   manifestable.querySelectorAll('[data-courier-resolve]').forEach(btn => btn.addEventListener('click', async () => {
     const b = awaiting.find(x => (x.code || x.id) === btn.dataset.courierResolve);
     if (b && await resolveCourierBooking(b)) again('ship');
+  }));
+  const stepBooking = (id) => awaiting.find(x => (x.code || x.id) === id);
+  manifestable.querySelectorAll('[data-courier-pickup]').forEach(btn => btn.addEventListener('click', async () => {
+    const b = stepBooking(btn.dataset.courierPickup);
+    if (b && await courierPickupBooking(b)) again('ship');
+  }));
+  manifestable.querySelectorAll('[data-courier-cancel]').forEach(btn => btn.addEventListener('click', async () => {
+    const b = stepBooking(btn.dataset.courierCancel);
+    if (b && await courierCancelBooking(b)) again('ship');
+  }));
+  manifestable.querySelectorAll('[data-courier-step-resolve]').forEach(btn => btn.addEventListener('click', async () => {
+    const b = stepBooking(btn.dataset.booking);
+    if (b && await resolveCourierStep(b, btn.dataset.courierStepResolve)) again('ship');
   }));
   manifestable.querySelectorAll('[data-manifest-carrier]').forEach(btn => btn.addEventListener('click', async () => {
     btn.disabled = true;

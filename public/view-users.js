@@ -83,7 +83,6 @@ export async function renderUsersView(container) {
         </select>
       </div>
     </div>
-    <p class="txn-hint" style="margin-top: 12px;">The user works at their home store and at the stores their role gives them. Use <b>Stores</b> on the list to give them more.</p>
     <div style="margin-top: 16px;"><button class="btn btn-primary" id="user-create-btn">Create User</button></div>
     <div id="user-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
   `;
@@ -94,7 +93,7 @@ export async function renderUsersView(container) {
     <table>
       <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Home store</th><th>Department</th><th>Stores</th><th>Status</th><th>Last sign-in</th><th></th></tr></thead>
       <tbody>${users.length === 0
-        ? `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No users yet. Use <b>+ New User</b> to add the first one.</td></tr>`
+        ? `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No users yet.</td></tr>`
         : users.map(u => `
         <tr>
           <td style="font-weight:600;">${esc(u.username)}</td>

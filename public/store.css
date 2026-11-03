@@ -35,6 +35,21 @@
   white-space: nowrap;
 }
 
+/* Stage 150.3: one width whatever the store's name, so nothing beside it
+   moves on a switch; a long name ends in "…" (full name in the tooltip). */
+.store-switch-btn,
+.store-switch-name { width: 200px; }
+.store-switch-btn .store-switch-label,
+.store-switch-name .store-switch-label { flex: 1; min-width: 0; text-align: left; }
+
+/* Stage 150.1: the screen stays while a switch (or Refresh) redraws it - not
+   clickable, and dimmed only if the redraw takes a moment. */
+#view-root[aria-busy="true"] {
+  pointer-events: none;
+  opacity: .65;
+  transition: opacity .2s ease .3s;
+}
+
 .store-switch-pop {
   position: absolute;
   top: calc(100% + 6px);
@@ -96,7 +111,7 @@
 
 @media (max-width: 640px) {
   .store-switch-btn,
-  .store-switch-name { max-width: 150px; }
+  .store-switch-name { width: 150px; }
 }
 
 /* Stage 85.A1/85.A2: the Stores editor (Users and Roles). */

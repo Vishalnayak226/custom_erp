@@ -16,7 +16,7 @@ superseded_by: none
 section: Module Handbooks
 order: 19
 summary: Start here for the WMS. What to set up once and in which order, how goods come in, sit in bins and go out, what every WMS menu entry does, and what the system now does for you.
-screens: [doctype:bin, doctype:zone, bin-conditions, lpn, bin-replenishment, doctype:binreplenishmentrule, mobile-picking, location-movement, doctype:dockdoor, doctype:trailer, doctype:holdcode, doctype:hold, doctype:holdreleaserequest, doctype:crossdockplan, doctype:wave, doctype:putawaystrategy, doctype:wavetemplate, doctype:sortstation, doctype:preshipvalidationrule, warehouse-cockpit, putaway, wave-picking, cycle-count, rf-receiving, rf-traceability, appointment-calendar, yard-board, place-hold, sortation, loading-dock]
+screens: [doctype:bin, doctype:zone, bin-conditions, bin-tools, doctype:homebin, lpn, bin-replenishment, doctype:binreplenishmentrule, mobile-picking, location-movement, doctype:dockdoor, doctype:trailer, doctype:holdcode, doctype:hold, doctype:holdreleaserequest, doctype:crossdockplan, doctype:wave, doctype:putawaystrategy, doctype:wavetemplate, doctype:sortstation, doctype:preshipvalidationrule, warehouse-cockpit, putaway, wave-picking, cycle-count, rf-receiving, rf-traceability, appointment-calendar, yard-board, place-hold, sortation, loading-dock]
 topic_type: how-to
 module: inventory
 task: Run a warehouse with the WMS screens
@@ -64,6 +64,7 @@ Every WMS screen is under **WMS**. Goods come in through a Goods Receipt, which 
 - **Location Movement** (under Stock): move stock from one bin to another at the same location. Choose the location, then **Show Bin Stock**, then **Move** on a row. Only Good stock moves, and quantity reserved for open picks is refused. To move between locations, use **Stock Transfer**.
 - **Bin Replenishment**: **Get Suggestions** lists bins below their minimum, from your Bin Replenishment Rules, and proposes a refill to the maximum, taking from Reserve bins first. **Replenish** moves the stock bin to bin.
 - **Bin Conditions**: change the condition of stock in a bin between Good, Damaged, QC-Hold and RTV. Anything other than Good stops being available to sell and is never picked. Moving it back to Good restores it.
+- **Bin Generator**: make many bins from aisle, rack, shelf and bin ranges, preview first, and print Code 128 bin labels. Running it again only adds the new bins.
 - **Place Hold**: hold a quantity of an item at a location (for example for a quality check). It stops that quantity being sold or reserved for new orders. **Holds** lists every hold and is read-only. To release one, raise a **Hold Release Request** and **Submit for Approval**. When a Store Manager approves it, the hold is released.
 - **LPN / Cartons / Pallets**: **Assign** records that stock in a bin sits in a carton or pallet (an LPN). **Look Up** shows what is in an LPN. This is a record only and moves no stock.
 - **Cycle Count**: count what is physically there (**Manage Count Lines**), then **Reconcile Session**. A line with no difference posts straight away. A large difference is sent for a blind recount, and other differences go to Approvals. Each variance needs a reason before it posts.

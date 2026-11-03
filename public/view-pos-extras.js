@@ -450,7 +450,7 @@ export async function redeemPOSLoyaltyPoints(t) {
     infoEl.textContent = l.balance > 0 ? `${customerId} has ${l.balance} point(s), but none can be used on this bill.` : `${customerId} has no loyalty points to redeem.`;
     return;
   }
-  const pointsStr = await showCustomPrompt(`How many points to redeem? ${customerId} has ${l.balance}; 1 point = ${l.value_per_point} off. This bill can take up to ${l.max_points}.`, '', 'Redeem Points', 'number');
+  const pointsStr = await showCustomPrompt(`How many points to redeem? ${customerId} has ${l.balance}; 1 point = ${(l.value_paise_per_point / 100).toFixed(2).replace(".00", "")} off. Up to ${l.max_points} here${l.limited ? " (some items not payable by points)" : ""}.`, '', 'Redeem Points', 'number');
   const points = parseInt(pointsStr, 10);
   if (!points || points <= 0) return;
   if (points > l.max_points) {

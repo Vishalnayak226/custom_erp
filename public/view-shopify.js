@@ -42,7 +42,6 @@ export async function renderShopifyPage(root, channel) {
       <div><button type="button" class="btn btn-outline" id="shp-back">← Channels</button></div></div>
     <div class="table-panel" style="padding:16px 20px;margin-bottom:16px;">
       <h2 class="card-title">1. Connect</h2>
-      <p class="text-muted" style="margin:4px 0 12px;">In Shopify admin: Settings → Apps and sales channels → Develop apps → create an app, give it the Admin API access listed under Test connection, install it, then copy its Admin API access token and its API secret key here.</p>
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
         <div class="form-group"><label class="form-label" for="shp-domain">Shop address</label><input id="shp-domain" class="form-input" style="width:260px;" placeholder="yourstore.myshopify.com" value="${esc(ov.shop_domain || '')}"></div>
         <div class="form-group"><label class="form-label" for="shp-token">Admin API access token</label><input id="shp-token" type="password" class="form-input" style="width:240px;" autocomplete="off" placeholder="${ov.credentials_set ? 'saved - type to replace' : 'shpat_...'}"></div>
@@ -56,7 +55,6 @@ export async function renderShopifyPage(root, channel) {
     </div>
     <div class="table-panel" style="padding:16px 20px;margin-bottom:16px;">
       <h2 class="card-title">2. Stores, prices and what syncs</h2>
-      <p class="text-muted" style="margin:4px 0 12px;">Each Shopify location sells the mapped store's stock (less the safety buffer, never below 0); an online order ships from the store mapped to the location Shopify chose. Test connection lists the shop's locations.</p>
       <table class="dash-table" style="width:auto;min-width:420px;"><thead><tr><th>Shopify location</th><th>Store</th></tr></thead>
         <tbody>${locs.length ? locs.map(l => `<tr><td>${esc(l.name)}</td><td><select class="form-select" data-shp-loc="${esc(l.id)}">${storeOpts((s.locations || {})[l.id])}</select></td></tr>`).join('') : '<tr><td colspan="2" class="text-muted">Test the connection to list the shop\'s locations.</td></tr>'}</tbody></table>
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-top:12px;">
@@ -68,14 +66,13 @@ export async function renderShopifyPage(root, channel) {
     </div>
     <div class="table-panel" style="padding:16px 20px;margin-bottom:16px;">
       <h2 class="card-title">3. Webhooks</h2>
-      <p class="text-muted" style="margin:4px 0 8px;">Shopify tells the ERP at once about new, changed and cancelled orders, refunds and fulfilments here; a pull every sync interval catches anything missed.</p>
       <div style="font-family:monospace;font-size:12.5px;word-break:break-all;margin-bottom:8px;">${esc(s.webhook_url || '')}</div>
       <div>${s.webhooks_registered_at ? `<span class="badge badge-success">Registered ${esc(s.webhooks_registered_at.slice(0, 16).replace('T', ' '))}</span> ` : ''}
         <button type="button" class="btn btn-outline" id="shp-webhooks"${ov.credentials_set ? '' : ' disabled'}>${s.webhooks_registered_at ? 'Register again' : 'Register'}</button></div>
     </div>
     <div class="table-panel" style="padding:16px 20px;margin-bottom:16px;">
       <h2 class="card-title">4. Products, prices and stock</h2>
-      <p class="text-muted" style="margin:4px 0 12px;">${ov.links} item(s) in ${ov.products} Shopify product(s). A design goes as one product with its sizes / colours as variants, MRP as the compare-at price; publishing again updates it, an inactive item drops out, an inactive design is archived. The ERP's prices and stock win: a change made in Shopify admin is overwritten at the next send.</p>
+      <p class="text-muted" style="margin:4px 0 12px;">${ov.links} item(s) in ${ov.products} Shopify product(s). Edits made in Shopify are overwritten.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
         <button type="button" class="btn btn-primary" id="shp-publish">Publish designs not on Shopify yet</button>
         <input id="shp-design" class="form-input" style="width:200px;" placeholder="or a design / item code">
@@ -97,7 +94,7 @@ export async function renderShopifyPage(root, channel) {
     </div>
     <div class="table-panel" style="padding:16px 20px;margin-bottom:16px;">
       <h2 class="card-title">5. Orders and payouts</h2>
-      <p class="text-muted" style="margin:4px 0 12px;">Orders come in whole - number, discounts, shipping, GST, payment and COD, the customer (found by mobile number or added). An edit or cancellation in Shopify is applied until picking starts; after that it waits in OMS → <b>Channel changes</b>${ov.channel_changes ? ` (<b>${ov.channel_changes}</b> waiting)` : ''}. Shipping, cancellation and RTO go back to Shopify; a refund there raises a return here. Shopify Payments payouts come in once a day as settlement lines and are reconciled with the orders.</p>
+      ${ov.channel_changes ? `<p class="text-muted" style="margin:4px 0 12px;"><b>${ov.channel_changes}</b> waiting in OMS → <b>Channel changes</b>.</p>` : ''}
       <button type="button" class="btn btn-outline" id="shp-pull">Pull orders now</button>
       <button type="button" class="btn btn-outline" id="shp-payouts">Bring in payouts now</button>
     </div>

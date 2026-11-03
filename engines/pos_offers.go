@@ -41,6 +41,9 @@ const (
 	// Stage 72.7 (blueprint section 10): no discount - it makes a promo-only
 	// gift item eligible, and the till prompts the cashier to scan it.
 	offerTypeGiftWithPurchase = "Gift With Purchase"
+	// Stage 146.2.1: no discount - extra loyalty points on the bill
+	// (engines/loyalty_bonus.go reads these at the earn and the till preview).
+	offerTypeBonusPoints = "Bonus Points"
 )
 
 // OfferCartLine is one line of the cart being priced. category is resolved
@@ -131,6 +134,14 @@ type offerRule struct {
 	// qualifying bill (or per buy_qty qualifying units when buy_qty is set).
 	giftItem string
 	giftQty  int
+	// Stage 146.2: a Bonus Points offer's basis (Spend, Unit or Bill), points,
+	// rupees per step (Spend) and stores; customerTag targets any offer at
+	// customers carrying that tag.
+	bonusBasis  string
+	bonusPoints int
+	bonusStep   float64
+	stores      string
+	customerTag string
 }
 
 // EvaluatePOSOffers resolves every Active Offer against a cart and returns the
@@ -191,6 +202,9 @@ func EvaluatePOSOffers(tenantID string, input OfferEvaluationInput) (*OfferEvalu
 	}
 	usedCodes := map[string]bool{}
 
+	// 146.2.5: an offer for a customer tag is seen by customers carrying it only.
+	rules = offersForCustomerTags(rules, tenantID, input.CustomerID)
+
 	sort.SliceStable(rules, func(i, j int) bool {
 		if rules[i].priority != rules[j].priority {
 			return rules[i].priority < rules[j].priority
@@ -204,7 +218,7 @@ func EvaluatePOSOffers(tenantID string, input OfferEvaluationInput) (*OfferEvalu
 	result.Gifts = evaluateGiftOffers(tenantID, rules, input.Lines, gross, tier, suppliedCodes, usedCodes, today)
 
 	for _, rule := range rules {
-		if !offerIsLive(rule, today) || rule.offerType == offerTypeGiftWithPurchase {
+		if !offerIsLive(rule, today) || rule.offerType == offerTypeGiftWithPurchase || rule.offerType == offerTypeBonusPoints {
 			continue
 		}
 		if rule.customerTier != "" && !strings.EqualFold(rule.customerTier, tier) {
@@ -690,6 +704,11 @@ func loadActiveOffers(tenantID string) ([]offerRule, error) {
 			stackable:         !strings.EqualFold(strings.TrimSpace(strField(d, "stackable")), "No"),
 			giftItem:          strings.TrimSpace(strField(d, "gift_item")),
 			giftQty:           int(numFromInterface(d["gift_qty"])),
+			bonusBasis:        strings.TrimSpace(strField(d, "bonus_basis")),
+			bonusPoints:       int(numFromInterface(d["bonus_points"])),
+			bonusStep:         numFromInterface(d["bonus_spend_step"]),
+			stores:            strings.TrimSpace(strField(d, "stores")),
+			customerTag:       strings.TrimSpace(strField(d, "customer_tag")),
 		})
 	}
 	return out, rows.Err()

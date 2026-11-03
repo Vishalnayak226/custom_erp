@@ -1199,3 +1199,21 @@ func documentCreatedDate(tenantID, doctype, id string) string {
 		doctype, id).Scan(&d)
 	return d
 }
+
+// PrintRecordData is the stored record a print by id would be built from (by
+// its id or its code, as BuildPrintDocument finds it), so a caller can hold
+// the print to the same object-level read rule as the record itself (Stage
+// 49.3.4). ok is false for a transaction with no stored record of its own
+// (vouchers, statements) or an id that is not there.
+func PrintRecordData(tenantID, txn, id string) (data map[string]interface{}, ok bool) {
+	doctype := PrintTxnDoctype(tenantID, txn)
+	if doctype == "" {
+		return nil, false
+	}
+	data, status, err := fetchDocData(tenantID, doctype, id)
+	if err != nil || data == nil {
+		return nil, false
+	}
+	data["status"] = status
+	return data, true
+}

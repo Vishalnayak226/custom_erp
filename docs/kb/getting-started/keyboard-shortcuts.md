@@ -64,6 +64,7 @@ Hover over a button to see its key in the tooltip.
 | Ctrl+K or / | Search box |
 | ? | This list of keys and codes |
 | Alt+N | New record on this screen |
+| Alt+1 … Alt+9 | Open favourite 1 to 9 (the till too) |
 | Esc | Close a dialog, menu or the search box |
 
 ### Lists
@@ -174,8 +175,10 @@ choose **Report numbers**, or see the [Report catalog](../reference/report-catal
 ## Favourites and recent
 
 - **☆ beside a screen's title** adds it to your favourites (★). Click again to
-  remove it. Favourites appear first when you press Ctrl+K, on any computer you
-  sign in to.
+  remove it. Favourites follow you to any computer you sign in to.
+- **Favourites in the left menu** lists them in the order you starred them;
+  click one to open it. **Alt+1** to **Alt+9** open the first nine from any
+  screen, the till included. They also appear first when you press Ctrl+K.
 - **Recent** shows the last 10 screens, reports and documents you opened in
   this browser.
 

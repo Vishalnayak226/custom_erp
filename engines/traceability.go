@@ -530,6 +530,10 @@ func RecordBatchPutaway(tenantID, binCode, sku, batchNo, condition string, qty i
 	} else if err != nil {
 		return err
 	}
+	// Stage 146.3.1: a single-lot bin refuses a second lot.
+	if err := enforceBinMixRule(tx, schema, binCode, sku, batchNo); err != nil {
+		return err
+	}
 	var alreadyBatched int
 	if err := tx.QueryRow(fmt.Sprintf(
 		`SELECT COALESCE(SUM(qty), 0) FROM %s.bin_stock_batch WHERE bin_code = $1 AND sku = $2 AND condition = $3`, schema),

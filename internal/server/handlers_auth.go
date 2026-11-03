@@ -261,6 +261,8 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	// user behaves exactly as before rather than losing access.
 	token := engines.SignToken(u.ID, u.Username, u.Role, tenantID, u.LocationCode, u.CredentialVersion)
 	engines.RecordSignIn(tenantID, u.ID) // 49.2.1: dormant-account clock
+	// 49.11.7: a full-access sign-in is listed under Privileged sessions.
+	engines.RecordPrivilegedSession(r.Context(), tenantID, u.ID, u.Username, u.Role, token, u.CredentialVersion)
 
 	engines.LogAuditEventCtx(r.Context(), tenantID, u.Username, "LOGIN", "SUCCESS", fmt.Sprintf("User logged in successfully with role %s", u.Role))
 
@@ -375,6 +377,8 @@ func handleMFAActivate(w http.ResponseWriter, r *http.Request) {
 
 	token := engines.SignToken(userID, username, role, tenantID, locationCode, credentialVersion)
 	engines.RecordSignIn(tenantID, userID) // 49.2.1
+	// 49.11.7: a full-access sign-in is listed under Privileged sessions.
+	engines.RecordPrivilegedSession(r.Context(), tenantID, userID, username, role, token, credentialVersion)
 	engines.LogAuditEventCtx(r.Context(), tenantID, username, "LOGIN", "MFA_ENROLLED_AND_VERIFIED", "TOTP enrollment completed and verified")
 	if len(recoveryCodes) > 0 {
 		engines.LogAuditEventCtx(r.Context(), tenantID, username, "LOGIN", "MFA_RECOVERY_CODES_ISSUED",
@@ -490,6 +494,8 @@ func handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 	}
 	token := engines.SignToken(userID, username, role, tenantID, locationCode, credentialVersion)
 	engines.RecordSignIn(tenantID, userID) // 49.2.1
+	// 49.11.7: a full-access sign-in is listed under Privileged sessions.
+	engines.RecordPrivilegedSession(r.Context(), tenantID, userID, username, role, token, credentialVersion)
 
 	remaining := 0
 	if usedRecoveryCode {

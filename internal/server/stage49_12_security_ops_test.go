@@ -128,3 +128,45 @@ func TestStage49123SignOutEverywhereEndsTheSession(t *testing.T) {
 		t.Fatalf("posture has no rules: %v %s", err, rec.Body.String())
 	}
 }
+
+// Stage 49.12.3 (a): the integration freeze is switched from the Security
+// screen's endpoint (reason + own password, audited), and while it is on an
+// inbound webhook is turned away with 423 and X-Refused: INTEGRATIONS_FROZEN.
+func TestStage49123IntegrationFreezeRefusesInboundWebhooks(t *testing.T) {
+	adminID, adminPW, cleanup := seedSecurityOpsUser(t, "Super Admin")
+	defer cleanup()
+	defer db.DB.Exec(`DELETE FROM tenant_default.system_settings WHERE key = $1`, engines.SettingFreezeIntegrations)
+	defer engines.SetSetting("default", engines.SettingFreezeIntegrations, "false", "test")
+	engines.ResetLiveUserStateCache()
+	token := engines.SignToken(adminID, adminID, "Super Admin", "default", "HO", 1)
+
+	hook := apiMiddleware(inboundWebhookGate(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }))
+	freeze := apiMiddleware(handleFreezeIntegrations)
+	if rec := doRequest(t, hook, http.MethodPost, "/api/v1/integration/shopify/webhook", token, nil); rec.Code != http.StatusOK {
+		t.Fatalf("not frozen: %d", rec.Code)
+	}
+	if rec := doRequest(t, freeze, http.MethodPost, "/api/v1/admin/security/freeze-integrations", token,
+		map[string]interface{}{"on": true, "reason": "key leaked", "password": "wrong"}); rec.Code == http.StatusOK {
+		t.Fatal("a freeze needs the administrator's own password")
+	}
+	if rec := doRequest(t, freeze, http.MethodPost, "/api/v1/admin/security/freeze-integrations", token,
+		map[string]interface{}{"on": true, "reason": "key leaked", "password": adminPW}); rec.Code != http.StatusOK {
+		t.Fatalf("freeze: %d %s", rec.Code, rec.Body.String())
+	}
+	rec := doRequest(t, hook, http.MethodPost, "/api/v1/integration/shopify/webhook", token, nil)
+	if rec.Code != http.StatusLocked || rec.Header().Get("X-Refused") != "INTEGRATIONS_FROZEN" {
+		t.Fatalf("frozen: %d header %q", rec.Code, rec.Header().Get("X-Refused"))
+	}
+	var n int
+	db.DB.QueryRow(`SELECT count(*) FROM tenant_default.audit_logs WHERE action = 'SECURITY_CONTROL' AND status = 'INTEGRATIONS_FROZEN' AND details LIKE '%key leaked%'`).Scan(&n)
+	if n == 0 {
+		t.Fatal("the freeze left no audit row")
+	}
+	if rec := doRequest(t, freeze, http.MethodPost, "/api/v1/admin/security/freeze-integrations", token,
+		map[string]interface{}{"on": false, "reason": "all clear", "password": adminPW}); rec.Code != http.StatusOK {
+		t.Fatalf("unfreeze: %d", rec.Code)
+	}
+	if rec := doRequest(t, hook, http.MethodPost, "/api/v1/integration/shopify/webhook", token, nil); rec.Code != http.StatusOK {
+		t.Fatalf("unfrozen: %d", rec.Code)
+	}
+}

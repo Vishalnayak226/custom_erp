@@ -18,17 +18,19 @@
    cold core. Uses the existing tokens, so dark mode comes for free.
    =========================================================================== */
 
-/* The page around a transaction screen stops scrolling and hands it the
-   whole height. */
+/* The page around a transaction screen hands it the whole height, and
+   scrolls only when the window is too small to hold the frame (157). */
 #view-root:has(> .txn-screen) {
-  overflow: hidden;
+  overflow: auto;
   padding: 0 16px 12px;
   --view-pad-top: 10px;
   --view-gap: 8px;
 }
 
+/* Never shrinks below its bar, header and a few grid rows: a short window
+   scrolls the page instead of squeezing the grid to nothing (157). */
 .txn-screen {
-  flex: 1 1 auto;
+  flex: 1 0 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -107,6 +109,7 @@
 
 .txn-actions {
   display: flex;
+  flex-wrap: wrap; /* 157 */
   align-items: center;
   gap: 8px;
 }
@@ -115,6 +118,8 @@
 
 .txn-tabs {
   display: inline-flex;
+  flex-wrap: wrap; /* 157: tabs wrap on a narrow window, never run off it */
+  max-width: 100%;
   padding: 2px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
@@ -213,7 +218,7 @@
 
 /* --- The grid: the only thing that scrolls --------------------------------- */
 .txn-grid {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 120px;
   margin: 0 -14px;
   overflow: auto;
@@ -265,6 +270,7 @@
 
 .txn-titlebox {
   display: inline-flex;
+  flex-wrap: wrap; /* 157 */
   align-items: baseline;
   gap: 8px;
   min-width: 0;
@@ -347,8 +353,8 @@
 }
 
 .pos-completed {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 1 1 0;
+  min-height: 120px;
   overflow: auto;
   padding: 14px 18px;
   border: 2px solid var(--success-color, #1a7f37);
@@ -415,11 +421,11 @@
 }
 
 /* Phones and very short windows: a frozen frame would leave the grid no room,
-   so the page scrolls as one there. */
+   so the page scrolls as one there; wide lines still scroll sideways in the
+   grid, never off the page (157). */
 @media (max-width: 820px), (max-height: 520px) {
-  #view-root:has(> .txn-screen) { overflow-y: auto; }
   .txn-screen { flex: none; overflow: visible; }
-  .txn-grid { overflow: visible; min-height: 0; }
+  .txn-grid { flex: 1 0 auto; overflow: auto hidden; min-height: 0; }
 }
 
 /* Stage 94: goods receipt in steps (grn-steps.js). */

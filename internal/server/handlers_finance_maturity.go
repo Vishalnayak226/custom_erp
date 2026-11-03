@@ -250,3 +250,27 @@ func handlePeriodCloseChecklist(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewEncoder(w).Encode(checklist)
 }
+
+// Stage 49.5.5: dismiss (or reopen) an order-to-cash mismatch. A note is
+// required; the report itself is the "order-to-cash" report.
+func handleReconciliationException(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Kind       string `json:"kind"`
+		Ref        string `json:"ref"`
+		Status     string `json:"status"`
+		Note       string `json:"note"`
+		Attachment string `json:"attachment"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
+		return
+	}
+	if req.Status == "" {
+		req.Status = "Dismissed"
+	}
+	if err := engines.SetReconciliationException(r.Header.Get("Resolved-Tenant-ID"), req.Kind, req.Ref, req.Status, req.Note, req.Attachment, r.Header.Get("Resolved-Username")); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": req.Status})
+}

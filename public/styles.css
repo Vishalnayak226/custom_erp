@@ -697,14 +697,17 @@ body {
 }
 
 /* Header */
+/* 157.1: grows and wraps; a fixed height drew row 2 over the page */
 .app-header {
-  height: 70px;
+  min-height: 70px;
   background-color: var(--panel-bg);
   border-bottom: 1px solid var(--border-color);
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   align-items: center;
   justify-content: space-between;
-  padding: 0 32px;
+  padding: 8px 32px;
   flex-shrink: 0;
   position: sticky;
   top: 0;
@@ -746,8 +749,15 @@ body {
 
 .header-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 16px;
+}
+.header-actions > .btn + .btn { margin-left: 8px; }
+@media (max-width: 560px) {
+  .header-actions { gap: 8px; }
+  .header-actions > .btn + .btn { margin-left: 0; }
+  #sync-btn > span, #reset-btn > span { display: none; }
 }
 
 /* Page Containers */
@@ -759,7 +769,8 @@ body {
   min-height: 0;
   padding: 0 24px 24px;
   overflow-y: auto;
-  overflow-x: hidden;
+  /* 157: wider content scrolls, never cut */
+  overflow-x: auto;
   overflow-anchor: none;
   display: flex;
   flex-direction: column;
@@ -897,6 +908,7 @@ body {
   gap: 16px;
   box-shadow: var(--shadow-sm);
 }
+.stat-card > * { min-width: 0; overflow-wrap: anywhere; }
 
 .stat-info {
   display: flex;
@@ -1126,8 +1138,10 @@ body {
   color: var(--text-muted);
 }
 
-.table-wrapper {
-  overflow: visible;
+/* 157: a wide table scrolls in its panel (contain: paint below clips) */
+.table-wrapper,
+.table-panel:has(> table) {
+  overflow-x: auto;
 }
 
 table {
@@ -1197,8 +1211,7 @@ td {
      Arabic string with no spaces - from stretching its column arbitrarily
      wide and squeezing every other column in the row down to near nothing.
      max-width only caps growth (short content is unaffected); overflow-wrap
-     lets a value that hits the cap wrap instead of getting clipped by the
-     page container's overflow-x:hidden. */
+     lets a value that hits the cap wrap instead of pushing the page wide. */
   max-width: 320px;
   overflow-wrap: break-word;
 }
@@ -2780,12 +2793,10 @@ input.form-input.num {
   max-width: 420px;
 }
 
-.po-row-actions {
+/* 157: buttons wrap in the cell */
+.po-row-actions .action-btn {
   white-space: nowrap;
-}
-
-.po-row-actions .action-btn + .action-btn {
-  margin-left: 4px;
+  margin: 2px 4px 2px 0;
 }
 
 .po-sent-stamp {
@@ -2887,6 +2898,23 @@ input.form-input.num {
    never re-laid-out, so long lists do not judder as they arrive. */
 #view-root > * {
   animation: view-enter var(--duration-view) var(--ease-emphasized) both;
+}
+/* 152: a redraw or F5 repaint does not animate in. */
+#view-root.view-steady > * { animation: none; }
+#view-root[aria-busy] { pointer-events: none; }
+/* 152.5: the last list panel fills the window; its table scrolls inside. */
+@media (min-width: 821px) and (min-height: 521px) {
+  #view-root > .txn-paged.txn-on-landing:last-child,
+  .txn-paged > [data-pane=list],
+  #view-root > div:last-child:has(> .table-panel:only-child > .table-wrapper) { flex: 1 0 auto; display: flex; flex-direction: column; }
+  .table-panel:not(:has(table, .table-wrapper)) { min-height: 0; }
+  :is(#view-root > .table-panel:last-child, .txn-paged > [data-pane=list] > .table-panel:last-child, #view-root > div:last-child > .table-panel:only-child):has(> .table-wrapper, > div > .table-wrapper) { flex: 1 1 0; min-height: auto; margin-bottom: 0; }
+  :is(#view-root > .table-panel:last-child, .txn-paged > [data-pane=list] > .table-panel:last-child, #view-root > div:last-child > .table-panel:only-child):has(> table) { flex: 1 1 0; min-height: 200px; margin-bottom: 0; overflow: auto; }
+  :is(#view-root > .table-panel:last-child, .txn-paged > [data-pane=list] > .table-panel:last-child, #view-root > div:last-child > .table-panel:only-child) > div:has(> .table-wrapper) { flex: 1 1 0; display: flex; flex-direction: column; }
+  :is(#view-root > .table-panel:last-child, .txn-paged > [data-pane=list] > .table-panel:last-child, #view-root > div:last-child > .table-panel:only-child) > .table-wrapper,
+  :is(#view-root > .table-panel:last-child, .txn-paged > [data-pane=list] > .table-panel:last-child, #view-root > div:last-child > .table-panel:only-child) > div > .table-wrapper { flex: 1 1 0; min-height: 160px; overflow: auto; }
+  :is(#view-root > .table-panel:last-child, .txn-paged > [data-pane=list] > .table-panel:last-child, #view-root > div:last-child > .table-panel:only-child) > .table-wrapper:not(:has(tr:nth-child(4))),
+  :is(#view-root > .table-panel:last-child, .txn-paged > [data-pane=list] > .table-panel:last-child, #view-root > div:last-child > .table-panel:only-child) > div > .table-wrapper:not(:has(tr:nth-child(4))) { flex: 1 0 auto; min-height: 0; }
 }
 
 @keyframes view-enter {
@@ -3221,123 +3249,7 @@ td.num {
   font-size: 11px;
 }
 
-/* ===========================================================================
-   OMS Console (Stage 35.2)
-
-   Layout only. Every colour, radius and spacing value below resolves to an
-   existing token - no new palette, no new type scale. The console is a
-   .table-panel with a filter rail, a bulk bar and a wide detail modal, all
-   assembled from vocabulary that already existed.
-   =========================================================================== */
-
-/* .table-panel carries min-height:200px, which is right for a panel holding a
-   table and wrong for one holding a single search field - it reserved a tall
-   empty box above the order list until a search had been run. Modifier rather
-   than a second panel style, so the border/shadow/radius stay shared. */
-.table-panel.oms-compact-panel {
-  min-height: 0;
-}
-
-.oms-search-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.oms-search-row .form-input {
-  flex: 1;
-}
-
-.oms-console-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-
-.oms-view-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-/* The filter rail. Wraps rather than scrolls: seven facets on a narrow screen
-   should stack into rows the operator can still read, not slide off the edge
-   where a filter can be left set without being visible. */
-.oms-facets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: flex-end;
-  padding-bottom: 16px;
-  margin-bottom: 8px;
-  border-bottom: 1px solid var(--border);
-}
-
-.oms-facet {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.oms-facet .form-input {
-  min-width: 150px;
-  text-transform: none;
-  letter-spacing: normal;
-  font-size: 13px;
-  color: var(--text);
-}
-
-/* .stat-card is a flex ROW (label beside value), which reads well for a
-   two-item dashboard strip but not for a tile whose label is three words long.
-   Stacked here, and only here, so no other screen's cards move. */
-.oms-tile {
-  cursor: pointer;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-}
-
-.oms-tile-error {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.oms-hold-reason {
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.oms-expedite {
-  margin-top: 4px;
-  font-size: 10px;
-}
-
-.oms-pager {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-top: 12px;
-  font-size: 13px;
-}
-
-/* The order detail. Wider than the default modal because it carries nine
-   sections of tabular data; capped at the viewport so it never overflows the
-   page on a laptop, with the body scrolling instead. */
-.oms-detail-container {
-  max-width: min(1100px, 96vw);
-  width: 100%;
-}
-
+/* 35.2: shared by e-invoice, inbox, service desk; the rest is in oms.css. */
 .oms-detail-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -3346,39 +3258,9 @@ td.num {
   border-bottom: 1px solid var(--border);
 }
 
-.oms-detail-address {
-  padding: 16px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.oms-action-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.oms-detail-heading {
-  margin: 20px 0 8px;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-}
-
 .oms-detail-empty {
   margin: 0 0 8px;
   font-size: 13px;
-}
-
-.oms-split-pick {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: 8px;
-  font-size: 11px;
-  color: var(--text-muted);
 }
 
 /* RF task shell (Stage 47.6.2): hides the app chrome while a task is open.
@@ -3533,12 +3415,6 @@ body.rf-shell #view-root {
 
   .main-content { width: 100%; }
 
-  .app-header {
-    flex-wrap: wrap;
-    gap: 8px;
-    row-gap: 8px;
-  }
-
   .header-search { flex: 1 1 180px; min-width: 0; }
 
   /* --- (2) wide tables scroll inside their own panel, never the page ------
@@ -3592,10 +3468,11 @@ body.rf-shell #view-root {
   .table-panel [style*="width :"] { max-width: 100% !important; }
 }
 
-/* Landscape on a short device: the same rule the RF shell uses, extended to
-   the ordinary screens, so a header does not consume the whole viewport. */
-@media (max-height: 480px) and (max-width: 900px) {
+/* 157: a short window scrolls the whole column, top bar too */
+@media (max-height: 520px) {
+  .main-content { overflow: auto; }
   .app-header { position: static; }
+  .page-container { flex: none; overflow: visible; }
   .page-header { margin-bottom: 8px; }
 }
 
@@ -3703,49 +3580,3 @@ input[type="date"][data-date-picker="1"] {
   background-size: 16px 16px;
 }
 input[type="date"][data-date-picker="1"]::-webkit-calendar-picker-indicator { display: none; }
-
-
-/* Stage 144: Configuration - an overview of module cards under plain
-   headings; a module opens as its own page with its group as pills. */
-.config-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
-.config-toolbar .form-input { flex: 1 1 240px; max-width: 420px; }
-#config-screen [hidden] { display: none !important; }
-#config-screen .setup-guide { min-height: 0; } /* .table-panel min-height would hold the folded card open */
-.config-group { margin-bottom: 28px; }
-.config-group-title { font-size: 15px; font-weight: 600; color: var(--text-main); margin: 0 0 10px; }
-.config-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-.config-card {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
-  padding: 14px 16px; text-align: left; font: inherit; color: var(--text-main);
-  background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 8px;
-  box-shadow: var(--shadow-sm); cursor: pointer;
-  transition: border-color var(--transition-med) var(--ease-out);
-}
-.config-card:hover, .config-card:focus-visible { border-color: var(--primary-color); }
-.config-card:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 1px; }
-.config-card-name { font-size: 14px; font-weight: 600; }
-.config-card-hint { font-size: 12.5px; color: var(--text-muted); }
-.config-card-unsaved { font-size: 12px; font-weight: 600; color: var(--warning-color); }
-.config-links { display: flex; flex-wrap: wrap; gap: 8px; }
-.config-module-title { font-size: 18px; font-weight: 600; color: var(--text-main); margin: 0 0 12px; }
-.config-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
-.config-pill {
-  padding: 5px 12px; font: inherit; font-size: 13px; color: var(--text-muted);
-  background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 999px; cursor: pointer;
-}
-.config-pill:hover { color: var(--text-main); border-color: var(--primary-color); }
-.config-pill.active { color: var(--on-primary); background: var(--primary-color); border-color: var(--primary-color); }
-.config-pill:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 1px; }
-.config-fields-panel { padding: 20px 24px; }
-.config-savebar {
-  position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; gap: 14px;
-  margin-top: 16px; padding: 12px 24px; background: var(--panel-bg);
-  border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.08);
-}
-.config-savebar .text-muted { font-size: 13px; }
-@media (max-width: 600px) {
-  .config-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .config-card { padding: 12px; }
-  .config-fields-panel { padding: 16px; }
-  .config-savebar { padding: 10px 16px; }
-}

@@ -386,6 +386,7 @@ type taskAllocationLine struct {
 	TaskID, SKU, BinCode, BatchNo, OwnerID string
 	Zone, Aisle, Rack, ExpiryDate          string
 	Qty                                    int
+	PickSeq                                int // Stage 146.3.4: the bin's pick sequence, noPickSeq when unset
 }
 
 // openTaskAllocations lists the still-to-pick reservations of the given tasks.
@@ -393,7 +394,8 @@ func openTaskAllocations(schema string, taskIDs []string) ([]taskAllocationLine,
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT ba.task_id, ba.sku, ba.bin_code, ba.batch_no, ba.owner_id, ba.qty - ba.picked_qty,
 		       COALESCE(b.data->>'zone', ''), COALESCE(b.data->>'aisle', ''), COALESCE(b.data->>'rack', ''),
-		       COALESCE(bt.data->>'expiry_date', '')
+		       COALESCE(bt.data->>'expiry_date', ''),
+		       CASE WHEN COALESCE(b.data->>'pick_sequence', '') ~ '^[0-9]{1,6}$' THEN (b.data->>'pick_sequence')::int ELSE 999999 END
 		  FROM %s.bin_allocation ba
 		  LEFT JOIN LATERAL (SELECT data FROM %s.documents
 		                      WHERE doctype = 'Bin' AND data->>'bin_code' = ba.bin_code
@@ -411,7 +413,7 @@ func openTaskAllocations(schema string, taskIDs []string) ([]taskAllocationLine,
 	for rows.Next() {
 		var l taskAllocationLine
 		if err := rows.Scan(&l.TaskID, &l.SKU, &l.BinCode, &l.BatchNo, &l.OwnerID, &l.Qty,
-			&l.Zone, &l.Aisle, &l.Rack, &l.ExpiryDate); err != nil {
+			&l.Zone, &l.Aisle, &l.Rack, &l.ExpiryDate, &l.PickSeq); err != nil {
 			return nil, err
 		}
 		out = append(out, l)

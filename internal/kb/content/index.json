@@ -974,6 +974,8 @@
             "doctype:bin",
             "doctype:zone",
             "bin-conditions",
+            "bin-tools",
+            "doctype:homebin",
             "lpn",
             "bin-replenishment",
             "doctype:binreplenishmentrule",
@@ -3701,6 +3703,11 @@
             },
             {
               "level": 3,
+              "text": "R5088 Order to cash mismatches",
+              "slug": "r5088-order-to-cash-mismatches"
+            },
+            {
+              "level": 3,
               "text": "R5072 POS Sale Reconciliation",
               "slug": "r5072-pos-sale-reconciliation"
             },
@@ -5406,6 +5413,16 @@
           "headings": [
             {
               "level": 2,
+              "text": "2026-11-03",
+              "slug": "2026-11-03"
+            },
+            {
+              "level": 2,
+              "text": "2026-11-01",
+              "slug": "2026-11-01"
+            },
+            {
+              "level": 2,
               "text": "2026-10-31",
               "slug": "2026-10-31"
             },
@@ -5518,21 +5535,6 @@
               "level": 2,
               "text": "2026-09-28",
               "slug": "2026-09-28"
-            },
-            {
-              "level": 2,
-              "text": "2026-09-27",
-              "slug": "2026-09-27"
-            },
-            {
-              "level": 2,
-              "text": "2026-09-25",
-              "slug": "2026-09-25"
-            },
-            {
-              "level": 2,
-              "text": "2026-09-24",
-              "slug": "2026-09-24"
             }
           ]
         },
@@ -5541,7 +5543,7 @@
           "title": "Release notes (part 2)",
           "section": "Reference",
           "order": 26,
-          "summary": "Earlier releases, 2026-07-27 to 2026-09-24, continued from the release notes.",
+          "summary": "Earlier releases, 2026-07-27 to 2026-09-27, continued from the release notes.",
           "audience": "everyone",
           "last_verified": "2026-09-10",
           "owner": "documentation-maintainer",
@@ -5553,6 +5555,16 @@
           "applies_to": "source registries; not release acceptance",
           "source_path": "reference/release-notes-2.md",
           "headings": [
+            {
+              "level": 2,
+              "text": "2026-09-27",
+              "slug": "2026-09-27"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-25",
+              "slug": "2026-09-25"
+            },
             {
               "level": 2,
               "text": "2026-09-24",
@@ -6261,11 +6273,6 @@
               "level": 2,
               "text": "Inventory",
               "slug": "inventory"
-            },
-            {
-              "level": 2,
-              "text": "Inventory / Warehouse",
-              "slug": "inventory-warehouse"
             }
           ]
         },
@@ -6274,7 +6281,7 @@
           "title": "Error code reference (part 2)",
           "section": "Troubleshooting",
           "order": 21,
-          "summary": "Error codes for Item Master to WMS / Logistics, continued from the error code reference.",
+          "summary": "Error codes for Inventory / Warehouse to Stock Transfer, continued from the error code reference.",
           "audience": "everyone",
           "last_verified": "2026-09-10",
           "owner": "documentation-maintainer",
@@ -6290,6 +6297,11 @@
               "level": 2,
               "text": "Contents",
               "slug": "contents"
+            },
+            {
+              "level": 2,
+              "text": "Inventory / Warehouse",
+              "slug": "inventory-warehouse"
             },
             {
               "level": 2,
@@ -6430,6 +6442,30 @@
               "level": 2,
               "text": "Stock Transfer",
               "slug": "stock-transfer"
+            }
+          ]
+        },
+        {
+          "slug": "error-code-reference-3",
+          "title": "Error code reference (part 3)",
+          "section": "Troubleshooting",
+          "order": 22,
+          "summary": "Error codes for Tax / GST / E-Invoice to WMS / Logistics, continued from the error code reference.",
+          "audience": "everyone",
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Error code reference (part 3)",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
+          "source_path": "troubleshooting/error-code-reference-3.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Contents",
+              "slug": "contents"
             },
             {
               "level": 2,
@@ -6498,6 +6534,9 @@
     "bin-replenishment": [
       "wms-start-here",
       "journey-warehouse-operator"
+    ],
+    "bin-tools": [
+      "wms-start-here"
     ],
     "configuration": [
       "finance-tax",
@@ -6577,6 +6616,9 @@
       "wms-start-here"
     ],
     "doctype:holdreleaserequest": [
+      "wms-start-here"
+    ],
+    "doctype:homebin": [
       "wms-start-here"
     ],
     "doctype:item": [
@@ -6898,5 +6940,5 @@
       "wms-start-here"
     ]
   },
-  "article_count": 60
+  "article_count": 61
 }

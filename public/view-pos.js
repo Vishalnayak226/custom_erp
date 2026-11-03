@@ -433,29 +433,10 @@ async function openPOSSessionFlow() {
 // closePOSSessionFlow is in view-pos-extras.js (Stage 73.2.7 - it asks for the
 // variance reason and handles a close that waits for a manager).
 
-// --- Stage 53.6: scan-or-search product entry -------------------------------
-//
-// What this replaced: addSKUToPOSCart took the raw contents of the box and
-// sent it to /api/v1/availability as a SKU. That endpoint answers "zero" for a
-// SKU it has never heard of rather than failing, so typing a product's NAME -
-// the single most natural thing to do at a counter - added a line for a
-// product that does not exist, priced at nothing, and said nothing was wrong.
-//
-// Resolution order, and why:
-//
-//   1. exact Item.code     } A scanner types a string and presses Enter. Both
-//   2. exact Item.barcode  } must ring up instantly with no list, no dialog
-//                            and no extra keystroke, or the till is slower
-//                            than the one it replaced.
-//   3. name search         - anything else. The cashier gets what matched and
-//                            picks; a term matching nothing says so.
-//
-// One request serves all three: ?q= already scans every field server-side, so
-// the exact-match test is done on the rows that come back rather than costing
-// a second round trip.
-//
-// Stage 108.2: only an exact barcode / GTIN rings up by itself; anything else
-// lists the matching products, also on a pause in typing (a scan's Enter wins).
+// --- Stage 53.6 / 108.2: scan-or-search product entry ---
+// Only an exact barcode / GTIN rings up by itself (a scan's Enter wins); anything
+// else lists the matching products, also on a pause in typing. One ?q= request
+// serves both: the exact match is tested on the rows that come back.
 
 function posExactBarcode(rows, term) {
   const lower = term.toLowerCase();
@@ -1079,6 +1060,7 @@ async function refreshPOSQuote() {
   posQuoteVersion = data.quote_version || '';
   posLoyalty = data.loyalty || null;
   posGST = data.gst_breakdown || null;
+  { const e = document.getElementById('pos-loyalty-info'), p = posLoyalty; if (e && p) e.textContent = p.earn_blocked ? 'No points: ' + p.earn_blocked : p.earn_points ? 'Earns ' + p.earn_points + ' pts' : ''; }
   posRedeemPoints = posLoyalty ? posLoyalty.points : 0;
   (data.lines || []).forEach(ql => {
     const line = posCart.find(l => l.sku === ql.sku);

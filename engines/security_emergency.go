@@ -102,3 +102,26 @@ func SetExportFreeze(tenantID string, on bool, actor, reason string) error {
 	LogAuditEvent(tenantID, actor, "SECURITY_CONTROL", status, "Reason: "+reason)
 	return nil
 }
+
+// SettingFreezeIntegrations is the per-client integration freeze (49.12.3a).
+const SettingFreezeIntegrations = "security.freeze_integrations"
+
+// SetIntegrationFreeze turns the integration freeze on or off, with a reason.
+// While on, every outside call for this client is refused at the one gate
+// they all pass (outside_calls.go) and its inbound webhooks are refused
+// (internal/server inboundWebhookGate).
+func SetIntegrationFreeze(tenantID string, on bool, actor, reason string) error {
+	reason, err := emergencyReason(reason)
+	if err != nil {
+		return err
+	}
+	if err := SetSetting(tenantID, SettingFreezeIntegrations, fmt.Sprintf("%t", on), actor); err != nil {
+		return err
+	}
+	status := "INTEGRATIONS_FROZEN"
+	if !on {
+		status = "INTEGRATIONS_UNFROZEN"
+	}
+	LogAuditEvent(tenantID, actor, "SECURITY_CONTROL", status, "Reason: "+reason)
+	return nil
+}

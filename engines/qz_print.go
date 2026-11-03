@@ -279,6 +279,8 @@ type QZPrinter struct {
 	ShiftDownMM     string `json:"shift_down_mm"`
 	Darkness        string `json:"darkness"`
 	PrintSpeed      string `json:"print_speed"`
+	// Stage 154.5: degrees to slant a print back on a crooked roll.
+	SkewDeg string `json:"skew_deg"`
 }
 
 // ListQZPrinters returns every Active Printer for the tenant, so the browser
@@ -304,7 +306,8 @@ func ListQZPrinters(tenantID string) ([]QZPrinter, error) {
 		       COALESCE(data->>'shift_right_mm', ''),
 		       COALESCE(data->>'shift_down_mm', ''),
 		       COALESCE(data->>'darkness', ''),
-		       COALESCE(data->>'print_speed', '')
+		       COALESCE(data->>'print_speed', ''),
+		       COALESCE(data->>'skew_deg', '')
 		FROM %s.documents
 		WHERE doctype = 'Printer' AND deleted_at IS NULL
 		  AND COALESCE(data->>'status', 'Active') = 'Active'
@@ -319,7 +322,7 @@ func ListQZPrinters(tenantID string) ([]QZPrinter, error) {
 		var p QZPrinter
 		if err := rows.Scan(&p.ID, &p.Code, &p.Name, &p.QZPrinterName, &p.PrintRole,
 			&p.Language, &p.Location, &p.WidthMM, &p.HeightMM, &p.DPI,
-			&p.StickerTemplate, &p.ShiftRightMM, &p.ShiftDownMM, &p.Darkness, &p.PrintSpeed); err != nil {
+			&p.StickerTemplate, &p.ShiftRightMM, &p.ShiftDownMM, &p.Darkness, &p.PrintSpeed, &p.SkewDeg); err != nil {
 			return nil, err
 		}
 		printers = append(printers, p)

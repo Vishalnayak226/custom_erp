@@ -66,6 +66,9 @@ type FieldMeta struct {
 	// ApprovalOnly lists status options only the approval flow may set; the
 	// meta handler fills it for an approval-gated doctype's status field.
 	ApprovalOnly []string `json:"approval_only,omitempty"`
+	// Help (47.13.2) is optional help text, a few words (fieldHelp); shown as the
+	// form tooltip and as the field's definition in the import column guide.
+	Help string `json:"help,omitempty"`
 }
 
 // GetDocTypeMeta retrieves the fields definition metadata for a doctype
@@ -101,6 +104,7 @@ func GetDocTypeMeta(tenantID string, doctype string) ([]FieldMeta, error) {
 			f.NumberSeries, _ = DocumentNumberSeriesKey(doctype)
 		}
 		f.Mirrored = mirrored[f.Fieldname]
+		f.Help = fieldHelp[doctype][f.Fieldname]
 		f.ServerSet = serverSetFields[doctype][f.Fieldname]
 		for _, lf := range LocationReferenceFields[doctype] {
 			if lf == f.Fieldname {

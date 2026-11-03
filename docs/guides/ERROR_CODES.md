@@ -9,7 +9,7 @@
 
 Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.
 
-There are **582** codes. Each row says what the user is shown, what to do about
+There are **589** codes. Each row says what the user is shown, what to do about
 it, and how serious it is.
 
 **How to read an error dialog** - it has up to three lines: the *headline* (the
@@ -43,7 +43,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 - [CRM / Templates](#crm--templates) - 1 codes
 - [CRM / Vouchers](#crm--vouchers) - 1 codes
 - [Channel Connectors](#channel-connectors) - 5 codes
-- [Customer / CRM](#customer--crm) - 8 codes
+- [Customer / CRM](#customer--crm) - 15 codes
 - [Data Import / Excel Upload](#data-import--excel-upload) - 8 codes
 - [Deployment / Release](#deployment--release) - 7 codes
 - [DocType / Dynamic Metadata](#doctype--dynamic-metadata) - 8 codes
@@ -283,6 +283,13 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `CUSTOM-0603` | Loyalty redemption above the approval value without an approved request | Redeeming this many points needs a manager's approval. | Raise the request from Redeem Points with a reason, ask a manager to approve it under Approvals, then complete the sale. | High | 422 |
 | `CUSTOM-0614` | Loyalty adjustment not valid (no customer, zero points, or no Loyalty Adjustment reason) | This points adjustment can't be made. | Choose the customer, type the points (+ to credit, - to debit) and pick a Loyalty Adjustment reason. | Low | 422 |
 | `CUSTOM-0615` | Loyalty debit adjustment larger than the balance | That debit is more than the customer's points. | Debit at most the customer's current balance. | Medium | 422 |
+| `CUSTOM-0621` | Points transfer not valid (switched off, same customer, no points, unknown customer or transfer) | This points transfer can't be made. | Check the setting is on, choose two different customers and enter the points. | Low | 422 |
+| `CUSTOM-0622` | Transfer larger than the customer's usable points | That is more points than can be sent. | Send at most the usable points - pending, expired and used points cannot be sent. | Medium | 422 |
+| `CUSTOM-0623` | Transfer over the customer's daily limit | This customer has reached today's limit for sending points. | Send fewer points, or try again tomorrow. | Medium | 422 |
+| `CUSTOM-0624` | Transfer code wrong, expired, used or for another transfer | That code didn't work. | Ask the customer for the latest code, or start the transfer again. | Medium | 422 |
+| `CUSTOM-0690` | Loyalty scheme overlaps another for a store and dates | Another scheme already covers these stores on these dates. | Change the dates or the stores, or switch the other scheme off. | Medium | 422 |
+| `CUSTOM-0691` | Customer is blocked from loyalty points | This customer is blocked from using points. | Take the sale without points, or lift the block on the customer. | Medium | 422 |
+| `CUSTOM-0692` | Loyalty scheme or block not valid (no reason, end before start, or spend per point below 1) | Check the highlighted loyalty field. | Give a reason for the block, end the scheme after it starts, and set spend per point to 1 or more. | Low | 422 |
 
 ## Data Import / Excel Upload
 

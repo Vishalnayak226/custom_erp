@@ -371,5 +371,7 @@ func handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	locationCode := r.Header.Get("Resolved-Location")
 	newToken := engines.SignToken(userID, username, role, tenantID, locationCode, newCredentialVersion)
 	engines.RecordSignIn(tenantID, userID) // 49.2.1a
+	// 49.11.7: a full-access sign-in is listed under Privileged sessions.
+	engines.RecordPrivilegedSession(r.Context(), tenantID, userID, username, role, newToken, newCredentialVersion)
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "token": newToken})
 }

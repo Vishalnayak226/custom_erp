@@ -34,6 +34,18 @@ func init() {
 		Label: "Recompute customer tier on each earn", Type: SettingTypeBool, Default: "true",
 		Description: "When on, a customer's loyalty tier is re-evaluated against lifetime spend every time they earn points.",
 	})
+	// Stage 146.2.5: tags that never earn points.
+	RegisterSetting(SettingDefinition{
+		Key: "loyalty.never_earn_tags", Module: "Loyalty",
+		Label: "Customer tags that never earn", Type: SettingTypeString, Default: "",
+		Description: "Comma-separated customer tags, such as Staff. A customer with one of them earns no points; they can still use the ones they have.",
+	})
+	// Stage 146.1.1: tiers re-evaluated every day.
+	RegisterSetting(SettingDefinition{
+		Key: "loyalty.tier_daily_reevaluation", Module: "Loyalty",
+		Label: "Re-evaluate tiers every day", Type: SettingTypeBool, Default: "false",
+		Description: "When on, every member's tier is re-checked once a day, so a lapsed tier drops without waiting for the next bill. Each change shows on the customer timeline.",
+	})
 	// Stage 73.3.1: what a tier is earned on.
 	RegisterSetting(SettingDefinition{
 		Key: "loyalty.tier_window_days", Module: "Loyalty",
@@ -98,6 +110,18 @@ func init() {
 			{Value: "yes", Label: "Yes - each day a SKU is received gets its own barcode (printed on that receipt's stickers)"},
 		},
 		Description: "For stock you age or rotate by arrival date. Every dated barcode still scans as its SKU, and is listed under Setup > Item Barcode.",
+	})
+	// Stage 146.3.2: a code for every piece received - see engines/piece_codes_stage146.go.
+	RegisterSetting(SettingDefinition{
+		Key: "inventory.piece_codes_stores", Module: "Inventory",
+		Label: "Stores that give every piece its own code", Type: SettingTypeString, Default: "",
+		Description: "Blank is off. Type all, or store codes separated by commas. A goods receipt at those stores then gives each accepted piece of an item type marked Code for every piece received its own serial code, and its stickers print that code.",
+	})
+	// Stage 146.3.3: the handheld work queue - see engines/warehouse_work_queue_stage146.go.
+	RegisterSetting(SettingDefinition{
+		Key: "wms.work_queue", Module: "Warehouse",
+		Label: "Handheld work queue", Type: SettingTypeBool, Default: "false",
+		Description: "When on, a posted goods receipt creates put-away tasks and a wave pick list creates pick tasks. Handheld users take them from My next task on the RF screen. Off keeps the handheld as it is.",
 	})
 	// Stage 61.6: GRN batch numbers - see engines/wms_receiving.go.
 	RegisterSetting(SettingDefinition{
@@ -349,6 +373,25 @@ func registerStage282Settings() {
 		Description: "What one loyalty point is worth in rupees when a customer burns it at checkout. Also drives the outstanding loyalty-liability report.",
 	})
 
+	RegisterSetting(SettingDefinition{
+		Key: "loyalty.redemption_paise_per_point", Module: "Loyalty",
+		Label: "Redemption value per point (paise)", Type: SettingTypeInt, Default: "0", Unit: "paise per point",
+		Min:         settingBound(0),
+		Description: "A point worth less than Rs 1: 50 means 1 point = 50 paise. 0 uses the rupee value above. Points stay whole numbers.",
+	})
+
+	RegisterSetting(SettingDefinition{
+		Key: "loyalty.points_transfer", Module: "Loyalty",
+		Label: "Points transfer between customers", Type: SettingTypeBool, Default: "false",
+		Description: "Lets a manager move usable points from one customer to another after the sender confirms with a one-time code. Large transfers wait for approval.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "loyalty.points_transfer_daily_cap", Module: "Loyalty",
+		Label: "Most points one customer can send a day", Type: SettingTypeInt, Default: "1000", Unit: "points",
+		Min:         settingBound(0),
+		Description: "0 means no limit.",
+	})
+
 	// Stage 47.5.1 (audit A-05). Single-owner is the SUPPORTED configuration,
 	// not merely the default. Stage 59.6: mixed owners is supported too -
 	// orders, pick tasks, allocation, availability and every bin movement
@@ -495,6 +538,11 @@ func registerStage282Settings() {
 		Label: "Freeze exports (emergency)", Type: SettingTypeBool, Default: "false",
 		Description: "Stage 49.12.3: while on, every bulk export and report download is refused for this business and logged. For a suspected data leak; turn it off to undo. Audit evidence exports stay open. Set it from Activity Log → Security so a reason is recorded.",
 	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingFreezeIntegrations, Module: "Security",
+		Label: "Freeze integrations (emergency)", Type: SettingTypeBool, Default: "false",
+		Description: "Stage 49.12.3: while on, every outside call for this business is refused (connectors, couriers, webhooks, hooks, email) and its inbound webhooks are turned away. For a leaked key or a runaway integration; turn it off to undo. Set it from Activity Log → Security so a reason is recorded.",
+	})
 	// Stage 49.2.1 / 49.2.6: identity lifecycle sweeps (identity_lifecycle.go).
 	// Off by default - nothing is disabled or revoked until an admin picks a
 	// period. The shortest account period (60 days) is longer than the longest
@@ -547,6 +595,24 @@ func registerStage282Settings() {
 		Label: "Concurrent requests per tenant", Type: SettingTypeInt, Default: "15", Unit: "requests",
 		Min: settingBound(1), Max: settingBound(500),
 		Description: "How many requests one tenant may have in flight at once before further ones are shed, so a single tenant cannot starve the others.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "platform.db_statement_timeout_seconds", Module: "Platform",
+		Label: "Database statement timeout", Type: SettingTypeInt, Default: "0", Unit: "seconds",
+		Min: settingBound(0), Max: settingBound(3600),
+		Description: "Cancel any database statement that runs longer than this. 0 is off. Reports keep their own five-minute limit; migrations and backups are never cut.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "platform.disk_free_alert_percent", Module: "Platform",
+		Label: "Alert when free disk is below", Type: SettingTypeInt, Default: "0", Unit: "percent",
+		Min: settingBound(0), Max: settingBound(90),
+		Description: "Page the operator once a day while the server's disk has less than this much free. 0 is off. Read from the default client.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "platform.wal_size_alert_gb", Module: "Platform",
+		Label: "Alert when the WAL is larger than", Type: SettingTypeInt, Default: "0", Unit: "GB",
+		Min: settingBound(0), Max: settingBound(1000),
+		Description: "Page the operator once a day while the database's write-ahead log is larger than this. 0 is off. Read from the default client.",
 	})
 	RegisterSetting(SettingDefinition{
 		Key: "platform.import_batch_rows", Module: "Platform",
@@ -692,6 +758,31 @@ func registerStage282Settings() {
 		Label: "Unsettled order aging threshold", Type: SettingTypeInt, Default: "7", Unit: "days",
 		Min:         settingBound(1),
 		Description: "How many days after a marketplace order ships it is flagged on the Unsettled Settlements report if no settlement line has matched it yet.",
+	})
+
+	// Stage 146.4.4: ship-from-store limits. Each rule is hard (the store is
+	// out) or soft (it ranks below stores that break fewer rules). The limits
+	// themselves are set on each Location; with none set routing is unchanged.
+	for _, r := range []struct{ key, label, what string }{
+		{"oms.ship_rule_channel", "Store channel limit", "a store whose Ship channels list does not include the order's channel"},
+		{"oms.ship_rule_online", "Store online-orders switch", "a store with Online orders set to No"},
+		{"oms.ship_rule_cap", "Store daily order cap", "a store that has already been sent its daily cap of orders today"},
+		{"oms.ship_rule_distance", "Store distance limit", "a store farther from the order's PIN than the distance limit"},
+	} {
+		RegisterSetting(SettingDefinition{
+			Key: r.key, Module: "OMS", Label: r.label, Type: SettingTypeSelect, Default: "hard",
+			Options: []SettingOption{
+				{Value: "hard", Label: "Hard - the store is left out"},
+				{Value: "soft", Label: "Soft - the store ranks lower"},
+			},
+			Description: "How order routing treats " + r.what + ". Hard leaves it out of the choice; soft keeps it but picks a store that breaks fewer rules first.",
+		})
+	}
+	RegisterSetting(SettingDefinition{
+		Key: "oms.ship_max_distance_km", Module: "OMS",
+		Label: "Farthest store to ship from", Type: SettingTypeInt, Default: "0", Unit: "km",
+		Min:         settingBound(0),
+		Description: "0 means no limit. Distance is from the order's PIN to the store's PIN using the PIN master (PIN Code, imported by CSV); a PIN missing from the master is never held against a store.",
 	})
 
 	// --- Dunning (Stage 37.4.4) ---

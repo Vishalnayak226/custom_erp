@@ -2,13 +2,77 @@ package engines
 
 import (
 	"custom_erp/db"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"html"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
+
+const (
+	pimTransformMaxPad     = 200
+	pimTransformMaxPattern = 200
+)
+
+var pimHTMLTagPattern = regexp.MustCompile(`(?s)<[^>]*>`)
+
+// pimCompileTransformRegex compiles an operand as RE2 (linear time, no
+// backtracking) and caps its length so a rule cannot carry a huge pattern.
+func pimCompileTransformRegex(pattern string) (*regexp.Regexp, error) {
+	if len(pattern) > pimTransformMaxPattern {
+		return nil, fmt.Errorf("the pattern is longer than %d characters", pimTransformMaxPattern)
+	}
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("the pattern is not valid: %v", err)
+	}
+	return re, nil
+}
+
+func pimSplitList(list string) []string {
+	out := []string{}
+	for _, part := range strings.Split(list, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
+func pimTransformLookup(tc PIMTransformContext, attribute string) string {
+	if tc.Lookup == nil {
+		return ""
+	}
+	return tc.Lookup(attribute)
+}
+
+// lookupPIMValueMap finds the marketplace's name for our value. found is
+// false when the channel has no map for it (the value then passes through).
+func lookupPIMValueMap(tenantID, channel, attribute, ourValue string) (string, bool, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return "", false, err
+	}
+	var theirs string
+	err = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'their_value', '') FROM %s.documents
+		WHERE doctype = 'PIMValueMap' AND deleted_at IS NULL AND status = 'Active'
+		  AND UPPER(data->>'channel') = UPPER($1) AND UPPER(data->>'attribute') = UPPER($2)
+		  AND UPPER(TRIM(data->>'our_value')) = UPPER(TRIM($3))
+		ORDER BY id LIMIT 1`, schema), strings.TrimSpace(channel), strings.TrimSpace(attribute), ourValue).Scan(&theirs)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return theirs, true, nil
+}
 
 // Stage 36.5: declarative data transformation rules.
 //
@@ -39,6 +103,23 @@ type pimTransformFunction struct {
 	NeedsOperand2 bool
 	Operand2Hint  string
 	apply         func(value, operand1, operand2 string) (string, error)
+	// applyCtx is used instead of apply by a step that reads beyond its own
+	// value (a value map, another attribute of the same product).
+	applyCtx func(tc PIMTransformContext, value, operand1, operand2 string) (string, error)
+	// RunsOnBlank (Stage 146.1.2): the step is meant for a blank value
+	// (fill a default, build from other attributes). Every other step is
+	// skipped on a blank value so it never emits junk (a prefix on nothing).
+	RunsOnBlank bool
+}
+
+// PIMTransformContext is what a rule may read besides the value it is given.
+// Channel is the marketplace being exported to (a value-map step reads that
+// channel's names); Lookup returns another attribute of the same product or
+// import row (join, first_non_empty). All are optional.
+type PIMTransformContext struct {
+	TenantID string
+	Channel  string
+	Lookup   func(attribute string) string
 }
 
 // PIMTransformFunctionInfo is the form-facing description of one function,
@@ -104,6 +185,7 @@ var pimTransformFunctions = map[string]pimTransformFunction{
 	"default_if_empty": {
 		Description:   "Substitute a literal value when the source is blank.",
 		NeedsOperand1: true, Operand1Hint: "the fallback value",
+		RunsOnBlank: true,
 		apply: func(value, operand1, _ string) (string, error) {
 			if strings.TrimSpace(value) == "" {
 				return operand1, nil
@@ -135,6 +217,159 @@ var pimTransformFunctions = map[string]pimTransformFunction{
 				return "", fmt.Errorf("number_format: %q is not a number", value)
 			}
 			return strconv.FormatFloat(n, 'f', decimals, 64), nil
+		},
+	},
+	"constant": {
+		Description:   "Replace the value with a fixed text.",
+		NeedsOperand1: true, Operand1Hint: "the fixed text",
+		RunsOnBlank: true,
+		apply: func(_, operand1, _ string) (string, error) {
+			return operand1, nil
+		},
+	},
+	"join": {
+		Description:   "Join this value with other attributes of the same product, skipping blanks.",
+		NeedsOperand1: true, Operand1Hint: "attribute codes, comma separated",
+		Operand2Hint: "separator, default a space",
+		RunsOnBlank:  true,
+		applyCtx: func(tc PIMTransformContext, value, operand1, operand2 string) (string, error) {
+			sep := operand2
+			if sep == "" {
+				sep = " "
+			}
+			parts := []string{}
+			if strings.TrimSpace(value) != "" {
+				parts = append(parts, strings.TrimSpace(value))
+			}
+			for _, code := range pimSplitList(operand1) {
+				if other := strings.TrimSpace(pimTransformLookup(tc, code)); other != "" {
+					parts = append(parts, other)
+				}
+			}
+			return strings.Join(parts, sep), nil
+		},
+	},
+	"first_non_empty": {
+		Description:   "Keep the value, or the first filled attribute of the list when it is blank.",
+		NeedsOperand1: true, Operand1Hint: "attribute codes, comma separated",
+		RunsOnBlank: true,
+		applyCtx: func(tc PIMTransformContext, value, operand1, _ string) (string, error) {
+			if strings.TrimSpace(value) != "" {
+				return value, nil
+			}
+			for _, code := range pimSplitList(operand1) {
+				if other := strings.TrimSpace(pimTransformLookup(tc, code)); other != "" {
+					return other, nil
+				}
+			}
+			return "", nil
+		},
+	},
+	"pad": {
+		Description:   "Pad to a width with a character, on the left by default.",
+		NeedsOperand1: true, Operand1Hint: "the width, a whole number",
+		Operand2Hint: "pad character, default 0; add :right to pad on the right",
+		apply: func(value, operand1, operand2 string) (string, error) {
+			width, err := strconv.Atoi(strings.TrimSpace(operand1))
+			if err != nil || width < 0 || width > pimTransformMaxPad {
+				return "", fmt.Errorf("pad needs a width from 0 to %d, got %q", pimTransformMaxPad, operand1)
+			}
+			char, right := "0", false
+			if operand2 != "" {
+				char = operand2
+				if strings.HasSuffix(char, ":right") {
+					char, right = strings.TrimSuffix(char, ":right"), true
+				} else if strings.HasSuffix(char, ":left") {
+					char = strings.TrimSuffix(char, ":left")
+				}
+				if utf8.RuneCountInString(char) != 1 {
+					return "", fmt.Errorf("pad needs a single pad character, got %q", operand2)
+				}
+			}
+			missing := width - utf8.RuneCountInString(value)
+			if missing <= 0 {
+				return value, nil
+			}
+			fill := strings.Repeat(char, missing)
+			if right {
+				return value + fill, nil
+			}
+			return fill + value, nil
+		},
+	},
+	"regex_replace": {
+		Description:   "Replace every match of a regular expression (RE2); $1 in the replacement is the first group.",
+		NeedsOperand1: true, Operand1Hint: "the pattern",
+		Operand2Hint: "the replacement, may be blank",
+		apply: func(value, operand1, operand2 string) (string, error) {
+			re, err := pimCompileTransformRegex(operand1)
+			if err != nil {
+				return "", fmt.Errorf("regex_replace: %w", err)
+			}
+			return re.ReplaceAllString(value, operand2), nil
+		},
+	},
+	"regex_extract": {
+		Description:   "Keep the first match of a regular expression (RE2), or its first group when it has one; blank when nothing matches.",
+		NeedsOperand1: true, Operand1Hint: "the pattern",
+		apply: func(value, operand1, _ string) (string, error) {
+			re, err := pimCompileTransformRegex(operand1)
+			if err != nil {
+				return "", fmt.Errorf("regex_extract: %w", err)
+			}
+			m := re.FindStringSubmatch(value)
+			switch {
+			case m == nil:
+				return "", nil
+			case len(m) > 1:
+				return m[1], nil
+			}
+			return m[0], nil
+		},
+	},
+	"strip_html": {
+		Description: "Remove HTML tags, decode entities and collapse spaces.",
+		apply: func(value, _, _ string) (string, error) {
+			text := pimHTMLTagPattern.ReplaceAllString(value, " ")
+			return strings.Join(strings.Fields(html.UnescapeString(text)), " "), nil
+		},
+	},
+	"split": {
+		Description:   "Keep one part of the value split on a separator.",
+		NeedsOperand1: true, Operand1Hint: "the separator",
+		NeedsOperand2: true, Operand2Hint: "which part, counting from 1",
+		apply: func(value, operand1, operand2 string) (string, error) {
+			n, err := strconv.Atoi(strings.TrimSpace(operand2))
+			if err != nil || n < 1 {
+				return "", fmt.Errorf("split needs a part number from 1, got %q", operand2)
+			}
+			parts := strings.Split(value, operand1)
+			if n > len(parts) {
+				return "", nil
+			}
+			return strings.TrimSpace(parts[n-1]), nil
+		},
+	},
+	"value_map": {
+		Description:   "Swap our value for the marketplace's name from the Value Maps list.",
+		NeedsOperand1: true, Operand1Hint: "the attribute the map is kept under",
+		Operand2Hint: "channel code, default the channel being exported",
+		applyCtx: func(tc PIMTransformContext, value, operand1, operand2 string) (string, error) {
+			channel := strings.TrimSpace(operand2)
+			if channel == "" {
+				channel = tc.Channel
+			}
+			if channel == "" {
+				return "", fmt.Errorf("value_map needs a channel: put the channel code in operand 2")
+			}
+			mapped, found, err := lookupPIMValueMap(tc.TenantID, channel, operand1, value)
+			if err != nil {
+				return "", err
+			}
+			if !found {
+				return value, nil
+			}
+			return mapped, nil
 		},
 	},
 	"date_format": {
@@ -236,6 +471,14 @@ func ValidatePIMTransformRuleDocument(_ string, payload map[string]interface{}) 
 		// function, which needs a real value to validate against) so a typo
 		// is caught at authoring time rather than the first import/publish
 		// that hits this rule.
+		// Stage 146.5.3: a bad regex, pad width or split position is caught
+		// here too, by running the step on a sample value.
+		if name == "regex_replace" || name == "regex_extract" || name == "pad" || name == "split" {
+			if _, err := fn.apply("sample", step.Operand1, step.Operand2); err != nil {
+				return &ValidationError{Code: "GLOBAL-0002", SubFor: "Steps",
+					Message: fmt.Sprintf("step %d: %v", i+1, err)}
+			}
+		}
 		if name == "truncate" || name == "number_format" {
 			if n, numErr := strconv.Atoi(strings.TrimSpace(step.Operand1)); numErr != nil || n < 0 {
 				return &ValidationError{Code: "GLOBAL-0002", SubFor: "Steps",
@@ -323,11 +566,25 @@ func fetchPIMTransformRule(tenantID, ruleID string) (string, []PIMTransformStep,
 // PIMImportTemplate) call, so the two can never disagree about what a rule
 // does to a value.
 func ApplyPIMTransformRule(tenantID, ruleID, value string) (string, error) {
-	_, steps, err := fetchPIMTransformRule(tenantID, ruleID)
+	return ApplyPIMTransformRuleCtx(ruleID, value, PIMTransformContext{TenantID: tenantID})
+}
+
+// ApplyPIMTransformRuleCtx is ApplyPIMTransformRule with the channel and
+// product context a value map or a join needs.
+func ApplyPIMTransformRuleCtx(ruleID, value string, tc PIMTransformContext) (string, error) {
+	_, steps, err := fetchPIMTransformRule(tc.TenantID, ruleID)
 	if err != nil {
 		return "", err
 	}
+	return runPIMTransformSteps(ruleID, steps, value, tc)
+}
+
+// runPIMTransformSteps: a blank value (Stage 146.1.2) still goes through the
+// rule, but only steps marked RunsOnBlank act on it; the rest are skipped so a
+// prefix, a format or a find-replace never turns nothing into junk.
+func runPIMTransformSteps(ruleID string, steps []PIMTransformStep, value string, tc PIMTransformContext) (string, error) {
 	result := value
+	var err error
 	for i, step := range steps {
 		fn, known := pimTransformFunctions[strings.TrimSpace(step.Function)]
 		if !known {
@@ -336,7 +593,15 @@ func ApplyPIMTransformRule(tenantID, ruleID, value string) (string, error) {
 			// row is ever written by a path that skips validation.
 			return "", fmt.Errorf("transform rule %q step %d: unknown function %q", ruleID, i+1, step.Function)
 		}
-		result, err = fn.apply(result, step.Operand1, step.Operand2)
+		if strings.TrimSpace(result) == "" && !fn.RunsOnBlank {
+			result = ""
+			continue
+		}
+		if fn.applyCtx != nil {
+			result, err = fn.applyCtx(tc, result, step.Operand1, step.Operand2)
+		} else {
+			result, err = fn.apply(result, step.Operand1, step.Operand2)
+		}
 		if err != nil {
 			return "", fmt.Errorf("transform rule %q step %d (%s): %w", ruleID, i+1, step.Function, err)
 		}

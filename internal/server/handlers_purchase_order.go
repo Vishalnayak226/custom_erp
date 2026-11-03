@@ -108,6 +108,9 @@ func handlePrintPurchaseOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !requirePrintInScope(w, r, engines.PrintTxnPurchaseOrder, r.PathValue("id")) {
+		return
+	}
 	doc, err := engines.BuildPurchaseOrderPrint(tenantID, r.PathValue("id"))
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusNotFound)

@@ -418,7 +418,7 @@ func prepareReturnRequest(tenantID, schema, requestType, returnLocation, origina
 		for i, it := range items {
 			routingItems[i] = map[string]interface{}{"sku": it.SKU, "qty": it.Qty}
 		}
-		if loc, ok, errRoute := singleLocationNearestPincode(schema, rtoDestinationPincode, routingItems); errRoute == nil && ok {
+		if loc, ok, errRoute := singleLocationNearestPincode(schema, rtoDestinationPincode, routingItems, nil); errRoute == nil && ok {
 			out.returnLocation = loc
 			out.autoRouted = true
 		}

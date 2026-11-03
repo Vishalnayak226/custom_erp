@@ -161,6 +161,16 @@ func settleFailedCourierStep(tenantID string, c courierStepClaim, step courierSt
 	return courierClearFailure(provider, wrote, err)
 }
 
+// settleStepNotRecorded (49.8.8): the courier did the step but its result could
+// not be saved here. The booking is held as uncertain (not left looking "being
+// sent"), the reference goes in the audit log, and the retry asks the courier
+// first or waits for Resolve - the courier is not called a second time.
+func settleStepNotRecorded(tenantID, schema string, step courierStep, provider, bookingID, reference string, err error) error {
+	markCourierStepUncertain(schema, bookingID, step)
+	LogAuditEvent(tenantID, "system", "COURIER_"+strings.ToUpper(step.name)+"_NOT_RECORDED", "FAILURE", fmt.Sprintf("booking=%s provider=%s reference=%s: %v", bookingID, provider, reference, err))
+	return courierStepUnconfirmed(step, provider, bookingID, provider+" "+step.pastVerb+" (reference "+reference+") but it could not be saved here.")
+}
+
 func courierStepUnconfirmed(step courierStep, provider, bookingID, why string) error {
 	return &ValidationError{Code: CourierStepUnconfirmedCode, Message: fmt.Sprintf("%s Check booking %s on the %s portal, then resolve it here as %s or %s.", why, bookingID, provider, step.done, step.notDone)}
 }

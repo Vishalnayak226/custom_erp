@@ -213,6 +213,40 @@ async function renderControlPanelView(container) {
   `;
   container.appendChild(cert);
 
+  // Stage 47.9.3: the heaviest statement shapes (no values), buffers and the change since the saved baseline.
+  const sq = cp.slow_queries || {};
+  const sqRows = sq.by_total || [];
+  const sqBuf = sq.buffers;
+  const sqBase = sq.baseline;
+  const sqEl = document.createElement('div');
+  sqEl.className = 'table-panel';
+  sqEl.innerHTML = `
+    <div style="display:flex; align-items:center; gap:12px; padding:16px 16px 0;">
+      <h3 style="font-size:16px; font-weight:600; flex:1;">Slow queries</h3>
+      <span style="font-size:12px; color:var(--text-muted);">${escapeHTMLText(sq.source || '')}${sqBuf ? ` · buffer hit ${sqBuf.hit_ratio.toFixed(1)}%` : ''}${sqBase ? ` · baseline ${escapeHTMLText(new Date(sqBase.saved_at).toLocaleString('en-IN'))}` : ''}</span>
+      <button class="btn btn-outline" id="cp-save-baseline" type="button">Save as baseline</button>
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead><tr><th>Statement</th><th class="num">Calls</th><th class="num">Mean ms</th><th class="num">Max ms</th><th class="num">Total ms</th><th class="num">Buffers</th><th class="num">Change</th></tr></thead>
+        <tbody>
+          ${sqRows.length === 0 ? '<tr><td colspan="7" style="color:var(--text-muted);">None.</td></tr>' : ''}
+          ${sqRows.map(q => `<tr><td style="font-family:monospace; font-size:12px; max-width:520px; overflow-wrap:anywhere;">${escapeHTMLText(q.query)}</td>
+            <td class="num">${q.calls}</td><td class="num">${Math.round(q.mean_ms)}</td><td class="num">${Math.round(q.max_ms)}</td><td class="num">${Math.round(q.total_ms)}</td>
+            <td class="num">${q.shared_blocks ? q.shared_blocks : '<span class="text-muted">&mdash;</span>'}</td>
+            <td class="num">${q.change_pct == null ? '<span class="text-muted">&mdash;</span>' : `<span style="${q.change_pct > 20 ? 'color:var(--danger-color); font-weight:600;' : ''}">${q.change_pct > 0 ? '+' : ''}${q.change_pct.toFixed(0)}%</span>`}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  container.appendChild(sqEl);
+  sqEl.querySelector('#cp-save-baseline').addEventListener('click', async () => {
+    const r = await apiFetch('/api/v1/platform/query-baseline', { method: 'POST', body: '{}' });
+    if (!r) return;
+    if (!r.ok) { await showApiError(r, 'Could not save the baseline'); return; }
+    renderView('control-panel');
+  });
+
   // Stage 47.17.5: capability maturity, per configuration.
   const mat = document.createElement('div');
   mat.className = 'table-panel';

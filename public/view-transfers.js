@@ -69,7 +69,6 @@ async function renderTransfersView(container) {
           <input type="text" id="transfer-to" class="form-input" autocomplete="off">
         </div>
       </div>
-      <div class="txn-hint"><span>Create a draft, get it approved, then dispatch and receive it.</span></div>
       <div class="txn-entry">
         <div class="form-group txn-entry-main">
           <label class="form-label" for="transfer-line-sku">SKU</label>
@@ -96,7 +95,7 @@ async function renderTransfersView(container) {
           </thead>
           <tbody>
             ${transfers.length === 0
-              ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No transfers yet. Click <b>+ New Transfer</b>, add the lines, then <b>Create Transfer</b> to move stock between locations.</td></tr>`
+              ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No transfers yet.</td></tr>`
               : transfers.map(t => `
                 <tr>
                   <td style="font-family: monospace;">${escapeHTMLText(t.transfer_number || t.id)}</td>
@@ -558,8 +557,7 @@ async function dispatchTransferOrder(id) {
     renderView('transfers');
     return;
   }
-  const body = `<p style="margin: 0; color: var(--text-muted);">These items are tracked. Stock moves from the source into transit when you dispatch.</p>
-    ${tracked.map((l, i) => /Serial/.test(l.tracking_mode) ? `
+  const body = `${tracked.map((l, i) => /Serial/.test(l.tracking_mode) ? `
       <div class="form-group"><label class="form-label" for="tdisp-serial-${i}">${escapeHTMLText(l.name || l.sku)} - scan ${l.qty} serial number${l.qty === 1 ? '' : 's'}</label>
         <textarea id="tdisp-serial-${i}" class="form-input" rows="3" data-sku="${escapeHTMLText(l.sku)}" data-kind="serial" data-qty="${l.qty}" placeholder="One per line"></textarea></div>` : `
       <div class="form-group"><label class="form-label" for="tdisp-lot-${i}">${escapeHTMLText(l.name || l.sku)} (${l.qty}) - lots</label>
@@ -631,7 +629,7 @@ async function receiveTransferOrder(id) {
       ${reasonField}
       <label style="display: flex; gap: 8px; align-items: center;"><input type="checkbox" id="trcv-keep-open" checked>
         Units not entered here stay in transit for a later delivery</label>
-      <small style="color: var(--text-muted);">Untick to close the transfer now: anything not entered is recorded as lost and needs the reason above. Damaged units are kept out of sellable stock.</small>`,
+      <small style="color: var(--text-muted);">Unticked: anything not entered is recorded as lost.</small>`,
     onSubmit: async form => {
       const key = form.dataset.key || (form.dataset.key = newKey());
       const reason = form.querySelector('#trcv-reason')?.value || '';
@@ -675,8 +673,7 @@ async function returnTransferOrder(id) {
   const from = (await linkNameMap('Location')).get(String(row.from_warehouse || '')) || row.from_warehouse;
   openTransferDialog({
     title: `Return to ${from || 'source'}`, submitLabel: 'Return to Source',
-    body: `<p style="margin: 0; color: var(--text-muted);">The units go back into the sending store's stock; put tracked lots away again there.</p>
-      ${balance.map((b, i) => {
+    body: `${balance.map((b, i) => {
         const serials = inTransitSerials(b);
         return serials.length
           ? `<div class="form-group"><label class="form-label" for="tret-sn-${i}">${itemLabel(names, b.sku)} - serial numbers going back</label>
@@ -718,7 +715,7 @@ async function cancelTransferOrder(id) {
   const reasonField = await reasonCodeField('Cancellation', 'tcxl-reason', 'Reason');
   openTransferDialog({
     title: `Cancel ${row.transfer_number || row.id}`, submitLabel: 'Cancel Transfer',
-    body: `<p style="margin: 0;">Nothing has left the store yet, so no stock moves.</p>${reasonField}
+    body: `<p style="margin: 0;">No stock moves.</p>${reasonField}
       <div class="form-group"><label class="form-label" for="tcxl-note">Note</label><input id="tcxl-note" class="form-input" maxlength="200"></div>`,
     onSubmit: async form => {
       const reason = form.querySelector('#tcxl-reason')?.value || '';

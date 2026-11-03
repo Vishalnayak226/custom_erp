@@ -90,6 +90,9 @@ func cancelOpenPickTasksTx(tx *sql.Tx, schema, orderID, reason, userID string, a
 			string(patch), FulfillmentTaskCancelled, t.id); err != nil {
 			return nil, err
 		}
+		if _, err := cancelWorkTasksExec(tx, schema, "FulfillmentTask", t.id); err != nil {
+			return nil, err
+		}
 		cancelled = append(cancelled, t.id)
 	}
 	return cancelled, nil

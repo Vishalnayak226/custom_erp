@@ -118,7 +118,7 @@ func RenderMarkdown(source string) string {
 			out.WriteString("</tr></thead><tbody>")
 			for i < len(lines) && strings.Contains(lines[i], "|") && strings.TrimSpace(lines[i]) != "" {
 				cells := splitTableRow(lines[i])
-				out.WriteString("<tr>")
+				out.WriteString(r.tableRowOpen(head, cells))
 				for column := range head {
 					value := ""
 					if column < len(cells) {
@@ -471,3 +471,25 @@ func safeURL(raw string) string {
 		return "#"
 	}
 }
+
+// tableRowOpen opens a table row. A row of a table whose first column is
+// "Code" and whose first cell is one inline-code value gets the id
+// code-<value> (Stage 47.14.4), so a link can land on one error code in the
+// error-code reference: /help/error-code-reference#code-salesp-0122.
+func (r *renderer) tableRowOpen(head, cells []string) string {
+	if len(head) == 0 || len(cells) == 0 || !strings.EqualFold(strings.TrimSpace(head[0]), "Code") {
+		return "<tr>"
+	}
+	cell := strings.TrimSpace(cells[0])
+	if len(cell) < 3 || cell[0] != '`' || cell[len(cell)-1] != '`' || strings.Contains(cell[1:len(cell)-1], "`") {
+		return "<tr>"
+	}
+	code := cell[1 : len(cell)-1]
+	if !errorCodeCell.MatchString(code) {
+		return "<tr>"
+	}
+	return `<tr id="` + html.EscapeString(r.uniqueSlug("code-"+code)) + `">`
+}
+
+// errorCodeCell is the shape of a catalogue code (SALESP-0122).
+var errorCodeCell = regexp.MustCompile(`^[A-Z][A-Z0-9]*-\d{4}$`)

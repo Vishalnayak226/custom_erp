@@ -37,12 +37,15 @@ const (
 	outsideCallsKilled
 	outsideCallsClientOff
 	outsideCallsDevelopment
+	outsideCallsFrozen
 )
 
 func (s outsideCallsState) reason() string {
 	switch s {
 	case outsideCallsKilled:
 		return "outside calls are switched off on this server (emergency switch)"
+	case outsideCallsFrozen:
+		return "integrations are frozen for this client by an administrator (Activity Log > Security)"
 	case outsideCallsClientOff:
 		return "outside calls are off for this client (Settings > Configuration > Platform > Outside calls)"
 	case outsideCallsDevelopment:
@@ -62,6 +65,8 @@ func outsideCallsFor(schema string) outsideCallsState {
 	switch {
 	case ExternalSideEffectsKilled():
 		return outsideCallsKilled
+	case integrationsFrozen(schema):
+		return outsideCallsFrozen
 	case outsideCallsClientIsOff(schema):
 		return outsideCallsClientOff
 	case !externalSideEffectsByEnvironment():
@@ -111,6 +116,8 @@ func outsideCallsSchemaOf(tenantID string) string {
 func outsideCallRefusal(schema, method, rawURL string) string {
 	write := method != http.MethodGet && method != http.MethodHead
 	switch {
+	case integrationsFrozen(schema):
+		return outsideCallsFrozen.reason() // 49.12.3a: reads too
 	case write && ExternalSideEffectsKilled():
 		return outsideCallsKilled.reason()
 	case write && outsideCallsClientIsOff(schema):
@@ -173,4 +180,11 @@ func outsideCallsSchemaFrom(ctx context.Context) string {
 	}
 	c.once.Do(func() { c.schema = outsideCallsSchemaOf(c.tenantID) })
 	return c.schema
+}
+
+// integrationsFrozen is the client's emergency integration freeze (49.12.3a):
+// stronger than the Outside calls setting, it stops reads as well as writes.
+// Cached per schema by the settings registry, so asking costs a map lookup.
+func integrationsFrozen(schema string) bool {
+	return schema != "" && GetSettingBoolForSchema(schema, SettingFreezeIntegrations)
 }

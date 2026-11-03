@@ -36,7 +36,12 @@ func ValidateMasterDataRules(tenantID, docID, doctype string, payload map[string
 	case "Vendor":
 		return validateVendorMasterRules(tenantID, docID, payload)
 	case "Customer":
+		if err := validateLoyaltyBlockFields(payload); err != nil {
+			return err
+		}
 		return validateCustomerMasterRules(tenantID, docID, payload)
+	case "LoyaltyScheme":
+		return validateLoyaltySchemeMasterRules(tenantID, docID, payload)
 	case "Location":
 		return validateLocationMasterRules(tenantID, docID, payload)
 	case "ProductContent":

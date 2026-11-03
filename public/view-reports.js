@@ -100,7 +100,7 @@ async function fetchReportRows(reportId, params) {
   const res = await apiFetch(`/api/v1/reports/run/${reportId}${qs}`);
   if (!res || !res.ok) return { rows: [], masked: false };
   const body = await res.json();
-  return { rows: body.rows || [], masked: body.code === 'REPORT-0287' };
+  return { rows: body.rows || [], masked: body.code === 'REPORT-0287', contract: body.contract || null };
 }
 
 function execDashboardOpenReport(reportId) {
@@ -220,13 +220,14 @@ async function renderExecDashboardBody(panel) {
   // below already guards its own container.
   const cardsRow = document.getElementById('exec-dashboard-cards');
   if (!cardsRow) return;
+  const contractSummary = (await import('./view-dashboards.js' + new URL(import.meta.url).search)).kpiContractSummary;
   tiles.forEach((t, i) => {
     const value = results[i].rows.length;
     const card = document.createElement('div');
     card.className = 'stat-card';
     card.style.cursor = 'pointer';
     card.style.position = 'relative';
-    card.title = 'Click to open in Report Catalog';
+    card.title = results[i].contract ? `Click to open in Report Catalog · ${contractSummary(results[i].contract)}` : 'Click to open in Report Catalog';
     card.innerHTML = `
       <span class="stat-label">${escapeHTMLText(t.title || t.report_id)}</span>
       <span class="stat-val" style="color:${value > 0 ? '#dc2626' : '#10b981'};">${value}</span>
@@ -1325,11 +1326,21 @@ function renderReportCatalogResultTable(container, result, params) {
   // whole reason the report catalog describes its columns as data.
   const assignKey = columns.some(c => c.key === 'item_code') ? 'item_code' : null;
   const canAssign = assignKey !== null && typeof canCreateDoctype === 'function' && canCreateDoctype('PIMTask');
-  const extraCols = (result.has_drill_down ? 1 : 0) + (canAssign ? 1 : 0);
+  // Stage 47.13.5: the duplicate lists carry a Merge action on every row that
+  // is not the kept record of its group (admin only; the server checks too).
+  const mergeDoctype = result.id === 'duplicate-suppliers' ? 'Vendor' : result.id === 'duplicate-items' ? 'Item' : '';
+  const canMerge = !!mergeDoctype && columns.some(c => c.key === 'proposal');
+  const keptByGroup = {};
+  if (canMerge) rows.forEach(r => { if (r.proposal === 'Keep') keptByGroup[r.group] = r.id; });
+  // Stage 49.5.5: an order-to-cash mismatch is dismissed only with a note.
+  const canDismiss = result.id === 'order-to-cash';
+  const extraCols = (result.has_drill_down ? 1 : 0) + (canAssign ? 1 : 0) + (canMerge ? 1 : 0) + (canDismiss ? 1 : 0);
   let html = `<table><thead><tr>`;
   columns.forEach(c => { html += `<th>${escapeHTMLText(c.label)}</th>`; });
   if (result.has_drill_down) html += `<th>Details</th>`;
   if (canAssign) html += `<th>Task</th>`;
+  if (canMerge) html += `<th>Merge</th>`;
+  if (canDismiss) html += `<th>Exception</th>`;
   html += `</tr></thead><tbody>`;
   if (rows.length === 0) {
     html += `<tr><td colspan="${columns.length + extraCols}" style="text-align:center; color:var(--text-muted);">No rows matched.</td></tr>`;
@@ -1355,6 +1366,15 @@ function renderReportCatalogResultTable(container, result, params) {
         ? `<td><button class="action-btn" data-report-assign-item="${escapeHTMLText(itemCode)}" data-report-label="${escapeHTMLText(result.label || result.id)}">Assign task</button></td>`
         : `<td></td>`;
     }
+    if (canMerge) {
+      const keepId = keptByGroup[row.group];
+      html += row.proposal !== 'Keep' && keepId
+        ? `<td><button class="action-btn" data-merge-dup="${escapeHTMLText(String(row.id))}" data-merge-keep="${escapeHTMLText(String(keepId))}" data-merge-doctype="${mergeDoctype}">Merge</button></td>`
+        : `<td></td>`;
+    }
+    if (canDismiss) {
+      html += row.exception ? `<td>${escapeHTMLText(row.exception)}</td>` : `<td><button class="action-btn" data-dismiss-kind="${escapeHTMLText(String(row.kind))}" data-dismiss-ref="${escapeHTMLText(String(row.ref))}">Dismiss</button></td>`;
+    }
     html += `</tr><tr id="rc-drilldown-${idx}" class="hidden"><td colspan="${columns.length + extraCols}"></td></tr>`;
   });
   html += `</tbody>`;
@@ -1375,6 +1395,31 @@ function renderReportCatalogResultTable(container, result, params) {
       button.dataset.reportRowKey,
       Number(button.dataset.reportDrillIndex)
     ));
+  });
+  container.querySelectorAll('[data-merge-dup]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const { mergeDup, mergeKeep, mergeDoctype: doctype } = button.dataset;
+      const reason = await showCustomPrompt(`Merge ${mergeDup} into ${mergeKeep}. Why?`, '', 'Merge');
+      if (reason === null) return;
+      const res = await apiFetch('/api/v1/admin/master-merges', { method: 'POST', body: JSON.stringify({ doctype, keep_id: mergeKeep, merge_id: mergeDup, reason }) });
+      if (!res) return;
+      if (!res.ok) { showCustomAlert(await getErrorMessage(res, 'Merge failed.'), 'Merge'); return; }
+      const out = await res.json();
+      showToast(`Merged - ${out.moved} reference(s) moved.`, { variant: 'success' });
+      button.closest('tr').remove();
+    });
+  });
+  container.querySelectorAll('[data-dismiss-kind]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const note = await showCustomPrompt(`Dismiss ${button.dataset.dismissKind} for ${button.dataset.dismissRef}. Note (required):`, '', 'Dismiss');
+      if (note === null) return;
+      if (!String(note).trim()) { showCustomAlert('A note is required.', 'Dismiss'); return; }
+      const res = await apiFetch('/api/v1/finance/reconciliation/exceptions', { method: 'POST', body: JSON.stringify({ kind: button.dataset.dismissKind, ref: button.dataset.dismissRef, status: 'Dismissed', note }) });
+      if (!res) return;
+      if (!res.ok) { showCustomAlert(await getErrorMessage(res, 'Could not dismiss.'), 'Dismiss'); return; }
+      showToast('Dismissed.', { variant: 'success' });
+      button.closest('tr').remove();
+    });
   });
   container.querySelectorAll('[data-report-assign-item]').forEach(button => {
     button.addEventListener('click', () => {

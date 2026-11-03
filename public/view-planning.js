@@ -64,6 +64,13 @@ async function generateProposals() {
   });
 }
 
+// Stage 146.1.4: what is already coming (or waiting) behind the Available figure.
+function spParts(p) {
+  const bits = [[p.on_order, '+', 'PO'], [p.in_transit, '+', 'transit'], [p.inward, '+', 'inward'], [p.back_orders, '-', 'waiting']]
+    .filter(b => Number(b[0]) > 0).map(b => `${b[1]}${num(b[0])} ${b[2]}`);
+  return bits.length ? `<div style="font-size: 11px; color: var(--text-muted);">${bits.join(' · ')}</div>` : '';
+}
+
 async function loadProposals() {
   const el = document.getElementById('sp-list');
   if (!el) return;
@@ -86,7 +93,7 @@ async function loadProposals() {
           <td>${esc(p.item_name || p.sku)}<div style="font-size: 11px; color: var(--text-muted);">${esc(p.sku)}</div></td>
           <td>${esc(p.location)}</td>
           <td>${esc(p.source)}${p.for_item ? `<div style="font-size: 11px;">for ${esc(p.for_item)}</div>` : ''}</td>
-          <td class="num">${num(p.available)}</td><td class="num">${num(p.reorder_point)}</td><td class="num">${num(p.suggested_qty)}</td>
+          <td class="num">${num(p.available)}${spParts(p)}</td><td class="num">${num(p.reorder_point)}</td><td class="num">${num(p.suggested_qty)}</td>
           <td class="num">${p.status === 'Proposed' ? `<input type="number" class="form-input sp-qty" style="width: 90px;" min="0" value="${num(p.suggested_qty)}" aria-label="Quantity for ${esc(p.sku)}">` : num(p.approved_qty)}</td>
           <td>${esc(p.action || '')}</td>
           <td><span class="badge ${p.status === 'Converted' ? 'badge-success' : p.status === 'Rejected' ? 'badge-danger' : 'badge-warning'}">${esc(p.status)}</span></td>

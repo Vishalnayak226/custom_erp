@@ -95,6 +95,8 @@ func GetCRMTimeline(tenantID, customerID, before string, limit int, kinds []stri
 			FROM %s.crm_appointments a WHERE a.customer_id = $1`, s),
 		"task": fmt.Sprintf(`SELECT k.created_at, 'task', initcap(replace(k.kind, '_', ' ')) || ': ' || k.title, k.status || COALESCE(' · ' || k.outcome, ''), NULL::numeric, 'CRMTask', k.id
 			FROM %s.crm_tasks k WHERE k.customer_id = $1`, s),
+		"tier": fmt.Sprintf(`SELECT e.occurred_at, 'tier', 'Tier ' || COALESCE(NULLIF(e.payload->>'from', ''), 'none') || ' to ' || COALESCE(NULLIF(e.payload->>'to', ''), 'none'),
+			'', NULL::numeric, NULL::text, NULL::text FROM %s.crm_events e WHERE e.customer_id = $1 AND e.event_type = 'tier_changed'`, s),
 		"journey": fmt.Sprintf(`SELECT j.started_at, 'journey', 'Journey ' || COALESCE(jj.name, j.journey_id) || ' · ' || j.state, COALESCE(j.exit_reason, ''), NULL::numeric, 'CRMJourney', j.journey_id
 			FROM %s.crm_journey_runs j LEFT JOIN %s.crm_journeys jj ON jj.id = j.journey_id WHERE j.customer_id = $1`, s, s),
 	}
@@ -112,7 +114,7 @@ func GetCRMTimeline(tenantID, customerID, before string, limit int, kinds []stri
 		}
 	}
 	var selects []string
-	for _, k := range []string{"bill", "return", "order", "invoice", "points", "voucher", "message", "ticket", "note", "consent", "feedback", "appointment", "task", "journey"} {
+	for _, k := range []string{"bill", "return", "order", "invoice", "points", "voucher", "message", "ticket", "note", "consent", "feedback", "appointment", "task", "journey", "tier"} {
 		q, ok := parts[k]
 		if !ok || (len(want) > 0 && !want[k]) {
 			continue

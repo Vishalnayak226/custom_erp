@@ -190,6 +190,10 @@ func DispatchTransferOrderWith(tenantID, transferOrderID, userID string, picks [
 	if fromWarehouse == "" {
 		return fmt.Errorf("transfer order is missing from_warehouse")
 	}
+	// Stage 146.1.7: dispatch consumes the approval hold before the stock moves.
+	if err := releaseTransferReservationTx(tx, schema, transferOrderID); err != nil {
+		return err
+	}
 	seen := map[string]bool{}
 	for _, l := range lines {
 		if seen[l.Sku] {
@@ -398,6 +402,23 @@ func dispatchTrackedLineTx(tx *sql.Tx, tenantID, schema, transferOrderID, fromWa
 	}
 
 	if !tracking.TracksBatch() {
+		// Stage 146.1.3: a plain item leaves its bins too, in the order the
+		// allocator already uses (net of open reservations, holds and frozen
+		// bins). Units no bin holds are location-level stock and just go.
+		candidates, short, err := allocateFromStockQ(tx, tenantID, line.Sku, fromWarehouse, line.Qty)
+		if err != nil {
+			return out, bal, err
+		}
+		if short > 0 && len(candidates) > 0 {
+			LogSystemError(tenantID, "", "WARN", "DispatchTransferOrder", fmt.Sprintf(
+				"%s: %d of %d units dispatched from %s were not in a free bin; bins keep their stock, see the bin-stock-reconciliation report",
+				line.Sku, short, line.Qty, fromWarehouse), "")
+		}
+		for _, c := range candidates {
+			if err := takeFromBinTx(tx, tenantID, schema, c.BinCode, line.Sku, "", "", c.Qty, voucher); err != nil {
+				return out, bal, err
+			}
+		}
 		return out, bal, nil
 	}
 

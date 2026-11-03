@@ -137,6 +137,10 @@ func MoveBinStock(tenantID string, in BinMoveInput) error {
 	if err := checkHazmatCompatibility(tx, schema, in.SKU, toZone, in.ToBin); err != nil {
 		return err
 	}
+	// Stage 146.3.1: one item per bin; the lot rule runs again below once the lot is resolved.
+	if err := enforceBinMixRule(tx, schema, in.ToBin, in.SKU, in.BatchNo); err != nil {
+		return err
+	}
 	if err := enforceBinCapacity(tx, schema, in.ToBin, in.SKU, in.Qty, maxQty, maxWeight, maxVolume); err != nil {
 		return err
 	}
@@ -145,6 +149,11 @@ func MoveBinStock(tenantID string, in BinMoveInput) error {
 	batchNo, err := resolveMoveBatch(tx, schema, in.FromBin, in.SKU, in.BatchNo, in.Qty)
 	if err != nil {
 		return err
+	}
+	if batchNo != "" && batchNo != in.BatchNo {
+		if err := enforceBinMixRule(tx, schema, in.ToBin, in.SKU, batchNo); err != nil {
+			return err
+		}
 	}
 	// Stage 59.4: the owner's slice travels with the units.
 	movedOwner, err := moveOwnerSliceTx(tx, tenantID, schema, in.FromBin, in.ToBin, in.SKU, "Good", "Good", locationCode, have, in.Qty, in.OwnerID)

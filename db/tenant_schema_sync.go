@@ -79,6 +79,8 @@ var guardTriggers = []struct{ table, name, fn string }{
 	{"gl_postings", "gl_postings_guard", "public.gl_postings_guard()"},
 	// Stage 47.16.4f: an IRP acknowledgement is never changed (db/migrations_stage75_2_irp_evidence_47_16_4f.sql).
 	{"irp_documents", "irp_documents_ack_immutable", "public.irp_documents_ack_immutable()"},
+	// Stage 47.12.4: the guided setup's state history is never changed (db/migrations_stage47_12_4_setup_step_history.sql).
+	{"setup_step_history", "setup_step_history_guard", "public.setup_step_history_guard()"},
 }
 
 var schemaNameRE = regexp.MustCompile(`^[a-z_][a-z0-9_]{0,62}$`)

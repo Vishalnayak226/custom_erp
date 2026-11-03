@@ -550,6 +550,11 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 		postApprovedLoyaltyAdjustment(tenantID, docID)
 	}
 
+	// Stage 146.2.6: an approved points transfer moves the points.
+	if doctype == "LoyaltyPointTransfer" && decision == "Approved" {
+		postApprovedLoyaltyPointsTransfer(tenantID, docID)
+	}
+
 	// Stage 73.2.7: a till close whose count was off by more than the
 	// tolerance - approved closes it, rejected reopens it for a recount.
 	if doctype == "POSSession" {
@@ -562,6 +567,10 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 	// the approval decision itself: the maker-checker decision has already
 	// committed above, and a hold left stuck Active after its release was
 	// approved is a visible, correctable data state, not a silent one.
+	if doctype == "TransferOrder" && decision == "Approved" {
+		SyncTransferReservation(tenantID, docID) // 146.1.7 (setting off = no-op)
+	}
+
 	if doctype == "HoldReleaseRequest" && decision == "Approved" {
 		if holdID, ok := data["hold_id"].(string); ok && holdID != "" {
 			if errRelease := ReleaseHold(tenantID, holdID); errRelease != nil {

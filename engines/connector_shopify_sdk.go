@@ -913,6 +913,15 @@ type ShopifyVariantInput struct {
 	WeightGram float64           `json:"weight_g"`
 	Options    map[string]string `json:"options"` // option name -> value (Colour -> Red)
 	VariantGID string            `json:"variant_gid,omitempty"`
+	// Metafields (Stage 146.5.1): this combination's PIM attribute values,
+	// custom.<attribute_code>. Empty unless the PIM content setting is on.
+	Metafields []ShopifyMetafield `json:"-"`
+}
+
+// ShopifyMetafield is one custom.<Key> text metafield (D13).
+type ShopifyMetafield struct {
+	Key   string
+	Value string
 }
 
 // ShopifyProductInput is one ERP design (or a single item) as a product.
@@ -926,6 +935,106 @@ type ShopifyProductInput struct {
 	Archived    bool
 	OptionOrder []string
 	Variants    []ShopifyVariantInput
+	// Stage 146.5.1: the approved PIM content, all empty unless the
+	// shopify.publish_pim_content setting is on.
+	Tags           []string
+	SEOTitle       string
+	SEODescription string
+	Metafields     []ShopifyMetafield
+}
+
+// shopifyMetafieldInputs is the productSet metafields list: the HSN code the
+// product always carried, then the PIM attribute metafields.
+func shopifyMetafieldInputs(hsn string, extra []ShopifyMetafield) []map[string]interface{} {
+	out := []map[string]interface{}{}
+	if hsn != "" {
+		out = append(out, map[string]interface{}{"namespace": "custom", "key": "hsn_code", "type": "single_line_text_field", "value": hsn})
+	}
+	for _, m := range extra {
+		if m.Key == "" || m.Key == "hsn_code" || strings.TrimSpace(m.Value) == "" {
+			continue
+		}
+		out = append(out, map[string]interface{}{"namespace": "custom", "key": m.Key, "type": "single_line_text_field", "value": m.Value})
+	}
+	return out
+}
+
+const shopifyMetafieldDefinitionMutation = `mutation def($definition: MetafieldDefinitionInput!) {
+  metafieldDefinitionCreate(definition: $definition) { createdDefinition { id } userErrors { field message code } } }`
+
+// EnsureMetafieldDefinitions creates the custom.<key> definitions that are
+// missing (ownerType PRODUCT or PRODUCTVARIANT); one that already exists is
+// fine. Returns the keys that now exist.
+func (shopifySDKConnector) EnsureMetafieldDefinitions(ctx context.Context, cred map[string]string, ownerType string, keys []string) ([]string, error) {
+	done := []string{}
+	for _, key := range keys {
+		var out struct {
+			Create struct {
+				UserErrors []struct {
+					Message string `json:"message"`
+					Code    string `json:"code"`
+				} `json:"userErrors"`
+			} `json:"metafieldDefinitionCreate"`
+		}
+		def := map[string]interface{}{"name": key, "namespace": "custom", "key": key, "type": "single_line_text_field", "ownerType": ownerType}
+		if err := shopifyGQL(ctx, cred, shopifyMetafieldDefinitionMutation, map[string]interface{}{"definition": def}, &out); err != nil {
+			return done, err
+		}
+		for _, e := range out.Create.UserErrors {
+			if e.Code == "TAKEN" {
+				continue // already defined
+			}
+			return done, fmt.Errorf("shopify refused the field definition %s: %s", key, e.Message)
+		}
+		done = append(done, key)
+	}
+	return done, nil
+}
+
+const shopifyProductMediaQuery = `query media($id: ID!) { product(id: $id) { media(first: 100) { edges { node { id } } } } }`
+
+// ProductMediaIDs lists a product's picture ids.
+func (shopifySDKConnector) ProductMediaIDs(ctx context.Context, cred map[string]string, productGID string) ([]string, error) {
+	var out struct {
+		Product *struct {
+			Media struct {
+				Edges []struct {
+					Node struct {
+						ID string `json:"id"`
+					} `json:"node"`
+				} `json:"edges"`
+			} `json:"media"`
+		} `json:"product"`
+	}
+	if err := shopifyGQL(ctx, cred, shopifyProductMediaQuery, map[string]interface{}{"id": productGID}, &out); err != nil {
+		return nil, err
+	}
+	ids := []string{}
+	if out.Product != nil {
+		for _, e := range out.Product.Media.Edges {
+			ids = append(ids, e.Node.ID)
+		}
+	}
+	return ids, nil
+}
+
+const shopifyDeleteMediaMutation = `mutation delmedia($productId: ID!, $mediaIds: [ID!]!) {
+  productDeleteMedia(productId: $productId, mediaIds: $mediaIds) { deletedMediaIds mediaUserErrors { field message } } }`
+
+// DeleteProductMedia removes pictures so a changed set can be uploaded fresh.
+func (shopifySDKConnector) DeleteProductMedia(ctx context.Context, cred map[string]string, productGID string, mediaIDs []string) error {
+	if len(mediaIDs) == 0 {
+		return nil
+	}
+	var out struct {
+		Del struct {
+			Errors []shopifyUserError `json:"mediaUserErrors"`
+		} `json:"productDeleteMedia"`
+	}
+	if err := shopifyGQL(ctx, cred, shopifyDeleteMediaMutation, map[string]interface{}{"productId": productGID, "mediaIds": mediaIDs}, &out); err != nil {
+		return err
+	}
+	return shopifyUserErrors(out.Del.Errors, "the old pictures")
 }
 
 // ShopifyVariantLink is a variant as Shopify keeps it.
@@ -963,8 +1072,21 @@ func (shopifySDKConnector) PublishShopifyProduct(ctx context.Context, cred map[s
 	if p.ProductType != "" {
 		input["productType"] = p.ProductType
 	}
-	if p.HSN != "" {
-		input["metafields"] = []map[string]interface{}{{"namespace": "custom", "key": "hsn_code", "type": "single_line_text_field", "value": p.HSN}}
+	if mf := shopifyMetafieldInputs(p.HSN, p.Metafields); len(mf) > 0 {
+		input["metafields"] = mf
+	}
+	if len(p.Tags) > 0 {
+		input["tags"] = p.Tags
+	}
+	if p.SEOTitle != "" || p.SEODescription != "" {
+		seo := map[string]interface{}{}
+		if p.SEOTitle != "" {
+			seo["title"] = p.SEOTitle
+		}
+		if p.SEODescription != "" {
+			seo["description"] = p.SEODescription
+		}
+		input["seo"] = seo
 	}
 	options := p.OptionOrder
 	if len(options) > 0 {
@@ -1001,6 +1123,9 @@ func (shopifySDKConnector) PublishShopifyProduct(ctx context.Context, cred map[s
 			"inventoryItem": map[string]interface{}{"tracked": true}}
 		if v.VariantGID != "" {
 			vi["id"] = v.VariantGID
+		}
+		if mf := shopifyMetafieldInputs("", v.Metafields); len(mf) > 0 {
+			vi["metafields"] = mf
 		}
 		if v.Barcode != "" {
 			vi["barcode"] = v.Barcode

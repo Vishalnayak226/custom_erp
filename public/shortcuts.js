@@ -42,7 +42,8 @@ function lsSet(k, v) {
 // The key list "?" shows, the Help article mirrors and the guide documents.
 export const SHORTCUT_KEYS = [
   ['Anywhere', [[`${MOD}+K`, 'Search box: screens, codes, reports, documents'], ['/', 'Search box (when you are not typing)'],
-    ['?', 'These keys and codes'], ['Alt+N', 'New record on this screen'], ['Esc', 'Close a dialog, menu or this list']]],
+    ['?', 'These keys and codes'], ['Alt+N', 'New record on this screen'], ['Alt+1 … 9', 'Open favourite 1 to 9'],
+    ['Esc', 'Close a dialog, menu or this list']]],
   ['Lists', [['↑ ↓', 'Move between rows'], ['Enter', 'Open the row'], ['Space', 'Tick the row']]],
   ['Forms', [[`${MOD}+S`, 'Save'], [`${MOD}+Enter`, 'Save and submit'], [`${MOD}+P`, 'Print the document'],
     ['Enter', 'Next field (New transaction pages)'], [`${MOD}+D`, 'Add a line'], [`${MOD}+Delete`, 'Remove the line you are on']]],
@@ -193,6 +194,26 @@ async function toggleFav(dest, label) {
     window.showToast(`${label} added to favourites.`, { variant: 'success' });
   }
   placeStar();
+  drawFavMenu();
+}
+
+// Stage 152.1: the sidebar's Favourites flyout (index.html #fav-flyout), in
+// the order they were starred; the first nine carry their Alt+digit key.
+function drawFavMenu() {
+  const ul = document.getElementById('fav-flyout');
+  if (!ul) return;
+  const item = (label, key, dest) => {
+    const li = document.createElement('li'), a = document.createElement('a'), s = document.createElement('span');
+    a.className = dest ? 'menu-item' : 'menu-item fav-none';
+    s.textContent = label;
+    a.appendChild(s);
+    if (key) { const k = document.createElement('kbd'); k.textContent = key; a.appendChild(k); }
+    if (dest) a.addEventListener('click', (e) => { e.preventDefault(); openDest(dest); });
+    li.appendChild(a);
+    return li;
+  };
+  const list = favs || [];
+  ul.replaceChildren(...(list.length ? list.map((f, i) => item(f.label, i < 9 ? `Alt+${i + 1}` : '', f.dest)) : [item('No favourites yet')]));
 }
 
 let work = null, workAt = 0;
@@ -567,6 +588,12 @@ function onKey(e) {
 
   if (ctrl && !e.altKey && (k === 'k' || k === 'K')) { e.preventDefault(); closeKeys(); bar.focus?.(); return; }
   if (keysOpen() && k === 'Escape') { closeKeys(); return; }
+  // Stage 152.2: Alt+1-9 open favourite 1-9, from any screen, the till too.
+  if (e.altKey && !ctrl && !dialog && /^Digit[1-9]$/.test(e.code)) {
+    const f = (favs || [])[e.code.slice(5) - 1];
+    if (f) { e.preventDefault(); openDest(f.dest); }
+    return;
+  }
 
   const inPOS = currentView === 'pos';
   const now = performance.now();
@@ -756,7 +783,7 @@ function placeStar() {
   star.type = 'button';
   star.className = `sc-star${on ? ' on' : ''}`;
   star.textContent = on ? '★' : '☆';
-  star.title = on ? 'Remove from favourites' : 'Add to favourites (Ctrl+K shows them)';
+  star.title = on ? 'Remove from favourites' : 'Add to favourites';
   star.setAttribute('aria-pressed', String(on));
   star.addEventListener('click', () => toggleFav(d, currentTitle(d)));
   // A plain page's title block stacks its children: the title and its star
@@ -924,6 +951,9 @@ document.addEventListener('input', (e) => {
 
 let afterTimer = 0;
 function afterRender() {
+  // Stage 152.4: the star goes on in the frame the screen does (this observer
+  // runs before paint), so the title row never shifts when it arrives.
+  if (favs) placeStar();
   clearTimeout(afterTimer);
   afterTimer = setTimeout(async () => {
     const root = document.getElementById('view-root');
@@ -1065,5 +1095,6 @@ document.addEventListener('click', (e) => {
 });
 window.addEventListener('popstate', () => setTimeout(afterNewShown, 300));
 afterRender();
+loadFavs().then(drawFavMenu);
 
 export { openKeys as openShortcutKeys };

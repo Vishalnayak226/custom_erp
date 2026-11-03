@@ -168,6 +168,9 @@ func describeImportColumn(doctype string, f FieldMeta, isMaster bool, country st
 			s.Format, s.Example = "The state's full name as listed in the app; left blank, it is filled from the GSTIN", "Karnataka"
 		}
 	}
+	if f.Help != "" {
+		s.Definition = s.Label + " - " + f.Help + "."
+	}
 	if f.MaxLength != nil && *f.MaxLength > 0 {
 		s.Format = strings.TrimPrefix(s.Format+"; at most "+strconv.Itoa(*f.MaxLength)+" characters", "; ")
 	}

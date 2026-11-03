@@ -3,6 +3,8 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
+	"time"
 
 	"custom_erp/engines"
 )
@@ -57,6 +59,17 @@ func handleRunReport(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]interface{}{
 		"id": def.ID, "label": def.Label, "columns": def.Columns, "has_drill_down": def.HasDrillDown, "rows": rows,
 	}
+	// Stage 47.14.3: the same contract a dataset answer carries, from this run.
+	limited := false
+	var stores []string
+	if access, cut := engines.ReportStoreScopeFor(tenantID, role, userID); cut {
+		limited = true
+		for s := range access.Stores {
+			stores = append(stores, s)
+		}
+		sort.Strings(stores)
+	}
+	resp["contract"] = engines.BuildReportContract(*def, params, limited, stores, time.Now().UTC())
 	// Stage 73.2.19: detail = summary = ledger, with its cut-off.
 	if controls != nil {
 		resp["control_totals"] = controls

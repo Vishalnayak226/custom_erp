@@ -70,3 +70,63 @@ func handleLoyaltyCampaignOverview(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"campaigns": list})
 }
+
+// handleLoyaltyTransfers - Stage 146.2.6. GET /api/v1/loyalty/transfers?customer_id=
+// {enabled, transfers}; POST {from_customer, to_customer, points} starts a
+// transfer and sends the sender a one-time code.
+func handleLoyaltyTransfers(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method == http.MethodGet {
+		out := map[string]interface{}{"enabled": engines.LoyaltyTransfersEnabled(tenantID), "transfers": []engines.LoyaltyTransfer{}}
+		if id := strings.TrimSpace(r.URL.Query().Get("customer_id")); id != "" {
+			list, err := engines.ListLoyaltyPointsTransfers(tenantID, id)
+			if err != nil {
+				writeEngineError(w, r, err, http.StatusInternalServerError)
+				return
+			}
+			out["transfers"] = list
+		}
+		_ = json.NewEncoder(w).Encode(out)
+		return
+	}
+	if !requireStoreManager(w, r) {
+		return
+	}
+	var req struct {
+		FromCustomer string `json:"from_customer"`
+		ToCustomer   string `json:"to_customer"`
+		Points       int    `json:"points"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request")
+		return
+	}
+	t, err := engines.RequestLoyaltyPointsTransfer(tenantID, req.FromCustomer, req.ToCustomer, req.Points, r.Header.Get("Resolved-User-ID"))
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(t)
+}
+
+// handleLoyaltyTransferConfirm - POST /api/v1/loyalty/transfers/{id}/confirm
+// {otp}: the code the sender read out; posts, or waits for approval.
+func handleLoyaltyTransferConfirm(w http.ResponseWriter, r *http.Request) {
+	if !requireStoreManager(w, r) {
+		return
+	}
+	var req struct {
+		OTP string `json:"otp"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request")
+		return
+	}
+	t, err := engines.ConfirmLoyaltyPointsTransfer(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("id"), req.OTP,
+		r.Header.Get("Resolved-User-ID"), r.Header.Get("Resolved-Role"))
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(t)
+}

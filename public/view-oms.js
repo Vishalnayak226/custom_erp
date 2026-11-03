@@ -4,8 +4,9 @@
 import { documentSearchLink } from './view-document-links.js';
 
 // Stage 73.2.14: this module's own stylesheet, linked once on first load so
-// the cold-core styles.css stays inside its release budget.
-if (!document.querySelector('link[data-oms-css]')) {
+// the cold-core styles.css stays inside its release budget. Stage 152: the
+// registry entry links it too (awaited before the screen paints).
+if (!document.querySelector('link[data-oms-css], link[href^="/oms.css"]')) {
   const link = document.createElement('link');
   link.rel = 'stylesheet';
   link.href = 'oms.css' + new URL(import.meta.url).search;

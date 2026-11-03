@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -127,6 +128,12 @@ type candidateLocation struct {
 // FindBestFulfillmentNode, it does not fall back to "HO" - it simply returns
 // every location that can cover all of items by itself (possibly none).
 func qualifyingLocations(schema string, items []map[string]interface{}) ([]candidateLocation, error) {
+	return qualifyingLocationsFor(schema, items, nil)
+}
+
+// qualifyingLocationsFor is qualifyingLocations plus the Stage 146.4.4 ship-from
+// limits for the order in sc (nil: none, today's behaviour).
+func qualifyingLocationsFor(schema string, items []map[string]interface{}, sc *sourceScope) ([]candidateLocation, error) {
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT DISTINCT location_code FROM %s.inventory_availability`, schema))
 	if err != nil {
 		return nil, err
@@ -180,13 +187,13 @@ func qualifyingLocations(schema string, items []map[string]interface{}) ([]candi
 			candidates = append(candidates, candidateLocation{code: loc, totalATS: totalATS, oldestUpdated: oldest})
 		}
 	}
-	return candidates, nil
+	return applyShipLimits(schema, candidates, sc)
 }
 
 // singleLocationHighestATS is the pre-26.12.2 default strategy, re-expressed
 // over qualifyingLocations so it composes with the other strategies below.
-func singleLocationHighestATS(schema string, items []map[string]interface{}) (string, bool, error) {
-	cands, err := qualifyingLocations(schema, items)
+func singleLocationHighestATS(schema string, items []map[string]interface{}, sc *sourceScope) (string, bool, error) {
+	cands, err := qualifyingLocationsFor(schema, items, sc)
 	if err != nil {
 		return "", false, err
 	}
@@ -207,8 +214,8 @@ func singleLocationHighestATS(schema string, items []map[string]interface{}) (st
 // the closest proxy available today (same "proxy, not a real port" caveat
 // the design note gives Nearest Pincode's own distance calculation, see
 // docs/product/research/oms-benchmark.md §12).
-func singleLocationOldestStock(schema string, items []map[string]interface{}) (string, bool, error) {
-	cands, err := qualifyingLocations(schema, items)
+func singleLocationOldestStock(schema string, items []map[string]interface{}, sc *sourceScope) (string, bool, error) {
+	cands, err := qualifyingLocationsFor(schema, items, sc)
 	if err != nil {
 		return "", false, err
 	}
@@ -227,8 +234,8 @@ func singleLocationOldestStock(schema string, items []map[string]interface{}) (s
 // open FulfillmentTask rows (status not Dispatched/Rejected - the two
 // terminal states TransitionTaskStatus already uses, engines/fulfillment.go)
 // as a workload proxy.
-func singleLocationLowestWorkload(schema string, items []map[string]interface{}) (string, bool, error) {
-	cands, err := qualifyingLocations(schema, items)
+func singleLocationLowestWorkload(schema string, items []map[string]interface{}, sc *sourceScope) (string, bool, error) {
+	cands, err := qualifyingLocationsFor(schema, items, sc)
 	if err != nil {
 		return "", false, err
 	}
@@ -258,7 +265,7 @@ func singleLocationLowestWorkload(schema string, items []map[string]interface{})
 // its shipping address or no qualifying location has a Location.pincode set
 // - either way this strategy simply can't run, so the caller falls through
 // to the next configured rule rather than failing the whole allocation.
-func singleLocationNearestPincode(schema, shippingAddress string, items []map[string]interface{}) (string, bool, error) {
+func singleLocationNearestPincode(schema, shippingAddress string, items []map[string]interface{}, sc *sourceScope) (string, bool, error) {
 	match := pincodeShapeRe.FindString(shippingAddress)
 	if match == "" {
 		return "", false, nil
@@ -268,12 +275,16 @@ func singleLocationNearestPincode(schema, shippingAddress string, items []map[st
 		return "", false, nil
 	}
 
-	cands, err := qualifyingLocations(schema, items)
+	cands, err := qualifyingLocationsFor(schema, items, sc)
 	if err != nil {
 		return "", false, err
 	}
-	best := ""
-	bestDiff := -1
+	type pinCand struct {
+		code string
+		pin  string
+		lp   int
+	}
+	var pcs []pinCand
 	for _, c := range cands {
 		var locPincode sql.NullString
 		err := db.DB.QueryRow(fmt.Sprintf(
@@ -289,13 +300,37 @@ func singleLocationNearestPincode(schema, shippingAddress string, items []map[st
 		if err != nil {
 			continue
 		}
-		diff := orderPincode - lp
-		if diff < 0 {
-			diff = -diff
+		pcs = append(pcs, pinCand{c.code, locPincode.String, lp})
+	}
+	// Stage 146.4.4: real distance when the admin-imported PIN master knows the
+	// order's PIN and every candidate's; otherwise today's PIN difference.
+	pins := []string{match}
+	for _, p := range pcs {
+		pins = append(pins, p.pin)
+	}
+	coords, err := pinCoordinates(schema, pins)
+	if err != nil {
+		return "", false, err
+	}
+	useKm := len(pcs) > 0
+	for _, p := range pcs {
+		if _, ok := pinDistanceKm(coords, match, p.pin); !ok {
+			useKm = false
+			break
 		}
-		if best == "" || diff < bestDiff {
-			best = c.code
-			bestDiff = diff
+	}
+	best := ""
+	bestDist := math.MaxFloat64
+	for _, p := range pcs {
+		var d float64
+		if useKm {
+			d, _ = pinDistanceKm(coords, match, p.pin)
+		} else {
+			d = math.Abs(float64(orderPincode - p.lp))
+		}
+		if best == "" || d < bestDist {
+			best = p.code
+			bestDist = d
 		}
 	}
 	return best, best != "", nil
@@ -306,12 +341,12 @@ func singleLocationNearestPincode(schema, shippingAddress string, items []map[st
 // that line's own qualifying locations), so it can succeed even when no
 // single location covers every line. ok=false only when at least one line
 // has no qualifying location anywhere.
-func splitShipmentPlan(schema string, lines []SalesOrderLineInput) (*AllocationPlan, bool, error) {
+func splitShipmentPlan(schema string, lines []SalesOrderLineInput, sc *sourceScope) (*AllocationPlan, bool, error) {
 	lineLocations := make([]string, len(lines))
 	distinct := map[string]bool{}
 	for i, l := range lines {
 		item := []map[string]interface{}{{"sku": l.SKU, "qty": l.Qty}}
-		cands, err := qualifyingLocations(schema, item)
+		cands, err := qualifyingLocationsFor(schema, item, sc)
 		if err != nil {
 			return nil, false, err
 		}
@@ -399,36 +434,37 @@ func ResolveAllocationPlan(tenantID, channel, shippingAddress string, lines []Sa
 		return nil, err
 	}
 
+	sc := newSourceScope(channel, shippingAddress)
 	for _, strategy := range strategies {
 		switch strategy {
 		case "Manual":
 			return nil, nil
 		case "Highest ATS":
-			if loc, ok, err := singleLocationHighestATS(schema, items); err != nil {
+			if loc, ok, err := singleLocationHighestATS(schema, items, sc); err != nil {
 				return nil, err
 			} else if ok {
 				return uniformPlan(loc, strategy, len(lines)), nil
 			}
 		case "Nearest Pincode":
-			if loc, ok, err := singleLocationNearestPincode(schema, shippingAddress, items); err != nil {
+			if loc, ok, err := singleLocationNearestPincode(schema, shippingAddress, items, sc); err != nil {
 				return nil, err
 			} else if ok {
 				return uniformPlan(loc, strategy, len(lines)), nil
 			}
 		case "Lowest Workload":
-			if loc, ok, err := singleLocationLowestWorkload(schema, items); err != nil {
+			if loc, ok, err := singleLocationLowestWorkload(schema, items, sc); err != nil {
 				return nil, err
 			} else if ok {
 				return uniformPlan(loc, strategy, len(lines)), nil
 			}
 		case "Oldest Stock":
-			if loc, ok, err := singleLocationOldestStock(schema, items); err != nil {
+			if loc, ok, err := singleLocationOldestStock(schema, items, sc); err != nil {
 				return nil, err
 			} else if ok {
 				return uniformPlan(loc, strategy, len(lines)), nil
 			}
 		case "Split Shipment":
-			if plan, ok, err := splitShipmentPlan(schema, lines); err != nil {
+			if plan, ok, err := splitShipmentPlan(schema, lines, sc); err != nil {
 				return nil, err
 			} else if ok {
 				return plan, nil

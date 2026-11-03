@@ -250,6 +250,12 @@ var personalDataRegister = map[string]map[string]PersonalDataField{
 		"consent_email":       pdField("consent", "Marketing consent for e-mail", BasisConsent, retainCustomer, readersPOS),
 		"consent_updated_at":  pdField("consent", "When consent last changed - proof for the consent record", BasisConsent, retainCustomer, readersPOS),
 		"consent_source":      pdField("consent", "Where consent was given - proof for the consent record", BasisConsent, retainCustomer, readersPOS),
+
+		// 146.2.5: a member stopped from earning / redeeming, with why, who and when.
+		"loyalty_blocked":      pdField("commercial", "Stops this customer earning or redeeming loyalty points", BasisVoluntary, retainCustomer, readersPOS),
+		"loyalty_block_reason": pdField("record", "Why the customer is blocked from loyalty (required to block, CUSTOM-0692)", BasisVoluntary, retainCustomer, readersPOS),
+		"loyalty_blocked_by":   pdField("record", "Staff user who blocked the customer from loyalty", BasisVoluntary, retainCustomer, readersPOS),
+		"loyalty_blocked_at":   pdField("record", "When the customer was blocked from loyalty", BasisVoluntary, retainCustomer, readersPOS),
 	},
 	"Employee": {
 		"code":              pdField("identity", "Key for attendance, payroll and access", BasisEmployment, retainEmployee, readersHR),
@@ -330,6 +336,11 @@ var personalDataRegister = map[string]map[string]PersonalDataField{
 	"AcquirerSettlement": {"bank_line": businessField("The company's bank statement line a card / UPI settlement matched")},
 	"BankStatementLine":  {"bank_account": businessField("Which company account a statement line belongs to")},
 	"CourierServiceArea": {"pincode_prefix": businessField("Areas a courier serves")},
+	// 146.4.4: the centre of a pin-code area, for how far a store ships - not a person's location.
+	"PinCode": {
+		"latitude":  businessField("Centre of a pin-code area, for the store-to-customer shipping distance"),
+		"longitude": businessField("Centre of a pin-code area, for the store-to-customer shipping distance"),
+	},
 	"LegalEntity": {
 		"address":       businessField("Registered address on invoices"),
 		"address_line2": businessField("Registered address on invoices"),

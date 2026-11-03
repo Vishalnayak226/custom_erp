@@ -198,14 +198,25 @@ func BuildChannelPayload(tenantID, itemCode, channelCode string) (*ChannelProduc
 			// (e.g. a French title override) instead of always the global one.
 			val, _ = ResolveAttributeValue(tenantID, itemCode, m.source, defaultLocale, channelCode)
 		}
-		if val != "" && m.transformRule != "" {
+		if m.transformRule != "" {
+			// Stage 146.1.2: the rule runs on a blank value too; each step
+			// decides (default_if_empty fills it, a prefix leaves it blank).
 			// Stage 36.5: a mapping with no transform_rule behaves exactly
 			// as it always has (plain passthrough). A set rule that fails
 			// to apply (deleted/deactivated since the mapping was saved, or
 			// a value this rule's steps genuinely cannot handle) fails the
 			// whole payload build rather than silently publishing an
 			// untransformed or blank value to a live channel.
-			val, err = ApplyPIMTransformRule(tenantID, m.transformRule, val)
+			val, err = ApplyPIMTransformRuleCtx(m.transformRule, val, PIMTransformContext{
+				TenantID: tenantID, Channel: channelCode,
+				Lookup: func(attribute string) string {
+					if v, ok := itemData[attribute]; ok {
+						return fmt.Sprintf("%v", v)
+					}
+					other, _ := ResolveAttributeValue(tenantID, itemCode, attribute, defaultLocale, channelCode)
+					return other
+				},
+			})
 			if err != nil {
 				return nil, fmt.Errorf("channel field map %s -> %s: %w", m.source, m.target, err)
 			}

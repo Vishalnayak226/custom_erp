@@ -298,3 +298,58 @@ func TestStage49124ForensicPackIsManifestedAndBounded(t *testing.T) {
 		t.Fatalf("%d EVIDENCE_EXPORTED rows, want 1 (collecting evidence is itself evidence)", exported)
 	}
 }
+
+// Stage 49.12.4 (a): the pack carries the client's settings as config.json,
+// its SHA-256 sits in manifest.json (files_sha256 and one config_hash field),
+// and a secret-looking text setting is never written out.
+func TestStage49124ForensicPackCarriesConfigHashAndNoSecret(t *testing.T) {
+	db.InitDB(testConnStr())
+	const key = "test.stage49124_api_secret"
+	const canary = "CANARY-s3cr3t-49124"
+	if _, ok := settingsRegistry[key]; !ok {
+		RegisterSetting(SettingDefinition{Key: key, Module: "Platform", Label: "Test secret", Type: SettingTypeString, Default: ""})
+	}
+	if _, err := db.DB.Exec(`INSERT INTO tenant_default.system_settings (key, value) VALUES ($1, $2)
+		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, key, canary); err != nil {
+		t.Fatal(err)
+	}
+	defer db.DB.Exec(`DELETE FROM tenant_default.system_settings WHERE key = $1`, key)
+	defer db.DB.Exec(`DELETE FROM tenant_default.audit_logs WHERE action = 'EVIDENCE_EXPORTED' AND user_id = 'tester491242'`)
+	settingsCacheMu.Lock()
+	delete(settingsCache, settingsCacheKey("tenant_default", key))
+	settingsCacheMu.Unlock()
+
+	from, to := time.Now().Add(-time.Hour), time.Now().Add(time.Minute)
+	pack, manifest, err := BuildForensicPack("default", from, to, "tester491242")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manifest.ConfigHash == "" || manifest.Files["config.json"] != manifest.ConfigHash {
+		t.Fatalf("config_hash %q, files_sha256[config.json] %q", manifest.ConfigHash, manifest.Files["config.json"])
+	}
+	zr, err := zip.NewReader(bytes.NewReader(pack), int64(len(pack)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	contents := map[string][]byte{}
+	for _, f := range zr.File {
+		rc, _ := f.Open()
+		b, _ := io.ReadAll(rc)
+		rc.Close()
+		contents[f.Name] = b
+	}
+	if sha256Hex(contents["config.json"]) != manifest.ConfigHash {
+		t.Fatal("config.json does not hash to config_hash")
+	}
+	if !bytes.Contains(contents["config.json"], []byte("security.freeze_exports")) {
+		t.Fatal("the settings snapshot does not list the client's settings")
+	}
+	for name, b := range contents {
+		if bytes.Contains(b, []byte(canary)) {
+			t.Fatalf("%s carries a secret setting value", name)
+		}
+	}
+	if !bytes.Contains(contents["manifest.json"], []byte(`"config_hash"`)) {
+		t.Fatal("manifest.json has no config_hash field")
+	}
+}

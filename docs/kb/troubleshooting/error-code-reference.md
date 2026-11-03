@@ -19,7 +19,7 @@ applies_to: source registries; not release acceptance
 
 # Error code reference
 
-Every refusal in this application carries a code. There are **582** of them,
+Every refusal in this application carries a code. There are **589** of them,
 across **75** areas. This page is produced from the running catalog, so it
 cannot describe a code the application does not have, or miss one it does.
 
@@ -33,7 +33,7 @@ to read the dialog it appears in, start with
 > something you did. The detail line is deliberately withheld in that case -
 > give your administrator the correlation id shown in the dialog instead.
 
-The list runs over **2** pages. The contents below cover every area and
+The list runs over **3** pages. The contents below cover every area and
 open the right page.
 
 ## Contents
@@ -61,7 +61,7 @@ open the right page.
 - [CRM / Templates](#crm-templates) - 1 codes
 - [CRM / Vouchers](#crm-vouchers) - 1 codes
 - [Channel Connectors](#channel-connectors) - 5 codes
-- [Customer / CRM](#customer-crm) - 8 codes
+- [Customer / CRM](#customer-crm) - 15 codes
 - [Data Import / Excel Upload](#data-import-excel-upload) - 8 codes
 - [Deployment / Release](#deployment-release) - 7 codes
 - [DocType / Dynamic Metadata](#doctype-dynamic-metadata) - 8 codes
@@ -79,7 +79,7 @@ open the right page.
 - [Integration / API](#integration-api) - 12 codes
 - [Integrations](#integrations) - 1 codes
 - [Inventory](#inventory) - 10 codes
-- [Inventory / Warehouse](#inventory-warehouse) - 29 codes
+- [Inventory / Warehouse](error-code-reference-2.md#inventory-warehouse) - 29 codes
 - [Item Master](error-code-reference-2.md#item-master) - 2 codes
 - [Manufacturing / Production](error-code-reference-2.md#manufacturing-production) - 16 codes
 - [Master Data](error-code-reference-2.md#master-data) - 43 codes
@@ -108,11 +108,11 @@ open the right page.
 - [Sales Return](error-code-reference-2.md#sales-return) - 7 codes
 - [Security / Rate Limit](error-code-reference-2.md#security-rate-limit) - 5 codes
 - [Stock Transfer](error-code-reference-2.md#stock-transfer) - 10 codes
-- [Tax / GST / E-Invoice](error-code-reference-2.md#tax-gst-e-invoice) - 15 codes
-- [User Access & Security](error-code-reference-2.md#user-access-security) - 9 codes
-- [Vendor Invoice / AP](error-code-reference-2.md#vendor-invoice-ap) - 4 codes
-- [WMS](error-code-reference-2.md#wms) - 1 codes
-- [WMS / Logistics](error-code-reference-2.md#wms-logistics) - 3 codes
+- [Tax / GST / E-Invoice](error-code-reference-3.md#tax-gst-e-invoice) - 15 codes
+- [User Access & Security](error-code-reference-3.md#user-access-security) - 9 codes
+- [Vendor Invoice / AP](error-code-reference-3.md#vendor-invoice-ap) - 4 codes
+- [WMS](error-code-reference-3.md#wms) - 1 codes
+- [WMS / Logistics](error-code-reference-3.md#wms-logistics) - 3 codes
 
 ## Admin / Configuration
 
@@ -299,6 +299,13 @@ open the right page.
 | `CUSTOM-0603` | Loyalty redemption above the approval value without an approved request | Redeeming this many points needs a manager's approval. | Raise the request from Redeem Points with a reason, ask a manager to approve it under Approvals, then complete the sale. | High | 422 |
 | `CUSTOM-0614` | Loyalty adjustment not valid (no customer, zero points, or no Loyalty Adjustment reason) | This points adjustment can't be made. | Choose the customer, type the points (+ to credit, - to debit) and pick a Loyalty Adjustment reason. | Low | 422 |
 | `CUSTOM-0615` | Loyalty debit adjustment larger than the balance | That debit is more than the customer's points. | Debit at most the customer's current balance. | Medium | 422 |
+| `CUSTOM-0621` | Points transfer not valid (switched off, same customer, no points, unknown customer or transfer) | This points transfer can't be made. | Check the setting is on, choose two different customers and enter the points. | Low | 422 |
+| `CUSTOM-0622` | Transfer larger than the customer's usable points | That is more points than can be sent. | Send at most the usable points - pending, expired and used points cannot be sent. | Medium | 422 |
+| `CUSTOM-0623` | Transfer over the customer's daily limit | This customer has reached today's limit for sending points. | Send fewer points, or try again tomorrow. | Medium | 422 |
+| `CUSTOM-0624` | Transfer code wrong, expired, used or for another transfer | That code didn't work. | Ask the customer for the latest code, or start the transfer again. | Medium | 422 |
+| `CUSTOM-0690` | Loyalty scheme overlaps another for a store and dates | Another scheme already covers these stores on these dates. | Change the dates or the stores, or switch the other scheme off. | Medium | 422 |
+| `CUSTOM-0691` | Customer is blocked from loyalty points | This customer is blocked from using points. | Take the sale without points, or lift the block on the customer. | Medium | 422 |
+| `CUSTOM-0692` | Loyalty scheme or block not valid (no reason, end before start, or spend per point below 1) | Check the highlighted loyalty field. | Give a reason for the block, end the scheme after it starts, and set spend per point to 1 or more. | Low | 422 |
 
 ## Data Import / Excel Upload
 
@@ -580,38 +587,4 @@ open the right page.
 | `STKLOC-0863` | Stock move incomplete or through a location that only transfers / holds change | The stock move is not complete. | Choose the item, a quantity above zero and two different locations the store uses (In-Transit and On Hold change only through transfers and hold codes). | Medium | 422 |
 | `STKLOC-0864` | Stock move larger than the free stock in the from location | There is not enough free stock in that location. | Move no more than the location holds (stock promised to an order is not free). | High | 422 |
 | `STKLOC-0865` | Stock move record written through the generic record API | Stock moves are made from Stock -> Move Stock. | Use Move Stock, which moves the stock and records it in one step. | Medium | 422 |
-
-## Inventory / Warehouse
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `INV-0256` | FEFO violation | The stock that expires first, or the oldest stock, must be issued first. | Pick the batch the screen suggests. | High | 422 |
-| `INV-0257` | Bin capacity exceeded | Selected bin does not have enough capacity. Please choose another bin. | Select another bin or split stock. | Medium | 422 |
-| `INV-0258` | Cycle count freeze active | Stock is frozen for counting. Sale/transfer is blocked until count is completed. | Complete or release count session. | High | 200 |
-| `INVENT-0101` | Insufficient stock | Insufficient available stock for this item at the selected location. | Lower the quantity to what is available, or choose a location that has the stock. | High | 422 |
-| `INVENT-0102` | Stock not available for barcode | Selected barcode is not available for transaction. | Scan the barcode of a unit that is in stock here. | High | 422 |
-| `INVENT-0103` | Barcode already consumed | This barcode is already consumed or transferred. Please scan a valid barcode. | Scan the barcode on another unit. If this unit is in your hand, give it to a supervisor to check. | High | 409 |
-| `INVENT-0104` | Blocked stock selected | Blocked stock cannot be issued or sold until it is released. | Use stock that is not blocked, or ask a supervisor to release the block first. | High | 409 |
-| `INVENT-0105` | Negative stock not allowed | Stock of this item at this location cannot go below zero. | Lower the quantity, or receive or move the stock in first. | High | 422 |
-| `INVENT-0106` | Batch expired | This batch is expired. Transaction is not allowed. | Pick a batch that has not expired, and set the expired stock aside. | High | 422 |
-| `INVENT-0107` | Location/bin missing | This transaction needs a storage location or bin. | Choose the bin, then save again. | High | 422 |
-| `INVENT-0108` | Stock count already in progress | A stock count is already running for this item at this location. | Wait for the count to finish, or ask the person running it to close it. | High | 409 |
-| `INVENT-0109` | Inventory adjustment reason missing | Adjustment reason is required before posting inventory adjustment. | Choose a reason for the adjustment, then post again. | High | 422 |
-| `INVENT-0110` | Adjustment exceeds tolerance | This adjustment is larger than allowed without approval. | Submit it for approval. It posts once a manager approves it. | High | 422 |
-| `INVENT-0114` | Reserved stock blocked | This stock is reserved for another order and cannot be used. | Use stock that is not reserved, or ask a supervisor to release the reservation. | High | 409 |
-| `INVENT-0115` | Serial/batch mismatch | The scanned barcode is for a different item. | Scan the barcode of the item on the line, or change the line to the scanned item. | High | 422 |
-| `INVENT-0185` | Approval needed | This adjustment requires approval because it exceeds tolerance. | Submit for approval. | Medium | 200 |
-| `INVENT-0421` | Non-stock item on a stock transaction (ITM-002) | This item keeps no stock, so it cannot be transferred, counted or consumed. | Remove it - services and non-stock expense items never hold store stock. | Medium | 422 |
-| `INVENT-0422` | Consumption entry incomplete or invalid | This consumption entry cannot be posted. | Choose the store, then for each item the counted closing quantity (periodic) or the quantity used (manual issue) - neither can exceed the stock on hand. | Medium | 422 |
-| `INVENT-0491` | Stock, a bin or an order for another owner at a warehouse dedicated to one owner | This warehouse holds one client's stock only. | Use that client's own warehouse for this stock or order, or switch Settings > Warehouse > Stock ownership model to several owners per warehouse. | High | 422 |
-| `INVENT-0492` | Order has no owner at a location holding several owners' stock | Say which client (owner) this order is for. | Set the order's owner (WMS > Fulfillment > Order owner) and release it again. | High | 422 |
-| `INVENT-0493` | Order owner changed after release | This order's owner can no longer change. | An order keeps its owner once released to the warehouse; cancel and re-enter it to change whose stock fills it. | Medium | 422 |
-| `INVENT-0494` | Owner attribution would exceed or orphan bin stock | This would credit an owner with stock the bin does not hold, or leave stock without an owner. | Move the stock out or record whose it is first; owners can never hold more than the bin. | Medium | 422 |
-| `INVENT-0495` | Stock moved into or out of a bin that belongs to another owner | That bin belongs to another client. | Use a bin of the stock's own owner, or an unowned bin. | Medium | 422 |
-| `INVENT-0496` | Owner not given where several owners' stock is involved | Say whose stock this is. | Choose the owner (client) - this location or bin holds stock of more than one. | Medium | 422 |
-| `INVENT-0497` | Trailer cannot be spotted at that door | That door cannot take this trailer. | Choose an active door with no trailer at it, or check the other trailer out first. | Medium | 422 |
-| `INVENT-0498` | Trailer check-in duplicated or appointment not open | This trailer cannot be checked in. | Enter the trailer number; a trailer already in the yard must be checked out first, and only a Scheduled appointment can be checked in. | Medium | 422 |
-| `INVENT-0499` | Tasks cannot go into that wave | These tasks cannot go into a wave. | Choose tasks at the wave's location that are still Pending or Picking and in no other wave, and a wave that is Planned, Released or In Progress. | Medium | 422 |
-| `INVENT-0500` | Billing review without an owner or a valid period | Choose whose charges and which period to review. | Pick the owner (client), a start date and an end date on or after it. | Low | 422 |
-| `INVENT-0971` | Putaway refused: bin missing, inactive, blocked or full, over capacity, hazmat zone, or not enough unbinned stock | This putaway cannot be made. | Read the reason: scan a bin that exists and is Active and Available, put away no more than the location's unbinned stock, or choose a bin with room (or a hazmat zone for a hazmat item). | Medium | 422 |
 

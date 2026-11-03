@@ -159,6 +159,6 @@ func GetTenantSchema(tenantID string) (string, error) {
 
 // SetSearchPath scopes database queries to the tenant's schema within a transaction
 func SetSearchPath(tx *sql.Tx, schemaName string) error {
-	_, err := tx.Exec(fmt.Sprintf("SET LOCAL search_path TO %s, public", schemaName))
+	_, err := tx.Exec(fmt.Sprintf("SET LOCAL search_path TO %s, public", schemaName) + statementTimeoutSQL(schemaName))
 	return err
 }

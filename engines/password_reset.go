@@ -74,7 +74,9 @@ func RequestPasswordReset(tenantID, usernameOrEmail, resetLinkBase string) error
 	}
 
 	resetLink := fmt.Sprintf("%s?token=%s", resetLinkBase, token)
-	sendPasswordResetEmail(tenantID, email, username, resetLink)
+	// 49.10.3: off the caller's time. A relay that takes seconds would make the
+	// reply slow only for an account that exists, and so reveal it.
+	go sendPasswordResetEmail(tenantID, email, username, resetLink)
 	LogAuditEvent(tenantID, username, "AUTH", "PASSWORD_RESET_REQUESTED", "Password reset token issued")
 	return nil
 }

@@ -46,7 +46,7 @@ export async function renderSalesInvoiceEntry(container, onDone) {
     <div style="display:flex;gap:8px;margin-top:12px;"><input class="form-input" data-si="add" placeholder="Add by Design, Combination ID or barcode" style="max-width:320px;" autocomplete="off"></div>
     <div data-si="totals" style="margin-top:14px;max-width:320px;margin-left:auto;"></div>
     <div class="login-error hidden" data-si="error" style="margin-top:12px;"></div>
-    <div style="margin-top:16px;"><button type="button" class="btn btn-primary" data-si="save">Save as draft</button> <span class="text-muted" style="font-size:12px;">Post it from the invoice list.</span></div>`;
+    <div style="margin-top:16px;"><button type="button" class="btn btn-primary" data-si="save">Save as draft</button></div>`;
   container.appendChild(panel);
   const q = (k) => panel.querySelector(`[data-si="${k}"]`);
   const v = (id) => panel.querySelector(id).value.trim();

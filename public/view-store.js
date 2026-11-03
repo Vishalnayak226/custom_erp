@@ -45,8 +45,10 @@ export async function ensureWorkingStore() {
 }
 
 // mountStoreSwitch (re)draws the top-bar store. Called at start-up and after
-// every switch.
-export async function mountStoreSwitch(fresh) {
+// every switch; quiet (a switch, which redraws the screen itself) skips the
+// erp:working-store event, so the till is not drawn twice.
+export async function mountStoreSwitch(fresh, quiet) {
+  trackTyping();
   const host = document.getElementById('store-switch');
   if (!host) return;
   const [data] = await Promise.all([loadMyStores(fresh), loadViewStyles('store.css')]);
@@ -56,12 +58,14 @@ export async function mountStoreSwitch(fresh) {
   // A chip drawn before the name arrived shows the code; give it the name.
   document.querySelectorAll('.txn-ctx-store').forEach(el => { el.textContent = working.name || working.code; });
   // A screen drawn before the server's answer (the till) re-checks its store.
-  document.dispatchEvent(new CustomEvent('erp:working-store', { detail: working }));
+  if (!quiet) document.dispatchEvent(new CustomEvent('erp:working-store', { detail: working }));
+  // Stage 150.3: one width whatever the name (CSS); the full name on hover.
+  const full = viewAll ? 'All stores' : (working.name || working.code);
   if (stores.length > 1 || canViewAll) {
-    host.innerHTML = `<button type="button" class="btn btn-outline store-switch-btn" id="store-switch-btn" aria-haspopup="dialog" aria-expanded="false" title="${viewAll ? `Lists show every store; new documents are made at ${esc(working.name || working.code)}` : 'The store you are working at - click to switch'}">${STORE_ICON}<span class="store-switch-label">${name}</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></button>`;
+    host.innerHTML = `<button type="button" class="btn btn-outline store-switch-btn" id="store-switch-btn" aria-haspopup="dialog" aria-expanded="false" title="${viewAll ? `Lists show every store; new documents are made at ${esc(working.name || working.code)}` : `${esc(full)} - the store you are working at; click to switch`}">${STORE_ICON}<span class="store-switch-label">${name}</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></button>`;
     host.querySelector('button').addEventListener('click', toggleStorePicker);
   } else {
-    host.innerHTML = `<span class="store-switch-name" title="The store you are working at">${STORE_ICON}<span class="store-switch-label">${name}</span></span>`;
+    host.innerHTML = `<span class="store-switch-name" title="${esc(full)} - the store you are working at">${STORE_ICON}<span class="store-switch-label">${name}</span></span>`;
   }
   host.classList.remove('hidden');
 }
@@ -147,9 +151,71 @@ async function switchStore(code) {
   } catch (_) { /* nothing cached, nothing stale */ }
   if (typeof window.clearPOSTillState === 'function') { try { window.clearPOSTillState(); } catch (_) { /* rebuilt below */ } }
 
-  await mountStoreSwitch(true);
-  renderView(currentView);
+  // Stage 150: what was typed is read before the bar learns the new store,
+  // so a field still holding the old store is known as one.
+  const typed = typedValues();
+  await mountStoreSwitch(true, true);
+  await rerenderKeeping(currentView, typed);
   showToast(code === '*' ? 'Lists show every store again.' : `Working at ${target.name || code}; lists show its documents.`, { variant: 'success', title: 'Store Switched' });
+}
+
+// --- Stage 150: a switch (or Refresh) keeps the screen as it was -------------
+//
+// Only what the user typed is carried over: a field is marked by its own input
+// or change event, so a value a screen filled in itself is drawn fresh for the
+// new store. Pickers (data-ta) start empty - their text without the choice
+// behind it would mislead - and so does a field still holding the old store.
+
+let typingTracked = false;
+function trackTyping() {
+  if (typingTracked) return;
+  typingTracked = true;
+  const mark = (e) => {
+    const el = e.target;
+    if (el && el.id && el.closest && el.closest('#view-root')) el.dataset.typed = '1';
+  };
+  document.addEventListener('input', mark, true);
+  document.addEventListener('change', mark, true);
+}
+
+function typedValues() {
+  const old = window.erpWorkingStore || {};
+  const oldStore = new Set([old.code, old.name].filter(Boolean));
+  return [...document.querySelectorAll('#view-root [data-typed]')]
+    .filter(el => el.id && !el.dataset.ta && !/^(hidden|password|file)$/.test(el.type || '') && !oldStore.has(el.value))
+    .map(el => [el.id, el.type === 'checkbox' || el.type === 'radio' ? el.checked : el.value]);
+}
+
+// putBack fills the redrawn screen's fields of the same id and answers the
+// ones it could not fill yet (a select whose options are still loading).
+function putBack(vals) {
+  return vals.filter(([id, v]) => {
+    const el = document.getElementById(id);
+    if (!el || el.disabled || el.readOnly || el.dataset.ta) return false;
+    if (typeof v === 'boolean') el.checked = v;
+    else if (el.tagName === 'SELECT' && ![...el.options].some(o => o.value === v)) return true;
+    else el.value = v;
+    el.dataset.typed = '1';
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    return false;
+  });
+}
+
+// rerenderKeeping redraws a screen in place: no blank, same scroll, typed
+// fields back. A list fills a moment after its screen draws, so the scroll is
+// held for it (unless the user has scrolled since).
+export async function rerenderKeeping(view, typed) {
+  const vals = Array.isArray(typed) ? typed : typedValues();
+  const root = document.getElementById('view-root');
+  const top = root ? root.scrollTop : 0;
+  await renderView(view, true);
+  let left = putBack(vals);
+  let set = root ? root.scrollTop : 0;
+  [300, 900].forEach(ms => setTimeout(() => {
+    if (left.length) left = putBack(left);
+    if (root && root.scrollTop === set && set < top) { root.scrollTop = top; set = root.scrollTop; }
+  }, ms));
 }
 
 // --- Stage 85.A1/85.A2: the Stores editor (Users and Roles screens) ----------
@@ -212,7 +278,7 @@ export async function openStoreAccessEditor({ kind, id, title, onSaved }) {
           <label class="form-label" for="sa-home">Home store</label>
           <select id="sa-home" class="form-input">${homeOptions}${all.map(o => `<option value="${esc(o.code)}" ${o.code === s.home ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select>
         </div>` : ''}
-        ${admin ? '<p class="sa-hint">Super Admin works at every store, including stores added later. Only the home store can be set here.</p>' : ''}
+        ${admin ? '<p class="sa-hint">Super Admin works at every store.</p>' : ''}
         <fieldset class="sa-modes${admin ? ' hidden' : ''}"><legend class="form-label">Store access</legend>
           ${modes.map(([v, label]) => `<label class="sa-mode"><input type="radio" name="sa-mode" value="${v}" ${v === current ? 'checked' : ''}> <span>${label}</span></label>`).join('')}
         </fieldset>
@@ -256,10 +322,16 @@ export async function openStoreAccessEditor({ kind, id, title, onSaved }) {
       }
     }
     if (admin) { close(); showToast('Home store saved.', { variant: 'success' }); if (onSaved) onSaved(); return; }
-    const r = await apiFetch(user ? '/api/v1/admin/users/stores' : '/api/v1/admin/roles/stores', {
-      method: 'POST',
-      body: JSON.stringify(user ? { id, access: m, stores: picked } : { role: id, access: m, stores: picked }),
-    });
+    const url = user ? '/api/v1/admin/users/stores' : '/api/v1/admin/roles/stores';
+    const body = user ? { id, access: m, stores: picked } : { role: id, access: m, stores: picked };
+    // 49.3.6: a wider reach asks for a reason; it goes into the audit log.
+    const pv = await apiFetch(url, { method: 'POST', body: JSON.stringify({ ...body, preview: true }) });
+    if (pv && pv.ok && ((await pv.json().catch(() => ({}))).preview || {}).widened) {
+      const why = await showCustomPrompt('Reason', '', 'More stores');
+      if (!why || !why.trim()) return;
+      body.reason = why.trim();
+    }
+    const r = await apiFetch(url, { method: 'POST', body: JSON.stringify(body) });
     if (!r) return;
     if (!r.ok) { await showApiError(r, 'Could not save the stores.'); return; }
     close();

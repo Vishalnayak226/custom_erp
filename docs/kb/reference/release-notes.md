@@ -19,19 +19,63 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **206** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **216** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
-- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-24
+- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-27
+
+## 2026-11-03
+
+**Stage 157 — The UI fits any window size or browser zoom** *(CSS + guide, session erp-79; NOT COMMITTED)*
+
+The user's POS screenshot showed the top bar's second row (store, Refresh, Reset, ?) drawn over the page in a narrow window, and they asked for a UI that adapts at any zoom. Items 157.1-157.4 in micro_checklist.md carry the detail.
+
+**Stage 146 - 20 of the vendor-recording gaps built** *(code + tests + guides, session erp-e9; NOT COMMITTED)*
+
+The user's ask (the next 20 items, half-built first, skip items in flight) and the result are on the erp-e9 claim header in micro_checklist.md; each item's line carries what was built under **erp-e9 (2026-11-03)**.
+
+**"Build next 20 items" - 20 half-built Stage 47 / 49 items taken further** *(code + tests + guides, session erp-e8; NOT COMMITTED)*
+
+The user's ask, the rule (half-built items first, skip items in flight, 20 in all) and the result are on the erp-e8 claim header in micro_checklist.md; each item's line carries what was built under **erp-e8 (2026-11-03)**.
+
+## 2026-11-01
+
+**Stage 153 — Sticker Printing ▸ Print from Transaction: select all** *(code; NOT COMMITTED)*
+
+The user's ask ("need a select all in print", on a Print from Transaction screenshot) is quoted on the Stage 153 header in micro_checklist.md.
 
 ## 2026-10-31
 
-**Stage 147 — Item boxes find by Design ID, Combination ID or barcode; the OMS order line shows stock and fills the price** *(code + tests + docs, session erp-oms; NOT COMMITTED)*
+**Stage 149 — No explanatory blurbs anywhere; PIM Workbench loads on a full catalog** *(code + tests, session fb7b6adf; 149.2 and part of 149.1 shipped in 0.21.0, the rest NOT COMMITTED)*
+
+The user's asks (the Bulk CSV Import screenshot, then "PIM workbench is not loading") are quoted on the Stage 149 header in micro_checklist.md.
+
+**Stage 150 — Switching the store keeps every screen where it is, like an app** *(code + docs, session erp-f2; NOT COMMITTED)*
+
+The user's ask (an RFQ ▸ New RFQ screenshot) is quoted on the Stage 150 header in micro_checklist.md.
+
+**Stage 148 — What a 138-episode D365 F&O course shows the ERP should do, smarter** *(research + docs, session erp-f2; plan shipped in 0.21.0)*
+
+The user's ask is quoted on the Stage 148 header in micro_checklist.md.
+
+**Stage 146 — What 12 vendor meeting recordings show that the ERP lacks: blueprints, gaps, plan** *(research + docs, session erp-99; NOT COMMITTED)*
+
+The user's ask is quoted on the Stage 146 header in micro_checklist.md.
+
+**Stage 151 — HRM: each HR page its own sidebar entry, like PIM** *(code + docs, session erp-hr1; shipped in 0.21.0)*
+
+The user's ask (an HRM ▸ HR ▸ Appraisals screenshot with the tab strip) is quoted on the Stage 151 header in micro_checklist.md.
+
+**"Release all changes until now from all work" - 0.21.0, every session's work, deployed to app and minn** *(release, session erp-b6)*
+
+User, 2026-10-31: *"You can ask everyone to stop working unill you say. & Release all changes untill now from all work"* (after *"Relase now. That is high priority to test"* for the barcode print, 143.6).
+
+**Stage 147 — Item boxes find by Design ID, Combination ID or barcode; the OMS order line shows stock and fills the price** *(code + tests + docs, session erp-oms; released in 0.21.0 `4b80806`, deployed to app and minn)*
 
 The user's ask (an OMS ▸ New order screenshot, then two corrections: Design ID, Combination ID / SKU and barcode may all carry letters) is quoted on the Stage 147 header in micro_checklist.md.
 
-**Stage 145 — Inventory: a one-page management dashboard, every inventory page on the top-bar store, Stock on Hand by design with columns each user picks** *(code + tests + docs, session erp-inv; NOT COMMITTED)*
+**Stage 145 — Inventory: a one-page management dashboard, every inventory page on the top-bar store, Stock on Hand by design with columns each user picks** *(code + tests + docs, session erp-inv; shipped in 0.21.0)*
 
 The user's ask is quoted in full on the Stage 145 header in micro_checklist.md; items 145.1-145.4 carry the detail.
 
@@ -444,26 +488,4 @@ Continuing the same thread that closed BLD-043 (§171) earlier the same day. Per
 **Stage 50 — BLD-043 (realistic datasets and query plans): a real unindexed `sort=recent` cost found and fixed via measurement at three scales** *(code + docs)*
 
 Per the priority order handed off from the 2026-09-25/27 threads (BLD-038/037), both of which turned out to already be closed and committed (`8bed150`) by the time this thread started — confirmed via `git status`/the build checklist's own `[x]` marks before touching anything. BLD-043 was the next genuinely-unstarted READY item (no DEPENDS beyond BLD-001, done).
-
-## 2026-09-27
-
-**Stage 50 — BLD-037 (coherent visual hierarchy and support context): environment-banner truncation, a half-empty Home stat-card, a missing correlation reference, and raw doctype identifiers leaking app-wide** *(code + docs)*
-
-Picked up the priority order the 2026-09-25 thread handed off (BLD-037 first — no DEPENDS, explicitly the lightest of the three ready items). Confirmed genuinely unstarted via `git status` before touching anything. Live-verified throughout against the existing disposable Postgres 16.3 on loopback `:5462` (reused, already fully migrated per the prior session's own note) and a fresh scratch server on `:8973`, using real Playwright/Chromium across light/dark/mobile contexts. Full per-item detail `docs/micro_checklist.md` 50.13 and the build checklist's BLD-037 entry; this is the index-style summary.
-
-**Stage 52 — Category-based sticker/label printing module: StickerTemplate designer, GRN/Transfer-Order-driven bulk printing** *(code + tests + docs)*
-
-New feature thread, opened directly from the user's own request for a real label-printing module for a jewellery retailer: different categories need visually different labels, printing should start from a GRN/Transfer Order rather than manual SKU entry (whole document or one line at a time), and the user wants full self-service control over the label layout via a drag-and-drop designer. See `docs/micro_checklist.md` Stage 52 for full per-item detail; this is the index-style summary. Entered Plan mode given the scope (new doctype, a generic cross-doctype transaction loader, a from-scratch drag/resize canvas UI, generalized ZPL rendering) — three parallel Explore passes grounded the design in actual file:line reads (doctype registration is entirely migration-driven; `Item.category` is free text with no master behind it; GRN prints against `accepted_qty`; `Printer.dpi` existed but was dead code) before the plan was written and approved.
-
-## 2026-09-25
-
-**Stage 50 — BLD-038 (accessibility and localization acceptance): closed dialog tab-order/AX-tree leak, missing error announcements, forced-colors focus gaps** *(code + docs)*
-
-Continued the priority order the 2026-09-24 thread handed off (BLD-038 first, then BLD-037 if time allowed). Confirmed genuinely unstarted via `git status` before touching anything. Live-verified throughout against a disposable Postgres 16.3 on loopback `:5462` (already migrated, reused from the prior session per its own handover note) and a scratch server on `:8179`, using Playwright/Chromium plus raw CDP (`Accessibility.getFullAXTree`, `CSS.getMatchedStylesForNode`) for what a keyboard/AT user actually experiences, not just what the CSS/markup claims. Full per-item detail `docs/micro_checklist.md` 50.13; this is the index-style summary.
-
-## 2026-09-24
-
-**Stage 51.9 — Jewellery field-set correction against real client data, and the `minn` PO&Inventory.xlsx master-data migration** *(code + tests + docs)*
-
-User supplied the client's actual business workbook and asked for the ERP's own bulk-import template (not molding the ERP to the client's format), with our own generated Design ID/SKU — see `docs/micro_checklist.md` 51.9 for full detail; this is the index-style summary.
 

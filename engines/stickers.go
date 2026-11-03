@@ -480,15 +480,23 @@ func stickerPreview(opts []StickerPrintOptions) bool {
 }
 
 // stickerLabel is one line's label for a print, logged unless it is a preview.
-func stickerLabel(opts []StickerPrintOptions, tenantID, schema, sku string, copies int, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate string, requestLine int) (StickerLabel, error) {
-	if stickerPreview(opts) {
-		return resolveStickerLabel(tenantID, schema, sku, printerCode, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate)
+func stickerLabel(opts []StickerPrintOptions, tenantID, schema, sku string, copies int, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate string, requestLine int, pieceCode ...string) (StickerLabel, error) {
+	piece := ""
+	if len(pieceCode) > 0 {
+		piece = pieceCode[0]
 	}
-	return resolveAndLogSticker(tenantID, schema, sku, copies, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate, stickerRequestKey(opts), requestLine)
+	if stickerPreview(opts) {
+		return resolveStickerLabel(tenantID, schema, sku, printerCode, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate, piece)
+	}
+	return resolveAndLogSticker(tenantID, schema, sku, copies, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate, stickerRequestKey(opts), requestLine, piece)
 }
 
-func resolveAndLogSticker(tenantID, schema, sku string, copies int, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate, requestKey string, requestLine int) (StickerLabel, error) {
-	label, err := resolveStickerLabel(tenantID, schema, sku, printerCode, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate)
+func resolveAndLogSticker(tenantID, schema, sku string, copies int, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate, requestKey string, requestLine int, pieceCodes ...string) (StickerLabel, error) {
+	pieceCode := ""
+	if len(pieceCodes) > 0 {
+		pieceCode = pieceCodes[0]
+	}
+	label, err := resolveStickerLabel(tenantID, schema, sku, printerCode, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate, pieceCode)
 	if err != nil {
 		return label, err
 	}
@@ -507,7 +515,11 @@ func resolveAndLogSticker(tenantID, schema, sku string, copies int, printerCode,
 
 // resolveStickerLabel assembles one SKU's label - Item data, the lot's own
 // values, the template - and writes nothing.
-func resolveStickerLabel(tenantID, schema, sku, printerCode, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate string) (StickerLabel, error) {
+func resolveStickerLabel(tenantID, schema, sku, printerCode, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate string, pieceCodes ...string) (StickerLabel, error) {
+	pieceCode := ""
+	if len(pieceCodes) > 0 {
+		pieceCode = pieceCodes[0]
+	}
 	// Stage 30.1.1: resolved through the shared ResolveItemBySKU (code ->
 	// barcode -> id) rather than the internal id alone - a sticker run
 	// keyed off item Codes used to print every label with a blank
@@ -562,6 +574,14 @@ func resolveStickerLabel(tenantID, schema, sku, printerCode, sourceDoctype, sour
 	// only the SKU/barcode known, name/HSN blank.
 	if label.Barcode == "" {
 		label.Barcode = sku
+	}
+	// Stage 146.3.2: one piece of a receipt - its own code is the barcode.
+	if pieceCode != "" {
+		label.Barcode = pieceCode
+		if label.Fields == nil {
+			label.Fields = map[string]string{}
+		}
+		label.Fields["piece_code"] = pieceCode
 	}
 	if svg, svgErr := RenderCode128SVG(label.Barcode); svgErr == nil {
 		label.BarcodeSVG = svg

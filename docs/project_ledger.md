@@ -44,6 +44,107 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 329. Stage 157 — The UI fits any window size or browser zoom (2026-11-03, CSS + guide, session erp-79; NOT COMMITTED)
+
+The user's POS screenshot showed the top bar's second row (store, Refresh, Reset, ?) drawn over the page in a narrow window, and they asked for a UI that adapts at any zoom. Items 157.1-157.4 in micro_checklist.md carry the detail.
+
+- **Built:** the top bar grows and wraps instead of overlapping; wide content and tables scroll sideways instead of being cut (`contain: paint` on `.table-wrapper` had clipped them); txn screens keep their item rows in a short window and scroll; CRM grids, stat cards, PO row buttons and Activity Log tabs wrap. `styles.css`, `index.html`, `txn-screen.css`, `crm.css`, `view-admin.js`; USER_GUIDE §3.
+- **Guide `fit` suite** (outside the repo): 119 screens x 9 sizes (320x180 to 7680x4160). 574 faults on the first sweep, 0 on the last; POS screenshots checked by eye.
+- **Trade-off:** sticky table headers stick inside their scrolling panel, not to the page.
+- **Open:** 157.4, Inventory Ledger opens with REPORT-0161 on a large book.
+
+## 328. Stage 146 - 20 of the vendor-recording gaps built (2026-11-03, code + tests + guides, session erp-e9; NOT COMMITTED)
+
+The user's ask (the next 20 items, half-built first, skip items in flight) and the result are on the erp-e9 claim header in micro_checklist.md; each item's line carries what was built under **erp-e9 (2026-11-03)**.
+
+- **Done (18):** 146.1.1-146.1.7 (tier re-check before earn + daily pass, transforms on blank values, bins drop on transfer dispatch, reorder counts stock on order, short-pick hold, honest Unicommerce text, transfer hold on approval), 146.2.1-146.2.6 (bonus-points offers, loyalty schemes by store and date, no-points items, point worth under a rupee, blocked members and never-earn tags, points transfer with OTP), 146.3.1 bin mix rules + home bins, 146.3.2 codes per piece, 146.3.4 Bin Generator + pick sequence, 146.4.4 ship limits per store + PIN distance, 146.5.3 more PIM transform steps + value maps.
+- **Built (part) / not verified (2):** 146.3.3 work queue (replenish, move and count tasks are served but nothing creates them yet); 146.5.1 PIM content to Shopify (tested on a fake Shopify; the live check waits on the 99.8 dev-store credentials).
+- **Needs decision (3 new), each with a recommended answer:** 146.2.2b value per point per scheme (no), 146.3.2b an RF receive screen (yes), 146.3.4b bin labels through sticker templates (wait for a client).
+- **How:** six builders in scratch worktrees (`%TEMP%\erp-e9-a..f`, DBs `custom_erp_e9_a..f`) from erp-e8's partial Stage 146 patches, ported with `git merge-file` (one hand-resolved conflict, `pos_quote.go`). Combining them needed 9 brain patterns and two cold-core trims (184,017 / 184,320). A Chromium smoke on a scratch server found two things, both fixed: the RF menu probes answered 422 while off (a browser error on every RF screen; now 200 on / off, `TestStage1463RFProbesAnswerOnFlag`), and the Bin Generator asked for a Bin before it could make one. Three corrections apply without a setting: 146.1.1, 146.1.3, 146.1.4. The idempotency audit lists 3 new routes as money / stock without a command key; all three are safe by state (a transfer posts once under a row lock, the generator skips bins that exist). The full suite (engines and `./internal/...`, each on a freshly migrated DB) found 6 new fields with no personal-data purpose (`Customer.loyalty_blocked` / `_reason` / `_by` / `_at`, `PinCode.latitude` / `longitude`); they are now rows in `engines/personal_data_register.go`. Everything else passes except `TestAttackSurfaceManifestIsCurrent`, left to G6.
+- **For the release:** 9 migrations, 5 new routes (attack surface at G6), a new lazy view (`view-bin-tools.js`), settings all off (`loyalty.tier_daily_reevaluation`, `loyalty.never_earn_tags`, `loyalty.redemption_paise_per_point`, `loyalty.points_transfer`, `wms.short_pick_hold`, `wms.work_queue`, `inventory.piece_codes_stores`, `inventory.transfer_reserve_on_approval`, `oms.ship_rule_*`, `oms.ship_max_distance_km`, `shopify.publish_pim_content`), codes CUSTOM-0621..0624 and 0690..0692.
+
+## 327. "Build next 20 items" - 20 half-built Stage 47 / 49 items taken further (2026-11-03, code + tests + guides, session erp-e8; NOT COMMITTED)
+
+The user's ask, the rule (half-built items first, skip items in flight, 20 in all) and the result are on the erp-e8 claim header in micro_checklist.md; each item's line carries what was built under **erp-e8 (2026-11-03)**.
+
+- **Done (7):** 47.14.4 error Help link, 47.13.2 column guide + field help, 49.11.7 privileged sessions with End, 49.8.5 one Credentials screen (rotate / switch off), 49.8.8 integration failure modes (2 courier defects fixed), 49.13.3 statement timeout + disk / WAL alerts, 49.10.3 timing and background-job probes (forgot-password leak fixed).
+- **Needs decision (4), each with a recommended answer:** 49.12.4 (encrypt the forensic pack), 49.12.3 (read-only mode; the per-client integration freeze is built), 49.3.4 (payroll-export scope), 47.13.5 (merge through maker-checker; merge / undo is built).
+- **Built (part) (9):** 47.14.1, 47.14.3 report contract, 49.3.6 role history / undo + store-access evidence, 49.3.5, 49.5.3 (+21 strict doctypes, 111 of 247), 47.11.8b (needs courier credentials), 47.12.4 append-only setup history, 49.5.5 order-to-cash mismatches (R5088), 47.9.3 slow queries + baseline (needs the host).
+- **How:** six builders in scratch worktrees (`%TEMP%\erp-e8-a..f`, DBs `custom_erp_e8_a..f`), ported with `git merge-file` (one hand-resolved conflict, `tenant_reset.go`). Combining them surfaced `privileged_sessions` unclassified for tenant reset, 12 unclaimed brain files, and a disk alert that was on by default (now 0 = off). A 12-screen Chromium smoke on a scratch server passed after 3 display fixes (credential dates, stack-trace title, Roles reason labels). Full-suite catch-ups: command-catalogue notes for 4 routes, `privSessionCache` reviewed, R5088 numbered, idempotency audit (+10 routes, none money / stock). The two `panic(` frames in the engines output are the 49.8.8 poison job's recovered panics, logged on purpose.
+- **For the release:** 7 migrations, 14 new routes (attack surface at G6), a new lazy view (`view-integration-credentials.js`, so VIEW_MODULE_VERSION moves), 4 settings all off (`platform.db_statement_timeout_seconds`, `platform.disk_free_alert_percent`, `platform.wal_size_alert_gb`, `security.freeze_integrations`), worker `StartStorageWatch`.
+
+## 326. Stage 152 — Solid app shell: favourites in reach, a refresh that doesn't feel like one, screens that don't scroll (2026-11-01 / 2026-11-03, code; session erp-cc; NOT COMMITTED)
+
+The user's ask (POS screenshot) is quoted on the Stage 152 header in micro_checklist.md; detail per item is there.
+
+- **152.1-152.2:** a Favourites entry in the left menu lists starred screens; Alt+1…Alt+9 open them from anywhere, the till included.
+- **152.3-152.4:** new `public/shell-steady.js` (+ `.css`). F5 paints the last menu and screen back at once, and the first render swaps in place. Scrolls and focus are kept. Only cells that really changed get a brief highlight (no entrance animation, no blank, no "Loading").
+- **152.5:** list screens fit the window, and the list scrolls inside under a pinned header. 9 of the 25 page-scrolling screens fixed, none new; the remaining 16 are reading pages or multi-list pages, a recorded decision. POS was already rigid (checked with 40 lines). To pay for the CSS, the OMS console and Configuration rules moved out of the cold core into lazy `oms.css` / new `config.css`.
+- **152.6** (OMS Orders on a short window) waits on a design decision.
+- **Trap:** a scripted "new file" write overwrote tracked `public/oms.css`. It was restored from HEAD with the moved block appended; noted in memory.
+
+## 325. Stage 140.13 — Guide's closing run of the 140.12 fixes on app, and the retest (2026-10-29 / 2026-11-03, live run + local check; no ERP code changed)
+
+Detail per item in micro_checklist.md §140.13-140.14.
+
+- **Retest on 0.19.0 (140.13.2):** nothing regressed; the misses became 140.14.1-4.
+- **Closing run on app 0.21.0 (140.13.1):** the user's OK, writes on GUIDE-TS only. Every 140.12 fix it reaches holds. The OMS bill reaches an ERP Sales Invoice with the right GL. Its one high finding was Guide's own: app admin has HO picked in the top bar, so lists (106.6) hid the Guide store's invoice. Guide now reads it through the package.
+- **140.12.18 / .20, local:** a new Guide suite, `ui14012`, drove the pick screen, the pick list print, the Return / RTO dialog and Credit note. All work. It found two gaps (140.14.6 return routing needs a store holding the item; 140.14.7 "Done." when nothing is credited).
+- **Stage 140.12 is closed;** 140.14 (7 items, 6 open) is next.
+
+## 324. Stage 153 — Sticker Printing ▸ Print from Transaction: select all (2026-11-01, code; NOT COMMITTED)
+
+The user's ask ("need a select all in print", on a Print from Transaction screenshot) is quoted on the Stage 153 header in micro_checklist.md.
+
+- **153.1:** a checkbox in the lines table's header (`renderStickerSourceLines`, `public/view-printing.js`) ticks / clears every line; it shows ticked when all lines are, part-ticked when some are.
+- **Verified:** `node --check`; the function's own code rendered in headless Edge with four stub lines - load, untick one, header on / off, Print Selected - each gave the expected ticks and indexes.
+
+## 323. Stage 149 — No explanatory blurbs anywhere; PIM Workbench loads on a full catalog (2026-10-31, code + tests, session fb7b6adf; 149.2 and part of 149.1 shipped in 0.21.0, the rest NOT COMMITTED)
+
+The user's asks (the Bulk CSV Import screenshot, then "PIM workbench is not loading") are quoted on the Stage 149 header in micro_checklist.md.
+
+- **149.1:** three agents swept all 90 frontend files: intro / how-to sentences under dialog, panel and section titles removed; warnings about a consequence cut to a few words; how-to tails cut off ~50 empty states. Empty, error and live-status lines and field help kept. Stopped midway for erp-b6's freeze, then finished.
+- **149.2:** `ListWorkbench` scored each Item through `CalculateCompleteness` (~10 queries plus a profile write each, up to 2000 Items), so a full catalog ran past the 55 s deadline. It now runs five set-based queries through the same `scoreCoreCompleteness` / `deriveProfileStatus`, with one batched upsert for the profiles that changed. The Family filter box lost its 200 px empty space.
+- **Verified:** see 149.1 / 149.2. Engine test plus a 63-Item parity run; 2000 Items: 2.3 s cold, ~0.25 s warm. Chromium: import dialog, Workbench, and a 35-screen walk with no page errors.
+
+## 322. Stage 150 — Switching the store keeps every screen where it is, like an app (2026-10-31, code + docs, session erp-f2; NOT COMMITTED)
+
+The user's ask (an RFQ ▸ New RFQ screenshot) is quoted on the Stage 150 header in micro_checklist.md.
+
+- **Found (local run, before):** a switch re-ran `renderView`, which blanks `#view-root`, shows "Loading…" and scrolls to the top; typed entries were lost; the store button's width followed the name (97 / 134 / 201 px); the till's `erp:working-store` hook drew the POS twice; the Store App went to Home.
+- **Built:** `renderView(view, keep)` keeps the screen (unclickable, dimmed after 0.3 s) and swaps the new one in at the same scroll; the scratch build area is now first in the body so a renderer's `getElementById` finds its new elements, not the old screen's twins. `rerenderKeeping` (view-store.js) carries fields the user typed (marked by their own input / change events), never a picker (`attachTypeahead` marks its input `data-ta`) or a field holding the old store; Refresh uses it too. The bar redraws quietly on a switch. Store button 200 px (150 px on phones) with "…". Store App: back to the screen the switch was made from.
+- **Verified:** see 150.4 - Chrome on a scratch server: RFQ, Audit Logs, POS, Refresh, Store App; source tests green; cold core 14 B smaller.
+- **At release:** JS and CSS only (app.js, view-store.js, store.css, store/store.js); no migration, route or setting. The local dev DB needed `migrations_stage106_6_store_view.sql` before a switch worked there (prod has it).
+
+## 321. Stage 148 — What a 138-episode D365 F&O course shows the ERP should do, smarter (2026-10-31, research + docs, session erp-f2; plan shipped in 0.21.0)
+
+The user's ask is quoted on the Stage 148 header in micro_checklist.md.
+
+- **Done:** the playlist's 138 titles, then (user's OK) English auto-captions via yt-dlp, kept outside the repo: 136 readable (Ep 15 and 26 captioned as Hindi). Four read-only code sweeps (finance, procurement, inventory, sales) and eight Haiku readers of ~17 episodes each; every finding re-checked in the code. Plan `docs/product/d365-fo-playlist-gap-plan-2026-10-31.md`: D1-D10, order of work, 44 items (148.1-148.43) in seven phases, not adopted, episode map.
+- **Found (each re-read in the code):** the average cost is a lifetime average of every unit ever received, and COGS uses it (148.1); Shopify / marketplace shipping charges are stored and never billed (148.2); credit is checked by customer name, at invoice post only (148.3); no GST credit eligibility or value bands (148.42); a GRN must have a PO (148.38).
+- **Agreed with erp-99 (Stage 146):** warehouse execution, quarantine location, loyalty, OMS and PIM stay in 146; pointers 146.1.4, 146.4.2, 146.4.3, 146.3.11 recorded on 148.14, 148.6, 148.27, 148.33.
+- **Lessons:** a caption download written as a script was refused as bot-check circumvention; yt-dlp run on the user's explicit OK worked, with `--sleep-subtitles` to stay under YouTube's 429.
+- **At release:** docs only.
+
+## 320. Stage 146 — What 12 vendor meeting recordings show that the ERP lacks: blueprints, gaps, plan (2026-10-31, research + docs, session erp-99; NOT COMMITTED)
+
+The user's ask is quoted on the Stage 146 header in micro_checklist.md.
+
+- **Done:** 11 recordings (8 h 18 m; `Infor Wms(1)` is a copy) transcribed locally with faster-whisper (small, translate for the Tamil / Telugu mixed sessions) in a scratch venv; screens de-duplicated every 15 s and read with Windows OCR; one reader per domain wrote a blueprint and checked every capability against the code. Five blueprints in `docs/product/research/recordings/` (D365 warehouse, Infor LN + PwC warehouse, D365 loyalty, Unicommerce, Unbxd + Saastify PIM); the plan `docs/product/recordings-gap-plan-2026-10-31.md`: 23 decisions with recommendations, order of work, 52 items in five phases, not adopted.
+- **Found (each re-read in the code):** tiers only recomputed on earn, after the multiplier (146.1.1); `default_if_empty` never fires on an export (146.1.2); plain transfer lines never leave bins (146.1.3); reorder ignores open POs (146.1.4); a short pick leaves the missing pieces sellable (146.1.5); the Unicommerce worker only logs "Would push" while ADMIN_GUIDE says it sends (146.1.6); an approved transfer reserves nothing (146.1.7); Shopify publish drops the PIM content (146.5.1).
+- **Agreed with erp-f2 (Stage 148):** quality rules on receipt stay 148.33 (built with 146.3.11), vendor catalogue 148.6, back orders 73.4.2; 148.14's reorder drafts point to 146.1.4. Stage 145's misplaced "Verified (all four)" note moved back under 145.4.
+- **Lessons:** ffmpeg 9's built-in whisper filter ran below real time here (no fast CPU path); faster-whisper int8 was about 5×. ffmpeg inside a `while read` loop eats the list (`-nostdin`), and Git Bash turned `"\\$key"` into a literal `$key` (build Windows paths with `cygpath -w`).
+- **At release:** docs only; no code, migration, route or setting.
+- **2026-11-01, the user's decisions** (`Downloads\Remarks.xlsx`, recorded on 146.D): recommended taken for most; our own OMS stays the order system with a real Unicommerce integration (D1); ERP purchasing / GRN already in place (D3); points on online orders and transfer reservation become settings, on and off by default (D11, D20); channel sign-off dropped (D16). 2026-11-03: value maps are their own record, one set per marketplace (D15); all four ship-from-store limits are to be built (D17). Every decision is now closed.
+
+## 319. Stage 151 — HRM: each HR page its own sidebar entry, like PIM (2026-10-31, code + docs, session erp-hr1; shipped in 0.21.0)
+
+The user's ask (an HRM ▸ HR ▸ Appraisals screenshot with the tab strip) is quoted on the Stage 151 header in micro_checklist.md.
+
+- **Built:** the HR screen's eleven tabs are HRM flyout entries under My work / Team / HR administration (`data-go="hr:<tab>"`, Stage 88.1.6's PIM pattern), the tab strip gone; each entry borrows `menu-hr`'s rule plus its own record type (payroll ones `hr.payroll`). The screen highlights the page it opened and its internal re-renders keep the tab in the URL, so a refresh stays put. USER_GUIDE, USER_SOP, UAT_CHECKLIST and two KB pages reworded.
+- **Verified:** Chromium on a scratch server as admin, manager1 and cashier1 - see 151.1.
+- **At release:** no migration, route or setting; JS and HTML changed. The old `[data-hr-tab]` clicks in `docs/qa/stage55-shared-correctness.cjs` and the SOP-video scenes are historical, like their PIM / Manufacturing ones.
+
 ## 318. "Release all changes until now from all work" - 0.21.0, every session's work, deployed to app and minn (2026-10-31, release, session erp-b6)
 
 User, 2026-10-31: *"You can ask everyone to stop working unill you say. & Release all changes untill now from all work"* (after *"Relase now. That is high priority to test"* for the barcode print, 143.6).
@@ -54,7 +155,7 @@ User, 2026-10-31: *"You can ask everyone to stop working unill you say. & Releas
 - **Deploy:** 5 migrations (49.10.6b, 49.11.2 audit columns, 72.8, 130.16.4 strict money/stock transitions, 140.13 indexes) after the user's yes to the client-data list; first signed deploy - key `%USERPROFILE%\.erp-release\signing.key` created (fingerprint 9b45a45fa8006d0b), pinned on the box, `release/signing.pub` committed after; both hosts 200 on 0.21.0.
 - **Not done here:** the user's own barcode print on the Y468BT (143.6); the signing key's off-machine copy is the user's.
 
-## 317. Stage 147 — Item boxes find by Design ID, Combination ID or barcode; the OMS order line shows stock and fills the price (2026-10-31, code + tests + docs, session erp-oms; NOT COMMITTED)
+## 317. Stage 147 — Item boxes find by Design ID, Combination ID or barcode; the OMS order line shows stock and fills the price (2026-10-31, code + tests + docs, session erp-oms; released in 0.21.0 `4b80806`, deployed to app and minn)
 
 The user's ask (an OMS ▸ New order screenshot, then two corrections: Design ID, Combination ID / SKU and barcode may all carry letters) is quoted on the Stage 147 header in micro_checklist.md.
 
@@ -63,16 +164,16 @@ The user's ask (an OMS ▸ New order screenshot, then two corrections: Design ID
 - **Verified:** build, vet, `node --check`; `TestNetworkAvailableToSellSumsEveryLocation`, `TestItemIdentitySearchDesignCombinationBarcode`, `TestSearchIdentityScope` (moved from a name match to a barcode match), `TestCurrentStockReportUsesReservationSellableMath`; Chromium on a scratch server (5490 `custom_erp`): design search lists its four combinations, a name finds nothing, a pick fills Available 6 / price 999, a barcode line 8, one stock call per pick, no console errors.
 - **At release:** no migration, route, setting or worker; JS changed.
 
-## 316. Stage 145 — Inventory: a one-page management dashboard, every inventory page on the top-bar store, Stock on Hand by design with columns each user picks (2026-10-31, code + tests + docs, session erp-inv; NOT COMMITTED)
+## 316. Stage 145 — Inventory: a one-page management dashboard, every inventory page on the top-bar store, Stock on Hand by design with columns each user picks (2026-10-31, code + tests + docs, session erp-inv; shipped in 0.21.0)
 
 The user's ask is quoted in full on the Stage 145 header in micro_checklist.md; items 145.1-145.4 carry the detail.
 
 - **Built:** the dashboard is tiles (Designs, Qty, Combinations, Stock value, Awaiting approval) and two ranked tables, By item (short name) and By store / By category, sized to the window; low stock and latest movements gone. Stock on Hand moved to its own route `GET /api/v1/inventory/stock`: Design No, Combination ID, Barcode, the short Item Name, one column per active Item Attribute, and a Columns popover saved per user as a `UserShortcut` (no migration). Dashboard, Stock on Hand and the Inventory Ledger follow the top-bar store by the 106.6 rule; the other inventory pages already did.
 - **Found on the way:** the app's automatic link sweep rewrites any code-looking cell into the record's name, which would have put the long item names back - the new table's code cells opt out. `.table-wrapper`'s `contain: paint` clips a wide table with no scrollbar, so this table scrolls inside its panel (the phone rule). The first cut put the styles in `styles.css` and broke the cold-core budget (184,827 of 184,320 gzip bytes); they moved to `public/inventory.css`, loaded with the screen. The shared `custom_erp` lacks Stage 106.6's `store_view` column, so live checks need a fresh database.
 - **Verified:** build, vet, gofmt; engine and server tests (`TestInventoryStockPageByDesign`, `TestStage145InventoryFollowsTopBarStore`, the existing dashboard / current-stock / route classification tests); `cmd/releasebudget`, `internal/supplychain` green, `internal/securityscan` green but the attack-surface manifest (already drifted by erp-1f's batch, G6 regenerates); a fresh database migrated from zero, seeded jewellery catalogue, Chromium walk at 1366x768 with no console errors.
-- **At release:** a new route (G6 regenerates the attack surface); JS / CSS changed (the release bumps `VIEW_MODULE_VERSION`). No migration, no setting, no worker.
+- **At release:** a new route (G6 regenerates the attack surface); JS / CSS changed (the release bumps `VIEW_MODULE_VERSION`). No migration, no setting, no worker. Shipped in 0.21.0 (`4b80806`), deployed to app and minn by erp-b6. Its release DAST found `?q=%00` answering 500 (Postgres 22021): `GetCurrentStockPage` now drops a NUL from the search, which also fixes the older Current Stock route (`TestInventoryStockPageHostileQuery`).
 
-## 315. "Start next 20 items ... all recommended approved" (session erp-1f / erp-fe): insider controls, signed releases, media retention, store-scoped creates, retry-safe money commands, security events and views (2026-10-30/31, code + tests + docs; NOT COMMITTED)
+## 315. "Start next 20 items ... all recommended approved" (session erp-1f / erp-fe): insider controls, signed releases, media retention, store-scoped creates, retry-safe money commands, security events and views (2026-10-30/31, code + tests + docs; released 0.21.0 `4b80806`)
 
 micro_checklist run header "Once all the push and deploy done start next 20 items" (2026-10-30); each item's status names its tests.
 
@@ -97,7 +198,12 @@ The user: *"MINN_Bulk_Purchase_Upload_v1.6.xlsx upload by guid in app. do po grn
   - Transfers have one Print; Print as picks Out or In.
   - OMS Print label shows the label with Print; View label is gone.
 
-  It shipped inside 0.20.0 (`99b1416`, erp-1f released the whole tree) and was verified live on app with Guide (`print143`). The gift-card slip followed as 143.5 (built, not yet released). Guide's stickers suite now presses Print inside the preview.
+  It shipped inside 0.20.0 (`99b1416`, erp-1f released the whole tree) and was verified live on app with Guide (`print143`). The gift-card slip followed as 143.5 (shipped in 0.21.0). Guide's stickers suite now presses Print inside the preview.
+- **minn, the clean part (143.3, 2026-11-03).** The user chose BLR Warehouse and the client fixing the file. The seven bills that already add up went first, after the user approved the totals: POWH00001-07/2627 and GRNWH00001-07/2627 posted (7 vendors, 284 items, 347 pcs, ₹1,30,625). Guide's `uploads` suite now takes an `expect` guard: nothing is applied unless the preview equals what was approved. Its post-apply re-check now reads purchase totals; before, it read only Setup Workbook keys and so proved nothing for a purchase file. The other 10 bills wait for the client. minn had no sticker printer or template. With the user's OK, app's were copied: printer PRI00001 "Jewellery" and template SEZNIK-V3 (brand MINN, default). GRNWH00002/2627 then previews 70 stickers. 143.5's gift-card slip was verified live on app with a new Guide suite, `giftslip`; the issue call was answered in the browser, so nothing was written.
+- **minn cleanup and the rest of the file (143.7, 143.8, 2026-11-03).** On the user's "yes, write to minn":
+  - **Masters.** Pashwa's four doubled item names (product types typed into Category) became Kundan kada, Kundan hath pan, Kundan Ring and Antique mala. Their 28 designs and 28 items followed, the stray categories were set Inactive, and every HSN is now 7117. admin's home store went from HO to BLR Warehouse.
+  - **The rest of the file.** The upload still made item names for rows of an already-made PO, so our copy's Pashwa Category cells were corrected first. POWH00008-18/2627 were then made under the `expect` guard. The 10 bills wait for the client's corrected file, and tatwa and bhavana imitation are held as likely doubles.
+  - **The client** got `MINN_purchase_file_fixes_v2.txt`, which says that uploaded PO Refs, rows and ordered Qty are now frozen. Guide `act` saves are `POST` to the record (PUT is 405).
 
 ## 313. "Push and deploy properly ... all approved" - 0.20.0, everything in the tree, deployed to app and minn (2026-10-30, release, session erp-1f)
 
@@ -120,7 +226,7 @@ The user's "build next 20 open items" (2026-10-29). erp-7c held the six approved
 
 Verified: full `go test ./... -p 1` on fresh `custom_erp_6b_full3` (99d33c5 + batch, every migration from empty; all 13 doctypes strict): green except `TestAttackSurfaceManifestIsCurrent` (G6 regenerates) and a CRLF-checkout artifact in `TestVerifyMigrationChecksums` that does not occur in the main tree. In the main tree (fresh `custom_erp_6b_main`): the batch's tests and their neighbours green after one fix to this batch's own export test (it matched a personal field by bare name, so erp-7c's new `Salesman.phone` flagged every report's customer phone). What still fails there is other sessions' held work, noted in hold.txt: the command catalogue and idempotency audit are not current against Stage 140.12 / 142's routes and capability changes; 140.12.27's `crm-pulse` tile has no KPI contract (`TestStage47143EveryKPICarriesItsContract`); 140.12's `AcquirerSettlement.bank_line` has no personal-data row. Needs the user: approve the batch; 49.4.7a (which commands get a key first); 47.18.4a (delete `qrcode.min.js`); 73.0.2 (one capability register).
 
-## 311. "All approved": the six decisions the "next 20" batch left open, built (2026-10-29/30, code + tests + docs, session erp-5e / erp-7c; NOT COMMITTED)
+## 311. "All approved": the six decisions the "next 20" batch left open, built (2026-10-29/30, code + tests + docs, session erp-5e / erp-7c; released 0.20.0 `99b1416`, deployed)
 
 The user approved the recommended answers to §305's six open decisions (micro_checklist block "User, 2026-10-29: all approved"). G1-G6's answers were written in the GST control map; the other five had been given only in chat, so they were written into the tracker as approved. Four builders in worktrees at `932f3c8`; combined in `%TEMP%\erp-7c-wt`, rebased onto 0.20.0 (`99d33c5`), merged three-way into the main tree (67 files, no conflicts; `role_templates.go` also carries 140.12, noted in hold.txt).
 

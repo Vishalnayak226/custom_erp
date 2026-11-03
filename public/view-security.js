@@ -52,7 +52,7 @@ async function runControl(url, body, title) {
 
 export async function renderSecurityPane(target) {
   target.innerHTML = '<p style="padding:16px; color:var(--text-muted);">Loading…</p>';
-  const [pRes, uRes] = await Promise.all([apiFetch('/api/v1/admin/security/posture'), apiFetch('/api/v1/admin/users')]);
+  const [pRes, uRes, sRes] = await Promise.all([apiFetch('/api/v1/admin/security/posture'), apiFetch('/api/v1/admin/users'), apiFetch('/api/v1/admin/security/sessions')]);
   if (!pRes || !pRes.ok) {
     target.innerHTML = '<p style="padding:16px; color:var(--danger-color);">Could not load security. <button class="btn btn-outline btn-sm" data-sec="retry">Try Again</button></p>';
     target.querySelector('[data-sec="retry"]').addEventListener('click', () => renderSecurityPane(target));
@@ -60,6 +60,7 @@ export async function renderSecurityPane(target) {
   }
   const p = await pRes.json();
   const users = uRes && uRes.ok ? await uRes.json() : [];
+  const sessions = sRes && sRes.ok ? ((await sRes.json()).sessions || []) : [];
   const sweepAge = p.last_sweep ? Math.round((Date.now() - new Date(p.last_sweep)) / 60000) : null;
 
   target.innerHTML = `
@@ -94,6 +95,15 @@ export async function renderSecurityPane(target) {
     </div>
 
     <div class="table-panel" style="margin-top:16px; padding:16px; min-height:0;">
+      <h3 style="font-size:16px; font-weight:600; margin-bottom:8px;">Privileged sessions</h3>
+      <div class="table-container"><table class="data-table" style="width:100%;">
+        <thead><tr><th>User</th><th>Signed in</th><th>Last seen</th><th>From</th><th>Device</th><th>State</th><th></th></tr></thead>
+        <tbody>${sessions.length === 0 ? '<tr><td colspan="7" style="color:var(--text-muted);">None yet</td></tr>'
+          : sessions.map(s => `<tr><td>${esc(s.username)}</td><td style="white-space:nowrap; font-size:12px;">${esc(when(s.started_at))}</td><td style="white-space:nowrap; font-size:12px;">${esc(when(s.last_seen_at))}</td><td>${esc(s.address || '-')}</td><td style="font-size:12px;">${esc(s.device || '-')}</td><td>${esc(s.state)}</td><td>${s.state === 'Active' ? `<button class="btn btn-outline btn-sm" data-sec-end="${esc(s.id)}">End</button>` : ''}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </div>
+
+    <div class="table-panel" style="margin-top:16px; padding:16px; min-height:0;">
       <h3 style="font-size:16px; font-weight:600; margin-bottom:8px;">Trace a request</h3>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <input class="form-input" data-sec="corr" placeholder="Reference from an error message" style="flex:1; min-width:220px;">
@@ -121,6 +131,7 @@ export async function renderSecurityPane(target) {
         <button class="btn btn-outline" data-sec="signout">Sign out everywhere</button>
         <button class="btn btn-outline" data-sec="signout-all">Sign out everyone</button>
         <button class="btn ${p.exports_frozen ? 'btn-primary' : 'btn-outline'}" data-sec="freeze">${p.exports_frozen ? 'Unfreeze exports' : 'Freeze exports'}</button>
+        <button class="btn ${p.integrations_frozen ? 'btn-primary' : 'btn-outline'}" data-sec="freeze-int">${p.integrations_frozen ? 'Unfreeze integrations' : 'Freeze integrations'}</button>
       </div>
     </div>`;
 
@@ -175,6 +186,13 @@ export async function renderSecurityPane(target) {
   $('signout-all').addEventListener('click', async () => {
     if (!await showCustomConfirm('Sign out every user of this business except you?', 'Sign out everyone')) return;
     await runControl('/api/v1/admin/security/sign-out-all', {}, 'Sign out everyone');
+  });
+  target.querySelectorAll('[data-sec-end]').forEach(btn => btn.addEventListener('click', async () => {
+    if (await runControl('/api/v1/admin/security/sessions/end', { id: btn.dataset.secEnd }, 'End session')) renderSecurityPane(target);
+  }));
+  $('freeze-int').addEventListener('click', async () => {
+    const on = !p.integrations_frozen;
+    if (await runControl('/api/v1/admin/security/freeze-integrations', { on }, on ? 'Freeze integrations' : 'Unfreeze integrations')) renderSecurityPane(target);
   });
   $('freeze').addEventListener('click', async () => {
     const on = !p.exports_frozen;

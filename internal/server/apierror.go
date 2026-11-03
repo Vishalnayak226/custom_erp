@@ -82,6 +82,9 @@ type apiErrorBody struct {
 	// answer to a request that tried to change something.
 	Saved     string `json:"saved,omitempty"`
 	SavedNote string `json:"saved_note,omitempty"`
+	// Help (Stage 47.14.4) is "<article slug>#<anchor>" of this code in the in-app
+	// help (the error code reference); empty when the article has no entry.
+	Help string `json:"help,omitempty"`
 }
 
 // Stage 47.14.4: an error message answers four things in order - what
@@ -210,6 +213,9 @@ func logForEntry(r *http.Request, entry CatalogEntry, message string) {
 // writeResponse is the single place every API error response body gets
 // written from, so the JSON shape can never drift between call sites.
 func writeResponse(w http.ResponseWriter, status int, body apiErrorBody) {
+	if body.Help == "" && body.Code != "" {
+		body.Help = errorHelpTarget(body.Code)
+	}
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(body)
 }

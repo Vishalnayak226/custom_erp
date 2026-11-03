@@ -137,14 +137,23 @@ type QuoteRequest struct {
 // is the cashier's ask capped at it, Value what those points pay, and the
 // Needs* fields what the redemption controls (73.1.4) will ask for first.
 type QuoteLoyalty struct {
-	Balance       int     `json:"balance"`
-	ValuePerPoint int     `json:"value_per_point"`
-	MaxPoints     int     `json:"max_points"`
-	Points        int     `json:"points"`
-	Value         float64 `json:"value"`
-	NeedsOTP      bool    `json:"needs_otp,omitempty"`
-	NeedsApproval bool    `json:"needs_approval,omitempty"`
-	ApproverRole  string  `json:"approver_role,omitempty"`
+	Balance       int `json:"balance"`
+	ValuePerPoint int `json:"value_per_point"`
+	// ValuePaisePerPoint is the exact value (a point may be worth under Rs 1);
+	// EligibleNet is the part of the bill points may pay for (Stage 146.2.3).
+	ValuePaisePerPoint int64   `json:"value_paise_per_point"`
+	EligibleNet        float64 `json:"eligible_net"`
+	Limited            bool    `json:"limited,omitempty"`
+	MaxPoints          int     `json:"max_points"`
+	Points             int     `json:"points"`
+	Value              float64 `json:"value"`
+	NeedsOTP           bool    `json:"needs_otp,omitempty"`
+	NeedsApproval      bool    `json:"needs_approval,omitempty"`
+	ApproverRole       string  `json:"approver_role,omitempty"`
+	// 146.2: what this bill will earn (base + bonus), for the till preview;
+	// EarnBlocked is why a blocked member earns nothing.
+	EarnPoints  int    `json:"earn_points,omitempty"`
+	EarnBlocked string `json:"earn_blocked,omitempty"`
 }
 
 // QuoteLine is one priced line. Every monetary field on it was computed here,
@@ -181,6 +190,8 @@ type QuoteLine struct {
 	// is charged for the line. GST is backed out of NetTotal, not LineTotal.
 	OfferShare float64 `json:"offer_share"`
 	NetTotal   float64 `json:"net_total"`
+	// NoPoints (Stage 146.2.3): this line cannot be paid with points.
+	NoPoints bool `json:"no_points,omitempty"`
 }
 
 // QuoteResult is the whole authoritative answer: what the receipt says, what
@@ -485,10 +496,15 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 	result.Total, result.RoundOff = RoundToRupee(result.Total)
 	result.AmountDue = result.Total
 	if strings.TrimSpace(req.CustomerID) != "" {
-		loyalty, err := quoteLoyalty(tenantID, req.CustomerID, req.RedeemPoints, result.Total)
+		eligible, err := markNoPointsLines(tenantID, result)
 		if err != nil {
 			return nil, err
 		}
+		loyalty, err := quoteLoyalty(tenantID, req.CustomerID, req.RedeemPoints, result.Total, eligible)
+		if err != nil {
+			return nil, err
+		}
+		previewLoyaltyEarn(tenantID, req.CustomerID, req.Location, result, loyalty) // 146.2
 		result.Loyalty = loyalty
 		result.AmountDue = round2(result.Total - loyalty.Value)
 	}
@@ -625,17 +641,19 @@ func ManualDiscountShare(q *QuoteResult) float64 {
 // quoteLoyalty prices the points a cart wants to redeem against what the bill
 // and the customer's balance allow. A negative balance (a return took back
 // points already spent - D03) redeems nothing.
-func quoteLoyalty(tenantID, customerID string, wanted int, total float64) (*QuoteLoyalty, error) {
+func quoteLoyalty(tenantID, customerID string, wanted int, total, eligibleNet float64) (*QuoteLoyalty, error) {
 	balance, err := GetLoyaltyBalance(tenantID, customerID)
 	if err != nil {
 		return nil, err
 	}
-	v := redemptionValuePerPointFor(tenantID)
-	if v <= 0 {
-		v = 1
+	vp := loyaltyPointValuePaise(tenantID)
+	capNet := total
+	if eligibleNet < capNet {
+		capNet = eligibleNet // 146.2.3: lines that cannot be paid with points are left out
 	}
-	l := &QuoteLoyalty{Balance: balance, ValuePerPoint: v}
-	l.MaxPoints = int(RupeesToPaise(total) / RupeesToPaise(float64(v)))
+	l := &QuoteLoyalty{Balance: balance, ValuePerPoint: int(vp / 100), ValuePaisePerPoint: vp, EligibleNet: capNet}
+	l.Limited = eligibleNet < total
+	l.MaxPoints = loyaltyPaiseToPoints(tenantID, RupeesToPaise(capNet))
 	if balance < l.MaxPoints {
 		l.MaxPoints = balance
 	}
@@ -649,7 +667,7 @@ func quoteLoyalty(tenantID, customerID string, wanted int, total float64) (*Quot
 	if l.Points < 0 {
 		l.Points = 0
 	}
-	l.Value = float64(l.Points * v)
+	l.Value = PaiseToRupees(loyaltyPointsPaise(tenantID, l.Points))
 	if l.Points > 0 {
 		req, err := LoyaltyRedemptionRequirementFor(tenantID, l.Points)
 		if err != nil {
@@ -658,6 +676,32 @@ func quoteLoyalty(tenantID, customerID string, wanted int, total float64) (*Quot
 		l.NeedsOTP, l.NeedsApproval, l.ApproverRole = req.NeedsOTP, req.NeedsApproval, req.ApproverRole
 	}
 	return l, nil
+}
+
+// markNoPointsLines flags the lines that cannot be paid with points and returns
+// the net of the others - what points may pay for (Stage 146.2.3).
+func markNoPointsLines(tenantID string, q *QuoteResult) (float64, error) {
+	skus := make([]string, len(q.Lines))
+	for i, l := range q.Lines {
+		skus[i] = l.Sku
+	}
+	excluded, err := LoyaltyNoPointsSKUs(tenantID, skus)
+	if err != nil {
+		return 0, err
+	}
+	eligible, anyExcluded := 0.0, false
+	for i := range q.Lines {
+		q.Lines[i].NoPoints = excluded[q.Lines[i].Sku]
+		if q.Lines[i].NoPoints {
+			anyExcluded = true
+		} else {
+			eligible += q.Lines[i].NetTotal
+		}
+	}
+	if !anyExcluded {
+		return q.Total, nil // nothing excluded: the bill as it always was
+	}
+	return round2(eligible), nil
 }
 
 // signQuoteVersion produces the tamper-evident version digest. It covers every
@@ -677,7 +721,7 @@ func signQuoteVersion(tenantID string, q *QuoteResult) string {
 	// makes the quote stale like a changed price. A cart redeeming nothing
 	// keeps the version it always had.
 	if q.Loyalty != nil && q.Loyalty.Points > 0 {
-		fmt.Fprintf(&sb, "|L%d:%d", q.Loyalty.Points, q.Loyalty.ValuePerPoint)
+		fmt.Fprintf(&sb, "|L%d:%d", q.Loyalty.Points, q.Loyalty.ValuePaisePerPoint)
 	}
 	// Offers can change what is applied without changing the totals (a
 	// like-for-like swap), which still means the cashier is looking at a

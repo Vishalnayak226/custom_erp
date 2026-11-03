@@ -1339,6 +1339,11 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 							writeAPIError(w, r, "GLOBAL-0009", "")
 							return
 						}
+						// 49.11.7: an administrator ended this one session.
+						if engines.HasFullAccess(live.Role) && engines.PrivilegedSessionEnded(tenantID, claims["jti"]) {
+							writeAPIError(w, r, "GLOBAL-0009", "")
+							return
+						}
 						// Stage 57.17: an administrator chose this password (a
 						// new account, or an admin-issued reset), so until the
 						// user sets their own, the only thing the session may do

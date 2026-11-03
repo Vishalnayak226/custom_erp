@@ -171,6 +171,11 @@ func TransitionWaveStatus(tenantID, waveID, newStatus, userID string) error {
 		return err
 	}
 	LogAuditEvent(tenantID, userID, "WMS_WAVE_STATUS_CHANGE", "SUCCESS", fmt.Sprintf("Wave %s: %s -> %s", waveID, wave.Status, newStatus))
+	if newStatus == "Released" && WorkQueueOn(tenantID) {
+		if _, _, perr := buildWavePickList(tenantID, schema, waveID); perr != nil {
+			LogSystemError(tenantID, "", "WARN", "TransitionWaveStatus", fmt.Sprintf("wave %s: pick tasks not created: %v", waveID, perr), "")
+		}
+	}
 	return nil
 }
 

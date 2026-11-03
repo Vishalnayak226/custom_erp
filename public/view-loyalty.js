@@ -26,12 +26,14 @@ function loyEntry(e) {
   if (e.transaction_type === 'Earn') {
     if (e.reference_doctype === 'RefundRequest') return ['Given back on a return', 1];
     if (e.reference_doctype === 'LoyaltyPointAdjustment') return ['Credited by adjustment', 1];
+    if (e.reference_doctype === 'LoyaltyPointTransfer') return ['Received from a customer', 1];
     if (ref.endsWith(':REDEMPTION-REVERSAL')) return ['Not needed on the bill - handed back', 1];
     if (e.reference_doctype === 'POSCart') return ['Earned on a sale', 1];
     return ['Credited', 1];
   }
   if (e.transaction_type === 'Burn') return e.reference_doctype === 'LoyaltyExpiry' ? ['Expired', -1] : ['Redeemed', -1];
   if (e.transaction_type === 'Reversal') return ['Taken back on a return', -1];
+  if (e.transaction_type === 'Adjustment' && e.reference_doctype === 'LoyaltyPointTransfer') return ['Sent to a customer', -1];
   if (e.transaction_type === 'Adjustment') return ['Debited by adjustment', -1];
   return [e.transaction_type, -1];
 }
@@ -60,6 +62,7 @@ export async function renderLoyaltyView(root) {
             <input type="text" id="loy-customer-display" class="form-input" placeholder="Search by name or phone" autocomplete="off">
             <input type="hidden" id="loy-customer"></div>
           <button class="btn btn-outline" type="button" id="loy-adjust" disabled>Adjust points</button>
+          <button class="btn btn-outline hidden" type="button" id="loy-transfer">Transfer points</button>
         </div>
         <div id="loy-summary" class="txn-hint" style="margin:10px 0;">Pick a customer to see their points.</div>
         <div id="loy-context"></div>
@@ -125,6 +128,7 @@ export async function renderLoyaltyView(root) {
   attachCodeNamePicker(q('loy-customer-display'), q('loy-customer'), 'Customer');
   q('loy-customer').addEventListener('change', () => loadCustomer(panel));
   q('loy-adjust').addEventListener('click', () => adjustPoints(panel));
+  q('loy-transfer').addEventListener('click', () => transferPoints(panel));
   q('loy-run').addEventListener('click', () => runMovement(panel));
   q('loy-tier-add').addEventListener('click', () => { loyTiers.push({ id: 0, tier: '', min_spend: 0, earn_multiplier: 1, benefits: '', grace_days: 0 }); drawTiers(panel); });
   show('customer');
@@ -135,11 +139,13 @@ async function loadCustomer(panel) {
   const summary = panel.querySelector('#loy-summary');
   panel.querySelector('#loy-adjust').disabled = !id;
   if (!id) return;
-  const [ledger, cust, adj] = await Promise.all([
+  const [ledger, cust, adj, xfer] = await Promise.all([
     loyJSON(`/api/v1/loyalty/ledger?customer_id=${encodeURIComponent(id)}`, null),
     loyJSON(`/api/v1/doc/Customer/${encodeURIComponent(id)}`, {}),
-    loyJSON(`/api/v1/loyalty/adjustments?customer_id=${encodeURIComponent(id)}`, { adjustments: [] })
+    loyJSON(`/api/v1/loyalty/adjustments?customer_id=${encodeURIComponent(id)}`, { adjustments: [] }),
+    loyJSON('/api/v1/loyalty/transfers', { enabled: false })
   ]);
+  panel.querySelector('#loy-transfer').classList.toggle('hidden', !xfer.enabled);
   if (!loyTiers.length) loyTiers = await loyJSON('/api/v1/crm/loyalty-tier-rules', []) || [];
   const data = cust.data || cust;
   const tier = data.loyalty_tier || '';
@@ -206,6 +212,55 @@ async function adjustPoints(panel) {
   await showCustomAlert(a.status === 'Posted'
     ? `${a.points > 0 ? 'Credited' : 'Debited'} ${Math.abs(a.points)} point(s).`
     : `${Math.abs(a.points)} point(s) (worth ${Number(a.points_value).toFixed(2)}) need a ${a.required_role || 'manager'}'s approval - the request is waiting under Approvals.`, 'Adjust points');
+  loadCustomer(panel);
+}
+
+// Stage 146.2.6: one small form in the shared dialog; resolves with collect(extra) or null.
+function loyForm(title, html, collect, wire) {
+  return new Promise(resolve => {
+    const backdrop = document.getElementById('custom-dialog-container');
+    const extra = document.getElementById('custom-dialog-extra');
+    document.getElementById('custom-dialog-title').textContent = title;
+    document.getElementById('custom-dialog-message').textContent = '';
+    extra.innerHTML = html;
+    extra.classList.remove('hidden');
+    document.getElementById('custom-dialog-cancel-btn').style.display = '';
+    backdrop.classList.remove('hidden');
+    if (wire) wire(extra);
+    const done = v => {
+      backdrop.classList.add('hidden');
+      extra.innerHTML = '';
+      extra.classList.add('hidden');
+      ['custom-dialog-ok-btn', 'custom-dialog-cancel-btn', 'custom-dialog-close-btn'].forEach(b => { const el = document.getElementById(b); el.replaceWith(el.cloneNode(true)); });
+      resolve(v);
+    };
+    document.getElementById('custom-dialog-ok-btn').addEventListener('click', () => done(collect(extra)));
+    document.getElementById('custom-dialog-cancel-btn').addEventListener('click', () => done(null));
+    document.getElementById('custom-dialog-close-btn').addEventListener('click', () => done(null));
+  });
+}
+
+// Move usable points to another customer: the sender's code, then (above the
+// approval value) a manager under Approvals.
+async function transferPoints(panel) {
+  const id = panel.querySelector('#loy-customer').value.trim();
+  if (!id) return;
+  const picked = await loyForm('Transfer points', `<div class="form-group" style="margin-top:8px;"><label class="form-label">To customer</label>
+      <input class="form-input" data-xf="to-display" placeholder="Name or phone" autocomplete="off"><input type="hidden" data-xf="to"></div>
+    <div class="form-group"><label class="form-label">Points</label><input type="number" step="1" class="form-input" data-xf="points"></div>`,
+  x => ({ to_customer: x.querySelector('[data-xf="to"]').value.trim(), points: parseInt(x.querySelector('[data-xf="points"]').value, 10) || 0 }),
+  x => attachCodeNamePicker(x.querySelector('[data-xf="to-display"]'), x.querySelector('[data-xf="to"]'), 'Customer'));
+  if (!picked) return;
+  const res = await apiFetch('/api/v1/loyalty/transfers', { method: 'POST', body: JSON.stringify({ from_customer: id, ...picked }) });
+  if (!res || !res.ok) { await showApiError(res, 'The transfer was not started.'); return; }
+  const t = await res.json();
+  const code = await loyForm('Code from sender', '<div class="form-group" style="margin-top:8px;"><label class="form-label">Code</label><input class="form-input" data-xf="otp" inputmode="numeric" autocomplete="one-time-code"></div>',
+    x => x.querySelector('[data-xf="otp"]').value.trim());
+  if (!code) return;
+  const ok = await apiFetch(`/api/v1/loyalty/transfers/${encodeURIComponent(t.id)}/confirm`, { method: 'POST', body: JSON.stringify({ otp: code }) });
+  if (!ok || !ok.ok) { await showApiError(ok, 'The transfer was not made.'); return; }
+  const d = await ok.json();
+  await showCustomAlert(d.status === 'Posted' ? `Sent ${d.points} point(s).` : `${d.points} point(s) wait for a ${d.required_role || 'manager'}'s approval under Approvals.`, 'Transfer points');
   loadCustomer(panel);
 }
 

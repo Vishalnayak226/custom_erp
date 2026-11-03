@@ -384,6 +384,7 @@ func ShortPickLine(tenantID, taskID, sku, reasonCode string) error {
 	}
 
 	found := false
+	shortQty := 0
 	for i, it := range task.items {
 		if it.SKU != sku {
 			continue
@@ -393,6 +394,7 @@ func ShortPickLine(tenantID, taskID, sku, reasonCode string) error {
 		if remaining <= 0 {
 			return fmt.Errorf("SKU %s has no remaining shortfall to short-pick (qty=%d, picked=%d, already short=%d)", sku, it.Qty, it.PickedQty, it.ShortQty)
 		}
+		shortQty = remaining
 		task.items[i].ShortQty += remaining
 		break
 	}
@@ -403,6 +405,18 @@ func ShortPickLine(tenantID, taskID, sku, reasonCode string) error {
 	recomputeTaskStatus(task)
 	if err := task.saveWith(tx, schema); err != nil {
 		return err
+	}
+	// Stage 146.1.5: with the setting on, the missing pieces go under a
+	// NOT-FOUND hold (bin read before the release below drops the rows).
+	holdID, holdLoc, holdBin := "", "", ""
+	if GetSettingBool(tenantID, ShortPickHoldSetting) {
+		_ = tx.QueryRow(fmt.Sprintf(`SELECT location_code, bin_code FROM %s.bin_allocation
+			WHERE task_id = $1 AND sku = $2 AND status = 'Open' ORDER BY id LIMIT 1`, schema), taskID, sku).Scan(&holdLoc, &holdBin)
+		if holdLoc != "" {
+			if holdID, err = holdShortPickTx(tx, schema, taskID, sku, holdLoc, shortQty, "system"); err != nil {
+				return err
+			}
+		}
 	}
 	// Release the SKU, then re-reserve from the task as now saved: a SKU
 	// listed on two lines and shorted on only one still needs the other's.
@@ -416,7 +430,13 @@ func ShortPickLine(tenantID, taskID, sku, reasonCode string) error {
 	if err := ReserveTaskBinStockTx(tx, tenantID, schema, taskID, status, data); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	if holdID != "" {
+		raiseShortPickCount(tenantID, holdID, taskID, sku, holdLoc, holdBin, shortQty, "system")
+	}
+	return nil
 }
 
 // CompletePackTask is the explicit, blockable pack-completion action (§12:

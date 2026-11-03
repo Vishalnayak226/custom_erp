@@ -69,12 +69,12 @@ type LoyaltyRedemptionAuth struct {
 // RedemptionRequirement is what a redemption of Points needs before it may
 // burn, by the tenant's settings and approval rules.
 type RedemptionRequirement struct {
-	Points        int    `json:"points"`
-	ValuePerPoint int    `json:"value_per_point"`
-	Value         int    `json:"value"`
-	NeedsOTP      bool   `json:"needs_otp"`
-	NeedsApproval bool   `json:"needs_approval"`
-	ApproverRole  string `json:"approver_role,omitempty"`
+	Points        int     `json:"points"`
+	ValuePerPoint int     `json:"value_per_point"`
+	Value         float64 `json:"value"`
+	NeedsOTP      bool    `json:"needs_otp"`
+	NeedsApproval bool    `json:"needs_approval"`
+	ApproverRole  string  `json:"approver_role,omitempty"`
 }
 
 // LoyaltyRedemptionRequirementFor reads the controls for points: a one-time
@@ -83,11 +83,8 @@ type RedemptionRequirement struct {
 // slab table every approval-gated document uses; 500 and over ships as Store
 // Manager).
 func LoyaltyRedemptionRequirementFor(tenantID string, points int) (RedemptionRequirement, error) {
-	v := redemptionValuePerPointFor(tenantID)
-	if v <= 0 {
-		v = 1
-	}
-	req := RedemptionRequirement{Points: points, ValuePerPoint: v, Value: points * v,
+	vp := loyaltyPointValuePaise(tenantID)
+	req := RedemptionRequirement{Points: points, ValuePerPoint: int(vp / 100), Value: PaiseToRupees(loyaltyPointsPaise(tenantID, points)),
 		NeedsOTP: GetSettingBool(tenantID, "loyalty.redemption_requires_otp")}
 	if points <= 0 {
 		req.NeedsOTP = false
@@ -140,7 +137,7 @@ func authorizeLoyaltyRedemptionTx(tx *sql.Tx, schema, tenantID, customerID strin
 		if err == sql.ErrNoRows || status != "Approved" || strField(data, "customer_id") != customerID ||
 			int(numFromInterface(data["points"])) != points || strField(data, "reference_id") != referenceID {
 			return &ValidationError{Code: "CUSTOM-0603", Message: fmt.Sprintf(
-				"redeeming %d point(s) (worth %d) needs approval from a %s - raise the request and have it approved before completing the sale", points, req.Value, req.ApproverRole)}
+				"redeeming %d point(s) (worth %.2f) needs approval from a %s - raise the request and have it approved before completing the sale", points, req.Value, req.ApproverRole)}
 		}
 		if err != nil {
 			return err
@@ -340,8 +337,8 @@ func VerifyAndRedeemLoyaltyOTP(tenantID, challengeID, otpCode string) (result st
 		return "", 0, "", err
 	}
 
-	value := points * redemptionValuePerPointFor(tenantID)
-	role, err := RequiredApproverRoleForAmount(tenantID, "LoyaltyRedemptionRequest", float64(value))
+	value := PaiseToRupees(loyaltyPointsPaise(tenantID, points))
+	role, err := RequiredApproverRoleForAmount(tenantID, "LoyaltyRedemptionRequest", value)
 	if err != nil {
 		return "", 0, "", err
 	}

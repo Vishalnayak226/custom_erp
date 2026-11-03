@@ -22903,6 +22903,91 @@
       "number": "R6069"
     },
     {
+      "id": "order-to-cash",
+      "label": "Order to cash mismatches",
+      "category": "Finance",
+      "module_key": "finance",
+      "columns": [
+        {
+          "key": "kind",
+          "label": "Mismatch",
+          "sensitive": false
+        },
+        {
+          "key": "order",
+          "label": "Order",
+          "sensitive": false
+        },
+        {
+          "key": "invoice",
+          "label": "Invoice",
+          "sensitive": false
+        },
+        {
+          "key": "customer",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "shipped_qty",
+          "label": "Shipped qty",
+          "sensitive": false
+        },
+        {
+          "key": "invoiced_qty",
+          "label": "Invoiced qty",
+          "sensitive": false
+        },
+        {
+          "key": "invoiced_amount",
+          "label": "Invoiced",
+          "sensitive": true
+        },
+        {
+          "key": "paid_amount",
+          "label": "Paid",
+          "sensitive": true
+        },
+        {
+          "key": "difference",
+          "label": "Difference",
+          "sensitive": false
+        },
+        {
+          "key": "owner",
+          "label": "Owner",
+          "sensitive": false
+        },
+        {
+          "key": "hint",
+          "label": "What it suggests",
+          "sensitive": false
+        },
+        {
+          "key": "exception",
+          "label": "Exception",
+          "sensitive": false
+        },
+        {
+          "key": "exception_note",
+          "label": "Note",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "all",
+          "label": "Include dismissed",
+          "type": "select",
+          "options": "No,Yes",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R5088"
+    },
+    {
       "id": "payroll-reconciliation",
       "label": "Payroll Reconciliation (gross to bank to GL)",
       "category": "HR",
@@ -23261,6 +23346,26 @@
         {
           "key": "lead_time_days",
           "label": "Lead Time (days)",
+          "sensitive": false
+        },
+        {
+          "key": "on_order",
+          "label": "On Order",
+          "sensitive": false
+        },
+        {
+          "key": "in_transit",
+          "label": "In Transit",
+          "sensitive": false
+        },
+        {
+          "key": "back_orders",
+          "label": "Waiting",
+          "sensitive": false
+        },
+        {
+          "key": "position",
+          "label": "Position",
           "sensitive": false
         }
       ],

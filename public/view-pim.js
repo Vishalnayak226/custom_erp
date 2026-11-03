@@ -1000,6 +1000,7 @@ async function renderPIMWorkbenchTab(container) {
   filterPanel.className = 'table-panel';
   filterPanel.style.padding = '16px 24px';
   filterPanel.style.marginBottom = '16px';
+  filterPanel.style.minHeight = '0';
   filterPanel.innerHTML = `
     <div style="display: flex; gap: 12px; align-items: flex-end;">
       <div class="form-group" style="margin-bottom: 0;">

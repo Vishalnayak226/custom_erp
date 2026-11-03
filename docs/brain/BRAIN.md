@@ -9,13 +9,13 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 
 | | |
 |---|---|
-| Graph built from commit | `4f13a07d` |
-| Brain redrawn | source graph 4f13a07d |
+| Graph built from commit | `ecff1779` |
+| Brain redrawn | source graph ecff1779 |
 | Regions / lobes | 38 / 8 |
-| Files in the working tree | 2120 (1601 of them parsed into the graph) |
+| Files in the working tree | 2227 (1687 of them parsed into the graph) |
 | Files claimed by a region | **100.0%** |
-| Symbols in the graph | 19850 |
-| Cross-region relationships | 7812 extracted (95% inferred) + 8 declared by hand |
+| Symbols in the graph | 20553 |
+| Cross-region relationships | 8068 extracted (95% inferred) + 8 declared by hand |
 
 **Interactive version: [brain.html](brain.html)** — open it in a browser and click any region.
 
@@ -34,24 +34,24 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 
 ```mermaid
 flowchart LR
-  n_cortex["Cortex — Interface<br/><small>117 files · 2217 symbols</small>"]
-  n_brainstem["Brainstem — Kernel<br/><small>485 files · 1693 symbols</small>"]
-  n_business["Functional Lobes — Business Operations<br/><small>421 files · 5392 symbols</small>"]
-  n_peripheral["Peripheral Nerves — Integrations<br/><small>68 files · 1203 symbols</small>"]
-  n_autonomic["Autonomic — Background & Reflexes<br/><small>20 files · 262 symbols</small>"]
-  n_memory["Hippocampus — Written Memory<br/><small>389 files · 4947 symbols</small>"]
-  n_motor["Motor Cortex — Build & Delivery<br/><small>65 files · 327 symbols</small>"]
-  n_verification["Cerebellum — Verification<br/><small>555 files · 2404 symbols</small>"]
-  n_business -->|2649| n_brainstem
-  n_business -->|439| n_autonomic
-  n_brainstem -->|378| n_business
-  n_peripheral -.->|354| n_brainstem
-  n_peripheral -->|258| n_business
-  n_business -->|160| n_peripheral
-  n_brainstem -->|144| n_autonomic
-  n_autonomic -->|114| n_brainstem
+  n_cortex["Cortex — Interface<br/><small>122 files · 2260 symbols</small>"]
+  n_brainstem["Brainstem — Kernel<br/><small>513 files · 1781 symbols</small>"]
+  n_business["Functional Lobes — Business Operations<br/><small>441 files · 5556 symbols</small>"]
+  n_peripheral["Peripheral Nerves — Integrations<br/><small>70 files · 1232 symbols</small>"]
+  n_autonomic["Autonomic — Background & Reflexes<br/><small>20 files · 263 symbols</small>"]
+  n_memory["Hippocampus — Written Memory<br/><small>398 files · 5093 symbols</small>"]
+  n_motor["Motor Cortex — Build & Delivery<br/><small>66 files · 327 symbols</small>"]
+  n_verification["Cerebellum — Verification<br/><small>597 files · 2562 symbols</small>"]
+  n_business -->|2736| n_brainstem
+  n_business -->|452| n_autonomic
+  n_brainstem -->|384| n_business
+  n_peripheral -.->|369| n_brainstem
+  n_peripheral -->|266| n_business
+  n_business -->|163| n_peripheral
+  n_brainstem -->|153| n_autonomic
+  n_autonomic -->|116| n_brainstem
   n_cortex -->|89| n_brainstem
-  n_peripheral -->|61| n_autonomic
+  n_peripheral -->|64| n_autonomic
   n_cortex -->|48| n_business
   n_autonomic -.->|47| n_business
   n_motor -->|28| n_brainstem
@@ -63,7 +63,7 @@ flowchart LR
   n_motor -->|9| n_memory
   n_memory -->|8| n_motor
   n_business -.->|7| n_memory
-  n_brainstem -->|4| n_memory
+  n_brainstem -->|6| n_memory
   n_memory -.->|4| n_business
   n_brainstem -.->|3| n_cortex
   n_business -.->|3| n_cortex
@@ -97,14 +97,14 @@ flowchart LR
 
 | Lobe | What it is | Regions | Files | Symbols | Wiring inside the lobe |
 |---|---|---:|---:|---:|---:|
-| **Cortex — Interface** | What the user sees and touches. Every business intent enters here. | 4 | 117 | 2217 | 3 |
-| **Brainstem — Kernel** | Involuntary and non-negotiable. Every single request passes through here, whatever it is asking for. | 9 | 485 | 1693 | 759 |
-| **Functional Lobes — Business Operations** | The specialised areas. Each one owns a domain and can be licensed on its own. | 16 | 421 | 5392 | 1869 |
-| **Peripheral Nerves — Integrations** | Contact with the outside world: storefronts, payment terminals, marketing clouds, third-party extensions. | 3 | 68 | 1203 | 8 |
-| **Autonomic — Background & Reflexes** | Runs without anyone asking it to: outbox drain, pollers, alerting, scheduled sweeps. | 2 | 20 | 262 | 35 |
-| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 389 | 4947 | 235 |
-| **Motor Cortex — Build & Delivery** | How the system actually moves: build, migrate, promote, back up, restore. | 1 | 65 | 327 | 0 |
-| **Cerebellum — Verification** | Balance and correction. Kept out of the wiring diagrams on purpose — tests touch everything, so drawing them would grey out every real edge. | 1 | 555 | 2404 | 0 |
+| **Cortex — Interface** | What the user sees and touches. Every business intent enters here. | 4 | 122 | 2260 | 3 |
+| **Brainstem — Kernel** | Involuntary and non-negotiable. Every single request passes through here, whatever it is asking for. | 9 | 513 | 1781 | 802 |
+| **Functional Lobes — Business Operations** | The specialised areas. Each one owns a domain and can be licensed on its own. | 16 | 441 | 5556 | 1926 |
+| **Peripheral Nerves — Integrations** | Contact with the outside world: storefronts, payment terminals, marketing clouds, third-party extensions. | 3 | 70 | 1232 | 8 |
+| **Autonomic — Background & Reflexes** | Runs without anyone asking it to: outbox drain, pollers, alerting, scheduled sweeps. | 2 | 20 | 263 | 35 |
+| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 398 | 5093 | 243 |
+| **Motor Cortex — Build & Delivery** | How the system actually moves: build, migrate, promote, back up, restore. | 1 | 66 | 327 | 0 |
+| **Cerebellum — Verification** | Balance and correction. Kept out of the wiring diagrams on purpose — tests touch everything, so drawing them would grey out every real edge. | 1 | 597 | 2562 | 0 |
 
 ## 2. Region map
 
@@ -114,7 +114,7 @@ Every region, grouped by lobe, with the connections of weight **12 or more**. Th
 flowchart LR
   subgraph n_g_cortex ["Cortex — Interface"]
     direction TB
-    n_ui_shell["SPA Shell<br/><small>84 files · 1984 symbols</small>"]
+    n_ui_shell["SPA Shell<br/><small>89 files · 2027 symbols</small>"]
     n_ui_offline["Offline Store & Device I/O<br/><small>1 file · 2 symbols</small>"]
     n_store_app["Store App (PWA)<br/><small>22 files · 231 symbols</small>"]
     n_industry_profiles["Industry Profiles<br/><small>10 files · 0 symbols</small>"]
@@ -122,152 +122,157 @@ flowchart LR
   subgraph n_g_brainstem ["Brainstem — Kernel"]
     direction TB
     n_http_edge["HTTP Edge & Middleware<br/><small>10 files · 97 symbols</small>"]
-    n_api_errors["Error & Message Catalog<br/><small>4 files · 24 symbols</small>"]
-    n_doc_kernel["Document Kernel<br/><small>30 files · 333 symbols</small>"]
-    n_identity["Identity, RBAC & MFA<br/><small>37 files · 370 symbols</small>"]
-    n_tenancy["Tenancy, Packaging & Settings<br/><small>35 files · 360 symbols</small>"]
+    n_api_errors["Error & Message Catalog<br/><small>5 files · 27 symbols</small>"]
+    n_doc_kernel["Document Kernel<br/><small>32 files · 348 symbols</small>"]
+    n_identity["Identity, RBAC & MFA<br/><small>38 files · 390 symbols</small>"]
+    n_tenancy["Tenancy, Packaging & Settings<br/><small>40 files · 390 symbols</small>"]
     n_approval["Approval Engine (maker-checker)<br/><small>4 files · 39 symbols</small>"]
-    n_persistence["Persistence & Migrations<br/><small>323 files · 37 symbols</small>"]
+    n_persistence["Persistence & Migrations<br/><small>341 files · 41 symbols</small>"]
     n_mixed_handlers["Cross-module API Handlers<br/><small>3 files · 82 symbols</small>"]
-    n_security_program["Security Baseline & Attack Surface<br/><small>39 files · 351 symbols</small>"]
+    n_security_program["Security Baseline & Attack Surface<br/><small>40 files · 367 symbols</small>"]
   end
   subgraph n_g_business ["Functional Lobes — Business Operations"]
     direction TB
-    n_finance["Finance & General Ledger<br/><small>46 files · 502 symbols</small>"]
+    n_finance["Finance & General Ledger<br/><small>47 files · 514 symbols</small>"]
     n_tax["Tax & Statutory<br/><small>14 files · 244 symbols</small>"]
-    n_procurement["Procurement & Vendors<br/><small>27 files · 471 symbols</small>"]
-    n_inventory["Inventory & Planning<br/><small>41 files · 523 symbols</small>"]
-    n_wms["Warehouse Management (WMS)<br/><small>51 files · 551 symbols</small>"]
+    n_procurement["Procurement & Vendors<br/><small>28 files · 482 symbols</small>"]
+    n_inventory["Inventory & Planning<br/><small>43 files · 536 symbols</small>"]
+    n_wms["Warehouse Management (WMS)<br/><small>58 files · 606 symbols</small>"]
     n_oms["Orders & Fulfillment (OMS)<br/><small>26 files · 289 symbols</small>"]
-    n_pos["Point of Sale<br/><small>34 files · 373 symbols</small>"]
-    n_pim["Product Information (PIM)<br/><small>45 files · 528 symbols</small>"]
-    n_crm["CRM & Loyalty<br/><small>45 files · 633 symbols</small>"]
+    n_pos["Point of Sale<br/><small>34 files · 375 symbols</small>"]
+    n_pim["Product Information (PIM)<br/><small>45 files · 535 symbols</small>"]
+    n_crm["CRM & Loyalty<br/><small>52 files · 690 symbols</small>"]
     n_hr["HR & Payroll<br/><small>9 files · 56 symbols</small>"]
     n_manufacturing["Manufacturing & MRP<br/><small>7 files · 110 symbols</small>"]
     n_assets["Fixed Assets, Service & Quality Management<br/><small>12 files · 147 symbols</small>"]
     n_expenses["Expense Management<br/><small>5 files · 55 symbols</small>"]
-    n_reports["Reporting Engine<br/><small>42 files · 585 symbols</small>"]
-    n_logistics["Shipping & Logistics<br/><small>7 files · 117 symbols</small>"]
-    n_data_io["Bulk Data I/O<br/><small>10 files · 208 symbols</small>"]
+    n_reports["Reporting Engine<br/><small>43 files · 589 symbols</small>"]
+    n_logistics["Shipping & Logistics<br/><small>7 files · 118 symbols</small>"]
+    n_data_io["Bulk Data I/O<br/><small>11 files · 210 symbols</small>"]
   end
   subgraph n_g_peripheral ["Peripheral Nerves — Integrations"]
     direction TB
-    n_connectors["Channel Connectors<br/><small>24 files · 400 symbols</small>"]
-    n_printing["Device Printing (QZ Tray)<br/><small>30 files · 615 symbols</small>"]
+    n_connectors["Channel Connectors<br/><small>26 files · 428 symbols</small>"]
+    n_printing["Device Printing (QZ Tray)<br/><small>30 files · 616 symbols</small>"]
     n_extensions["Extension Platform<br/><small>14 files · 188 symbols</small>"]
   end
   subgraph n_g_autonomic ["Autonomic — Background & Reflexes"]
     direction TB
-    n_outbox["Event Outbox & Async Job Runner<br/><small>9 files · 92 symbols</small>"]
+    n_outbox["Event Outbox & Async Job Runner<br/><small>9 files · 93 symbols</small>"]
     n_observability["Logging, Alerting & Notifications<br/><small>11 files · 170 symbols</small>"]
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>382 files · 4826 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>391 files · 4972 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 121 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
     direction TB
-    n_ops_tooling["Build, Deploy & Operate<br/><small>65 files · 327 symbols</small>"]
+    n_ops_tooling["Build, Deploy & Operate<br/><small>66 files · 327 symbols</small>"]
   end
-  n_brain -->|234| n_docs_memory
-  n_wms -.->|177| n_persistence
-  n_procurement -.->|125| n_doc_kernel
-  n_finance -.->|122| n_persistence
-  n_wms -.->|118| n_api_errors
+  n_brain -->|242| n_docs_memory
+  n_wms -.->|189| n_persistence
+  n_procurement -.->|126| n_doc_kernel
+  n_finance -.->|124| n_persistence
+  n_wms -.->|123| n_api_errors
+  n_pos -.->|110| n_finance
   n_inventory -.->|109| n_persistence
-  n_pos -.->|109| n_finance
-  n_pim -.->|108| n_persistence
+  n_pim -.->|109| n_persistence
   n_mixed_handlers -.->|105| n_api_errors
+  n_crm -.->|93| n_doc_kernel
   n_inventory -.->|93| n_api_errors
-  n_crm -.->|83| n_doc_kernel
-  n_doc_kernel -.->|81| n_persistence
-  n_inventory -.->|81| n_doc_kernel
+  n_doc_kernel -.->|84| n_persistence
+  n_inventory -.->|83| n_doc_kernel
   n_pos -.->|80| n_persistence
   n_inventory -->|79| n_procurement
+  n_wms -.->|74| n_observability
   n_oms -.->|73| n_persistence
+  n_printing -->|73| n_procurement
+  n_identity -.->|72| n_api_errors
   n_procurement -->|71| n_tax
-  n_identity -.->|70| n_api_errors
-  n_printing -->|70| n_procurement
+  n_connectors -.->|68| n_api_errors
   n_pim -.->|67| n_api_errors
-  n_reports -.->|66| n_persistence
-  n_wms -.->|66| n_observability
+  n_reports -.->|67| n_persistence
+  n_identity -.->|66| n_persistence
   n_procurement -.->|64| n_wms
-  n_identity -.->|63| n_persistence
-  n_connectors -.->|62| n_api_errors
+  n_finance -.->|63| n_api_errors
   n_procurement -.->|62| n_persistence
-  n_finance -.->|61| n_api_errors
   n_oms -.->|59| n_api_errors
-  n_connectors -.->|54| n_persistence
-  n_inventory -->|53| n_wms
-  n_procurement -.->|53| n_api_errors
+  n_connectors -.->|57| n_persistence
+  n_crm -.->|54| n_tenancy
+  n_inventory -->|54| n_wms
+  n_procurement -.->|54| n_api_errors
+  n_crm -.->|50| n_persistence
   n_inventory -.->|50| n_finance
+  n_wms -.->|50| n_doc_kernel
+  n_identity -.->|48| n_observability
+  n_finance -.->|47| n_observability
   n_observability -.->|47| n_api_errors
   n_procurement -->|47| n_finance
-  n_crm -.->|46| n_tenancy
-  n_finance -.->|46| n_observability
-  n_identity -.->|46| n_observability
   n_oms -.->|45| n_doc_kernel
-  n_wms -.->|44| n_doc_kernel
+  n_tenancy -.->|44| n_persistence
+  n_inventory -.->|43| n_observability
+  n_crm -.->|42| n_procurement
   n_mixed_handlers -->|42| n_pos
-  n_tenancy -.->|42| n_persistence
-  n_crm -.->|41| n_procurement
-  n_inventory -.->|41| n_observability
+  n_reports -->|42| n_procurement
+  n_data_io -->|41| n_doc_kernel
   n_printing -.->|41| n_doc_kernel
-  n_reports -->|41| n_procurement
+  n_doc_kernel -.->|40| n_api_errors
   n_inventory -.->|40| n_pim
   n_pim -.->|40| n_doc_kernel
-  n_crm -.->|39| n_persistence
-  n_data_io -->|39| n_doc_kernel
-  n_doc_kernel -.->|37| n_api_errors
+  n_wms -->|40| n_inventory
+  n_tenancy -.->|39| n_api_errors
+  n_oms -->|37| n_wms
   n_pos -.->|37| n_doc_kernel
   n_assets -.->|36| n_persistence
   n_finance -->|36| n_data_io
   n_pos -->|36| n_inventory
   n_procurement -->|36| n_data_io
-  n_wms -->|36| n_inventory
   n_assets -.->|35| n_api_errors
   n_oms -.->|35| n_observability
-  n_tenancy -.->|35| n_api_errors
-  n_oms -->|34| n_wms
   n_pos -.->|34| n_api_errors
+  n_pos -->|34| n_tax
   n_procurement -.->|34| n_observability
   n_finance -.->|33| n_doc_kernel
   n_mixed_handlers -->|33| n_pim
-  n_pos -->|33| n_tax
   n_wms -.->|32| n_reports
   n_assets -.->|31| n_finance
   n_printing -.->|31| n_persistence
   n_reports -.->|31| n_finance
   n_tax -.->|31| n_persistence
+  n_crm -.->|30| n_api_errors
   n_oms -->|30| n_inventory
   n_reports -.->|30| n_api_errors
+  n_security_program -->|30| n_observability
   n_identity -.->|29| n_tenancy
   n_extensions -.->|28| n_persistence
+  n_inventory -.->|28| n_tenancy
+  n_security_program -.->|28| n_persistence
   n_manufacturing -.->|27| n_api_errors
   n_manufacturing -->|27| n_inventory
   n_printing -.->|27| n_tax
   n_assets -.->|26| n_procurement
-  n_crm -.->|26| n_api_errors
+  n_doc_kernel -.->|26| n_identity
   n_doc_kernel -.->|26| n_procurement
   n_observability -->|26| n_outbox
   n_pim -.->|26| n_observability
-  n_security_program -->|26| n_observability
+  n_reports -->|26| n_identity
+  n_finance -->|25| n_reports
+  n_pos -.->|25| n_crm
   n_pos -.->|25| n_observability
-  n_reports -->|25| n_identity
   n_store_app -.->|25| n_persistence
   n_tax -->|25| n_procurement
-  n_doc_kernel -.->|24| n_identity
+  n_connectors -.->|24| n_identity
+  n_crm -->|24| n_finance
+  n_crm -.->|24| n_observability
+  n_doc_kernel -.->|24| n_wms
   n_finance -.->|24| n_wms
-  n_inventory -.->|24| n_tenancy
+  n_procurement -.->|24| n_tenancy
   n_connectors -->|23| n_outbox
-  n_crm -.->|23| n_observability
+  n_connectors -.->|23| n_tenancy
   n_data_io -->|23| n_identity
-  n_doc_kernel -.->|23| n_wms
-  n_finance -->|23| n_reports
   n_inventory -.->|23| n_approval
   n_printing -.->|23| n_wms
-  n_security_program -.->|23| n_persistence
   n_store_app -.->|23| n_api_errors
   n_tenancy -->|23| n_doc_kernel
   n_finance -.->|22| n_pim
@@ -275,65 +280,68 @@ flowchart LR
   n_inventory -.->|22| n_tax
   n_manufacturing -.->|22| n_persistence
   n_procurement -.->|22| n_inventory
-  n_procurement -.->|22| n_tenancy
   n_reports -.->|22| n_tenancy
-  n_connectors -.->|21| n_identity
-  n_connectors -.->|21| n_tenancy
+  n_connectors -.->|21| n_observability
+  n_connectors -->|21| n_procurement
   n_crm -.->|21| n_tax
   n_finance -->|21| n_procurement
   n_wms -->|21| n_procurement
   n_doc_kernel -->|20| n_inventory
+  n_finance -->|20| n_tax
   n_inventory -->|20| n_oms
   n_pim -->|20| n_connectors
   n_printing -->|20| n_pim
   n_store_app -->|20| n_identity
-  n_connectors -->|19| n_procurement
-  n_finance -->|19| n_tax
   n_pim -->|19| n_data_io
   n_pim -.->|19| n_procurement
-  n_pos -.->|19| n_crm
   n_pos -->|19| n_oms
-  n_connectors -.->|18| n_observability
+  n_crm -->|18| n_approval
+  n_crm -->|18| n_pos
   n_data_io -->|18| n_printing
   n_inventory -.->|18| n_identity
   n_observability -.->|18| n_persistence
   n_connectors -->|17| n_oms
+  n_crm -.->|17| n_wms
   n_expenses -.->|17| n_api_errors
   n_extensions -.->|17| n_api_errors
   n_finance -->|17| n_pos
   n_hr -->|17| n_identity
   n_hr -.->|17| n_persistence
+  n_http_edge -.->|17| n_tenancy
   n_oms -->|17| n_pos
   n_printing -.->|17| n_api_errors
+  n_security_program -->|17| n_identity
   n_store_app -.->|17| n_procurement
   n_tax -->|17| n_doc_kernel
-  n_crm -->|16| n_approval
-  n_crm -->|16| n_finance
+  n_tenancy -.->|17| n_identity
   n_crm -->|16| n_reports
   n_doc_kernel -.->|16| n_tax
   n_hr -.->|16| n_api_errors
-  n_http_edge -.->|16| n_tenancy
   n_procurement -.->|16| n_pim
-  n_tenancy -.->|16| n_identity
+  n_wms -->|16| n_oms
   n_data_io -.->|15| n_api_errors
   n_http_edge -.->|15| n_api_errors
+  n_identity -.->|15| n_security_program
   n_logistics -.->|15| n_persistence
   n_oms -.->|15| n_finance
   n_reports -.->|15| n_inventory
+  n_security_program -.->|15| n_api_errors
   n_tax -.->|15| n_api_errors
-  n_wms -->|15| n_oms
   n_assets -.->|14| n_doc_kernel
   n_data_io -->|14| n_tenancy
   n_doc_kernel -.->|14| n_pim
   n_doc_kernel -.->|14| n_tenancy
+  n_logistics -.->|14| n_observability
   n_manufacturing -->|14| n_procurement
   n_ops_tooling -->|14| n_identity
+  n_procurement -.->|14| n_printing
   n_reports -.->|14| n_outbox
   n_tax -.->|14| n_observability
   n_approval -.->|13| n_persistence
+  n_doc_kernel -.->|13| n_observability
+  n_http_edge -.->|13| n_identity
   n_logistics -.->|13| n_api_errors
   n_logistics -.->|13| n_connectors
-  n_logistics -.->|13| n_observability
   n_manufacturing -.->|13| n_doc_kernel
   n_manufacturing -.->|13| n_finance
   n_manufacturing -.->|13| n_wms
@@ -341,14 +349,10 @@ flowchart LR
   n_oms -->|13| n_tax
   n_pim -.->|13| n_outbox
   n_printing -.->|13| n_tenancy
-  n_security_program -.->|13| n_api_errors
-  n_security_program -->|13| n_identity
   n_tax -.->|13| n_finance
   n_tax -->|13| n_printing
   n_data_io -.->|12| n_persistence
-  n_http_edge -.->|12| n_identity
   n_mixed_handlers -.->|12| n_identity
-  n_procurement -.->|12| n_printing
   n_reports -.->|12| n_doc_kernel
   n_tenancy -.->|12| n_observability
   n_ui_shell ==>|HTTP/JSON| n_http_edge
@@ -383,7 +387,7 @@ flowchart LR
 flowchart LR
   subgraph n_g_cortex ["Cortex — Interface"]
     direction TB
-    n_ui_shell["SPA Shell<br/><small>84 files · 1984 symbols</small>"]
+    n_ui_shell["SPA Shell<br/><small>89 files · 2027 symbols</small>"]
     n_ui_offline["Offline Store & Device I/O<br/><small>1 file · 2 symbols</small>"]
     n_store_app["Store App (PWA)<br/><small>22 files · 231 symbols</small>"]
     n_industry_profiles["Industry Profiles<br/><small>10 files · 0 symbols</small>"]
@@ -391,100 +395,105 @@ flowchart LR
   subgraph n_g_brainstem ["Brainstem — Kernel"]
     direction TB
     n_http_edge["HTTP Edge & Middleware<br/><small>10 files · 97 symbols</small>"]
-    n_doc_kernel["Document Kernel<br/><small>30 files · 333 symbols</small>"]
-    n_identity["Identity, RBAC & MFA<br/><small>37 files · 370 symbols</small>"]
-    n_tenancy["Tenancy, Packaging & Settings<br/><small>35 files · 360 symbols</small>"]
+    n_doc_kernel["Document Kernel<br/><small>32 files · 348 symbols</small>"]
+    n_identity["Identity, RBAC & MFA<br/><small>38 files · 390 symbols</small>"]
+    n_tenancy["Tenancy, Packaging & Settings<br/><small>40 files · 390 symbols</small>"]
     n_approval["Approval Engine (maker-checker)<br/><small>4 files · 39 symbols</small>"]
     n_mixed_handlers["Cross-module API Handlers<br/><small>3 files · 82 symbols</small>"]
-    n_security_program["Security Baseline & Attack Surface<br/><small>39 files · 351 symbols</small>"]
+    n_security_program["Security Baseline & Attack Surface<br/><small>40 files · 367 symbols</small>"]
   end
   subgraph n_g_business ["Functional Lobes — Business Operations"]
     direction TB
-    n_finance["Finance & General Ledger<br/><small>46 files · 502 symbols</small>"]
+    n_finance["Finance & General Ledger<br/><small>47 files · 514 symbols</small>"]
     n_tax["Tax & Statutory<br/><small>14 files · 244 symbols</small>"]
-    n_procurement["Procurement & Vendors<br/><small>27 files · 471 symbols</small>"]
-    n_inventory["Inventory & Planning<br/><small>41 files · 523 symbols</small>"]
-    n_wms["Warehouse Management (WMS)<br/><small>51 files · 551 symbols</small>"]
+    n_procurement["Procurement & Vendors<br/><small>28 files · 482 symbols</small>"]
+    n_inventory["Inventory & Planning<br/><small>43 files · 536 symbols</small>"]
+    n_wms["Warehouse Management (WMS)<br/><small>58 files · 606 symbols</small>"]
     n_oms["Orders & Fulfillment (OMS)<br/><small>26 files · 289 symbols</small>"]
-    n_pos["Point of Sale<br/><small>34 files · 373 symbols</small>"]
-    n_pim["Product Information (PIM)<br/><small>45 files · 528 symbols</small>"]
-    n_crm["CRM & Loyalty<br/><small>45 files · 633 symbols</small>"]
+    n_pos["Point of Sale<br/><small>34 files · 375 symbols</small>"]
+    n_pim["Product Information (PIM)<br/><small>45 files · 535 symbols</small>"]
+    n_crm["CRM & Loyalty<br/><small>52 files · 690 symbols</small>"]
     n_hr["HR & Payroll<br/><small>9 files · 56 symbols</small>"]
     n_manufacturing["Manufacturing & MRP<br/><small>7 files · 110 symbols</small>"]
     n_assets["Fixed Assets, Service & Quality Management<br/><small>12 files · 147 symbols</small>"]
     n_expenses["Expense Management<br/><small>5 files · 55 symbols</small>"]
-    n_reports["Reporting Engine<br/><small>42 files · 585 symbols</small>"]
-    n_logistics["Shipping & Logistics<br/><small>7 files · 117 symbols</small>"]
-    n_data_io["Bulk Data I/O<br/><small>10 files · 208 symbols</small>"]
+    n_reports["Reporting Engine<br/><small>43 files · 589 symbols</small>"]
+    n_logistics["Shipping & Logistics<br/><small>7 files · 118 symbols</small>"]
+    n_data_io["Bulk Data I/O<br/><small>11 files · 210 symbols</small>"]
   end
   subgraph n_g_peripheral ["Peripheral Nerves — Integrations"]
     direction TB
-    n_connectors["Channel Connectors<br/><small>24 files · 400 symbols</small>"]
-    n_printing["Device Printing (QZ Tray)<br/><small>30 files · 615 symbols</small>"]
+    n_connectors["Channel Connectors<br/><small>26 files · 428 symbols</small>"]
+    n_printing["Device Printing (QZ Tray)<br/><small>30 files · 616 symbols</small>"]
     n_extensions["Extension Platform<br/><small>14 files · 188 symbols</small>"]
   end
   subgraph n_g_autonomic ["Autonomic — Background & Reflexes"]
     direction TB
-    n_outbox["Event Outbox & Async Job Runner<br/><small>9 files · 92 symbols</small>"]
+    n_outbox["Event Outbox & Async Job Runner<br/><small>9 files · 93 symbols</small>"]
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>382 files · 4826 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>391 files · 4972 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 121 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
     direction TB
-    n_ops_tooling["Build, Deploy & Operate<br/><small>65 files · 327 symbols</small>"]
+    n_ops_tooling["Build, Deploy & Operate<br/><small>66 files · 327 symbols</small>"]
   end
-  n_brain -->|234| n_docs_memory
-  n_procurement -.->|125| n_doc_kernel
-  n_pos -.->|109| n_finance
-  n_crm -.->|83| n_doc_kernel
-  n_inventory -.->|81| n_doc_kernel
+  n_brain -->|242| n_docs_memory
+  n_procurement -.->|126| n_doc_kernel
+  n_pos -.->|110| n_finance
+  n_crm -.->|93| n_doc_kernel
+  n_inventory -.->|83| n_doc_kernel
   n_inventory -->|79| n_procurement
+  n_printing -->|73| n_procurement
   n_procurement -->|71| n_tax
-  n_printing -->|70| n_procurement
   n_procurement -.->|64| n_wms
-  n_inventory -->|53| n_wms
+  n_crm -.->|54| n_tenancy
+  n_inventory -->|54| n_wms
   n_inventory -.->|50| n_finance
+  n_wms -.->|50| n_doc_kernel
   n_procurement -->|47| n_finance
-  n_crm -.->|46| n_tenancy
   n_oms -.->|45| n_doc_kernel
-  n_wms -.->|44| n_doc_kernel
+  n_crm -.->|42| n_procurement
   n_mixed_handlers -->|42| n_pos
-  n_crm -.->|41| n_procurement
+  n_reports -->|42| n_procurement
+  n_data_io -->|41| n_doc_kernel
   n_printing -.->|41| n_doc_kernel
-  n_reports -->|41| n_procurement
   n_inventory -.->|40| n_pim
   n_pim -.->|40| n_doc_kernel
-  n_data_io -->|39| n_doc_kernel
+  n_wms -->|40| n_inventory
+  n_oms -->|37| n_wms
   n_pos -.->|37| n_doc_kernel
   n_finance -->|36| n_data_io
   n_pos -->|36| n_inventory
   n_procurement -->|36| n_data_io
-  n_wms -->|36| n_inventory
-  n_oms -->|34| n_wms
+  n_pos -->|34| n_tax
   n_finance -.->|33| n_doc_kernel
   n_mixed_handlers -->|33| n_pim
-  n_pos -->|33| n_tax
   n_wms -.->|32| n_reports
   n_assets -.->|31| n_finance
   n_reports -.->|31| n_finance
   n_oms -->|30| n_inventory
   n_identity -.->|29| n_tenancy
+  n_inventory -.->|28| n_tenancy
   n_manufacturing -->|27| n_inventory
   n_printing -.->|27| n_tax
   n_assets -.->|26| n_procurement
+  n_doc_kernel -.->|26| n_identity
   n_doc_kernel -.->|26| n_procurement
-  n_reports -->|25| n_identity
+  n_reports -->|26| n_identity
+  n_finance -->|25| n_reports
+  n_pos -.->|25| n_crm
   n_tax -->|25| n_procurement
-  n_doc_kernel -.->|24| n_identity
+  n_connectors -.->|24| n_identity
+  n_crm -->|24| n_finance
+  n_doc_kernel -.->|24| n_wms
   n_finance -.->|24| n_wms
-  n_inventory -.->|24| n_tenancy
+  n_procurement -.->|24| n_tenancy
   n_connectors -->|23| n_outbox
+  n_connectors -.->|23| n_tenancy
   n_data_io -->|23| n_identity
-  n_doc_kernel -.->|23| n_wms
-  n_finance -->|23| n_reports
   n_inventory -.->|23| n_approval
   n_printing -.->|23| n_wms
   n_tenancy -->|23| n_doc_kernel
@@ -492,49 +501,50 @@ flowchart LR
   n_inventory -->|22| n_pos
   n_inventory -.->|22| n_tax
   n_procurement -.->|22| n_inventory
-  n_procurement -.->|22| n_tenancy
   n_reports -.->|22| n_tenancy
-  n_connectors -.->|21| n_identity
-  n_connectors -.->|21| n_tenancy
+  n_connectors -->|21| n_procurement
   n_crm -.->|21| n_tax
   n_finance -->|21| n_procurement
   n_wms -->|21| n_procurement
   n_doc_kernel -->|20| n_inventory
+  n_finance -->|20| n_tax
   n_inventory -->|20| n_oms
   n_pim -->|20| n_connectors
   n_printing -->|20| n_pim
   n_store_app -->|20| n_identity
-  n_connectors -->|19| n_procurement
-  n_finance -->|19| n_tax
   n_pim -->|19| n_data_io
   n_pim -.->|19| n_procurement
-  n_pos -.->|19| n_crm
   n_pos -->|19| n_oms
+  n_crm -->|18| n_approval
+  n_crm -->|18| n_pos
   n_data_io -->|18| n_printing
   n_inventory -.->|18| n_identity
   n_connectors -->|17| n_oms
+  n_crm -.->|17| n_wms
   n_finance -->|17| n_pos
   n_hr -->|17| n_identity
+  n_http_edge -.->|17| n_tenancy
   n_oms -->|17| n_pos
+  n_security_program -->|17| n_identity
   n_store_app -.->|17| n_procurement
   n_tax -->|17| n_doc_kernel
-  n_crm -->|16| n_approval
-  n_crm -->|16| n_finance
+  n_tenancy -.->|17| n_identity
   n_crm -->|16| n_reports
   n_doc_kernel -.->|16| n_tax
-  n_http_edge -.->|16| n_tenancy
   n_procurement -.->|16| n_pim
-  n_tenancy -.->|16| n_identity
+  n_wms -->|16| n_oms
+  n_identity -.->|15| n_security_program
   n_oms -.->|15| n_finance
   n_reports -.->|15| n_inventory
-  n_wms -->|15| n_oms
   n_assets -.->|14| n_doc_kernel
   n_data_io -->|14| n_tenancy
   n_doc_kernel -.->|14| n_pim
   n_doc_kernel -.->|14| n_tenancy
   n_manufacturing -->|14| n_procurement
   n_ops_tooling -->|14| n_identity
+  n_procurement -.->|14| n_printing
   n_reports -.->|14| n_outbox
+  n_http_edge -.->|13| n_identity
   n_logistics -.->|13| n_connectors
   n_manufacturing -.->|13| n_doc_kernel
   n_manufacturing -.->|13| n_finance
@@ -543,16 +553,12 @@ flowchart LR
   n_oms -->|13| n_tax
   n_pim -.->|13| n_outbox
   n_printing -.->|13| n_tenancy
-  n_security_program -->|13| n_identity
   n_tax -.->|13| n_finance
   n_tax -->|13| n_printing
-  n_http_edge -.->|12| n_identity
   n_mixed_handlers -.->|12| n_identity
-  n_procurement -.->|12| n_printing
   n_reports -.->|12| n_doc_kernel
-  n_crm -.->|11| n_wms
+  n_crm -.->|11| n_extensions
   n_finance -.->|11| n_outbox
-  n_identity -.->|11| n_security_program
   n_inventory -->|11| n_reports
   n_mixed_handlers -.->|11| n_approval
   n_pim -.->|11| n_inventory
@@ -560,40 +566,41 @@ flowchart LR
   n_store_app -->|11| n_wms
   n_ui_shell -.->|11| n_printing
   n_wms -.->|11| n_finance
+  n_wms -.->|11| n_tenancy
   n_connectors -.->|10| n_security_program
-  n_crm -.->|10| n_extensions
+  n_crm -.->|10| n_inventory
   n_crm -.->|10| n_printing
   n_finance -.->|10| n_inventory
+  n_http_edge -.->|10| n_security_program
   n_mixed_handlers -.->|10| n_finance
   n_mixed_handlers -.->|10| n_inventory
+  n_oms -.->|10| n_tenancy
   n_store_app -.->|10| n_tenancy
   n_approval -.->|9| n_finance
+  n_connectors -.->|9| n_pim
   n_crm -.->|9| n_outbox
   n_mixed_handlers -->|9| n_data_io
   n_oms -->|9| n_reports
-  n_oms -.->|9| n_tenancy
   n_ops_tooling -->|9| n_docs_memory
   n_pim -.->|9| n_tenancy
   n_pos -.->|9| n_tenancy
   n_pos -.->|9| n_wms
+  n_security_program -.->|9| n_tenancy
   n_store_app -.->|9| n_inventory
   n_assets -->|8| n_outbox
+  n_connectors -.->|8| n_doc_kernel
   n_connectors -.->|8| n_extensions
   n_connectors -.->|8| n_http_edge
-  n_connectors -.->|8| n_pim
-  n_crm -.->|8| n_inventory
   n_data_io -.->|8| n_pim
   n_docs_memory -->|8| n_security_program
   n_hr -.->|8| n_finance
   n_http_edge -.->|8| n_finance
   n_http_edge -.->|8| n_outbox
-  n_http_edge -.->|8| n_security_program
   n_manufacturing -.->|8| n_tax
   n_store_app -->|8| n_doc_kernel
   n_tax -.->|8| n_inventory
   n_tenancy -.->|8| n_pim
   n_assets -.->|7| n_inventory
-  n_connectors -.->|7| n_doc_kernel
   n_connectors -.->|7| n_tax
   n_doc_kernel -.->|7| n_finance
   n_doc_kernel -.->|7| n_pos
@@ -603,6 +610,7 @@ flowchart LR
   n_logistics -.->|7| n_oms
   n_manufacturing -.->|7| n_tenancy
   n_oms -.->|7| n_logistics
+  n_outbox -.->|7| n_tenancy
   n_pim -.->|7| n_finance
   n_pim -->|7| n_identity
   n_pim -.->|7| n_printing
@@ -611,36 +619,35 @@ flowchart LR
   n_reports -.->|7| n_printing
   n_store_app -->|7| n_outbox
   n_tax -.->|7| n_tenancy
-  n_wms -.->|7| n_tenancy
   n_assets -.->|6| n_wms
   n_crm -.->|6| n_assets
   n_crm -.->|6| n_connectors
+  n_doc_kernel -.->|6| n_crm
   n_extensions -.->|6| n_http_edge
   n_extensions -.->|6| n_outbox
   n_finance -.->|6| n_crm
   n_finance -.->|6| n_tenancy
   n_hr -.->|6| n_wms
+  n_identity -->|6| n_doc_kernel
   n_logistics -.->|6| n_finance
-  n_outbox -.->|6| n_tenancy
   n_printing -.->|6| n_oms
   n_printing -.->|6| n_pos
   n_procurement -.->|6| n_approval
   n_reports -.->|6| n_tax
   n_security_program -.->|6| n_outbox
-  n_security_program -.->|6| n_tenancy
   n_store_app -.->|6| n_finance
   n_tax -.->|6| n_wms
   n_tenancy -->|6| n_pos
   n_tenancy -.->|6| n_tax
   n_wms -.->|6| n_assets
   n_connectors -.->|5| n_crm
+  n_connectors -.->|5| n_logistics
   n_data_io -->|5| n_inventory
   n_doc_kernel -.->|5| n_approval
   n_finance -.->|5| n_extensions
   n_finance -.->|5| n_oms
   n_http_edge -.->|5| n_connectors
   n_http_edge -.->|5| n_reports
-  n_identity -->|5| n_doc_kernel
   n_identity -.->|5| n_outbox
   n_identity -.->|5| n_pim
   n_identity -.->|5| n_pos
@@ -649,6 +656,7 @@ flowchart LR
   n_oms -.->|5| n_connectors
   n_oms -.->|5| n_crm
   n_oms -->|5| n_outbox
+  n_outbox -.->|5| n_security_program
   n_pim -.->|5| n_extensions
   n_pim -.->|5| n_oms
   n_pos -.->|5| n_pim
@@ -661,14 +669,18 @@ flowchart LR
   n_tax -.->|5| n_connectors
   n_tenancy -.->|5| n_finance
   n_tenancy -.->|5| n_oms
+  n_wms -->|5| n_identity
+  n_approval -.->|4| n_crm
   n_approval -.->|4| n_identity
+  n_approval -.->|4| n_inventory
   n_approval -.->|4| n_pim
   n_assets -.->|4| n_pim
   n_brain -->|4| n_ops_tooling
-  n_connectors -.->|4| n_logistics
   n_connectors -.->|4| n_pos
   n_crm -->|4| n_identity
+  n_crm -.->|4| n_pim
   n_data_io -.->|4| n_approval
+  n_data_io -.->|4| n_security_program
   n_doc_kernel -.->|4| n_http_edge
   n_docs_memory -->|4| n_ops_tooling
   n_expenses -.->|4| n_doc_kernel
@@ -680,26 +692,24 @@ flowchart LR
   n_inventory -.->|4| n_printing
   n_mixed_handlers -.->|4| n_reports
   n_outbox -.->|4| n_extensions
-  n_outbox -.->|4| n_security_program
   n_pim -.->|4| n_expenses
   n_pim -.->|4| n_mixed_handlers
   n_pim -.->|4| n_reports
+  n_pim -.->|4| n_wms
   n_pos -.->|4| n_approval
   n_pos -.->|4| n_reports
   n_printing -.->|4| n_manufacturing
+  n_procurement -.->|4| n_identity
   n_procurement -->|4| n_oms
   n_reports -.->|4| n_pim
   n_security_program -.->|4| n_pim
   n_security_program -->|4| n_reports
   n_tax -.->|4| n_approval
   n_tenancy -->|4| n_security_program
-  n_approval -.->|3| n_crm
-  n_approval -.->|3| n_inventory
   n_approval -.->|3| n_tenancy
+  n_connectors -.->|3| n_inventory
   n_connectors -.->|3| n_wms
   n_crm -.->|3| n_oms
-  n_data_io -.->|3| n_security_program
-  n_doc_kernel -.->|3| n_crm
   n_doc_kernel -.->|3| n_hr
   n_doc_kernel -.->|3| n_security_program
   n_expenses -.->|3| n_finance
@@ -723,17 +733,16 @@ flowchart LR
   n_outbox -.->|3| n_finance
   n_pim -.->|3| n_approval
   n_pim -.->|3| n_security_program
-  n_pim -.->|3| n_wms
   n_pos -->|3| n_security_program
   n_printing -.->|3| n_approval
   n_printing -.->|3| n_ui_shell
-  n_procurement -.->|3| n_identity
   n_reports -.->|3| n_security_program
   n_reports -.->|3| n_wms
   n_store_app -.->|3| n_printing
   n_tax -.->|3| n_extensions
   n_tenancy -.->|3| n_approval
   n_tenancy -.->|3| n_http_edge
+  n_tenancy -.->|3| n_outbox
   n_tenancy -->|3| n_procurement
   n_ui_shell -.->|3| n_store_app
   n_wms -.->|3| n_pim
@@ -759,7 +768,7 @@ flowchart LR
   class n_ops_tooling n_motor;
 ```
 
-*Showing every non-hub connection of weight 3 or more (301 of them).*
+*Showing every non-hub connection of weight 3 or more (306 of them).*
 
 ### 2c. Declared connections
 
@@ -872,44 +881,44 @@ flowchart LR
 
 | Region | Lobe | Files | Symbols | Busiest connection |
 |---|---|---:|---:|---|
-| [SPA Shell](#spa-shell) | Cortex — Interface | 84 | 1984 | → Device Printing (QZ Tray) (11) |
+| [SPA Shell](#spa-shell) | Cortex — Interface | 89 | 2027 | → Device Printing (QZ Tray) (11) |
 | [Offline Store & Device I/O](#offline-store--device-io) | Cortex — Interface | 1 | 2 | — |
 | [Store App (PWA)](#store-app-pwa) | Cortex — Interface | 22 | 231 | → Persistence & Migrations (25) |
 | [Industry Profiles](#industry-profiles) | Cortex — Interface | 10 | 0 | — |
-| [HTTP Edge & Middleware](#http-edge--middleware) | Brainstem — Kernel | 10 | 97 | → Tenancy, Packaging & Settings (16) |
-| [Error & Message Catalog](#error--message-catalog) | Brainstem — Kernel | 4 | 24 | ← Warehouse Management (WMS) (118) |
-| [Document Kernel](#document-kernel) | Brainstem — Kernel | 30 | 333 | ← Procurement & Vendors (125) |
-| [Identity, RBAC & MFA](#identity-rbac--mfa) | Brainstem — Kernel | 37 | 370 | → Error & Message Catalog (70) |
-| [Tenancy, Packaging & Settings](#tenancy-packaging--settings) | Brainstem — Kernel | 35 | 360 | ← CRM & Loyalty (46) |
+| [HTTP Edge & Middleware](#http-edge--middleware) | Brainstem — Kernel | 10 | 97 | → Tenancy, Packaging & Settings (17) |
+| [Error & Message Catalog](#error--message-catalog) | Brainstem — Kernel | 5 | 27 | ← Warehouse Management (WMS) (123) |
+| [Document Kernel](#document-kernel) | Brainstem — Kernel | 32 | 348 | ← Procurement & Vendors (126) |
+| [Identity, RBAC & MFA](#identity-rbac--mfa) | Brainstem — Kernel | 38 | 390 | → Error & Message Catalog (72) |
+| [Tenancy, Packaging & Settings](#tenancy-packaging--settings) | Brainstem — Kernel | 40 | 390 | ← CRM & Loyalty (54) |
 | [Approval Engine (maker-checker)](#approval-engine-maker-checker) | Brainstem — Kernel | 4 | 39 | ← Inventory & Planning (23) |
-| [Persistence & Migrations](#persistence--migrations) | Brainstem — Kernel | 323 | 37 | ← Warehouse Management (WMS) (177) |
+| [Persistence & Migrations](#persistence--migrations) | Brainstem — Kernel | 341 | 41 | ← Warehouse Management (WMS) (189) |
 | [Cross-module API Handlers](#cross-module-api-handlers) | Brainstem — Kernel | 3 | 82 | → Error & Message Catalog (105) |
-| [Finance & General Ledger](#finance--general-ledger) | Functional Lobes — Business Operations | 46 | 502 | → Persistence & Migrations (122) |
+| [Finance & General Ledger](#finance--general-ledger) | Functional Lobes — Business Operations | 47 | 514 | → Persistence & Migrations (124) |
 | [Tax & Statutory](#tax--statutory) | Functional Lobes — Business Operations | 14 | 244 | ← Procurement & Vendors (71) |
-| [Procurement & Vendors](#procurement--vendors) | Functional Lobes — Business Operations | 27 | 471 | → Document Kernel (125) |
-| [Inventory & Planning](#inventory--planning) | Functional Lobes — Business Operations | 41 | 523 | → Persistence & Migrations (109) |
-| [Warehouse Management (WMS)](#warehouse-management-wms) | Functional Lobes — Business Operations | 51 | 551 | → Persistence & Migrations (177) |
+| [Procurement & Vendors](#procurement--vendors) | Functional Lobes — Business Operations | 28 | 482 | → Document Kernel (126) |
+| [Inventory & Planning](#inventory--planning) | Functional Lobes — Business Operations | 43 | 536 | → Persistence & Migrations (109) |
+| [Warehouse Management (WMS)](#warehouse-management-wms) | Functional Lobes — Business Operations | 58 | 606 | → Persistence & Migrations (189) |
 | [Orders & Fulfillment (OMS)](#orders--fulfillment-oms) | Functional Lobes — Business Operations | 26 | 289 | → Persistence & Migrations (73) |
-| [Point of Sale](#point-of-sale) | Functional Lobes — Business Operations | 34 | 373 | → Finance & General Ledger (109) |
-| [Product Information (PIM)](#product-information-pim) | Functional Lobes — Business Operations | 45 | 528 | → Persistence & Migrations (108) |
-| [CRM & Loyalty](#crm--loyalty) | Functional Lobes — Business Operations | 45 | 633 | → Document Kernel (83) |
+| [Point of Sale](#point-of-sale) | Functional Lobes — Business Operations | 34 | 375 | → Finance & General Ledger (110) |
+| [Product Information (PIM)](#product-information-pim) | Functional Lobes — Business Operations | 45 | 535 | → Persistence & Migrations (109) |
+| [CRM & Loyalty](#crm--loyalty) | Functional Lobes — Business Operations | 52 | 690 | → Document Kernel (93) |
 | [HR & Payroll](#hr--payroll) | Functional Lobes — Business Operations | 9 | 56 | → Identity, RBAC & MFA (17) |
 | [Manufacturing & MRP](#manufacturing--mrp) | Functional Lobes — Business Operations | 7 | 110 | → Error & Message Catalog (27) |
 | [Fixed Assets, Service & Quality Management](#fixed-assets-service--quality-management) | Functional Lobes — Business Operations | 12 | 147 | → Persistence & Migrations (36) |
 | [Expense Management](#expense-management) | Functional Lobes — Business Operations | 5 | 55 | → Error & Message Catalog (17) |
-| [Reporting Engine](#reporting-engine) | Functional Lobes — Business Operations | 42 | 585 | → Persistence & Migrations (66) |
-| [Shipping & Logistics](#shipping--logistics) | Functional Lobes — Business Operations | 7 | 117 | → Persistence & Migrations (15) |
-| [Bulk Data I/O](#bulk-data-io) | Functional Lobes — Business Operations | 10 | 208 | → Document Kernel (39) |
-| [Channel Connectors](#channel-connectors) | Peripheral Nerves — Integrations | 24 | 400 | → Error & Message Catalog (62) |
-| [Device Printing (QZ Tray)](#device-printing-qz-tray) | Peripheral Nerves — Integrations | 30 | 615 | → Procurement & Vendors (70) |
+| [Reporting Engine](#reporting-engine) | Functional Lobes — Business Operations | 43 | 589 | → Persistence & Migrations (67) |
+| [Shipping & Logistics](#shipping--logistics) | Functional Lobes — Business Operations | 7 | 118 | → Persistence & Migrations (15) |
+| [Bulk Data I/O](#bulk-data-io) | Functional Lobes — Business Operations | 11 | 210 | → Document Kernel (41) |
+| [Channel Connectors](#channel-connectors) | Peripheral Nerves — Integrations | 26 | 428 | → Error & Message Catalog (68) |
+| [Device Printing (QZ Tray)](#device-printing-qz-tray) | Peripheral Nerves — Integrations | 30 | 616 | → Procurement & Vendors (73) |
 | [Extension Platform](#extension-platform) | Peripheral Nerves — Integrations | 14 | 188 | → Persistence & Migrations (28) |
-| [Event Outbox & Async Job Runner](#event-outbox--async-job-runner) | Autonomic — Background & Reflexes | 9 | 92 | ← Logging, Alerting & Notifications (26) |
-| [Logging, Alerting & Notifications](#logging-alerting--notifications) | Autonomic — Background & Reflexes | 11 | 170 | ← Warehouse Management (WMS) (66) |
-| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 382 | 4826 | ← The Brain Map (this) (234) |
-| [The Brain Map (this)](#the-brain-map-this) | Hippocampus — Written Memory | 7 | 121 | → Project Documentation (234) |
-| [Build, Deploy & Operate](#build-deploy--operate) | Motor Cortex — Build & Delivery | 65 | 327 | → Identity, RBAC & MFA (14) |
-| [Security Baseline & Attack Surface](#security-baseline--attack-surface) | Brainstem — Kernel | 39 | 351 | → Logging, Alerting & Notifications (26) |
-| [Test Suite](#test-suite) | Cerebellum — Verification | 555 | 2404 | — |
+| [Event Outbox & Async Job Runner](#event-outbox--async-job-runner) | Autonomic — Background & Reflexes | 9 | 93 | ← Logging, Alerting & Notifications (26) |
+| [Logging, Alerting & Notifications](#logging-alerting--notifications) | Autonomic — Background & Reflexes | 11 | 170 | ← Warehouse Management (WMS) (74) |
+| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 391 | 4972 | ← The Brain Map (this) (242) |
+| [The Brain Map (this)](#the-brain-map-this) | Hippocampus — Written Memory | 7 | 121 | → Project Documentation (242) |
+| [Build, Deploy & Operate](#build-deploy--operate) | Motor Cortex — Build & Delivery | 66 | 327 | → Identity, RBAC & MFA (14) |
+| [Security Baseline & Attack Surface](#security-baseline--attack-surface) | Brainstem — Kernel | 40 | 367 | → Logging, Alerting & Notifications (30) |
+| [Test Suite](#test-suite) | Cerebellum — Verification | 597 | 2562 | — |
 
 ## 5. Region detail
 
@@ -923,12 +932,12 @@ The whole frontend: one hand-written vanilla-JS single-page app, no framework an
 
 **Most connected symbols**
 
-- `apiFetch()` — [public/app.js](../../public/app.js#L939) · degree 26
-- `renderView()` — [public/app.js](../../public/app.js#L5837) · degree 23
-- `init()` — [public/app.js](../../public/app.js#L3555) · degree 22
+- `apiFetch()` — [public/app.js](../../public/app.js#L979) · degree 26
+- `renderView()` — [public/app.js](../../public/app.js#L5892) · degree 24
+- `init()` — [public/app.js](../../public/app.js#L3599) · degree 22
 - `renderPick()` — [public/view-oms-steps.js](../../public/view-oms-steps.js#L340) · degree 22
+- `renderShip()` — [public/view-oms-steps.js](../../public/view-oms-steps.js#L706) · degree 22
 - `ErpTypeahead` — [public/components/erp-typeahead.js](../../public/components/erp-typeahead.js#L65) · degree 20
-- `renderPOComposer()` — [public/view-procurement.js](../../public/view-procurement.js#L542) · degree 20
 
 **Wired to**
 
@@ -940,13 +949,14 @@ The whole frontend: one hand-written vanilla-JS single-page app, no framework an
 - ← **Document Kernel** — 1 relationship, 1 inferred
 - ← **Error & Message Catalog** — declared: error envelope
 
-<details><summary>84 files</summary>
+<details><summary>89 files</summary>
 
 - [public/app.js](../../public/app.js)
 - [public/brand-logo-dark.png](../../public/brand-logo-dark.png)
 - [public/brand-logo.png](../../public/brand-logo.png)
 - [public/brand-mark.png](../../public/brand-mark.png)
 - [public/components/erp-typeahead.js](../../public/components/erp-typeahead.js)
+- [public/config.css](../../public/config.css)
 - [public/favicon-16.png](../../public/favicon-16.png)
 - [public/favicon.png](../../public/favicon.png)
 - [public/favicon.svg](../../public/favicon.svg)
@@ -955,6 +965,8 @@ The whole frontend: one hand-written vanilla-JS single-page app, no framework an
 - [public/kb.css](../../public/kb.css)
 - [public/rf.css](../../public/rf.css)
 - [public/shell-identity.js](../../public/shell-identity.js)
+- [public/shell-steady.css](../../public/shell-steady.css)
+- [public/shell-steady.js](../../public/shell-steady.js)
 - [public/shortcut-codes.json](../../public/shortcut-codes.json)
 - [public/shortcuts.css](../../public/shortcuts.css)
 - [public/shortcuts.js](../../public/shortcuts.js)
@@ -967,6 +979,7 @@ The whole frontend: one hand-written vanilla-JS single-page app, no framework an
 - [public/view-api-access.js](../../public/view-api-access.js)
 - [public/view-assets.js](../../public/view-assets.js)
 - [public/view-attribute-library.js](../../public/view-attribute-library.js)
+- [public/view-bin-tools.js](../../public/view-bin-tools.js)
 - [public/view-branding.js](../../public/view-branding.js)
 - [public/view-bulk-purchase.js](../../public/view-bulk-purchase.js)
 - [public/view-bulk-sales.js](../../public/view-bulk-sales.js)
@@ -989,6 +1002,7 @@ The whole frontend: one hand-written vanilla-JS single-page app, no framework an
 - [public/view-images.js](../../public/view-images.js)
 - [public/view-import-jobs.js](../../public/view-import-jobs.js)
 - [public/view-inbox.js](../../public/view-inbox.js)
+- [public/view-integration-credentials.js](../../public/view-integration-credentials.js)
 - [public/view-inventory-erp.js](../../public/view-inventory-erp.js)
 - [public/view-item-form.js](../../public/view-item-form.js)
 - [public/view-jobwork.js](../../public/view-jobwork.js)
@@ -1136,23 +1150,23 @@ The one door in. apiMiddleware does CORS allowlist, route-aware request envelope
 
 **Most connected symbols**
 
-- `apiMiddleware()` — [internal/server/middleware.go](../../internal/server/middleware.go#L1041) · degree 122
-- `Run()` — [internal/server/routes.go](../../internal/server/routes.go#L23) · degree 56
+- `apiMiddleware()` — [internal/server/middleware.go](../../internal/server/middleware.go#L1041) · degree 132
+- `Run()` — [internal/server/routes.go](../../internal/server/routes.go#L23) · degree 57
 - `.close()` — [internal/server/middleware_compress.go](../../internal/server/middleware_compress.go#L137) · degree 22
-- `registerRoutes()` — [internal/server/routes.go](../../internal/server/routes.go#L281) · degree 18
+- `registerRoutes()` — [internal/server/routes.go](../../internal/server/routes.go#L282) · degree 20
 - `enforceRequestEnvelope()` — [internal/server/request_envelope.go](../../internal/server/request_envelope.go#L182) · degree 12
 - `main()` — [cmd/server/main.go](../../cmd/server/main.go#L19) · degree 11
 
 **Wired to**
 
-- → **Tenancy, Packaging & Settings** — 16 relationships, 16 inferred
+- → **Tenancy, Packaging & Settings** — 17 relationships, 17 inferred
 - → **Error & Message Catalog** — 15 relationships, 15 inferred
-- → **Identity, RBAC & MFA** — 12 relationships, 12 inferred
+- → **Identity, RBAC & MFA** — 13 relationships, 13 inferred
 - → **Logging, Alerting & Notifications** — 11 relationships, 11 inferred
 - → **Persistence & Migrations** — 10 relationships, 10 inferred
+- → **Security Baseline & Attack Surface** — 10 relationships, 10 inferred
 - → **Finance & General Ledger** — 8 relationships, 8 inferred
 - → **Event Outbox & Async Job Runner** — 8 relationships, 8 inferred
-- → **Security Baseline & Attack Surface** — 8 relationships, 8 inferred
 - ← **Channel Connectors** — 8 relationships, 8 inferred
 - ← **Extension Platform** — 6 relationships, 6 inferred
 - ← **Document Kernel** — 4 relationships, 4 inferred
@@ -1183,33 +1197,35 @@ The 300+ code standard message catalog and the writeAPIError/writeAPIErrorGeneri
 
 **Most connected symbols**
 
-- `writeAPIErrorGeneric()` — [internal/server/apierror.go](../../internal/server/apierror.go#L394) · degree 692
-- `writeEngineError()` — [internal/server/apierror.go](../../internal/server/apierror.go#L291) · degree 346
-- `writeAPIError()` — [internal/server/apierror.go](../../internal/server/apierror.go#L222) · degree 87
-- `writeAPIErrorDetail()` — [internal/server/apierror.go](../../internal/server/apierror.go#L236) · degree 33
-- `logForEntry()` — [internal/server/apierror.go](../../internal/server/apierror.go#L190) · degree 11
-- `writeResponse()` — [internal/server/apierror.go](../../internal/server/apierror.go#L212) · degree 9
+- `writeAPIErrorGeneric()` — [internal/server/apierror.go](../../internal/server/apierror.go#L400) · degree 709
+- `writeEngineError()` — [internal/server/apierror.go](../../internal/server/apierror.go#L297) · degree 354
+- `writeAPIError()` — [internal/server/apierror.go](../../internal/server/apierror.go#L228) · degree 92
+- `writeAPIErrorDetail()` — [internal/server/apierror.go](../../internal/server/apierror.go#L242) · degree 33
+- `logForEntry()` — [internal/server/apierror.go](../../internal/server/apierror.go#L193) · degree 11
+- `writeResponse()` — [internal/server/apierror.go](../../internal/server/apierror.go#L215) · degree 10
 
 **Wired to**
 
+- → **Project Documentation** — 2 relationships, 2 inferred
 - → **Logging, Alerting & Notifications** — 2 relationships, 2 inferred
 - → **Reporting Engine** — 1 relationship, 1 inferred
 - → **SPA Shell** — declared: error envelope
-- ← **Warehouse Management (WMS)** — 118 relationships, 118 inferred
+- ← **Warehouse Management (WMS)** — 123 relationships, 123 inferred
 - ← **Cross-module API Handlers** — 105 relationships, 105 inferred
 - ← **Inventory & Planning** — 93 relationships, 93 inferred
-- ← **Identity, RBAC & MFA** — 70 relationships, 70 inferred
+- ← **Identity, RBAC & MFA** — 72 relationships, 72 inferred
+- ← **Channel Connectors** — 68 relationships, 68 inferred
 - ← **Product Information (PIM)** — 67 relationships, 67 inferred
-- ← **Channel Connectors** — 62 relationships, 62 inferred
-- ← **Finance & General Ledger** — 61 relationships, 61 inferred
+- ← **Finance & General Ledger** — 63 relationships, 63 inferred
 - ← **Orders & Fulfillment (OMS)** — 59 relationships, 59 inferred
 
-<details><summary>4 files</summary>
+<details><summary>5 files</summary>
 
 - [internal/server/apierror.go](../../internal/server/apierror.go)
 - [internal/server/error_catalog_extensions.go](../../internal/server/error_catalog_extensions.go)
 - [internal/server/error_catalog_generated.go](../../internal/server/error_catalog_generated.go)
 - [internal/server/error_catalog_wording.go](../../internal/server/error_catalog_wording.go)
+- [internal/server/error_help_target.go](../../internal/server/error_help_target.go)
 
 </details>
 
@@ -1219,33 +1235,33 @@ The metadata-driven Record Type engine — one generic documents table per tenan
 
 **Most connected symbols**
 
-- `strField()` — [engines/master_data_validation.go](../../engines/master_data_validation.go#L327) · degree 350
-- `NewDocID()` — [engines/docid.go](../../engines/docid.go#L93) · degree 133
-- `handleGenericDoc()` — [internal/server/handlers_core_doc_engine.go](../../internal/server/handlers_core_doc_engine.go#L84) · degree 104
-- `checkPermission()` — [internal/server/handlers_core_doc_engine.go](../../internal/server/handlers_core_doc_engine.go#L1574) · degree 53
-- `ValidateMasterDataRules()` — [engines/master_data_validation.go](../../engines/master_data_validation.go#L32) · degree 43
-- `GenerateSequence()` — [engines/numbering.go](../../engines/numbering.go#L96) · degree 38
+- `strField()` — [engines/master_data_validation.go](../../engines/master_data_validation.go#L332) · degree 360
+- `NewDocID()` — [engines/docid.go](../../engines/docid.go#L93) · degree 137
+- `handleGenericDoc()` — [internal/server/handlers_core_doc_engine.go](../../internal/server/handlers_core_doc_engine.go#L84) · degree 106
+- `checkPermission()` — [internal/server/handlers_core_doc_engine.go](../../internal/server/handlers_core_doc_engine.go#L1578) · degree 54
+- `ValidateMasterDataRules()` — [engines/master_data_validation.go](../../engines/master_data_validation.go#L32) · degree 48
+- `GenerateSequence()` — [engines/numbering.go](../../engines/numbering.go#L96) · degree 39
 
 **Wired to**
 
-- → **Persistence & Migrations** — 81 relationships, 81 inferred
-- → **Error & Message Catalog** — 37 relationships, 37 inferred
+- → **Persistence & Migrations** — 84 relationships, 84 inferred
+- → **Error & Message Catalog** — 40 relationships, 40 inferred
+- → **Identity, RBAC & MFA** — 26 relationships, 26 inferred
 - → **Procurement & Vendors** — 26 relationships, 26 inferred
-- → **Identity, RBAC & MFA** — 24 relationships, 24 inferred
-- → **Warehouse Management (WMS)** — 23 relationships, 23 inferred
+- → **Warehouse Management (WMS)** — 24 relationships, 24 inferred
 - → **Inventory & Planning** — 20 relationships, 19 inferred
 - → **Tax & Statutory** — 16 relationships, 16 inferred
 - → **Product Information (PIM)** — 14 relationships, 14 inferred
-- ← **Procurement & Vendors** — 125 relationships, 125 inferred
-- ← **CRM & Loyalty** — 83 relationships, 83 inferred
-- ← **Inventory & Planning** — 81 relationships, 81 inferred
+- ← **Procurement & Vendors** — 126 relationships, 126 inferred
+- ← **CRM & Loyalty** — 93 relationships, 93 inferred
+- ← **Inventory & Planning** — 83 relationships, 83 inferred
+- ← **Warehouse Management (WMS)** — 50 relationships, 50 inferred
 - ← **Orders & Fulfillment (OMS)** — 45 relationships, 45 inferred
-- ← **Warehouse Management (WMS)** — 44 relationships, 44 inferred
+- ← **Bulk Data I/O** — 41 relationships, 35 inferred
 - ← **Device Printing (QZ Tray)** — 41 relationships, 41 inferred
 - ← **Product Information (PIM)** — 40 relationships, 40 inferred
-- ← **Bulk Data I/O** — 39 relationships, 33 inferred
 
-<details><summary>30 files</summary>
+<details><summary>32 files</summary>
 
 - [engines/docid.go](../../engines/docid.go)
 - [engines/doctype.go](../../engines/doctype.go)
@@ -1262,6 +1278,7 @@ The metadata-driven Record Type engine — one generic documents table per tenan
 - [engines/master_codes.go](../../engines/master_codes.go)
 - [engines/master_data_validation.go](../../engines/master_data_validation.go)
 - [engines/master_duplicates.go](../../engines/master_duplicates.go)
+- [engines/master_merge.go](../../engines/master_merge.go)
 - [engines/master_recode.go](../../engines/master_recode.go)
 - [engines/number_series.go](../../engines/number_series.go)
 - [engines/numbering.go](../../engines/numbering.go)
@@ -1275,6 +1292,7 @@ The metadata-driven Record Type engine — one generic documents table per tenan
 - [internal/server/handlers_doc_find_stage139.go](../../internal/server/handlers_doc_find_stage139.go)
 - [internal/server/handlers_field_formats.go](../../internal/server/handlers_field_formats.go)
 - [internal/server/handlers_hsn.go](../../internal/server/handlers_hsn.go)
+- [internal/server/handlers_master_merge.go](../../internal/server/handlers_master_merge.go)
 - [internal/server/handlers_reason_codes.go](../../internal/server/handlers_reason_codes.go)
 - [public/reason-picker.js](../../public/reason-picker.js)
 
@@ -1286,33 +1304,33 @@ Login, JWT issue/verify, per-role permissions, TOTP MFA for privileged roles, MF
 
 **Most connected symbols**
 
-- `HasFullAccess()` — [engines/roles.go](../../engines/roles.go#L55) · degree 93
-- `SignToken()` — [engines/auth.go](../../engines/auth.go#L235) · degree 70
-- `requireHRAdmin()` — [internal/server/handlers_admin_identity.go](../../internal/server/handlers_admin_identity.go#L44) · degree 52
-- `ResetLiveUserStateCache()` — [engines/auth_livestate.go](../../engines/auth_livestate.go#L222) · degree 33
-- `handleLogin()` — [internal/server/handlers_auth.go](../../internal/server/handlers_auth.go#L20) · degree 30
+- `HasFullAccess()` — [engines/roles.go](../../engines/roles.go#L55) · degree 98
+- `SignToken()` — [engines/auth.go](../../engines/auth.go#L235) · degree 75
+- `requireHRAdmin()` — [internal/server/handlers_admin_identity.go](../../internal/server/handlers_admin_identity.go#L44) · degree 58
+- `ResetLiveUserStateCache()` — [engines/auth_livestate.go](../../engines/auth_livestate.go#L222) · degree 37
+- `handleLogin()` — [internal/server/handlers_auth.go](../../internal/server/handlers_auth.go#L20) · degree 31
 - `IsSuperAdmin()` — [engines/roles.go](../../engines/roles.go#L71) · degree 28
 
 **Wired to**
 
-- → **Error & Message Catalog** — 70 relationships, 70 inferred
-- → **Persistence & Migrations** — 63 relationships, 63 inferred
-- → **Logging, Alerting & Notifications** — 46 relationships, 46 inferred
+- → **Error & Message Catalog** — 72 relationships, 72 inferred
+- → **Persistence & Migrations** — 66 relationships, 66 inferred
+- → **Logging, Alerting & Notifications** — 48 relationships, 48 inferred
 - → **Tenancy, Packaging & Settings** — 29 relationships, 29 inferred
-- → **Security Baseline & Attack Surface** — 11 relationships, 11 inferred
-- → **Document Kernel** — 5 relationships, 4 inferred
+- → **Security Baseline & Attack Surface** — 15 relationships, 15 inferred
+- → **Document Kernel** — 6 relationships, 5 inferred
 - → **Event Outbox & Async Job Runner** — 5 relationships, 5 inferred
 - → **Product Information (PIM)** — 5 relationships, 5 inferred
-- ← **Reporting Engine** — 25 relationships, 20 inferred
-- ← **Document Kernel** — 24 relationships, 24 inferred
+- ← **Document Kernel** — 26 relationships, 26 inferred
+- ← **Reporting Engine** — 26 relationships, 20 inferred
+- ← **Channel Connectors** — 24 relationships, 24 inferred
 - ← **Bulk Data I/O** — 23 relationships, 21 inferred
-- ← **Channel Connectors** — 21 relationships, 21 inferred
 - ← **Store App (PWA)** — 20 relationships, 18 inferred
 - ← **Inventory & Planning** — 18 relationships, 18 inferred
 - ← **HR & Payroll** — 17 relationships, 15 inferred
-- ← **Tenancy, Packaging & Settings** — 16 relationships, 16 inferred
+- ← **Security Baseline & Attack Surface** — 17 relationships, 16 inferred
 
-<details><summary>37 files</summary>
+<details><summary>38 files</summary>
 
 - [engines/admin_password_reset.go](../../engines/admin_password_reset.go)
 - [engines/auth.go](../../engines/auth.go)
@@ -1336,6 +1354,7 @@ Login, JWT issue/verify, per-role permissions, TOTP MFA for privileged roles, MF
 - [engines/sensitive_fields.go](../../engines/sensitive_fields.go)
 - [engines/sod_catalog.go](../../engines/sod_catalog.go)
 - [engines/store_access.go](../../engines/store_access.go)
+- [engines/store_access_change.go](../../engines/store_access_change.go)
 - [engines/store_view.go](../../engines/store_view.go)
 - [internal/server/command_catalog.go](../../internal/server/command_catalog.go)
 - [internal/server/command_keys.go](../../internal/server/command_keys.go)
@@ -1360,33 +1379,33 @@ Schema-per-tenant provisioning, the sellable product packages (PIM/WMS/OMS/HR/�
 
 **Most connected symbols**
 
-- `ProvisionTenantSchema()` — [engines/saas.go](../../engines/saas.go#L64) · degree 170
-- `GetSettingInt()` — [engines/settings_registry.go](../../engines/settings_registry.go#L157) · degree 79
-- `SetSetting()` — [engines/settings_registry.go](../../engines/settings_registry.go#L278) · degree 64
-- `GetSettingString()` — [engines/settings_registry.go](../../engines/settings_registry.go#L152) · degree 34
-- `requirePlatformOperator()` — [internal/server/handlers_platform_console.go](../../internal/server/handlers_platform_console.go#L16) · degree 26
-- `RegisterSetting()` — [engines/settings_registry.go](../../engines/settings_registry.go#L77) · degree 25
+- `ProvisionTenantSchema()` — [engines/saas.go](../../engines/saas.go#L64) · degree 178
+- `GetSettingInt()` — [engines/settings_registry.go](../../engines/settings_registry.go#L157) · degree 87
+- `SetSetting()` — [engines/settings_registry.go](../../engines/settings_registry.go#L278) · degree 83
+- `GetSettingString()` — [engines/settings_registry.go](../../engines/settings_registry.go#L152) · degree 38
+- `GetSettingBool()` — [engines/settings_registry.go](../../engines/settings_registry.go#L201) · degree 32
+- `RegisterSetting()` — [engines/settings_registry.go](../../engines/settings_registry.go#L77) · degree 29
 
 **Wired to**
 
-- → **Persistence & Migrations** — 42 relationships, 42 inferred
-- → **Error & Message Catalog** — 35 relationships, 35 inferred
+- → **Persistence & Migrations** — 44 relationships, 44 inferred
+- → **Error & Message Catalog** — 39 relationships, 39 inferred
 - → **Document Kernel** — 23 relationships, 18 inferred
-- → **Identity, RBAC & MFA** — 16 relationships, 16 inferred
+- → **Identity, RBAC & MFA** — 17 relationships, 17 inferred
 - → **Logging, Alerting & Notifications** — 12 relationships, 12 inferred
 - → **Product Information (PIM)** — 8 relationships, 8 inferred
 - → **Point of Sale** — 6 relationships, 4 inferred
 - → **Tax & Statutory** — 6 relationships, 6 inferred
-- ← **CRM & Loyalty** — 46 relationships, 46 inferred
+- ← **CRM & Loyalty** — 54 relationships, 54 inferred
 - ← **Identity, RBAC & MFA** — 29 relationships, 29 inferred
-- ← **Inventory & Planning** — 24 relationships, 24 inferred
-- ← **Procurement & Vendors** — 22 relationships, 22 inferred
+- ← **Inventory & Planning** — 28 relationships, 28 inferred
+- ← **Procurement & Vendors** — 24 relationships, 24 inferred
+- ← **Channel Connectors** — 23 relationships, 23 inferred
 - ← **Reporting Engine** — 22 relationships, 22 inferred
-- ← **Channel Connectors** — 21 relationships, 21 inferred
-- ← **HTTP Edge & Middleware** — 16 relationships, 16 inferred
+- ← **HTTP Edge & Middleware** — 17 relationships, 17 inferred
 - ← **Bulk Data I/O** — 14 relationships, 12 inferred
 
-<details><summary>35 files</summary>
+<details><summary>40 files</summary>
 
 - [cmd/releasesign/main.go](../../cmd/releasesign/main.go)
 - [cmd/releasever/main.go](../../cmd/releasever/main.go)
@@ -1400,6 +1419,7 @@ Schema-per-tenant provisioning, the sellable product packages (PIM/WMS/OMS/HR/�
 - [engines/platform_console.go](../../engines/platform_console.go)
 - [engines/platform_control_panel.go](../../engines/platform_control_panel.go)
 - [engines/platform_support.go](../../engines/platform_support.go)
+- [engines/query_baseline.go](../../engines/query_baseline.go)
 - [engines/query_fingerprints.go](../../engines/query_fingerprints.go)
 - [engines/release_versions.go](../../engines/release_versions.go)
 - [engines/saas.go](../../engines/saas.go)
@@ -1409,6 +1429,10 @@ Schema-per-tenant provisioning, the sellable product packages (PIM/WMS/OMS/HR/�
 - [engines/setup_advisor.go](../../engines/setup_advisor.go)
 - [engines/setup_path.go](../../engines/setup_path.go)
 - [engines/setup_readiness.go](../../engines/setup_readiness.go)
+- [engines/setup_step_history.go](../../engines/setup_step_history.go)
+- [engines/storage_safety.go](../../engines/storage_safety.go)
+- [engines/storage_safety_unix.go](../../engines/storage_safety_unix.go)
+- [engines/storage_safety_windows.go](../../engines/storage_safety_windows.go)
 - [engines/synthetic_tenant.go](../../engines/synthetic_tenant.go)
 - [engines/synthetic_tenant_footprint.go](../../engines/synthetic_tenant_footprint.go)
 - [engines/tenant_lifecycle.go](../../engines/tenant_lifecycle.go)
@@ -1432,25 +1456,25 @@ Amount-banded approval rules, submit → decide → log, bulk decisions, and res
 
 **Most connected symbols**
 
-- `DecideApproval()` — [engines/approval.go](../../engines/approval.go#L384) · degree 61
-- `SubmitForApproval()` — [engines/approval.go](../../engines/approval.go#L252) · degree 51
+- `DecideApproval()` — [engines/approval.go](../../engines/approval.go#L384) · degree 64
+- `SubmitForApproval()` — [engines/approval.go](../../engines/approval.go#L252) · degree 52
 - `ListTaskInbox()` — [engines/task_inbox.go](../../engines/task_inbox.go#L60) · degree 22
 - `IsApprovalGated()` — [engines/approval.go](../../engines/approval.go#L194) · degree 17
 - `fetchDocument()` — [engines/approval.go](../../engines/approval.go#L204) · degree 14
-- `RegisterApprovalDecisionHook()` — [engines/approval_hooks.go](../../engines/approval_hooks.go#L21) · degree 11
+- `RequiredApproverRoleForAmount()` — [engines/approval.go](../../engines/approval.go#L158) · degree 12
 
 **Wired to**
 
 - → **Persistence & Migrations** — 13 relationships, 13 inferred
 - → **Finance & General Ledger** — 9 relationships, 9 inferred
+- → **CRM & Loyalty** — 4 relationships, 4 inferred
 - → **Identity, RBAC & MFA** — 4 relationships, 4 inferred
+- → **Inventory & Planning** — 4 relationships, 4 inferred
 - → **Product Information (PIM)** — 4 relationships, 4 inferred
-- → **CRM & Loyalty** — 3 relationships, 3 inferred
-- → **Inventory & Planning** — 3 relationships, 3 inferred
 - → **Logging, Alerting & Notifications** — 3 relationships, 3 inferred
 - → **Tenancy, Packaging & Settings** — 3 relationships, 3 inferred
 - ← **Inventory & Planning** — 23 relationships, 23 inferred
-- ← **CRM & Loyalty** — 16 relationships, 14 inferred
+- ← **CRM & Loyalty** — 18 relationships, 16 inferred
 - ← **Cross-module API Handlers** — 11 relationships, 11 inferred
 - ← **Procurement & Vendors** — 6 relationships, 6 inferred
 - ← **Document Kernel** — 5 relationships, 5 inferred
@@ -1473,25 +1497,25 @@ The Postgres connection, GetTenantSchema/SetSearchPath (the tenant boundary, enf
 
 **Most connected symbols**
 
-- `GetTenantSchema()` — [db/db.go](../../db/db.go#L143) · degree 1601
-- `InitDB()` — [db/db.go](../../db/db.go#L50) · degree 665
-- `SetSearchPath()` — [db/db.go](../../db/db.go#L161) · degree 92
-- `SyncTenantSchemaTx()` — [db/tenant_schema_sync.go](../../db/tenant_schema_sync.go#L190) · degree 16
+- `GetTenantSchema()` — [db/db.go](../../db/db.go#L143) · degree 1654
+- `InitDB()` — [db/db.go](../../db/db.go#L50) · degree 705
+- `SetSearchPath()` — [db/db.go](../../db/db.go#L161) · degree 98
+- `SyncTenantSchemaTx()` — [db/tenant_schema_sync.go](../../db/tenant_schema_sync.go#L192) · degree 16
 - `ConnStringFromEnv()` — [db/db.go](../../db/db.go#L33) · degree 7
-- `.create()` — [db/tenant_schema_sync.go](../../db/tenant_schema_sync.go#L532) · degree 6
+- `.create()` — [db/tenant_schema_sync.go](../../db/tenant_schema_sync.go#L534) · degree 6
 
 **Wired to**
 
-- ← **Warehouse Management (WMS)** — 177 relationships, 177 inferred
-- ← **Finance & General Ledger** — 122 relationships, 122 inferred
+- ← **Warehouse Management (WMS)** — 189 relationships, 189 inferred
+- ← **Finance & General Ledger** — 124 relationships, 124 inferred
 - ← **Inventory & Planning** — 109 relationships, 109 inferred
-- ← **Product Information (PIM)** — 108 relationships, 108 inferred
-- ← **Document Kernel** — 81 relationships, 81 inferred
+- ← **Product Information (PIM)** — 109 relationships, 109 inferred
+- ← **Document Kernel** — 84 relationships, 84 inferred
 - ← **Point of Sale** — 80 relationships, 80 inferred
 - ← **Orders & Fulfillment (OMS)** — 73 relationships, 73 inferred
-- ← **Reporting Engine** — 66 relationships, 66 inferred
+- ← **Reporting Engine** — 67 relationships, 67 inferred
 
-<details><summary>323 files</summary>
+<details><summary>341 files</summary>
 
 - [db/db.go](../../db/db.go)
 - [db/migrate.go](../../db/migrate.go)
@@ -1539,12 +1563,23 @@ The Postgres connection, GetTenantSchema/SetSearchPath (the tenant boundary, enf
 - [db/migrations_stage139_user_shortcuts.sql](../../db/migrations_stage139_user_shortcuts.sql)
 - [db/migrations_stage140_12_guide_enhancement.sql](../../db/migrations_stage140_12_guide_enhancement.sql)
 - [db/migrations_stage140_13_state_sweep_indexes_49_18_2.sql](../../db/migrations_stage140_13_state_sweep_indexes_49_18_2.sql)
+- [db/migrations_stage140_13_strict_transitions_49_5_3c.sql](../../db/migrations_stage140_13_strict_transitions_49_5_3c.sql)
+- [db/migrations_stage146_1_4_reorder_position.sql](../../db/migrations_stage146_1_4_reorder_position.sql)
+- [db/migrations_stage146_2_3_no_points_items.sql](../../db/migrations_stage146_2_3_no_points_items.sql)
+- [db/migrations_stage146_2_6_points_transfer.sql](../../db/migrations_stage146_2_6_points_transfer.sql)
+- [db/migrations_stage146_2_loyalty_scheme.sql](../../db/migrations_stage146_2_loyalty_scheme.sql)
+- [db/migrations_stage146_3_bin_rules.sql](../../db/migrations_stage146_3_bin_rules.sql)
+- [db/migrations_stage146_3_piece_codes_work_queue.sql](../../db/migrations_stage146_3_piece_codes_work_queue.sql)
+- [db/migrations_stage146_4_ship_limits.sql](../../db/migrations_stage146_4_ship_limits.sql)
+- [db/migrations_stage146_5_1_shopify_images_hash.sql](../../db/migrations_stage146_5_1_shopify_images_hash.sql)
+- [db/migrations_stage146_5_3_pim_value_maps.sql](../../db/migrations_stage146_5_3_pim_value_maps.sql)
 - [db/migrations_stage14a_modules.sql](../../db/migrations_stage14a_modules.sql)
 - [db/migrations_stage14b_versioning.sql](../../db/migrations_stage14b_versioning.sql)
 - [db/migrations_stage14c_pipeline.sql](../../db/migrations_stage14c_pipeline.sql)
 - [db/migrations_stage14d_patchintake.sql](../../db/migrations_stage14d_patchintake.sql)
 - [db/migrations_stage14e_extensions.sql](../../db/migrations_stage14e_extensions.sql)
 - [db/migrations_stage14f_security.sql](../../db/migrations_stage14f_security.sql)
+- [db/migrations_stage154_5_printer_skew.sql](../../db/migrations_stage154_5_printer_skew.sql)
 - [db/migrations_stage16_field_permissions.sql](../../db/migrations_stage16_field_permissions.sql)
 - [db/migrations_stage17_soft_delete.sql](../../db/migrations_stage17_soft_delete.sql)
 - [db/migrations_stage17c_accounting_periods.sql](../../db/migrations_stage17c_accounting_periods.sql)
@@ -1688,6 +1723,8 @@ The Postgres connection, GetTenantSchema/SetSearchPath (the tenant boundary, enf
 - [db/migrations_stage45_money_paise.sql](../../db/migrations_stage45_money_paise.sql)
 - [db/migrations_stage47_11_7_hook_api_version.sql](../../db/migrations_stage47_11_7_hook_api_version.sql)
 - [db/migrations_stage47_11_8a_courier_booking_guard.sql](../../db/migrations_stage47_11_8a_courier_booking_guard.sql)
+- [db/migrations_stage47_12_4_setup_step_history.sql](../../db/migrations_stage47_12_4_setup_step_history.sql)
+- [db/migrations_stage47_13_5_master_merge.sql](../../db/migrations_stage47_13_5_master_merge.sql)
 - [db/migrations_stage47_16_4a_edit_log_every_client.sql](../../db/migrations_stage47_16_4a_edit_log_every_client.sql)
 - [db/migrations_stage47_16_4b_gl_postings_guard.sql](../../db/migrations_stage47_16_4b_gl_postings_guard.sql)
 - [db/migrations_stage47_16_4c_audit_retention_floor.sql](../../db/migrations_stage47_16_4c_audit_retention_floor.sql)
@@ -1700,15 +1737,19 @@ The Postgres connection, GetTenantSchema/SetSearchPath (the tenant boundary, enf
 - [db/migrations_stage47_7_audit_evidence.sql](../../db/migrations_stage47_7_audit_evidence.sql)
 - [db/migrations_stage49_10_6b_client_data_removal.sql](../../db/migrations_stage49_10_6b_client_data_removal.sql)
 - [db/migrations_stage49_11_2_audit_source_device.sql](../../db/migrations_stage49_11_2_audit_source_device.sql)
+- [db/migrations_stage49_11_7_privileged_sessions.sql](../../db/migrations_stage49_11_7_privileged_sessions.sql)
 - [db/migrations_stage49_1_5_tenant_lifecycle.sql](../../db/migrations_stage49_1_5_tenant_lifecycle.sql)
 - [db/migrations_stage49_2_1_identity_lifecycle.sql](../../db/migrations_stage49_2_1_identity_lifecycle.sql)
 - [db/migrations_stage49_2_2_password_hardening.sql](../../db/migrations_stage49_2_2_password_hardening.sql)
 - [db/migrations_stage49_2_4_admin_password_reset.sql](../../db/migrations_stage49_2_4_admin_password_reset.sql)
 - [db/migrations_stage49_3_6_role_grant_changes.sql](../../db/migrations_stage49_3_6_role_grant_changes.sql)
+- [db/migrations_stage49_3_6b_store_access_changes.sql](../../db/migrations_stage49_3_6b_store_access_changes.sql)
+- [db/migrations_stage49_5_5_reconciliation_exceptions.sql](../../db/migrations_stage49_5_5_reconciliation_exceptions.sql)
 - [db/migrations_stage49_5_6a_offline_sale_validation.sql](../../db/migrations_stage49_5_6a_offline_sale_validation.sql)
 - [db/migrations_stage49_6_privacy_rights.sql](../../db/migrations_stage49_6_privacy_rights.sql)
 - [db/migrations_stage49_7_5_migration_checksums.sql](../../db/migrations_stage49_7_5_migration_checksums.sql)
 - [db/migrations_stage49_7_5b_checksum_renormalize.sql](../../db/migrations_stage49_7_5b_checksum_renormalize.sql)
+- [db/migrations_stage49_8_5_channel_credential_active.sql](../../db/migrations_stage49_8_5_channel_credential_active.sql)
 - [db/migrations_stage49_8_5_credential_metadata.sql](../../db/migrations_stage49_8_5_credential_metadata.sql)
 - [db/migrations_stage49_8_6_job_actor.sql](../../db/migrations_stage49_8_6_job_actor.sql)
 - [db/migrations_stage50_14_document_recency_index.sql](../../db/migrations_stage50_14_document_recency_index.sql)
@@ -1815,6 +1856,7 @@ The Postgres connection, GetTenantSchema/SetSearchPath (the tenant boundary, enf
 - [db/migrations_stage99_shopify_links.sql](../../db/migrations_stage99_shopify_links.sql)
 - [db/migrations_stores_master_fields.sql](../../db/migrations_stores_master_fields.sql)
 - [db/migrations_stores_retire_again.sql](../../db/migrations_stores_retire_again.sql)
+- [db/statement_timeout.go](../../db/statement_timeout.go)
 - [db/tenant_schema_sync.go](../../db/tenant_schema_sync.go)
 
 </details>
@@ -1863,29 +1905,29 @@ Stage 49's security program spine. security_baseline.go is the fail-fast startup
 - `configurationFindings()` — [engines/security_baseline.go](../../engines/security_baseline.go#L115) · degree 19
 - `SecurityDetectionRule` — [engines/security_detection.go](../../engines/security_detection.go#L42) · degree 18
 - `status` — [cmd/edgecheck/main.go](../../cmd/edgecheck/main.go#L41) · degree 17
-- `GetSecurityPosture()` — [engines/security_posture.go](../../engines/security_posture.go#L135) · degree 16
+- `GetSecurityPosture()` — [engines/security_posture.go](../../engines/security_posture.go#L136) · degree 16
 - `detectionHit` — [engines/security_detection.go](../../engines/security_detection.go#L61) · degree 16
 
 **Wired to**
 
-- → **Logging, Alerting & Notifications** — 26 relationships, 25 inferred
-- → **Persistence & Migrations** — 23 relationships, 23 inferred
-- → **Error & Message Catalog** — 13 relationships, 13 inferred
-- → **Identity, RBAC & MFA** — 13 relationships, 12 inferred
+- → **Logging, Alerting & Notifications** — 30 relationships, 29 inferred
+- → **Persistence & Migrations** — 28 relationships, 28 inferred
+- → **Identity, RBAC & MFA** — 17 relationships, 16 inferred
+- → **Error & Message Catalog** — 15 relationships, 15 inferred
+- → **Tenancy, Packaging & Settings** — 9 relationships, 9 inferred
 - → **Event Outbox & Async Job Runner** — 6 relationships, 6 inferred
-- → **Tenancy, Packaging & Settings** — 6 relationships, 6 inferred
 - → **Product Information (PIM)** — 4 relationships, 4 inferred
 - → **Reporting Engine** — 4 relationships, 3 inferred
-- ← **Identity, RBAC & MFA** — 11 relationships, 11 inferred
+- ← **Identity, RBAC & MFA** — 15 relationships, 15 inferred
 - ← **Channel Connectors** — 10 relationships, 10 inferred
+- ← **HTTP Edge & Middleware** — 10 relationships, 10 inferred
 - ← **Project Documentation** — 8 relationships, 3 inferred
-- ← **HTTP Edge & Middleware** — 8 relationships, 8 inferred
 - ← **Logging, Alerting & Notifications** — 8 relationships, 6 inferred
 - ← **Cross-module API Handlers** — 5 relationships, 5 inferred
-- ← **Event Outbox & Async Job Runner** — 4 relationships, 4 inferred
-- ← **Tenancy, Packaging & Settings** — 4 relationships, 3 inferred
+- ← **Event Outbox & Async Job Runner** — 5 relationships, 5 inferred
+- ← **Bulk Data I/O** — 4 relationships, 4 inferred
 
-<details><summary>39 files</summary>
+<details><summary>40 files</summary>
 
 - [SECURITY.md](../../SECURITY.md)
 - [cmd/edgecheck/main.go](../../cmd/edgecheck/main.go)
@@ -1899,6 +1941,7 @@ Stage 49's security program spine. security_baseline.go is the fail-fast startup
 - [engines/inbound_webhook.go](../../engines/inbound_webhook.go)
 - [engines/outbound_guard.go](../../engines/outbound_guard.go)
 - [engines/privacy_rights.go](../../engines/privacy_rights.go)
+- [engines/privileged_sessions.go](../../engines/privileged_sessions.go)
 - [engines/request_source.go](../../engines/request_source.go)
 - [engines/restore_verify.go](../../engines/restore_verify.go)
 - [engines/secret_keyring.go](../../engines/secret_keyring.go)
@@ -1939,8 +1982,8 @@ Balanced double-entry posting (PostDoubleEntry), chart of accounts, journal vouc
 
 **Most connected symbols**
 
-- `PaiseToRupees()` — [engines/finance.go](../../engines/finance.go#L24) · degree 143
-- `BusinessToday()` — [engines/business_day.go](../../engines/business_day.go#L34) · degree 92
+- `PaiseToRupees()` — [engines/finance.go](../../engines/finance.go#L24) · degree 148
+- `BusinessToday()` — [engines/business_day.go](../../engines/business_day.go#L34) · degree 96
 - `RupeesToPaise()` — [engines/finance.go](../../engines/finance.go#L20) · degree 84
 - `PostDoubleEntryTx()` — [engines/finance.go](../../engines/finance.go#L157) · degree 68
 - `PostDoubleEntry()` — [engines/finance.go](../../engines/finance.go#L131) · degree 40
@@ -1948,24 +1991,24 @@ Balanced double-entry posting (PostDoubleEntry), chart of accounts, journal vouc
 
 **Wired to**
 
-- → **Persistence & Migrations** — 122 relationships, 122 inferred
-- → **Error & Message Catalog** — 61 relationships, 61 inferred
-- → **Logging, Alerting & Notifications** — 46 relationships, 46 inferred
+- → **Persistence & Migrations** — 124 relationships, 124 inferred
+- → **Error & Message Catalog** — 63 relationships, 63 inferred
+- → **Logging, Alerting & Notifications** — 47 relationships, 47 inferred
 - → **Bulk Data I/O** — 36 relationships, 35 inferred
 - → **Document Kernel** — 33 relationships, 33 inferred
+- → **Reporting Engine** — 25 relationships, 24 inferred
 - → **Warehouse Management (WMS)** — 24 relationships, 24 inferred
-- → **Reporting Engine** — 23 relationships, 22 inferred
 - → **Product Information (PIM)** — 22 relationships, 22 inferred
-- ← **Point of Sale** — 109 relationships, 109 inferred
+- ← **Point of Sale** — 110 relationships, 110 inferred
 - ← **Inventory & Planning** — 50 relationships, 50 inferred
 - ← **Procurement & Vendors** — 47 relationships, 45 inferred
 - ← **Fixed Assets, Service & Quality Management** — 31 relationships, 31 inferred
 - ← **Reporting Engine** — 31 relationships, 31 inferred
-- ← **CRM & Loyalty** — 16 relationships, 15 inferred
+- ← **CRM & Loyalty** — 24 relationships, 23 inferred
 - ← **Orders & Fulfillment (OMS)** — 15 relationships, 15 inferred
 - ← **Manufacturing & MRP** — 13 relationships, 13 inferred
 
-<details><summary>46 files</summary>
+<details><summary>47 files</summary>
 
 - [engines/accounting_periods.go](../../engines/accounting_periods.go)
 - [engines/acquirer_settlement.go](../../engines/acquirer_settlement.go)
@@ -1991,6 +2034,7 @@ Balanced double-entry posting (PostDoubleEntry), chart of accounts, journal vouc
 - [engines/location_cost_center.go](../../engines/location_cost_center.go)
 - [engines/notes.go](../../engines/notes.go)
 - [engines/order_invoice.go](../../engines/order_invoice.go)
+- [engines/order_to_cash_reconciliation.go](../../engines/order_to_cash_reconciliation.go)
 - [engines/partial_settlement.go](../../engines/partial_settlement.go)
 - [engines/payment_file.go](../../engines/payment_file.go)
 - [engines/payment_proposal.go](../../engines/payment_proposal.go)
@@ -2022,7 +2066,7 @@ GST computation and enforcement (CGST/SGST/IGST, place-of-supply), TDS, and e-in
 
 **Most connected symbols**
 
-- `round2()` — [engines/gst.go](../../engines/gst.go#L15) · degree 156
+- `round2()` — [engines/gst.go](../../engines/gst.go#L15) · degree 158
 - `truthy()` — [engines/gst_place_of_supply.go](../../engines/gst_place_of_supply.go#L272) · degree 23
 - `BuildCanonicalTaxDocument()` — [engines/einvoice.go](../../engines/einvoice.go#L562) · degree 21
 - `IRPRecord` — [engines/einvoice_worker.go](../../engines/einvoice_worker.go#L29) · degree 21
@@ -2040,11 +2084,11 @@ GST computation and enforcement (CGST/SGST/IGST, place-of-supply), TDS, and e-in
 - → **Device Printing (QZ Tray)** — 13 relationships, 11 inferred
 - → **Inventory & Planning** — 8 relationships, 8 inferred
 - ← **Procurement & Vendors** — 71 relationships, 67 inferred
-- ← **Point of Sale** — 33 relationships, 30 inferred
+- ← **Point of Sale** — 34 relationships, 31 inferred
 - ← **Device Printing (QZ Tray)** — 27 relationships, 27 inferred
 - ← **Inventory & Planning** — 22 relationships, 22 inferred
 - ← **CRM & Loyalty** — 21 relationships, 21 inferred
-- ← **Finance & General Ledger** — 19 relationships, 15 inferred
+- ← **Finance & General Ledger** — 20 relationships, 16 inferred
 - ← **Document Kernel** — 16 relationships, 16 inferred
 - ← **Orders & Fulfillment (OMS)** — 13 relationships, 10 inferred
 
@@ -2073,8 +2117,8 @@ Purchase Requisition → RFQ and vendor-quote comparison → Purchase Order → 
 
 **Most connected symbols**
 
-- `firstNonEmpty()` — [engines/purchase_order.go](../../engines/purchase_order.go#L381) · degree 220
-- `fetchDocData()` — [engines/purchase_order.go](../../engines/purchase_order.go#L267) · degree 132
+- `firstNonEmpty()` — [engines/purchase_order.go](../../engines/purchase_order.go#L381) · degree 222
+- `fetchDocData()` — [engines/purchase_order.go](../../engines/purchase_order.go#L267) · degree 135
 - `GetGRNStepView()` — [engines/grn_steps.go](../../engines/grn_steps.go#L1526) · degree 57
 - `requireDocPermission()` — [internal/server/handlers_po_design.go](../../internal/server/handlers_po_design.go#L18) · degree 38
 - `PostGRNChildStep()` — [engines/grn_steps_post.go](../../engines/grn_steps_post.go#L39) · degree 34
@@ -2082,24 +2126,24 @@ Purchase Requisition → RFQ and vendor-quote comparison → Purchase Order → 
 
 **Wired to**
 
-- → **Document Kernel** — 125 relationships, 125 inferred
+- → **Document Kernel** — 126 relationships, 126 inferred
 - → **Tax & Statutory** — 71 relationships, 67 inferred
 - → **Warehouse Management (WMS)** — 64 relationships, 64 inferred
 - → **Persistence & Migrations** — 62 relationships, 62 inferred
-- → **Error & Message Catalog** — 53 relationships, 53 inferred
+- → **Error & Message Catalog** — 54 relationships, 54 inferred
 - → **Finance & General Ledger** — 47 relationships, 45 inferred
 - → **Bulk Data I/O** — 36 relationships, 35 inferred
 - → **Logging, Alerting & Notifications** — 34 relationships, 34 inferred
 - ← **Inventory & Planning** — 79 relationships, 77 inferred
-- ← **Device Printing (QZ Tray)** — 70 relationships, 67 inferred
-- ← **CRM & Loyalty** — 41 relationships, 41 inferred
-- ← **Reporting Engine** — 41 relationships, 40 inferred
+- ← **Device Printing (QZ Tray)** — 73 relationships, 70 inferred
+- ← **CRM & Loyalty** — 42 relationships, 42 inferred
+- ← **Reporting Engine** — 42 relationships, 41 inferred
 - ← **Fixed Assets, Service & Quality Management** — 26 relationships, 26 inferred
 - ← **Document Kernel** — 26 relationships, 26 inferred
 - ← **Tax & Statutory** — 25 relationships, 24 inferred
-- ← **Finance & General Ledger** — 21 relationships, 20 inferred
+- ← **Channel Connectors** — 21 relationships, 20 inferred
 
-<details><summary>27 files</summary>
+<details><summary>28 files</summary>
 
 - [engines/day_limits.go](../../engines/day_limits.go)
 - [engines/grn_pricing.go](../../engines/grn_pricing.go)
@@ -2118,6 +2162,7 @@ Purchase Requisition → RFQ and vendor-quote comparison → Purchase Order → 
 - [engines/purchase_return.go](../../engines/purchase_return.go)
 - [engines/rfq.go](../../engines/rfq.go)
 - [engines/rfq_sourcing.go](../../engines/rfq_sourcing.go)
+- [engines/ship_limits.go](../../engines/ship_limits.go)
 - [engines/sourcing.go](../../engines/sourcing.go)
 - [internal/server/bulk_purchase.go](../../internal/server/bulk_purchase.go)
 - [internal/server/bulk_purchase_template.xlsx](../../internal/server/bulk_purchase_template.xlsx)
@@ -2137,9 +2182,9 @@ Stock ledger and Available-to-Sell read model (Available − Reserved − Safety
 
 **Most connected symbols**
 
-- `ResolveItemBySKU()` — [engines/item_lookup.go](../../engines/item_lookup.go#L47) · degree 49
-- `PostInventoryLedger()` — [engines/inventory.go](../../engines/inventory.go#L183) · degree 40
-- `.add()` — [engines/transfer_lifecycle.go](../../engines/transfer_lifecycle.go#L676) · degree 35
+- `ResolveItemBySKU()` — [engines/item_lookup.go](../../engines/item_lookup.go#L47) · degree 50
+- `PostInventoryLedger()` — [engines/inventory.go](../../engines/inventory.go#L183) · degree 44
+- `.add()` — [engines/transfer_lifecycle.go](../../engines/transfer_lifecycle.go#L676) · degree 36
 - `ReceiveTransferOrderLines()` — [engines/transfer_lifecycle.go](../../engines/transfer_lifecycle.go#L353) · degree 33
 - `insertStockLedgerEntry()` — [engines/inventory.go](../../engines/inventory.go#L92) · degree 29
 - `buildTreatmentPlans()` — [engines/item_treatment_correction.go](../../engines/item_treatment_correction.go#L287) · degree 27
@@ -2148,14 +2193,14 @@ Stock ledger and Available-to-Sell read model (Available − Reserved − Safety
 
 - → **Persistence & Migrations** — 109 relationships, 109 inferred
 - → **Error & Message Catalog** — 93 relationships, 93 inferred
-- → **Document Kernel** — 81 relationships, 81 inferred
+- → **Document Kernel** — 83 relationships, 83 inferred
 - → **Procurement & Vendors** — 79 relationships, 77 inferred
-- → **Warehouse Management (WMS)** — 53 relationships, 52 inferred
+- → **Warehouse Management (WMS)** — 54 relationships, 53 inferred
 - → **Finance & General Ledger** — 50 relationships, 50 inferred
-- → **Logging, Alerting & Notifications** — 41 relationships, 41 inferred
+- → **Logging, Alerting & Notifications** — 43 relationships, 43 inferred
 - → **Product Information (PIM)** — 40 relationships, 40 inferred
+- ← **Warehouse Management (WMS)** — 40 relationships, 36 inferred
 - ← **Point of Sale** — 36 relationships, 28 inferred
-- ← **Warehouse Management (WMS)** — 36 relationships, 33 inferred
 - ← **Orders & Fulfillment (OMS)** — 30 relationships, 29 inferred
 - ← **Manufacturing & MRP** — 27 relationships, 24 inferred
 - ← **Procurement & Vendors** — 22 relationships, 22 inferred
@@ -2163,7 +2208,7 @@ Stock ledger and Available-to-Sell read model (Available − Reserved − Safety
 - ← **Reporting Engine** — 15 relationships, 15 inferred
 - ← **Product Information (PIM)** — 11 relationships, 11 inferred
 
-<details><summary>41 files</summary>
+<details><summary>43 files</summary>
 
 - [engines/availability_network.go](../../engines/availability_network.go)
 - [engines/backflush_rules.go](../../engines/backflush_rules.go)
@@ -2191,6 +2236,7 @@ Stock ledger and Available-to-Sell read model (Available − Reserved − Safety
 - [engines/negative_stock_policy.go](../../engines/negative_stock_policy.go)
 - [engines/optimization.go](../../engines/optimization.go)
 - [engines/planning.go](../../engines/planning.go)
+- [engines/reorder_position.go](../../engines/reorder_position.go)
 - [engines/reservation_sweeper.go](../../engines/reservation_sweeper.go)
 - [engines/stock_book_ledger.go](../../engines/stock_book_ledger.go)
 - [engines/stock_ledger_idempotency.go](../../engines/stock_ledger_idempotency.go)
@@ -2200,6 +2246,7 @@ Stock ledger and Available-to-Sell read model (Available − Reserved − Safety
 - [engines/supply_proposals.go](../../engines/supply_proposals.go)
 - [engines/transfer_lifecycle.go](../../engines/transfer_lifecycle.go)
 - [engines/transfer_orders.go](../../engines/transfer_orders.go)
+- [engines/transfer_reserve_stage146.go](../../engines/transfer_reserve_stage146.go)
 - [internal/server/handlers_inventory_erp.go](../../internal/server/handlers_inventory_erp.go)
 - [internal/server/handlers_item_master.go](../../internal/server/handlers_item_master.go)
 - [internal/server/handlers_item_setup.go](../../internal/server/handlers_item_setup.go)
@@ -2215,46 +2262,51 @@ Receiving, put-away, slotting, picking, pack counts, 3PL billing, productivity t
 
 **Most connected symbols**
 
-- `numFromInterface()` — [engines/wms.go](../../engines/wms.go#L865) · degree 275
-- `postGRNReceiptPartTx()` — [engines/wms_receiving.go](../../engines/wms_receiving.go#L84) · degree 23
-- `PostCycleCountAdjustment()` — [engines/wms.go](../../engines/wms.go#L723) · degree 22
+- `numFromInterface()` — [engines/wms.go](../../engines/wms.go#L864) · degree 282
+- `PutawayToBin()` — [engines/wms.go](../../engines/wms.go#L27) · degree 25
+- `postGRNReceiptPartTx()` — [engines/wms_receiving.go](../../engines/wms_receiving.go#L84) · degree 25
+- `PostCycleCountAdjustment()` — [engines/wms.go](../../engines/wms.go#L721) · degree 23
 - `stockQuerier` — [engines/wms_bin_allocation.go](../../engines/wms_bin_allocation.go#L42) · degree 20
-- `PutawayToBin()` — [engines/wms.go](../../engines/wms.go#L27) · degree 19
-- `MoveBinStock()` — [engines/wms_bin_move.go](../../engines/wms_bin_move.go#L47) · degree 17
+- `CreateWarehouseTask()` — [engines/warehouse_task.go](../../engines/warehouse_task.go#L86) · degree 19
 
 **Wired to**
 
-- → **Persistence & Migrations** — 177 relationships, 177 inferred
-- → **Error & Message Catalog** — 118 relationships, 118 inferred
-- → **Logging, Alerting & Notifications** — 66 relationships, 66 inferred
-- → **Document Kernel** — 44 relationships, 44 inferred
-- → **Inventory & Planning** — 36 relationships, 33 inferred
+- → **Persistence & Migrations** — 189 relationships, 189 inferred
+- → **Error & Message Catalog** — 123 relationships, 123 inferred
+- → **Logging, Alerting & Notifications** — 74 relationships, 74 inferred
+- → **Document Kernel** — 50 relationships, 50 inferred
+- → **Inventory & Planning** — 40 relationships, 36 inferred
 - → **Reporting Engine** — 32 relationships, 32 inferred
 - → **Procurement & Vendors** — 21 relationships, 20 inferred
-- → **Orders & Fulfillment (OMS)** — 15 relationships, 13 inferred
+- → **Orders & Fulfillment (OMS)** — 16 relationships, 14 inferred
 - ← **Procurement & Vendors** — 64 relationships, 64 inferred
-- ← **Inventory & Planning** — 53 relationships, 52 inferred
-- ← **Orders & Fulfillment (OMS)** — 34 relationships, 33 inferred
+- ← **Inventory & Planning** — 54 relationships, 53 inferred
+- ← **Orders & Fulfillment (OMS)** — 37 relationships, 36 inferred
+- ← **Document Kernel** — 24 relationships, 24 inferred
 - ← **Finance & General Ledger** — 24 relationships, 24 inferred
-- ← **Document Kernel** — 23 relationships, 23 inferred
 - ← **Device Printing (QZ Tray)** — 23 relationships, 23 inferred
+- ← **CRM & Loyalty** — 17 relationships, 17 inferred
 - ← **Manufacturing & MRP** — 13 relationships, 13 inferred
-- ← **CRM & Loyalty** — 11 relationships, 11 inferred
 
-<details><summary>51 files</summary>
+<details><summary>58 files</summary>
 
+- [engines/bin_generator.go](../../engines/bin_generator.go)
 - [engines/code128.go](../../engines/code128.go)
+- [engines/piece_codes_stage146.go](../../engines/piece_codes_stage146.go)
 - [engines/serial_reports.go](../../engines/serial_reports.go)
 - [engines/serial_tracking.go](../../engines/serial_tracking.go)
+- [engines/short_pick_hold.go](../../engines/short_pick_hold.go)
 - [engines/traceability.go](../../engines/traceability.go)
 - [engines/traceability_reports.go](../../engines/traceability_reports.go)
 - [engines/uom.go](../../engines/uom.go)
 - [engines/warehouse_cockpit.go](../../engines/warehouse_cockpit.go)
 - [engines/warehouse_task.go](../../engines/warehouse_task.go)
+- [engines/warehouse_work_queue_stage146.go](../../engines/warehouse_work_queue_stage146.go)
 - [engines/wms.go](../../engines/wms.go)
 - [engines/wms_3pl_billing.go](../../engines/wms_3pl_billing.go)
 - [engines/wms_bin_allocation.go](../../engines/wms_bin_allocation.go)
 - [engines/wms_bin_move.go](../../engines/wms_bin_move.go)
+- [engines/wms_bin_rules.go](../../engines/wms_bin_rules.go)
 - [engines/wms_cartonization_v2.go](../../engines/wms_cartonization_v2.go)
 - [engines/wms_deconsolidation.go](../../engines/wms_deconsolidation.go)
 - [engines/wms_facility.go](../../engines/wms_facility.go)
@@ -2283,6 +2335,7 @@ Receiving, put-away, slotting, picking, pack counts, 3PL billing, productivity t
 - [engines/wms_sortation.go](../../engines/wms_sortation.go)
 - [engines/wms_vas.go](../../engines/wms_vas.go)
 - [engines/wms_wave.go](../../engines/wms_wave.go)
+- [internal/server/handlers_bin_generator.go](../../internal/server/handlers_bin_generator.go)
 - [internal/server/handlers_inbound_work.go](../../internal/server/handlers_inbound_work.go)
 - [internal/server/handlers_outbound_work.go](../../internal/server/handlers_outbound_work.go)
 - [internal/server/handlers_owner_isolation.go](../../internal/server/handlers_owner_isolation.go)
@@ -2294,6 +2347,7 @@ Receiving, put-away, slotting, picking, pack counts, 3PL billing, productivity t
 - [internal/server/handlers_wms_labour_billing.go](../../internal/server/handlers_wms_labour_billing.go)
 - [internal/server/handlers_wms_outbound.go](../../internal/server/handlers_wms_outbound.go)
 - [internal/server/handlers_wms_p2.go](../../internal/server/handlers_wms_p2.go)
+- [internal/server/handlers_work_queue_stage146.go](../../internal/server/handlers_work_queue_stage146.go)
 
 </details>
 
@@ -2315,15 +2369,15 @@ The order lifecycle: capture, allocation and sourcing, reservation, store/wareho
 - → **Persistence & Migrations** — 73 relationships, 73 inferred
 - → **Error & Message Catalog** — 59 relationships, 59 inferred
 - → **Document Kernel** — 45 relationships, 45 inferred
+- → **Warehouse Management (WMS)** — 37 relationships, 36 inferred
 - → **Logging, Alerting & Notifications** — 35 relationships, 35 inferred
-- → **Warehouse Management (WMS)** — 34 relationships, 33 inferred
 - → **Inventory & Planning** — 30 relationships, 29 inferred
 - → **Point of Sale** — 17 relationships, 16 inferred
 - → **Finance & General Ledger** — 15 relationships, 15 inferred
 - ← **Inventory & Planning** — 20 relationships, 19 inferred
 - ← **Point of Sale** — 19 relationships, 15 inferred
 - ← **Channel Connectors** — 17 relationships, 15 inferred
-- ← **Warehouse Management (WMS)** — 15 relationships, 13 inferred
+- ← **Warehouse Management (WMS)** — 16 relationships, 14 inferred
 - ← **Shipping & Logistics** — 7 relationships, 7 inferred
 - ← **Device Printing (QZ Tray)** — 6 relationships, 6 inferred
 - ← **Finance & General Ledger** — 5 relationships, 5 inferred
@@ -2366,31 +2420,31 @@ Cart → offer evaluation → GST → tender → GL posting → loyalty accrual,
 
 **Most connected symbols**
 
-- `ResolvePOSQuote()` — [engines/pos_quote.go](../../engines/pos_quote.go#L271) · degree 46
-- `finalizePOSCheckoutTx()` — [engines/pos_checkout.go](../../engines/pos_checkout.go#L167) · degree 44
-- `EvaluatePOSOffers()` — [engines/pos_offers.go](../../engines/pos_offers.go#L144) · degree 23
+- `ResolvePOSQuote()` — [engines/pos_quote.go](../../engines/pos_quote.go#L282) · degree 51
+- `finalizePOSCheckoutTx()` — [engines/pos_checkout.go](../../engines/pos_checkout.go#L169) · degree 45
+- `EvaluatePOSOffers()` — [engines/pos_offers.go](../../engines/pos_offers.go#L155) · degree 25
 - `FinalizePOSCheckout()` — [engines/pos_checkout.go](../../engines/pos_checkout.go#L44) · degree 22
 - `SessionCashPosition()` — [engines/pos_cash_movements.go](../../engines/pos_cash_movements.go#L55) · degree 21
 - `IssueStoredValue()` — [engines/stored_value.go](../../engines/stored_value.go#L463) · degree 20
 
 **Wired to**
 
-- → **Finance & General Ledger** — 109 relationships, 109 inferred
+- → **Finance & General Ledger** — 110 relationships, 110 inferred
 - → **Persistence & Migrations** — 80 relationships, 80 inferred
 - → **Document Kernel** — 37 relationships, 37 inferred
 - → **Inventory & Planning** — 36 relationships, 28 inferred
 - → **Error & Message Catalog** — 34 relationships, 34 inferred
-- → **Tax & Statutory** — 33 relationships, 30 inferred
+- → **Tax & Statutory** — 34 relationships, 31 inferred
+- → **CRM & Loyalty** — 25 relationships, 25 inferred
 - → **Logging, Alerting & Notifications** — 25 relationships, 25 inferred
-- → **CRM & Loyalty** — 19 relationships, 19 inferred
 - ← **Cross-module API Handlers** — 42 relationships, 40 inferred
 - ← **Inventory & Planning** — 22 relationships, 21 inferred
+- ← **CRM & Loyalty** — 18 relationships, 13 inferred
 - ← **Finance & General Ledger** — 17 relationships, 15 inferred
 - ← **Orders & Fulfillment (OMS)** — 17 relationships, 16 inferred
 - ← **Document Kernel** — 7 relationships, 7 inferred
 - ← **Device Printing (QZ Tray)** — 6 relationships, 6 inferred
 - ← **Tenancy, Packaging & Settings** — 6 relationships, 4 inferred
-- ← **Identity, RBAC & MFA** — 5 relationships, 5 inferred
 
 <details><summary>34 files</summary>
 
@@ -2438,7 +2492,7 @@ Family/attribute framework, taxonomy, approval-gated content with versions and r
 **Most connected symbols**
 
 - `pimString()` — [engines/pim_tasks.go](../../engines/pim_tasks.go#L232) · degree 85
-- `.delete()` — [engines/image_drive.go](../../engines/image_drive.go#L457) · degree 80
+- `.delete()` — [engines/image_drive.go](../../engines/image_drive.go#L457) · degree 83
 - `pimTaskGuard()` — [internal/server/handlers_pim_tasks.go](../../internal/server/handlers_pim_tasks.go#L31) · degree 25
 - `pimRequireMethod()` — [internal/server/handlers_pim_tasks.go](../../internal/server/handlers_pim_tasks.go#L47) · degree 22
 - `BulkUpdateDocuments()` — [engines/pim_bulk.go](../../engines/pim_bulk.go#L37) · degree 18
@@ -2446,7 +2500,7 @@ Family/attribute framework, taxonomy, approval-gated content with versions and r
 
 **Wired to**
 
-- → **Persistence & Migrations** — 108 relationships, 108 inferred
+- → **Persistence & Migrations** — 109 relationships, 109 inferred
 - → **Error & Message Catalog** — 67 relationships, 67 inferred
 - → **Document Kernel** — 40 relationships, 40 inferred
 - → **Logging, Alerting & Notifications** — 26 relationships, 26 inferred
@@ -2460,7 +2514,7 @@ Family/attribute framework, taxonomy, approval-gated content with versions and r
 - ← **Device Printing (QZ Tray)** — 20 relationships, 15 inferred
 - ← **Procurement & Vendors** — 16 relationships, 16 inferred
 - ← **Document Kernel** — 14 relationships, 14 inferred
-- ← **Channel Connectors** — 8 relationships, 8 inferred
+- ← **Channel Connectors** — 9 relationships, 9 inferred
 - ← **Bulk Data I/O** — 8 relationships, 8 inferred
 
 <details><summary>45 files</summary>
@@ -2528,24 +2582,24 @@ Append-only loyalty points ledger with tiering, expiry and pending points, redem
 
 **Wired to**
 
-- → **Document Kernel** — 83 relationships, 83 inferred
-- → **Tenancy, Packaging & Settings** — 46 relationships, 46 inferred
-- → **Procurement & Vendors** — 41 relationships, 41 inferred
-- → **Persistence & Migrations** — 39 relationships, 39 inferred
-- → **Error & Message Catalog** — 26 relationships, 26 inferred
-- → **Logging, Alerting & Notifications** — 23 relationships, 23 inferred
+- → **Document Kernel** — 93 relationships, 93 inferred
+- → **Tenancy, Packaging & Settings** — 54 relationships, 54 inferred
+- → **Persistence & Migrations** — 50 relationships, 50 inferred
+- → **Procurement & Vendors** — 42 relationships, 42 inferred
+- → **Error & Message Catalog** — 30 relationships, 30 inferred
+- → **Finance & General Ledger** — 24 relationships, 23 inferred
+- → **Logging, Alerting & Notifications** — 24 relationships, 24 inferred
 - → **Tax & Statutory** — 21 relationships, 21 inferred
-- → **Approval Engine (maker-checker)** — 16 relationships, 14 inferred
-- ← **Point of Sale** — 19 relationships, 19 inferred
+- ← **Point of Sale** — 25 relationships, 25 inferred
+- ← **Document Kernel** — 6 relationships, 6 inferred
 - ← **Finance & General Ledger** — 6 relationships, 6 inferred
 - ← **Channel Connectors** — 5 relationships, 5 inferred
 - ← **Orders & Fulfillment (OMS)** — 5 relationships, 5 inferred
 - ← **Reporting Engine** — 5 relationships, 5 inferred
-- ← **Approval Engine (maker-checker)** — 3 relationships, 3 inferred
-- ← **Document Kernel** — 3 relationships, 3 inferred
+- ← **Approval Engine (maker-checker)** — 4 relationships, 4 inferred
 - ← **HTTP Edge & Middleware** — 3 relationships, 3 inferred
 
-<details><summary>45 files</summary>
+<details><summary>52 files</summary>
 
 - [engines/campaign.go](../../engines/campaign.go)
 - [engines/crm_analytics.go](../../engines/crm_analytics.go)
@@ -2577,10 +2631,17 @@ Append-only loyalty points ledger with tiering, expiry and pending points, redem
 - [engines/crm_worklist.go](../../engines/crm_worklist.go)
 - [engines/loyalty.go](../../engines/loyalty.go)
 - [engines/loyalty_admin.go](../../engines/loyalty_admin.go)
+- [engines/loyalty_block.go](../../engines/loyalty_block.go)
+- [engines/loyalty_bonus.go](../../engines/loyalty_bonus.go)
+- [engines/loyalty_earn.go](../../engines/loyalty_earn.go)
+- [engines/loyalty_eligibility.go](../../engines/loyalty_eligibility.go)
 - [engines/loyalty_overview.go](../../engines/loyalty_overview.go)
 - [engines/loyalty_redemption_security.go](../../engines/loyalty_redemption_security.go)
 - [engines/loyalty_returns.go](../../engines/loyalty_returns.go)
+- [engines/loyalty_scheme.go](../../engines/loyalty_scheme.go)
+- [engines/loyalty_tier_daily.go](../../engines/loyalty_tier_daily.go)
 - [engines/loyalty_tiering.go](../../engines/loyalty_tiering.go)
+- [engines/loyalty_transfer.go](../../engines/loyalty_transfer.go)
 - [engines/marketing_consent.go](../../engines/marketing_consent.go)
 - [internal/server/handlers_crm_analytics.go](../../internal/server/handlers_crm_analytics.go)
 - [internal/server/handlers_crm_platform.go](../../internal/server/handlers_crm_platform.go)
@@ -2779,24 +2840,24 @@ The ReportDefinition/RegisterReport framework, the report registry and column pr
 **Most connected symbols**
 
 - `dbQuery()` — [engines/report_catalog.go](../../engines/report_catalog.go#L82) · degree 72
-- `RegisterReport()` — [engines/report_registry.go](../../engines/report_registry.go#L89) · degree 70
+- `RegisterReport()` — [engines/report_registry.go](../../engines/report_registry.go#L90) · degree 71
 - `catStr()` — [engines/report_catalog_common.go](../../engines/report_catalog_common.go#L14) · degree 52
 - `catNum()` — [engines/report_catalog.go](../../engines/report_catalog.go#L658) · degree 39
-- `structsToRows()` — [engines/report_registry.go](../../engines/report_registry.go#L489) · degree 25
-- `RunReportContext()` — [engines/report_registry.go](../../engines/report_registry.go#L236) · degree 23
+- `structsToRows()` — [engines/report_registry.go](../../engines/report_registry.go#L491) · degree 26
+- `RunReportContext()` — [engines/report_registry.go](../../engines/report_registry.go#L237) · degree 23
 
 **Wired to**
 
-- → **Persistence & Migrations** — 66 relationships, 66 inferred
-- → **Procurement & Vendors** — 41 relationships, 40 inferred
+- → **Persistence & Migrations** — 67 relationships, 67 inferred
+- → **Procurement & Vendors** — 42 relationships, 41 inferred
 - → **Finance & General Ledger** — 31 relationships, 31 inferred
 - → **Error & Message Catalog** — 30 relationships, 30 inferred
-- → **Identity, RBAC & MFA** — 25 relationships, 20 inferred
+- → **Identity, RBAC & MFA** — 26 relationships, 20 inferred
 - → **Tenancy, Packaging & Settings** — 22 relationships, 22 inferred
 - → **Inventory & Planning** — 15 relationships, 15 inferred
 - → **Event Outbox & Async Job Runner** — 14 relationships, 14 inferred
 - ← **Warehouse Management (WMS)** — 32 relationships, 32 inferred
-- ← **Finance & General Ledger** — 23 relationships, 22 inferred
+- ← **Finance & General Ledger** — 25 relationships, 24 inferred
 - ← **CRM & Loyalty** — 16 relationships, 15 inferred
 - ← **Inventory & Planning** — 11 relationships, 10 inferred
 - ← **Orders & Fulfillment (OMS)** — 9 relationships, 8 inferred
@@ -2804,7 +2865,7 @@ The ReportDefinition/RegisterReport framework, the report registry and column pr
 - ← **Procurement & Vendors** — 5 relationships, 5 inferred
 - ← **Cross-module API Handlers** — 4 relationships, 4 inferred
 
-<details><summary>42 files</summary>
+<details><summary>43 files</summary>
 
 - [cmd/gencatalog/main.go](../../cmd/gencatalog/main.go)
 - [engines/control_totals.go](../../engines/control_totals.go)
@@ -2833,6 +2894,7 @@ The ReportDefinition/RegisterReport framework, the report registry and column pr
 - [engines/report_definitions_stage85.go](../../engines/report_definitions_stage85.go)
 - [engines/report_export.go](../../engines/report_export.go)
 - [engines/report_jobs.go](../../engines/report_jobs.go)
+- [engines/report_kpi_contract.go](../../engines/report_kpi_contract.go)
 - [engines/report_questions.go](../../engines/report_questions.go)
 - [engines/report_register_builder.go](../../engines/report_register_builder.go)
 - [engines/report_registry.go](../../engines/report_registry.go)
@@ -2858,25 +2920,25 @@ Courier serviceability, logistics booking, provider adapters and encrypted crede
 **Most connected symbols**
 
 - `AllocateCourierAWB()` — [engines/courier.go](../../engines/courier.go#L152) · degree 22
+- `ScheduleCourierPickup()` — [engines/courier.go](../../engines/courier.go#L206) · degree 22
 - `CreateLogisticsBooking()` — [engines/marketplace.go](../../engines/marketplace.go#L104) · degree 17
-- `ScheduleCourierPickup()` — [engines/courier.go](../../engines/courier.go#L206) · degree 16
-- `CancelCourierShipment()` — [engines/courier.go](../../engines/courier.go#L258) · degree 13
+- `CancelCourierShipment()` — [engines/courier.go](../../engines/courier.go#L266) · degree 16
 - `HandoverManifest()` — [engines/marketplace.go](../../engines/marketplace.go#L421) · degree 13
-- `courierAdapter()` — [engines/courier.go](../../engines/courier.go#L93) · degree 12
+- `courierDataString()` — [engines/courier.go](../../engines/courier.go#L107) · degree 13
 
 **Wired to**
 
 - → **Persistence & Migrations** — 15 relationships, 15 inferred
+- → **Logging, Alerting & Notifications** — 14 relationships, 14 inferred
 - → **Error & Message Catalog** — 13 relationships, 13 inferred
 - → **Channel Connectors** — 13 relationships, 13 inferred
-- → **Logging, Alerting & Notifications** — 13 relationships, 13 inferred
 - → **Orders & Fulfillment (OMS)** — 7 relationships, 7 inferred
 - → **Finance & General Ledger** — 6 relationships, 6 inferred
 - → **Document Kernel** — 5 relationships, 5 inferred
 - → **Security Baseline & Attack Surface** — 3 relationships, 3 inferred
 - ← **Logging, Alerting & Notifications** — 11 relationships, 11 inferred
 - ← **Orders & Fulfillment (OMS)** — 7 relationships, 7 inferred
-- ← **Channel Connectors** — 4 relationships, 4 inferred
+- ← **Channel Connectors** — 5 relationships, 5 inferred
 - ← **Device Printing (QZ Tray)** — 1 relationship, 1 inferred
 
 <details><summary>7 files</summary>
@@ -2898,15 +2960,15 @@ BulkImportCSV — the shared CSV import path (validation, error rows, formula-in
 **Most connected symbols**
 
 - `swNorm()` — [internal/server/setup_workbook.go](../../internal/server/setup_workbook.go#L98) · degree 37
-- `importBatch()` — [engines/import.go](../../engines/import.go#L734) · degree 34
+- `importBatch()` — [engines/import.go](../../engines/import.go#L760) · degree 34
+- `BulkImportCSV()` — [engines/import.go](../../engines/import.go#L132) · degree 26
 - `swRun` — [internal/server/setup_workbook.go](../../internal/server/setup_workbook.go#L443) · degree 26
-- `BulkImportCSV()` — [engines/import.go](../../engines/import.go#L132) · degree 24
 - `ImportResult` — [engines/import.go](../../engines/import.go#L20) · degree 23
 - `.planDoc()` — [internal/server/setup_workbook.go](../../internal/server/setup_workbook.go#L722) · degree 20
 
 **Wired to**
 
-- → **Document Kernel** — 39 relationships, 33 inferred
+- → **Document Kernel** — 41 relationships, 35 inferred
 - → **Identity, RBAC & MFA** — 23 relationships, 21 inferred
 - → **Device Printing (QZ Tray)** — 18 relationships, 2 inferred
 - → **Error & Message Catalog** — 15 relationships, 15 inferred
@@ -2923,8 +2985,9 @@ BulkImportCSV — the shared CSV import path (validation, error rows, formula-in
 - ← **Event Outbox & Async Job Runner** — 1 relationship, 1 inferred
 - ← **Device Printing (QZ Tray)** — 1 relationship, 1 inferred
 
-<details><summary>10 files</summary>
+<details><summary>11 files</summary>
 
+- [engines/field_help.go](../../engines/field_help.go)
 - [engines/import.go](../../engines/import.go)
 - [engines/import_controls.go](../../engines/import_controls.go)
 - [engines/import_dictionary.go](../../engines/import_dictionary.go)
@@ -2948,22 +3011,22 @@ Channel connector SDK and operations: public-contract Amazon, Flipkart and WooCo
 
 **Most connected symbols**
 
-- `doConnectorRequest()` — [engines/connector_http.go](../../engines/connector_http.go#L30) · degree 33
-- `LoadShopifyChannel()` — [engines/shopify_sync.go](../../engines/shopify_sync.go#L75) · degree 22
+- `doConnectorRequest()` — [engines/connector_http.go](../../engines/connector_http.go#L30) · degree 35
+- `LoadShopifyChannel()` — [engines/shopify_sync.go](../../engines/shopify_sync.go#L78) · degree 23
+- `shopifySDKConnector` — [engines/connector_shopify_sdk.go](../../engines/connector_shopify_sdk.go#L27) · degree 23
+- `getChannelCredential()` — [engines/channel_credentials.go](../../engines/channel_credentials.go#L98) · degree 22
 - `ImportChannelSalesOrder()` — [engines/channel_orders.go](../../engines/channel_orders.go#L87) · degree 21
-- `getChannelCredential()` — [engines/channel_credentials.go](../../engines/channel_credentials.go#L98) · degree 21
-- `ImportShopifyOrder()` — [engines/shopify_sync.go](../../engines/shopify_sync.go#L852) · degree 20
-- `shopifySDKConnector` — [engines/connector_shopify_sdk.go](../../engines/connector_shopify_sdk.go#L27) · degree 20
+- `ImportShopifyOrder()` — [engines/shopify_sync.go](../../engines/shopify_sync.go#L914) · degree 20
 
 **Wired to**
 
-- → **Error & Message Catalog** — 62 relationships, 62 inferred
-- → **Persistence & Migrations** — 54 relationships, 54 inferred
+- → **Error & Message Catalog** — 68 relationships, 68 inferred
+- → **Persistence & Migrations** — 57 relationships, 57 inferred
+- → **Identity, RBAC & MFA** — 24 relationships, 24 inferred
 - → **Event Outbox & Async Job Runner** — 23 relationships, 22 inferred
-- → **Identity, RBAC & MFA** — 21 relationships, 21 inferred
-- → **Tenancy, Packaging & Settings** — 21 relationships, 21 inferred
-- → **Procurement & Vendors** — 19 relationships, 18 inferred
-- → **Logging, Alerting & Notifications** — 18 relationships, 18 inferred
+- → **Tenancy, Packaging & Settings** — 23 relationships, 23 inferred
+- → **Logging, Alerting & Notifications** — 21 relationships, 21 inferred
+- → **Procurement & Vendors** — 21 relationships, 20 inferred
 - → **Orders & Fulfillment (OMS)** — 17 relationships, 15 inferred
 - ← **Product Information (PIM)** — 20 relationships, 15 inferred
 - ← **Shipping & Logistics** — 13 relationships, 13 inferred
@@ -2974,7 +3037,7 @@ Channel connector SDK and operations: public-contract Amazon, Flipkart and WooCo
 - ← **Tax & Statutory** — 5 relationships, 5 inferred
 - ← **Fixed Assets, Service & Quality Management** — 2 relationships, 2 inferred
 
-<details><summary>24 files</summary>
+<details><summary>26 files</summary>
 
 - [engines/channel_credentials.go](../../engines/channel_credentials.go)
 - [engines/channel_orders.go](../../engines/channel_orders.go)
@@ -2983,6 +3046,7 @@ Channel connector SDK and operations: public-contract Amazon, Flipkart and WooCo
 - [engines/connector.go](../../engines/connector.go)
 - [engines/connector_amazon_flipkart.go](../../engines/connector_amazon_flipkart.go)
 - [engines/connector_bigcommerce.go](../../engines/connector_bigcommerce.go)
+- [engines/connector_credential_list.go](../../engines/connector_credential_list.go)
 - [engines/connector_disconnect.go](../../engines/connector_disconnect.go)
 - [engines/connector_http.go](../../engines/connector_http.go)
 - [engines/connector_magento.go](../../engines/connector_magento.go)
@@ -2994,6 +3058,7 @@ Channel connector SDK and operations: public-contract Amazon, Flipkart and WooCo
 - [engines/connector_zz_legacy_sdk.go](../../engines/connector_zz_legacy_sdk.go)
 - [engines/credential_meta.go](../../engines/credential_meta.go)
 - [engines/pinelabs.go](../../engines/pinelabs.go)
+- [engines/shopify_pim_content.go](../../engines/shopify_pim_content.go)
 - [engines/shopify_sync.go](../../engines/shopify_sync.go)
 - [engines/unicommerce.go](../../engines/unicommerce.go)
 - [engines/webhook_verify.go](../../engines/webhook_verify.go)
@@ -3018,7 +3083,7 @@ Silent one-click printing to named OS printers via a QZ Tray bridge on each pack
 
 **Wired to**
 
-- → **Procurement & Vendors** — 70 relationships, 67 inferred
+- → **Procurement & Vendors** — 73 relationships, 70 inferred
 - → **Document Kernel** — 41 relationships, 41 inferred
 - → **Persistence & Migrations** — 31 relationships, 31 inferred
 - → **Tax & Statutory** — 27 relationships, 27 inferred
@@ -3027,8 +3092,8 @@ Silent one-click printing to named OS printers via a QZ Tray bridge on each pack
 - → **Error & Message Catalog** — 17 relationships, 17 inferred
 - → **Tenancy, Packaging & Settings** — 13 relationships, 13 inferred
 - ← **Bulk Data I/O** — 18 relationships, 2 inferred
+- ← **Procurement & Vendors** — 14 relationships, 14 inferred
 - ← **Tax & Statutory** — 13 relationships, 11 inferred
-- ← **Procurement & Vendors** — 12 relationships, 12 inferred
 - ← **SPA Shell** — 11 relationships, 11 inferred
 - ← **CRM & Loyalty** — 10 relationships, 10 inferred
 - ← **Product Information (PIM)** — 7 relationships, 7 inferred
@@ -3093,7 +3158,7 @@ Scoped external identities: read-only extension tokens plus durable digest-only 
 - → **Event Outbox & Async Job Runner** — 6 relationships, 6 inferred
 - → **Tenancy, Packaging & Settings** — 4 relationships, 4 inferred
 - → **Finance & General Ledger** — 3 relationships, 3 inferred
-- ← **CRM & Loyalty** — 10 relationships, 10 inferred
+- ← **CRM & Loyalty** — 11 relationships, 11 inferred
 - ← **Channel Connectors** — 8 relationships, 8 inferred
 - ← **Finance & General Ledger** — 5 relationships, 5 inferred
 - ← **Logging, Alerting & Notifications** — 5 relationships, 5 inferred
@@ -3131,21 +3196,21 @@ The reason a slow third party can never hang a checkout: business writes publish
 
 **Most connected symbols**
 
-- `IsSchedulerLeader()` — [engines/scheduler_leader.go](../../engines/scheduler_leader.go#L42) · degree 44
+- `IsSchedulerLeader()` — [engines/scheduler_leader.go](../../engines/scheduler_leader.go#L42) · degree 45
 - `listTenantSchemas()` — [engines/outbox.go](../../engines/outbox.go#L79) · degree 36
-- `RegisterJobHandler()` — [engines/jobrunner.go](../../engines/jobrunner.go#L79) · degree 19
+- `RegisterJobHandler()` — [engines/jobrunner.go](../../engines/jobrunner.go#L79) · degree 20
+- `EnqueueJob()` — [engines/jobrunner.go](../../engines/jobrunner.go#L180) · degree 16
 - `listRegisteredTenantSchemas()` — [engines/outbox.go](../../engines/outbox.go#L86) · degree 16
-- `EnqueueJob()` — [engines/jobrunner.go](../../engines/jobrunner.go#L180) · degree 15
 - `ExternalSideEffectsEnabled()` — [engines/environment.go](../../engines/environment.go#L26) · degree 15
 
 **Wired to**
 
 - → **Persistence & Migrations** — 10 relationships, 10 inferred
 - → **Logging, Alerting & Notifications** — 9 relationships, 9 inferred
-- → **Tenancy, Packaging & Settings** — 6 relationships, 6 inferred
+- → **Tenancy, Packaging & Settings** — 7 relationships, 7 inferred
+- → **Security Baseline & Attack Surface** — 5 relationships, 5 inferred
 - → **Error & Message Catalog** — 4 relationships, 4 inferred
 - → **Extension Platform** — 4 relationships, 4 inferred
-- → **Security Baseline & Attack Surface** — 4 relationships, 4 inferred
 - → **Finance & General Ledger** — 3 relationships, 3 inferred
 - → **Reporting Engine** — 2 relationships, 2 inferred
 - ← **Logging, Alerting & Notifications** — 26 relationships, 22 inferred
@@ -3177,9 +3242,9 @@ Audit log, system error log (a PANIC alerts immediately), the ops alert monitor 
 
 **Most connected symbols**
 
-- `LogAuditEvent()` — [engines/logs.go](../../engines/logs.go#L64) · degree 349
-- `LogSystemError()` — [engines/logs.go](../../engines/logs.go#L286) · degree 110
-- `LogAuditEventCtx()` — [engines/logs.go](../../engines/logs.go#L73) · degree 37
+- `LogAuditEvent()` — [engines/logs.go](../../engines/logs.go#L64) · degree 360
+- `LogSystemError()` — [engines/logs.go](../../engines/logs.go#L286) · degree 119
+- `LogAuditEventCtx()` — [engines/logs.go](../../engines/logs.go#L73) · degree 39
 - `DispatchNotification()` — [engines/notifications.go](../../engines/notifications.go#L76) · degree 27
 - `SendOpsAlert()` — [engines/alerting.go](../../engines/alerting.go#L40) · degree 23
 - `VerifyAuditEvidence()` — [engines/audit_evidence.go](../../engines/audit_evidence.go#L218) · degree 23
@@ -3194,14 +3259,14 @@ Audit log, system error log (a PANIC alerts immediately), the ops alert monitor 
 - → **Inventory & Planning** — 7 relationships, 7 inferred
 - → **Channel Connectors** — 6 relationships, 6 inferred
 - → **Extension Platform** — 5 relationships, 5 inferred
-- ← **Warehouse Management (WMS)** — 66 relationships, 66 inferred
-- ← **Finance & General Ledger** — 46 relationships, 46 inferred
-- ← **Identity, RBAC & MFA** — 46 relationships, 46 inferred
-- ← **Inventory & Planning** — 41 relationships, 41 inferred
+- ← **Warehouse Management (WMS)** — 74 relationships, 74 inferred
+- ← **Identity, RBAC & MFA** — 48 relationships, 48 inferred
+- ← **Finance & General Ledger** — 47 relationships, 47 inferred
+- ← **Inventory & Planning** — 43 relationships, 43 inferred
 - ← **Orders & Fulfillment (OMS)** — 35 relationships, 35 inferred
 - ← **Procurement & Vendors** — 34 relationships, 34 inferred
+- ← **Security Baseline & Attack Surface** — 30 relationships, 29 inferred
 - ← **Product Information (PIM)** — 26 relationships, 26 inferred
-- ← **Security Baseline & Attack Surface** — 26 relationships, 25 inferred
 
 <details><summary>11 files</summary>
 
@@ -3229,11 +3294,11 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the guides, SOPs
 
 **Most connected symbols**
 
-- `Index` — [internal/kb/build.go](../../internal/kb/build.go#L79) · degree 32
+- `Index` — [internal/kb/build.go](../../internal/kb/build.go#L79) · degree 33
 - `Build()` — [internal/kb/build.go](../../internal/kb/build.go#L237) · degree 30
 - `inspect()` — [cmd/doclint/main.go](../../cmd/doclint/main.go#L175) · degree 25
 - `DriftGuards()` — [internal/kb/drift.go](../../internal/kb/drift.go#L88) · degree 22
-- `RenderMarkdown()` — [internal/kb/markdown.go](../../internal/kb/markdown.go#L27) · degree 19
+- `RenderMarkdown()` — [internal/kb/markdown.go](../../internal/kb/markdown.go#L27) · degree 20
 - `validateCapabilities()` — [cmd/doclint/capabilities.go](../../cmd/doclint/capabilities.go#L117) · degree 15
 
 **Wired to**
@@ -3246,16 +3311,16 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the guides, SOPs
 - → **The Brain Map (this)** — 1 relationship, all extracted
 - → **Expense Management** — 1 relationship, 1 inferred
 - → **HTTP Edge & Middleware** — 1 relationship, 1 inferred
-- ← **The Brain Map (this)** — 234 relationships, 1 inferred
+- ← **The Brain Map (this)** — 242 relationships, 1 inferred
 - ← **Build, Deploy & Operate** — 9 relationships, 8 inferred
+- ← **Error & Message Catalog** — 2 relationships, 2 inferred
 - ← **Bulk Data I/O** — 2 relationships, 2 inferred
 - ← **Device Printing (QZ Tray)** — 2 relationships, 2 inferred
 - ← **Procurement & Vendors** — 2 relationships, 2 inferred
 - ← **Security Baseline & Attack Surface** — 2 relationships, all extracted
 - ← **Identity, RBAC & MFA** — 1 relationship, 1 inferred
-- ← **Product Information (PIM)** — 1 relationship, 1 inferred
 
-<details><summary>382 files</summary>
+<details><summary>391 files</summary>
 
 - [README.md](../../README.md)
 - [cmd/doclint/capabilities.go](../../cmd/doclint/capabilities.go)
@@ -3428,6 +3493,7 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the guides, SOPs
 - [docs/kb/role-journeys/journey-warehouse-operator.md](../../docs/kb/role-journeys/journey-warehouse-operator.md)
 - [docs/kb/role-journeys/role-journeys-overview.md](../../docs/kb/role-journeys/role-journeys-overview.md)
 - [docs/kb/troubleshooting/error-code-reference-2.md](../../docs/kb/troubleshooting/error-code-reference-2.md)
+- [docs/kb/troubleshooting/error-code-reference-3.md](../../docs/kb/troubleshooting/error-code-reference-3.md)
 - [docs/kb/troubleshooting/error-code-reference.md](../../docs/kb/troubleshooting/error-code-reference.md)
 - [docs/kb/troubleshooting/error-codes.md](../../docs/kb/troubleshooting/error-codes.md)
 - [docs/kb/troubleshooting/troubleshooting-index.md](../../docs/kb/troubleshooting/troubleshooting-index.md)
@@ -3462,14 +3528,21 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the guides, SOPs
 - [docs/product/hosting-media-reports-gst-plan-2026-10-17.md](../../docs/product/hosting-media-reports-gst-plan-2026-10-17.md)
 - [docs/product/navigation-simplification-plan-2026-10-18.md](../../docs/product/navigation-simplification-plan-2026-10-18.md)
 - [docs/product/pos-store-billing-plan-2026-10-18.md](../../docs/product/pos-store-billing-plan-2026-10-18.md)
+- [docs/product/recordings-gap-plan-2026-10-31.md](../../docs/product/recordings-gap-plan-2026-10-31.md)
 - [docs/product/releases/0.1.0-development.md](../../docs/product/releases/0.1.0-development.md)
 - [docs/product/report-catalog-coverage.md](../../docs/product/report-catalog-coverage.md)
 - [docs/product/research/market-intelligence.md](../../docs/product/research/market-intelligence.md)
 - [docs/product/research/oms-benchmark.md](../../docs/product/research/oms-benchmark.md)
+- [docs/product/research/recordings/loyalty-d365.md](../../docs/product/research/recordings/loyalty-d365.md)
+- [docs/product/research/recordings/pim-unbxd-saastify.md](../../docs/product/research/recordings/pim-unbxd-saastify.md)
+- [docs/product/research/recordings/unicommerce.md](../../docs/product/research/recordings/unicommerce.md)
+- [docs/product/research/recordings/wms-d365.md](../../docs/product/research/recordings/wms-d365.md)
+- [docs/product/research/recordings/wms-infor-pwc.md](../../docs/product/research/recordings/wms-infor-pwc.md)
 - [docs/product/research/wms-benchmark.md](../../docs/product/research/wms-benchmark.md)
 - [docs/product/roadmap.md](../../docs/product/roadmap.md)
 - [docs/product/setup-workbook-plan-2026-10-21.md](../../docs/product/setup-workbook-plan-2026-10-21.md)
 - [docs/product/shortcuts-plan-2026-10-26.md](../../docs/product/shortcuts-plan-2026-10-26.md)
+- [docs/product/submenus-not-tab-strips-plan-2026-11-03.md](../../docs/product/submenus-not-tab-strips-plan-2026-11-03.md)
 - [docs/product/vision.md](../../docs/product/vision.md)
 - [docs/product/wholeops-outsider-plan-2026-10-23.md](../../docs/product/wholeops-outsider-plan-2026-10-23.md)
 - [docs/project_ledger.md](../../docs/project_ledger.md)
@@ -3583,6 +3656,7 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the guides, SOPs
 - [internal/kb/content/articles/crm-loyalty.html](../../internal/kb/content/articles/crm-loyalty.html)
 - [internal/kb/content/articles/custom-dashboards.html](../../internal/kb/content/articles/custom-dashboards.html)
 - [internal/kb/content/articles/error-code-reference-2.html](../../internal/kb/content/articles/error-code-reference-2.html)
+- [internal/kb/content/articles/error-code-reference-3.html](../../internal/kb/content/articles/error-code-reference-3.html)
 - [internal/kb/content/articles/error-code-reference.html](../../internal/kb/content/articles/error-code-reference.html)
 - [internal/kb/content/articles/error-codes.html](../../internal/kb/content/articles/error-codes.html)
 - [internal/kb/content/articles/expenses.html](../../internal/kb/content/articles/expenses.html)
@@ -3657,7 +3731,7 @@ The map you are reading and the generator that draws it. brain.map.json is the o
 
 **Wired to**
 
-- → **Project Documentation** — 234 relationships, 1 inferred
+- → **Project Documentation** — 242 relationships, 1 inferred
 - → **Build, Deploy & Operate** — 4 relationships, all extracted
 - → **Extension Platform** — 1 relationship, all extracted
 - → **Security Baseline & Attack Surface** — 1 relationship, all extracted
@@ -3690,7 +3764,7 @@ manage.ps1 (start/stop/backup/restore/drill), promote.ps1 (worktree → build �
 - `Invoke-Action()` — [manage.ps1](../../manage.ps1#L614) · degree 13
 - `pageInventoryFiles()` — [cmd/gendocs/pages.go](../../cmd/gendocs/pages.go#L41) · degree 13
 - `Test-PortOpen()` — [manage.ps1](../../manage.ps1#L107) · degree 10
-- `commandCatalogDoc()` — [cmd/gendocs/command_catalog.go](../../cmd/gendocs/command_catalog.go#L638) · degree 10
+- `commandCatalogDoc()` — [cmd/gendocs/command_catalog.go](../../cmd/gendocs/command_catalog.go#L653) · degree 10
 - `generatedHeader()` — [cmd/gendocs/main.go](../../cmd/gendocs/main.go#L187) · degree 10
 
 **Wired to**
@@ -3707,7 +3781,7 @@ manage.ps1 (start/stop/backup/restore/drill), promote.ps1 (worktree → build �
 - ← **Project Documentation** — 4 relationships, all extracted
 - ← **Product Information (PIM)** — 1 relationship, 1 inferred
 
-<details><summary>65 files</summary>
+<details><summary>66 files</summary>
 
 - [.dockerignore](../../.dockerignore)
 - [.gitattributes](../../.gitattributes)
@@ -3766,6 +3840,7 @@ manage.ps1 (start/stop/backup/restore/drill), promote.ps1 (worktree → build �
 - [release/scripts/Invoke-Release.ps1](../../release/scripts/Invoke-Release.ps1)
 - [release/scripts/ReleaseCommon.ps1](../../release/scripts/ReleaseCommon.ps1)
 - [release/security-floor.txt](../../release/security-floor.txt)
+- [release/signing.pub](../../release/signing.pub)
 - [scripts/archive/README.md](../../scripts/archive/README.md)
 - [scripts/archive/diff.txt](../../scripts/archive/diff.txt)
 - [scripts/archive/patch.js](../../scripts/archive/patch.js)
@@ -3787,14 +3862,14 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 
 **Most connected symbols**
 
-- `testConnStr()` — [engines/testdb_test.go](../../engines/testdb_test.go#L24) · degree 538
-- `dropLifecycleTenant()` — [engines/tenant_lifecycle_test.go](../../engines/tenant_lifecycle_test.go#L24) · degree 145
-- `uniqueLifecycleTenant()` — [engines/tenant_lifecycle_test.go](../../engines/tenant_lifecycle_test.go#L18) · degree 144
-- `testConnStr()` — [internal/server/testdb_test.go](../../internal/server/testdb_test.go#L15) · degree 118
-- `.insert()` — [engines/adversarial_invariants_stage49_5_7_test.go](../../engines/adversarial_invariants_stage49_5_7_test.go#L59) · degree 110
+- `testConnStr()` — [engines/testdb_test.go](../../engines/testdb_test.go#L24) · degree 567
+- `dropLifecycleTenant()` — [engines/tenant_lifecycle_test.go](../../engines/tenant_lifecycle_test.go#L24) · degree 153
+- `uniqueLifecycleTenant()` — [engines/tenant_lifecycle_test.go](../../engines/tenant_lifecycle_test.go#L18) · degree 152
+- `testConnStr()` — [internal/server/testdb_test.go](../../internal/server/testdb_test.go#L15) · degree 129
+- `.insert()` — [engines/adversarial_invariants_stage49_5_7_test.go](../../engines/adversarial_invariants_stage49_5_7_test.go#L59) · degree 121
 - `TestEngines()` — [engines/engines_test.go](../../engines/engines_test.go#L12) · degree 64
 
-<details><summary>555 files</summary>
+<details><summary>597 files</summary>
 
 - [cmd/doclint/capabilities_test.go](../../cmd/doclint/capabilities_test.go)
 - [cmd/doclint/external_test.go](../../cmd/doclint/external_test.go)
@@ -3839,6 +3914,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/backup_freshness_test.go](../../engines/backup_freshness_test.go)
 - [engines/backup_offsite_stage75_test.go](../../engines/backup_offsite_stage75_test.go)
 - [engines/barcode_policy_test.go](../../engines/barcode_policy_test.go)
+- [engines/bin_generator_stage146_3_4_test.go](../../engines/bin_generator_stage146_3_4_test.go)
 - [engines/bld017_economic_properties_test.go](../../engines/bld017_economic_properties_test.go)
 - [engines/bld020_period_boundary_test.go](../../engines/bld020_period_boundary_test.go)
 - [engines/bld031_provider_extension_contract_test.go](../../engines/bld031_provider_extension_contract_test.go)
@@ -3862,6 +3938,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/code128_test.go](../../engines/code128_test.go)
 - [engines/command_spine_test.go](../../engines/command_spine_test.go)
 - [engines/confused_deputy_stage49_3_2_test.go](../../engines/confused_deputy_stage49_3_2_test.go)
+- [engines/connector_credential_list_stage4985c_test.go](../../engines/connector_credential_list_stage4985c_test.go)
 - [engines/connector_credentials_stage4985_test.go](../../engines/connector_credentials_stage4985_test.go)
 - [engines/connector_disconnect_stage4985b_test.go](../../engines/connector_disconnect_stage4985b_test.go)
 - [engines/connector_platforms_test.go](../../engines/connector_platforms_test.go)
@@ -3922,6 +3999,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/image_drive_stage95_test.go](../../engines/image_drive_stage95_test.go)
 - [engines/import_controls_test.go](../../engines/import_controls_test.go)
 - [engines/import_dictionary_test.go](../../engines/import_dictionary_test.go)
+- [engines/import_field_help_stage47132_test.go](../../engines/import_field_help_stage47132_test.go)
 - [engines/import_file_retention_stage47_18_3_test.go](../../engines/import_file_retention_stage47_18_3_test.go)
 - [engines/import_lineage_stage47_13_3_test.go](../../engines/import_lineage_stage47_13_3_test.go)
 - [engines/import_master_invariant_test.go](../../engines/import_master_invariant_test.go)
@@ -3935,6 +4013,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/input_canonical_stage49_test.go](../../engines/input_canonical_stage49_test.go)
 - [engines/input_confusable_stage49_4_6_test.go](../../engines/input_confusable_stage49_4_6_test.go)
 - [engines/insider_findings_stage49_10_6b_test.go](../../engines/insider_findings_stage49_10_6b_test.go)
+- [engines/integration_freeze_stage49_12_3_test.go](../../engines/integration_freeze_stage49_12_3_test.go)
 - [engines/integration_log_retention_test.go](../../engines/integration_log_retention_test.go)
 - [engines/intercompany_test.go](../../engines/intercompany_test.go)
 - [engines/inventory_stock_view_stage145_test.go](../../engines/inventory_stock_view_stage145_test.go)
@@ -3953,15 +4032,24 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/location_cost_center_test.go](../../engines/location_cost_center_test.go)
 - [engines/location_identity_test.go](../../engines/location_identity_test.go)
 - [engines/location_masters_test.go](../../engines/location_masters_test.go)
+- [engines/location_scope_stage4934_test.go](../../engines/location_scope_stage4934_test.go)
 - [engines/logs_test.go](../../engines/logs_test.go)
+- [engines/loyalty_block_stage146_2_5_test.go](../../engines/loyalty_block_stage146_2_5_test.go)
+- [engines/loyalty_bonus_stage146_2_1_test.go](../../engines/loyalty_bonus_stage146_2_1_test.go)
+- [engines/loyalty_redeem_stage146_2_3_test.go](../../engines/loyalty_redeem_stage146_2_3_test.go)
+- [engines/loyalty_redeem_stage146_2_4_test.go](../../engines/loyalty_redeem_stage146_2_4_test.go)
 - [engines/loyalty_redemption_deferral_test.go](../../engines/loyalty_redemption_deferral_test.go)
 - [engines/loyalty_redemption_security_test.go](../../engines/loyalty_redemption_security_test.go)
+- [engines/loyalty_scheme_stage146_2_2_test.go](../../engines/loyalty_scheme_stage146_2_2_test.go)
+- [engines/loyalty_tier_stage146_1_1_test.go](../../engines/loyalty_tier_stage146_1_1_test.go)
 - [engines/loyalty_tiering_test.go](../../engines/loyalty_tiering_test.go)
+- [engines/loyalty_transfer_stage146_2_6_test.go](../../engines/loyalty_transfer_stage146_2_6_test.go)
 - [engines/manufacturing_material_plan_test.go](../../engines/manufacturing_material_plan_test.go)
 - [engines/manufacturing_scheduling_test.go](../../engines/manufacturing_scheduling_test.go)
 - [engines/market_intelligence_test.go](../../engines/market_intelligence_test.go)
 - [engines/master_data_validation_test.go](../../engines/master_data_validation_test.go)
 - [engines/master_duplicates_test.go](../../engines/master_duplicates_test.go)
+- [engines/master_merge_stage47135_test.go](../../engines/master_merge_stage47135_test.go)
 - [engines/master_recode_stage76_6_test.go](../../engines/master_recode_stage76_6_test.go)
 - [engines/media_store_stage75_4_test.go](../../engines/media_store_stage75_4_test.go)
 - [engines/mfa_skew_stage49_test.go](../../engines/mfa_skew_stage49_test.go)
@@ -3984,6 +4072,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/order_dispatch_closure_test.go](../../engines/order_dispatch_closure_test.go)
 - [engines/order_release_test.go](../../engines/order_release_test.go)
 - [engines/order_ship_e2e_test.go](../../engines/order_ship_e2e_test.go)
+- [engines/order_to_cash_reconciliation_stage49155_test.go](../../engines/order_to_cash_reconciliation_stage49155_test.go)
 - [engines/outside_calls_test.go](../../engines/outside_calls_test.go)
 - [engines/paise_stage132_test.go](../../engines/paise_stage132_test.go)
 - [engines/parity_foundations_test.go](../../engines/parity_foundations_test.go)
@@ -3995,6 +4084,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/personal_data_register_test.go](../../engines/personal_data_register_test.go)
 - [engines/phone_fuzz_test.go](../../engines/phone_fuzz_test.go)
 - [engines/phone_test.go](../../engines/phone_test.go)
+- [engines/piece_codes_stage146_3_2_test.go](../../engines/piece_codes_stage146_3_2_test.go)
 - [engines/pim_barcode_fuzz_test.go](../../engines/pim_barcode_fuzz_test.go)
 - [engines/pim_barcode_grn_test.go](../../engines/pim_barcode_grn_test.go)
 - [engines/pim_barcode_test.go](../../engines/pim_barcode_test.go)
@@ -4009,6 +4099,8 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/pim_related_test.go](../../engines/pim_related_test.go)
 - [engines/pim_reports_test.go](../../engines/pim_reports_test.go)
 - [engines/pim_tasks_test.go](../../engines/pim_tasks_test.go)
+- [engines/pim_transform_stage146_1_2_test.go](../../engines/pim_transform_stage146_1_2_test.go)
+- [engines/pim_transform_stage146_5_3_test.go](../../engines/pim_transform_stage146_5_3_test.go)
 - [engines/pim_transform_test.go](../../engines/pim_transform_test.go)
 - [engines/pim_translation_test.go](../../engines/pim_translation_test.go)
 - [engines/pim_variant_code_test.go](../../engines/pim_variant_code_test.go)
@@ -4026,6 +4118,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/pos_sellable_location_stage53_test.go](../../engines/pos_sellable_location_stage53_test.go)
 - [engines/pos_tax_invoice_test.go](../../engines/pos_tax_invoice_test.go)
 - [engines/pos_tender_master_test.go](../../engines/pos_tender_master_test.go)
+- [engines/posted_stays_posted_stage4935_test.go](../../engines/posted_stays_posted_stage4935_test.go)
 - [engines/posting_locks_stage135_21a_test.go](../../engines/posting_locks_stage135_21a_test.go)
 - [engines/posting_locks_stage135_21b_test.go](../../engines/posting_locks_stage135_21b_test.go)
 - [engines/posting_profiles_test.go](../../engines/posting_profiles_test.go)
@@ -4038,6 +4131,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/privacy_rights_test.go](../../engines/privacy_rights_test.go)
 - [engines/privilege_baseline_stage49_3_7_test.go](../../engines/privilege_baseline_stage49_3_7_test.go)
 - [engines/privilege_change_stage49_3_6_test.go](../../engines/privilege_change_stage49_3_6_test.go)
+- [engines/privileged_sessions_stage49_11_7_test.go](../../engines/privileged_sessions_stage49_11_7_test.go)
 - [engines/procurement_day_limits_test.go](../../engines/procurement_day_limits_test.go)
 - [engines/procurement_test.go](../../engines/procurement_test.go)
 - [engines/production_bom_variance_test.go](../../engines/production_bom_variance_test.go)
@@ -4053,6 +4147,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/purchase_return_test.go](../../engines/purchase_return_test.go)
 - [engines/quality_inspection_test.go](../../engines/quality_inspection_test.go)
 - [engines/quality_maintenance_test.go](../../engines/quality_maintenance_test.go)
+- [engines/query_baseline_stage4793_test.go](../../engines/query_baseline_stage4793_test.go)
 - [engines/query_fingerprints_test.go](../../engines/query_fingerprints_test.go)
 - [engines/qz_po_print_test.go](../../engines/qz_po_print_test.go)
 - [engines/qz_print_test.go](../../engines/qz_print_test.go)
@@ -4060,6 +4155,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/reason_codes_stage74_test.go](../../engines/reason_codes_stage74_test.go)
 - [engines/receivables_ledger_reconciliation_stage49_5_5_test.go](../../engines/receivables_ledger_reconciliation_stage49_5_5_test.go)
 - [engines/release_versions_test.go](../../engines/release_versions_test.go)
+- [engines/reorder_position_stage146_1_4_test.go](../../engines/reorder_position_stage146_1_4_test.go)
 - [engines/report_catalog_stage75_3_test.go](../../engines/report_catalog_stage75_3_test.go)
 - [engines/report_catalog_wave_a_test.go](../../engines/report_catalog_wave_a_test.go)
 - [engines/report_catalog_wave_b_test.go](../../engines/report_catalog_wave_b_test.go)
@@ -4107,8 +4203,12 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/setup_operator_stage132_test.go](../../engines/setup_operator_stage132_test.go)
 - [engines/setup_path_test.go](../../engines/setup_path_test.go)
 - [engines/setup_readiness_stage47_12_4_test.go](../../engines/setup_readiness_stage47_12_4_test.go)
+- [engines/setup_step_history_stage47124_test.go](../../engines/setup_step_history_stage47124_test.go)
 - [engines/shipping_package_test.go](../../engines/shipping_package_test.go)
+- [engines/shopify_pim_content_stage146_5_1_test.go](../../engines/shopify_pim_content_stage146_5_1_test.go)
 - [engines/shopify_sync_test.go](../../engines/shopify_sync_test.go)
+- [engines/short_pick_hold_stage146_1_5_test.go](../../engines/short_pick_hold_stage146_1_5_test.go)
+- [engines/sourcing_limits_stage146_4_4_test.go](../../engines/sourcing_limits_stage146_4_4_test.go)
 - [engines/stage101_crm_test.go](../../engines/stage101_crm_test.go)
 - [engines/stage106_4_stock_defaults_test.go](../../engines/stage106_4_stock_defaults_test.go)
 - [engines/stage106_5_stock_from_to_test.go](../../engines/stage106_5_stock_from_to_test.go)
@@ -4131,6 +4231,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/stage47_a04_return_replay_redteam_test.go](../../engines/stage47_a04_return_replay_redteam_test.go)
 - [engines/stage47_a05_owner_allocation_redteam_test.go](../../engines/stage47_a05_owner_allocation_redteam_test.go)
 - [engines/stage47_a06_phone_field_redteam_test.go](../../engines/stage47_a06_phone_field_redteam_test.go)
+- [engines/stage49_8_8_failure_modes_test.go](../../engines/stage49_8_8_failure_modes_test.go)
 - [engines/stage49_8_8_integration_abuse_test.go](../../engines/stage49_8_8_integration_abuse_test.go)
 - [engines/stage55_17_loyalty_overview_test.go](../../engines/stage55_17_loyalty_overview_test.go)
 - [engines/stage55_17a_consent_test.go](../../engines/stage55_17a_consent_test.go)
@@ -4158,6 +4259,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/state_forecast_stage49_18_7_test.go](../../engines/state_forecast_stage49_18_7_test.go)
 - [engines/status_transition_stage4953_test.go](../../engines/status_transition_stage4953_test.go)
 - [engines/status_transition_stage4953b_test.go](../../engines/status_transition_stage4953b_test.go)
+- [engines/status_transition_stage4953c_test.go](../../engines/status_transition_stage4953c_test.go)
 - [engines/sticker_document_source_test.go](../../engines/sticker_document_source_test.go)
 - [engines/sticker_print_retry_test.go](../../engines/sticker_print_retry_test.go)
 - [engines/sticker_printer_preset_stage137_test.go](../../engines/sticker_printer_preset_stage137_test.go)
@@ -4167,6 +4269,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/stock_ledger_idempotency_test.go](../../engines/stock_ledger_idempotency_test.go)
 - [engines/stock_locations_test.go](../../engines/stock_locations_test.go)
 - [engines/storage_forecast_doc_test.go](../../engines/storage_forecast_doc_test.go)
+- [engines/storage_safety_stage49133_test.go](../../engines/storage_safety_stage49133_test.go)
 - [engines/store_access_test.go](../../engines/store_access_test.go)
 - [engines/store_app_stage102_test.go](../../engines/store_app_stage102_test.go)
 - [engines/store_app_test.go](../../engines/store_app_test.go)
@@ -4181,6 +4284,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/task_inbox_test.go](../../engines/task_inbox_test.go)
 - [engines/tax_document_numbers_stage76_test.go](../../engines/tax_document_numbers_stage76_test.go)
 - [engines/telemetry_redaction_test.go](../../engines/telemetry_redaction_test.go)
+- [engines/tenant_background_stage49103_test.go](../../engines/tenant_background_stage49103_test.go)
 - [engines/tenant_lifecycle_test.go](../../engines/tenant_lifecycle_test.go)
 - [engines/tenant_limits_test.go](../../engines/tenant_limits_test.go)
 - [engines/tenant_reset_stage91_test.go](../../engines/tenant_reset_stage91_test.go)
@@ -4188,17 +4292,22 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/tenant_workers_bld028_test.go](../../engines/tenant_workers_bld028_test.go)
 - [engines/testdb_test.go](../../engines/testdb_test.go)
 - [engines/traceability_test.go](../../engines/traceability_test.go)
+- [engines/transfer_bins_stage146_3_test.go](../../engines/transfer_bins_stage146_3_test.go)
 - [engines/transfer_lifecycle_test.go](../../engines/transfer_lifecycle_test.go)
 - [engines/transfer_orders_test.go](../../engines/transfer_orders_test.go)
+- [engines/transfer_reserve_stage146_1_7_test.go](../../engines/transfer_reserve_stage146_1_7_test.go)
 - [engines/trial_balance_as_of_test.go](../../engines/trial_balance_as_of_test.go)
+- [engines/unicommerce_text_stage146_1_6_test.go](../../engines/unicommerce_text_stage146_1_6_test.go)
 - [engines/uom_test.go](../../engines/uom_test.go)
 - [engines/vendor_invoice_test.go](../../engines/vendor_invoice_test.go)
 - [engines/voucher_test.go](../../engines/voucher_test.go)
 - [engines/warehouse_task_test.go](../../engines/warehouse_task_test.go)
+- [engines/warehouse_work_queue_stage146_3_3_test.go](../../engines/warehouse_work_queue_stage146_3_3_test.go)
 - [engines/web_push_test.go](../../engines/web_push_test.go)
 - [engines/webhook_test.go](../../engines/webhook_test.go)
 - [engines/wms_bin_allocation_test.go](../../engines/wms_bin_allocation_test.go)
 - [engines/wms_bin_move_test.go](../../engines/wms_bin_move_test.go)
+- [engines/wms_bin_rules_stage146_3_1_test.go](../../engines/wms_bin_rules_stage146_3_1_test.go)
 - [engines/wms_enterprise_test.go](../../engines/wms_enterprise_test.go)
 - [engines/wms_inbound_work_test.go](../../engines/wms_inbound_work_test.go)
 - [engines/wms_outbound_work_test.go](../../engines/wms_outbound_work_test.go)
@@ -4230,6 +4339,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [internal/server/approval_log_scope_stage73d6_test.go](../../internal/server/approval_log_scope_stage73d6_test.go)
 - [internal/server/authorization_contract_test.go](../../internal/server/authorization_contract_test.go)
 - [internal/server/backup_failure_stage49_test.go](../../internal/server/backup_failure_stage49_test.go)
+- [internal/server/bin_generator_stage146_3_4_test.go](../../internal/server/bin_generator_stage146_3_4_test.go)
 - [internal/server/bld020_boundary_matrix_test.go](../../internal/server/bld020_boundary_matrix_test.go)
 - [internal/server/bld029_noisy_neighbor_test.go](../../internal/server/bld029_noisy_neighbor_test.go)
 - [internal/server/bld031_shopify_webhook_contract_test.go](../../internal/server/bld031_shopify_webhook_contract_test.go)
@@ -4238,10 +4348,12 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [internal/server/bulk_sales_test.go](../../internal/server/bulk_sales_test.go)
 - [internal/server/client_ip_test.go](../../internal/server/client_ip_test.go)
 - [internal/server/command_keys_stage4947a_test.go](../../internal/server/command_keys_stage4947a_test.go)
+- [internal/server/connector_credentials_screen_4985c_test.go](../../internal/server/connector_credentials_screen_4985c_test.go)
 - [internal/server/control_panel_stage65_6_test.go](../../internal/server/control_panel_stage65_6_test.go)
 - [internal/server/control_panel_stage65_test.go](../../internal/server/control_panel_stage65_test.go)
 - [internal/server/courier_netdown_47118_test.go](../../internal/server/courier_netdown_47118_test.go)
 - [internal/server/courier_resolve_47118a_test.go](../../internal/server/courier_resolve_47118a_test.go)
+- [internal/server/courier_screen_47118bs_test.go](../../internal/server/courier_screen_47118bs_test.go)
 - [internal/server/date_display_stage47142_test.go](../../internal/server/date_display_stage47142_test.go)
 - [internal/server/date_order_stage47142a_test.go](../../internal/server/date_order_stage47142a_test.go)
 - [internal/server/doc_find_stage139_test.go](../../internal/server/doc_find_stage139_test.go)
@@ -4262,6 +4374,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [internal/server/import_dictionary_stage47_test.go](../../internal/server/import_dictionary_stage47_test.go)
 - [internal/server/industry_lock_test.go](../../internal/server/industry_lock_test.go)
 - [internal/server/inventory_stock_stage145_test.go](../../internal/server/inventory_stock_stage145_test.go)
+- [internal/server/location_scope_stage4934_test.go](../../internal/server/location_scope_stage4934_test.go)
 - [internal/server/method_not_allowed_stage73c8_test.go](../../internal/server/method_not_allowed_stage73c8_test.go)
 - [internal/server/mfa_recovery_test.go](../../internal/server/mfa_recovery_test.go)
 - [internal/server/module_manifest_test.go](../../internal/server/module_manifest_test.go)
@@ -4282,10 +4395,12 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [internal/server/rate_limit_bounds_test.go](../../internal/server/rate_limit_bounds_test.go)
 - [internal/server/ratelimit_csp_test.go](../../internal/server/ratelimit_csp_test.go)
 - [internal/server/ratelimit_stage141_test.go](../../internal/server/ratelimit_stage141_test.go)
+- [internal/server/report_contract_stage47143_test.go](../../internal/server/report_contract_stage47143_test.go)
 - [internal/server/report_schedule_owner_stage73d9_test.go](../../internal/server/report_schedule_owner_stage73d9_test.go)
 - [internal/server/request_envelope_test.go](../../internal/server/request_envelope_test.go)
 - [internal/server/resource_exhaustion_49105_test.go](../../internal/server/resource_exhaustion_49105_test.go)
 - [internal/server/returns_stage47_4_test.go](../../internal/server/returns_stage47_4_test.go)
+- [internal/server/rf_probes_stage146_test.go](../../internal/server/rf_probes_stage146_test.go)
 - [internal/server/route_capabilities_test.go](../../internal/server/route_capabilities_test.go)
 - [internal/server/safe_overrides_test.go](../../internal/server/safe_overrides_test.go)
 - [internal/server/screen_burst_stage47_11_3_test.go](../../internal/server/screen_burst_stage47_11_3_test.go)
@@ -4310,9 +4425,11 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [internal/server/stage47_redteam_helpers_shared_test.go](../../internal/server/stage47_redteam_helpers_shared_test.go)
 - [internal/server/stage47_redteam_helpers_test.go](../../internal/server/stage47_redteam_helpers_test.go)
 - [internal/server/stage49_10_3_tenant_harness_test.go](../../internal/server/stage49_10_3_tenant_harness_test.go)
+- [internal/server/stage49_10_3_timing_test.go](../../internal/server/stage49_10_3_timing_test.go)
 - [internal/server/stage49_10_4_dast_test.go](../../internal/server/stage49_10_4_dast_test.go)
 - [internal/server/stage49_10_6_insider_test.go](../../internal/server/stage49_10_6_insider_test.go)
 - [internal/server/stage49_11_1_events_test.go](../../internal/server/stage49_11_1_events_test.go)
+- [internal/server/stage49_11_7_privileged_sessions_test.go](../../internal/server/stage49_11_7_privileged_sessions_test.go)
 - [internal/server/stage49_12_security_ops_test.go](../../internal/server/stage49_12_security_ops_test.go)
 - [internal/server/stage49_13_admission_test.go](../../internal/server/stage49_13_admission_test.go)
 - [internal/server/stage49_18_1_security_cost_test.go](../../internal/server/stage49_18_1_security_cost_test.go)
@@ -4356,10 +4473,10 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 
 ## 6. What the brain does not know yet
 
-Nothing — every one of the 2120 files in the working tree is claimed by a region (100.0% coverage). When that stops being true, the unclaimed files get listed here and `update-brain.ps1 -Check` fails, which is the signal to add a `match` pattern (or a whole new region) to `brain.map.json`.
+Nothing — every one of the 2227 files in the working tree is claimed by a region (100.0% coverage). When that stops being true, the unclaimed files get listed here and `update-brain.ps1 -Check` fails, which is the signal to add a `match` pattern (or a whole new region) to `brain.map.json`.
 
 Two other things the brain is honest about not seeing:
 
-- **1601 of 2120 files are parsed into the call graph.** The rest — `.sql` migrations, JSON industry profiles, PowerShell, CI config, Markdown — are filed into regions by path, but contribute no symbols or edges, because graphify has no extractor for them. A region can therefore be substantial and still show few symbols.
-- **1405 graph nodes are external type references** (`sql.Tx`, `context.Context` and friends) with no source file of their own. They belong to no region by design.
+- **1687 of 2227 files are parsed into the call graph.** The rest — `.sql` migrations, JSON industry profiles, PowerShell, CI config, Markdown — are filed into regions by path, but contribute no symbols or edges, because graphify has no extractor for them. A region can therefore be substantial and still show few symbols.
+- **1479 graph nodes are external type references** (`sql.Tx`, `context.Context` and friends) with no source file of their own. They belong to no region by design.
 

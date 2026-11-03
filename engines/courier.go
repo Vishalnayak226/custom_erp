@@ -248,11 +248,19 @@ func ScheduleCourierPickup(ctx context.Context, tenantID, provider, bookingID, p
 	}
 	traced, wrote := courierTracedContext(ctx)
 	ref, err := adapter.SchedulePickup(traced, cred, req)
+	if err == nil && strings.TrimSpace(ref) == "" {
+		// 49.8.8: an answer without a reference is not a pickup we can record
+		// (the courier may still have made one): held, not trusted.
+		err = fmt.Errorf("%s answered without a pickup reference: %w", provider, errCourierNoAWB)
+	}
 	if err != nil {
 		return "", settleFailedCourierStep(tenantID, claim, courierPickupStep, provider, bookingID, canLookup, wrote.Load(), err)
 	}
 	scheduled["pickup_reference"] = ref
-	return ref, recordCourierStepDone(claim.schema, bookingID, courierPickupStep, scheduled)
+	if err := recordCourierStepDone(claim.schema, bookingID, courierPickupStep, scheduled); err != nil {
+		return "", settleStepNotRecorded(tenantID, claim.schema, courierPickupStep, provider, bookingID, ref, err)
+	}
+	return ref, nil
 }
 
 func CancelCourierShipment(ctx context.Context, tenantID, provider, bookingID string) error {
@@ -300,7 +308,10 @@ func CancelCourierShipment(ctx context.Context, tenantID, provider, bookingID st
 	if err := adapter.CancelShipment(traced, cred, awb); err != nil {
 		return settleFailedCourierStep(tenantID, claim, courierCancelStep, provider, bookingID, canLookup, wrote.Load(), err)
 	}
-	return recordCourierStepDone(claim.schema, bookingID, courierCancelStep, cancelled)
+	if err := recordCourierStepDone(claim.schema, bookingID, courierCancelStep, cancelled); err != nil {
+		return settleStepNotRecorded(tenantID, claim.schema, courierCancelStep, provider, bookingID, awb, err)
+	}
+	return nil
 }
 
 // CourierUnreachableCode is the code a courier call that never got a usable

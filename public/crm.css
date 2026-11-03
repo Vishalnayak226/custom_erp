@@ -1,6 +1,8 @@
 /* Stage 101: the CRM workspace (view-crm*.js). Loaded with the module; uses
    the ERP's own tokens so light and dark themes follow. */
-.crm-root { display: grid; gap: 12px; }
+/* 157: one column that may shrink below its content - a wide table or board
+   scrolls inside its panel instead of widening the whole workspace. */
+.crm-root { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .crm-page-header { margin-bottom: 0; }
 .crm-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--border-color); padding-bottom: 6px; }
 .crm-tab { background: none; border: 1px solid transparent; border-radius: 6px; padding: 6px 10px; color: var(--text-muted); cursor: pointer; font: inherit; }
@@ -14,7 +16,8 @@
 .crm-crumb:hover { text-decoration: underline; }
 .crm-crumb-sep { color: var(--text-muted); }
 .crm-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.crm-body { display: grid; gap: 12px; }
+.crm-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.crm-root .table-wrapper { overflow-x: auto; }
 .crm-table { width: 100%; border-collapse: collapse; }
 .crm-table th, .crm-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border-color); vertical-align: top; }
 .crm-table th.num, .crm-table td.num { text-align: right; font-family: var(--font-numeric); }
@@ -47,10 +50,10 @@ button.crm-tile:hover { border-color: var(--primary-color); }
 .crm-bar-track span { display: block; height: 100%; background: var(--primary-color); }
 .crm-bar-n { text-align: right; font-family: var(--font-numeric); }
 .crm-filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
-.crm-filters .form-group { margin-bottom: 0; min-width: 160px; }
-.crm-filters #crm-cq { min-width: 320px; }
+.crm-filters .form-group { margin-bottom: 0; min-width: min(160px, 100%); }
+.crm-filters #crm-cq { min-width: min(320px, 100%); }
 .crm-pager { display: flex; gap: 10px; align-items: center; color: var(--text-muted); font-size: 13px; margin-top: 8px; flex-wrap: wrap; }
-.crm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+.crm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 20px; }
 .crm-grid-seg { grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); }
 @media (max-width: 900px) { .crm-grid-seg { grid-template-columns: 1fr; } }
 .crm-kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0; }
@@ -64,7 +67,7 @@ button.crm-tile:hover { border-color: var(--primary-color); }
 .crm-form-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
 .crm-form-row > .form-group { flex: 1 1 180px; }
 .crm-form-row > textarea { flex: 1 1 300px; }
-.crm-form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.crm-form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: 10px; }
 .crm-form-inline { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; max-width: none; }
 .crm-form-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .crm-fieldset { border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 12px; }

@@ -50,7 +50,7 @@ loyalty and voucher redemption - through `commandKeyed` in routes.go
 `idempotency_key` body field. The findings left are commands that move an
 existing record on, guarded by that record's status.
 
-Routes audited: **533**; keyed: **17**; findings (money / stock without a key): **139**.
+Routes audited: **548**; keyed: **17**; findings (money / stock without a key): **142**.
 
 ## Findings
 
@@ -59,6 +59,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | Route | Handler | Touches |
 |---|---|---|
 | `ANY /api/v1/loyalty/adjustments` | `handleLoyaltyAdjustments` | stock |
+| `ANY /api/v1/loyalty/transfers` | `handleLoyaltyTransfers` | stock |
 | `POST /api/v1/assets/depreciation/run` | `handleRunAssetDepreciation` | money |
 | `POST /api/v1/assets/transfer` | `handleTransferAsset` | stock |
 | `POST /api/v1/crm/loyalty-redemption/initiate` | `handleInitiateSecureLoyaltyRedemption` | money |
@@ -113,6 +114,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/inventory/material-requests/{id}/return` | `handleReturnMaterial` | stock |
 | `POST /api/v1/inventory/mrp-changes` | `handleCreateMRPChange` | stock |
 | `POST /api/v1/inventory/mrp-changes/{id}/cancel` | `handleCancelMRPChange` | stock |
+| `POST /api/v1/loyalty/transfers/{id}/confirm` | `handleLoyaltyTransferConfirm` | stock |
 | `POST /api/v1/manufacturing/complete` | `handleCompleteProductionOrder` | stock |
 | `POST /api/v1/manufacturing/confirm-operation` | `handleConfirmProductionOperation` | stock |
 | `POST /api/v1/manufacturing/issue-material` | `handleIssueProductionMaterial` | stock |
@@ -169,6 +171,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/wms/batch/putaway` | `handleBatchPutaway` | stock |
 | `POST /api/v1/wms/billing/charges` | `handleCapturedCharges` | money |
 | `POST /api/v1/wms/billing/invoices` | `handleCapturedChargeInvoice` | money |
+| `POST /api/v1/wms/bin-generator` | `handleBinGenerator` | stock |
 | `POST /api/v1/wms/bin-move` | `handleBinMove` | stock |
 | `POST /api/v1/wms/bin-replenishment/dynamic-pickface/apply` | `handleApplyDynamicPickFaceMinMax` | stock |
 | `POST /api/v1/wms/bin-replenishment/execute` | `handleBinReplenishmentExecute` | stock |
@@ -263,6 +266,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `ANY /api/v1/logs/audit` | `handleAuditLogs` | no | - | document |
 | `ANY /api/v1/logs/system` | `handleSystemLogs` | no | - | document |
 | `ANY /api/v1/loyalty/adjustments` | `handleLoyaltyAdjustments` | no | - | stock |
+| `ANY /api/v1/loyalty/transfers` | `handleLoyaltyTransfers` | no | - | stock |
 | `ANY /api/v1/prefix` | `handlePrefix` | no | - | document |
 | `ANY /api/v1/sequence` | `handleSequence` | no | - | document |
 | `DELETE /api/v1/admin/api-credentials/{id}` | `handleRevokeAPICredential` | no | - | document |
@@ -285,6 +289,8 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/admin/image-drive` | `handleSaveImageDrive` | no | - | document |
 | `POST /api/v1/admin/image-drive/test` | `handleTestImageDrive` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/admin/industry` | `handleSwitchIndustry` | no | - | document |
+| `POST /api/v1/admin/master-merges` | `handleMasterMerges` | no | - | document |
+| `POST /api/v1/admin/master-merges/{id}/undo` | `handleMasterMergeUndo` | no | - | document |
 | `POST /api/v1/admin/patch/approve` | `handleApprovePatchProposal` | no | - | document |
 | `POST /api/v1/admin/patch/reject` | `handleRejectPatchProposal` | no | - | document |
 | `POST /api/v1/admin/privacy/legal-hold` | `handleSetSubjectLegalHold` | no | - | document |
@@ -292,6 +298,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/admin/privacy/requests/{id}/decide` | `handleDecideDataSubjectRequest` | no | - | document |
 | `POST /api/v1/admin/privacy/requests/{id}/execute` | `handleExecuteDataSubjectRequest` | no | - | document |
 | `POST /api/v1/admin/role-permissions` | `handleRolePermissions` | no | - | document |
+| `POST /api/v1/admin/role-permissions/rollback` | `handleRoleGrantRollback` | no | - | document |
 | `POST /api/v1/admin/role-templates/apply` | `handleApplyRoleTemplates` | no | - | document |
 | `POST /api/v1/admin/role-templates/revert` | `handleRevertRoleTemplates` | no | - | document |
 | `POST /api/v1/admin/roles` | `handleCreateRole` | no | - | document |
@@ -301,6 +308,8 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/admin/scale-test` | `handleScaleTest` | no | - | document |
 | `POST /api/v1/admin/security/detections/run` | `handleRunSecurityDetections` | no | - | document |
 | `POST /api/v1/admin/security/freeze-exports` | `handleFreezeExports` | no | - | document |
+| `POST /api/v1/admin/security/freeze-integrations` | `handleFreezeIntegrations` | no | - | document |
+| `POST /api/v1/admin/security/sessions/end` | `handleEndPrivilegedSession` | no | - | document |
 | `POST /api/v1/admin/security/sign-out-all` | `handleSignOutAllUsers` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/admin/security/sign-out-user` | `handleSignOutUserEverywhere` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/admin/setup-workbook/apply` | `handleSetupWorkbookApply` | no | - | document |
@@ -380,6 +389,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/finance/periods/{id}/close-tasks/{task}/{action}` | `handlePeriodCloseTaskAction` | no | - | money |
 | `POST /api/v1/finance/periods/{id}/reopen-request` | `handlePeriodReopenRequest` | no | - | money |
 | `POST /api/v1/finance/receipts` | `handleCustomerReceipts` | no | - | money, stock |
+| `POST /api/v1/finance/reconciliation/exceptions` | `handleReconciliationException` | no | - | document |
 | `POST /api/v1/finance/sales-invoice/{id}/cancel` | `handleCancelSalesInvoice` | no | - | money |
 | `POST /api/v1/finance/sales-invoice/{id}/post` | `handlePostSalesInvoice` | no | - | money, stock |
 | `POST /api/v1/finance/sales-invoice/{id}/settle` | `handleSettleSalesInvoice` | no | - | money |
@@ -411,7 +421,9 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/integration/shopify/product/map` | `handleShopifyProductMap` | no | - | document |
 | `POST /api/v1/integration/shopify/webhook` | `handleShopifyWebhook` | no | - | document |
 | `POST /api/v1/integrations/clevertap/segment-sync` | `handleCleverTapSegmentSync` | no | - | document |
+| `POST /api/v1/integrations/credentials/active` | `handleSetConnectorCredentialActive` | no | - | document |
 | `POST /api/v1/integrations/credentials/disconnect` | `handleConnectorDisconnect` | no | - | document |
+| `POST /api/v1/integrations/credentials/rotate` | `handleRotateConnectorCredential` | no | - | document |
 | `POST /api/v1/inventory/adjustments` | `handleCreateInventoryAdjustment` | yes (command key `inventory.adjustment.create`) | 7 days (command claim) | stock |
 | `POST /api/v1/inventory/adjustments/preview` | `handlePreviewInventoryAdjustment` | n.a. (a question, not a command) | - | stock |
 | `POST /api/v1/inventory/adjustments/{id}/post` | `handlePostInventoryAdjustment` | no | - | stock |
@@ -436,6 +448,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/lines/resolve` | `handleResolveLineCodes` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/login` | `handleLogin` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/loyalty/redeem` | `handleRedeemLoyaltyPoints` | yes (command key `loyalty.points.redeem`) | 7 days (command claim) | money |
+| `POST /api/v1/loyalty/transfers/{id}/confirm` | `handleLoyaltyTransferConfirm` | no | - | stock |
 | `POST /api/v1/manufacturing/acknowledge-bom-variance` | `handleAcknowledgeBOMVariance` | no | - | document |
 | `POST /api/v1/manufacturing/complete` | `handleCompleteProductionOrder` | no | - | stock |
 | `POST /api/v1/manufacturing/confirm-operation` | `handleConfirmProductionOperation` | no | - | stock |
@@ -540,6 +553,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/planning/proposals/approve` | `handleApproveSupplyProposals` | no | - | document |
 | `POST /api/v1/planning/proposals/generate` | `handleGenerateSupplyProposals` | no | - | document |
 | `POST /api/v1/planning/proposals/reject` | `handleRejectSupplyProposals` | no | - | document |
+| `POST /api/v1/platform/query-baseline` | `handleControlPanelQueryBaseline` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/platform/tenants/{tenant}/attribute-library` | `handleApplyAttributeLibrary` | no | - | document |
 | `POST /api/v1/platform/tenants/{tenant}/open` | `handleControlPanelOpenTenant` | no | - | document |
 | `POST /api/v1/platform/tenants/{tenant}/records/{doctype}/{id}` | `handlePlatformUpdateRecord` | no | - | document |
@@ -634,6 +648,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/service/ticket/{id}/close` | `handleCloseServiceTicket` | no | - | money |
 | `POST /api/v1/service/ticket/{id}/resolve` | `handleResolveServiceTicket` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/service/ticket/{id}/start` | `handleStartServiceTicket` | no | - | document |
+| `POST /api/v1/setup/path/{step}/note` | `handleSetupStepNote` | no | - | document |
 | `POST /api/v1/shopify/{channel}/credentials` | `handleShopifyCredentials` | no | - | document |
 | `POST /api/v1/shopify/{channel}/do/{action}` | `handleShopifyAction` | no | - | document |
 | `POST /api/v1/shopify/{channel}/settings` | `handleShopifySettings` | no | - | document |
@@ -671,6 +686,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/wms/billing/invoices` | `handleCapturedChargeInvoice` | no | - | money |
 | `POST /api/v1/wms/billing/storage/capture` | `handleCaptureStorageCharges` | no | - | document |
 | `POST /api/v1/wms/billing/storage/snapshot` | `handleStorageBalanceSnapshot` | no | - | document |
+| `POST /api/v1/wms/bin-generator` | `handleBinGenerator` | no | - | stock |
 | `POST /api/v1/wms/bin-move` | `handleBinMove` | no | - | stock |
 | `POST /api/v1/wms/bin-replenishment/dynamic-pickface/apply` | `handleApplyDynamicPickFaceMinMax` | no | - | stock |
 | `POST /api/v1/wms/bin-replenishment/execute` | `handleBinReplenishmentExecute` | no | - | stock |
@@ -707,6 +723,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/wms/physical-inventory/start` | `handlePhysicalInventoryStart` | no | - | document |
 | `POST /api/v1/wms/physical-inventory/submit-count` | `handlePhysicalInventorySubmitCount` | no | - | document |
 | `POST /api/v1/wms/pick-scan` | `handlePickScan` | no | - | stock |
+| `POST /api/v1/wms/piece-codes` | `handlePieceCodeMint` | no | - | document |
 | `POST /api/v1/wms/putaway` | `handlePutaway` | no | - | stock |
 | `POST /api/v1/wms/robotics/event` | `handleRoboticsEvent` | no | - | document |
 | `POST /api/v1/wms/serial/putaway` | `handleSerialPutaway` | no | - | stock |
@@ -728,6 +745,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/wms/wave/pick-confirm` | `handleWavePickConfirm` | no | - | stock |
 | `POST /api/v1/wms/wave/template/run` | `handleWaveTemplateRun` | no | - | stock |
 | `POST /api/v1/wms/wave/transition` | `handleWaveTransition` | no | - | stock |
+| `POST /api/v1/wms/work-queue` | `handleWorkQueue` | no | - | document |
 | `POST /api/v1/wms/yard/check-in` | `handleYardCheckIn` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/wms/yard/{id}/door` | `handleYardAssignDoor` | no | - | document |
 | `PUT /api/v1/admin/api-credentials/{id}/limits` | `handleSetAPICredentialLimits` | no | - | document |

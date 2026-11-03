@@ -39,6 +39,9 @@ var CRMEventTypes = []struct{ Key, Label string }{
 }
 
 func crmKnownEvent(t string) bool {
+	if t == CRMEventTierChanged { // 146.1.1: timeline only, not offered to journeys
+		return true
+	}
 	for _, e := range CRMEventTypes {
 		if e.Key == t {
 			return true

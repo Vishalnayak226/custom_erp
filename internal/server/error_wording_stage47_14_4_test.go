@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"custom_erp/db"
+	"custom_erp/internal/kb"
 )
 
 // floorModule reports whether a catalog module is on the floor path: the
@@ -143,5 +144,34 @@ func TestStage47144EnvelopeSaysWhatWasSaved(t *testing.T) {
 				t.Errorf("%s: value slot %s has no plain fallback in placeholderFallbacks", code, p)
 			}
 		}
+	}
+}
+
+// Stage 47.14.4: a sample code's envelope names the in-app help entry for it,
+// and that entry really exists in the Knowledge Center.
+func TestStage47144EnvelopeCarriesHelpTarget(t *testing.T) {
+	db.InitDB(testConnStr())
+	for _, code := range []string{"SALESP-0122", "GLOBAL-0004"} {
+		rec := httptest.NewRecorder()
+		writeAPIError(rec, httptest.NewRequest(http.MethodPost, "/api/v1/doc/X", nil), code, "")
+		var body map[string]interface{}
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		if body["saved_note"] == "" || body["saved_note"] == nil {
+			t.Errorf("%s: no saved_note", code)
+		}
+		help, _ := body["help"].(string)
+		slug, anchor, ok := strings.Cut(help, "#")
+		if !ok || !strings.HasPrefix(slug, "error-code-reference") || anchor != "code-"+strings.ToLower(code) {
+			t.Fatalf("%s: help = %q", code, help)
+		}
+		_, html, err := kb.ArticleHTML(slug)
+		if err != nil || !strings.Contains(html, `id="`+anchor+`"`) {
+			t.Errorf("%s: help article %s has no anchor %s (%v)", code, slug, anchor, err)
+		}
+	}
+	if errorHelpTarget("NOPE-0000") != "" {
+		t.Error("an unknown code has a help target")
 	}
 }

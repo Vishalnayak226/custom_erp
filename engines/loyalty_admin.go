@@ -43,12 +43,37 @@ func loyaltyAccruesForSchema(schema string) bool {
 }
 
 // loyaltyPointValuePaise is what one point is worth, in paise.
+//
+// Stage 146.2.4: the ONE place a point becomes money.
+// loyalty.redemption_paise_per_point (when above 0) wins over the rupee
+// setting, so a point can be worth less than Rs 1; every points <-> money
+// conversion goes through this function or the two helpers below.
 func loyaltyPointValuePaise(tenantID string) int64 {
+	if p := GetSettingInt(tenantID, "loyalty.redemption_paise_per_point"); p > 0 {
+		return int64(p)
+	}
 	v := redemptionValuePerPointFor(tenantID)
 	if v <= 0 {
 		v = 1
 	}
 	return RupeesToPaise(float64(v))
+}
+
+// loyaltyPointsPaise is what `points` are worth, in paise.
+func loyaltyPointsPaise(tenantID string, points int) int64 {
+	if points <= 0 {
+		return 0
+	}
+	return int64(points) * loyaltyPointValuePaise(tenantID)
+}
+
+// loyaltyPaiseToPoints is the whole points that fit in `paise` (rounded down).
+func loyaltyPaiseToPoints(tenantID string, paise int64) int {
+	v := loyaltyPointValuePaise(tenantID)
+	if paise <= 0 || v <= 0 {
+		return 0
+	}
+	return int(paise / v)
 }
 
 // postLoyaltyValueTx books points' value moving into (accrue: Dr other /
@@ -262,9 +287,11 @@ var loyaltyMovementRows = []loyaltyMovementRow{
 	{"earned", "Earned on sales", 1},
 	{"restored", "Given back on returns (points paid with)", 1},
 	{"adjusted_in", "Credited by adjustment", 1},
+	{"transferred_in", "Received from another customer", 1},
 	{"redeemed", "Redeemed at the till and online", -1},
 	{"reversed", "Taken back on returns (points earned)", -1},
 	{"adjusted_out", "Debited by adjustment", -1},
+	{"transferred_out", "Sent to another customer", -1},
 	{"expired", "Expired (breakage)", -1},
 }
 
@@ -272,6 +299,8 @@ var loyaltyMovementRows = []loyaltyMovementRow{
 const loyaltyMovementSQL = `CASE
 	WHEN transaction_type = 'Earn' AND reference_doctype = 'RefundRequest' THEN 'restored'
 	WHEN transaction_type = 'Earn' AND reference_doctype = 'LoyaltyPointAdjustment' THEN 'adjusted_in'
+	WHEN transaction_type = 'Earn' AND reference_doctype = 'LoyaltyPointTransfer' THEN 'transferred_in'
+	WHEN transaction_type = 'Adjustment' AND reference_doctype = 'LoyaltyPointTransfer' THEN 'transferred_out'
 	WHEN transaction_type = 'Earn' AND COALESCE(reference_id, '') LIKE '%%:REDEMPTION-REVERSAL' THEN 'redeemed_back'
 	WHEN transaction_type = 'Earn' AND reference_doctype = 'POSCart' THEN 'earned'
 	WHEN transaction_type = 'Earn' THEN 'other_in'

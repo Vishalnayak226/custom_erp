@@ -115,7 +115,9 @@ async function runReportWidget(w) {
   const res = await apiFetch(`/api/v1/reports/run/${encodeURIComponent(w.report_id)}${qs ? '?' + qs : ''}`);
   if (!res || !res.ok) return { error: res ? await getErrorMessage(res, 'The report did not run.') : 'The report did not run.' };
   const body = await res.json();
-  return { result: reportResult(def, body.rows || []) };
+  const result = reportResult(def, body.rows || []);
+  result.contract = body.contract || null;
+  return { result };
 }
 
 // runWidgets answers every widget: the dataset ones in one request.
@@ -205,7 +207,7 @@ function widgetBox(w, i, editing) {
        <button type="button" data-dash-width="${i}:-3" title="Narrower" aria-label="Narrower">−</button><button type="button" data-dash-width="${i}:3" title="Wider" aria-label="Wider">+</button>
        <button type="button" data-dash-height="${i}" title="Taller / shorter" aria-label="Change height">↕</button>
        <button type="button" data-dash-edit="${i}" title="Edit" aria-label="Edit widget">✎</button><button type="button" data-dash-remove="${i}" title="Remove" aria-label="Remove widget">✕</button>`
-    : `${w.source === 'dataset' ? `<button type="button" data-dash-info="${i}" title="What this shows" aria-label="What this shows">ⓘ</button><button type="button" data-dash-csv="${i}" title="Download CSV" aria-label="Download CSV">CSV</button><button type="button" data-dash-xlsx="${i}" title="Download Excel" aria-label="Download Excel">XLSX</button>` : ''}`;
+    : `${w.source === 'report' ? `<button type="button" data-dash-info="${i}" title="What this shows" aria-label="What this shows">ⓘ</button>` : ''}${w.source === 'dataset' ? `<button type="button" data-dash-info="${i}" title="What this shows" aria-label="What this shows">ⓘ</button><button type="button" data-dash-csv="${i}" title="Download CSV" aria-label="Download CSV">CSV</button><button type="button" data-dash-xlsx="${i}" title="Download Excel" aria-label="Download Excel">XLSX</button>` : ''}`;
   return `<div class="dash-widget" style="grid-column: span ${w.w || 6}; grid-row: span ${w.h || 2};" data-dash-widget="${i}">
     <div class="dash-widget-head"><span class="dash-widget-title" title="${esc(w.title)}">${esc(w.title)}</span><span class="dash-widget-tools">${tools}</span></div>
     <div class="dash-widget-body" data-dash-body="${i}"><p class="dash-empty">Loading…</p></div></div>`;

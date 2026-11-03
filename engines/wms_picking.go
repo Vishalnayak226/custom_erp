@@ -75,6 +75,7 @@ type WavePickLine struct {
 	// consumer of this payload sees exactly the JSON it saw before.
 	BatchNo    string `json:"batch_no,omitempty"`
 	ExpiryDate string `json:"expiry_date,omitempty"`
+	pickSeq    int    // Stage 146.3.4: the bin's pick sequence (not serialised)
 }
 
 // WaveOrderAllocation is how much of a wave-picked SKU actually ended up
@@ -107,6 +108,12 @@ func GenerateWavePickList(tenantID, waveID string) ([]WavePickLine, []WaveOrderA
 	if err := waveDispatchGate(tenantID, waveID); err != nil {
 		return nil, nil, err
 	}
+	return buildWavePickList(tenantID, schema, waveID)
+}
+
+// buildWavePickList reserves bins for the wave's tasks and returns the walk;
+// with the work queue on it also hands each reservation out as a pick task.
+func buildWavePickList(tenantID, schema, waveID string) ([]WavePickLine, []WaveOrderAllocation, error) {
 
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, data, created_at FROM %s.documents
@@ -184,6 +191,7 @@ func GenerateWavePickList(tenantID, waveID string) ([]WavePickLine, []WaveOrderA
 	if err != nil {
 		return nil, nil, err
 	}
+	emitWavePickTasks(tenantID, schema, waveID, locationCode, reserved)
 
 	type walkKey struct{ sku, bin, batch string }
 	walkIdx := map[walkKey]int{}
@@ -199,7 +207,7 @@ func GenerateWavePickList(tenantID, waveID string) ([]WavePickLine, []WaveOrderA
 		walkIdx[k] = len(pickLines)
 		pickLines = append(pickLines, WavePickLine{
 			Sku: c.SKU, BinCode: c.BinCode, Zone: c.Zone, Aisle: c.Aisle, Rack: c.Rack,
-			PickQty: c.Qty, BatchNo: c.BatchNo, ExpiryDate: c.ExpiryDate,
+			PickQty: c.Qty, BatchNo: c.BatchNo, ExpiryDate: c.ExpiryDate, pickSeq: c.PickSeq,
 		})
 	}
 
@@ -218,17 +226,9 @@ func GenerateWavePickList(tenantID, waveID string) ([]WavePickLine, []WaveOrderA
 
 	sort.SliceStable(pickLines, func(i, j int) bool {
 		a, b := pickLines[i], pickLines[j]
-		if a.Zone != b.Zone {
-			return a.Zone < b.Zone
-		}
-		if a.Aisle != b.Aisle {
-			return a.Aisle < b.Aisle
-		}
-		if a.Rack != b.Rack {
-			return a.Rack < b.Rack
-		}
-		if a.BinCode != b.BinCode {
-			return a.BinCode < b.BinCode
+		wa, wb := binWalk{a.pickSeq, a.Zone, a.Aisle, a.Rack, a.BinCode}, binWalk{b.pickSeq, b.Zone, b.Aisle, b.Rack, b.BinCode}
+		if wa != wb {
+			return walkBefore(wa, wb)
 		}
 		// 42.1.5: two lots of one SKU can share a bin, so the walk-route sort
 		// needs a final tiebreaker or their order is whatever the map iteration

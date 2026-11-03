@@ -75,7 +75,7 @@ const RF_TASKS = [
   {
     key: 'expiry',
     label: 'Sweep expired lots',
-    instruction: 'This quarantines every lot that is past its expiry date. Nothing else changes.',
+    instruction: 'Quarantines every expired lot.',
     endpoint: '/api/v1/wms/batch/expiry-sweep',
     fields: [],
     confirm: 'Quarantine every lot that is past its expiry date?',
@@ -91,7 +91,7 @@ async function renderRFTraceabilityView(container) {
   wrap.innerHTML = `
     <div class="rf-header" style="padding-right:150px">
       <div class="rf-title" id="rf-title">Choose a task</div>
-      <div class="rf-instruction" id="rf-instruction">Pick what you are doing. Everything after that is one scan at a time.</div>
+      <div class="rf-instruction" id="rf-instruction"></div>
       <div style="position:absolute;top:0;right:0;display:flex;gap:8px">
         <button class="rf-help-btn" style="position:static" type="button" aria-label="Help for RF Traceability" title="Help for this screen" ${actionAttrs('openHelpDrawer', ['rf-traceability'])}>Help</button>
         <button class="rf-help-btn" style="position:static" type="button" title="Back to the rest of the app" ${actionAttrs('exitRFTraceability', [])}>Exit</button>
@@ -109,13 +109,15 @@ function renderRFTaskMenu() {
   const body = document.getElementById('rf-body');
   if (!body) return;
   document.getElementById('rf-title').textContent = 'Choose a task';
-  document.getElementById('rf-instruction').textContent = 'Pick what you are doing. Everything after that is one scan at a time.';
+  document.getElementById('rf-instruction').textContent = '';
   setRFStatus('', '');
   body.innerHTML = RF_TASKS.map(t => `
     <button class="rf-task-btn" type="button" ${actionAttrs('openRFTask', [t.key])}>
       <span class="rf-task-label">${cfgEsc(t.label)}</span>
       <span class="rf-task-hint">${cfgEsc(t.instruction)}</span>
     </button>`).join('');
+  rfQueueOffer();
+  rfCodesOffer();
 }
 
 function openRFTask(key) {
@@ -393,4 +395,102 @@ function exitRFTraceability() {
   renderView('home');
 }
 
-export { renderRFTraceabilityView, exitRFTraceability, renderRFTaskMenu, openRFTask, focusFirstEmptyRFField, rfOutcomeForResponse, setRFStatus, rfTone, submitRFTask, rfSuccessMessage, requestRFSupervisor };
+export { rfQueueOpen, rfQueueDo, rfQueueAsk, rfCodesOpen, rfCodesMint, renderRFTraceabilityView, exitRFTraceability, renderRFTaskMenu, openRFTask, focusFirstEmptyRFField, rfOutcomeForResponse, setRFStatus, rfTone, submitRFTask, rfSuccessMessage, requestRFSupervisor };
+
+// --- Stage 146.3.3 work queue, 146.3.2 piece codes ---------------------------
+// Only offered when wms.work_queue is on (the route answers 422 when it is off).
+let rfQueueFilter = '';
+
+async function rfQueueCall(body) {
+  const w = await loadViewModule('/view-store.js?v=1').then(m => m.ensureWorkingStore()).catch(() => null);
+  const res = await apiFetch('/api/v1/wms/work-queue', { method: 'POST', body: JSON.stringify({ location_code: w && w.code || '', source_doc_id: rfQueueFilter, ...body }) });
+  return res;
+}
+
+async function rfQueueOffer() {
+  const body = document.getElementById('rf-body');
+  if (!body) return;
+  const res = await rfQueueCall({ action: 'probe' }).catch(() => null);
+  const on = res && res.ok && (await res.json().catch(() => ({}))).on;
+  if (!on || !document.getElementById('rf-body')) return;
+  body.insertAdjacentHTML('afterbegin', `<button class="rf-task-btn" type="button" ${actionAttrs('rfQueueOpen', [])}><span class="rf-task-label">My next task</span></button>`);
+}
+
+async function rfQueueOpen() {
+  rfActiveTask = null;
+  document.getElementById('rf-title').textContent = 'My next task';
+  document.getElementById('rf-instruction').textContent = '';
+  setRFStatus('', '');
+  const res = await rfQueueCall({ action: 'next' }).catch(() => null);
+  const data = res && res.ok ? await res.json().catch(() => ({})) : {};
+  const t = data.task;
+  const body = document.getElementById('rf-body');
+  const filter = `<label class="rf-field"><span class="rf-label">Document</span><input id="rf-q-doc" class="rf-input" value="${cfgEsc(rfQueueFilter)}" autocomplete="off" data-rf-semantic="barcode"></label>
+    <button class="rf-secondary" type="button" ${actionAttrs('rfQueueAsk', [])}>Filter</button>`;
+  const back = `<button class="rf-secondary" type="button" ${actionAttrs('renderRFTaskMenu', [])}>Back to tasks</button>`;
+  if (!t) { body.innerHTML = `<div class="rf-task-hint">No task</div>${filter}${back}`; return; }
+  const held = t.status !== 'Pending';
+  const line = [t.task_type, t.item, t.qty, t.from_bin && 'from ' + t.from_bin, t.source_doc_id].filter(Boolean).join(' · ');
+  body.innerHTML = `<div class="rf-task-label">${cfgEsc(line)}</div>
+    ${held ? `<label class="rf-field"><span class="rf-label">${t.task_type === 'Putaway' ? 'Bin' : 'Bin (optional)'}</span><input id="rf-q-bin" class="rf-input" autocomplete="off" data-rf-semantic="barcode"></label>
+      <label class="rf-field"><span class="rf-label">Split off</span><input id="rf-q-qty" class="rf-input" type="number" inputmode="numeric"></label>
+      <button class="rf-primary" type="button" ${actionAttrs('rfQueueDo', ['done', t.doc_id])}>Done</button>
+      <button class="rf-secondary" type="button" ${actionAttrs('rfQueueDo', ['split', t.doc_id])}>Split</button>`
+      : `<button class="rf-primary" type="button" ${actionAttrs('rfQueueDo', ['start', t.doc_id])}>Start</button>`}
+    ${filter}${back}`;
+}
+
+function rfQueueAsk() {
+  const el = document.getElementById('rf-q-doc');
+  rfQueueFilter = el ? el.value.trim() : '';
+  return rfQueueOpen();
+}
+
+async function rfQueueDo(action, taskId) {
+  const val = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const res = await rfQueueCall({ action, task_id: taskId, bin: val('rf-q-bin'), qty: parseFloat(val('rf-q-qty')) || 0 }).catch(() => null);
+  if (!res) { setRFStatus('offline', 'No connection. Nothing was sent. Try again when the signal comes back.'); return; }
+  if (!res.ok) {
+    const payload = await res.clone().json().catch(() => ({}));
+    setRFStatus(rfOutcomeForResponse(res, payload), await getErrorMessage(res, 'That could not be done.'));
+    return;
+  }
+  await rfQueueOpen();
+  setRFStatus('ok', action === 'done' ? 'Done' : action === 'split' ? 'Split' : 'Started');
+}
+
+// Codes per piece: get new codes for an item (opted-in items only).
+function rfCodesOpen() {
+  rfActiveTask = null;
+  document.getElementById('rf-title').textContent = 'Piece codes';
+  document.getElementById('rf-instruction').textContent = '';
+  setRFStatus('', '');
+  document.getElementById('rf-body').innerHTML = `
+    <label class="rf-field"><span class="rf-label">Item</span><input id="rf-pc-sku" class="rf-input" autocomplete="off" data-rf-semantic="barcode"></label>
+    <label class="rf-field"><span class="rf-label">Pieces</span><input id="rf-pc-n" class="rf-input" type="number" inputmode="numeric"></label>
+    <button class="rf-primary" type="button" ${actionAttrs('rfCodesMint', [])}>New codes</button>
+    <div id="rf-pc-out" class="rf-task-label"></div>
+    <button class="rf-secondary" type="button" ${actionAttrs('renderRFTaskMenu', [])}>Back to tasks</button>`;
+  document.getElementById('rf-pc-sku').focus();
+}
+
+async function rfCodesMint() {
+  const sku = document.getElementById('rf-pc-sku').value.trim();
+  const count = parseInt(document.getElementById('rf-pc-n').value, 10) || 0;
+  const w = await loadViewModule('/view-store.js?v=1').then(m => m.ensureWorkingStore()).catch(() => null);
+  const res = await apiFetch('/api/v1/wms/piece-codes', { method: 'POST', body: JSON.stringify({ sku, count, location_code: w && w.code || '' }) }).catch(() => null);
+  if (!res) { setRFStatus('offline', 'No connection. Nothing was sent. Try again when the signal comes back.'); return; }
+  if (!res.ok) { setRFStatus('error', await getErrorMessage(res, 'That could not be done.')); return; }
+  const data = await res.json().catch(() => ({}));
+  document.getElementById('rf-pc-out').textContent = (data.codes || []).join('  ');
+  setRFStatus('ok', 'Codes ready');
+}
+
+// Offered only when inventory.piece_codes_stores is set (the probe answers on: false otherwise).
+async function rfCodesOffer() {
+  const res = await apiFetch('/api/v1/wms/piece-codes', { method: 'POST', body: JSON.stringify({ probe: true }) }).catch(() => null);
+  const on = res && res.ok && (await res.json().catch(() => ({}))).on;
+  const body = document.getElementById('rf-body');
+  if (!on || !body) return;
+  body.insertAdjacentHTML('beforeend', `<button class="rf-task-btn" type="button" ${actionAttrs('rfCodesOpen', [])}><span class="rf-task-label">Piece codes</span></button>`);
+}

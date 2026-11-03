@@ -905,3 +905,53 @@ func handleRestoreAuditArchive(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewEncoder(w).Encode(result)
 }
+
+// handleRoleGrantChanges lists a role's change history (Stage 49.3.6): who
+// changed it, why, the dangerous grants gained or lost, and whether a later
+// rollback undid it. Evidence only; newest first.
+func handleRoleGrantChanges(w http.ResponseWriter, r *http.Request) {
+	if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+		return
+	}
+	role := strings.TrimSpace(r.URL.Query().Get("role"))
+	if role == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'role' is required")
+		return
+	}
+	changes, err := engines.ListRoleGrantChanges(r.Header.Get("Resolved-Tenant-ID"), role)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to read the role's changes")
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"changes": changes})
+}
+
+// handleRoleGrantRollback undoes one saved role change as a change of its own
+// (Stage 49.3.6): later decisions stand and a dangerous grant is never handed
+// back. The reason is required.
+func handleRoleGrantRollback(w http.ResponseWriter, r *http.Request) {
+	if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+		return
+	}
+	var req struct {
+		ChangeID string `json:"change_id"`
+		Reason   string `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.ChangeID) == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'change_id' is required")
+		return
+	}
+	actor := r.Header.Get("Resolved-Username")
+	if actor == "" {
+		actor = r.Header.Get("Resolved-User-ID")
+	}
+	result, outcome, err := engines.RollbackRoleGrantChange(r.Context(), r.Header.Get("Resolved-Tenant-ID"),
+		strings.TrimSpace(req.ChangeID), actor, r.Header.Get("Resolved-User-ID"), req.Reason)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success", "change_id": result.ChangeID,
+		"sessions_ended": result.SessionsEnded, "restored": outcome.Restored, "superseded": outcome.Superseded,
+		"withheld": outcome.Withheld, "gone": outcome.Gone})
+}

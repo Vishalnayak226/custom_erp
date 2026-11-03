@@ -30,6 +30,9 @@ type LoyaltyLedgerEntry struct {
 	// Stage 55.17: what kind of document it came from, and when it lapses.
 	ReferenceDoctype string     `json:"reference_doctype,omitempty"`
 	ExpiresAt        *time.Time `json:"expires_at,omitempty"`
+	// Stage 146.2: the store the row belongs to and, for a bonus row, the offer.
+	Location string `json:"location,omitempty"`
+	Reason   string `json:"reason,omitempty"`
 }
 
 // insertLoyaltyLedgerEntryInSchema is the schema-level primitive - needed
@@ -79,9 +82,12 @@ func insertLoyaltyLedgerEntry(tenantID, customerID, transactionType string, poin
 // come through it - so the redemption controls (daily limit, one-time code,
 // manager approval above a value) are checked here, under the same lock, and
 // no path can skip them. auth names what authorised this redemption.
-func RedeemLoyaltyPointsTx(tx *sql.Tx, schema, tenantID, customerID string, points int, referenceID string, auth LoyaltyRedemptionAuth) (discountValue int, err error) {
+func RedeemLoyaltyPointsTx(tx *sql.Tx, schema, tenantID, customerID string, points int, referenceID string, auth LoyaltyRedemptionAuth) (discountPaise int64, err error) {
 	if points <= 0 {
 		return 0, nil
+	}
+	if err := guardLoyaltyMemberTx(tx, schema, customerID); err != nil { // 146.2.5
+		return 0, err
 	}
 	balance, err := lockedLoyaltyBalanceTx(tx, schema, customerID)
 	if err != nil {
@@ -94,11 +100,11 @@ func RedeemLoyaltyPointsTx(tx *sql.Tx, schema, tenantID, customerID string, poin
 		return 0, err
 	}
 	if _, err := tx.Exec(fmt.Sprintf(`
-		INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id)
-		VALUES ($1, 'Burn', $2, 'POSCart', $3)`, schema), customerID, points, referenceID); err != nil {
+		INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id, location)
+		VALUES ($1, 'Burn', $2, 'POSCart', $3::text, (SELECT NULLIF(data->>'location','') FROM %s.documents WHERE id = $3::text AND doctype = 'POSCart'))`, schema, schema), customerID, points, referenceID); err != nil {
 		return 0, err
 	}
-	return points * redemptionValuePerPointFor(tenantID), nil
+	return loyaltyPointsPaise(tenantID, points), nil
 }
 
 // lockedLoyaltyBalanceTx takes the customer's loyalty lock for the rest of the
@@ -145,7 +151,7 @@ func GetLoyaltyLedger(tenantID, customerID string) ([]LoyaltyLedgerEntry, error)
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT transaction_type, points, COALESCE(reference_id, ''), created_at, COALESCE(reference_doctype, ''), expires_at
+		SELECT transaction_type, points, COALESCE(reference_id, ''), created_at, COALESCE(reference_doctype, ''), expires_at, COALESCE(location, ''), COALESCE(reason, '')
 		FROM %s.loyalty_point_ledger WHERE customer_id = $1 ORDER BY created_at DESC, id DESC LIMIT %d`, schema, loyaltyLedgerRowCap), customerID)
 	if err != nil {
 		return nil, err
@@ -155,7 +161,7 @@ func GetLoyaltyLedger(tenantID, customerID string) ([]LoyaltyLedgerEntry, error)
 	var results []LoyaltyLedgerEntry
 	for rows.Next() {
 		var e LoyaltyLedgerEntry
-		if err := rows.Scan(&e.TransactionType, &e.Points, &e.ReferenceID, &e.CreatedAt, &e.ReferenceDoctype, &e.ExpiresAt); err != nil {
+		if err := rows.Scan(&e.TransactionType, &e.Points, &e.ReferenceID, &e.CreatedAt, &e.ReferenceDoctype, &e.ExpiresAt, &e.Location, &e.Reason); err != nil {
 			return nil, err
 		}
 		results = append(results, e)
@@ -195,7 +201,7 @@ func redeemLoyaltyPointsAuthorized(tenantID, customerID string, points int, refe
 	if err != nil {
 		return 0, err
 	}
-	return value, tx.Commit()
+	return int(value / 100), tx.Commit()
 }
 
 // LoyaltyRedemptionValue is what `points` are worth in rupees, without
@@ -203,10 +209,13 @@ func redeemLoyaltyPointsAuthorized(tenantID, customerID string, points int, refe
 // check it against the balance before anything is burned. Stage 30.2.5's POS
 // flow uses this at "Redeem Points" time and only burns at checkout.
 func LoyaltyRedemptionValue(tenantID string, points int) int {
-	if points <= 0 {
-		return 0
-	}
-	return points * redemptionValuePerPointFor(tenantID)
+	return int(loyaltyPointsPaise(tenantID, points) / 100)
+}
+
+// LoyaltyRedemptionValuePaise is the same in paise (a point can be worth less
+// than Rs 1 - Stage 146.2.4).
+func LoyaltyRedemptionValuePaise(tenantID string, points int) int64 {
+	return loyaltyPointsPaise(tenantID, points)
 }
 
 // ReverseLoyaltyRedemption gives back points burned for a sale that then
@@ -240,32 +249,33 @@ func EarnLoyaltyPoints(tenantID, customerID string, netSaleAmount int, reference
 	if IsWalkInCustomer(tenantID, customerID) {
 		return nil
 	}
-	rupeesPerPoint := GetSettingInt(tenantID, "loyalty.rupees_per_point")
-	if rupeesPerPoint <= 0 {
-		rupeesPerPoint = 100 // defensive: the setting is min-1 validated, never 0
-	}
-	basePoints := netSaleAmount / rupeesPerPoint
-	if basePoints <= 0 {
-		return nil
-	}
-	points := int(float64(basePoints) * loyaltyEarnMultiplierForCustomer(tenantID, customerID))
-	if points <= 0 {
-		return nil
+	// 146.1.1: a tier that lapsed since the last bill is dropped before the multiplier is read.
+	if GetSettingBool(tenantID, "loyalty.recompute_tier_on_earn") {
+		if _, _, err := recomputeLoyaltyTier(tenantID, customerID, true); err != nil {
+			LogSystemError(tenantID, "", "ERROR", "EarnLoyaltyPoints", fmt.Sprintf("tier recompute before earn failed for customer %s: %v", customerID, err), "")
+		}
 	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
 	}
-	expiresAt := time.Now().AddDate(0, 0, GetSettingInt(tenantID, "loyalty.point_expiry_days"))
-	if err := insertLoyaltyLedgerEntryInSchema(schema, customerID, "Earn", points, "POSCart", referenceID, &expiresAt); err != nil {
+	in := loyaltyEarnInputForCart(schema, customerID, netSaleAmount, referenceID)
+	plan, err := PlanLoyaltyEarn(tenantID, in)
+	if err != nil {
 		return err
 	}
-	// Stage 101.11.1 (D11): with pending points on, they wait out the bill's
-	// return window before they can be used.
-	if until := crmPendingUntil(tenantID); until != nil {
-		if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.loyalty_point_ledger SET pending_until = $3 WHERE id = (SELECT MAX(id) FROM %s.loyalty_point_ledger
-			WHERE customer_id = $1 AND transaction_type = 'Earn' AND reference_doctype = 'POSCart' AND reference_id = $2)`, schema, schema), customerID, referenceID, *until); err != nil {
-			LogSystemError(tenantID, "", "ERROR", "EarnLoyaltyPoints", fmt.Sprintf("points on %s could not be marked pending: %v", referenceID, err), "")
+	points := plan.Total
+	if points <= 0 {
+		return nil
+	}
+	expiresAt := time.Now().AddDate(0, 0, GetSettingInt(tenantID, "loyalty.point_expiry_days"))
+	// Stage 101.11.1 (D11): with pending points on, every row waits out the bill's return window.
+	until := crmPendingUntil(tenantID)
+	// 146.2: one row per rule (base, then each bonus offer), stamped with the store.
+	for _, r := range plan.Rows {
+		if _, err := db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id, expires_at, pending_until, location, reason)
+			VALUES ($1, 'Earn', $2, 'POSCart', $3, $4, $5, NULLIF($6, ''), NULLIF($7, ''))`, schema), customerID, r.Points, referenceID, expiresAt, until, in.Location, r.Reason); err != nil {
+			return err
 		}
 	}
 	// Stage 73.2.12: when accruing, the earned points' value is a liability.

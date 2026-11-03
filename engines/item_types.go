@@ -45,6 +45,7 @@ type ItemTypeRules struct {
 	NeedsParentItem bool
 	Backflush       bool
 	FixedAsset      bool
+	PieceCodes      bool // Stage 146.3.2: a goods receipt mints a code for every accepted piece
 	// Policy holds the Stage 72 dimension fields this type sets (field ->
 	// canonical value); ExpenseAccount where its expensed issues post. Read
 	// through ItemPolicyFor (engines/item_policy.go), never directly.
@@ -166,6 +167,7 @@ func itemTypeRulesFromRecord(id string, data map[string]interface{}) ItemTypeRul
 		NeedsParentItem: yesValue(data["needs_parent_item"]),
 		Backflush:       yesValue(data["backflush"]),
 		FixedAsset:      yesValue(data["fixed_asset"]),
+		PieceCodes:      yesValue(data["piece_codes"]),
 		Policy:          policyFromRecord(data),
 		ExpenseAccount:  pimString(data["expense_account"]),
 	}

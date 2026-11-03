@@ -970,6 +970,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				engines.EnsureBinZone(tenantID, r.Header.Get("Resolved-Username"), payload)
 			}
 		}
+		engines.StampLoyaltyBlock(tenantID, effectiveID, r.Header.Get("Resolved-Username"), doctype, payload)
 		if err := engines.ValidateMasterDataRules(tenantID, effectiveID, doctype, payload); err != nil {
 			if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
 				writeAPIErrorDetail(w, r, verr.Code, verr.SubFor, verr.Message)
@@ -1461,6 +1462,9 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			if errHSN := engines.EnsureHSNCode(tenantID, hsn, rate); errHSN != nil {
 				engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "WARN", r.URL.Path, fmt.Sprintf("could not learn HSN %q into the catalogue: %v", hsn, errHSN), "")
 			}
+		}
+		if statusVal == "Cancelled" || statusVal == "Rejected" {
+			engines.CancelWorkTasksForSource(tenantID, doctype, docID, userID) // 146.3.3
 		}
 		// BLD-035: this used to always report the literal "saved" regardless of
 		// what the document's real resulting status was - a caller (the generic

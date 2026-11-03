@@ -81,6 +81,8 @@ type WarehouseCockpit struct {
 	InboundDueToday []CockpitInboundItem    `json:"inbound_due_today"`
 	Throughput      []LaborProductivity     `json:"throughput_today"`
 	BinUtilization  []CockpitBinUtilization `json:"bin_utilization"`
+	// StaleTransferHolds (Stage 146.1.7): approved transfers holding stock past the stale age.
+	StaleTransferHolds []StaleTransferHold `json:"stale_transfer_holds"`
 }
 
 // GetWarehouseCockpit (42.2.10) assembles every section as a best-effort
@@ -110,6 +112,7 @@ func GetWarehouseCockpit(tenantID, locationCode string) (WarehouseCockpit, error
 		out.Throughput = []LaborProductivity{}
 	}
 	out.BinUtilization = cockpitBinUtilization(schema, locationCode)
+	out.StaleTransferHolds = cockpitStaleTransferHolds(tenantID, schema, locationCode)
 	return out, nil
 }
 

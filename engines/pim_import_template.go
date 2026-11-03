@@ -337,8 +337,17 @@ func RunPIMImportTemplateContext(ctx context.Context, tenantID, templateID strin
 			if val == "" && m.DefaultValue != "" {
 				val = m.DefaultValue
 			}
-			if val != "" && m.TransformRule != "" {
-				transformed, tErr := ApplyPIMTransformRule(tenantID, m.TransformRule, val)
+			if m.TransformRule != "" {
+				rowRef := row
+				transformed, tErr := ApplyPIMTransformRuleCtx(m.TransformRule, val, PIMTransformContext{
+					TenantID: tenantID,
+					Lookup: func(attribute string) string {
+						if idx, ok := sourceIndex[strings.ToLower(strings.TrimSpace(attribute))]; ok && idx < len(rowRef) {
+							return strings.TrimSpace(rowRef[idx])
+						}
+						return ""
+					},
+				})
 				if tErr != nil {
 					preErrors[i] = fmt.Sprintf("column %q -> %q: %v", m.SourceColumn, m.TargetField, tErr)
 					break

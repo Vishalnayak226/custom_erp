@@ -194,3 +194,67 @@ func handleChannelSetupCheck(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewEncoder(w).Encode(out)
 }
+
+// 49.8.5 (screen): the credentials list, rotate and switch-off behind
+// Settings -> Integrations -> Credentials. Admin only; no response ever
+// carries a stored secret.
+
+func handleListConnectorCredentials(w http.ResponseWriter, r *http.Request) {
+	if !engines.HasFullAccess(r.Header.Get("Resolved-Role")) {
+		writeAPIError(w, r, "GLOBAL-0011", "")
+		return
+	}
+	rows, err := engines.ListConnectorCredentials(r.Header.Get("Resolved-Tenant-ID"))
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"data": rows, "couriers": engines.CourierProviderNames()})
+}
+
+// handleRotateConnectorCredential: POST {kind, code, fields}. A blank
+// webhook_secret is generated; the response carries generated values once.
+func handleRotateConnectorCredential(w http.ResponseWriter, r *http.Request) {
+	if !engines.HasFullAccess(r.Header.Get("Resolved-Role")) {
+		writeAPIError(w, r, "GLOBAL-0011", "")
+		return
+	}
+	var req struct {
+		Kind   string            `json:"kind"`
+		Code   string            `json:"code"`
+		Fields map[string]string `json:"fields"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Kind == "" || req.Code == "" || len(req.Fields) == 0 {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "kind, code and fields are required")
+		return
+	}
+	generated, err := engines.RotateConnectorCredential(r.Header.Get("Resolved-Tenant-ID"), req.Kind, req.Code, req.Fields, credentialActor(r))
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "rotated", "kind": req.Kind, "code": req.Code, "generated": generated})
+}
+
+// handleSetConnectorCredentialActive: POST {kind, code, active}.
+func handleSetConnectorCredentialActive(w http.ResponseWriter, r *http.Request) {
+	if !engines.HasFullAccess(r.Header.Get("Resolved-Role")) {
+		writeAPIError(w, r, "GLOBAL-0011", "")
+		return
+	}
+	var req struct {
+		Kind   string `json:"kind"`
+		Code   string `json:"code"`
+		Active *bool  `json:"active"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Kind == "" || req.Code == "" || req.Active == nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "kind, code and active are required")
+		return
+	}
+	if err := engines.SetConnectorCredentialActive(r.Header.Get("Resolved-Tenant-ID"), req.Kind, req.Code, *req.Active, credentialActor(r)); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "saved", "kind": req.Kind, "code": req.Code, "active": *req.Active})
+}

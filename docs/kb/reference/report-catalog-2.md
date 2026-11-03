@@ -584,7 +584,7 @@ HRMS to PIM / PIMS.
 - **Default Lead Time (days)** (`default_lead_time_days`) - text, **required**
 - **Default Safety Stock** (`default_safety_stock`) - text, **required**
 
-**Columns:** SKU · Location · Available · Daily Velocity · Reorder Point · Suggested Qty · Safety Stock · Lead Time (days)
+**Columns:** SKU · Location · Available · Daily Velocity · Reorder Point · Suggested Qty · Safety Stock · Lead Time (days) · On Order · In Transit · Waiting · Position
 
 **Drill-down:** no.
 

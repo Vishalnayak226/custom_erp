@@ -48,6 +48,10 @@ type QueryFingerprint struct {
 	// SharedBlocks is shared buffers hit + read - pg_stat_statements only.
 	SharedBlocks int64     `json:"shared_blocks,omitempty"`
 	LastSeen     time.Time `json:"last_seen"`
+	// BaselineMeanMs and ChangePct (47.9.3c) compare the mean time with the
+	// saved baseline's for the same fingerprint; nil when it has none.
+	BaselineMeanMs *float64 `json:"baseline_mean_ms,omitempty"`
+	ChangePct      *float64 `json:"change_pct,omitempty"`
 }
 
 const (
@@ -369,6 +373,11 @@ type SlowQuerySummary struct {
 	ThresholdMs int64              `json:"threshold_ms,omitempty"`
 	ByTotal     []QueryFingerprint `json:"by_total"`
 	ByBuffers   []QueryFingerprint `json:"by_buffers,omitempty"`
+	// Buffers (47.9.3b): the database's shared buffer hit / read since the
+	// statistics were last reset - one pg_stat_database row, so cheap.
+	Buffers *BufferFigures `json:"buffers,omitempty"`
+	// Baseline (47.9.3c): the saved run the figures are compared with.
+	Baseline *BaselineInfo `json:"baseline,omitempty"`
 }
 
 var errNoStatStatements = errors.New("pg_stat_statements is not installed in this database")
@@ -408,6 +417,13 @@ func ReadStatStatements(limit int) (*FingerprintStore, error) {
 // SlowQueries reports the heaviest fingerprints: pg_stat_statements where it
 // can be read, this server's sampler otherwise.
 func SlowQueries(limit int) SlowQuerySummary {
+	sum := slowQueriesRaw(limit)
+	sum.Buffers = databaseBuffers()
+	applyBaseline(&sum)
+	return sum
+}
+
+func slowQueriesRaw(limit int) SlowQuerySummary {
 	if store, err := ReadStatStatements(limit); err == nil {
 		return SlowQuerySummary{Source: "pg_stat_statements", ByTotal: store.Top(limit, "total"), ByBuffers: store.Top(limit, "buffers")}
 	}

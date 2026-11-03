@@ -32,6 +32,7 @@ type DocStickerLine struct {
 	BatchNo    string
 	ExpiryDate string
 	TemplateID string // chosen for this print (Stage 70), "" = the rules decide
+	PieceCode  string // Stage 146.3.2: one piece of a receipt; its code is the label barcode
 }
 
 // ResolveDocumentStickerLines normalizes sourceDoctype's line-item shape into
@@ -138,10 +139,28 @@ func resolveGRNStickerLines(tenantID, grnID string) ([]DocStickerLine, error) {
 	type key struct{ sku, batch string }
 	byLine := map[key]*DocStickerLine{}
 	var order []key
+	grnStore, _ := data["location"].(string)
+	var pieces []DocStickerLine
 	for _, l := range received {
 		accepted := int(l.derivedAcceptedQty())
 		if accepted <= 0 {
 			continue
+		}
+		// Stage 146.3.2: a receipt that gave its pieces codes prints one label per
+		// piece, each with its own code. The codes are the ones stored on the line
+		// at posting; nothing is minted here, so a reprint is the same labels.
+		if len(l.SerialNumbers) > 0 && PieceCodesOn(tenantID, l.Sku, grnStore) {
+			n := 0
+			for _, code := range l.SerialNumbers {
+				if code = strings.TrimSpace(code); code != "" && n < accepted {
+					pieces = append(pieces, DocStickerLine{SKU: l.Sku, Qty: 1, BatchNo: l.BatchNo, ExpiryDate: l.ExpiryDate, PieceCode: code})
+					n++
+				}
+			}
+			accepted -= n
+			if accepted <= 0 {
+				continue
+			}
 		}
 		k := key{sku: l.Sku, batch: l.BatchNo}
 		if existing, ok := byLine[k]; ok {
@@ -155,7 +174,7 @@ func resolveGRNStickerLines(tenantID, grnID string) ([]DocStickerLine, error) {
 	for _, k := range order {
 		lines = append(lines, *byLine[k])
 	}
-	return lines, nil
+	return append(lines, pieces...), nil
 }
 
 // resolveTransferOrderStickerLines uses the same parseTransferItems the
@@ -289,7 +308,7 @@ func PrintStickersForDocument(tenantID, sourceDoctype, sourceDocID, printerCode,
 		if copies <= 0 {
 			copies = 1
 		}
-		label, err := stickerLabel(opts, tenantID, schema, line.SKU, copies, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, line.BatchNo, line.ExpiryDate, line.TemplateID, lineIndex)
+		label, err := stickerLabel(opts, tenantID, schema, line.SKU, copies, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, line.BatchNo, line.ExpiryDate, line.TemplateID, lineIndex, line.PieceCode)
 		if err != nil {
 			return nil, err
 		}

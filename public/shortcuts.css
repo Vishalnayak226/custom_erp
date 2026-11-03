@@ -116,6 +116,21 @@
   color: var(--warning-color);
 }
 
+/* Stage 152.1: the sidebar's Favourites flyout - the key sits at the right. */
+#fav-flyout .menu-item kbd {
+  margin-left: auto;
+  padding-left: 16px;
+  font-family: var(--font-numeric, monospace);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+#fav-flyout .fav-none {
+  color: var(--text-muted);
+  cursor: default;
+  pointer-events: none;
+}
+
 /* The list row the arrow keys are on. */
 tr.sc-row > td {
   background: var(--primary-light);

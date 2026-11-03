@@ -188,3 +188,16 @@ func handleApplyAttributeLibrary(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewEncoder(w).Encode(res)
 }
+
+// POST /api/v1/platform/query-baseline (Stage 47.9.3c) stores the current
+// slow-query figures as the baseline later runs are compared with.
+func handleControlPanelQueryBaseline(w http.ResponseWriter, r *http.Request) {
+	if !requirePlatformOperator(w, r) {
+		return
+	}
+	if err := engines.SaveQueryBaseline(controlPanelActor(r)); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to save the baseline")
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved"})
+}

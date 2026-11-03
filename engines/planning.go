@@ -77,6 +77,11 @@ func ValidateReorderPointConfigDocument(tenantID string, payload map[string]inte
 	if qty, ok := parityNumber(payload["safety_stock_qty"]); ok && qty < 0 {
 		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Safety Stock Qty", Message: "safety_stock_qty cannot be negative"}
 	}
+	for _, f := range []string{"min_order_qty", "max_stock_qty", "order_multiple"} {
+		if qty, ok := parityNumber(payload[f]); ok && qty < 0 {
+			return &ValidationError{Code: "GLOBAL-0002", SubFor: f, Message: f + " cannot be negative"}
+		}
+	}
 	return nil
 }
 
@@ -110,22 +115,38 @@ func resolveReorderPointConfig(tenantID, sku, locationCode string) (leadTimeDays
 // function, and one that configures a handful of fast-moving SKUs gets a
 // real per-item reorder point without a blanket override for everything else.
 func GetReplenishmentSuggestionsConfigured(tenantID, locationCode string, defaultLeadTimeDays, defaultSafetyStock int) ([]ReplenishmentSuggestion, error) {
+	return replenishmentSuggestions(tenantID, locationCode, defaultLeadTimeDays, defaultSafetyStock, true)
+}
+
+// replenishmentSuggestions is the one reorder calculation (146.1.4): both the
+// plain and the configured entry points count stock on order through it.
+// useConfig applies each item's ReorderPointConfig (lead time, safety stock,
+// min / max / multiple); without it the given defaults apply to every item.
+func replenishmentSuggestions(tenantID, locationCode string, defaultLeadTimeDays, defaultSafetyStock int, useConfig bool) ([]ReplenishmentSuggestion, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT sku, available FROM %s.inventory_availability WHERE location_code = $1`, schema), locationCode)
+		`SELECT sku, available, COALESCE(inward, 0), COALESCE(qc_hold, 0) FROM %s.inventory_availability WHERE location_code = $1 ORDER BY available, sku LIMIT %d`, schema, optimizationScanRowCap), locationCode)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
+	// Stage 146.1.4: the position counts stock already on its way.
+	inbound := loadReorderInbound(tenantID, schema, locationCode)
+	limitsFor := func(sku string) reorderConfigLimits {
+		if !useConfig {
+			return reorderConfigLimits{}
+		}
+		return resolveReorderLimits(schema, sku, locationCode)
+	}
 	var suggestions []ReplenishmentSuggestion
 	for rows.Next() {
 		var sku string
-		var available int
-		if err := rows.Scan(&sku, &available); err != nil {
+		var available, inward, qcPending int
+		if err := rows.Scan(&sku, &available, &inward, &qcPending); err != nil {
 			continue
 		}
 		velocity, verr := CalculateSalesVelocity(tenantID, locationCode, sku, 30)
@@ -133,15 +154,19 @@ func GetReplenishmentSuggestionsConfigured(tenantID, locationCode string, defaul
 			velocity = 0.0
 		}
 		leadTimeDays, safetyStock := defaultLeadTimeDays, defaultSafetyStock
-		if configuredLeadTime, configuredSafety, found := resolveReorderPointConfig(tenantID, sku, locationCode); found {
+		if !useConfig {
+		} else if configuredLeadTime, configuredSafety, found := resolveReorderPointConfig(tenantID, sku, locationCode); found {
 			leadTimeDays, safetyStock = configuredLeadTime, configuredSafety
 		}
 		reorderPoint := int(math.Ceil(velocity*float64(leadTimeDays))) + safetyStock
-		if available < reorderPoint {
+		onOrder, inTransit, backOrders := inbound.onOrder[sku], inbound.inTransit[sku], inbound.backOrders[sku]
+		position := available + inward + qcPending + onOrder + inTransit - backOrders
+		if position < reorderPoint {
 			suggestions = append(suggestions, ReplenishmentSuggestion{
 				SKU: sku, LocationCode: locationCode, Available: available, DailyVelocity: velocity,
-				ReorderPoint: reorderPoint, SuggestedQty: reorderPoint - available,
+				ReorderPoint: reorderPoint, SuggestedQty: shapeReorderQty(reorderPoint-position, position, limitsFor(sku)),
 				SafetyStock: safetyStock, LeadTimeDays: leadTimeDays,
+				Inward: inward + qcPending, OnOrder: onOrder, InTransit: inTransit, BackOrders: backOrders, Position: position,
 			})
 		}
 	}
@@ -279,6 +304,7 @@ func init() {
 			{Key: "sku", Label: "SKU"}, {Key: "location_code", Label: "Location"}, {Key: "available", Label: "Available"},
 			{Key: "daily_sales_velocity", Label: "Daily Velocity"}, {Key: "reorder_point", Label: "Reorder Point"},
 			{Key: "suggested_qty", Label: "Suggested Qty"}, {Key: "safety_stock", Label: "Safety Stock"}, {Key: "lead_time_days", Label: "Lead Time (days)"},
+			{Key: "on_order", Label: "On Order"}, {Key: "in_transit", Label: "In Transit"}, {Key: "back_orders", Label: "Waiting"}, {Key: "position", Label: "Position"},
 		},
 		Params: []ReportParam{
 			{Key: "location_code", Label: "Location", Type: "text", Required: true},

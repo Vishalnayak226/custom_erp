@@ -170,3 +170,67 @@ func handleForensicExport(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="evidence-%s-to-%s.zip"`, from.Format("20060102"), to.Format("20060102")))
 	_, _ = w.Write(pack)
 }
+
+// handleListPrivilegedSessions lists the recent sign-ins of full-access users
+// (Stage 49.11.7), newest first, each with its state.
+func handleListPrivilegedSessions(w http.ResponseWriter, r *http.Request) {
+	if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+		return
+	}
+	rows, err := engines.ListPrivilegedSessions(r.Header.Get("Resolved-Tenant-ID"))
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Could not read the sessions")
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"sessions": rows})
+}
+
+// handleEndPrivilegedSession ends one session; its token is refused from the
+// next request. Needs a reason and the administrator's own password.
+func handleEndPrivilegedSession(w http.ResponseWriter, r *http.Request) {
+	req, ok := readEmergencyRequest(w, r)
+	if !ok {
+		return
+	}
+	if err := engines.EndPrivilegedSession(r.Header.Get("Resolved-Tenant-ID"), req.ID, r.Header.Get("Resolved-Username"), req.Reason); err != nil {
+		writeEmergencyError(w, r, err)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "detail": "Session ended."})
+}
+
+// handleFreezeIntegrations is the emergency integration freeze (49.12.3a):
+// one switch for this business's outbound connectors, couriers, webhooks and
+// hooks, and a refusal of its inbound webhooks, until turned off.
+func handleFreezeIntegrations(w http.ResponseWriter, r *http.Request) {
+	req, ok := readEmergencyRequest(w, r)
+	if !ok {
+		return
+	}
+	if err := engines.SetIntegrationFreeze(r.Header.Get("Resolved-Tenant-ID"), req.On, r.Header.Get("Resolved-Username"), req.Reason); err != nil {
+		writeEmergencyError(w, r, err)
+		return
+	}
+	detail := "Integrations are frozen for this business."
+	if !req.On {
+		detail = "Integrations are running again."
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "detail": detail})
+}
+
+// inboundWebhookGate turns away an inbound webhook while the client's
+// integrations are frozen (49.12.3a): 423 with the stable marker header
+// X-Refused: INTEGRATIONS_FROZEN, and one audit row. Sits inside apiMiddleware
+// so the client is already known.
+func inboundWebhookGate(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tenantID := r.Header.Get("Resolved-Tenant-ID")
+		if tenantID != "" && engines.GetSettingBool(tenantID, engines.SettingFreezeIntegrations) {
+			engines.LogAuditEventCtx(r.Context(), tenantID, "webhook", "INBOUND_WEBHOOK", "REFUSED_FROZEN", r.URL.Path)
+			w.Header().Set("X-Refused", "INTEGRATIONS_FROZEN")
+			writeAPIErrorGeneric(w, r, http.StatusLocked, "Integrations are frozen for this business by an administrator. The sender should retry later.")
+			return
+		}
+		next(w, r)
+	}
+}

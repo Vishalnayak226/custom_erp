@@ -2,7 +2,7 @@
 title: Release notes (part 2)
 section: Reference
 order: 26
-summary: Earlier releases, 2026-07-27 to 2026-09-24, continued from the release notes.
+summary: Earlier releases, 2026-07-27 to 2026-09-27, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,9 +19,29 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **100** earlier entries, 2026-07-27 to 2026-09-24.
+This page continues the [release notes](release-notes.md) with **104** earlier entries, 2026-07-27 to 2026-09-27.
+
+## 2026-09-27
+
+**Stage 50 — BLD-037 (coherent visual hierarchy and support context): environment-banner truncation, a half-empty Home stat-card, a missing correlation reference, and raw doctype identifiers leaking app-wide** *(code + docs)*
+
+Picked up the priority order the 2026-09-25 thread handed off (BLD-037 first — no DEPENDS, explicitly the lightest of the three ready items). Confirmed genuinely unstarted via `git status` before touching anything. Live-verified throughout against the existing disposable Postgres 16.3 on loopback `:5462` (reused, already fully migrated per the prior session's own note) and a fresh scratch server on `:8973`, using real Playwright/Chromium across light/dark/mobile contexts. Full per-item detail `docs/micro_checklist.md` 50.13 and the build checklist's BLD-037 entry; this is the index-style summary.
+
+**Stage 52 — Category-based sticker/label printing module: StickerTemplate designer, GRN/Transfer-Order-driven bulk printing** *(code + tests + docs)*
+
+New feature thread, opened directly from the user's own request for a real label-printing module for a jewellery retailer: different categories need visually different labels, printing should start from a GRN/Transfer Order rather than manual SKU entry (whole document or one line at a time), and the user wants full self-service control over the label layout via a drag-and-drop designer. See `docs/micro_checklist.md` Stage 52 for full per-item detail; this is the index-style summary. Entered Plan mode given the scope (new doctype, a generic cross-doctype transaction loader, a from-scratch drag/resize canvas UI, generalized ZPL rendering) — three parallel Explore passes grounded the design in actual file:line reads (doctype registration is entirely migration-driven; `Item.category` is free text with no master behind it; GRN prints against `accepted_qty`; `Printer.dpi` existed but was dead code) before the plan was written and approved.
+
+## 2026-09-25
+
+**Stage 50 — BLD-038 (accessibility and localization acceptance): closed dialog tab-order/AX-tree leak, missing error announcements, forced-colors focus gaps** *(code + docs)*
+
+Continued the priority order the 2026-09-24 thread handed off (BLD-038 first, then BLD-037 if time allowed). Confirmed genuinely unstarted via `git status` before touching anything. Live-verified throughout against a disposable Postgres 16.3 on loopback `:5462` (already migrated, reused from the prior session per its own handover note) and a scratch server on `:8179`, using Playwright/Chromium plus raw CDP (`Accessibility.getFullAXTree`, `CSS.getMatchedStylesForNode`) for what a keyboard/AT user actually experiences, not just what the CSS/markup claims. Full per-item detail `docs/micro_checklist.md` 50.13; this is the index-style summary.
 
 ## 2026-09-24
+
+**Stage 51.9 — Jewellery field-set correction against real client data, and the `minn` PO&Inventory.xlsx master-data migration** *(code + tests + docs)*
+
+User supplied the client's actual business workbook and asked for the ERP's own bulk-import template (not molding the ERP to the client's format), with our own generated Design ID/SKU — see `docs/micro_checklist.md` 51.9 for full detail; this is the index-style summary.
 
 **Stage 50 — BLD-033 (task-oriented role navigation and onboarding): a new Home landing screen, permission-derived not role-name-branched** *(code + tests + docs)*
 

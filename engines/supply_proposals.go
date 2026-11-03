@@ -90,6 +90,7 @@ func GenerateSupplyProposals(tenantID, userID, location, source string, leadTime
 		source, sku, bom, forItem, action string
 		available, reorderPoint, velocity float64
 		qty                               float64
+		parts                             map[string]interface{}
 	}
 	var cands []cand
 	switch source {
@@ -101,7 +102,8 @@ func GenerateSupplyProposals(tenantID, userID, location, source string, leadTime
 		for _, s := range sugg {
 			if s.SuggestedQty > 0 {
 				cands = append(cands, cand{source: "Reorder", sku: s.SKU, action: ProposalPurchase, available: float64(s.Available),
-					reorderPoint: float64(s.ReorderPoint), velocity: s.DailyVelocity, qty: float64(s.SuggestedQty)})
+					reorderPoint: float64(s.ReorderPoint), velocity: s.DailyVelocity, qty: float64(s.SuggestedQty),
+					parts: map[string]interface{}{"inward": s.Inward, "on_order": s.OnOrder, "in_transit": s.InTransit, "back_orders": s.BackOrders, "position": s.Position}})
 			}
 		}
 	case "mrp":
@@ -138,6 +140,9 @@ func GenerateSupplyProposals(tenantID, userID, location, source string, leadTime
 			"source": c.source, "sku": c.sku, "item_name": name, "location": location, "available": c.available,
 			"reorder_point": c.reorderPoint, "daily_velocity": round2(c.velocity), "suggested_qty": round2(c.qty),
 			"bom_id": c.bom, "for_item": c.forItem, "generated_at": now,
+		}
+		for k, v := range c.parts {
+			fields[k] = v
 		}
 		patch, _ := json.Marshal(fields)
 		r, err := db.DB.Exec(fmt.Sprintf(`

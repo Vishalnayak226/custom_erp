@@ -7,7 +7,7 @@
 > **Generated 2026-09-10.** This page is produced from `engines`' report registry (`report_definitions.go`), for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-Every report reachable from **Sales & Marketplace -> Reports**. There are **431**
+Every report reachable from **Sales & Marketplace -> Reports**. There are **432**
 across **26** categories.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -29,7 +29,7 @@ table has the same shape whoever runs it.
 - [E-commerce & Integration](#e-commerce--integration) - 12 reports
 - [Exceptions](#exceptions) - 6 reports
 - [Expense Management](#expense-management) - 11 reports
-- [Finance](#finance) - 40 reports
+- [Finance](#finance) - 41 reports
 - [GST & Compliance](#gst--compliance) - 8 reports
 - [HR](#hr) - 2 reports
 - [HRMS](#hrms) - 15 reports
@@ -1686,6 +1686,18 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Order to cash mismatches
+
+**Report id:** `order-to-cash`
+
+**Parameters:**
+
+- **Include dismissed** (`all`) - select, optional, one of: No,Yes
+
+**Columns:** Mismatch · Order · Invoice · Customer · Shipped qty · Invoiced qty · Invoiced *(sensitive)* · Paid *(sensitive)* · Difference · Owner · What it suggests · Exception · Note
+
+**Drill-down:** no.
+
 ### POS Sale Reconciliation
 
 **Report id:** `pos-sale-reconciliation`
@@ -2543,7 +2555,7 @@ table has the same shape whoever runs it.
 - **Default Lead Time (days)** (`default_lead_time_days`) - text, **required**
 - **Default Safety Stock** (`default_safety_stock`) - text, **required**
 
-**Columns:** SKU · Location · Available · Daily Velocity · Reorder Point · Suggested Qty · Safety Stock · Lead Time (days)
+**Columns:** SKU · Location · Available · Daily Velocity · Reorder Point · Suggested Qty · Safety Stock · Lead Time (days) · On Order · In Transit · Waiting · Position
 
 **Drill-down:** no.
 

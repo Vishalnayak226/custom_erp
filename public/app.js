@@ -183,13 +183,16 @@ async function getErrorDetails(res, fallback) {
         // error surface could ever actually show it. Optional: most
         // responses carry one, a pre-envelope call site never will.
         correlationId: data.correlation_id || '',
+        // 47.14.4: "Nothing was saved." and the in-app help entry for the code.
+        savedNote: data.saved_note || '',
+        help: data.help || '',
       };
     }
   } catch (e) {
     // Body wasn't JSON (a call site not yet migrated to the standardized
     // envelope) - fall through to the fallback message.
   }
-  return { message: fallback, detail: '', userAction: '', code: '', displayStyle: '', correlationId: '' };
+  return { message: fallback, detail: '', userAction: '', code: '', displayStyle: '', correlationId: '', savedNote: '', help: '' };
 }
 
 // Joins the headline with whichever of detail/user_action came back, for the
@@ -212,7 +215,7 @@ async function getErrorMessage(res, fallback) {
 // fallback) are unaffected.
 async function showApiError(res, fallback, title = 'Error') {
   const details = await getErrorDetails(res, fallback);
-  const { message, detail, userAction, code, displayStyle, correlationId } = details;
+  const { message, detail, userAction, code, displayStyle, correlationId, savedNote, help } = details;
   if (code) console.debug(`[API error] ${code}`);
   if (displayStyle === 'Toast') {
     // Toast is transient (a few seconds) - too short-lived for a reference
@@ -232,14 +235,14 @@ async function showApiError(res, fallback, title = 'Error') {
   // Before this, a missing HSN code read only "Tax configuration is missing
   // for this transaction. Please contact administrator." with no indication
   // of which item or which field, to an administrator.
-  await showCustomAlert(composeErrorLines(message, detail, userAction, correlationId), title);
+  await showCustomAlert(composeErrorLines(message, detail, userAction, correlationId, savedNote, help), title);
 }
 
 // Builds the modal body for showApiError. Returns a DOM node when there is
 // more than the headline to show, and a plain string otherwise, so the
 // single-line case renders byte-for-byte as it always has.
-function composeErrorLines(message, detail, userAction, correlationId) {
-  if (!detail && !userAction && !correlationId) return message;
+function composeErrorLines(message, detail, userAction, correlationId, savedNote = '', help = '') {
+  if (!detail && !userAction && !correlationId && !savedNote && !help) return message;
   const wrap = document.createElement('div');
   wrap.style.display = 'flex';
   wrap.style.flexDirection = 'column';
@@ -257,6 +260,13 @@ function composeErrorLines(message, detail, userAction, correlationId) {
     d.style.color = 'var(--text-muted)';
     wrap.appendChild(d);
   }
+  if (savedNote) {
+    // 47.14.4: what was saved - one short line under the reason.
+    const s = document.createElement('div');
+    s.textContent = savedNote;
+    s.style.fontSize = '13px';
+    wrap.appendChild(s);
+  }
   if (userAction) {
     const a = document.createElement('div');
     a.textContent = userAction;
@@ -273,6 +283,17 @@ function composeErrorLines(message, detail, userAction, correlationId) {
     ref.style.fontSize = '11px';
     ref.style.color = 'var(--text-muted)';
     wrap.appendChild(ref);
+  }
+  if (help) {
+    const link = document.createElement('a');
+    link.textContent = 'Help';
+    link.href = '/help/' + help;
+    link.style.fontSize = '12px';
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      openHelpAnchor(help);
+    });
+    wrap.appendChild(link);
   }
   return wrap;
 }
@@ -334,7 +355,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '72';
+const VIEW_MODULE_VERSION = '73';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -382,6 +403,7 @@ const LAZY_VIEW_MODULES = {
   sortation: ['view-warehouse.js', 'renderSortationView', 'Sortation'],
   'loading-dock': ['view-warehouse.js', 'renderLoadingDockView', 'Loading Dock'],
   'bin-conditions': ['view-warehouse.js', 'renderBinConditionsView', 'Bin Conditions'],
+  'bin-tools': ['view-bin-tools.js', 'renderBinToolsView', 'Bin Generator'],
   'cycle-count': ['view-warehouse.js', 'renderCycleCountView', 'Cycle Count'],
   asn: ['view-procurement.js', 'renderASNView', 'Advance Shipment Notices'],
   lpn: ['view-warehouse.js', 'renderLPNView', 'License Plates'],
@@ -389,7 +411,7 @@ const LAZY_VIEW_MODULES = {
   'location-movement': ['view-warehouse.js', 'renderLocationMovementView', 'Location Movement'],
   'wave-picking': ['view-warehouse.js', 'renderWavePickingView', 'Wave Picking'],
   'mobile-picking': ['view-warehouse.js', 'renderMobilePickingView', 'Mobile Picking'],
-  oms: ['view-oms.js', 'renderOMSWorkbenchView', 'OMS'],
+  oms: ['view-oms.js', 'renderOMSWorkbenchView', 'OMS', 'oms.css'],
   approvals: ['view-inbox.js', 'renderTaskInboxView', 'Approvals'],
   'purchase-orders': ['view-procurement.js', 'renderPurchaseOrdersView', 'Purchase Orders', 'txn-screen.css'],
   grn: ['view-procurement.js', 'renderGRNWorkbenchView', 'Goods Receipt', 'txn-screen.css'],
@@ -415,7 +437,7 @@ const LAZY_VIEW_MODULES = {
   'extension-hooks': ['view-admin.js', 'renderExtensionHooksView', 'Extension Hooks'],
   'extension-hook-log': ['view-admin.js', 'renderExtensionHookLogView', 'Extension Hook Log'],
   'audit-logs': ['view-admin.js', 'renderLogHubView', 'Integration Logs'],
-  configuration: ['view-admin.js', 'renderConfigurationView', 'Configuration'],
+  configuration: ['view-admin.js', 'renderConfigurationView', 'Configuration', 'config.css'],
   'system-status': ['view-admin.js', 'renderSystemStatusView', 'System Status'],
   'tenant-entitlements': ['view-admin.js', 'renderTenantEntitlementsView', 'Tenant Entitlements'],
   'tenant-usage': ['view-admin.js', 'renderTenantUsageView', 'Tenant Usage'],
@@ -899,6 +921,24 @@ function restoreNavScroll(saved) {
   if (menu) menu.scrollTop = saved.menu || 0;
   const page = document.getElementById('view-root');
   if (page && saved.hash === location.hash) page.scrollTop = saved.page || 0;
+}
+// 152.3: F5 paints back what shell-steady.js saved; the first render keeps it.
+let bootSnap = false;
+function paintLastShell() {
+  try {
+    const s = JSON.parse(sessionStorage.getItem('erp_shell')), root = document.getElementById('view-root');
+    if (s.who !== localStorage.getItem('erp_username')) return;
+    const lis = document.querySelectorAll('.sidebar-menu > li');
+    if (lis.length === s.li.length) lis.forEach((li, i) => { li.className = s.li[i]; });
+    document.getElementById(s.act)?.classList.add('active');
+    if (s.view && s.hash === location.hash) {
+      root.classList.add('view-steady'); root.innerHTML = s.view; root.setAttribute('aria-busy', 'true'); bootSnap = true;
+      // shown once its stylesheet is in
+      const link = parseDeepLink(), css = link?.kind === 'view' && LAZY_VIEW_MODULES[link.view.split(':')[0]]?.[3];
+      if (css) { root.style.visibility = 'hidden'; loadViewStyles(css).then(() => { root.style.visibility = ''; }); }
+    }
+    restoreNavScroll(loadNavScroll());
+  } catch (e) { /* none saved */ }
 }
 
 // API Helper wrapper
@@ -1395,6 +1435,7 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
   }
 
   inputEl.setAttribute('autocomplete', 'off');
+  inputEl.dataset.ta = '1'; // Stage 150: a picker
   // 2026-10-10: a screen that switches the record type a box searches (Sticker
   // Printing's Module: GRN / Transfer Order) attaches again. That stacked a
   // second picker on the box - the first kept searching the old type, and its
@@ -2957,6 +2998,7 @@ const VIEW_SETUP_PREREQS = {
   'rfq': ['Vendor', 'Item'],
   'putaway': ['Location', 'Bin'],
   'bin-conditions': ['Bin'],
+  'bin-tools': ['Location'],
   'cycle-count': ['Location', 'Bin'],
   'lpn': ['Bin'],
   'bin-replenishment': ['Location', 'Bin'],
@@ -3236,6 +3278,7 @@ function logout(message) {
   localStorage.removeItem('erp_token');
   localStorage.removeItem('erp_username');
   localStorage.removeItem('erp_role');
+  sessionStorage.removeItem('erp_shell');
   state.profile = null;
   setTimeout(() => {
     if (overlay) overlay.classList.add('hidden');
@@ -3545,6 +3588,7 @@ function bootstrap() {
   if (localStorage.getItem('erp_token')) {
     loadViewModule('/shell-identity.js').catch(() => {}); // 141.3: brand at once
     showApp();
+    paintLastShell();
     init();
   } else {
     showLoginScreen();
@@ -3769,6 +3813,7 @@ const MENU_PERMISSION_MAP = {
   // role_permissions check either).
   'menu-warehouse-cockpit': { modules: ['Inventory'] },
   'menu-bin-conditions': { modules: ['Inventory'] },
+  'menu-bin-tools': { modules: ['Inventory'] },
   'menu-cycle-count': { modules: ['Inventory'] },
   // Stage 26.5: same role-open convention as the rest of the WMS floor-ops
   // screens above (handlers_wms_enterprise.go has no role_permissions check
@@ -3891,6 +3936,12 @@ const MENU_MODULE_MAP = {
     "module": "wms",
     "views": [
       "place-hold"
+    ]
+  },
+  "menu-bin-tools": {
+    "module": "wms",
+    "views": [
+      "bin-tools"
     ]
   },
   "menu-bin-conditions": {
@@ -4947,7 +4998,7 @@ function setupEventListeners() {
   // Offline Queue Gaps (24.36) - same generic doctype-table pattern as Offline Sync Review above.
   document.getElementById('menu-pos-offline-gaps').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-offline-gaps'); closeSubmenus(); currentDoctype = 'POSOfflineQueueGap'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
-  ['menu-inventory', 'menu-journal-vouchers', 'menu-transfers', 'menu-stock-moves', 'menu-stock-locations', 'menu-location-movement', 'menu-putaway', 'menu-warehouse-cockpit', 'menu-bin-conditions', 'menu-cycle-count', 'menu-asn', 'menu-lpn', 'menu-bin-replenishment', 'menu-wave-picking', 'menu-mobile-picking', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-approval-rules', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status', 'menu-configuration', 'menu-tenant-entitlements', 'menu-tenant-usage', 'menu-platform-console', 'menu-control-panel'].forEach(id => {
+  ['menu-inventory', 'menu-journal-vouchers', 'menu-transfers', 'menu-stock-moves', 'menu-stock-locations', 'menu-location-movement', 'menu-putaway', 'menu-warehouse-cockpit', 'menu-bin-conditions', 'menu-bin-tools', 'menu-cycle-count', 'menu-asn', 'menu-lpn', 'menu-bin-replenishment', 'menu-wave-picking', 'menu-mobile-picking', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-approval-rules', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status', 'menu-configuration', 'menu-tenant-entitlements', 'menu-tenant-usage', 'menu-platform-console', 'menu-control-panel'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
       btn.addEventListener('click', (e) => {
@@ -4963,6 +5014,7 @@ function setupEventListeners() {
   // Stage 139: the top box is the Ctrl+K box only; a record list searches in
   // its own box (handleTableSearch), so typing here no longer redraws a list.
   loadViewModule('./shortcuts.js').catch(e => console.error('[139] shortcuts', e));
+  loadViewModule('./shell-steady.js').catch(() => {}); // 152
 
   // Refresh (Stage 53.17: was labelled "Sync"). Re-fetches the two things that
   // go stale when an administrator changes a label or a doctype field, and
@@ -4973,7 +5025,7 @@ function setupEventListeners() {
     if (await showCustomConfirm('Re-fetch labels and screen definitions from the server?\n\nEverything you have open stays as it is, and cached data is kept. If you need a genuinely clean slate, use Reset instead.', 'Refresh')) {
       await fetchLabels();
       await fetchRegisteredDoctypes();
-      renderView(currentView);
+      (window.rerenderKeeping || renderView)(currentView, true);
       showToast('Labels and screen definitions re-fetched.', { variant: 'success', title: 'Refreshed' });
     }
   });
@@ -5682,6 +5734,7 @@ const STATIC_VIEW_MENU_IDS = {
   putaway: 'menu-putaway',
   'warehouse-cockpit': 'menu-warehouse-cockpit',
   'bin-conditions': 'menu-bin-conditions',
+  'bin-tools': 'menu-bin-tools',
   'cycle-count': 'menu-cycle-count',
   asn: 'menu-asn',
   lpn: 'menu-lpn',
@@ -5719,7 +5772,7 @@ const STATIC_VIEW_MENU_IDS = {
 // comfortably mid-list instead of snapped flush against the bottom edge.
 function scrollActiveMenuIntoView() {
   const active = document.querySelector('.sidebar-menu .menu-item.active, .sidebar-menu .submenu-item.active');
-  if (active) active.scrollIntoView({ block: 'center' });
+  if (active) active.scrollIntoView({ block: 'nearest' }); // 152.3: the menu moves only to show it
 }
 
 function restoreActiveMenuState(view, doctype) {
@@ -5834,26 +5887,31 @@ function syncDocumentTitle() {
   document.title = label ? `${label} | Wholeops` : 'Wholeops';
 }
 
-async function renderView(view) {
+// keep (Stage 150: a store switch, Refresh): the screen stays, unclickable,
+// until the new one swaps in at the same scroll - no blank, no Loading.
+async function renderView(view, keep) {
   const myToken = ++viewRenderToken;
+  keep = keep || bootSnap; bootSnap = false;
   beginViewReads(view);
   const root = document.getElementById('view-root');
-  root.innerHTML = '';
-  root.scrollTop = 0;
+  const top = root.scrollTop;
+  if (keep) root.setAttribute('aria-busy', 'true');
+  else { root.innerHTML = ''; root.scrollTop = 0; }
 
   const placeholder = document.createElement('div');
   placeholder.className = 'view-loading';
   placeholder.innerHTML = '<div class="view-loading-bar"></div><span>Loading&hellip;</span>';
-  root.appendChild(placeholder);
+  if (!keep) root.appendChild(placeholder);
 
   // Built off #view-root, so a stale call throws away nodes never shown -
   // but attached to the document, off-screen (display:none skips layout and
   // broke sticky headers): a renderer's getElementById for elements it just
   // made finds nothing in a detached node (Stage 42.2.7: Putaway, Bin
-  // Conditions and Wave Picking all broke that way).
+  // Conditions and Wave Picking all broke that way). First in the body, so
+  // with keep it finds them, not the old screen's twins.
   const scratch = document.createElement('div');
   scratch.style.cssText = 'position:absolute; left:-99999px; top:0; width:1px; overflow:hidden;';
-  document.body.appendChild(scratch);
+  document.body.prepend(scratch);
   try {
     await renderViewContent(view, scratch);
   } finally {
@@ -5863,26 +5921,24 @@ async function renderView(view) {
     placeholder.remove();
     if (myToken === viewRenderToken) endViewReads();
     if (myToken !== viewRenderToken) { scratch.remove(); return; }
+    // 152.4: no entrance; shell-steady.js keeps scrolls, focus; marks changes.
+    const memo = keep && window.steadyMemo?.(root);
+    if (keep) root.replaceChildren();
+    root.removeAttribute('aria-busy');
+    root.classList.toggle('view-steady', !!keep);
     while (scratch.firstChild) root.appendChild(scratch.firstChild);
     scratch.remove();
+    if (keep) { root.scrollTop = top; window.steadyApply?.(memo, root); }
     syncDocumentTitle();
-    // Chromium can cache a stale containing-block rect for `position: sticky`
-    // content (e.g. a table's frozen header row) when it's inserted into a
-    // scroll container in the very same reflow that establishes that
-    // container's own scrollable overflow - the sticky element then just
-    // scrolls away with the page instead of freezing. One forced layout read
-    // after paint fixes it; done once here so every view's tables get it for
-    // free instead of patching each table-rendering function individually.
+    // Chromium can cache a stale containing-block rect for sticky content (a
+    // frozen table header) inserted into a scroll container in the reflow that
+    // gives it its overflow - it then scrolls away. One forced layout read
+    // after paint fixes it, for every view's tables at once.
     requestAnimationFrame(() => { void root.offsetHeight; });
     setTimeout(translateDOM, 50);
-    // Stage 40.2: one sweep per render decorates every recognised input the
-    // view just built with its placeholder and hint. Done here rather than in
-    // each renderer so bespoke screens get it without a call site each.
+    // Stage 40.2: placeholders and hints for every recognised input, here once.
     decorateFieldFormats(root);
-    // Stage 41, same reasoning, same door. The banner is attached in
-    // `finally` deliberately: a screen that failed to render still tells the
-    // user WHY when the reason is missing setup, which is the case where the
-    // explanation matters most.
+    // Stage 41: in finally, so a screen that failed still names missing setup.
     renderSetupBanner(view);
     applyPhoneRulesIn(root);
     // Stage 57.1: names instead of stored codes in every table, this view and
@@ -7434,3 +7490,20 @@ async function openHelpDrawer(screenID) {
 
 window.openHelpDrawer = openHelpDrawer;
 window.addEventListener('DOMContentLoaded', bootstrap);
+
+// 47.14.4: opens the in-app help at "<article slug>#<anchor>" - the entry for
+// one error code - closing the error dialog first.
+async function openHelpAnchor(target) {
+  const [slug, anchor] = String(target || '').split('#');
+  if (!slug) return;
+  const ok = document.getElementById('custom-dialog-ok-btn');
+  if (ok) ok.click();
+  currentHelpSlug = slug;
+  history.pushState({}, '', '/help/' + encodeURIComponent(slug));
+  await renderView('help');
+  for (let i = 0; i < 20 && anchor; i++) {
+    const el = document.getElementById(anchor);
+    if (el) { el.scrollIntoView({ block: 'center' }); el.style.outline = '2px solid var(--primary, #2563eb)'; return; }
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+}

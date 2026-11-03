@@ -106,9 +106,11 @@ func handleUserStores(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		ID     string   `json:"id"`
-		Access string   `json:"access"`
-		Stores []string `json:"stores"`
+		ID      string   `json:"id"`
+		Access  string   `json:"access"`
+		Stores  []string `json:"stores"`
+		Reason  string   `json:"reason"`
+		Preview bool     `json:"preview"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.ID) == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'id' and 'access' are required")
@@ -117,11 +119,8 @@ func handleUserStores(w http.ResponseWriter, r *http.Request) {
 	if forbidSupportUserTarget(w, r, req.ID) {
 		return
 	}
-	if err := engines.SetUserStoreAccess(tenantID, req.ID, req.Access, req.Stores, r.Header.Get("Resolved-Username")); err != nil {
-		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
-		return
-	}
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+	writeStoreAccessChange(w, r, tenantID, engines.StoreAccessChangeRequest{Kind: "user", Subject: req.ID,
+		Access: req.Access, Stores: req.Stores, Reason: req.Reason}, req.Preview)
 }
 
 // handleRoleStores reads (GET ?role=) or saves (POST) one role's store access.
@@ -155,19 +154,43 @@ func handleRoleStores(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Role   string   `json:"role"`
-		Access string   `json:"access"`
-		Stores []string `json:"stores"`
+		Role    string   `json:"role"`
+		Access  string   `json:"access"`
+		Stores  []string `json:"stores"`
+		Reason  string   `json:"reason"`
+		Preview bool     `json:"preview"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
 		return
 	}
-	if err := engines.SetRoleStoreAccess(tenantID, req.Role, req.Access, req.Stores, r.Header.Get("Resolved-Username")); err != nil {
+	writeStoreAccessChange(w, r, tenantID, engines.StoreAccessChangeRequest{Kind: "role", Subject: req.Role,
+		Access: req.Access, Stores: req.Stores, Reason: req.Reason}, req.Preview)
+}
+
+// writeStoreAccessChange previews (preview: true, nothing saved) or saves one
+// store-access change with its Stage 49.3.6 evidence.
+func writeStoreAccessChange(w http.ResponseWriter, r *http.Request, tenantID string, req engines.StoreAccessChangeRequest, preview bool) {
+	if preview {
+		p, err := engines.PreviewStoreAccessChange(tenantID, req)
+		if err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "preview", "preview": p})
+		return
+	}
+	req.Actor = r.Header.Get("Resolved-Username")
+	if req.Actor == "" {
+		req.Actor = r.Header.Get("Resolved-User-ID")
+	}
+	res, err := engines.ChangeStoreAccess(r.Context(), tenantID, req)
+	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success", "change_id": res.ChangeID,
+		"widened": res.Preview.Widened, "narrowed": res.Preview.Narrowed})
 }
 
 // requireStoreAccess refuses a till action at a store the caller has not

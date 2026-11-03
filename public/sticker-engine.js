@@ -1159,6 +1159,12 @@ export function renderRowBitmap(t, labels, dpi) {
   const ctx = c.getContext('2d', { willReadFrequently: true });
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, wDots, hDots);
+  // Stage 154.5: a roll that runs a little crooked drifts sideways as it
+  // feeds, so every label comes out tilted on its tag. The printer preset's
+  // skew slants the print the other way about its middle, sideways only, so
+  // barcode bars stay square to the dots.
+  const k = Math.tan((Number(s.skew_deg) || 0) * Math.PI / 180);
+  if (k) ctx.setTransform(1, 0, k, 1, -k * hDots / 2, 0);
   labels.forEach((label, i) => {
     if (!label) return;
     const o = cellOrigin(t, i);
@@ -1373,11 +1379,25 @@ function printerDPI(printer, t) {
 // once for every template. Blank darkness / speed keep the template's. The
 // shift is in the paper's frame, like the template's own offsets.
 const presetNum = v => (v === '' || v === null || v === undefined || !isFinite(Number(v)) ? null : Number(v));
+const SHIFT_PAD_MM = 5;
 export function withPrinterPreset(t, printer) {
   const sx = presetNum(printer && printer.shift_right_mm), sy = presetNum(printer && printer.shift_down_mm);
   const d = presetNum(printer && printer.darkness), sp = presetNum(printer && printer.print_speed);
-  if (sx === null && sy === null && d === null && sp === null) return t;
+  const sk = presetNum(printer && printer.skew_deg);
+  if (sx === null && sy === null && d === null && sp === null && sk === null) return t;
   const s = Object.assign({}, t.settings, { offset_x_mm: t.settings.offset_x_mm + (sx || 0), offset_y_mm: t.settings.offset_y_mm + (sy || 0) });
+  if (sk) s.skew_deg = sk;
+  // Stage 154.3: the print is exactly the labels' width, so moving them
+  // inside it cut the outer label. A shifted TSPL roll print gets a blank
+  // margin each side instead, the same width whatever the shift: a printer
+  // that centres the print on its head (the Y468BT does) moves it by half
+  // of any change in width, so a fixed width keeps one mm of shift one mm
+  // on the paper.
+  if ((sx || sk) && String(printer.printer_language || '').toUpperCase() === 'TSPL' && s.sheet.mode !== 'a4') {
+    const pad = Math.max(Math.abs(sx || 0), SHIFT_PAD_MM);
+    s.media_w_mm = mediaWidthMM(t) + 2 * pad;
+    s.offset_x_mm = t.settings.offset_x_mm + pad + (sx || 0);
+  }
   if (d !== null) s.density = d;
   if (sp !== null) s.speed = sp;
   return Object.assign({}, t, { settings: s });
@@ -1748,7 +1768,7 @@ export async function printTestLabel(t, label, printer, title = 'Test print') {
 export async function printAlignmentTest(roll, preset) {
   const t = Object.assign({}, roll || defaultTemplate(), { assets: {} });
   const { w, h } = t;
-  const shift = `R ${Number(preset.shift_right_mm) || 0}  D ${Number(preset.shift_down_mm) || 0} mm`;
+  const shift = `R ${Number(preset.shift_right_mm) || 0}  D ${Number(preset.shift_down_mm) || 0} mm${Number(preset.skew_deg) ? `  S ${Number(preset.skew_deg)}°` : ''}`;
   t.elements = [
     { kind: 'box', x_mm: 0.5, y_mm: 0.5, w_mm: w - 1, h_mm: h - 1, thickness_mm: 0.3 },
     { kind: 'line', x_mm: 0, y_mm: h / 2 - 0.15, w_mm: w, h_mm: 0.3, thickness_mm: 0.3 },

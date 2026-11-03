@@ -23,7 +23,8 @@ func handlePrintDocumentLog(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusNotFound, "Unknown print transaction")
 		return
 	}
-	if !requireDocPermission(w, r, doctype, "read", "You do not have permission to view this document") {
+	if !requireDocPermission(w, r, doctype, "read", "You do not have permission to view this document") ||
+		!requirePrintInScope(w, r, txn, r.PathValue("id")) {
 		return
 	}
 	var req struct {
@@ -72,7 +73,8 @@ func handleRequestReprint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !requireDocPermission(w, r, doctype, "read", "You do not have permission to view this document") ||
-		!requireDocPermission(w, r, engines.ReprintRequestDoctype, "create", "You do not have permission to ask for a reprint") {
+		!requireDocPermission(w, r, engines.ReprintRequestDoctype, "create", "You do not have permission to ask for a reprint") ||
+		!requirePrintInScope(w, r, txn, r.PathValue("id")) {
 		return
 	}
 	var req struct {

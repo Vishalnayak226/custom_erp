@@ -73,6 +73,13 @@ var setupPathPlan = []SetupPathStep{
 // GetSetupPath returns the steps with live counts. A multi-doctype step is
 // done when every doctype in it has an active record.
 func GetSetupPath(tenantID string) ([]SetupPathStep, error) {
+	return GetSetupPathAs(tenantID, "system")
+}
+
+// GetSetupPathAs is GetSetupPath for a named viewer: a step whose state
+// differs from the last one on record leaves a history row naming them
+// (Stage 47.12.4, setup_step_history.go).
+func GetSetupPathAs(tenantID, actor string) ([]SetupPathStep, error) {
 	status, err := GetSetupStatus(tenantID)
 	if err != nil {
 		return nil, err
@@ -168,5 +175,6 @@ func GetSetupPath(tenantID string) ([]SetupPathStep, error) {
 			nextMarked = true
 		}
 	}
+	recordSetupStates(schema, steps, actor)
 	return steps, nil
 }

@@ -187,7 +187,7 @@ function drawList(ordered) {
   const host = document.getElementById('roles-list');
   if (!host) return;
   if (!ordered.length) {
-    host.innerHTML = `<div class="empty-state-hint" style="padding: 24px;">No roles yet. Use <b>+ New Role</b>.</div>`;
+    host.innerHTML = `<div class="empty-state-hint" style="padding: 24px;">No roles yet.</div>`;
     return;
   }
   host.innerHTML = `
@@ -261,10 +261,12 @@ function drawAccess() {
       <input type="search" class="form-input" id="roles-filter" placeholder="Find a module or record type" aria-label="Find a module or record type" value="${escapeHTMLText(filterText)}" autocomplete="off">
       <button type="button" class="btn btn-outline btn-sm" id="roles-expand">Expand all</button>
       <button type="button" class="btn btn-outline btn-sm" id="roles-collapse">Collapse all</button>
+      <button type="button" class="btn btn-outline btn-sm" id="roles-history-btn">History</button>
       <button type="button" class="btn btn-outline btn-sm" id="roles-stores" title="Which stores holders of this role work at">Stores: ${escapeHTMLText(roleStoresText(selectedRole))}</button>
-      <span class="roles-held">${holders.length ? `Held by ${holders.length} user${holders.length === 1 ? '' : 's'}: ${escapeHTMLText(holders.slice(0, 5).join(', '))}${holders.length > 5 ? ', …' : ''}` : 'No user holds this role yet - assign it on the Users screen.'}</span>
+      <span class="roles-held">${holders.length ? `Held by ${holders.length} user${holders.length === 1 ? '' : 's'}: ${escapeHTMLText(holders.slice(0, 5).join(', '))}${holders.length > 5 ? ', …' : ''}` : 'No user holds this role yet.'}</span>
     </div>
     <div class="roles-risk-line hidden" id="roles-risk-line"></div>
+    <div class="hidden" id="roles-history"></div>
     <div class="roles-matrix-wrap">
       <table class="roles-matrix">
         <thead><tr><th>Module / record type</th><th class="roles-col">Full access</th>${COLS.map(([k, l]) => `<th class="roles-col"${k === 'd' ? ' title="Delete removes records - give it sparingly"' : ''}>${l}${k === 'd' ? ' ⚠' : ''}</th>`).join('')}</tr></thead>
@@ -284,6 +286,7 @@ function drawAccess() {
   host.querySelector('#roles-discard').addEventListener('click', () => { draft = cloneGrants(saved); syncTicks(); });
   host.querySelector('#roles-save').addEventListener('click', saveAccess);
   host.querySelector('#roles-stores').addEventListener('click', () => editRoleStores(selectedRole));
+  host.querySelector('#roles-history-btn').addEventListener('click', toggleHistory);
 
   const body = host.querySelector('#roles-matrix-body');
   body.addEventListener('change', e => {
@@ -394,6 +397,43 @@ function syncTicks() {
   if (discardBtn) discardBtn.disabled = !changed;
 }
 
+// 49.3.6: the role's change history, each change with an Undo that rolls it
+// back (later decisions stand; a dangerous grant is never handed back).
+async function toggleHistory() {
+  const box = document.getElementById('roles-history');
+  if (!box) return;
+  if (!box.classList.contains('hidden')) { box.classList.add('hidden'); return; }
+  const res = await apiFetch('/api/v1/admin/role-permissions/changes?role=' + encodeURIComponent(selectedRole));
+  if (!res || !res.ok) { await showApiError(res, 'Could not load the history.'); return; }
+  const changes = (await res.json().catch(() => ({}))).changes || [];
+  const risk = c => [...(c.dangerous_gained || []).map(g => '+ ' + (g.doctype ? getDoctypeLabel(g.doctype) : g.capability)), ...(c.dangerous_removed || []).map(g => '- ' + (g.doctype ? getDoctypeLabel(g.doctype) : g.capability))].join(', ');
+  box.innerHTML = changes.length ? `<div class="table-panel"><table><thead><tr><th>When</th><th>By</th><th>Reason</th><th>Sensitive</th><th></th></tr></thead><tbody>${changes.map(c => `<tr>
+    <td>${escapeHTMLText(new Date(c.changed_at).toLocaleString())}</td><td>${escapeHTMLText(c.changed_by)}</td>
+    <td>${escapeHTMLText(c.rollback_of ? 'Undo. ' + c.reason : c.reason)}</td><td>${escapeHTMLText(risk(c))}</td>
+    <td style="text-align: right;">${c.rollback_of ? 'Undo' : c.rolled_back_by ? 'Undone' : `<button type="button" class="btn btn-outline btn-sm" data-undo="${escapeHTMLText(c.id)}">Undo</button>`}</td></tr>`).join('')}</tbody></table></div>` : '<div class="roles-risk-line">No changes yet.</div>';
+  box.classList.remove('hidden');
+  box.onclick = async e => {
+    const btn = e.target.closest('[data-undo]');
+    if (!btn) return;
+    const why = await showCustomPrompt('Reason', '', 'Undo this change');
+    if (!why || why.trim().length < 5) { if (why != null) showToast('Write a reason of at least 5 characters.'); return; }
+    btn.disabled = true;
+    const r = await apiFetch('/api/v1/admin/role-permissions/rollback', { method: 'POST', body: JSON.stringify({ change_id: btn.dataset.undo, reason: why.trim() }) });
+    if (!r || !r.ok) { btn.disabled = false; await showApiError(r, 'Could not undo the change.'); return; }
+    const out = await r.json().catch(() => ({}));
+    const kept = (out.withheld || []).length + (out.superseded || []).length;
+    showToast(kept ? 'Undone. Some access was kept.' : 'Undone.', { variant: 'success' });
+    const pr = await apiFetch('/api/v1/admin/role-permissions');
+    if (pr && pr.ok) {
+      const m = new Map();
+      for (const g of await pr.json()) if (g.role === selectedRole) m.set(g.doctype_name, { r: !!g.allow_read, c: !!g.allow_create, u: !!g.allow_update, d: !!g.allow_delete });
+      grantsByRole.set(selectedRole, m);
+    }
+    openRole(selectedRole, true);
+    document.getElementById('roles-history-btn')?.click();
+  };
+}
+
 async function saveAccess() {
   const names = dirtyNames();
   if (!names.length) return;
@@ -403,7 +443,17 @@ async function saveAccess() {
     const g = draft.get(name);
     return { doctype_name: name, allow_read: g.r, allow_create: g.c, allow_update: g.u, allow_delete: g.d };
   });
-  const res = await apiFetch('/api/v1/admin/role-permissions', { method: 'POST', body: JSON.stringify({ role: selectedRole, grants }) });
+  // 49.3.6: a dangerous grant gained or lost asks for a reason first.
+  const body = { role: selectedRole, grants };
+  const pv = await apiFetch('/api/v1/admin/role-permissions', { method: 'POST', body: JSON.stringify({ ...body, preview: true }) });
+  const pre = pv && pv.ok ? ((await pv.json().catch(() => ({}))).preview || {}) : {};
+  if (pre.high_risk) {
+    const list = [...(pre.dangerous_gained || []).map(g => '+ ' + (g.doctype ? getDoctypeLabel(g.doctype) : g.capability)), ...(pre.dangerous_removed || []).map(g => '- ' + (g.doctype ? getDoctypeLabel(g.doctype) : g.capability))].join(', ');
+    const why = await showCustomPrompt(list, '', 'Reason');
+    if (!why || !why.trim()) { syncTicks(); return; }
+    body.reason = why.trim();
+  }
+  const res = await apiFetch('/api/v1/admin/role-permissions', { method: 'POST', body: JSON.stringify(body) });
   if (!res) { syncTicks(); return; }
   if (!res.ok) {
     await showApiError(res, 'Failed to save the access.');

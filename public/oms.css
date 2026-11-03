@@ -32,3 +32,153 @@ h3.oms-step-heading { font-size: 14px; margin-top: 18px; }
 .oms-ship-group h3 { font-size: 14px; margin: 0; }
 .oms-input-sm { width: 110px; }
 @media (max-width: 640px) { .oms-scan-row { max-width: none; } .oms-input-sm { width: 90px; } }
+
+/* ===========================================================================
+   OMS Console (Stage 35.2)
+
+   Layout only. Every colour, radius and spacing value below resolves to an
+   existing token - no new palette, no new type scale. The console is a
+   .table-panel with a filter rail, a bulk bar and a wide detail modal, all
+   assembled from vocabulary that already existed.
+   Moved here from styles.css (Stage 152) to keep the cold core in budget.
+   =========================================================================== */
+
+/* .table-panel carries min-height:200px, which is right for a panel holding a
+   table and wrong for one holding a single search field - it reserved a tall
+   empty box above the order list until a search had been run. Modifier rather
+   than a second panel style, so the border/shadow/radius stay shared. */
+.table-panel.oms-compact-panel {
+  min-height: 0;
+}
+
+.oms-search-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.oms-search-row .form-input {
+  flex: 1;
+}
+
+.oms-console-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.oms-view-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+/* 152.5: sized to its options, so the three controls sit on one line. */
+.oms-view-actions .form-input { width: auto; }
+
+/* The filter rail. Wraps rather than scrolls: seven facets on a narrow screen
+   should stack into rows the operator can still read, not slide off the edge
+   where a filter can be left set without being visible. */
+.oms-facets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  padding-bottom: 16px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.oms-facet {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.oms-facet .form-input {
+  min-width: 150px;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* .stat-card is a flex ROW (label beside value), which reads well for a
+   two-item dashboard strip but not for a tile whose label is three words long.
+   Stacked here, and only here, so no other screen's cards move. */
+.oms-tile {
+  cursor: pointer;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.oms-tile-error {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.oms-hold-reason {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.oms-expedite {
+  margin-top: 4px;
+  font-size: 10px;
+}
+
+.oms-pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+/* The order detail. Wider than the default modal because it carries nine
+   sections of tabular data; capped at the viewport so it never overflows the
+   page on a laptop, with the body scrolling instead. */
+.oms-detail-container {
+  max-width: min(1100px, 96vw);
+  width: 100%;
+}
+
+.oms-detail-address {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.oms-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.oms-detail-heading {
+  margin: 20px 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.oms-split-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}

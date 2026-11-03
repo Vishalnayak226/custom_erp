@@ -96,6 +96,13 @@ func allocatePaise(total int64, weights []int64) []int64 {
 // settled in. When the money tenders add up to what is left, as a settled sale's
 // always do, every line's tenders add up to its net exactly.
 func buildSaleAllocation(skus []string, qtys []int, gross, offer []int64, roundOff int64, points int, pointValuePaise, giftPaise int64, money []tenderPart) []SaleLineAllocation {
+	return buildSaleAllocationEligible(skus, qtys, gross, offer, roundOff, points, pointValuePaise, giftPaise, money, nil)
+}
+
+// buildSaleAllocationEligible is buildSaleAllocation where lines flagged in
+// noPoints (Stage 146.2.3) take no part of the points tender - it is spread
+// over the other lines only. A nil slice means every line is eligible.
+func buildSaleAllocationEligible(skus []string, qtys []int, gross, offer []int64, roundOff int64, points int, pointValuePaise, giftPaise int64, money []tenderPart, noPoints []bool) []SaleLineAllocation {
 	n := len(skus)
 	net := make([]int64, n)
 	for i := range skus {
@@ -116,7 +123,16 @@ func buildSaleAllocation(skus []string, qtys []int, gross, offer []int64, roundO
 	for i := range skus {
 		bill[i] = net[i] + roundShares[i]
 	}
-	pointShares := allocatePaise(int64(points), bill)
+	pointWeights := bill
+	if len(noPoints) == n {
+		pointWeights = make([]int64, n)
+		for i := range bill {
+			if !noPoints[i] {
+				pointWeights[i] = bill[i]
+			}
+		}
+	}
+	pointShares := allocatePaise(int64(points), pointWeights)
 	left := make([]int64, n)
 	for i := range skus {
 		left[i] = bill[i] - pointShares[i]*pointValuePaise
@@ -177,6 +193,9 @@ func POSCartItemsFromQuote(quote *QuoteResult) []map[string]interface{} {
 			"price_source":    l.PriceSource,
 			"offer_share":     l.OfferShare,
 			"net_total":       l.NetTotal,
+		}
+		if l.NoPoints {
+			item["no_points"] = true
 		}
 		if l.OverrideID != "" {
 			item["override_id"] = l.OverrideID
@@ -256,7 +275,7 @@ func loadSaleAllocation(q interface {
 		for i := range gross {
 			net += gross[i] - offers[i]
 		}
-		pointValue := RupeesToPaise(float64(redemptionValuePerPointFor(tenantID)))
+		pointValue := loyaltyPointValuePaise(tenantID)
 		mode := cart.PaymentMode
 		if mode == "" {
 			mode = "Cash"

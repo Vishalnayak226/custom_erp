@@ -2,6 +2,7 @@ package engines
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -214,5 +215,83 @@ func TestStage4936RollbackNeverRestoresObsoleteAccess(t *testing.T) {
 	}
 	if len(out.Gone) != 1 || out.Gone[0] != "Retired" {
 		t.Fatalf("gone = %v", out.Gone)
+	}
+}
+
+// Stage 49.3.6 (c): a store-access change, for a role or for one user, is
+// previewed, saved with before/after evidence tied to the signed audit chain,
+// and says whether it widens or narrows where people can work.
+func TestStage4936StoreAccessChangeIsPreviewedAndRecorded(t *testing.T) {
+	db.InitDB(testConnStr())
+	ctx := context.Background()
+	const tenantID, schema = "default", "tenant_default"
+	n := time.Now().UnixNano() % 1_000_000_000
+	role := fmt.Sprintf("QA Stores %d", n)
+	user := fmt.Sprintf("qa4936s%d", n)
+	locs := []string{fmt.Sprintf("Q4936A%d", n), fmt.Sprintf("Q4936B%d", n)}
+	cleanup := func() {
+		db.DB.Exec("DELETE FROM " + schema + ".documents WHERE id LIKE 'Q4936%'")
+		db.DB.Exec("DELETE FROM "+schema+".users WHERE id = $1", user)
+		db.DB.Exec("DELETE FROM "+schema+".role_store_access WHERE role = $1", role)
+		db.DB.Exec("DELETE FROM "+schema+".store_access_changes WHERE subject IN ($1, $2)", role, user)
+		ResetLiveUserStateCache()
+	}
+	cleanup()
+	t.Cleanup(cleanup)
+	for _, id := range locs {
+		raw, _ := json.Marshal(map[string]interface{}{"code": id, "name": id, "type": "Store", "status": "Active"})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'Location', $2, 'Active', 'system')", id, raw); err != nil {
+			t.Fatalf("location: %v", err)
+		}
+	}
+	if _, err := db.DB.Exec("INSERT INTO "+schema+".users (id, username, password_hash, role, status, location_code) VALUES ($1, $1, 'x', $2, 'Active', $3)", user, role, locs[0]); err != nil {
+		t.Fatalf("user: %v", err)
+	}
+
+	req := StoreAccessChangeRequest{Kind: "role", Subject: role, Access: "Selected", Stores: locs[:1], Actor: "qa-admin", Reason: "cover the second shop"}
+	p, err := PreviewStoreAccessChange(tenantID, req)
+	if err != nil {
+		t.Fatalf("preview: %v", err)
+	}
+	if !p.Widened || p.Narrowed || p.From != "Home" || p.To != "Selected" {
+		t.Fatalf("home -> one store is a widening, got %+v", p)
+	}
+	var rows int
+	db.DB.QueryRow("SELECT count(*) FROM "+schema+".role_store_access WHERE role = $1", role).Scan(&rows)
+	if rows != 0 {
+		t.Fatal("a preview saved a store setting")
+	}
+
+	res, err := ChangeStoreAccess(ctx, tenantID, req)
+	if err != nil || res.ChangeID == "" {
+		t.Fatalf("save: %v %+v", err, res)
+	}
+	if err := VerifyStoreAccessChangeEvidence(tenantID, res.ChangeID); err != nil {
+		t.Fatalf("evidence should verify: %v", err)
+	}
+	// Narrowing back is flagged the other way round and is a second row.
+	back, err := ChangeStoreAccess(ctx, tenantID, StoreAccessChangeRequest{Kind: "role", Subject: role, Access: "Home", Actor: "qa-admin"})
+	if err != nil || !back.Preview.Narrowed || back.Preview.Widened {
+		t.Fatalf("narrow: %v %+v", err, back.Preview)
+	}
+	// A user's change, on top of the role, with a reason.
+	ures, err := ChangeStoreAccess(ctx, tenantID, StoreAccessChangeRequest{Kind: "user", Subject: user, Access: "All", Actor: "qa-admin", Reason: "area manager"})
+	if err != nil || !ures.Preview.Widened {
+		t.Fatalf("user all: %v %+v", err, ures.Preview)
+	}
+	var kept int
+	db.DB.QueryRow("SELECT count(*) FROM "+schema+".store_access_changes WHERE subject IN ($1, $2)", role, user).Scan(&kept)
+	if kept != 3 {
+		t.Fatalf("expected 3 evidence rows, got %d", kept)
+	}
+	// An edited row no longer matches the audit chain.
+	db.DB.Exec("UPDATE "+schema+".store_access_changes SET reason = 'edited later' WHERE id = $1", res.ChangeID)
+	if err := VerifyStoreAccessChangeEvidence(tenantID, res.ChangeID); err == nil {
+		t.Fatal("an edited evidence row must fail verification")
+	}
+	// A no-op saves no evidence.
+	again, err := ChangeStoreAccess(ctx, tenantID, StoreAccessChangeRequest{Kind: "user", Subject: user, Access: "All", Actor: "qa-admin"})
+	if err != nil || again.ChangeID != "" {
+		t.Fatalf("no-op: %v %+v", err, again)
 	}
 }

@@ -132,7 +132,7 @@ func postGRNReceiptPartTx(tx *sql.Tx, tenantID, schema, locationCode string, ite
 	// costed to expense, never posted to a store.
 	var expenseOnly []interface{}
 
-	for _, raw := range items {
+	for lineIdx, raw := range items {
 		m, ok := raw.(map[string]interface{})
 		if !ok {
 			continue
@@ -250,8 +250,15 @@ func postGRNReceiptPartTx(tx *sql.Tx, tenantID, schema, locationCode string, ite
 				}
 			}
 		}
-		if err := ValidateReceiptSerialLine(tenantID, sku, serialNumbers, accepted); err != nil {
+		if err := ValidateReceiptPieceLine(tenantID, locationCode, sku, serialNumbers, accepted); err != nil {
 			return nil, nil, err
+		}
+		// Stage 146.3.2: at a store and for an item type that give every piece a
+		// code, the pieces without a typed code are minted here and the whole
+		// list is kept on the GRN line (engines/piece_codes_stage146.go).
+		var planErr error
+		if serialNumbers, planErr = planPieceCodesTx(tx, tenantID, schema, locationCode, grnID, lineIdx, sku, accepted, serialNumbers); planErr != nil {
+			return nil, nil, planErr
 		}
 		for _, sn := range serialNumbers {
 			receivedSerials = append(receivedSerials, receivedSerial{
@@ -362,6 +369,7 @@ func postGRNReceiptPartTx(tx *sql.Tx, tenantID, schema, locationCode string, ite
 		}
 	}
 	after := func() {
+		emitGRNPutawayTasks(tenantID, locationCode, grnID, userID, acceptedItems) // 146.3.3, only with wms.work_queue on
 		if len(qcSplits) > 0 {
 			LogAuditEvent(tenantID, userID, "WMS_GRN_QC_SPLIT", "SUCCESS",
 				fmt.Sprintf("Routed QC-sampled receipt qty to qc_hold/damaged buckets at %s for %d line(s)", locationCode, len(qcSplits)))

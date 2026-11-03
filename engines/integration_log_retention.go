@@ -99,6 +99,10 @@ func StartIntegrationLogRetentionSweeper(ctx context.Context, interval time.Dura
 					if _, err := SweepPersonalFieldRetention(tenantID); err != nil {
 						LogBackgroundJobError("INTEGRATION-LOG-SWEEP", "personal-fields", schema, err)
 					}
+					// 49.11.7: privileged session rows kept 30 days.
+					if _, err := SweepPrivilegedSessions(tenantID); err != nil {
+						LogBackgroundJobError("PRIVILEGED-SESSION-SWEEP", "sweep", schema, err)
+					}
 					// 47.18.3: raw import files on the same hourly tick.
 					if _, err := SweepImportFileRetention(tenantID); err != nil {
 						LogBackgroundJobError("IMPORT-FILE-SWEEP", "sweep", schema, err)

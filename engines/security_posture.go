@@ -115,15 +115,16 @@ type SecurityPosture struct {
 	LastCheckpoint      *time.Time              `json:"last_checkpoint,omitempty"`
 	AuditVerifyFailures int                     `json:"audit_verify_failures_7d"`
 	// LastVerify (49.11.1): the verifier's last run and what it found.
-	LastVerify        *PostureVerify      `json:"last_verify,omitempty"`
-	AdminsWithout2FA  []string            `json:"admins_without_2fa"`
-	Credentials       []PostureCredential `json:"credentials"`
-	DeadLetteredJobs  int                 `json:"dead_lettered_jobs_7d"`
-	ExportsFrozen     bool                `json:"exports_frozen"`
-	AlertsDelivered   bool                `json:"alerts_delivered"`
-	AuditRowsEstimate int64               `json:"audit_rows_estimate"`
-	AuditWritesLost   int64               `json:"audit_writes_lost"`
-	AuditLossReason   string              `json:"audit_loss_reason,omitempty"`
+	LastVerify         *PostureVerify      `json:"last_verify,omitempty"`
+	AdminsWithout2FA   []string            `json:"admins_without_2fa"`
+	Credentials        []PostureCredential `json:"credentials"`
+	DeadLetteredJobs   int                 `json:"dead_lettered_jobs_7d"`
+	ExportsFrozen      bool                `json:"exports_frozen"`
+	IntegrationsFrozen bool                `json:"integrations_frozen"`
+	AlertsDelivered    bool                `json:"alerts_delivered"`
+	AuditRowsEstimate  int64               `json:"audit_rows_estimate"`
+	AuditWritesLost    int64               `json:"audit_writes_lost"`
+	AuditLossReason    string              `json:"audit_loss_reason,omitempty"`
 	// Stage 49.2.1: Active accounts with no sign-in for DormantDays - the
 	// policy's period while it is on (DormantAutoDisable), else 90.
 	DormantDays        int              `json:"dormant_days"`
@@ -214,6 +215,7 @@ func GetSecurityPosture(tenantID string) (*SecurityPosture, error) {
 	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.async_jobs
 		WHERE status = 'DeadLettered' AND updated_at > CURRENT_TIMESTAMP - INTERVAL '7 days'`, schema)).Scan(&p.DeadLetteredJobs)
 	p.ExportsFrozen = GetSettingBool(tenantID, SettingFreezeExports)
+	p.IntegrationsFrozen = GetSettingBool(tenantID, SettingFreezeIntegrations)
 	p.AlertsDelivered = OpsAlertDeliveryStatus().DeliveryWouldBeSent
 	p.AuditWritesLost, p.AuditLossReason, _ = AuditWriteLoss()
 	_ = db.DB.QueryRow(`SELECT COALESCE(c.reltuples, 0)::bigint FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -245,6 +247,7 @@ type ForensicManifest struct {
 	Files       map[string]string `json:"files_sha256"`
 	Rows        map[string]int    `json:"rows"`
 	ClockNote   string            `json:"clock_note"`
+	ConfigHash  string            `json:"config_hash"`
 }
 
 // ErrForensicWindow is returned for a window that is empty, reversed or too long.
@@ -321,6 +324,24 @@ func BuildForensicPack(tenantID string, from, to time.Time, actor string) ([]byt
 			return nil, nil, err
 		}
 	}
+	// 49.12.4a: the client's settings as they stood when the pack was made,
+	// secrets redacted. Its SHA-256 is config_hash, so a later change to the
+	// configuration is provable against this pack.
+	cfg, err := forensicConfigSnapshot(tenantID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("config.json: %w", err)
+	}
+	cfgSum := sha256.Sum256(cfg)
+	manifest.ConfigHash = hex.EncodeToString(cfgSum[:])
+	manifest.Files["config.json"] = manifest.ConfigHash
+	manifest.Rows["config.json"] = bytes.Count(cfg, []byte("\n"))
+	cw, err := zw.Create("config.json")
+	if err != nil {
+		return nil, nil, err
+	}
+	if _, err := cw.Write(cfg); err != nil {
+		return nil, nil, err
+	}
 	mb, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		return nil, nil, err
@@ -371,4 +392,35 @@ func writeJSONLines(w *bytes.Buffer, query string, args ...interface{}) (int, er
 		n++
 	}
 	return n, rows.Err()
+}
+
+// forensicConfigSnapshot is the client's settings as one JSON document, in
+// registration order, one setting per line. A free-text setting whose key
+// looks like a secret (the same key shapes telemetry redaction uses) is
+// written as [REDACTED]; numbers, switches and fixed choices cannot hold one.
+func forensicConfigSnapshot(tenantID string) ([]byte, error) {
+	var b bytes.Buffer
+	b.WriteString("[\n")
+	list := ListSettingsWithValues(tenantID)
+	for i, s := range list {
+		val := s.Value
+		switch s.Type {
+		case SettingTypeInt, SettingTypeFloat, SettingTypeBool, SettingTypeSelect:
+		default:
+			if telemetryKeyLooksSecret(s.Key) {
+				val = redactedMarker
+			}
+		}
+		row, err := json.Marshal(map[string]string{"key": s.Key, "value": val})
+		if err != nil {
+			return nil, err
+		}
+		b.Write(row)
+		if i < len(list)-1 {
+			b.WriteString(",")
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("]\n")
+	return b.Bytes(), nil
 }
