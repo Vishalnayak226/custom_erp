@@ -44,6 +44,14 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 330. "Push and deploy. All approved" - 0.22.0, every session's work, deployed to app and minn (2026-11-04, release, session erp-d8)
+
+User, 2026-11-04: *"Push and deploy. All approved"*, then *"Deploy"*.
+
+- **3f35e09** (0.22.0; live was 0.21.0 at 4b80806): §326 Stage 152, §327 erp-e8's next-20 batch, §328 Stage 146's 20 gaps, §329 Stage 157, and Stages 140.13, 145-151, 153 - everything in the tree; `hold.txt` empty, four peer sessions idle.
+- **What the combined tree broke, fixed before commit:** G10 stopped once on two `small` tests - `TestStage4951EveryFamilyRouteHasAnEntry` (no catalogue note for `POST /api/v1/loyalty/transfers/{id}/confirm`; added in `cmd/gendocs/command_catalog.go`) and `TestNoUnreviewedCommittedSecret` (the 49.8.5c test's synthetic `t4985c-very-secret-token`; reviewed entry added in `internal/securityscan/secrets_test.go`, same reason as 49.8.5's). The scan only reads tracked files, so that test reads "GONE" in a tree where the file is still untracked - it passes in the snapshot. Rerun green: 1332 engines + server results.
+- **Deploy:** 17 migrations (140.13 strict transitions for 21 more doctypes - rules added `ON CONFLICT DO NOTHING`; 146.x loyalty scheme / points transfer / bin rules / ship limits / PIM value maps; 154.5 printer skew; 47.12.4, 47.13.5, 49.3.6b, 49.5.5, 49.8.5, 49.11.7). `-Yes` after "All approved" was refused by the classifier as "Blind Apply"; it went through after the user saw the client-data list and said "Deploy". Backup `custom_erp_20261103T200803Z.dump.enc` (sha256 OK), rollback copy `rollback_20261104_013807`; both hosts 200 on 0.22.0.
+
 ## 329. Stage 157 — The UI fits any window size or browser zoom (2026-11-03, CSS + guide, session erp-79; NOT COMMITTED)
 
 The user's POS screenshot showed the top bar's second row (store, Refresh, Reset, ?) drawn over the page in a narrow window, and they asked for a UI that adapts at any zoom. Items 157.1-157.4 in micro_checklist.md carry the detail.
