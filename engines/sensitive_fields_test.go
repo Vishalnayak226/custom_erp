@@ -150,7 +150,7 @@ func TestExplainSensitiveFields(t *testing.T) {
 			t.Errorf("%s: Super Admin must be explained as having full access", row.Field)
 		}
 	}
-	if ExplainSensitiveFields(RoleCashier, "POSCart") != nil {
+	if ExplainSensitiveFields(RoleCashier, "Brand") != nil { // POSCart has one now: Stage 148.1 sale_costs
 		t.Error("a doctype with no sensitive fields must explain as nil, not an empty-but-present list")
 	}
 }

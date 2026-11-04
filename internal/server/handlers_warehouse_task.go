@@ -98,12 +98,20 @@ func handleSuggestPutawayBin(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameters 'sku' and 'location_code' are required")
 		return
 	}
-	binCode, reason, err := engines.SuggestPutawayBin(tenantID, sku, locationCode, qty, batchNo)
+	// Stage 146.3.15: the plan is the one bin as before, or parts when the split is on.
+	plan, err := engines.SuggestPutawayPlan(tenantID, sku, locationCode, qty, batchNo)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{"bin_code": binCode, "reason": reason})
+	out := map[string]interface{}{"bin_code": plan.BinCode, "reason": plan.Reason}
+	if len(plan.Parts) > 1 {
+		out["parts"] = plan.Parts
+	}
+	if plan.Warning != "" {
+		out["warning"] = plan.Warning
+	}
+	_ = json.NewEncoder(w).Encode(out)
 }
 
 // handleWarehouseCockpit (42.2.10) serves the whole console's data for one

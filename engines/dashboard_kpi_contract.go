@@ -81,6 +81,10 @@ type KPIContract struct {
 	// Basis and BasisNote: how far the figures are reconciled.
 	Basis     string `json:"basis"`
 	BasisNote string `json:"basis_note"`
+	// Confidence and OpenMismatches: set only when open reconciliation
+	// mismatches touch this widget; they stand in for the static basis.
+	Confidence     string `json:"confidence,omitempty"`
+	OpenMismatches int    `json:"open_mismatches,omitempty"`
 	// Owner: the role that answers for the figures.
 	Owner string `json:"owner"`
 	// Drill: the screen a click opens, and the record type behind each row.

@@ -818,7 +818,7 @@ func ewbRegister(tenantID string, p map[string]string) ([]map[string]interface{}
 	if err != nil {
 		return nil, err
 	}
-	rows, err := db.DB.Query(fmt.Sprintf(`SELECT %s FROM %s.ewb_documents WHERE ($1 = '' OR created_at >= public.erp_day_start($1::date)) AND ($2 = '' OR created_at < public.erp_day_start($2::date + 1)) ORDER BY created_at DESC LIMIT 5000`,
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT %s FROM %s.ewb_documents WHERE ($1 = '' OR created_at >= public.erp_day_start($1::date)) AND ($2 = '' OR created_at < public.erp_day_start($2::date + 1)) ORDER BY created_at DESC LIMIT 20001`,
 		ewbColumns, schema), strings.TrimSpace(p["from"]), strings.TrimSpace(p["to"]))
 	if err != nil {
 		return nil, err

@@ -1,7 +1,7 @@
 <h1 id="report-catalog-part-2">Report catalog (part 2) <a class="kb-anchor" href="#report-catalog-part-2" aria-label="Copy link to this section">#</a></h1>
-<p>This page continues the <a href="/help/report-catalog">report catalog</a>, which lists every category and explains how to run a report. It holds <strong>144</strong> reports, from HRMS to PIM / PIMS.</p>
+<p>This page continues the <a href="/help/report-catalog">report catalog</a>, which lists every category and explains how to run a report. It holds <strong>146</strong> reports, from HRMS to PIM / PIMS.</p>
 <h2 id="contents">Contents <a class="kb-anchor" href="#contents" aria-label="Copy link to this section">#</a></h2>
-<ul><li><a href="#hrms">HRMS</a> - 15 reports</li><li><a href="#inventory">Inventory</a> - 42 reports</li><li><a href="#mis-management">MIS &amp; Management</a> - 10 reports</li><li><a href="#manufacturing">Manufacturing</a> - 21 reports</li><li><a href="#master-data-audit">Master Data &amp; Audit</a> - 11 reports</li><li><a href="#oms">OMS</a> - 25 reports</li><li><a href="#pim">PIM</a> - 4 reports</li><li><a href="#pim-pims">PIM / PIMS</a> - 16 reports</li></ul>
+<ul><li><a href="#hrms">HRMS</a> - 15 reports</li><li><a href="#inventory">Inventory</a> - 42 reports</li><li><a href="#mis-management">MIS &amp; Management</a> - 10 reports</li><li><a href="#manufacturing">Manufacturing</a> - 21 reports</li><li><a href="#master-data-audit">Master Data &amp; Audit</a> - 11 reports</li><li><a href="#oms">OMS</a> - 25 reports</li><li><a href="#pim">PIM</a> - 6 reports</li><li><a href="#pim-pims">PIM / PIMS</a> - 16 reports</li></ul>
 <h2 id="hrms">HRMS <a class="kb-anchor" href="#hrms" aria-label="Copy link to this section">#</a></h2>
 <h3 id="r8002-attendance-register">R8002 Attendance Register <a class="kb-anchor" href="#r8002-attendance-register" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-attendance-register</code></p>
@@ -127,7 +127,7 @@
 <h3 id="r3076-current-stock">R3076 Current Stock <a class="kb-anchor" href="#r3076-current-stock" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>current-stock</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
-<p><strong>Columns:</strong> SKU · Location · On Hand · Available · Committed · Reserved · Safety Stock</p>
+<p><strong>Columns:</strong> SKU · Location · On Hand · Available to sell · Reserved · Held · Base available · Committed · Safety Stock · Blocked · QC Hold · Damaged · Channel Buffer</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h3 id="r3003-current-stock-barcode-detail">R3003 Current Stock Barcode Detail <a class="kb-anchor" href="#r3003-current-stock-barcode-detail" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-current-stock-barcode-detail</code></p>
@@ -191,7 +191,7 @@
 <h3 id="r3060-inventory-valuation">R3060 Inventory Valuation <a class="kb-anchor" href="#r3060-inventory-valuation" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>inventory-valuation</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
-<p><strong>Columns:</strong> SKU · Qty On Hand · Unit Cost (Avg) <em>(sensitive)</em> · Total Value <em>(sensitive)</em> · Costed</p>
+<p><strong>Columns:</strong> SKU · Qty On Hand · Unit Cost (Avg) <em>(sensitive)</em> · Total Value <em>(sensitive)</em> · Costed · Rate From</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h3 id="r3011-inventory-by-location-summary">R3011 Inventory by Location Summary <a class="kb-anchor" href="#r3011-inventory-by-location-summary" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>cat-inventory-by-location-summary</code></p>
@@ -731,6 +731,16 @@
 <p><strong>Columns:</strong> Order · Channel · Order Status · Days Since Ship · Overdue</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h2 id="pim">PIM <a class="kb-anchor" href="#pim" aria-label="Copy link to this section">#</a></h2>
+<h3 id="r9036-attribute-fill-rate">R9036 Attribute fill rate <a class="kb-anchor" href="#r9036-attribute-fill-rate" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>pim-attribute-fill-rate</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Attribute · Label · Items · Filled · Missing · Filled %</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="r9037-brand-vocabulary-check">R9037 Brand vocabulary check <a class="kb-anchor" href="#r9037-brand-vocabulary-check" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>pim-brand-vocabulary</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Brand on items · Items · Brand master spelling</p>
+<p><strong>Drill-down:</strong> no.</p>
 <h3 id="r7038-pim-overdue-tasks">R7038 PIM Overdue Tasks <a class="kb-anchor" href="#r7038-pim-overdue-tasks" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>pim-task-overdue</code></p>
 <p><strong>Parameters:</strong></p>

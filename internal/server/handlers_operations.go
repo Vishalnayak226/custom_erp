@@ -250,12 +250,14 @@ func handleCompleteProductionOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		OrderID string `json:"order_id"`
+		engines.OutputPieces
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.OrderID == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'order_id' is required")
 		return
 	}
-	if err := engines.CompleteProductionOrder(tenantID, req.OrderID); err != nil {
+	req.UserID = userID
+	if err := engines.CompleteProductionOrder(tenantID, req.OrderID, req.OutputPieces); err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
@@ -475,12 +477,13 @@ func handleDispatchTransferOrder(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		TransferOrderID string                 `json:"transfer_order_id"`
 		Lines           []engines.TransferLine `json:"lines"`
+		ShortReasonCode string                 `json:"short_reason_code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TransferOrderID == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'transfer_order_id' is required")
 		return
 	}
-	if err := engines.DispatchTransferOrderWith(tenantID, req.TransferOrderID, userID, req.Lines); err != nil {
+	if err := engines.DispatchTransferOrderOpts(tenantID, req.TransferOrderID, userID, engines.DispatchOptions{Picks: req.Lines, ShortReasonCode: req.ShortReasonCode}); err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
@@ -543,6 +546,34 @@ func handleConvertRequisition(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "converted", "requisition_id": req.RequisitionID, "target": req.Target, "new_document_id": newID})
 }
 
+// handleCombineRequisitions (Stage 148.14) makes the open requisition lines of
+// one vendor into a Draft PO per store.
+func handleCombineRequisitions(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	if !requireCreate(w, r, "PurchaseOrder") {
+		return
+	}
+	var req struct {
+		VendorID string `json:"vendor_id"`
+		Store    string `json:"store"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.VendorID) == "" {
+		writeAPIError(w, r, "PURCHA-5014", "")
+		return
+	}
+	res, err := engines.CombineRequisitionLines(tenantID, userID, req.VendorID, req.Store)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(res)
+}
+
 func handleMatchVendorInvoice(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodPost {
@@ -562,7 +593,7 @@ func handleMatchVendorInvoice(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'invoice_id' is required")
 		return
 	}
-	m, err := engines.MatchVendorInvoice(tenantID, req.InvoiceID, req.POID, req.GRNID, req.TolerancePercent)
+	m, err := engines.MatchVendorInvoiceAs(tenantID, r.Header.Get("Resolved-User-ID"), req.InvoiceID, req.POID, req.GRNID, req.TolerancePercent)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return

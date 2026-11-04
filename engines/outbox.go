@@ -214,6 +214,26 @@ func processOutbox(schema string) {
 			}
 		}
 
+		// 146.5.6: an email event is really sent when mail is set up, and the
+		// log says what happened (Sent / Simulated / Not sent / Failed).
+		logChannel, logStatus := "WMS", "Success"
+		var logNote interface{}
+		if tenantOf, tErr := tenantIDForSchema(schema); tErr == nil {
+			var emailPayload map[string]interface{}
+			if json.Unmarshal([]byte(ev.Payload), &emailPayload) == nil {
+				if isEmail, st, note := dispatchOutboxEmailEvent(tenantOf, ev.EventName, emailPayload); isEmail {
+					logChannel, logStatus = "Email", st
+					if note != "" {
+						logNote = note
+					}
+					if st == EmailFailed {
+						status = "Failed"
+						errMsg = note
+					}
+				}
+			}
+		}
+
 		// 1. Transaction to update outbox and insert log
 		tx, err := db.DB.Begin()
 		if err != nil {
@@ -225,7 +245,7 @@ func processOutbox(schema string) {
 		// Write to event log
 		_, errLog := tx.Exec(fmt.Sprintf(`
 			INSERT INTO %s.integration_event_log (event_id, channel, status, error_message) 
-			VALUES ($1, $2, $3, $4)`, schema), ev.ID, "WMS", "Success", nil)
+			VALUES ($1, $2, $3, $4)`, schema), ev.ID, logChannel, logStatus, logNote)
 
 		if errLog != nil {
 			status = "Failed"

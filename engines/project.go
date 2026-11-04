@@ -89,9 +89,9 @@ func GetProjectPL(tenantID, startDate, endDate string) ([]map[string]interface{}
 			"project": project, "account_type": accountType, "amount": amount,
 		})
 	}
-	for project, net := range totals {
+	for _, project := range sortedStringKeys(totals) {
 		out = append(out, map[string]interface{}{
-			"project": project, "account_type": "Net Profit", "amount": net,
+			"project": project, "account_type": "Net Profit", "amount": totals[project],
 		})
 	}
 	if out == nil {

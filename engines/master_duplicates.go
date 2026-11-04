@@ -368,6 +368,14 @@ func goldenRule(g, next *masterCandidate, validRule string) string {
 }
 
 func masterDuplicateReportRows(rows []MasterDuplicateRow) []map[string]interface{} {
+	// 157.4b: every row carries its group's kept record, so Merge still works
+	// when a page ends in the middle of a group. It is not a column.
+	keptID := map[int]string{}
+	for _, r := range rows {
+		if r.Golden {
+			keptID[r.Group] = r.ID
+		}
+	}
 	out := make([]map[string]interface{}, 0, len(rows))
 	for _, r := range rows {
 		keep := "Merge into the kept record"
@@ -375,7 +383,8 @@ func masterDuplicateReportRows(rows []MasterDuplicateRow) []map[string]interface
 			keep = "Keep"
 		}
 		out = append(out, map[string]interface{}{
-			"group": r.Group, "id": r.ID, "name": r.Name, "reasons": strings.Join(r.Reasons, ", "),
+			"keep_id": keptID[r.Group],
+			"group":   r.Group, "id": r.ID, "name": r.Name, "reasons": strings.Join(r.Reasons, ", "),
 			"proposal": keep, "rule": r.GoldenRule, "references": r.References, "completeness": r.Completeness,
 			"created": r.CreatedAt.Format("2006-01-02"),
 		})

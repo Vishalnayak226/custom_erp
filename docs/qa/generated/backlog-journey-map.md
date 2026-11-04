@@ -7,13 +7,13 @@
 > **Generated 2026-09-10.** This page is produced from `docs/micro_checklist.md` open items, `docs/product/erp-build-checklist.md` JRN table, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-BLD-002: the 404 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
+BLD-002: the 377 open checklist items reconciled into the business journeys they serve. Acceptance environment for every journey: Chromium at three viewports, en-IN, tenant tiers Small / Mid / Large (BLD-002 §9). Reference configurations: REF-RETAIL-IN (PIM, OMS, CRM) and REF-WAREHOUSE-IN (WMS, procurement, OMS); a journey in neither is deferred until a customer needs it, which is its exclusion rationale. Item IDs are kept as they are in the checklist.
 
 | Journey | Reference configuration | Owner | Open | Needs decision | Blocked |
 |---|---|---|---:|---:|---:|
 | JRN-01 POS/store | REF-RETAIL-IN | Store/finance; 47.2–47.4/47.6, Stage 31 | 9 | 2 | 0 |
 | JRN-02 OMS/order-to-cash | REF-RETAIL-IN, REF-WAREHOUSE-IN | OMS/operations; Stage 35 | 2 | 0 | 1 |
-| JRN-03 returns/refunds | REF-RETAIL-IN | Finance/store; 47.3/49.5 | 7 | 1 | 0 |
+| JRN-03 returns/refunds | REF-RETAIL-IN | Finance/store; 47.3/49.5 | 8 | 2 | 0 |
 | JRN-04 inventory | REF-RETAIL-IN, REF-WAREHOUSE-IN | Inventory controller; Stage 36/47.5 | 19 | 0 | 1 |
 | JRN-05 WMS | REF-WAREHOUSE-IN | Warehouse owner; Stage 36/47.6 | 0 | 0 | 0 |
 | JRN-06 warehouse billing/3PL | REF-WAREHOUSE-IN | Warehouse/finance; 47.5; mixed owner excluded | 0 | 0 | 0 |
@@ -36,9 +36,9 @@ BLD-002: the 404 open checklist items reconciled into the business journeys they
 | JRN-23 knowledge/implementation | REF-RETAIL-IN, REF-WAREHOUSE-IN | Documentation/implementation; Stage 39/47.15/48.7 | 34 | 0 | 1 |
 | Cross-journey acceptance and audits | - | - | 70 | 2 | 8 |
 | Engineering housekeeping | - | - | 17 | 4 | 0 |
-| Unmapped - place these stages | - | - | 109 | 11 | 4 |
+| Unmapped - place these stages | - | - | 81 | 30 | 4 |
 
-**Unmapped:** Stage 140 (6), Stage 143 (2), Stage 146 (35), Stage 147 (1), Stage 148 (43), Stage 149 (2), Stage 152 (1), Stage 154 (4), Stage 155 (13), Stage 156 (1), Stage 157 (1) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
+**Unmapped:** Stage 143 (2), Stage 146 (17), Stage 147 (1), Stage 148 (40), Stage 149 (2), Stage 152 (1), Stage 154 (4), Stage 155 (13), Stage 157 (1) - add each to `stageJourney` in `cmd/gendocs/journeys.go`.
 
 ## JRN-01 POS/store
 
@@ -64,6 +64,7 @@ BLD-002: the 404 open checklist items reconciled into the business journeys they
 - **49.5.3** Workflow transition enforcement
 - **49.5.4** Abuse/fraud patterns
 - **49.5.5** Trusted totals and reconciliation
+- **49.5.5b** Persist money / UOM / tax versions on posted lines? *(decision)*
 - **49.5.6** Safe overrides *(decision)*
 - **49.5.7** Adversarial invariant tests
 
@@ -382,71 +383,45 @@ BLD-002: the 404 open checklist items reconciled into the business journeys they
 
 ## Unmapped
 
-- **140.14.1** A second reorder point for the same item and store crashes with no reason
-- **140.14.2** A deleted expense claim still blocks the same claim
-- **140.14.3** Screens shown to a role that cannot load them
-- **140.14.4** Refusals say "Correct the field format." when the field is fine
-- **140.14.6** A return with the store left blank routes only to a store holding the item
-- **140.14.7** Credit note on a cancelled order with nothing to credit says "Done."
 - **143.3** The same file on minn *(decision)*
 - **143.6** Barcode print sorted: select the GRN and print
 - **146.2.2b** Value per point per loyalty scheme *(decision)*
-- **146.2.7** Birthday and anniversary points
-- **146.2.8** Till and history: expiring soon, pending, store and cashier
-- **146.2.10** Points on online orders - a setting, on by default
 - **146.3.2b** An RF receive screen *(decision)*
-- **146.3.3** A work queue on the handheld
 - **146.3.4b** Bin labels through sticker templates; a Print labels button on the Bin list *(decision)*
-- **146.3.5** Transfers picked from bins, in waves by route
-- **146.3.6** Packing list per box
-- **146.3.7** Put-away rules by category or design
-- **146.3.8** Inward gate-entry register
 - **146.3.9** Weighing scale at pack *(blocked)*
 - **146.3.10** License plates at receipt *(blocked)*
 - **146.3.11** Re-inspection by stock age (fading polish)
-- **146.3.12** One allocation upload makes one transfer per store
-- **146.3.13** Transfer fill policy
-- **146.3.14** Inbound-only and outbound-only bin and zone blocks
-- **146.3.15** Put-away split across bins; capacity warning
 - **146.3.16** Leave an item out of cycle counts
 - **146.4.1** A real Unicommerce integration *(blocked)*
-- **146.4.2** Vendor SKU, pack multiple, one PO per vendor
 - **146.4.3** Back-order list feeding buying
 - **146.4.5** Marketplace listings: pull, bulk link, per-listing sync switch
-- **146.4.6** Small purchasing conveniences
 - **146.5.1** Shopify gets the approved PIM content
 - **146.5.2** Marketplace templates from their own file, per category, with validation
 - **146.5.4** One wide product sheet import
 - **146.5.5** Design-level attribute values, grid entry, bulk set
-- **146.5.6** Feed runs: filtered, recorded, really emailed
-- **146.5.7** Dynamic product groups by attribute value
+- **146.5.6c** Should the export freeze also stop dashboard digests? *(decision)*
 - **146.5.9** Image positions per channel; stable public URL
-- **146.5.10** Tasks with an attribute checklist
-- **146.5.11** Attribute types (Yes / No, Multi-select, Long text, URL) and checks on save
 - **146.5.12** Typed product relationships
-- **146.5.13** Small PIM items
 - **147.3** IDs are text, never design plus values *(decision)*
-- **148.1** Cost follows the stock in hand
-- **148.2** Channel shipping charge on the invoice
-- **148.3** Credit control on the order
-- **148.4** Accounts by item / customer / vendor group
-- **148.5** Chart of accounts from the app
-- **148.6** Vendor price agreements
-- **148.7** PO discounts and free qty
-- **148.8** Charge codes that cost themselves
-- **148.9** Vendor master basics
-- **148.10** Vendor changes wait for approval
-- **148.11** PO line control
-- **148.12** Purchase price kept current
-- **148.13** Vendor scorecard from the data
-- **148.14** Requisition with item lines
-- **148.15** Vendor advance against a PO
+- **148.1c** A visible Cancel on a vendor bill? *(decision)*
+- **148.1d** Bundle return *(decision)*
+- **148.1b** Tracked items sold without naming the piece; credit notes *(decision)*
+- **148.2b** Is the channel's shipping charge GST-inclusive? *(decision)*
+- **148.3b** Credit back-fill and approver *(decision)*
+- **148.4b** Remap receivable and payable by group? *(decision)*
+- **148.8b** Two choices in trade charges *(decision)*
+- **148.9b** Which account takes the early-payment discount? *(decision)*
+- **148.10b** Ship the approval list on by default? *(decision)*
+- **148.12b** Rate history and jump for foreign-currency bills? *(decision)*
+- **148.12c** Who may match a bill? *(decision)*
+- **148.14b** One PO per vendor and store? *(decision)*
+- **148.14c** Role check on `POST /api/v1/procurement/convert-requisition` *(decision)*
+- **148.15b** TDS on an advance? *(decision)*
 - **148.16** Memo / consignment stock
-- **148.17** Volume rebates
+- **148.17b** Rebate tiers and GST *(decision)*
 - **148.18** Vendor PO link and follow-up
-- **148.38** Goods received before the PO
-- **148.39** PO approval rules beyond amount
-- **148.40** Correct a piece's attributes
+- **148.38b** Reason codes on new clients *(decision)*
+- **148.40b** Correct a piece already sold? *(decision)*
 - **148.19** Bills without a PO
 - **148.20** Journal lines with dimensions
 - **148.21** Journal templates
@@ -464,7 +439,6 @@ BLD-002: the 404 open checklist items reconciled into the business journeys they
 - **148.31** One invoice per customer per period
 - **148.32** Drop-ship
 - **148.33** Inspection asked for by rule
-- **148.34** Expected arrivals
 - **148.35** Buy in packs, stock in pieces
 - **148.36** Custom-order configurator
 - **148.37** Read-only access for AI assistants
@@ -489,5 +463,4 @@ BLD-002: the 404 open checklist items reconciled into the business journeys they
 - **155.6** CRM
 - **155.7** Loyalty
 - **155.8** Guides + check
-- **156.1** Media Library grid fetches thumbnails only near the viewport
-- **157.4** Inventory Ledger opens with an error on a large book
+- **157.4c** The old report endpoints ignore a store-limited user's stores *(decision)*

@@ -368,7 +368,9 @@ func (s *catSource) docRows(schema string, p map[string]string, noDates bool) ([
 	}
 	defer rows.Close()
 	var out []*catRow
+	read := 0
 	for rows.Next() {
+		read++
 		var id, status, by string
 		var created time.Time
 		var raw []byte
@@ -387,6 +389,9 @@ func (s *catSource) docRows(schema string, p map[string]string, noDates bool) ([
 		for i, l := range catLineList(h[s.Lines]) {
 			out = append(out, &catRow{ID: id, Status: status, Created: created, CreatedBy: by, H: h, L: l, N: i + 1})
 		}
+	}
+	if read == registerRowCap {
+		return nil, reportReadStopped(registerRowCap) // 157.4b
 	}
 	return out, rows.Err()
 }
@@ -444,6 +449,12 @@ func runCatalogReport(tenantID string, spec catalogSpec, w *catReport, p map[str
 		}
 		if err != nil {
 			return nil, err
+		}
+		// 157.4b: a source's own SQL stops at one of these. A register would
+		// silently end there and a summary would total part of the data.
+		switch len(rs) {
+		case 10000, 20000, 50000:
+			return nil, reportReadStopped(len(rs))
 		}
 		for _, r := range rs {
 			r.src, r.lk, r.p = src, lk, p

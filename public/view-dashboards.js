@@ -7,7 +7,7 @@ function ago(iso) {
 }
 export function kpiContractLines(c) {
   if (!c) return [];
-  return [['Period', c.period], ['Scope', c.scope], ['Refreshed', c.as_of ? ago(c.as_of) : ''], ['Basis', c.basis], ['Owner', c.owner], ['Drill', c.drill]]
+  return [['Period', c.period], ['Scope', c.scope], ['Refreshed', c.as_of ? ago(c.as_of) : ''], ['Basis', c.confidence || c.basis], ['Owner', c.owner], ['Drill', c.drill]]
     .filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`);
 }
 export const kpiContractSummary = (c) => kpiContractLines(c).slice(0, 4).join(' · ');

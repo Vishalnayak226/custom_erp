@@ -667,6 +667,10 @@ func RecordDeliveryEvent(tenantID, bookingID, newStatus, userID string) error {
 			}
 		} else if orderID != "" {
 			DispatchNotification(tenantID, "Order Delivered", orderID, map[string]string{"booking_id": bookingID, "tracking_number": fmt.Sprint(bookingData["tracking_number"])})
+			// Stage 146.2.10: the order earns its points once the last parcel is in.
+			if err := loyaltyOnlineOrderDelivered(tenantID, orderID); err != nil {
+				LogSystemError(tenantID, userID, "ERROR", "RecordDeliveryEvent", fmt.Sprintf("online order points for %s not given: %v", orderID, err), "")
+			}
 		}
 	}
 	return nil
@@ -759,7 +763,7 @@ func ProcessMarketplaceSettlement(tenantID string, channel string, settlementID 
 		}
 		if status == "Settled" {
 			var other string
-			_ = tx.QueryRow(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = 'MarketplaceSettlement' AND id <> $2 AND data->'orders' ? $1 ORDER BY created_at LIMIT 1`, schema),
+			_ = tx.QueryRow(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = 'MarketplaceSettlement' AND deleted_at IS NULL AND id <> $2 AND data->'orders' ? $1 ORDER BY created_at LIMIT 1`, schema),
 				orderID, settlementID).Scan(&other)
 			if other == "" {
 				return fmt.Errorf("order %s is already settled", orderID)

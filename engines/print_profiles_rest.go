@@ -420,7 +420,7 @@ func printFailures(tenantID string, p map[string]string) ([]map[string]interface
 		COALESCE(outcome, status), COALESCE(error_detail, ''), COALESCE(printed_by, '')
 		FROM %s.print_job_log WHERE (status IN ('Failed', 'Error') OR outcome IN ('Unknown', 'Failed') OR COALESCE(error_detail, '') <> '')
 		  AND ($1 = '' OR printed_at >= $1::date) AND ($2 = '' OR printed_at < $2::date + 1)
-		ORDER BY printed_at DESC LIMIT 2000`, schema), strings.TrimSpace(p["from"]), strings.TrimSpace(p["to"]))
+		ORDER BY printed_at DESC LIMIT 20001`, schema), strings.TrimSpace(p["from"]), strings.TrimSpace(p["to"]))
 	if err != nil {
 		return nil, err
 	}

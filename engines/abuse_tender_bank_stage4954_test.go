@@ -101,6 +101,13 @@ func TestStage4954ImportBankChangeWritesSignedEdit(t *testing.T) {
 	}
 	cleanup()
 	t.Cleanup(cleanup)
+	// A client with no approval list: the import's change lands at once. With the
+	// list on, the row is written when the change is approved (TestStage14810*).
+	listed := GetSettingString("default", SettingVendorApprovalFields)
+	if err := SetSetting("default", SettingVendorApprovalFields, "", "test"); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = SetSetting("default", SettingVendorApprovalFields, listed, "test") })
 	if res, err := BulkImportCSV("default", "Vendor", strings.NewReader("code,name,state,bank_account_number,bank_ifsc\n"+vendor+",T4954 Vendor,Karnataka,111122223333,HDFC0000001\n"), "system", "HR/Admin", false); err != nil || res.FailedRows != 0 {
 		t.Fatalf("create by import: %v %+v", err, res)
 	}

@@ -873,6 +873,11 @@ func challanOutstandingByParty(tenantID string, _ map[string]string) ([]map[stri
 		out = append(out, map[string]interface{}{"party": party, "challans": len(a.challans), "open_qty": a.qty, "open_value": a.value,
 			"not_due": a.notDue, "overdue_30": a.d30, "overdue_60": a.d60, "overdue_more": a.more})
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i]["open_value"].(float64) > out[j]["open_value"].(float64) })
+	sort.Slice(out, func(i, j int) bool {
+		if a, b := out[i]["open_value"].(float64), out[j]["open_value"].(float64); a != b {
+			return a > b
+		}
+		return out[i]["party"].(string) < out[j]["party"].(string)
+	})
 	return out, nil
 }

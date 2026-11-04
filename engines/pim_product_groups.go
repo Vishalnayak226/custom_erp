@@ -33,6 +33,7 @@ type ProductGroupResolution struct {
 	Filters     ProductGroupFilterParams `json:"filters,omitempty"`
 	Members     []ProductGroupMember     `json:"members"`
 	MemberCount int                      `json:"member_count"`
+	Truncated   bool                     `json:"truncated,omitempty"`
 	ResolvedAt  time.Time                `json:"resolved_at"`
 }
 
@@ -93,8 +94,16 @@ func ValidatePIMProductGroupDocument(tenantID string, payload map[string]interfa
 		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Dynamic Filters", Message: err.Error()}
 	}
 
+	conds, err := productGroupConditions(payload)
+	if err != nil {
+		return conditionErr(err.Error())
+	}
+
 	switch groupType {
 	case "Static":
+		if len(conds) > 0 {
+			return &ValidationError{Code: "GLOBAL-0002", SubFor: "Dynamic Filters", Message: "a Static product group cannot also carry attribute conditions"}
+		}
 		if len(filters) > 0 {
 			return &ValidationError{Code: "GLOBAL-0002", SubFor: "Dynamic Filters", Message: "a Static product group cannot also carry dynamic filters"}
 		}
@@ -122,7 +131,7 @@ func ValidatePIMProductGroupDocument(tenantID string, payload map[string]interfa
 		if len(members) > 0 {
 			return &ValidationError{Code: "GLOBAL-0002", SubFor: "Static Products", Message: "a Dynamic product group cannot also carry static products"}
 		}
-		if len(filters) == 0 {
+		if len(filters) == 0 && len(conds) == 0 {
 			return &ValidationError{Code: "GLOBAL-0001", SubFor: "Dynamic Filters", Message: "a Dynamic product group needs at least one filter"}
 		}
 	default:
@@ -138,7 +147,7 @@ func ValidatePIMProductGroupDocument(tenantID string, payload map[string]interfa
 	if status := filters["status"]; status != "" && status != "Active" && status != "Inactive" {
 		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Dynamic Filters", Message: "status filter must be Active or Inactive"}
 	}
-	return nil
+	return validateProductGroupConditions(tenantID, conds)
 }
 
 func fetchPIMProductGroup(tenantID, groupID string) (string, map[string]interface{}, error) {
@@ -239,9 +248,32 @@ func ResolvePIMProductGroup(tenantID, groupID string) (*ProductGroupResolution, 
 		GroupID: canonicalID, Name: strings.TrimSpace(fmt.Sprintf("%v", group["name"])),
 		GroupType: groupType, Filters: filters, Members: []ProductGroupMember{}, ResolvedAt: time.Now().UTC(),
 	}
+	var condEval *groupConditionEvaluator
+	if groupType == "Dynamic" {
+		if conds, _ := productGroupConditions(group); len(conds) > 0 {
+			if condEval, err = newGroupConditionEvaluator(tenantID, conds); err != nil {
+				return nil, err
+			}
+		}
+	}
 	for _, item := range candidates {
 		if groupType == "Static" && !staticSet[item.ID] {
 			continue
+		}
+		if condEval != nil {
+			// 146.5.7: attribute conditions first, so a product that fails them is
+			// never scored; the result is capped.
+			ok, cErr := condEval.matches(item)
+			if cErr != nil {
+				return nil, cErr
+			}
+			if !ok {
+				continue
+			}
+			if len(result.Members) >= maxConditionGroupMembers {
+				result.Truncated = true
+				break
+			}
 		}
 		completeness, scoreErr := CalculateCompleteness(tenantID, item.ID, "en", "")
 		if scoreErr != nil {

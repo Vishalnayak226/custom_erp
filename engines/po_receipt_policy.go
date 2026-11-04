@@ -37,6 +37,9 @@ type POReconLine struct {
 	Open        float64 `json:"open"`
 	Invoiced    float64 `json:"invoiced"`
 	Paid        float64 `json:"paid"`
+	// Stage 148.11: the PO line (1-based) and whether it is stopped.
+	LineNo  int  `json:"line_no,omitempty"`
+	Stopped bool `json:"stopped,omitempty"`
 }
 
 // POReconGRN is one goods receipt against the PO.
@@ -126,8 +129,14 @@ func PurchaseOrderReconciliation(tenantID, poID string) (*POReconciliation, erro
 		order = append(order, sku)
 		return l
 	}
+	ctl := poReconControl(str(po, "items"))
 	for sku, q := range ordered {
-		line(sku).Ordered = q
+		l := line(sku)
+		// Stage 148.11: ordered is the line as placed; what a stop / close-rest
+		// gave up shows under Short-closed.
+		l.Ordered = q + ctl[sku].Closed
+		l.ShortClosed += ctl[sku].Closed
+		l.LineNo, l.Stopped = ctl[sku].LineNo, ctl[sku].Stopped
 	}
 
 	grnIDs, err := PurchaseOrderReceipts(tenantID, poID)

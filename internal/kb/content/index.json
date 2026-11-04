@@ -1339,6 +1339,7 @@
             "purchase-orders",
             "purchase-requisitions",
             "grn",
+            "gate-entry",
             "rfq",
             "purchase-returns",
             "module:procurement",
@@ -1447,6 +1448,11 @@
               "level": 2,
               "text": "What is not here yet",
               "slug": "what-is-not-here-yet"
+            },
+            {
+              "level": 2,
+              "text": "Gate entry",
+              "slug": "gate-entry"
             }
           ]
         },
@@ -4515,6 +4521,16 @@
             },
             {
               "level": 3,
+              "text": "R9036 Attribute fill rate",
+              "slug": "r9036-attribute-fill-rate"
+            },
+            {
+              "level": 3,
+              "text": "R9037 Brand vocabulary check",
+              "slug": "r9037-brand-vocabulary-check"
+            },
+            {
+              "level": 3,
               "text": "R7038 PIM Overdue Tasks",
               "slug": "r7038-pim-overdue-tasks"
             },
@@ -4652,6 +4668,11 @@
             },
             {
               "level": 3,
+              "text": "R9045 Expected arrivals",
+              "slug": "r9045-expected-arrivals"
+            },
+            {
+              "level": 3,
               "text": "R2036 GRN Corrections Log",
               "slug": "r2036-grn-corrections-log"
             },
@@ -4672,6 +4693,11 @@
             },
             {
               "level": 3,
+              "text": "R2049 Gate entries with no goods receipt",
+              "slug": "r2049-gate-entries-with-no-goods-receipt"
+            },
+            {
+              "level": 3,
               "text": "R2035 Goods Receipts Waiting",
               "slug": "r2035-goods-receipts-waiting"
             },
@@ -4684,6 +4710,11 @@
               "level": 3,
               "text": "R2031 Goods receipts not billed",
               "slug": "r2031-goods-receipts-not-billed"
+            },
+            {
+              "level": 3,
+              "text": "R9055 Goods received before PO",
+              "slug": "r9055-goods-received-before-po"
             },
             {
               "level": 3,
@@ -4704,6 +4735,11 @@
               "level": 3,
               "text": "R2045 Open Purchase Commitments",
               "slug": "r2045-open-purchase-commitments"
+            },
+            {
+              "level": 3,
+              "text": "R2053 Overdue PO lines",
+              "slug": "r2053-overdue-po-lines"
             },
             {
               "level": 3,
@@ -4739,6 +4775,16 @@
               "level": 3,
               "text": "R2041 Vendor document and transport register",
               "slug": "r2041-vendor-document-and-transport-register"
+            },
+            {
+              "level": 3,
+              "text": "R2050 Vendor invoices dated before their PO",
+              "slug": "r2050-vendor-invoices-dated-before-their-po"
+            },
+            {
+              "level": 3,
+              "text": "R9040 Vendor scorecard",
+              "slug": "r9040-vendor-scorecard"
             },
             {
               "level": 2,
@@ -5413,6 +5459,11 @@
           "headings": [
             {
               "level": 2,
+              "text": "2026-11-04",
+              "slug": "2026-11-04"
+            },
+            {
+              "level": 2,
               "text": "2026-11-03",
               "slug": "2026-11-03"
             },
@@ -5543,7 +5594,7 @@
           "title": "Release notes (part 2)",
           "section": "Reference",
           "order": 26,
-          "summary": "Earlier releases, 2026-07-27 to 2026-09-27, continued from the release notes.",
+          "summary": "Earlier releases, 2026-07-27 to 2026-09-28, continued from the release notes.",
           "audience": "everyone",
           "last_verified": "2026-09-10",
           "owner": "documentation-maintainer",
@@ -5555,6 +5606,11 @@
           "applies_to": "source registries; not release acceptance",
           "source_path": "reference/release-notes-2.md",
           "headings": [
+            {
+              "level": 2,
+              "text": "2026-09-28",
+              "slug": "2026-09-28"
+            },
             {
               "level": 2,
               "text": "2026-09-27",
@@ -6268,11 +6324,6 @@
               "level": 2,
               "text": "Integrations",
               "slug": "integrations"
-            },
-            {
-              "level": 2,
-              "text": "Inventory",
-              "slug": "inventory"
             }
           ]
         },
@@ -6281,7 +6332,7 @@
           "title": "Error code reference (part 2)",
           "section": "Troubleshooting",
           "order": 21,
-          "summary": "Error codes for Inventory / Warehouse to Stock Transfer, continued from the error code reference.",
+          "summary": "Error codes for Inventory to Purchase Return, continued from the error code reference.",
           "audience": "everyone",
           "last_verified": "2026-09-10",
           "owner": "documentation-maintainer",
@@ -6297,6 +6348,11 @@
               "level": 2,
               "text": "Contents",
               "slug": "contents"
+            },
+            {
+              "level": 2,
+              "text": "Inventory",
+              "slug": "inventory"
             },
             {
               "level": 2,
@@ -6390,8 +6446,37 @@
             },
             {
               "level": 2,
+              "text": "Purchase Requisition",
+              "slug": "purchase-requisition"
+            },
+            {
+              "level": 2,
               "text": "Purchase Return",
               "slug": "purchase-return"
+            }
+          ]
+        },
+        {
+          "slug": "error-code-reference-3",
+          "title": "Error code reference (part 3)",
+          "section": "Troubleshooting",
+          "order": 22,
+          "summary": "Error codes for Purchase Return / RTV to WMS / Logistics, continued from the error code reference.",
+          "audience": "everyone",
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Error code reference (part 3)",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
+          "source_path": "troubleshooting/error-code-reference-3.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Contents",
+              "slug": "contents"
             },
             {
               "level": 2,
@@ -6442,30 +6527,6 @@
               "level": 2,
               "text": "Stock Transfer",
               "slug": "stock-transfer"
-            }
-          ]
-        },
-        {
-          "slug": "error-code-reference-3",
-          "title": "Error code reference (part 3)",
-          "section": "Troubleshooting",
-          "order": 22,
-          "summary": "Error codes for Tax / GST / E-Invoice to WMS / Logistics, continued from the error code reference.",
-          "audience": "everyone",
-          "last_verified": "2026-09-10",
-          "owner": "documentation-maintainer",
-          "status": "active",
-          "topic_type": "reference",
-          "module": "platform",
-          "task": "Error code reference (part 3)",
-          "prerequisites": "Authorized access to the relevant ERP task",
-          "applies_to": "source registries; not release acceptance",
-          "source_path": "troubleshooting/error-code-reference-3.md",
-          "headings": [
-            {
-              "level": 2,
-              "text": "Contents",
-              "slug": "contents"
             },
             {
               "level": 2,
@@ -6700,6 +6761,9 @@
     ],
     "finance-notes": [
       "journey-finance"
+    ],
+    "gate-entry": [
+      "procurement"
     ],
     "grn": [
       "inventory-wms-operations",

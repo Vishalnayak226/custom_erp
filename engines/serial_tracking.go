@@ -58,6 +58,9 @@ type SerialInfo struct {
 	Owner        string `json:"owner,omitempty"`
 	ReservedFor  string `json:"reserved_for,omitempty"`
 	Status       string `json:"status"`
+	// Stage 148.1: what this piece cost and the GRN it came in on. Never on the wire.
+	ReceiptCostPaise int64  `json:"-"`
+	ReceiptGRN       string `json:"-"`
 }
 
 // Allocatable reports whether this unit may be picked/allocated at all - an
@@ -81,6 +84,8 @@ func serialFromData(docID, dataStr, status string) SerialInfo {
 	out.Vendor, _ = data["vendor"].(string)
 	out.Owner, _ = data["owner"].(string)
 	out.ReservedFor, _ = data["reserved_for"].(string)
+	out.ReceiptCostPaise = int64(numFromInterface(data["receipt_cost_paise"]))
+	out.ReceiptGRN, _ = data["receipt_grn"].(string)
 	// Same split Batch's own batchFromData documents: the JSON status key and
 	// the documents.status column are separate values, and the column is
 	// authoritative for a lifecycle decision.
@@ -149,6 +154,9 @@ func RegisterSerial(tenantID string, in SerialInfo, locationCode, voucherType, v
 			return nil, fmt.Errorf("serial %s of %s is already registered and %s - a duplicate scan or a reused code, not a new receipt", serialNo, sku, existing.Status)
 		}
 		patch := map[string]interface{}{"status": SerialInStock, "location_code": locationCode, "current_bin": ""}
+		if in.ReceiptCostPaise > 0 {
+			patch["receipt_cost_paise"], patch["receipt_grn"] = in.ReceiptCostPaise, in.ReceiptGRN
+		}
 		patchJSON, _ := json.Marshal(patch)
 		// Stage 132.20: the unit and its ledger line in one transaction (the line was best-effort).
 		tx, terr := db.DB.Begin()
@@ -186,6 +194,9 @@ func RegisterSerial(tenantID string, in SerialInfo, locationCode, voucherType, v
 		"vendor":        strings.TrimSpace(in.Vendor),
 		"owner":         strings.TrimSpace(in.Owner),
 		"status":        SerialInStock,
+	}
+	if in.ReceiptCostPaise > 0 {
+		data["receipt_cost_paise"], data["receipt_grn"] = in.ReceiptCostPaise, in.ReceiptGRN
 	}
 	// documents.id stays a generated id rather than the serial number itself
 	// for the identical reason Batch's does: a serial number is only unique

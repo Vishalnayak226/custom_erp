@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 )
@@ -28,10 +29,14 @@ type ReportColumn struct {
 	Label     string `json:"label"`
 	Sensitive bool   `json:"sensitive"`
 	// Type (Stage 75.3.4) is how the screen shows the value: "" text, or
-	// "image" (the value is a media id, drawn as a thumbnail). Total sums the
+	// "image" (the value is a media id, drawn as a thumbnail), or "doclink" (148.34: opens the
+	// document named by <key>_doctype and <key>_id). Total sums the
 	// column under the table.
 	Type  string `json:"type,omitempty"`
 	Total bool   `json:"total,omitempty"`
+	// FinanceSees (157.4b): a Sensitive column a finance.statements holder also
+	// reads in full, because the report's own endpoint already gives it to them.
+	FinanceSees bool `json:"-"`
 }
 
 // ReportParam describes one input field, rendered generically by the
@@ -78,6 +83,117 @@ type ReportDefinition struct {
 	// StoreKey (Stage 75.3.3) is the row field carrying the store, for store
 	// scope; empty = the first store-named column, "-" = no store dimension.
 	StoreKey string `json:"-"`
+	// RunPage (Stage 157.4) is an optional paged form of Run: the report's
+	// own query takes the page (LIMIT / OFFSET) and returns the true total, so
+	// an on-screen run of a big book is not refused at the export cap. Nil =
+	// the report is sliced after a capped run.
+	RunPage ReportRunPageFunc `json:"-"`
+}
+
+// ReportRunPageFunc runs one page of a report and returns that page's rows
+// with the total number of rows the filters match.
+type ReportRunPageFunc func(tenantID string, params map[string]string, page ReportPage) ([]map[string]interface{}, int, error)
+
+// ReportPage (Stage 157.4) is the page an on-screen run asks for. Set on the
+// context with WithReportPage; Total is filled by the run. Scheduled reports
+// and dashboards carry no page, so the setting's row limit still applies to
+// them. Limit 0 asks for every row, uncut (control totals need them all).
+type ReportPage struct {
+	Limit  int
+	Offset int
+	Desc   bool // the report's order reversed; for a ledger, newest first
+	Total  int
+	// Totals (157.4b) sums the report's Total columns over every row, so the
+	// line under a page is the report's total. Nil from a report's own paged
+	// query, and a column masked for the role is left out.
+	Totals map[string]float64
+	// Stores is what a RunPage must cut to when StoreCut is set: a store-limited
+	// user's stores. Empty then means no rows.
+	Stores   []string
+	StoreCut bool
+}
+
+// sortedStringKeys gives a report built from a map one order: pages are cut
+// from separate runs, so a row must stay where it was between them (157.4b).
+func sortedStringKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// maxReportRunRows (157.4b) is the most rows one run may load into memory:
+// the rows are all built before any page or CSV is cut from them, and the
+// server is small. An admin may raise it with platform.max_sync_report_rows.
+// A report with a RunPage loads one page at a time, so on screen it has no
+// limit. A report's own SQL stops at LIMIT 20001, this plus one, so the
+// runner can tell that it stopped reading.
+const maxReportRunRows = 20000
+
+// reportTooBig is REPORT-0161, the honest answer when a run cannot return
+// every row.
+func reportTooBig(limit int) error {
+	message := fmt.Sprintf("It matched more than %d rows.", limit)
+	if limit < maxReportRunRows {
+		message += fmt.Sprintf(" Export takes up to %d.", maxReportRunRows)
+	}
+	return &ValidationError{Code: "REPORT-0161", Message: message}
+}
+
+// reportReadStopped is REPORT-0161 from inside a report whose read stopped at
+// its own LIMIT: whatever it would build from those rows is part of the answer.
+func reportReadStopped(limit int) error {
+	return &ValidationError{Code: "REPORT-0161", Message: fmt.Sprintf("It read more than %d records.", limit)}
+}
+
+type reportPageKey struct{}
+type reportExportKey struct{}
+
+// WithReportPage asks RunReportContext for one page of the report.
+func WithReportPage(ctx context.Context, p *ReportPage) context.Context {
+	return context.WithValue(ctx, reportPageKey{}, p)
+}
+
+// withReportExport marks an export's run: it reads up to maxReportRunRows, not
+// the lower on-screen setting, because its rows go to a file.
+func withReportExport(ctx context.Context) context.Context {
+	return context.WithValue(ctx, reportExportKey{}, true)
+}
+
+// slicePage cuts an already-run result to the requested page and records the
+// total and the column totals over every row.
+func slicePage(rows []map[string]interface{}, columns []ReportColumn, masked bool, p *ReportPage) []map[string]interface{} {
+	p.Total = len(rows)
+	for _, c := range columns {
+		if !c.Total || (masked && c.Sensitive) {
+			continue
+		}
+		if p.Totals == nil {
+			p.Totals = map[string]float64{}
+		}
+		sum := 0.0
+		for _, r := range rows {
+			sum += numFromInterface(r[c.Key])
+		}
+		p.Totals[c.Key] = round2(sum)
+	}
+	if p.Desc {
+		rev := make([]map[string]interface{}, len(rows))
+		for i, r := range rows {
+			rev[len(rows)-1-i] = r
+		}
+		rows = rev
+	}
+	if p.Offset >= len(rows) {
+		return []map[string]interface{}{}
+	}
+	end := p.Offset + p.Limit
+	if end > len(rows) {
+		end = len(rows)
+	}
+	return rows[p.Offset:end]
 }
 
 var reportRegistry = map[string]ReportDefinition{}
@@ -149,13 +265,20 @@ var reportFullVisibilityRoles = map[string]bool{
 
 const redactedReportValue = "•••"
 
+func reportColumnMasked(c ReportColumn, role string) bool {
+	if !c.Sensitive || reportFullVisibilityRoles[CanonicalRole(role)] {
+		return false
+	}
+	return !c.FinanceSees || !RoleHasCapability(role, "finance.statements")
+}
+
 func maskSensitiveColumns(columns []ReportColumn, rows []map[string]interface{}, role string) []map[string]interface{} {
 	if reportFullVisibilityRoles[CanonicalRole(role)] {
 		return rows
 	}
 	var sensitiveKeys []string
 	for _, c := range columns {
-		if c.Sensitive {
+		if reportColumnMasked(c, role) {
 			sensitiveKeys = append(sensitiveKeys, c.Key)
 		}
 	}
@@ -193,11 +316,8 @@ const maxSyncReportRows = 5000
 // anything for this role/column set - shared by RunReport (REPORT-0287
 // annotation) and RunReportDrillDown so both stay consistent.
 func reportMasked(columns []ReportColumn, role string) bool {
-	if reportFullVisibilityRoles[CanonicalRole(role)] {
-		return false
-	}
 	for _, c := range columns {
-		if c.Sensitive {
+		if reportColumnMasked(c, role) {
 			return true
 		}
 	}
@@ -261,7 +381,39 @@ func RunReportContext(ctx context.Context, tenantID, reportID, role, userID stri
 		}
 	}
 	start := time.Now()
-	rows, err = runReportRaced(ctx, d, tenantID, params)
+	// 157.4 / 157.4b: an on-screen page and an export read up to the ceiling;
+	// scheduled reports and dashboards stay at the setting. A report with its
+	// own paged query loads only the page, cut to the user's stores in SQL so
+	// paging and the count stay true for a store-limited user.
+	page, _ := ctx.Value(reportPageKey{}).(*ReportPage)
+	exporting, _ := ctx.Value(reportExportKey{}).(bool)
+	onePage := page != nil && page.Limit > 0
+	limit := GetSettingInt(tenantID, "platform.max_sync_report_rows")
+	if page != nil || exporting {
+		limit = max(limit, maxReportRunRows)
+	}
+	storeKey := ""
+	if storeLimited {
+		storeKey = reportStoreKey(d)
+	}
+	sqlPaged := onePage && d.RunPage != nil
+	runDef := d
+	sqlTotal := 0
+	if d.RunPage != nil {
+		req := ReportPage{Limit: limit + 1}
+		if onePage {
+			req = *page
+		}
+		if storeKey != "" {
+			req.Stores, req.StoreCut = reportStoreList(storeAccess), true
+		}
+		runDef.Run = func(t string, p map[string]string) ([]map[string]interface{}, error) {
+			out, total, perr := d.RunPage(t, p, req)
+			sqlTotal = total
+			return out, perr
+		}
+	}
+	rows, err = runReportRaced(ctx, runDef, tenantID, params)
 	if err == errReportRunsBusy {
 		return nil, nil, false, err
 	}
@@ -269,6 +421,10 @@ func RunReportContext(ctx context.Context, tenantID, reportID, role, userID stri
 		// The caller is gone. No run log and no REPORT-0162 wrapping: this is
 		// not the report failing, it is nobody waiting for it any more.
 		return nil, nil, false, err
+	}
+	var stopped *ValidationError
+	if errors.As(err, &stopped) && stopped.Code == "REPORT-0161" {
+		return nil, nil, false, stopped // the report's own read stopped short
 	}
 	if err != nil {
 		// REPORT-0162 (Stage 25.5): "Report generation failed" - distinct
@@ -278,18 +434,30 @@ func RunReportContext(ctx context.Context, tenantID, reportID, role, userID stri
 		// catalog scenario's wording exactly.
 		return nil, nil, false, &ValidationError{Code: "REPORT-0162", Message: err.Error()}
 	}
-	if storeLimited {
-		if key := reportStoreKey(d); key != "" {
-			rows = filterReportRowsByStore(rows, key, storeAccess)
-		}
+	// The report's own SQL stopped reading: a store cut, a count or a page taken
+	// from here would be part of the answer.
+	if len(rows) == maxReportRunRows+1 {
+		return nil, nil, false, reportTooBig(maxReportRunRows)
+	}
+	if storeKey != "" && d.RunPage == nil {
+		rows = filterReportRowsByStore(rows, storeKey, storeAccess)
 	}
 	if reportID != "report-performance" {
-		writeReportRunLog(tenantID, reportID, userID, time.Since(start).Milliseconds(), len(rows))
+		ranRows := len(rows)
+		if sqlPaged {
+			ranRows = sqlTotal
+		}
+		writeReportRunLog(tenantID, reportID, userID, time.Since(start).Milliseconds(), ranRows)
 	}
-	if maxRows := GetSettingInt(tenantID, "platform.max_sync_report_rows"); len(rows) > maxRows {
-		return nil, nil, false, &ValidationError{Code: "REPORT-0161", Message: fmt.Sprintf("this report matched %d rows, over the %d-row synchronous limit - narrow the filters or use Export instead", len(rows), maxRows)}
+	if !sqlPaged && len(rows) > limit {
+		return nil, nil, false, reportTooBig(limit)
 	}
 	masked = reportMasked(d.Columns, role)
+	if sqlPaged {
+		page.Total = sqlTotal
+	} else if onePage {
+		rows = slicePage(rows, d.Columns, masked, page)
+	}
 	// 49.11.1: a report with a sensitive column read unmasked is a security
 	// event, in the caller's own role when a wrapper ran it on their behalf.
 	readRole := role
@@ -455,7 +623,7 @@ func RunReportDrillDownContext(ctx context.Context, tenantID, reportID, role, ro
 	}
 	// 134.6 (47.10.1): a drill-down is held to the same row cap as the report.
 	if maxRows := GetSettingInt(tenantID, "platform.max_sync_report_rows"); maxRows > 0 && len(rows) > maxRows {
-		return nil, &ValidationError{Code: "REPORT-0161", Message: fmt.Sprintf("this detail matched %d rows, over the %d-row synchronous limit - narrow the filters or use Export instead", len(rows), maxRows)}
+		return nil, &ValidationError{Code: "REPORT-0161", Message: fmt.Sprintf("This detail has %d rows, and the limit is %d.", len(rows), maxRows)}
 	}
 	return maskContactColumns(tenantID, def.Columns, maskSensitiveColumns(def.Columns, rows, role), role), nil
 }

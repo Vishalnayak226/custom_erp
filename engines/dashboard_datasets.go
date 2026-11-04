@@ -526,6 +526,7 @@ func RunDatasetQuery(tenantID string, v DatasetViewer, q DatasetQuery) (DatasetR
 		viewerStores = access.List()
 	}
 	res.Contract = buildKPIContract(ds, q, limited, viewerStores, res.CachedAt)
+	res.Contract = WithLiveConfidence(tenantID, res.Contract, DatasetConfidenceDomain(ds.Key), q.Store)
 	datasetCacheMu.Lock()
 	if len(datasetCache) >= datasetCacheMax {
 		datasetCache = map[string]datasetCacheEntry{}

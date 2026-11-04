@@ -533,6 +533,9 @@ func PostReturnGSTReversalTx(tx *sql.Tx, schema, tenantID, returnRequestID strin
 		}
 	}
 	credits := map[string]int64{"4100": total}
+	if split := returnRevenueSplitForRequest(tx, schema, tenantID, returnRequestID, total); split != nil { // Stage 148.4
+		credits = split
+	}
 	return PostDoubleEntryTx(tx, tenantID, schema, "ReturnRequest", returnRequestID, debits, credits, "",
 		fmt.Sprintf("ReturnRequest:%s:GST_REVERSAL", returnRequestID))
 }

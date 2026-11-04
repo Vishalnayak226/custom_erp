@@ -22,7 +22,7 @@ Stage 49.5.1. Every command of the families below, one row each. **Actor** is th
 
 | Family | Commands |
 |---|---|
-| Export | 4 |
+| Export | 5 |
 | Credential / config change | 23 |
 | Loyalty | 6 |
 | Tender | 2 |
@@ -35,7 +35,7 @@ Stage 49.5.1. Every command of the families below, one row each. **Actor** is th
 | Journal / period | 9 |
 | Payroll | 1 |
 | Master merge | 2 |
-| **Total** | **129** |
+| **Total** | **130** |
 
 ## Export
 
@@ -43,6 +43,7 @@ Stage 49.5.1. Every command of the families below, one row each. **Actor** is th
 |---|---|---|---|---|---|---|
 | `POST /api/v1/dashboards/export` | authenticated · reports.default; module reports | the dataset computed server-side, masked by role | exports not frozen | the file holds what the dashboard shows for this role | none - a repeat is a second command | refusal: <error code> / Error (AuditRequired entries); DATA_EXPORT / SUCCESS (apiMiddleware) |
 | `POST /api/v1/pim/export-templates/{id}/run` | authenticated · pim.default; module pim | the feed's columns from the template's field maps | a template; exports not frozen | every column comes through a template field or a field map; a field appears in one column | none - a repeat is a second command | refusal: <error code> / Error (AuditRequired entries); DATA_EXPORT / SUCCESS (apiMiddleware) |
+| `POST /api/v1/pim/feeds/{id}/run` | authenticated · pim.default; module pim | the feed (template, product group, ready only, format, destination) | the feed is Active; the caller can read feeds and items; exports not frozen | every run is recorded with its rows, skipped items and delivery result; an email is shown as sent only when the mail server took it | none - a repeat is a second command | DATA_EXPORT / SUCCESS (apiMiddleware) |
 | `POST /api/v1/reports/export` | authenticated · reports.default; module reports | export id, the job's row cap from the requesting client, masking by role | a registered report; exports not frozen; the role may read the report | rows and totals in the file equal the on-screen report; sensitive columns are masked by the same policy | none - a repeat is a second command | refusal: <error code> / Error (AuditRequired entries); DATA_EXPORT / SUCCESS (apiMiddleware) |
 | `POST /api/v1/reports/export/{id}/cancel` | authenticated · reports.default; module reports | cancel stamp | the caller's own running export | a cancelled export delivers nothing | cancel is idempotent | refusal: <error code> / Error (AuditRequired entries) |
 
@@ -165,7 +166,7 @@ Stage 49.5.1. Every command of the families below, one row each. **Actor** is th
 | `POST /api/v1/wms/pick-scan` | authenticated · wms.default; module oms,wms | pick progress, bin stock movement | a Pending or InProgress fulfilment task; the scanned SKU is on it | picked never exceeds allocated; a scan on a completed task is refused | none - a repeat is a second command | refusal: <error code> / Error (AuditRequired entries) |
 | `POST /api/v1/wms/short-pick` | authenticated · wms.default; module oms,wms | shortage stamp, reallocation | a task in picking | short quantity never exceeds remaining; the shortage is recorded, not silently dropped | none - a repeat is a second command | refusal: <error code> / Error (AuditRequired entries) |
 | `POST /api/v1/wms/transfer/pack` | authenticated · wms.default; module wms | package number | a transfer picked | packed never exceeds picked | none - a repeat is a second command | PACK_TRANSFER_ORDER / SUCCESS; refusal: <error code> / Error (AuditRequired entries) |
-| `POST /api/v1/wms/wave/assign` | authenticated · wms.default; module wms | assignment stamp | a wave not yet complete | one picker per wave task | none - a repeat is a second command | WMS_WAVE_ASSIGN / SUCCESS; refusal: <error code> / Error (AuditRequired entries) |
+| `POST /api/v1/wms/wave/assign` | authenticated · wms.default; module wms | assignment stamp | a wave not yet complete | one picker per wave task | none - a repeat is a second command | WMS_WAVE_ASSIGN / SUCCESS; WMS_WAVE_ASSIGN_TRANSFER / SUCCESS; refusal: <error code> / Error (AuditRequired entries) |
 | `POST /api/v1/wms/wave/create` | authenticated · wms.default; module wms | wave number, task list | allocated orders | an order is in one wave at a time | none - a repeat is a second command | WMS_WAVE_ASSIGN / SUCCESS; WMS_WAVE_CREATE / SUCCESS; refusal: <error code> / Error (AuditRequired entries) |
 | `POST /api/v1/wms/wave/from-selection` | authenticated · wms.default; module wms | wave number | selected allocated orders | an order is in one wave at a time | none - a repeat is a second command | WMS_WAVE_ASSIGN / SUCCESS; WMS_WAVE_CREATE / SUCCESS; refusal: <error code> / Error (AuditRequired entries) |
 | `POST /api/v1/wms/wave/pick-confirm` | authenticated · wms.default; module wms | picked quantity per task, bin stock movement | an assigned wave task | picked never exceeds the task's quantity; bin stock moves once | none - a repeat is a second command | refusal: <error code> / Error (AuditRequired entries) |
@@ -197,7 +198,7 @@ Stage 49.5.1. Every command of the families below, one row each. **Actor** is th
 | Command | Actor | Authoritative inputs | Preconditions | Invariants | Idempotency | Audit row |
 |---|---|---|---|---|---|---|
 | `POST /api/v1/finance/payment-proposal` | authenticated · finance.post (Accountant, Accounts Payable, Accounts Receivable, Admin, Administrator, HR/Admin, Super Admin) | proposal number, selected bills by due date | open payables | a bill is in one open proposal | none - a repeat is a second command | CREATE_PAYMENT_PROPOSAL / SUCCESS; refusal: <error code> / Error (AuditRequired entries) |
-| `POST /api/v1/finance/payment-proposal/{id}/execute` | authenticated · finance.post (Accountant, Accounts Payable, Accounts Receivable, Admin, Administrator, HR/Admin, Super Admin) | payment numbers, GL postings | an Approved proposal; approver is not the preparer | every bill in the proposal is paid once, for its proposed amount | ClaimCommand(finance.payment_proposal.execute) via commandKeyed | EXECUTE_PAYMENT_PROPOSAL / SUCCESS; PAY_VENDOR_INVOICE / SUCCESS; PAY_VENDOR_INVOICE_OVERRIDE_SUBMITTED / SUCCESS; refusal: <error code> / Error (AuditRequired entries) |
+| `POST /api/v1/finance/payment-proposal/{id}/execute` | authenticated · finance.post (Accountant, Accounts Payable, Accounts Receivable, Admin, Administrator, HR/Admin, Super Admin) | payment numbers, GL postings | an Approved proposal; approver is not the preparer | every bill in the proposal is paid once, for its proposed amount | ClaimCommand(finance.payment_proposal.execute) via commandKeyed | EXECUTE_PAYMENT_PROPOSAL / SUCCESS; PAY_VENDOR_INVOICE / SUCCESS; PAY_VENDOR_INVOICE_OVERRIDE_SUBMITTED / SUCCESS; VENDOR_EARLY_PAYMENT_DISCOUNT / SUCCESS; refusal: <error code> / Error (AuditRequired entries) |
 | `POST /api/v1/finance/payment-proposal/{id}/record-utr` | authenticated · finance.post (Accountant, Accounts Payable, Accounts Receivable, Admin, Administrator, HR/Admin, Super Admin) | UTR stamp | an executed proposal | one UTR per payment | none - a repeat is a second command | refusal: <error code> / Error (AuditRequired entries) |
 | `POST /api/v1/finance/vendor-credit-note/{id}/post` | authenticated · finance.post (Accountant, Accounts Payable, Accounts Receivable, Admin, Administrator, HR/Admin, Super Admin) | GL posting, posting stamp | a Draft vendor credit note against a bill | the note never exceeds the bill's open amount; posts once; posted money is frozen after | none - a repeat is a second command | POST_VENDOR_CREDIT_NOTE / SUCCESS |
 | `POST /api/v1/procurement/vendor-invoice/match` | authenticated · procurement.default; module procurement | match result, MismatchHold status | a vendor invoice and its GRN / PO | a bill matches one GRN; a second bill for the same goods is held, not paid | none - a repeat is a second command | MATCH_3WAY_VENDOR_INVOICE / SUCCESS; refusal: <error code> / Error (AuditRequired entries) |

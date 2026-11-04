@@ -103,11 +103,15 @@ async function renderDocTableView(container) {
       <button class="btn btn-primary" id="doc-create-button">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
         <span>New ${escapeHTMLText(getDoctypeLabel(currentDoctype))}</span>
-      </button>` : `
+      </button>` : currentDoctype === 'TradeChargeEntry' ? '' : (currentDoctype === 'VendorAdvance' || currentDoctype === 'VendorRebateClaim') && isMenuRuleVisible({ capability: 'finance.post' }) ? `<button class="btn btn-primary" id="doc-vendor-tool">${currentDoctype === 'VendorAdvance' ? 'Give advance' : 'Calculate'}</button>` : `
       <span class="page-header-note" title="Your role has read access to this record type but not create access. Ask an administrator to grant it under Admin &raquo; Roles.">Read-only for your role</span>`}
     </div>
   `;
   container.appendChild(header);
+  header.querySelector('#doc-vendor-tool')?.addEventListener('click', async () => {
+    await loadViewModule('/view-vendor-advance.js?v=1');
+    if (currentDoctype === 'VendorAdvance') window.openVendorAdvanceGive?.(); else window.openVendorRebateCalculate?.();
+  });
   // Stage 55.18: service tickets, contracts and projects open with their
   // working view (queue, coverage, ledger) above the record list.
   if (['ServiceTicket', 'ServiceContract', 'Project'].includes(currentDoctype)) {
@@ -164,7 +168,7 @@ async function renderDocTableView(container) {
       <span id="doc-bulk-count">0 ticked</span>
       <button class="btn btn-outline btn-sm" data-doc-bulk="export">Export</button>
       ${GENERIC_SUBMIT_DOCTYPES.has(currentDoctype) && canUpdateDoctype(currentDoctype) ? '<button class="btn btn-outline btn-sm" data-doc-bulk="submit">Submit for approval</button>' : ''}
-      ${canDeleteDoctype(currentDoctype) ? '<button class="btn btn-outline btn-sm" data-doc-bulk="delete">Delete</button>' : ''}
+      ${!['TradeChargeEntry', 'VendorAdvance', 'VendorRebateClaim'].includes(currentDoctype) && canDeleteDoctype(currentDoctype) ? '<button class="btn btn-outline btn-sm" data-doc-bulk="delete">Delete</button>' : ''}
     </div>` : ''}
     <div class="table-wrapper" id="doc-table-wrapper"></div>
     <div class="pagination" id="doc-table-pagination"></div>
@@ -325,7 +329,9 @@ function renderDocTable() {
     const label = escapeHTMLText(getDoctypeLabel(currentDoctype));
     const emptyMsg = currentSearchQuery
       ? `No ${label} records match &ldquo;${escapeHTMLText(currentSearchQuery)}&rdquo;. Clear the search box above to see all of them.`
-      : `No ${label} records yet. Use <b>New ${label}</b> above to create the first one, or <b>Bulk Import</b> to load a CSV.`;
+      : canCreateDoctype(currentDoctype)
+        ? `No ${label} records yet. Use <b>New ${label}</b> above to create the first one, or <b>Bulk Import</b> to load a CSV.`
+        : `No ${label} records yet.`;
     tableHTML += `<tr><td colspan="${cols.length + 1 + (bulkEditingEnabled ? 1 : 0) + (currentDoctype === 'PurchaseRequisition' ? 1 : 0)}" class="text-center py-8 text-muted">${emptyMsg}</td></tr>`;
   } else {
     items.forEach(row => {
@@ -379,6 +385,8 @@ function renderDocTable() {
             ? `<button class="action-btn" title="Submit for Approval" aria-label="Submit ${escapeHTMLText(row.id)} for approval" style="margin-right:4px;" data-doc-action="submit-requisition" data-doc-id="${escapeHTMLText(row.id)}">
                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
                </button>`
+            : row.status === 'Approved' && prHasLines(row)
+              ? `<button class="action-btn" title="Combine open requests for this vendor" style="margin-right:4px;" data-doc-action="combine-requisition" data-doc-id="${escapeHTMLText(row.id)}" data-vendor="${escapeHTMLText((prLines(row).find(l => l.vendor_id) || {}).vendor_id || '')}">Combine</button>`
             : row.status === 'Approved'
               ? `<button class="action-btn" title="Convert to RFQ" style="margin-right:4px;" data-doc-action="convert-requisition" data-doc-id="${escapeHTMLText(row.id)}" data-target="RFQ">RFQ</button>
                  <button class="action-btn" title="Convert to Purchase Order" style="margin-right:4px;" data-doc-action="convert-requisition" data-doc-id="${escapeHTMLText(row.id)}" data-target="PurchaseOrder">PO</button>`
@@ -405,6 +413,14 @@ function renderDocTable() {
         ? `<button class="action-btn" title="Receive from Subcontractor" aria-label="Receive ${escapeHTMLText(row.id)} from subcontractor" style="margin-right:4px;" data-doc-action="receive-subcontract-order" data-doc-id="${escapeHTMLText(row.id)}" data-expected-qty="${escapeHTMLText(row.expected_received_qty || '')}">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
            </button>`
+        // Stage 148.15 / 148.17: advance and rebate-claim steps.
+        : currentDoctype === 'VendorAdvance' && (row.status === 'Open' || row.status === 'Part Applied') && isMenuRuleVisible({ capability: 'finance.post' })
+        ? ['apply', 'refund', ...(row.status === 'Open' && !Number(row.refunded_amount) ? ['cancel'] : [])].map(op => `<button class="btn btn-outline btn-sm" style="margin-right:4px;" data-doc-action="vendor-op" data-op="${op}" data-doc-id="${escapeHTMLText(row.id)}" data-vendor="${escapeHTMLText(row.vendor_id || '')}" data-po="${escapeHTMLText(row.po_id || '')}" data-open="${escapeHTMLText(String(row.open_amount ?? ''))}">${op[0].toUpperCase() + op.slice(1)}</button>`).join('')
+        : currentDoctype === 'VendorRebateClaim' && ['Calculated', 'Rejected', 'Approved'].includes(row.status) && isMenuRuleVisible({ capability: 'finance.post' })
+        ? `<button class="btn btn-outline btn-sm" style="margin-right:4px;" data-doc-action="vendor-op" data-op="${row.status === 'Approved' ? 'settle' : 'submit'}" data-doc-id="${escapeHTMLText(row.id)}">${row.status === 'Approved' ? 'Settle' : 'Send'}</button>`
+        // Stage 148.8: a carrier's bill against the estimate; each line's share.
+        : currentDoctype === 'TradeChargeEntry'
+        ? `${row.status === 'Estimated' ? `<button class="btn btn-outline btn-sm" style="margin-right:4px;" data-doc-action="charge-bill" data-doc-id="${escapeHTMLText(row.id)}" data-doc-name="${escapeHTMLText(row.vendor_id || '')}">Book bill</button>` : ''}${row.source_doctype === 'GRN' || row.grn_id ? `<button class="btn btn-outline btn-sm" style="margin-right:4px;" data-doc-action="charge-lines" data-doc-id="${escapeHTMLText(row.id)}" data-doc-name="${escapeHTMLText(row.grn_id || row.source_id || '')}">Lines</button>` : ''}`
         // Stage 26.7.9: customer householding/merge - this row (the
         // duplicate) merges INTO another customer id the user provides.
         : currentDoctype === 'Customer' && row.status !== 'Merged'
@@ -446,6 +462,9 @@ function renderDocTable() {
         // row action per status, through the dedicated endpoints.
         : currentDoctype === 'ServiceTicket' && SERVICE_TICKET_NEXT[row.status]
         ? serviceTicketActions(row)
+        // Stage 148.40: correct a batch's or serial's purity, karat and weights.
+        : (currentDoctype === 'Batch' || currentDoctype === 'SerialNumber') && (state.permissions.isAdmin || state.permissions.create.has('InventoryAdjustment'))
+        ? `<button class="btn btn-outline btn-sm" style="margin-right:4px;" data-doc-action="correct-piece" data-doc-id="${escapeHTMLText(row.id)}">Correct</button>`
         : '';
       tableHTML += `
         <td class="row-actions-cell" style="text-align: right;">
@@ -457,11 +476,11 @@ function renderDocTable() {
           <button class="action-btn" title="Copy: a new record with these details" aria-label="Copy ${escapeHTMLText(row.id)}" style="margin-right:4px;" data-doc-action="copy" data-doc-id="${escapeHTMLText(row.id)}">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           </button>` : ''}
-          ${currentDoctype !== 'PasswordResetRequest' && canUpdateDoctype(currentDoctype) ? `
+          ${currentDoctype !== 'PasswordResetRequest' && !['TradeChargeEntry', 'VendorAdvance', 'VendorRebateClaim'].includes(currentDoctype) && canUpdateDoctype(currentDoctype) ? `
           <button class="action-btn" title="Edit" aria-label="Edit ${escapeHTMLText(row.id)}" style="margin-right:4px;" data-doc-action="edit" data-doc-id="${escapeHTMLText(row.id)}">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>` : ''}
-          ${currentDoctype !== 'PasswordResetRequest' && canDeleteDoctype(currentDoctype) ? `
+          ${currentDoctype !== 'PasswordResetRequest' && !['TradeChargeEntry', 'VendorAdvance', 'VendorRebateClaim'].includes(currentDoctype) && canDeleteDoctype(currentDoctype) ? `
           <button class="action-btn action-btn-danger" title="Delete" aria-label="Delete ${escapeHTMLText(row.id)}" data-doc-action="delete" data-doc-id="${escapeHTMLText(row.id)}">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
           </button>` : ''}
@@ -472,7 +491,7 @@ function renderDocTable() {
 
   tableHTML += `</tbody></table>`;
   wrapper.innerHTML = tableHTML;
-  const DOC_ACTIONS_IN_PROCUREMENT = new Set(['submit-quality-inspection', 'send-subcontract-order', 'receive-subcontract-order', 'merge-customer', 'submit-document']);
+  const DOC_ACTIONS_IN_PROCUREMENT = new Set(['submit-quality-inspection', 'send-subcontract-order', 'receive-subcontract-order', 'merge-customer', 'submit-document', 'charge-bill', 'charge-lines', 'vendor-op']);
   if (!wrapper.dataset.actionListenersBound) {
     wrapper.dataset.actionListenersBound = 'true';
     wrapper.addEventListener('click', async event => {
@@ -490,17 +509,27 @@ function renderDocTable() {
       }
       switch (button.dataset.docAction) {
         case 'submit-requisition': window.submitRequisitionForApproval?.(id); break;
+        case 'combine-requisition': window.combineRequisitions?.(id, button.dataset.vendor); break;
         case 'convert-requisition': window.convertRequisition?.(id, button.dataset.target); break;
         case 'submit-quality-inspection': window.submitQualityInspectionForApproval?.(id); break;
         case 'send-subcontract-order': window.sendSubcontractOrder?.(id); break;
         case 'receive-subcontract-order': window.receiveSubcontractOrder?.(id, button.dataset.expectedQty); break;
         case 'merge-customer': window.mergeCustomerRow?.(id); break;
+        case 'charge-bill': window.billChargeEntryRow?.(id, button.dataset.docName); break;
+        case 'vendor-op': {
+          await loadViewModule('/view-vendor-advance.js?v=1');
+          const op = button.dataset.op;
+          if (op === 'submit' || op === 'settle') window.vendorRebateOp?.(op, id); else window.vendorAdvanceOp?.(op, id, button.dataset.open, button.dataset.vendor, button.dataset.po);
+          break;
+        }
+        case 'charge-lines': window.showChargeLinesRow?.(button.dataset.docName); break;
         case 'service-ticket': runServiceTicketStep(id, button.dataset.step, button); break;
         case 'submit-document': submitGenericDocForApproval(button.dataset.doctype, id, button); break;
         case 'run-pim-import': loadViewModule('/view-pim.js?v=1').then(() => window.openPIMImportTemplateRun?.(id)).catch(() => showToast('Import tools could not load. Refresh and try again.', { variant: 'error' })); break;
         case 'run-pim-export': window.runPIMExportTemplateRow?.(id); break;
         case 'share-pim-catalog': window.openPIMCatalogShareModal?.(id, button.dataset.docName); break;
         case 'shopify-setup': loadViewModule('./view-shopify.js').then(m => m.renderShopifyPage(document.getElementById('view-root'), id)).catch(() => showToast('The Shopify page could not load. Refresh and try again.', { variant: 'error' })); break;
+        case 'correct-piece': loadViewModule('./view-piece-correction.js').then(m => m.openPieceCorrection(currentDoctype, id)).catch(() => showToast('Could not load. Refresh and try again.', { variant: 'error' })); break;
         case 'taxonomy-history': window.viewTaxonomyHistory?.(id); break;
         case 'copy': window.copyRecord?.(currentDoctype, id); break;
         case 'edit': window.editDocRecord?.(id); break;
@@ -775,6 +804,16 @@ async function runServiceTicketStep(id, step, button) {
 // no UI action calling it. store_code/financial_year aren't stored on the
 // requisition itself, so they're asked for here, same as GRN's own workbench
 // asks for what its source document doesn't carry.
+// Stage 148.14: a request made of item lines goes to POs through Combine.
+function prLines(row) {
+  try { const v = typeof row.items === 'string' ? JSON.parse(row.items || '[]') : row.items; return Array.isArray(v) ? v : []; } catch { return []; }
+}
+function prHasLines(row) { return prLines(row).length > 0; }
+window.combineRequisitions = async function(requisitionId, defaultVendor) {
+  await loadViewModule('/view-vendor-advance.js?v=1');
+  window.openCombineRequisitions?.(defaultVendor);
+};
+
 window.convertRequisition = async function(requisitionId, target) {
   const storeCode = await showCustomPrompt('Store code for the new document:', 'HO', `Convert to ${target === 'RFQ' ? 'RFQ' : 'Purchase Order'}`);
   if (!storeCode) return;
@@ -1705,6 +1744,12 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
     loadViewModule('/view-images.js').then(m => m.attachRecordImages(body, currentDoctype, existingRecord)).catch(() => {});
   }
 
+  // Stage 148.12 / 148.13: an item's rate history and a vendor's scorecard.
+  const isItemDoc = currentDoctype === 'Item';
+  if (isEdit && (currentDoctype === 'Item' || currentDoctype === 'Vendor')) {
+    loadViewModule('/view-purchase-trust.js').then(m => (isItemDoc ? m.attachRateHistory : m.attachScorecard)(body, existingRecord)).catch(() => {});
+  }
+
   // Stage 33: only the long forms get the wide, multi-column dialog. Item
   // renders ~20 fields and was taller than any screen in one column; a
   // 3-field master in the same 920px box would just be empty space. The
@@ -1943,6 +1988,10 @@ async function handleDynamicFormSubmitInner(form) {
     showToast(describeDocumentStatusOutcome(getDoctypeLabel(currentDoctype), resultStatus), {
       variant: resultStatus === 'Pending Approval' ? 'warning' : 'success'
     });
+    // Stage 148.10: a listed vendor field waits for approval; the old value stays.
+    if (savedData && savedData.held_fields) {
+      showToast(`Waiting for approval: ${savedData.held_fields.replace(/_/g, ' ')}`, { variant: 'warning' });
+    }
     closeDynamicModal();
     // Stage 41: the record that was just created may be the first of its
     // record type, which means every "No Vendors have been set up yet" hint

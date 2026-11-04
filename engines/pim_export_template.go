@@ -36,6 +36,8 @@ var pimExportChannelFields = map[string]bool{
 	"item_code": true, "title": true, "description": true, "image_count": true,
 	// 140.12.24: the main image's address and the channel's own category.
 	"image_url": true, "channel_category": true,
+	// 146.5.13: the Amazon product type of the item's category.
+	"product_type": true,
 }
 
 // PIMExportColumn is one row of a PIMExportTemplate.column_mappings
@@ -123,6 +125,10 @@ func ValidatePIMExportTemplateDocument(tenantID string, payload map[string]inter
 				return tErr
 			}
 			for k := range targets {
+				allowed[k] = true
+			}
+			// 146.5.2: a loaded marketplace file adds its own column names
+			for _, k := range templateColumnNames(tenantID, strings.TrimSpace(pimString(payload["channel_template"]))) {
 				allowed[k] = true
 			}
 		}
@@ -256,12 +262,19 @@ type PIMExportFilter struct {
 	Family   string
 	Category string
 	Format   string
+	// 146.5.6: only the items of this product group, and only items a channel
+	// template calls ready (the rest are skipped with what is missing).
+	Group     string
+	ReadyOnly bool
 }
 
 // PIMExportSkip is an item a channel feed left out, and why.
 type PIMExportSkip struct {
 	Item   string `json:"item"`
 	Reason string `json:"reason"`
+	// Column is the first template column that failed (146.5.2); blank for a
+	// skip that is not about a column.
+	Column string `json:"column,omitempty"`
 }
 
 // PIMExportResult is a feed file and the items it skipped.
@@ -277,7 +290,7 @@ type PIMExportResult struct {
 // the channel cannot take (a transform that does not apply, say) is left out
 // and listed, instead of stopping the whole feed (140.12.24).
 func RunPIMExport(tenantID, templateID string, f PIMExportFilter) (*PIMExportResult, error) {
-	_, channel, cols, headerless, variantMode, err := fetchPIMExportTemplate(tenantID, templateID)
+	exportID, channel, cols, headerless, variantMode, err := fetchPIMExportTemplate(tenantID, templateID)
 	if err != nil {
 		return nil, err
 	}
@@ -285,6 +298,27 @@ func RunPIMExport(tenantID, templateID string, f PIMExportFilter) (*PIMExportRes
 	codes, variantCounts, err := exportableItemCodes(tenantID, variantMode, f)
 	if err != nil {
 		return nil, err
+	}
+
+	if g := strings.TrimSpace(f.Group); g != "" {
+		members, gErr := ResolvePIMProductGroupItemCodes(tenantID, g)
+		if gErr != nil {
+			return nil, gErr
+		}
+		in := map[string]bool{}
+		for _, m := range members {
+			in[m] = true
+		}
+		kept := codes[:0:0]
+		for _, c := range codes {
+			if in[c] {
+				kept = append(kept, c)
+			}
+		}
+		codes = kept
+	}
+	if f.ReadyOnly && channel == "" {
+		return nil, templateErr("PIM-0957", "Ready Only", "ready only needs a template that belongs to a channel")
 	}
 
 	res := &PIMExportResult{Skipped: []PIMExportSkip{}}
@@ -303,7 +337,26 @@ func RunPIMExport(tenantID, templateID string, f PIMExportFilter) (*PIMExportRes
 		}
 	} else {
 		extra := channelExportExtras(tenantID, channel)
+		tpl := exportChannelTemplate(tenantID, exportID) // 146.5.2; nil = as before
+		var keptCodes []string
 		for _, code := range codes {
+			if tpl != nil {
+				// only this template's category; another category has its own template
+				if cc, _ := extra(code, "channel_category"); !strings.EqualFold(strings.TrimSpace(cc), tpl.Category) {
+					continue
+				}
+			}
+			if f.ReadyOnly {
+				ready, rErr := CheckPublishReadiness(tenantID, code, channel)
+				if rErr != nil {
+					res.Skipped = append(res.Skipped, PIMExportSkip{Item: code, Reason: "Not ready: " + rErr.Error()})
+					continue
+				}
+				if !ready.Ready {
+					res.Skipped = append(res.Skipped, PIMExportSkip{Item: code, Reason: "Not ready: " + strings.Join(ready.MissingFields, ", ")})
+					continue
+				}
+			}
 			payload, pErr := BuildChannelPayload(tenantID, code, channel)
 			if pErr != nil {
 				res.Skipped = append(res.Skipped, PIMExportSkip{Item: code, Reason: pErr.Error()})
@@ -318,7 +371,17 @@ func RunPIMExport(tenantID, templateID string, f PIMExportFilter) (*PIMExportRes
 					record[i] = channelExportFieldValue(payload, key)
 				}
 			}
+			if tpl != nil {
+				if col, reason := tpl.validateRecord(cols, record); reason != "" {
+					res.Skipped = append(res.Skipped, PIMExportSkip{Item: code, Reason: reason, Column: col})
+					continue
+				}
+				keptCodes = append(keptCodes, code)
+			}
 			records = append(records, record)
+		}
+		if tpl != nil && tpl.ParentRows && !variantMode {
+			records = tpl.addParentRows(tenantID, cols, keptCodes, records)
 		}
 	}
 	res.Rows = len(records)
@@ -383,6 +446,10 @@ func channelExportExtras(tenantID, channel string) func(item, key string) (strin
 			_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(m.data->>'channel_category', '') FROM %s.documents m, %s.documents i
 				WHERE m.doctype = 'ChannelCategoryMap' AND m.deleted_at IS NULL AND m.data->>'channel' = $1
 				  AND i.doctype = 'Item' AND i.id = $2 AND m.data->>'erp_category' = i.data->>'category' LIMIT 1`, schema, schema), channel, item).Scan(&v)
+		case "product_type": // 146.5.13
+			_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(m.data->>'product_type', '') FROM %s.documents m, %s.documents i
+				WHERE m.doctype = 'ChannelCategoryMap' AND m.deleted_at IS NULL AND m.data->>'channel' = $1
+				  AND i.doctype = 'Item' AND i.id = $2 AND m.data->>'erp_category' = i.data->>'category' LIMIT 1`, schema, schema), channel, item).Scan(&v)
 		default:
 			return "", false
 		}
@@ -428,18 +495,23 @@ func channelExportFieldValue(payload *ChannelProductPayload, key string) string 
 	switch key {
 	case "item_code":
 		return payload.ItemCode
-	case "title":
-		return payload.Title
-	case "description":
-		return payload.Description
 	case "image_count":
 		return strconv.Itoa(len(payload.Images))
-	default:
-		for attrKey, attrVal := range payload.Attributes {
-			if strings.EqualFold(attrKey, key) {
-				return attrVal
-			}
+	case "title":
+		if payload.Title != "" {
+			return payload.Title
 		}
-		return ""
+	case "description":
+		if payload.Description != "" {
+			return payload.Description
+		}
 	}
+	// 146.5.2: a marketplace file's own "Title" column is often a field-map
+	// target; when the approved content has none, that attribute fills it.
+	for attrKey, attrVal := range payload.Attributes {
+		if strings.EqualFold(attrKey, key) {
+			return attrVal
+		}
+	}
+	return ""
 }

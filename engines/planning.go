@@ -265,7 +265,7 @@ func GetPeggedDemand(tenantID, sku, locationCode string) (demand []PeggedDemandL
 		}
 		for _, l := range lines {
 			if l.SKU == sku && l.Qty > 0 {
-				supply = append(supply, PeggedSupplyLine{SourceType: "PurchaseOrder", SourceID: poID, Qty: float64(l.Qty)})
+				supply = append(supply, PeggedSupplyLine{SourceType: "PurchaseOrder", SourceID: poID, Qty: float64(l.Qty + l.FreeQty)})
 			}
 		}
 	}

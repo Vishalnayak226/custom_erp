@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"sort"
 )
 
 // Stage 37.3: Costing & valuation, incl. landed cost allocation.
@@ -30,95 +31,28 @@ import (
 // disassembly, wastage...) to stay correct. GetInventoryValuation computes a
 // real "current value" at report time instead, multiplying the real,
 // already-correct inventory_availability.on_hand against this table's rate.
+//
+// Stage 148.1: the average is of the stock in hand, not of everything ever
+// received: each receipt blends with the units held at that moment. See
+// moving_cost.go.
 
-// upsertItemCostReceipt is the one place that grows item_cost's cumulative
-// qty/value and recomputes the average - an atomic Postgres UPSERT (the same
-// idiom PostGRNReceiptWithQC's own qc_hold/damaged bucket update already
-// uses), so two concurrent receipts of the same item can never race each
-// other into a wrong average the way a read-then-write in application code
-// could.
-func upsertItemCostReceipt(schema string, itemCode string, qty float64, valuePaise int64) error {
-	return upsertItemCostReceiptQ(db.DB, schema, itemCode, qty, valuePaise)
-}
-
-// upsertItemCostReceiptQ is upsertItemCostReceipt on a given executor - a
-// receipt's own transaction (Stage 132.20) or the pool.
-func upsertItemCostReceiptQ(q interface {
-	Exec(string, ...interface{}) (sql.Result, error)
-}, schema string, itemCode string, qty float64, valuePaise int64) error {
-	if qty <= 0 || valuePaise < 0 {
-		return nil
-	}
-	// Each placeholder is cast exactly once, in the "input" CTE, and never
-	// referenced again in its untyped form - lib/pq's simple protocol
-	// unifies a parameter's type across every occurrence in one statement,
-	// and mixing a raw ($2 straight into a column) and a cast use ($2::numeric
-	// in the CASE expression) of the SAME placeholder is exactly what
-	// produced Postgres error 42P08 ("inconsistent types deduced") in this
-	// function's first draft.
-	_, err := q.Exec(fmt.Sprintf(`
-		WITH input AS (SELECT $1::varchar AS item_code, $2::numeric AS qty, $3::bigint AS value_paise)
-		INSERT INTO %s.item_cost (item_code, cumulative_qty_received, cumulative_value_received_paise, avg_unit_cost_paise)
-		SELECT item_code, qty, value_paise, CASE WHEN qty = 0 THEN 0 ELSE (value_paise::numeric / qty)::bigint END FROM input
-		ON CONFLICT (item_code) DO UPDATE SET
-			cumulative_qty_received = %s.item_cost.cumulative_qty_received + EXCLUDED.cumulative_qty_received,
-			cumulative_value_received_paise = %s.item_cost.cumulative_value_received_paise + EXCLUDED.cumulative_value_received_paise,
-			avg_unit_cost_paise = CASE
-				WHEN (%s.item_cost.cumulative_qty_received + EXCLUDED.cumulative_qty_received) = 0 THEN 0
-				ELSE ((%s.item_cost.cumulative_value_received_paise + EXCLUDED.cumulative_value_received_paise)
-					/ (%s.item_cost.cumulative_qty_received + EXCLUDED.cumulative_qty_received))::bigint
-				END,
-			updated_at = CURRENT_TIMESTAMP`, schema, schema, schema, schema, schema, schema),
-		itemCode, qty, valuePaise)
-	return err
-}
-
-// RecordStockReceiptCost is the tenantID-facing entry point PostGRNReceiptWithQC
-// calls for each accepted line - qty is the accepted quantity, unitCostPaise
-// is that line's resolved ex-GST base cost (see resolvePOBaseUnitCostPaise).
+// RecordStockReceiptCost costs a receipt whose stock has already posted - qty
+// is the accepted quantity, unitCostPaise is that line's resolved ex-GST base
+// cost (see resolvePOBaseUnitCostPaise).
 func RecordStockReceiptCost(tenantID, itemCode string, qty float64, unitCostPaise int64) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
 	}
-	return upsertItemCostReceipt(schema, itemCode, qty, unitCostPaise*int64(qty))
-}
-
-// ApplyLandedCostCharge adds a charge amount into an item's cumulative value
-// WITHOUT changing its cumulative qty - no new physical stock arrived, only
-// its cost basis moved. If the item has no receipt history yet (qty is
-// still 0), the charge has no quantity to spread over and is recorded
-// without changing the average - a stated, logged limitation rather than a
-// silent no-op or a fabricated per-unit rate.
-func ApplyLandedCostCharge(tenantID, itemCode string, chargeAmountPaise int64) error {
-	schema, err := db.GetTenantSchema(tenantID)
+	tx, err := db.DB.Begin()
 	if err != nil {
 		return err
 	}
-	return applyLandedCostChargeQ(db.DB, schema, itemCode, chargeAmountPaise)
-}
-
-// applyLandedCostChargeQ is ApplyLandedCostCharge on a given executor - the
-// voucher's own transaction (Stage 135.21) or the pool.
-func applyLandedCostChargeQ(q interface {
-	Exec(string, ...interface{}) (sql.Result, error)
-}, schema, itemCode string, chargeAmountPaise int64) error {
-	if chargeAmountPaise <= 0 {
-		return nil
+	defer tx.Rollback()
+	if err := blendIntoCostTx(tx, schema, itemCode, qty, unitCostPaise*int64(qty), qty, true); err != nil {
+		return err
 	}
-	_, err := q.Exec(fmt.Sprintf(`
-		INSERT INTO %s.item_cost (item_code, cumulative_qty_received, cumulative_value_received_paise, avg_unit_cost_paise)
-		VALUES ($1, 0, $2, 0)
-		ON CONFLICT (item_code) DO UPDATE SET
-			cumulative_value_received_paise = %s.item_cost.cumulative_value_received_paise + EXCLUDED.cumulative_value_received_paise,
-			avg_unit_cost_paise = CASE
-				WHEN %s.item_cost.cumulative_qty_received = 0 THEN %s.item_cost.avg_unit_cost_paise
-				ELSE ((%s.item_cost.cumulative_value_received_paise + EXCLUDED.cumulative_value_received_paise)
-					/ %s.item_cost.cumulative_qty_received)::bigint
-				END,
-			updated_at = CURRENT_TIMESTAMP`, schema, schema, schema, schema, schema, schema),
-		itemCode, chargeAmountPaise)
-	return err
+	return tx.Commit()
 }
 
 // GetItemUnitCost reads the current moving-average cost. hasCost is false
@@ -180,7 +114,7 @@ func resolvePOBaseUnitCostPaise(tenantID, poID, sku string) (unitCostPaise int64
 			continue
 		}
 		taxableSum += line.Taxable
-		qtySum += line.Qty
+		qtySum += line.Qty + line.FreeQty
 	}
 	if qtySum <= 0 {
 		return 0, false
@@ -257,11 +191,23 @@ func recordGRNReceiptCostingPartTx(tx *sql.Tx, tenantID, schema, grnID, part str
 	// its lines, multi-PO aware); an older GRN still costs from its PO.
 	grnCosts := grnLineUnitCostsPaise(tenantID, grnID)
 	var totalValuePaise int64
+	var inventoryLines []groupLine
 	// Stage 72.10: a non-valuated or non-stock item is expensed at receipt -
 	// its value goes to its profile's expense account, not 1200 Inventory,
 	// and it never enters the moving average (an issue costs it at zero).
 	expenseByAccount := map[string]int64{}
-	for _, line := range acceptedLines {
+	// Stage 148.8: every way into stock comes through here, so charges hook here.
+	var chargeLines []receiptChargeLine
+	// Stage 148.1: the part's stock has already posted, so the units still to be
+	// costed here come off the stock in hand each line blends with. SKU order, for
+	// the item_cost locks.
+	lines := append(acceptedLines[:0:0], acceptedLines...)
+	sort.SliceStable(lines, func(i, j int) bool { return lines[i].SKU < lines[j].SKU })
+	stockIn := map[string]float64{}
+	for _, line := range lines {
+		stockIn[line.SKU] += max(line.Qty, 0)
+	}
+	for _, line := range lines {
 		if line.Qty <= 0 {
 			continue
 		}
@@ -272,20 +218,27 @@ func recordGRNReceiptCostingPartTx(tx *sql.Tx, tenantID, schema, grnID, part str
 		if !ok {
 			LogSystemError(tenantID, "", "WARN", "RecordGRNReceiptCosting",
 				fmt.Sprintf("GRN %s: could not resolve a base cost for %s (po_id=%q) - not costed", grnID, line.SKU, poID), "")
+			stockIn[line.SKU] -= line.Qty
+			chargeLines = append(chargeLines, receiptChargeLine{SKU: line.SKU, Qty: line.Qty})
 			continue
 		}
+		chargeLines = append(chargeLines, receiptChargeLine{SKU: line.SKU, Qty: line.Qty, Value: unitCostPaise * int64(line.Qty), Costed: true})
 		if policy, _, known := ItemPolicyForSKU(tenantID, line.SKU); known && !policy.Valuated() {
 			expenseByAccount[policy.ExpenseAccount] += unitCostPaise * int64(line.Qty)
 			continue
 		}
-		if err := upsertItemCostReceiptQ(tx, schema, line.SKU, line.Qty, unitCostPaise*int64(line.Qty)); err != nil {
+		if err := blendIntoCostTx(tx, schema, line.SKU, line.Qty, unitCostPaise*int64(line.Qty), stockIn[line.SKU], true); err != nil {
 			return fmt.Errorf("item cost for %s: %w", line.SKU, err)
 		}
+		stockIn[line.SKU] -= line.Qty
 		totalValuePaise += unitCostPaise * int64(line.Qty)
+		inventoryLines = append(inventoryLines, groupLine{Sku: line.SKU, Weight: unitCostPaise * int64(line.Qty)})
 	}
 	debits := map[string]int64{}
 	if totalValuePaise > 0 {
-		debits["1200"] = totalValuePaise
+		for acct, v := range grnInventoryDebits(tenantID, grnID, poID, inventoryLines, totalValuePaise) {
+			debits[acct] += v
+		}
 	}
 	for acct, v := range expenseByAccount {
 		if v > 0 {
@@ -294,7 +247,7 @@ func recordGRNReceiptCostingPartTx(tx *sql.Tx, tenantID, schema, grnID, part str
 		}
 	}
 	if totalValuePaise <= 0 {
-		return nil
+		return applyReceiptChargesTx(tx, tenantID, schema, grnID, part, chargeLines)
 	}
 	key := fmt.Sprintf("GRN:%s:RECEIPT_COST", grnID)
 	if part != "" {
@@ -305,7 +258,7 @@ func recordGRNReceiptCostingPartTx(tx *sql.Tx, tenantID, schema, grnID, part str
 		"", key); err != nil {
 		return fmt.Errorf("receipt GL entry: %w", err)
 	}
-	return nil
+	return applyReceiptChargesTx(tx, tenantID, schema, grnID, part, chargeLines)
 }
 
 // CreateLandedCostVoucher creates a Draft LandedCostVoucher referencing a
@@ -415,35 +368,10 @@ func ApplyLandedCostVoucher(tenantID, voucherID, userID string) error {
 	if err := json.Unmarshal([]byte(receivedRaw), &receivedItems); err != nil {
 		return fmt.Errorf("GRN %s has unreadable received_items: %v", grnID, err)
 	}
-	poID := grnPurchaseOrderID(schema, grnID)
-	grnCosts := grnLineUnitCostsPaise(tenantID, grnID)
-
-	type lineBase struct {
-		sku       string
-		qty       float64
-		baseValue int64
-	}
-	var bases []lineBase
+	bases := grnCostBases(tenantID, schema, grnID, receivedItems)
 	var totalBaseValue int64
-	for _, m := range receivedItems {
-		sku, _ := m["sku"].(string)
-		accepted := numFromInterface(m["qty"])
-		if v, exists := m["accepted_qty"]; exists {
-			accepted = numFromInterface(v)
-		}
-		if sku == "" || accepted <= 0 {
-			continue
-		}
-		unitCostPaise, ok := grnCosts[sku]
-		if !ok {
-			unitCostPaise, ok = resolvePOBaseUnitCostPaise(tenantID, poID, sku)
-		}
-		if !ok {
-			continue
-		}
-		value := unitCostPaise * int64(accepted)
-		bases = append(bases, lineBase{sku: sku, qty: accepted, baseValue: value})
-		totalBaseValue += value
+	for _, b := range bases {
+		totalBaseValue += b.value
 	}
 	if totalBaseValue <= 0 {
 		return fmt.Errorf("GRN %s has no costed lines to allocate landed cost across", grnID)
@@ -454,23 +382,23 @@ func ApplyLandedCostVoucher(tenantID, voucherID, userID string) error {
 	// ConvertPostingToFunctional (engines/currency_documents.go) already
 	// uses, so a landed cost voucher's total always lands exactly on the
 	// items it named, never a paisa short or over.
-	var allocated int64
+	//
+	// Stage 148.1: the share of the units still here goes into their cost, the
+	// share of the units already sold to COGS variance.
+	legs := map[string]int64{"2110": -totalChargePaise}
+	weights := make([]int64, len(bases))
 	for i, b := range bases {
-		var share int64
-		if i == len(bases)-1 {
-			share = totalChargePaise - allocated
-		} else {
-			share = totalChargePaise * b.baseValue / totalBaseValue
-		}
-		allocated += share
-		if err := applyLandedCostChargeQ(tx, schema, b.sku, share); err != nil {
+		weights[i] = b.value
+	}
+	shares := spreadPaise(totalChargePaise, weights)
+	for i, b := range bases {
+		if _, _, err := addCostAdjustmentLegsTx(tx, tenantID, schema, b.sku, grnID, b.qty, shares[i], legs); err != nil {
 			return fmt.Errorf("applying landed cost to %s: %v", b.sku, err)
 		}
 	}
 
-	if err := PostDoubleEntryTx(tx, tenantID, schema, "LandedCostVoucher", voucherID,
-		map[string]int64{"1200": totalChargePaise}, map[string]int64{"2110": totalChargePaise},
-		"", fmt.Sprintf("LandedCostVoucher:%s:APPLY", voucherID)); err != nil {
+	if err := postSignedLegsTx(tx, tenantID, schema, "LandedCostVoucher", voucherID, legs,
+		fmt.Sprintf("LandedCostVoucher:%s:APPLY", voucherID)); err != nil {
 		return fmt.Errorf("GL posting failed, voucher not applied: %v", err)
 	}
 
@@ -524,6 +452,11 @@ func GetInventoryValuation(tenantID string) ([]map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Stage 148.1: an item whose stock is all named pieces is worth their own costs.
+	pieces, err := pieceCostTotals(db.DB, schema)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT ia.sku, SUM(ia.on_hand) AS qty, COALESCE(ic.avg_unit_cost_paise, 0)
 		FROM %s.inventory_availability ia
@@ -544,11 +477,19 @@ func GetInventoryValuation(tenantID string) ([]map[string]interface{}, error) {
 		if err := rows.Scan(&sku, &qty, &unitCostPaise); err != nil {
 			return nil, err
 		}
+		value, source := unitCostPaise*qty, costSourceAverage
+		if unitCostPaise == 0 {
+			source = costSourceNone
+		}
+		if p, ok := pieces[sku]; ok && p.covers(qty, unitCostPaise) {
+			value, source = p.value, costSourceOwn
+		}
 		out = append(out, map[string]interface{}{
 			"sku": sku, "qty_on_hand": qty,
 			"unit_cost":   PaiseToRupees(unitCostPaise),
-			"total_value": PaiseToRupees(unitCostPaise * qty),
+			"total_value": PaiseToRupees(value),
 			"costed":      unitCostPaise > 0,
+			"rate_source": source,
 		})
 	}
 	if out == nil {
@@ -565,6 +506,7 @@ func init() {
 			{Key: "unit_cost", Label: "Unit Cost (Avg)", Sensitive: true},
 			{Key: "total_value", Label: "Total Value", Sensitive: true},
 			{Key: "costed", Label: "Costed"},
+			{Key: "rate_source", Label: "Rate From"},
 		},
 		Params: []ReportParam{},
 		Run: func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {

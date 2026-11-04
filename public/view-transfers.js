@@ -31,6 +31,7 @@ const TRANSFER_STATUS_BADGE = {
 };
 
 async function renderTransfersView(container) {
+  if (currentViewTab === 'allocation') return (await import('./view-transfer-allocation.js' + new URL(import.meta.url).search)).renderTransferAllocationView(container); // 146.3.12
   const res = await apiFetch('/api/v1/doc/TransferOrder');
   if (!res) return;
   if (!res.ok) { renderErrorPanel(container, 'Failed to load transfer orders.', () => renderView('transfers')); return; }
@@ -68,6 +69,11 @@ async function renderTransfersView(container) {
           <label class="form-label" for="transfer-to">To Warehouse</label>
           <input type="text" id="transfer-to" class="form-input" autocomplete="off">
         </div>
+        <div class="form-group">
+          <label class="form-label" for="transfer-purpose">Purpose</label>
+          <select id="transfer-purpose" class="form-select"><option value="">Replenishment</option><option>New store</option><option>Launch allocation</option></select>
+        </div>
+        <details id="transfer-charges" hidden style="flex-basis:100%;"><summary style="cursor:pointer;font-weight:600;">Freight</summary></details>
       </div>
       <div class="txn-entry">
         <div class="form-group txn-entry-main">
@@ -130,6 +136,17 @@ async function renderTransfersView(container) {
   document.getElementById('transfer-create-btn').addEventListener('click', createTransferOrder);
   attachLinkTypeahead(document.getElementById('transfer-from'), 'Location');
   attachLinkTypeahead(document.getElementById('transfer-to'), 'Location');
+  // Stage 148.8: freight, once this company has a charge code.
+  const freight = document.getElementById('transfer-charges');
+  renderJSONLineEditor(freight, { fieldname: 'charges', fieldtype: 'JSONTable', options: JSON.stringify([
+    { key: 'charge_code', label: 'Charge', type: 'link', link: 'TradeChargeCode', required: true },
+    { key: 'amount', label: 'Amount', type: 'number', required: true },
+    { key: 'only_lines', label: 'Only SKUs', type: 'data' },
+    { key: 'exclude_lines', label: 'Leave out SKUs', type: 'data' }
+  ]) }, '');
+  if (canReadDoctype('TradeChargeCode')) {
+    apiFetch('/api/v1/doc/TradeChargeCode?limit=1').then(r => (r && r.ok ? r.json() : [])).then(rows => { if (rows.length) freight.hidden = false; }).catch(() => {});
+  }
   // Stage 106.5: the From follows the sending store.
   const syncFrom = () => mountStockFromTo(screen, document.getElementById('transfer-from').value.trim());
   document.getElementById('transfer-from').addEventListener('change', syncFrom);
@@ -217,6 +234,8 @@ async function createTransferOrderInner() {
     body: JSON.stringify({
       from_warehouse: fromWarehouse, to_warehouse: toWarehouse,
       items: JSON.stringify(transferLineItems), status: 'Draft',
+      ...(document.getElementById('transfer-purpose')?.value ? { purpose: document.getElementById('transfer-purpose').value } : {}),
+      ...(document.querySelector('#transfer-charges input[name="charges"]')?.value ? { charges: document.querySelector('#transfer-charges input[name="charges"]').value } : {}),
       ...readStockFromTo(document.getElementById('transfer-screen'))
     })
   });
@@ -550,6 +569,24 @@ async function packTransferOrderWithCartonization(id) {
 async function dispatchTransferOrder(id) {
   const detail = await loadTransferDetail(id);
   const tracked = (detail?.lines || []).filter(l => /Serial|Batch/.test(l.tracking_mode || ''));
+  // Stage 146.3.13: the source cannot fill every line and the policy ships what is there.
+  const fill = detail?.fill;
+  const shortLines = (fill?.lines || []).filter(l => l.short > 0);
+  if (fill && fill.policy === 'Ship what is there' && shortLines.length && fill.can_ship) {
+    const reason = await reasonCodeField('Transfer Discrepancy', 'tdisp-short-reason', 'Reason for the short quantity');
+    const rows = shortLines.map(l => `<li>${escapeHTMLText(l.sku)}: ships ${l.fill} of ${l.ordered}</li>`).join('');
+    openTransferDialog({
+      title: 'Ship what is there', submitLabel: 'Dispatch', body: `<ul>${rows}</ul>${reason}`,
+      onSubmit: async form => {
+        const code = form.querySelector('#tdisp-short-reason')?.value || '';
+        if (!code) return 'Choose a reason.';
+        const msg = await postTransfer('/api/v1/transfer/dispatch', { transfer_order_id: id, short_reason_code: code });
+        if (!msg) renderView('transfers');
+        return msg;
+      }
+    });
+    return;
+  }
   if (tracked.length === 0) {
     if (!(await showCustomConfirm('Dispatch this transfer? Stock will move from the source location into transit.', 'Dispatch Transfer'))) return;
     const msg = await postTransfer('/api/v1/transfer/dispatch', { transfer_order_id: id });

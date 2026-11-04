@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 )
 
 // CreateSalesInvoiceFromOrder creates one idempotent Draft SalesInvoice after
@@ -103,10 +104,26 @@ func CreateSalesInvoiceFromOrder(tenantID, orderID, userID string) (string, erro
 	if total <= 0 {
 		return "", fmt.Errorf("sales order %s has no invoiceable total", orderID)
 	}
+	// Stage 148.2: a channel (Shopify) order stores its shipping_charge apart
+	// from its lines, so the lines' total never held it. It is billed here as
+	// a charge, GST-inclusive like every price, taxed below at the rate the
+	// order's own lines were charged. Orders without one are untouched.
+	shipping := math.Max(round2(numFromInterface(orderData["shipping_charge"])), 0)
+	total = round2(total + shipping)
 	invoiceData := map[string]interface{}{
 		"code": orderID, "invoice_number": IssueDocumentNumber(tenantID, "SalesInvoice", invoiceID, "", location), "sales_order_id": orderID,
 		"customer": orderData["customer_name"], "location": location,
 		"total_amount": total, "status": "Draft",
+	}
+	// Stage 148.3: the customer link, and the due date their terms give.
+	if cid := strField(orderData, "customer_id"); cid != "" {
+		invoiceData["customer_id"] = cid
+	}
+	if term := firstNonEmpty(strField(orderData, "payment_term"), customerPaymentTerm(schema, strField(orderData, "customer_id"))); term != "" {
+		invoiceData["payment_term"] = term
+		if due := paymentTermDueDate(tenantID, term, BusinessToday()); due != "" {
+			invoiceData["due_date"] = due
+		}
 	}
 	if ref, _ := orderData["customer_reference"].(string); ref != "" {
 		invoiceData["customer_reference"] = ref // Stage 73.2.9: the customer's PO, onto its invoice
@@ -114,9 +131,20 @@ func CreateSalesInvoiceFromOrder(tenantID, orderID, userID string) (string, erro
 	if shortValue > 0 {
 		invoiceData["short_shipped_value"] = shortValue
 	}
+	if shipping > 0 {
+		invoiceData["shipping_charge"] = shipping
+	}
 	if len(gstLines) > 0 {
 		interstate, basis := resolveOrderInterstate(tenantID, schema, orderID, location)
 		if breakdown, gerr := ComputeGSTForLines(tenantID, gstLines, interstate); gerr == nil && breakdown.TotalAmount > 0 {
+			if shipping > 0 {
+				if breakdown.TaxableAmount > 0 && breakdown.GSTRate > 0 {
+					invoiceData["shipping_gst_rate"] = breakdown.GSTRate
+					breakdown.TotalTax = round2(breakdown.TotalTax + shipping - shipping/(1+breakdown.GSTRate/100))
+				} else {
+					breakdown.ExemptAmount = round2(breakdown.ExemptAmount + shipping) // the lines carry no GST, nor does their freight
+				}
+			}
 			amounts := reconcileInvoiceAmounts(breakdown, total, interstate)
 			invoiceData["taxable_amount"] = amounts.Taxable
 			invoiceData["non_taxable"] = amounts.NonTaxable

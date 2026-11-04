@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // Stage 26.10 (Reports and BI Sprint).
@@ -56,6 +58,9 @@ func init() {
 		},
 		Run: func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
 			return GetStockLedgerReport(tenantID, params["sku"], params["location_code"], params["voucher_type"], params["start"], params["end"])
+		},
+		RunPage: func(tenantID string, params map[string]string, page ReportPage) ([]map[string]interface{}, int, error) {
+			return stockLedgerRows(tenantID, params["sku"], params["location_code"], params["voucher_type"], params["start"], params["end"], &page)
 		},
 	})
 
@@ -170,9 +175,32 @@ type stockLedgerRow struct {
 }
 
 func GetStockLedgerReport(tenantID, sku, locationCode, voucherType, start, end string) ([]map[string]interface{}, error) {
+	rows, _, err := stockLedgerRows(tenantID, sku, locationCode, voucherType, start, end, nil)
+	return rows, err
+}
+
+// stockLedgerRows runs the ledger query: the whole book up to the on-screen cap,
+// or - with a page (Stage 157.4) - one LIMIT/OFFSET page and the true total.
+func stockLedgerRows(tenantID, sku, locationCode, voucherType, start, end string, page *ReportPage) ([]map[string]interface{}, int, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
+	}
+
+	order, limitSQL := "ASC", fmt.Sprintf("LIMIT %d", reportSQLLimit(tenantID))
+	if page != nil {
+		limitSQL = fmt.Sprintf("LIMIT %d OFFSET %d", page.Limit, page.Offset)
+		if page.Desc {
+			order = "DESC"
+		}
+	}
+
+	// A store-limited user's cut drops whole cards, so it filters inside too.
+	args := []interface{}{sku, locationCode, voucherType, start, end}
+	storeCut := ""
+	if page != nil && page.StoreCut {
+		args = append(args, pq.Array(page.Stores))
+		storeCut = "AND data->>'warehouse_id' = ANY($6)"
 	}
 
 	// sku/location select whole cards, so they filter inside; voucher type
@@ -193,26 +221,28 @@ func GetStockLedgerReport(tenantID, sku, locationCode, voucherType, start, end s
 			WHERE doctype = 'StockLedgerEntry'
 			  AND ($1 = '' OR data->>'item_id' = $1)
 			  AND ($2 = '' OR data->>'warehouse_id' = $2)
+			  %s
 		)
 		SELECT created_at, item_id, warehouse_id, qty, running_balance, voucher_type, voucher_id,
-		       from_location_id, to_location_id, from_status, to_status, user_id
+		       from_location_id, to_location_id, from_status, to_status, user_id, COUNT(*) OVER () AS total_rows
 		FROM card
 		WHERE ($3 = '' OR voucher_type = $3)
 		  AND ($4 = '' OR created_at >= public.erp_day_start($4::date))
 		  AND ($5 = '' OR created_at < public.erp_day_start($5::date + 1))
-		ORDER BY created_at ASC, id ASC LIMIT %d`, schema, reportSQLLimit(tenantID)),
-		sku, locationCode, voucherType, start, end)
+		ORDER BY created_at %s, id %s %s`, schema, storeCut, order, order, limitSQL),
+		args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
+	total := 0
 	out := []map[string]interface{}{}
 	for rows.Next() {
 		var r stockLedgerRow
 		if err := rows.Scan(&r.CreatedAt, &r.ItemID, &r.WarehouseID, &r.Qty, &r.RunningBalance,
 			&r.VoucherType, &r.VoucherID, &r.FromLocationID, &r.ToLocationID,
-			&r.FromStatus, &r.ToStatus, &r.UserID); err != nil {
+			&r.FromStatus, &r.ToStatus, &r.UserID, &total); err != nil {
 			continue
 		}
 		out = append(out, map[string]interface{}{
@@ -223,7 +253,10 @@ func GetStockLedgerReport(tenantID, sku, locationCode, voucherType, start, end s
 			"from_status": r.FromStatus, "to_status": r.ToStatus, "user_id": r.UserID,
 		})
 	}
-	return out, nil
+	if page == nil {
+		total = len(out)
+	}
+	return out, total, nil
 }
 
 // StaleApproval is one document sitting in "Pending Approval" past the

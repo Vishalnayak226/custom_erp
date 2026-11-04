@@ -20,6 +20,19 @@ import (
 
 // ValidatePIMExportScheduleDocument runs at ValidateDocument's shared exit.
 func ValidatePIMExportScheduleDocument(tenantID string, payload map[string]interface{}) error {
+	// 146.5.6: a schedule may run a feed instead of naming a template; the feed
+	// carries the template, the group, the format and where the file goes.
+	if feed := strings.TrimSpace(pimString(payload["feed"])); feed != "" {
+		if db.DB != nil {
+			if _, _, _, err := fetchPIMFeed(tenantID, feed); err != nil {
+				return &ValidationError{Code: "META-0198", SubFor: "Feed", Message: err.Error()}
+			}
+		}
+		if frequency := strings.TrimSpace(pimString(payload["frequency"])); frequency != "Daily" && frequency != "Weekly" && frequency != "Monthly" {
+			return &ValidationError{Code: "GLOBAL-0002", SubFor: "Frequency", Message: "frequency must be Daily, Weekly or Monthly"}
+		}
+		return validateISODate("Next Run Date", pimString(payload["next_run_date"]), true)
+	}
 	template := strings.TrimSpace(pimString(payload["export_template"]))
 	if template == "" {
 		return &ValidationError{Code: "GLOBAL-0001", SubFor: "Export Template", Message: "an export schedule needs a template"}
@@ -125,8 +138,26 @@ func processPIMExportSchedules(schema string) {
 func runPIMExportSchedule(tenantID, schema, scheduleID string, data map[string]interface{}) {
 	template := pimString(data["export_template"])
 	runStatus := "Delivered"
-	csvBytes, err := RunPIMExportTemplate(tenantID, template)
-	if err != nil {
+	var csvBytes []byte
+	var err error
+	if GetSettingBool(tenantID, SettingFreezeExports) {
+		// 146.5.6: the export freeze is enforced on requests; a schedule is not
+		// one, so it stops here. The date still moves on: unfreezing sends no backlog.
+		LogAuditEvent(tenantID, "system", "DATA_EXPORT", "REFUSED_FROZEN", "PIMExportSchedule "+scheduleID)
+		runStatus = "Refused: exports are paused for this business"
+	} else if feed := pimString(data["feed"]); feed != "" {
+		// 146.5.6: the feed does the export, the delivery and the run record
+		run, ferr := RunPIMFeed(tenantID, "system", feed)
+		switch {
+		case ferr != nil:
+			runStatus = "Failed: " + ferr.Error()
+		case run.Delivery == EmailFailed || run.Delivery == EmailNotSent:
+			runStatus = run.Delivery + ": " + run.DeliveryMessage
+		default:
+			runStatus = run.Status
+		}
+		err = ferr
+	} else if csvBytes, err = RunPIMExportTemplate(tenantID, template); err != nil {
 		runStatus = "Failed: " + err.Error()
 	} else {
 		recipientEmail := pimString(data["recipient_email"])

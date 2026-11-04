@@ -123,3 +123,22 @@ func bolPrintLines(tenantID, id string, _ map[string]interface{}) []map[string]i
 	}
 	return out
 }
+
+// Stage 146.3.6: the packing list of one box - what is inside, by SKU and name.
+// The package no., weights and dimensions are the header rows.
+func init() {
+	printShapes["ShippingPackage"] = printShape{title: "Packing List", lines: packingListLines, columns: []genericPrintColumn{
+		{Key: "sku", Label: "SKU"}, {Key: "item_name", Label: "Item"}, {Key: "qty", Label: "Qty"}}}
+}
+
+func packingListLines(tenantID, _ string, data map[string]interface{}) []map[string]interface{} {
+	out := []map[string]interface{}{}
+	for _, l := range genericLineList(data["items"]) {
+		sku := genericLineSKU(l)
+		out = append(out, map[string]interface{}{"sku": sku, "item_name": printItemName(tenantID, sku), "qty": numFromInterface(l["qty"])})
+	}
+	return out
+}
+
+// PackingListNotClosedCode: a Draft package is still being packed.
+const PackingListNotClosedCode = "GOODSR-1318"

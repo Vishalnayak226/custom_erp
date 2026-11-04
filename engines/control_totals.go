@@ -4,6 +4,7 @@ import (
 	"context"
 	"custom_erp/db"
 	"database/sql"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -96,11 +97,30 @@ func RunReportWithControlTotals(ctx context.Context, tenantID, reportID, role, u
 			return def, rows, masked, nil, err
 		}
 	}
+	// 157.4b: totals tie every row, so a page is cut from the whole run below.
+	// A later page shows the totals page one came with.
+	page, _ := ctx.Value(reportPageKey{}).(*ReportPage)
+	onePage := page != nil && page.Limit > 0
+	if onePage && page.Offset > 0 {
+		def, rows, masked, err := RunReportContext(ctx, tenantID, reportID, role, userID, params)
+		return def, rows, masked, nil, err
+	}
 	// Run unmasked (a full-visibility role), total, then mask for the caller.
 	// The caller's real role rides along so the sensitive-read event (49.11.1)
 	// names who saw the answer, not the role that computed it.
-	def, rawRows, _, err := RunReportContext(context.WithValue(ctx, reportReadRoleKey{}, role), tenantID, reportID, RoleSuperAdmin, userID, params)
+	runCtx := context.WithValue(ctx, reportReadRoleKey{}, role)
+	if onePage {
+		runCtx = WithReportPage(runCtx, &ReportPage{})
+	}
+	def, rawRows, _, err := RunReportContext(runCtx, tenantID, reportID, RoleSuperAdmin, userID, params)
 	if err != nil {
+		// Too big to total. A report that pages in its own query still opens,
+		// without the totals panel.
+		var tooBig *ValidationError
+		if onePage && errors.As(err, &tooBig) && tooBig.Code == "REPORT-0161" && reportRegistry[reportID].RunPage != nil {
+			def, rows, masked, err := RunReportContext(ctx, tenantID, reportID, role, userID, params)
+			return def, rows, masked, nil, err
+		}
 		return nil, nil, false, nil, err
 	}
 	totals, terr := fn(tenantID, params, rawRows)
@@ -113,7 +133,10 @@ func RunReportWithControlTotals(ctx context.Context, tenantID, reportID, role, u
 			fmt.Sprintf("detail %.2f vs summary %.2f (diff %.2f)%s", totals.DetailTotal, totals.SummaryTotal, totals.DetailVsSummary, ledgerDiffText(totals)))
 	}
 	masked := reportMasked(def.Columns, role)
-	rows := maskSensitiveColumns(def.Columns, rawRows, role)
+	if onePage {
+		rawRows = slicePage(rawRows, def.Columns, masked, page)
+	}
+	rows := maskContactColumns(tenantID, def.Columns, maskSensitiveColumns(def.Columns, rawRows, role), role)
 	if masked && totals != nil {
 		totals.hideAmounts()
 	}
@@ -236,12 +259,18 @@ func inventoryValuationControlTotals(tenantID string, _ map[string]string, rows 
 		      GROUP BY ia.sku HAVING SUM(ia.on_hand) <> 0) v`, schema, schema)).Scan(&summaryPaise, &uncosted); err != nil {
 		return nil, err
 	}
+	// Stage 148.1: pieces are worth their own costs, as on the report's rows.
+	ownCostGap, err := ownCostAdjustmentPaise(tx, schema)
+	if err != nil {
+		return nil, err
+	}
+	summaryPaise += ownCostGap
 	ledger, err := glDebitBalanceAt(tx, schema, []string{"1200"}, cut)
 	if err != nil {
 		return nil, err
 	}
 	c := &ReportControlTotals{
-		CutOff: cutOffLabel(cut), Basis: "On-hand quantity x moving average cost, every SKU with stock",
+		CutOff: cutOffLabel(cut), Basis: "On-hand quantity x moving average cost, every SKU with stock, pieces at their own cost",
 		DetailTotal: sumRowField(rows, "total_value"), SummaryTotal: PaiseToRupees(summaryPaise),
 		LedgerTotal: &ledger, LedgerAccounts: []string{"1200 Inventory Control"},
 	}

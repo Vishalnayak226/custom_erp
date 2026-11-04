@@ -161,6 +161,25 @@ func attributeValueID(itemCode, attributeCode, locale, channelCode string) strin
 // channelCode (the pre-26.4.1 call shape) only ever matches the global row,
 // so every existing caller keeps its old behavior unchanged.
 func ResolveAttributeValue(tenantID, itemCode, attributeCode, locale, channelCode string) (string, error) {
+	value, err := resolveOwnAttributeValue(tenantID, itemCode, attributeCode, locale, channelCode)
+	if err != nil || strings.TrimSpace(value) != "" || !GetSettingBool(tenantID, SettingDesignValuesFallback) {
+		return value, err
+	}
+	// 146.5.5: no value of its own - use the design's (the parent Item's).
+	schema, serr := db.GetTenantSchema(tenantID)
+	if serr != nil {
+		return value, nil
+	}
+	if design := designCodeOf(schema, itemCode); design != "" && design != itemCode {
+		if dv, derr := resolveOwnAttributeValue(tenantID, design, attributeCode, locale, channelCode); derr == nil {
+			return dv, nil
+		}
+	}
+	return value, nil
+}
+
+// resolveOwnAttributeValue is the item's own most specific value.
+func resolveOwnAttributeValue(tenantID, itemCode, attributeCode, locale, channelCode string) (string, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return "", err
@@ -413,6 +432,11 @@ const pimWorkbenchItemCap = 2000
 // the request deadline, so the screen never loaded. A PIMProductProfile is
 // written back only when its derived status, score or missing list changed.
 func ListWorkbench(tenantID, familyFilter string) ([]WorkbenchEntry, error) {
+	return ListWorkbenchSKUs(tenantID, familyFilter, nil)
+}
+
+// ListWorkbenchSKUs is ListWorkbench narrowed to the pasted item codes (146.5.13).
+func ListWorkbenchSKUs(tenantID, familyFilter string, skus []string) ([]WorkbenchEntry, error) {
 	const locale = "en"
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -445,6 +469,10 @@ func ListWorkbench(tenantID, familyFilter string) ([]WorkbenchEntry, error) {
 	if familyFilter != "" {
 		itemQuery += " AND data->>'family' = $1"
 		args = append(args, familyFilter)
+	}
+	if len(skus) > 0 {
+		args = append(args, pq.Array(skus))
+		itemQuery += fmt.Sprintf(" AND id = ANY($%d)", len(args))
 	}
 	itemRows, err := queryStrings(itemQuery+fmt.Sprintf(" ORDER BY id LIMIT %d", pimWorkbenchItemCap), 5, args...)
 	if err != nil {
@@ -495,6 +523,48 @@ func ListWorkbench(tenantID, familyFilter string) ([]WorkbenchEntry, error) {
 			filledAttrs[r[0]] = map[string]bool{}
 		}
 		filledAttrs[r[0]][r[1]] = strings.TrimSpace(r[2]) != ""
+	}
+	if GetSettingBool(tenantID, SettingDesignValuesFallback) {
+		// 146.5.5: a variant with no value of its own counts the design's.
+		s, _ := db.GetTenantSchema(tenantID)
+		parents, _ := queryStrings(`
+			SELECT id, data->>'parent_product_code' FROM %[1]s.documents
+			WHERE doctype = 'Item' AND id = ANY($1) AND COALESCE(data->>'parent_product_code','') <> ''`, 2, pq.Array(ids))
+		var designs []string
+		parentOf := map[string]string{}
+		for _, r := range parents {
+			parentOf[r[0]] = r[1]
+			designs = append(designs, r[1])
+		}
+		if len(designs) > 0 {
+			dRows, _ := queryStrings(`
+				SELECT DISTINCT ON (data->>'item', data->>'attribute') data->>'item', data->>'attribute', COALESCE(data->>'value', '')
+				FROM %[1]s.documents
+				WHERE doctype = 'ProductAttributeValue' AND data->>'item' = ANY($1) AND data->>'attribute' IS NOT NULL
+					AND COALESCE(data->>'locale', '') IN ($2, '') AND COALESCE(data->>'channel', '') = ''
+				ORDER BY data->>'item', data->>'attribute', COALESCE(data->>'locale', '') = $2 DESC`, 3, pq.Array(designs), locale)
+			byDesign := map[string]map[string]bool{}
+			for _, r := range dRows {
+				if strings.TrimSpace(r[2]) == "" {
+					continue
+				}
+				if byDesign[r[0]] == nil {
+					byDesign[r[0]] = map[string]bool{}
+				}
+				byDesign[r[0]][r[1]] = true
+			}
+			for item, parent := range parentOf {
+				for attr := range byDesign[parent] {
+					if filledAttrs[item] == nil {
+						filledAttrs[item] = map[string]bool{}
+					}
+					if !filledAttrs[item][attr] {
+						filledAttrs[item][attr] = true
+					}
+				}
+			}
+		}
+		_ = s
 	}
 
 	contentRows, err := queryStrings(`

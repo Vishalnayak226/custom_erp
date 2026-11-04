@@ -7,18 +7,18 @@
 > **Generated 2026-09-10.** This page is produced from the security evidence files named in each row, for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-Evidence, not one number (Stage 49.17.4). Judged as of 2026-11-03, the newest dated ledger section; *attention* rows need an owner's look.
+Evidence, not one number (Stage 49.17.4). Judged as of 2026-11-04, the newest dated ledger section; *attention* rows need an owner's look.
 
 | Area | Measure | State | Evidence |
 |---|---|---|---|
-| Attack surface | 889 routes: integration-credential 5, none 3, public 27, session 849, static 5 | classified (every route has a capability; tests fail otherwise) | `docs/security/attack_surface.json` |
+| Attack surface | 920 routes: integration-credential 5, none 3, public 27, session 880, static 5 | classified (every route has a capability; tests fail otherwise) | `docs/security/attack_surface.json` |
 | Configuration | 44 environment flags, 14 security-critical | listed | `docs/security/attack_surface.json` |
 | Dependencies | 2 modules, 2 direct | pinned by go.sum | `docs/security/attack_surface.json` |
 | Dependency provenance | ledger updated 2026-10-30 | current | `docs/security/dependency-ledger.json` |
 | Open risks | 11 open | no review overdue | `docs/security/risk_register.md` |
 | Detections | 25 rules (8 page, 17 queue for review) | every rule fires in the drill test | `engines/security_detection.go`, `TestStage49118DetectionDrillCoversEveryRule` |
 | Tenant and access negative tests | 20 test functions | run in every release (G10) | `*redteam*_test.go`, `stage49_3*_test.go`, `stage49_4_7*_test.go` |
-| Restore drill | last logged 2026-08-07 | attention: last logged drill 88 days ago (monthly expected); `deploy/restore_drill.sh` now also checks ledgers and audit evidence | `docs/operations/restore_drill_log.md` |
+| Restore drill | last logged 2026-08-07 | attention: last logged drill 89 days ago (monthly expected); `deploy/restore_drill.sh` now also checks ledgers and audit evidence | `docs/operations/restore_drill_log.md` |
 | Security documents | 26 documents | attention: past review_by - README.md, access-control-policy.md, assurance-evidence-handling.md, customer-security-pack.md, dependency-inventory.md, human-operations-and-social-engineering.md, risk_register.md, secure-development-lifecycle.md, third-party-risk-register.md, threat_model.md, verification-standards-matrix.md, vulnerability-disclosure-lifecycle.md | `docs/security/*.md` front matter |
 | Cadence: threat model review | last 2026-09-09 | current | `docs/security/threat_model.md` |
 | Cadence: risk register review | last 2026-09-09 | current | `docs/security/risk_register.md` |

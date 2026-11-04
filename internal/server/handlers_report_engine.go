@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"sort"
+	"strconv"
 	"time"
 
 	"custom_erp/engines"
@@ -51,7 +52,26 @@ func handleRunReport(w http.ResponseWriter, r *http.Request) {
 	}
 	reportID := r.PathValue("id")
 	params := flattenQueryParams(r)
-	def, rows, masked, controls, err := engines.RunReportWithControlTotals(r.Context(), tenantID, reportID, role, userID, params)
+	// Stage 157.4: ?page_size=N[&page_offset=M][&page_order=newest] asks for one
+	// page, so a big book opens on screen; the export cap stays on exports.
+	ctx := r.Context()
+	var page *engines.ReportPage
+	if n, _ := strconv.Atoi(params["page_size"]); n > 0 {
+		if n > 1000 {
+			n = 1000
+		}
+		off, _ := strconv.Atoi(params["page_offset"])
+		if off < 0 {
+			off = 0
+		}
+		page = &engines.ReportPage{Limit: n, Offset: off, Desc: params["page_order"] == "newest"}
+		ctx = engines.WithReportPage(ctx, page)
+	}
+	// 157.4b: these ask for the page, they are not the report's own filters.
+	delete(params, "page_size")
+	delete(params, "page_offset")
+	delete(params, "page_order")
+	def, rows, masked, controls, err := engines.RunReportWithControlTotals(ctx, tenantID, reportID, role, userID, params)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
@@ -69,7 +89,15 @@ func handleRunReport(w http.ResponseWriter, r *http.Request) {
 		}
 		sort.Strings(stores)
 	}
-	resp["contract"] = engines.BuildReportContract(*def, params, limited, stores, time.Now().UTC())
+	if page != nil {
+		paging := map[string]interface{}{"total": page.Total, "limit": page.Limit, "offset": page.Offset}
+		if page.Totals != nil {
+			paging["totals"] = page.Totals
+		}
+		resp["paging"] = paging
+	}
+	contract := engines.BuildReportContract(*def, params, limited, stores, time.Now().UTC())
+	resp["contract"] = engines.WithLiveConfidence(tenantID, contract, engines.ReportConfidenceDomain(*def), engines.ReportStoreParam(params))
 	// Stage 73.2.19: detail = summary = ledger, with its cut-off.
 	if controls != nil {
 		resp["control_totals"] = controls
@@ -79,7 +107,7 @@ func handleRunReport(w http.ResponseWriter, r *http.Request) {
 	// isn't an error), so it's an annotation on the normal 200 response,
 	// not a rejection. Stage 104.1: and so it is not written to the system
 	// error log either - it was 24 of the default client's 36 "errors".
-	if len(rows) == 0 {
+	if len(rows) == 0 && (page == nil || page.Total == 0) {
 		entry := errorCatalog["REPORT-0160"]
 		resp["code"] = "REPORT-0160"
 		resp["message"] = entry.UserMessage

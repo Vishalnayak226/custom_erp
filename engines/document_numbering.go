@@ -74,6 +74,7 @@ var documentNumberSeriesByDoctype = map[string]documentNumberSeries{
 	"RefundRequest":     {SeriesKey: "RF", NumberFields: []string{"code"}, KeepID: true},
 	"JournalVoucher":    {SeriesKey: "JV", NumberFields: []string{"code", "voucher_number"}, KeepID: true},
 	"PhysicalInventory": {SeriesKey: "PI", NumberFields: []string{"code"}, StoreFields: []string{"location"}, KeepID: true},
+	"GateEntry":         {SeriesKey: "GE", NumberFields: []string{"code"}, StoreFields: []string{"location_code"}},
 	"GatePass":          {SeriesKey: "GP", NumberFields: []string{"code"}, StoreFields: []string{"location_code"}, KeepID: true},
 	"ConsumptionEntry":  {SeriesKey: "CE", NumberFields: []string{"code"}, StoreFields: []string{"location"}, KeepID: true},
 	"BundleAssembly":    {SeriesKey: "KIT", NumberFields: []string{"code"}, StoreFields: []string{"location_code"}, KeepID: true},

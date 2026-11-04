@@ -140,6 +140,12 @@ var sensitiveFields = map[string]map[string]sensitiveFieldRule{
 		"bank_account_number": bankRule("Vendor payment account - payment-diversion fraud target"),
 		"bank_ifsc":           bankRule("Vendor payment account - payment-diversion fraud target"),
 	},
+	// Stage 148.10: a held vendor change carries the old and new values; the
+	// approver reads the masked summary field instead.
+	"VendorChange": {
+		"old_values": bankRule("May hold a vendor's old payment account"),
+		"new_values": bankRule("May hold a vendor's new payment account"),
+	},
 	"Employee": {
 		"bank_account_no": {Category: SensitiveCategoryPayroll, Why: "Employee salary account - payroll-grade personal data"},
 		"bank_ifsc":       {Category: SensitiveCategoryPayroll, Why: "Employee salary account - payroll-grade personal data"},
@@ -172,6 +178,13 @@ var sensitiveFields = map[string]map[string]sensitiveFieldRule{
 	"BOM":             {"standard_cost": costRule("Standard cost - reveals manufacturing margin")},
 	"ProductionOrder": {"actual_cost": costRule("Actual production cost - reveals manufacturing margin")},
 	"WorkCenter":      {"cost_per_hour": costRule("Internal costing rate")},
+
+	// Stage 148.1: what a sale booked line by line, and what a piece or lot cost.
+	"POSCart":         {"sale_costs": costRule("Cost of each line sold - reveals margin on every sale")},
+	"SalesInvoice":    {"sale_costs": costRule("Cost of each line sold - reveals margin on every sale")},
+	"FulfillmentTask": {"sale_costs": costRule("Cost of each named piece shipped - reveals margin on the sale")},
+	"SerialNumber":    {"receipt_cost_paise": costRule("What this piece cost - reveals its margin")},
+	"Batch":           {"receipt_cost_paise": costRule("What a unit of this lot cost - reveals its margin"), "receipt_cost_qty": costRule("The quantity behind this lot's cost")},
 
 	// --- Connector secrets (Super Admin read; see anySensitiveWriter) --
 	"WebhookSubscription": {

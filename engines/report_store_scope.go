@@ -94,6 +94,17 @@ func filterReportRowsByStore(rows []map[string]interface{}, key string, access S
 	return out
 }
 
+// reportStoreList is every store the user may see, for a query to cut by: the
+// same stores filterReportRowsByStore keeps. Never nil, so a user with none
+// matches no rows.
+func reportStoreList(a StoreAccess) []string {
+	out := a.List()
+	if a.Home != "" && !a.Stores[a.Home] {
+		out = append(out, a.Home)
+	}
+	return out
+}
+
 // CheckReportStoreAccess is the up-front check an export makes before
 // queueing (the run applies the same rule again).
 func CheckReportStoreAccess(tenantID, reportID, role, userID string, params map[string]string) error {

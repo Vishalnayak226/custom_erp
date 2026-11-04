@@ -270,8 +270,7 @@ func singleLocationNearestPincode(schema, shippingAddress string, items []map[st
 	if match == "" {
 		return "", false, nil
 	}
-	orderPincode, err := strconv.Atoi(match)
-	if err != nil {
+	if _, err := strconv.Atoi(match); err != nil {
 		return "", false, nil
 	}
 
@@ -279,19 +278,35 @@ func singleLocationNearestPincode(schema, shippingAddress string, items []map[st
 	if err != nil {
 		return "", false, err
 	}
+	codes := make([]string, len(cands))
+	for i, c := range cands {
+		codes[i] = c.code
+	}
+	best, err := nearestLocationByPincode(schema, match, codes)
+	return best, best != "", err
+}
+
+// nearestLocationByPincode ranks location codes by distance from a PIN and
+// returns the nearest one that has a Location.pincode, or "". Shared by order
+// sourcing and return routing (140.14.6) so both rank the same way.
+func nearestLocationByPincode(schema, match string, codes []string) (string, error) {
+	orderPincode, err := strconv.Atoi(match)
+	if err != nil {
+		return "", nil
+	}
 	type pinCand struct {
 		code string
 		pin  string
 		lp   int
 	}
 	var pcs []pinCand
-	for _, c := range cands {
+	for _, code := range codes {
 		var locPincode sql.NullString
 		err := db.DB.QueryRow(fmt.Sprintf(
 			`SELECT data->>'pincode' FROM %s.documents WHERE doctype = 'Location' AND id = $1 AND deleted_at IS NULL`, schema),
-			c.code).Scan(&locPincode)
+			code).Scan(&locPincode)
 		if err != nil && err != sql.ErrNoRows {
-			return "", false, err
+			return "", err
 		}
 		if !locPincode.Valid || locPincode.String == "" {
 			continue
@@ -300,7 +315,7 @@ func singleLocationNearestPincode(schema, shippingAddress string, items []map[st
 		if err != nil {
 			continue
 		}
-		pcs = append(pcs, pinCand{c.code, locPincode.String, lp})
+		pcs = append(pcs, pinCand{code, locPincode.String, lp})
 	}
 	// Stage 146.4.4: real distance when the admin-imported PIN master knows the
 	// order's PIN and every candidate's; otherwise today's PIN difference.
@@ -310,7 +325,7 @@ func singleLocationNearestPincode(schema, shippingAddress string, items []map[st
 	}
 	coords, err := pinCoordinates(schema, pins)
 	if err != nil {
-		return "", false, err
+		return "", err
 	}
 	useKm := len(pcs) > 0
 	for _, p := range pcs {
@@ -333,7 +348,7 @@ func singleLocationNearestPincode(schema, shippingAddress string, items []map[st
 			bestDist = d
 		}
 	}
-	return best, best != "", nil
+	return best, nil
 }
 
 // splitShipmentPlan is the only strategy allowed to spread lines across more

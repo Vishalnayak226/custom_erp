@@ -82,6 +82,8 @@ func ValidateMasterDataRules(tenantID, docID, doctype string, payload map[string
 		return validateSortStationMasterRules(tenantID, docID, payload)
 	case "SortSlot":
 		return validateSortSlotMasterRules(tenantID, docID, payload)
+	case "PutawayRule":
+		return validatePutawayRuleMasterRules(tenantID, docID, payload)
 	case "PackTemplate":
 		return validatePackTemplateMasterRules(tenantID, docID, payload)
 	case "PackingValidationTemplate":
@@ -258,7 +260,7 @@ func validateSerialMasterRules(tenantID, docID string, payload map[string]interf
 	if batchNo := strField(payload, "batch_no"); batchNo != "" {
 		var batchExists bool
 		if err := db.DB.QueryRow(fmt.Sprintf(
-			`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'Batch' AND data->>'item' = $1 AND data->>'batch_no' = $2)`, schema),
+			`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'Batch' AND deleted_at IS NULL AND data->>'item' = $1 AND data->>'batch_no' = $2)`, schema),
 			item, batchNo).Scan(&batchExists); err != nil {
 			return err
 		}
@@ -461,7 +463,7 @@ func validateItemMasterRules(tenantID, docID string, payload map[string]interfac
 		var existingID string
 		err = db.DB.QueryRow(fmt.Sprintf(`
 			SELECT id FROM %s.documents
-			WHERE doctype = 'Item' AND data->>'barcode' = $1 AND id != $2 AND status != 'Cancelled'
+			WHERE doctype = 'Item' AND deleted_at IS NULL AND data->>'barcode' = $1 AND id != $2 AND status != 'Cancelled'
 			LIMIT 1`, schema), barcode, docID).Scan(&existingID)
 		if err == nil {
 			return &ValidationError{Code: "MASTER-0053", Message: fmt.Sprintf("Barcode %q is already used by item %s", barcode, existingID)}
@@ -486,7 +488,7 @@ func validateItemMasterRules(tenantID, docID string, payload map[string]interfac
 	var existingID string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
-		WHERE doctype = 'Item' AND data->>'family' = $1 AND LOWER(BTRIM(data->>'name')) = LOWER(BTRIM($2)) AND id != $3 AND status != 'Cancelled'
+		WHERE doctype = 'Item' AND deleted_at IS NULL AND data->>'family' = $1 AND LOWER(BTRIM(data->>'name')) = LOWER(BTRIM($2)) AND id != $3 AND status != 'Cancelled'
 		LIMIT 1`, schema), family, name, docID).Scan(&existingID)
 	if err == nil {
 		return fmt.Errorf("an item named %q already exists in family %q: %s", name, family, existingID)
@@ -515,7 +517,7 @@ func validateProductContentDuplicate(tenantID, docID string, payload map[string]
 	var existingID, existingProduct string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id, COALESCE(data->>'product_id', '') FROM %s.documents
-		WHERE doctype = 'ProductContent' AND data->>'language' = $1 AND LOWER(BTRIM(data->>'title')) = LOWER(BTRIM($2))
+		WHERE doctype = 'ProductContent' AND deleted_at IS NULL AND data->>'language' = $1 AND LOWER(BTRIM(data->>'title')) = LOWER(BTRIM($2))
 			AND id != $3 AND COALESCE(data->>'product_id', '') != $4 AND status != 'Rejected'
 		LIMIT 1`, schema), language, title, docID, productID).Scan(&existingID, &existingProduct)
 	if err == nil {
@@ -629,6 +631,9 @@ func validateCustomerMasterRules(tenantID, docID string, payload map[string]inte
 // own existence check (below) ambiguous about which zone a Bin actually
 // means.
 func validateZoneMasterRules(tenantID, docID string, payload map[string]interface{}) error {
+	if err := validateFlowBlockFields(payload); err != nil { // 146.3.14
+		return err
+	}
 	code := strField(payload, "code")
 	if code == "" {
 		return nil // mandatory; ValidateDocument has already said so.
@@ -662,6 +667,9 @@ func validateZoneMasterRules(tenantID, docID string, payload map[string]interfac
 // zone is always allowed - not every warehouse zones its bins, and this
 // must not become a mandatory field retroactively.
 func validateBinMasterRules(tenantID, docID string, payload map[string]interface{}) error {
+	if err := validateFlowBlockFields(payload); err != nil { // 146.3.14
+		return err
+	}
 	// Stage 59.4: a bin's owner cannot change under its stock
 	// (engines/wms_owner_isolation.go).
 	if err := validateBinOwnerChange(tenantID, docID, payload); err != nil {
@@ -872,7 +880,7 @@ func validateAppointmentMasterRules(tenantID, docID string, payload map[string]i
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT data->>'start_time', data->>'end_time' FROM %s.documents
-		WHERE doctype = 'Appointment' AND id != $1
+		WHERE doctype = 'Appointment' AND deleted_at IS NULL AND id != $1
 		  AND data->>'dock_door' = $2 AND data->>'appointment_date' = $3
 		  AND COALESCE(data->>'status', '') NOT IN ('Cancelled', 'NoShow')`, schema),
 		docID, dockDoor, date)
@@ -1097,7 +1105,7 @@ func validateSortStationMasterRules(tenantID, docID string, payload map[string]i
 	}
 	var exists bool
 	if err := db.DB.QueryRow(fmt.Sprintf(
-		`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'Zone' AND data->>'code' = $1)`, schema), zone).Scan(&exists); err != nil {
+		`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'Zone' AND deleted_at IS NULL AND data->>'code' = $1)`, schema), zone).Scan(&exists); err != nil {
 		return err
 	}
 	if !exists {
@@ -1320,7 +1328,7 @@ func validateLocationIdentityCodes(tenantID, docID string, payload map[string]in
 	if facility != "" {
 		err = db.DB.QueryRow(fmt.Sprintf(`
 			SELECT COALESCE(data->>'name', id) FROM %s.documents
-			WHERE doctype = 'Location' AND id <> $1 AND COALESCE(data->>'code', id) <> $1
+			WHERE doctype = 'Location' AND deleted_at IS NULL AND id <> $1 AND COALESCE(data->>'code', id) <> $1
 			  AND UPPER(TRIM(data->>'facility_code')) = UPPER($2)
 			LIMIT 1`, schema), self, facility).Scan(&other)
 		if err == nil {

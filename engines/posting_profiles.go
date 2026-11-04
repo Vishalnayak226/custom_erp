@@ -33,6 +33,13 @@ const (
 	PostingEventJobworkCharge        = "jobwork_charge"
 	PostingEventJobworkLoss          = "jobwork_loss"
 	PostingEventChallanNonReturnable = "challan_nonreturnable_issue"
+	// Stage 148.4: the fixed-account events - revenue, cost of goods and
+	// inventory - by item / customer / vendor group.
+	PostingEventSalesInvoiceRevenue = "sales_invoice_revenue"
+	PostingEventSalesInvoiceCOGS    = "sales_invoice_cogs"
+	PostingEventPOSSaleRevenue      = "pos_sale_revenue"
+	PostingEventPOSSaleCOGS         = "pos_sale_cogs"
+	PostingEventGRNReceipt          = "grn_receipt"
 )
 
 var postingEvents = []string{
@@ -41,6 +48,7 @@ var postingEvents = []string{
 	PostingEventMaterialIssue, PostingEventMaterialReturn,
 	PostingEventAdjustmentGain, PostingEventAdjustmentLoss, PostingEventAdjustmentDamage, PostingEventAdjustmentRevalue, PostingEventAdjustmentExpiry,
 	PostingEventJobworkCharge, PostingEventJobworkLoss, PostingEventChallanNonReturnable,
+	PostingEventSalesInvoiceRevenue, PostingEventSalesInvoiceCOGS, PostingEventPOSSaleRevenue, PostingEventPOSSaleCOGS, PostingEventGRNReceipt,
 }
 
 // PostingContext is what a posting knows about itself for the match: blank
@@ -50,7 +58,10 @@ type PostingContext struct {
 	ReasonCode  string
 	LossClass   string
 	CostCenter  string
-	On          time.Time // the posting date; zero = today
+	// Stage 148.4: the item group (Item.category), customer group and vendor
+	// group the posting belongs to.
+	ItemGroup, CustomerGroup, VendorGroup string
+	On                                    time.Time // the posting date; zero = today
 }
 
 // PostingResolution is the accounts an event posts to and the profile that
@@ -98,7 +109,8 @@ func ResolvePostingAccounts(tenantID, event string, ctx PostingContext, defaultD
 		for _, m := range []struct {
 			field, value string
 			weight       int
-		}{{"reason_code", ctx.ReasonCode, 8}, {"loss_class", ctx.LossClass, 4}, {"cost_center", ctx.CostCenter, 2}, {"legal_entity", ctx.LegalEntity, 1}} {
+		}{{"item_group", ctx.ItemGroup, 64}, {"customer_group", ctx.CustomerGroup, 32}, {"vendor_group", ctx.VendorGroup, 32},
+			{"reason_code", ctx.ReasonCode, 8}, {"loss_class", ctx.LossClass, 4}, {"cost_center", ctx.CostCenter, 2}, {"legal_entity", ctx.LegalEntity, 1}} {
 			switch v := strings.TrimSpace(strField(data, m.field)); {
 			case v == "":
 			case strings.EqualFold(v, strings.TrimSpace(m.value)):

@@ -62,7 +62,7 @@ func poRatesBySKU(tenantID, poID string) (map[string]grnPOLineRate, map[string]i
 		a.taxable += l.Taxable
 		a.gross += l.LineTotal
 		a.gst = l.GSTRate
-		a.qty += l.Qty
+		a.qty += l.Qty + l.FreeQty
 	}
 	out := map[string]grnPOLineRate{}
 	for sku, a := range sums {
@@ -150,6 +150,10 @@ func PrepareGRNPricing(tenantID string, isCreate bool, payload map[string]interf
 	if !isCreate {
 		return nil
 	}
+	// Stage 148.38: the received-before-PO marks are the engine's, never a caller's.
+	delete(payload, "received_before_po")
+	delete(payload, "before_po_due")
+	delete(payload, "retro_po_id")
 	lines := grnLineMaps(payload)
 	// Stage 130.9 (72.D d): goods its store does not stock are not received there.
 	var skus []string
@@ -178,7 +182,7 @@ func PrepareGRNPricing(tenantID string, isCreate bool, payload map[string]interf
 	}
 	pos := GRNPOIDs(payload)
 	if len(pos) == 0 {
-		return nil
+		return prepareGRNBeforePO(tenantID, payload) // Stage 148.38
 	}
 	payload["po_id"] = pos[0]
 	payload["po_ids"] = strings.Join(pos, ",")
@@ -603,6 +607,10 @@ func readPricedGRNBilling(tx queryRower, schema, grnID string, grnData map[strin
 		return nil
 	}
 	if IsGRNStepFlow(grnData) {
+		// Stage 148.8: the typed total holds the vendor's charges on top of the goods.
+		if gross, err := vendorChargeGrossOnGRN(tx, schema, grnID); err == nil {
+			grnData["vendor_charge_gross"] = gross
+		}
 		return readStepGRNBilling(grnData, lines)
 	}
 	type acc struct{ value, qty, gstRate float64 }

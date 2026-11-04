@@ -19,11 +19,29 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **216** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **220** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
-- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-27
+- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-09-28
+
+## 2026-11-04
+
+**"I told to take next piece of point not already being build 20 point to build. Once this is fixed, Take next 20 to build" - Stage 140.14 screen fixes, what was left of 148.1 / .2 / .3 / .4 / .6, buying W2 and W3** *(code + tests + guides, session erp-60; NOT COMMITTED)*
+
+The ask, the 20 items and the result are on the "Next 20" header in micro_checklist.md; each item's line carries what was built under **erp-60 (2026-11-04, second run)**.
+
+**"start next 20 item ro build" - Stage 148 W1 and W2, the PIM phase of Stage 146, half-built 49 parts** *(code + tests + guides, session erp-60; NOT COMMITTED)*
+
+The user's ask, the items and the result are on the erp-60 claim header in micro_checklist.md; each item's line carries what was built under **erp-60 (2026-11-04)**. Peers were asked first; erp-48 keeps Stage 143. The user then added "take next piece of point not already being build" and "Once this is fixed, Take next 20", so the next run's header sits below this one.
+
+**"Once deployed, Start building next20 items" - the rest of Stage 146 plus half-built 47 / 49 / 157 parts** *(code + tests + guides, session erp-3f; NOT COMMITTED)*
+
+The user's ask, the 20 items and the result are on the erp-3f claim header in micro_checklist.md; each item's line carries what was built under **erp-3f (2026-11-04)**. erp-79, erp-d8, erp-34, erp-48 and erp-f8 were asked first and claimed nothing.
+
+**"Push and deploy. All approved" - 0.22.0, every session's work, deployed to app and minn** *(release, session erp-d8)*
+
+User, 2026-11-04: *"Push and deploy. All approved"*, then *"Deploy"*.
 
 ## 2026-11-03
 
@@ -480,12 +498,4 @@ User asked to clean the live checklist down to pending work. Checked every live 
 **Stage 50 — BLD-046 (bounded imports, reports, exports and jobs): a real cross-worker tenant-scoping bug found and fixed, four bespoke tickers bounded, CSV import capped, one export converted to real streaming — real progress, item stays open on the "interrupted" leg** *(code + tests + docs)*
 
 Continuing the same thread that closed BLD-034 (§172) earlier the same day. Per the priority order the prior session handed off (BLD-046 first — DEPENDS on BLD-043, done; BLD-035 next). Confirmed genuinely unstarted via `git status`/the build checklist's own `[ ]` mark before touching anything.
-
-**Stage 50 — BLD-034 (usable dense tables): server-backed pagination/search/counts replacing a 500-row client-side cap, plus a search field-permission leak and a pre-existing refresh-persistence bug found and closed along the way** *(code + docs)*
-
-Continuing the same thread that closed BLD-043 (§171) earlier the same day. Per the priority order the prior session handed off (BLD-034 first — DEPENDS on BLD-003/043, both done; BLD-046/035 next). Confirmed genuinely unstarted via `git status`/the build checklist's own `[ ]` mark before touching anything.
-
-**Stage 50 — BLD-043 (realistic datasets and query plans): a real unindexed `sort=recent` cost found and fixed via measurement at three scales** *(code + docs)*
-
-Per the priority order handed off from the 2026-09-25/27 threads (BLD-038/037), both of which turned out to already be closed and committed (`8bed150`) by the time this thread started — confirmed via `git status`/the build checklist's own `[x]` marks before touching anything. BLD-043 was the next genuinely-unstarted READY item (no DEPENDS beyond BLD-001, done).
 

@@ -9,7 +9,7 @@
 
 Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.
 
-There are **589** codes. Each row says what the user is shown, what to do about
+There are **693** codes. Each row says what the user is shown, what to do about
 it, and how serious it is.
 
 **How to read an error dialog** - it has up to three lines: the *headline* (the
@@ -49,18 +49,18 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 - [DocType / Dynamic Metadata](#doctype--dynamic-metadata) - 8 codes
 - [Expense Management](#expense-management) - 8 codes
 - [Extension Hooks / Customization](#extension-hooks--customization) - 4 codes
-- [Finance & Accounting](#finance--accounting) - 47 codes
+- [Finance & Accounting](#finance--accounting) - 75 codes
 - [Fixed Assets](#fixed-assets) - 9 codes
 - [GST](#gst) - 1 codes
 - [Global](#global) - 13 codes
 - [Global / Common](#global--common) - 25 codes
-- [Goods Receipt](#goods-receipt) - 19 codes
+- [Goods Receipt](#goods-receipt) - 20 codes
 - [Goods Receipt / GRN](#goods-receipt--grn) - 8 codes
 - [HR & Payroll](#hr--payroll) - 2 codes
 - [HR / Payroll](#hr--payroll) - 14 codes
 - [Integration / API](#integration--api) - 12 codes
 - [Integrations](#integrations) - 1 codes
-- [Inventory](#inventory) - 10 codes
+- [Inventory](#inventory) - 14 codes
 - [Inventory / Warehouse](#inventory--warehouse) - 29 codes
 - [Item Master](#item-master) - 2 codes
 - [Manufacturing / Production](#manufacturing--production) - 16 codes
@@ -69,8 +69,8 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 - [Notifications](#notifications) - 6 codes
 - [Observability / Incident](#observability--incident) - 3 codes
 - [Omnichannel / OMS](#omnichannel--oms) - 5 codes
-- [Order Management](#order-management) - 9 codes
-- [PIM](#pim) - 6 codes
+- [Order Management](#order-management) - 10 codes
+- [PIM](#pim) - 23 codes
 - [PIM / Product Publishing](#pim--product-publishing) - 8 codes
 - [POS / Billing](#pos--billing) - 42 codes
 - [POS / Offline & Cash Drawer](#pos--offline--cash-drawer) - 8 codes
@@ -78,7 +78,8 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 - [Payments](#payments) - 7 codes
 - [Planning](#planning) - 1 codes
 - [Procurement / RFQ](#procurement--rfq) - 6 codes
-- [Purchase Order](#purchase-order) - 19 codes
+- [Purchase Order](#purchase-order) - 52 codes
+- [Purchase Requisition](#purchase-requisition) - 6 codes
 - [Purchase Return](#purchase-return) - 1 codes
 - [Purchase Return / RTV](#purchase-return--rtv) - 5 codes
 - [Quality & Maintenance](#quality--maintenance) - 6 codes
@@ -89,11 +90,11 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 - [Sales / POS](#sales--pos) - 9 codes
 - [Sales Return](#sales-return) - 7 codes
 - [Security / Rate Limit](#security--rate-limit) - 5 codes
-- [Stock Transfer](#stock-transfer) - 10 codes
+- [Stock Transfer](#stock-transfer) - 17 codes
 - [Tax / GST / E-Invoice](#tax--gst--e-invoice) - 15 codes
 - [User Access & Security](#user-access--security) - 9 codes
-- [Vendor Invoice / AP](#vendor-invoice--ap) - 4 codes
-- [WMS](#wms) - 1 codes
+- [Vendor Invoice / AP](#vendor-invoice--ap) - 7 codes
+- [WMS](#wms) - 5 codes
 - [WMS / Logistics](#wms--logistics) - 3 codes
 
 ---
@@ -390,6 +391,34 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `FIN-0841` | Pay with TDS on a bill in a foreign currency | TDS cannot be worked out on a bill in a foreign currency. | Pay the bill with Pay, which converts at the payment rate; record any withholding on a foreign payment separately. | Medium | 422 |
 | `FIN-0842` | Matching a vendor bill that is paid, part-paid or awaiting approval | This bill can no longer be matched. | A bill is matched once, before it is paid. Check its payments under Supplier bills; a wrong bill is corrected with a debit or credit note. | Medium | 422 |
 | `FIN-0844` | Changing the amounts of a document that has posted to the accounts | The amounts of a posted document cannot be changed. | Correct it with a credit or debit note, or reverse it; other details of the document can still be edited. | High | 422 |
+| `FIN-0850` | A sale names a piece or batch it cannot sell | This piece or batch cannot be sold here. Check the code and the store. | Scan the piece or batch again, or sell it from the store that holds it. | Medium | 422 |
+| `FIN-0851` | A credit note names a piece it cannot bring back | This piece cannot be brought back on this note. | Check that the piece was sold on this invoice and has not already come back. | Medium | 422 |
+| `FIN-0860` | Order accepted over the customer's credit limit - put on Credit hold | This order takes the customer over their credit limit, so it is on hold. | Ask a Store Manager to approve the release request in the approval inbox, or cancel the order. | Medium | 422 |
+| `FIN-0861` | Sales invoice posting refused - a stop customer over the credit limit | This customer is over their credit limit and set to stop, so the invoice cannot be posted. | Collect payment or raise the customer's credit limit, then post again. | Medium | 422 |
+| `FIN-0870` | Posting to a blocked account | That account is blocked, so nothing was posted. | Unblock the account in the Chart of Accounts, or point the posting rule at another account. | Medium | 422 |
+| `FIN-0871` | Posting to an account that is not in the chart | That account is not in the chart of accounts, so nothing was posted. | Add the account in the Chart of Accounts, or correct the posting rule that names it. | Medium | 422 |
+| `FIN-0872` | Manual journal line on a no-manual-posting control account | That account is a control account and takes no manual journal. | Post through the account's own document, or ask an accountant to lift the flag in the Chart of Accounts. | Medium | 422 |
+| `FIN-0873` | Chart of accounts change request is not valid | That account change cannot be saved. | Fix the field named in the message and save again. | Low | 422 |
+| `FIN-0890` | Charge code account missing, blocked or not in the chart | That account cannot take this charge. | Pick an unblocked account from the Chart of Accounts. | Medium | 422 |
+| `FIN-0891` | Charge code account of the wrong type | That account is the wrong type for this charge. | Pick an account of the type the message names. | Medium | 422 |
+| `FIN-0892` | Buying charge code without a payee or into-cost answer | This charge code is missing a setting. | Fill in Paid to and Into item cost. | Medium | 422 |
+| `FIN-0893` | Charge code GST rate outside 0 to 100 | This GST rate is not allowed. | Enter a rate from 0 to 100. | Medium | 422 |
+| `FIN-0894` | Charge entry saved by hand | Charge entries are written by the system. | Post the receipt or book the bill instead. | Medium | 422 |
+| `FIN-0895` | Charge entry that cannot be billed | This charge cannot be billed. | Pick a charge that is awaiting a bill. | Medium | 422 |
+| `FIN-0896` | Charge bill with a field missing or not valid | This bill is not complete. | Fill in the vendor, bill number, date and amount. | Medium | 422 |
+| `FIN-0897` | Charge entry already on a different bill | This charge is already on another bill. | Open that bill, or pick another charge. | Medium | 422 |
+| `FIN-0898` | Charge bill from a vendor other than the charge's carrier | This bill is from a different vendor than the charge. | Pick the carrier named on the charge. | Medium | 422 |
+| `FIN-0899` | Charge bill number already used for this vendor | That bill number is already used. | Check the number on the bill. | Medium | 422 |
+| `FIN-0910` | Vendor bill deleted with a payment or approval on it | This bill has a payment or an approval on it. | Reverse the payment or decide the approval first. | Medium | 422 |
+| `FIN-0911` | Production or job work output given a piece code already in use | That piece code is already in use. | Scan or type another code. | Medium | 422 |
+| `FIN-0912` | Production or job work output named on an item that keeps no codes or lots | This item keeps no piece codes or lots. | Leave them blank, or set the item's tracking first. | Medium | 422 |
+| `FIN-0920` | Vendor advance with a missing vendor, amount or date | The advance needs a vendor, a positive amount and a valid date. | Pick the vendor, enter the amount in rupees and paise, and check the date. | Medium | 422 |
+| `FIN-0921` | Vendor advance against a purchase order that is not the vendor's or is closed | This purchase order cannot take an advance. | Choose an open purchase order of the same vendor, or leave the order blank. | Medium | 422 |
+| `FIN-0922` | Applying or refunding more than the advance still holds | That is more than is left on the advance. | Use the open amount shown on the advance, or less. | Medium | 422 |
+| `FIN-0923` | Applying an advance to a bill that cannot take it | This bill cannot take the advance. | Apply it to a Matched rupee bill of the same vendor (and the same purchase order, if the advance names one). | Medium | 422 |
+| `FIN-0924` | Cancelling an advance that was already applied or refunded | This advance has been used, so it cannot be cancelled. | Refund what is still open; the applied part stays on its bill. | Medium | 422 |
+| `FIN-0925` | Applying or refunding an advance with nothing open | Nothing is open on this advance. | Check the advance's status; a refunded, fully applied or cancelled advance has nothing left. | Medium | 422 |
+| `FIN-0926` | Vendor advance saved by hand | Vendor advances are made by Give advance. | Use Give advance, Apply, Refund or Cancel on Vendor Advances. | Medium | 422 |
 | `FINANC-0055` | Document not balanced | Accounting entry is not balanced. Debit and credit totals must match. | Correct finance details or request approval. | High | 422 |
 | `FINANC-0056` | GL account inactive | Selected GL account is inactive. Please select an active GL account. | Correct finance details or request approval. | High | 422 |
 | `FINANC-0057` | Cost center missing | Cost center is required for this transaction. | Correct finance details or request approval. | High | 422 |
@@ -494,6 +523,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `GOODSR-0952` | A negative or invalid quantity or price on a goods receipt step | Quantities and prices must be zero or more. | Correct the number on the line named. | Low | 422 |
 | `GOODSR-1305` | Item listed under the receiving store's Items not stocked here | This store does not stock this item. | Receive it at a store that stocks it, or ask an administrator to change the store's Items not stocked here. | Medium | 422 |
 | `GOODSR-1317` | One goods receipt for POs in different currencies | These purchase orders can't be received together. | Receive the POs of each currency on their own goods receipt. | Medium | 422 |
+| `GOODSR-1318` | Packing list of a package that is still open | This package is still open, so its packing list can't be printed yet. | Close the package, then print its packing list. | Low | 422 |
 
 ## Goods Receipt / GRN
 
@@ -565,6 +595,10 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `INVENT-1313` | Stock adjustment cannot be reversed (not posted, already reversed, itself a reversal, or no reason) | This adjustment can't be reversed. | Only a posted adjustment that is not a reversal and not already reversed can be reversed, with a reason. | Low | 422 |
 | `INVENT-1314` | Material issue / return refused (no store, department or purpose; non-stock or backflush item; not approved; short stock; more back than issued) | This material request can't go ahead. | Name the store, department and purpose; issue stock items only (not backflushed ones); issue once approved; return no more than was issued. | Medium | 422 |
 | `INVENT-1318` | Delivery challan refused (no store, purpose or party; non-stock item; no return date; short stock; not approved; more back than out; serial not out; write-off with no approver) | This delivery challan can't go ahead. | Name the store, purpose, party and return date; send stock items only; dispatch once approved; take back no more than is out, by the serials that went. | Medium | 422 |
+| `PURCHA-5040` | Correct attributes on something that is not a batch or serial, or one that does not exist | That batch or serial was not found. | Pick a batch or serial from the list. | Medium | 422 |
+| `PURCHA-5041` | Correct a batch or serial attribute without a reason | Say why the attributes are being corrected. | Type the reason, for example hallmark re-test. | Medium | 422 |
+| `PURCHA-5042` | Correct an attribute that is not an item field, or a weight that is not a number | That value cannot be saved. | Use the fields shown and numbers that are not negative. | Medium | 422 |
+| `PURCHA-5043` | Correct attributes with every value the same as today | Nothing was changed. | Change at least one value. | Medium | 422 |
 | `STKLOC-0860` | Stock location name or code missing, duplicate or badly formed | The stock location's name or code is not right. | Give it a name no other location uses, and a code of 2-30 capital letters, digits, '-' or '_'. | Medium | 422 |
 | `STKLOC-0861` | Stock location switched off or taken from a store while it still holds stock | This location still holds stock. | Move the stock out with Stock -> Move Stock first, then switch the location off. | High | 422 |
 | `STKLOC-0862` | Transaction default location not allowed for that transaction | That location cannot be this transaction's default. | Pick Main, Inward, QC Hold, Damage, Purchase Return or one of your own locations, and two different ones for from and to. | Medium | 422 |
@@ -680,7 +714,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `MASTER-0991` | Item codes renumbered without acknowledging that stickers and channel SKUs keep the old code | Confirm you have read the warning about stickers and sales channels first. | Tick the box under the warning, then renumber. Nothing was changed. | Low | 422 |
 | `MASTER-0992` | Store code typed on the Edit form is not valid, or the store was not found | This store code cannot be used. | Use 1 to 30 capital letters or digits, with - or _ between them - no spaces or /. Nothing was changed. | Low | 422 |
 | `MASTER-0993` | Store code typed on the Edit form is already another record's code | Another record already has this code. | Choose a code no other store or record uses. Nothing was changed. | Medium | 422 |
-| `MASTER-1321` | Duplicate master record, or a second Active strategy / template / rule for the same scope | A record like this already exists. | Use the existing record named below, or make it inactive (or delete it) before saving this one. | Medium | 409 |
+| `MASTER-1321` | Duplicate master record, or a second Active strategy / template / rule for the same scope | A record like this already exists. | Use the existing record, change these values, or make that record inactive first. | Medium | 409 |
 
 ## Mobile App / Device
 
@@ -736,6 +770,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `ORDERM-0468` | Replacement or reship order not valid | The replacement or reship could not be raised. | Choose lines of a shipped order, within the quantity that shipped and was not already sent again, with a reason. | Low | 422 |
 | `ORDERM-0469` | Not enough stock for a line change | There is not enough free stock for this quantity. | Lower the quantity, or move the order to a location with stock (Switch facility) and try again. | Medium | 409 |
 | `ORDERM-0970` | Order re-allocated to a store without enough of its owner's own stock | That store does not hold enough of this order owner's own stock. | Pick a store that holds the owner's stock, or leave the store blank so the system sources it on the owner's stock. | Medium | 422 |
+| `ORDERM-0980` | Credit hold released or replaced by hand | This order is on Credit hold, so it cannot be released or held again by hand. | Approve its release request in the approval inbox. | Low | 409 |
 
 ## PIM
 
@@ -747,6 +782,23 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `PIM-0950` | Saving or testing image drive settings with a field missing or malformed | The image drive settings are not complete. | Fill in the field named in the message: the endpoint (https://...), the bucket name, the access key ID and the secret access key, as your storage provider shows them. | Low | 422 |
 | `PIM-0951` | The client's image drive could not be reached, or refused the keys, bucket or region | The image drive did not accept the request. | Read the reason in the message, correct the endpoint, region, bucket or keys in Settings > Configuration > Integrations > Image drive, and press Test connection. | Medium | 422 |
 | `PIM-0952` | Opening an image stored on the image drive after the drive's settings were removed | This image is stored on the image drive, which is not set up. | Ask your administrator to set the image drive up again in Settings > Configuration > Integrations > Image drive. | Medium | 422 |
+| `PIM-0953` | Loading a marketplace template file that cannot be read or has no columns | The template file could not be read. | Upload the category file as downloaded from the marketplace (.xlsx) and check it has a header row. | Medium | 422 |
+| `PIM-0954` | Saving or loading a marketplace template that is not valid | This marketplace template is not valid. | Fix the field named in the message and save again. | Medium | 422 |
+| `PIM-0955` | Using a marketplace template that does not exist | This marketplace template was not found. | Load the category file again, or choose another template. | Medium | 422 |
+| `PIM-0956` | Saving a feed with a missing or unusable setting | This feed cannot be saved as it is. | Fix the field named in the message: template, product group, format, destination or recipient. | Medium | 422 |
+| `PIM-0957` | Using Ready only on a feed whose template has no channel | Ready only needs a template that belongs to a channel. | Choose a template made for a channel, or turn Ready only off. | Medium | 422 |
+| `PIM-0958` | Running a feed that does not exist or is not active | This feed was not found or is not active. | Open Feeds, make the feed Active, and run it again. | Medium | 422 |
+| `PIM-0959` | Setting design values with no product group or design chosen | Choose a product group or a design first. | Pick a product group or at least one design, then set the value. | Medium | 422 |
+| `PIM-0960` | Setting a design value for an attribute that does not exist | This attribute was not found. | Choose an attribute from the list. | Medium | 422 |
+| `PIM-0961` | Setting a design value on a design that is not an item | This design was not found. | Choose a design from the grid; it must be an existing product. | Medium | 422 |
+| `PIM-0962` | Setting design values on more designs than one bulk set allows | Too many designs for one bulk set. | Choose a smaller product group, or ask your administrator to raise the bulk edit limit. | Medium | 422 |
+| `PIM-0970` | Adding or removing tags in bulk with no action or no tag | Choose add or remove, and enter at least one tag. | Pick the action and type the tags, separated by commas. | Low | 422 |
+| `PIM-0971` | Saving a dynamic product group with an attribute condition that does not fit its attribute | One of the conditions cannot be saved. | Use an operator that fits the attribute (for example between for a number, after for a date) and a value of that type. | Low | 422 |
+| `PIM-0972` | Making a checklist task with no attribute, an unknown attribute, or opening one on a task without a checklist | This checklist cannot be used. | Choose at least one attribute that exists. | Low | 422 |
+| `PIM-0973` | Making a checklist task for something that is not a product or a product group | Choose a product or a product group for this checklist. | Pick the product or product group the attributes are to be filled for. | Low | 422 |
+| `PIM-0980` | Attribute value that does not fit its attribute's type | That value does not fit this attribute. | Use Yes or No, pick from the attribute's list, or give a web address starting http:// or https://, as the attribute's type asks. | Medium | 422 |
+| `PIM-0981` | Product related to itself | A product cannot be related to itself. | Choose a different related item. | Low | 422 |
+| `PIM-0982` | Same product relation entered twice | This relation already exists. | Keep the existing relation, or choose another type or item. | Low | 422 |
 
 ## PIM / Product Publishing
 
@@ -881,6 +933,50 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `PURCHA-1316` | PO sent for approval without its commercial terms, or after its quote's validity | This purchase order can't go for approval yet. | Fill in the payment term, delivery terms, expected delivery date and who pays the freight; renew or correct an expired quote date. | Medium | 422 |
 | `PURCHA-4961` | Purchase order for a vendor with no state (save, import, submit, RFQ award, supply proposal, bulk upload) | This vendor has no state, so the GST split can't be worked out. | Open the vendor, choose its State (or enter its GSTIN) and save, then save the purchase order again. | Medium | 422 |
 | `PURCHA-4965` | Purchase order billed to a store with no state (save, import, submit, RFQ award, supply proposal, bulk upload) | This store has no state, so the GST split can't be worked out. | Open the store, choose its State (or enter the GSTIN on its legal entity) and save, then save the purchase order again. | Medium | 422 |
+| `PURCHA-4966` | Goods receipt started from a gate entry that is unknown, already used or cancelled | This gate entry can't start a goods receipt. | Pick an open gate entry, or leave the gate entry blank. | Medium | 422 |
+| `PURCHA-4967` | Goods receipt for a different vendor than its gate entry | The vendor does not match the gate entry. | Use the vendor on the gate entry, or pick the right gate entry. | Medium | 422 |
+| `PURCHA-4968` | Vendor invoice dated before its purchase order (warning on save) | This invoice is dated before its purchase order. | Check the invoice date and the PO; the invoice is listed in Vendor invoices dated before their PO. | Low | 200 |
+| `PURCHA-4970` | Vendor agreement with qty breaks that overlap | These qty breaks overlap. | Change the Qty from / Qty to so each quantity falls in one break. | Medium | 422 |
+| `PURCHA-4971` | Vendor agreement with a gap between qty breaks | There is a gap between these qty breaks. | Start the next break right after the previous one ends. | Medium | 422 |
+| `PURCHA-4972` | Vendor agreement row with no item, design or category | This row needs an item, design or category. | Pick what the row applies to, or leave a sales price list without a vendor. | Medium | 422 |
+| `PURCHA-4973` | Vendor agreement or PO line discount outside 0 to 100, or a negative amount | This discount is not allowed. | Enter a percent from 0 to 100, or an amount that is not negative. | Medium | 422 |
+| `PURCHA-4974` | Vendor agreement buy N get M with a missing or negative number, or a pack that is not a whole number | Buy, Get and Pack of need whole numbers above zero. | Fill both Buy and Get, or neither. | Medium | 422 |
+| `PURCHA-4975` | Order discount over 100 percent, negative, or above the order value | This order discount is not allowed. | Enter a percent from 0 to 100, or an amount that is less than the order value. | Medium | 422 |
+| `PURCHA-4980` | Charge row or rule with an unknown or inactive charge code | That charge code cannot be used. | Pick an active charge code. | Medium | 422 |
+| `PURCHA-4981` | Charge row or rule with a selling-only code | That charge code is for selling only. | Pick a code used for buying. | Medium | 422 |
+| `PURCHA-4982` | Charge row with no amount, or naming a SKU not on the document | This charge row is not valid. | Enter an amount above nought and SKUs on this document. | Medium | 422 |
+| `PURCHA-4983` | Transfer charge on a code paid to the vendor | A transfer charge must go to a third party. | Pick a code paid to a third party. | Medium | 422 |
+| `PURCHA-4984` | Charge rule rate not valid | This rule's rate is not allowed. | A percent is above 0 and up to 100; other methods are above 0. | Medium | 422 |
+| `PURCHA-4985` | Receipt on a stopped PO line | This line is stopped; nothing more can be received on it. | Ask the buyer to reopen it, or receive it on its own. | Medium | 422 |
+| `PURCHA-4986` | Part delivery of a full-delivery-only PO line | This line must be delivered in full. | Receive the whole line, or ask the buyer to clear full delivery only. | Medium | 422 |
+| `PURCHA-4987` | PO line control values not valid | The line control values are not valid. | Keep percentages between 0 and 100 and instalments adding up to the line quantity. | Medium | 422 |
+| `PURCHA-4988` | Stop or close of a PO line without a reason or nothing open | A reason is needed, or nothing is open on this line. | Pick a Cancellation reason code on a line that still has quantity open. | Low | 422 |
+| `PURCHA-4989` | Cancel transfer lines without a reason or after dispatch | Lines can only be cancelled before dispatch, with a reason. | Pick a Cancellation reason code; after dispatch use Return to source. | Medium | 422 |
+| `PURCHA-4990` | Transfer excess beyond the item over-delivery tolerance | More arrived than the item's over-delivery tolerance allows. | Receive up to the tolerance, or ask for the item's tolerance to be changed. | Medium | 422 |
+| `PURCHA-4991` | Vendor challan no. already used this year (warning) | This vendor challan no. was already used this year. | Check the challan no.; the earlier receipt is named in the warning. | Low | 200 |
+| `PURCHA-5020` | Volume rebate action while the setting is off | Volume rebates are off. | Turn on Volume rebates from vendors in Configuration, under Procurement. | Medium | 422 |
+| `PURCHA-5021` | Rebate period or vendor not usable | Enter a period (from, to) and a known vendor. | Use dates as YYYY-MM-DD with from not after to, or leave the vendor blank for all. | Medium | 422 |
+| `PURCHA-5022` | Rebate claim step taken from the wrong status | This claim is not ready for that step. | A Calculated claim goes for approval; an Approved claim is settled. | Medium | 422 |
+| `PURCHA-5023` | Submitting a rebate claim with no rebate | This claim has nothing to claim. | The vendor did not reach the first tier in this period. Recalculate after more bills, or leave it. | Medium | 422 |
+| `PURCHA-5024` | Rebate tiers on a vendor agreement are not usable | The rebate target on the agreement is not set up correctly. | Tier 1 needs a target and a percentage; tier 2 needs a higher target and a higher percentage; the basis is Gross or Net. | Medium | 422 |
+| `PURCHA-5025` | Rebate claim saved by hand | Rebate claims are made by Calculate. | Use Calculate, Send or Settle on Vendor Rebate Claims. | Medium | 422 |
+| `PURCHA-5030` | Goods received before a PO without a reason code (148.38) | Choose why these goods came before a PO. | Pick a reason under Received before PO, or link the PO this receipt is for. | Medium | 422 |
+| `PURCHA-5031` | Goods received before a PO without a vendor (148.38) | Choose the vendor for this receipt. | A receipt with no PO needs its vendor; pick it and save again. | Medium | 422 |
+| `PURCHA-5032` | Vendor bill paid against goods whose retro PO is not approved (148.38) | This bill is for goods received before a PO. | Pay it after the retro PO is approved; it is listed under Goods received before PO. | Medium | 422 |
+| `PURCHA-5033` | Retro PO names a receipt that is not one received before a PO (148.38) | That receipt was not received before a PO. | Pick a receipt marked Received before PO. | Medium | 422 |
+| `PURCHA-5034` | Retro PO for a vendor other than the receipt's (148.38) | This PO's vendor differs from the receipt's. | Use the vendor the goods were received from. | Medium | 422 |
+| `PURCHA-5035` | Receipt already has a retro PO (148.38) | This receipt already has a retro PO. | Open that PO, or reject it first. | Medium | 422 |
+
+## Purchase Requisition
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `PURCHA-5010` | Requisition line with no item, an unknown item, a quantity not above zero or not whole, no store, an unknown store or an unusable vendor | This request line is not complete. | Choose an item, a whole quantity above zero and a store; leave the vendor empty or choose an active one. | Medium | 422 |
+| `PURCHA-5011` | Requisition with no item lines and no description, quantity or amount | Add item lines, or fill description, quantity and amount. | Add at least one item line, or complete the three header fields. | Medium | 422 |
+| `PURCHA-5012` | Edit of a requisition line already on a purchase order | This line is already on a purchase order. | Change the purchase order, or cancel it to free the line. | Medium | 422 |
+| `PURCHA-5013` | Combine with no open request line for the vendor | No open request lines for this vendor. | Check the vendor on the lines, or whether another person already combined them. | Low | 422 |
+| `PURCHA-5014` | Combine with no vendor, or an unknown or unusable vendor or store | Choose a vendor to combine for. | Choose an active vendor, and a store that exists if you limit it to one. | Low | 422 |
+| `PURCHA-5016` | One-shot purchase order conversion of a requisition that has item lines | This request has item lines. | Use Combine open requests for the vendor. | Low | 422 |
 
 ## Purchase Return
 
@@ -933,7 +1029,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | Code | When it happens | What you see | What to do | Severity | HTTP |
 |---|---|---|---|---|---|
 | `REPORT-0160` | Report no data | No data found for the selected filters. Please change filters and try again. | Correct details or retry. Contact admin if repeated. | Medium | 422 |
-| `REPORT-0161` | Export limit exceeded | Export limit exceeded. Please narrow the filters and try again. | Correct details or retry. Contact admin if repeated. | Medium | 422 |
+| `REPORT-0161` | Export limit exceeded | This report is too large to show. | Narrow the filters, then run it again. | Medium | 422 |
 | `REPORT-0162` | Report generation failed | Report could not be generated. Please try again or contact support. | Correct details or retry. Contact admin if repeated. | Medium | 503 |
 | `REPORT-0184` | Export started | Export is being prepared. You can download it once ready. | Wait for download link. | Low | 200 |
 | `REPORT-0285` | Export job failed | Export job failed. Please review filters or contact support. | Narrow filters or retry export. | High | 503 |
@@ -1003,6 +1099,13 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `STOCKT-0484` | Transfer discrepancy, return or cancel without a valid reason code | Choose a reason for this. | Pick an active reason code (Masters > Reason Codes: Transfer Discrepancy, or Cancellation to cancel). | Medium | 422 |
 | `STOCKT-0485` | Transfer receipt or return exceeds what is in transit | That is more than is still in transit on this transfer. | Enter at most the quantity still in transit; record extra units as excess with a reason. | Medium | 422 |
 | `STOCKT-0486` | Transfer cannot be cancelled or returned in its current status | This transfer cannot be changed that way now. | Cancel only before dispatch; after dispatch, return what is still in transit to the source. | Medium | 422 |
+| `STOCKT-0487` | Allocation run ID already used | This allocation run ID was already used. | Use a new run ID, or open the existing run to see its transfers. | Medium | 422 |
+| `STOCKT-0488` | Allocation file or parameters invalid | The allocation file cannot be used. | Give a run ID, a source store and a file with store, sku and qty columns; fix the rows listed. | Medium | 422 |
+| `STOCKT-0489` | Source cannot fill the minimum share of the transfer | The source cannot fill enough of this transfer to ship it. | Wait for stock, lower the minimum fill, or cancel the transfer. | Medium | 422 |
+| `STOCKT-0490` | Complete-fill transfer waits for stock | This transfer waits until every line can be filled. | Receive or free the short stock, then dispatch again; the lines that are short are listed. | Medium | 422 |
+| `STOCKT-0491` | Transfer cannot join the wave | This transfer cannot be added to that wave. | Use an Approved or Packed transfer from the wave's location, into a wave that is not closed, with transfer waves turned on. | Medium | 422 |
+| `STOCKT-0492` | Allocation run not found or nothing to act on | That allocation run has nothing to do. | Check the run ID; submit applies to Drafts, approve to transfers waiting for approval. | Medium | 422 |
+| `STOCKT-0493` | Fill policy value not recognised | That fill policy is not valid. | Choose Exact, Ship what is there or Complete. | Medium | 422 |
 | `TRN-0259` | Transfer receiving mismatch | Received quantity does not match dispatched quantity. Shortage/damage reason is required. | Enter shortage/damage reason and submit exception. | High | 200 |
 
 ## Tax / GST / E-Invoice
@@ -1047,12 +1150,19 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `VENDOR-0093` | Invoice quantity mismatch | Invoice quantity does not match accepted GRN quantity. | Correct transaction or send for approval. | High | 422 |
 | `VENDOR-0096` | Three-way match failed | Three-way matching failed between PO, GRN, and Invoice. Please review differences. | Correct transaction or send for approval. | High | 503 |
 | `VENDOR-0181` | Invoice posted | Vendor invoice posted successfully. | No action required. | Low | 200 |
+| `VENDOR-0190` | Purchase order for a vendor held from new orders | This vendor is on hold for new purchase orders. | Take the hold off the vendor, or choose another vendor. | Medium | 422 |
+| `VENDOR-0191` | Payment to a vendor held from payment | This vendor is on hold for payment. | Take the hold off the vendor, then pay again. | Medium | 422 |
+| `VENDOR-0192` | Payment to a vendor with a change waiting for approval | A change to this vendor is waiting for approval. | Ask an approver to decide the change in Approvals; payments resume then. | Medium | 422 |
 
 ## WMS
 
 | Code | When it happens | What you see | What to do | Severity | HTTP |
 |---|---|---|---|---|---|
 | `WMS-1311` | Pick confirmation or wave sortation without a wave / line / station, or a wave with no open orders | Choose the wave first. | Pick the wave (and the sort station) - a wave with no open orders has nothing to sort. | Low | 422 |
+| `WMS-1312` | Bin or zone block with an unknown kind or no reason | Say why it is blocked. | Choose No receipts or No picks and give a short reason - or clear the block. | Low | 422 |
+| `WMS-1313` | Stock put into, moved into or received into a bin or zone blocked for receipts | This bin is closed to receipts. | Choose another bin, or ask a store manager to lift the block on the bin or its zone. | Medium | 422 |
+| `WMS-1314` | Put-away rule naming more than one of item, design and category, no zone or bin, or something that does not exist | This put-away rule is not complete. | Name one of item, design or category (or none for a location default) and the zone or bin the stock goes to. | Low | 422 |
+| `WMS-1315` | Bin move request refused (work queue off, bins or item missing, same bin, or not enough stock in the from bin) | This move can't be requested. | Check the two bins, the item and the quantity; the work queue must be on (Configuration > Warehouse). | Low | 422 |
 
 ## WMS / Logistics
 

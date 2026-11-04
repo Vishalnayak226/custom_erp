@@ -139,6 +139,10 @@ func CreateJournalVoucher(tenantID, voucherDate, narration string, lines []Journ
 	if len(opts) > 0 {
 		opt = opts[0]
 	}
+	// Stage 148.5: a manual journal never touches a no-manual-posting account.
+	if err := refuseManualPostingToControlAccounts(db.DB, schema, lines); err != nil {
+		return "", err
+	}
 	return createJournalVoucherInSchema(schema, voucherDate, narration, lines, userID, opt)
 }
 
@@ -247,6 +251,14 @@ func postJournalVoucherTx(tx *sql.Tx, tenantID, schema, voucherID string, data m
 	lines, err := journalVoucherLinesFromData(data)
 	if err != nil {
 		return fmt.Errorf("voucher %s: %v", voucherID, err)
+	}
+	// Stage 148.5: the flag holds on every way a journal reaches the ledger: a
+	// draft edited after creation, a recurring run, a flag set while the voucher
+	// waited for approval. A reversal only undoes what is already posted.
+	if orig, _ := data["reversed_from"].(string); orig == "" {
+		if err := refuseManualPostingToControlAccounts(tx, schema, lines); err != nil {
+			return fmt.Errorf("voucher %s: %w", voucherID, err)
+		}
 	}
 
 	debits := map[string]int{}

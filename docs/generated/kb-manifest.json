@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": "cmd/genkb",
   "generator_version": "stage48-v1",
-  "release": "0.22.0",
+  "release": "0.23.0",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "schema": "source registries",
   "tenant": "none",
@@ -91,7 +91,7 @@
     },
     {
       "path": "internal/kb/content/articles/error-code-reference-2.html",
-      "sha256": "9e18810ca31770c859792116c314d246171629ba9409209ef1b6ef7c72b89386",
+      "sha256": "ab91a62148834101de2fd8a1bc766dc4d8151d9fd034c6696d11c0729e850a1e",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -100,7 +100,7 @@
     },
     {
       "path": "internal/kb/content/articles/error-code-reference-3.html",
-      "sha256": "2e406470e5135b8d2ed04039dd0d532f0f6d5824f375de49a8147bc1bbc85c6f",
+      "sha256": "4be51c94aca4a52134f824c4af69f61a58ea6c7afd6e8e5255fa9e67e8b9efd0",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -109,7 +109,7 @@
     },
     {
       "path": "internal/kb/content/articles/error-code-reference.html",
-      "sha256": "cc100f2b32dcede701bdb8ec32147450f5b603e4772a0d52570859b98d8c2fa5",
+      "sha256": "b4e2369c7a0b12f7908e7a94ae66383ad6ebf13a0faa7f13390aedba20de74c8",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -370,7 +370,7 @@
     },
     {
       "path": "internal/kb/content/articles/procurement.html",
-      "sha256": "db74659811600cd3a59a404e67cb6e9d82aa8431b6efc4d345cf7b395d2f6675",
+      "sha256": "556fc6182dcbbc94ae8d39c7c3996f4cb4aaaf4165c0978eb9b3eff8213ff53c",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -397,7 +397,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes-2.html",
-      "sha256": "334be99d87280a62ab547ec4c6d5e9bd421d614e02206d5b0cad70f86ab6c8bb",
+      "sha256": "35eb78e35a7bf7dadc734be34fa88657688570ceb723c07ff46fd44b5dc0aa9b",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -406,7 +406,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes.html",
-      "sha256": "edbd2cd2a714e1837939b3cbd25174a586ba2cb6be7b61c57018123cf7d97a94",
+      "sha256": "23c2792df83347fd75d20a6b8d5c5ebf266cdb3f1e2a09f608a664532806106e",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -415,7 +415,7 @@
     },
     {
       "path": "internal/kb/content/articles/report-catalog-2.html",
-      "sha256": "af72ab89f90c8aed18c7bfebd8d63cb85b34c244dfaecb7a4289a2f830b20dc1",
+      "sha256": "9dac723c4d9c347f7656c2542a9b2071313be9889a0289191e797564a4be8323",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -424,7 +424,7 @@
     },
     {
       "path": "internal/kb/content/articles/report-catalog-3.html",
-      "sha256": "e916cdb8a25e5af38f39b3ff66cc9e4842a3c7093a88437a1d25783da59dc1b0",
+      "sha256": "c5d362314ab74fc9f046cbdfdf2abf8c4bb16d5b93039f6e0defa07b6a769075",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -442,7 +442,7 @@
     },
     {
       "path": "internal/kb/content/articles/report-catalog.html",
-      "sha256": "1490660efa3b838f52ce092d9118dbdbfe9c7b8c0f0257a2520e4604023db7a2",
+      "sha256": "89db7e49b56d132ca5c135a43be165b6c481a9a8e48d31e11617770ce17f06ab",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -559,7 +559,7 @@
     },
     {
       "path": "internal/kb/content/index.json",
-      "sha256": "4a6d450c7753a46ed67347007a0a677e4af8a5a6ddf91abe307e95ed35784127",
+      "sha256": "d521d8fd9891371ba81b50f3b02c265cb585af3a8c93ff4517c417f0209d1fd9",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -568,7 +568,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "71ec1c089955525a53098909006288a2b4ea8a6fb10b5b26a7fe284f25d43698",
+      "sha256": "bdf3e66c9b88b1b28b8ab18e819c1c7c6cc4ef8ff54d202417439e846668e0d9",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

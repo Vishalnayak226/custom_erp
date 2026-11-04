@@ -35,7 +35,7 @@ func TestStage132ProductionCarriesMaterialCost(t *testing.T) {
 	if _, err := PostInventoryLedger(tenantID, loc, []interface{}{map[string]interface{}{"sku": "RM-132", "qty": 10.0}}, false); err != nil {
 		t.Fatal(err)
 	}
-	if err := upsertItemCostReceipt(schema, "RM-132", 10, 50000); err != nil {
+	if err := RecordStockReceiptCost(tenantID, "RM-132", 10, 5000); err != nil {
 		t.Fatal(err)
 	}
 	stockValue := func() int64 {

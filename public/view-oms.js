@@ -470,10 +470,10 @@ function renderOMSFacets(facets) {
   });
 }
 
-function omsStatusBadge(status, holdReason) {
+function omsStatusBadge(status, holdReason, holdOwner, holdSince) {
   const cls = status === 'On Hold' ? 'badge-warning' : (status === 'Delivered' || status === 'Shipped') ? 'badge-success' : status === 'Cancelled' ? 'badge-danger' : 'badge-secondary';
   return `<span class="badge ${cls}">${escapeHTMLText(status || '—')}</span>` +
-    (holdReason ? `<div class="oms-hold-reason">${escapeHTMLText(holdReason)}</div>` : '');
+    (holdReason ? `<div class="oms-hold-reason">${escapeHTMLText(holdReason === 'CREDIT' ? 'Over credit limit' : holdReason)}${holdOwner ? ` · ${escapeHTMLText(holdOwner)}` : ''}${holdSince ? ` · since ${escapeHTMLText(String(holdSince).slice(0, 10))}` : ''}</div>` : '');
 }
 
 function renderOMSOrderTable(result) {
@@ -500,7 +500,7 @@ function renderOMSOrderTable(result) {
               <td style="font-family:monospace;">${copyableCell(o.order_number || o.order_id, o.order_number || o.order_id)}${o.priority === 'Expedite' ? '<div class="badge badge-warning oms-expedite">Expedite</div>' : ''}</td>
               <td>${source}</td>
               <td>${escapeHTMLText(o.customer_name || '—')}${o.customer_phone ? `<div class="oms-channel-ref">${escapeHTMLText(o.customer_phone)}</div>` : ''}</td>
-              <td>${omsStatusBadge(o.status, o.hold_reason)}</td>
+              <td>${omsStatusBadge(o.status, o.hold_reason, o.hold_owner, o.hold_since)}</td>
               <td>${escapeHTMLText(String(o.line_count))}</td>
               <td>${escapeHTMLText(o.locations || '—')}</td>
               <td title="${escapeHTMLText(String(o.created_at))}">${escapeHTMLText(age)}</td>
@@ -732,7 +732,7 @@ window.openOMSOrderDetail = async function(orderID) {
       </div>
       <div class="modal-body">
         <div class="oms-detail-summary">
-          <div><span class="stat-label">Status</span><div>${omsStatusBadge(status, order.hold_reason)}</div></div>
+          <div><span class="stat-label">Status</span><div>${omsStatusBadge(status, order.hold_reason, order.hold_owner, order.hold_since)}</div></div>
           <div><span class="stat-label">Source</span><div>${escapeHTMLText(order.channel || 'Manual')}${order.channel_order_id ? `<div class="oms-channel-ref">${escapeHTMLText(order.channel_order_id)}</div>` : ''}</div></div>
           <div><span class="stat-label">Customer</span><div>${escapeHTMLText(order.customer_name || '—')}${order.customer_phone ? `<div class="oms-channel-ref">${escapeHTMLText(order.customer_phone)}</div>` : ''}</div></div>
           ${order.customer_reference ? `<div><span class="stat-label">Customer PO / Ref</span><div>${escapeHTMLText(order.customer_reference)}</div></div>` : ''}
@@ -1099,7 +1099,9 @@ async function omsPost(url, body, failureMessage, onSuccess) {
   const res = await apiFetch(url, { method: 'POST', body: JSON.stringify(body) });
   if (!res) return;
   if (!res.ok) { await showApiError(res, failureMessage); return; }
-  showToast('Done.');
+  let said = 'Done.';
+  try { const j = await res.clone().json(); if (j && j.status === 'nothing_to_credit' && j.message) said = j.message; } catch (_) {}
+  showToast(said);
   if (onSuccess) await onSuccess();
 }
 
@@ -1386,8 +1388,11 @@ async function cancelOMSOrder(id) { const reasonCode = await showCustomPrompt('A
 // reconciliation queue (Stage 13.7 / 35.8). Courier bookings and manifests,
 // which shared the old Marketplace screen, are on OMS ▸ Ship.
 async function renderOMSSettlementsView(container) {
-  const settlementsRes = await apiFetch('/api/v1/doc/MarketplaceSettlement');
-  if (!settlementsRes) return;
+  // 140.14.3: a role that reads only the lines (Store Manager) gets the
+  // reconciliation queue, not a refused payout list saying "No settlements yet".
+  const canPayouts = canReadDoctype('MarketplaceSettlement');
+  const settlementsRes = canPayouts ? await apiFetch('/api/v1/doc/MarketplaceSettlement') : null;
+  if (canPayouts && !settlementsRes) return;
 
   const header = document.createElement('div');
   header.className = 'page-header';
@@ -1398,7 +1403,7 @@ async function renderOMSSettlementsView(container) {
   `;
   container.appendChild(header);
 
-  const settlements = settlementsRes.ok ? await settlementsRes.json() : [];
+  const settlements = settlementsRes && settlementsRes.ok ? await settlementsRes.json() : [];
   // Stage 69: Settlements is a list with + New, the form a page of its own
   // (txn-screen.js).
   const { txnPagedSection, txnRestorePane } = await loadTxnScreen();
@@ -1473,9 +1478,11 @@ async function renderOMSSettlementsView(container) {
       </tbody>
     </table>
   `;
-  container.appendChild(section(txnPagedSection({ id: 'mkt-settlements', title: 'Settlements', page: 'Reconcile a payout',
-    count: settlements.length, newLabel: 'Reconcile Payout', form: settlementPanel, list: settlementList, heading: 'h2' })));
-  txnRestorePane('mkt-settlements');
+  if (canPayouts) {
+    container.appendChild(section(txnPagedSection({ id: 'mkt-settlements', title: 'Settlements', page: 'Reconcile a payout',
+      count: settlements.length, newLabel: 'Reconcile Payout', form: settlementPanel, list: settlementList, heading: 'h2' })));
+    txnRestorePane('mkt-settlements');
+  }
 
   // --- Settlement Reconciliation panel (Stage 35.8, the "UniReco" gap) ---
   // The panel above stays exactly as it was (a manual one-shot reconcile for
@@ -1487,6 +1494,7 @@ async function renderOMSSettlementsView(container) {
   // work the Variance queue by hand when a line doesn't match within
   // tolerance.
   await renderSettlementReconciliationPanel(container);
+  if (!canPayouts) return;
 
   document.getElementById('mkt-reconcile-btn').addEventListener('click', submitMarketplaceReconcile);
   document.getElementById('mkt-order-add').addEventListener('click', addOMSSettlementOrder);

@@ -66,7 +66,7 @@ func productContentExists(tenantID, itemCode, language string) (bool, error) {
 	var count int
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT COUNT(*) FROM %s.documents
-		WHERE doctype = 'ProductContent' AND data->>'product_id' = $1 AND data->>'language' = $2 AND status != 'Rejected'`, schema),
+		WHERE doctype = 'ProductContent' AND deleted_at IS NULL AND data->>'product_id' = $1 AND data->>'language' = $2 AND status != 'Rejected'`, schema),
 		itemCode, language).Scan(&count)
 	return count > 0, err
 }

@@ -297,7 +297,7 @@ func handlePIMWorkbench(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	family := r.URL.Query().Get("family")
-	results, err := engines.ListWorkbench(tenantID, family)
+	results, err := engines.ListWorkbenchSKUs(tenantID, family, engines.ParseSKUPaste(r.URL.Query().Get("skus")))
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return

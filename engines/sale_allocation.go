@@ -209,6 +209,12 @@ func POSCartItemsFromQuote(quote *QuoteResult) []map[string]interface{} {
 		if l.BillMode != "" {
 			item["bill_mode"] = l.BillMode
 		}
+		if len(l.SerialNos) > 0 {
+			item["serial_nos"] = l.SerialNos
+		}
+		if l.BatchNo != "" {
+			item["batch_no"] = l.BatchNo
+		}
 		items = append(items, item)
 	}
 	return items

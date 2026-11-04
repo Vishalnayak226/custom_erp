@@ -407,6 +407,13 @@ func ReceiveTransferOrderLines(tenantID, transferOrderID, userID string, req Tra
 		if bal == nil {
 			return nil, &ValidationError{Code: "STOCKT-0485", Message: fmt.Sprintf("%s is not on this transfer - receive it on its own document", line.Sku)}
 		}
+		// Stage 148.11: the item's over % (read now) caps what may arrive beyond
+		// what was sent; blank = no cap, as before.
+		if line.ExcessQty > 0 {
+			if _, over := transferTolerance(tenantID, line.Sku); over != nil && float64(bal.Excess+line.ExcessQty) > float64(bal.Dispatched)*(*over)/100+1e-9 {
+				return nil, &ValidationError{Code: "PURCHA-4990", Message: fmt.Sprintf("%s: %d extra unit(s) is beyond the item's over-delivery tolerance of %v%% on %d sent", line.Sku, bal.Excess+line.ExcessQty, *over, bal.Dispatched)}
+			}
+		}
 		if line.ReasonCode != "" || line.Reason != "" {
 			reasonForSku[line.Sku] = [2]string{line.ReasonCode, line.Reason}
 		}
@@ -519,6 +526,13 @@ func ReceiveTransferOrderLines(tenantID, transferOrderID, userID string, req Tra
 				continue
 			}
 			reason := reasonForSku[bal.Sku]
+			// Stage 148.11: a shortfall within the item's under % closes without
+			// a reason (read now); blank = a reason is needed, as before.
+			if strings.TrimSpace(reason[0]) == "" && strings.TrimSpace(reason[1]) == "" {
+				if under, _ := transferTolerance(tenantID, bal.Sku); under != nil && float64(open) <= float64(bal.Dispatched)*(*under)/100+1e-9 {
+					reason[1] = "Within tolerance"
+				}
+			}
 			if strings.TrimSpace(reason[0]) == "" && strings.TrimSpace(reason[1]) == "" {
 				return nil, &ValidationError{Code: "TRN-0259", Message: fmt.Sprintf("received quantity for SKU %s (%d) does not match dispatched quantity (%d) - a shortage/damage reason is required", bal.Sku, bal.Received, bal.Dispatched)}
 			}
@@ -621,6 +635,15 @@ func ReceiveTransferOrderLines(tenantID, transferOrderID, userID string, req Tra
 			"", fmt.Sprintf("TransferOrder:%s:LOST:%d:%s", transferOrderID, len(events)+1, sku)); err != nil {
 			return nil, err
 		}
+	}
+
+	// Stage 148.8: inter-store freight goes on the units this receipt brought in.
+	chargedUnits := map[string]float64{}
+	for sku, p := range postings {
+		chargedUnits[sku] = float64(p.toOnHand)
+	}
+	if err := applyTransferChargesTx(tx, tenantID, schema, transferOrderID, data, len(events)+1, toWarehouse, chargedUnits); err != nil {
+		return nil, err
 	}
 
 	ev := transferEvent{No: len(events) + 1, Kind: "Receipt", Key: strings.TrimSpace(req.ReceiptKey),
@@ -933,6 +956,13 @@ func CancelTransferOrder(tenantID, transferOrderID, userID, reasonCode, note str
 	if err := releaseTransferReservationTx(tx, schema, transferOrderID); err != nil { // 146.1.7
 		return err
 	}
+	// 146.3.5: a transfer picked in a wave gives its bins and pick tasks back.
+	if err := ReleaseTaskBinStockTx(tx, schema, transferOrderID, ""); err != nil {
+		return err
+	}
+	if _, err := cancelWorkTasksExec(tx, schema, "TransferOrder", transferOrderID); err != nil {
+		return err
+	}
 	if err := tx.Commit(); err != nil {
 		return err
 	}
@@ -975,6 +1005,8 @@ func transferValueOf(tenantID string, lines []transferLine) TransferValue {
 type TransferDetail struct {
 	TransferValue
 	Lines []TransferDetailLine `json:"lines"`
+	// Stage 146.3.13: what dispatch would ship now; only with the fill policy on.
+	Fill *TransferFill `json:"fill,omitempty"`
 }
 
 type TransferDetailLine struct {
@@ -1005,6 +1037,11 @@ func GetTransferDetail(tenantID, transferOrderID string) (TransferDetail, error)
 			row.Name, _ = item["name"].(string)
 		}
 		out.Lines = append(out.Lines, row)
+	}
+	if GetSettingBool(tenantID, TransferFillPolicySetting) {
+		if fc, err := TransferFillCheck(tenantID, transferOrderID); err == nil {
+			out.Fill = &fc
+		}
 	}
 	return out, nil
 }

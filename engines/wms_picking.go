@@ -163,6 +163,20 @@ func buildWavePickList(tenantID, schema, waveID string) ([]WavePickLine, []WaveO
 	if err := rows.Err(); err != nil {
 		return nil, nil, err
 	}
+	// Stage 146.3.5: transfers tagged into the wave are picked with the orders.
+	trRem, trLoc, trCount, err := waveTransferRemainders(tenantID, schema, waveID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if trCount > 0 {
+		if locationCode == "" {
+			locationCode = trLoc
+		} else if trLoc != "" && trLoc != locationCode {
+			return nil, nil, fmt.Errorf("wave %s spans more than one location (%s and %s) - a wave must be single-location", waveID, locationCode, trLoc)
+		}
+		remainders = append(remainders, trRem...)
+		taskCount += trCount
+	}
 	if taskCount == 0 {
 		return nil, nil, fmt.Errorf("wave %s has no open (Pending/Picking) tasks", waveID)
 	}
@@ -183,7 +197,7 @@ func buildWavePickList(tenantID, schema, waveID string) ([]WavePickLine, []WaveO
 		}
 	}
 	for _, id := range taskOrder {
-		if err := ReserveTaskBinStock(tenantID, id); err != nil {
+		if err := reserveWaveStock(tenantID, id); err != nil {
 			return nil, nil, err
 		}
 	}

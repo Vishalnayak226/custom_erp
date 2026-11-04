@@ -29,6 +29,8 @@ function loyEntry(e) {
     if (e.reference_doctype === 'LoyaltyPointTransfer') return ['Received from a customer', 1];
     if (ref.endsWith(':REDEMPTION-REVERSAL')) return ['Not needed on the bill - handed back', 1];
     if (e.reference_doctype === 'POSCart') return ['Earned on a sale', 1];
+    if (e.reference_doctype === 'SalesOrder') return ['Earned on an online order', 1];
+    if (e.reference_doctype === 'LoyaltyOccasion') return [e.reason || 'Occasion points', 1];
     return ['Credited', 1];
   }
   if (e.transaction_type === 'Burn') return e.reference_doctype === 'LoyaltyExpiry' ? ['Expired', -1] : ['Redeemed', -1];
@@ -67,7 +69,7 @@ export async function renderLoyaltyView(root) {
         <div id="loy-summary" class="txn-hint" style="margin:10px 0;">Pick a customer to see their points.</div>
         <div id="loy-context"></div>
         <div class="table-wrapper"><table>
-          <thead><tr><th>When</th><th>What</th><th>Points</th><th>From</th><th>Expires</th></tr></thead>
+          <thead><tr><th>When</th><th>What</th><th>Points</th><th>From</th><th>Store</th><th>Cashier</th><th>Expires</th></tr></thead>
           <tbody id="loy-ledger"></tbody>
         </table></div>
         <h3 style="font-size:14px; margin:14px 0 6px;">Adjustments</h3>
@@ -158,8 +160,8 @@ async function loadCustomer(panel) {
     const [what, sign] = loyEntry(e);
     return `<tr><td>${loyEsc(String(e.created_at || '').slice(0, 16).replace('T', ' '))}</td><td>${loyEsc(what)}</td>
       <td style="font-weight:600; color:${sign > 0 ? 'var(--success-color, #1a7f37)' : 'var(--danger-color, #b3261e)'};">${sign > 0 ? '+' : '-'}${e.points}</td>
-      <td>${loyEsc(e.reference_id || '')}</td><td>${loyEsc(e.expires_at ? String(e.expires_at).slice(0, 10) : '')}</td></tr>`;
-  }).join('') : '<tr><td colspan="5" class="txn-hint">No points yet.</td></tr>';
+      <td>${loyEsc(e.reference_id || '')}</td><td>${loyEsc(e.location || '')}</td><td>${loyEsc(e.created_by || '')}</td><td>${loyEsc(e.expires_at ? String(e.expires_at).slice(0, 10) : '')}</td></tr>`;
+  }).join('') : '<tr><td colspan="7" class="txn-hint">No points yet.</td></tr>';
   loadCustomerContext(panel, id);
   const list = adj.adjustments || [];
   panel.querySelector('#loy-adjustments').innerHTML = list.length ? list.map(a => `<tr><td>${loyEsc(a.created_at)}</td>
@@ -333,7 +335,7 @@ async function loadCustomerContext(panel, id) {
   const offers = c.consent_sms || c.consent_whatsapp
     ? `Agreed to offers by ${[c.consent_sms ? 'SMS' : '', c.consent_whatsapp ? 'WhatsApp' : ''].filter(Boolean).join(' and ')}.`
     : 'Has not agreed to offers - no SMS or WhatsApp.';
-  box.innerHTML = `<div class="txn-hint" style="margin:0 0 10px;">${loyEsc(offers)} Points worth <strong>${money(c.points_value)}</strong>.
+  box.innerHTML = `<div class="txn-hint" style="margin:0 0 10px;">${loyEsc(offers)} Points worth <strong>${money(c.points_value)}</strong>${c.expiring_soon ? ` &middot; ${c.expiring_soon} expire in 30 days` : ''}${c.pending ? ` &middot; ${c.pending} pending` : ''}.
       Spend counted for tiers: <strong>${money(c.spend)}</strong>${c.next_tier ? ` &middot; ${money(c.to_next_tier)} more reaches <strong>${loyEsc(c.next_tier)}</strong>` : ''}.</div>
     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; margin-bottom:12px;">
       <div class="table-wrapper"><table><thead><tr><th>Last bills</th><th>Date</th><th>Amount</th><th>Lines</th></tr></thead>

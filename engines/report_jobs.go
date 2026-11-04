@@ -52,7 +52,7 @@ func ListMyReportExportJobs(tenantID, userID string, limit int) ([]ReportExportJ
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT id, data, status, created_at::text, COALESCE(updated_at, created_at)::text FROM %s.documents
+		SELECT id, data - 'csv', status, created_at::text, COALESCE(updated_at, created_at)::text FROM %s.documents
 		WHERE doctype = 'ReportExportJob' AND created_by = $1 ORDER BY created_at DESC LIMIT $2`, schema), userID, limit)
 	if err != nil {
 		return nil, err

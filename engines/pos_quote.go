@@ -103,6 +103,9 @@ type QuoteLineRequest struct {
 	// batches on the shelf, never taken on trust.
 	MRP     float64 `json:"mrp,omitempty"`
 	Barcode string  `json:"barcode,omitempty"`
+	// Stage 148.1: the pieces or lot the cashier scanned.
+	SerialNos []string `json:"serial_nos,omitempty"`
+	BatchNo   string   `json:"batch_no,omitempty"`
 }
 
 // QuoteRequest is the full set of selection inputs 47.2.1 names: item,
@@ -161,6 +164,9 @@ type QuoteLoyalty struct {
 type QuoteLine struct {
 	Sku string `json:"sku"`
 	Qty int    `json:"qty"`
+	// Stage 148.1: the pieces or lot the cashier scanned, carried to the cart.
+	SerialNos []string `json:"serial_nos,omitempty"`
+	BatchNo   string   `json:"batch_no,omitempty"`
 	// UnitPrice is what this line is actually charged at, GST inclusive
 	// (this codebase's sale-side rate convention - see ComputeGSTForLines).
 	UnitPrice float64 `json:"unit_price"`
@@ -375,7 +381,7 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 			}
 		}
 
-		line := QuoteLine{Sku: sku, Qty: in.Qty, MRP: itemMRP, MRPChoices: mrpChoices, PriceListCode: refList}
+		line := QuoteLine{Sku: sku, Qty: in.Qty, MRP: itemMRP, MRPChoices: mrpChoices, PriceListCode: refList, SerialNos: in.SerialNos, BatchNo: in.BatchNo}
 		if known {
 			line.NotStocked = !policy.Tracked()
 			if policy.BillMode == BillHidden {

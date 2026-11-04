@@ -24,6 +24,10 @@ func handleWorkQueue(w http.ResponseWriter, r *http.Request) {
 		TaskID       string  `json:"task_id"`
 		Bin          string  `json:"bin"`
 		Qty          float64 `json:"qty"`
+		FromBin      string  `json:"from_bin"`
+		ToBin        string  `json:"to_bin"`
+		SKU          string  `json:"sku"`
+		Reason       string  `json:"reason"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request body")
@@ -94,8 +98,20 @@ func handleWorkQueue(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "split", "task_id": req.TaskID, "new_task_id": id})
+	case "request_move": // 146.3.3: a bin move or re-slot becomes a Move task
+		id, err := engines.RequestBinMove(tenantID, engines.MoveRequest{FromBin: req.FromBin, ToBin: req.ToBin, SKU: req.SKU, Qty: int(req.Qty), Reason: req.Reason}, userID)
+		if err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "requested", "task_id": id})
+	case "replenish": // 146.3.3: sweep a location's pick faces below their min
+		if !need(req.LocationCode != "", "Field 'location_code' is required") {
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "swept", "created": engines.EmitReplenishTasks(tenantID, req.LocationCode)})
 	default:
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'action' must be list, next, start, done or split")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'action' must be list, next, start, done, split, request_move or replenish")
 	}
 }
 

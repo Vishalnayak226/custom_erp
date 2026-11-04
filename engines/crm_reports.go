@@ -103,7 +103,7 @@ func init() {
 			where, args := crmRangeArgs(params, crmZoneName(schema), "l.created_at", nil)
 			return crmQueryRows(fmt.Sprintf(`SELECT l.created_at AS recorded_at, l.customer_id, COALESCE(c.data->>'name', '') AS customer, l.channel, l.purpose, l.action, l.source,
 				COALESCE(l.recorded_by, '') AS recorded_by, COALESCE(l.notice_version, '') AS notice_version, COALESCE(l.evidence, '') AS evidence
-				FROM %s.crm_consent_ledger l LEFT JOIN %s.documents c ON c.id = l.customer_id AND c.doctype = 'Customer' WHERE TRUE%s ORDER BY l.id DESC LIMIT 5000`, schema, schema, where), args...)
+				FROM %s.crm_consent_ledger l LEFT JOIN %s.documents c ON c.id = l.customer_id AND c.doctype = 'Customer' WHERE TRUE%s ORDER BY l.id DESC LIMIT 20001`, schema, schema, where), args...)
 		}})
 	reg(ReportDefinition{ID: "crm-segment-members", Label: "Segment Members", StoreKey: "-",
 		Description: "Who is in a segment now (its current version). " + crmReportNote("each customer's bills to date"),
@@ -124,7 +124,7 @@ func init() {
 				return nil, err
 			}
 			return crmQueryRows(crmFactsCTE(schema, crmLifecycleThresholds(schema), false)+` SELECT id AS customer_id, name, phone, email, lifecycle, rfm, visits, ROUND(spend, 2) AS spend,
-				to_char(last_at, 'YYYY-MM-DD') AS last_bill FROM cf WHERE `+pred+` ORDER BY spend DESC LIMIT 5000`, args...)
+				to_char(last_at, 'YYYY-MM-DD') AS last_bill FROM cf WHERE `+pred+` ORDER BY spend DESC LIMIT 20001`, args...)
 		}})
 	reg(ReportDefinition{ID: "crm-campaign-summary", Label: "Campaign Summary", StoreKey: "-",
 		Description: "Each campaign run: reached, held out, suppressed, delivered, credited sales and cost. Delivery is blank where the channel does not report it. " + crmReportNote("the run's start; a bill is credited to the last offer within the attribution days before it"),
@@ -184,7 +184,7 @@ func init() {
 			}
 			return crmQueryRows(fmt.Sprintf(`SELECT s.created_at AS queued_at, s.run_kind AS kind, s.customer_id, COALESCE(c.data->>'name', '') AS customer, s.channel, s.purpose, s.status,
 				COALESCE(s.reason_code, '') AS reason, COALESCE(s.contact_masked, '') AS contact, s.parts, COALESCE(s.cost_actual, s.cost_estimate) AS cost
-				FROM %s.crm_sends s LEFT JOIN %s.documents c ON c.id = s.customer_id AND c.doctype = 'Customer' WHERE TRUE%s ORDER BY s.created_at DESC LIMIT 5000`, schema, schema, where), args...)
+				FROM %s.crm_sends s LEFT JOIN %s.documents c ON c.id = s.customer_id AND c.doctype = 'Customer' WHERE TRUE%s ORDER BY s.created_at DESC LIMIT 20001`, schema, schema, where), args...)
 		}})
 	reg(ReportDefinition{ID: "crm-journey-performance", Label: "Journey Performance", StoreKey: "-",
 		Description: "Per journey: customers who entered, are in it now, finished, left on reaching the goal, and messages sent. " + crmReportNote("when the customer entered"),
@@ -221,7 +221,7 @@ func init() {
 				JOIN LATERAL (SELECT s.run_kind, s.run_id, s.sent_at FROM %[1]s.crm_sends s WHERE s.customer_id = b.data->>'customer_id' AND s.purpose = 'marketing'
 				  AND s.status IN ('Accepted', 'Delivered', 'Read', 'Unknown', 'Simulated') AND s.sent_at < b.created_at AND s.sent_at >= b.created_at - make_interval(days => $1)
 				  ORDER BY s.sent_at DESC LIMIT 1) m ON TRUE
-				WHERE b.doctype = 'POSCart' AND b.status = 'Paid'%[3]s ORDER BY b.created_at DESC LIMIT 5000`, schema, crmBillAmountSQL("b"), where), args...)
+				WHERE b.doctype = 'POSCart' AND b.status = 'Paid'%[3]s ORDER BY b.created_at DESC LIMIT 20001`, schema, crmBillAmountSQL("b"), where), args...)
 		}})
 	reg(ReportDefinition{ID: "crm-rfm-lifecycle", Label: "RFM and Lifecycle", StoreKey: "-",
 		Description: "Every customer's RFM segment (scored against the whole customer base, as the RFM report does) and lifecycle state. " + crmReportNote("each customer's bills to date"),
@@ -235,7 +235,7 @@ func init() {
 			}
 			args := []interface{}{strings.TrimSpace(params["lifecycle"])}
 			return crmQueryRows(crmFactsCTE(schema, crmLifecycleThresholds(schema), false)+` SELECT id AS customer_id, name, lifecycle, rfm, visits, ROUND(spend, 2) AS spend, days_since
-				FROM cf WHERE ($1 = '' OR lifecycle = $1) ORDER BY spend DESC LIMIT 5000`, args...)
+				FROM cf WHERE ($1 = '' OR lifecycle = $1) ORDER BY spend DESC LIMIT 20001`, args...)
 		}})
 	reg(ReportDefinition{ID: "crm-coupon-use", Label: "Coupon Use", StoreKey: "-",
 		Description: "Vouchers the CRM issued (campaigns, journeys) and whether they were used. " + crmReportNote("when the voucher was issued"),
@@ -252,7 +252,7 @@ func init() {
 				COALESCE(v.data->>'discount_value', '') || CASE WHEN v.data->>'discount_type' = 'Flat' THEN ' off' ELSE '%% off' END AS offer,
 				COALESCE(v.data->>'campaign_id', '') AS from, COALESCE(v.data->>'expiry_date', '') AS expiry, COALESCE((v.data->>'used_count')::int, 0) AS used, v.status
 				FROM %s.documents v LEFT JOIN %s.documents c ON c.id = v.data->>'customer_id' AND c.doctype = 'Customer'
-				WHERE v.doctype = 'Voucher' AND COALESCE(v.data->>'campaign_run', '') <> ''%s ORDER BY v.created_at DESC LIMIT 5000`, schema, schema, where), args...)
+				WHERE v.doctype = 'Voucher' AND COALESCE(v.data->>'campaign_run', '') <> ''%s ORDER BY v.created_at DESC LIMIT 20001`, schema, schema, where), args...)
 		}})
 	reg(ReportDefinition{ID: "crm-service-sla", Label: "Service SLA", StoreKey: "store",
 		Description: "Customer tickets against their first-response and resolution times (working hours only). " + crmReportNote("when the ticket was opened"),

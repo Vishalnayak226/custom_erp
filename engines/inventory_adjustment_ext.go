@@ -247,7 +247,9 @@ func adjustmentLineRows(tenantID string, p map[string]string, each func(at time.
 		return err
 	}
 	defer rows.Close()
+	read := 0
 	for rows.Next() {
+		read++
 		var at time.Time
 		var raw, status string
 		if err := rows.Scan(&at, &raw, &status); err != nil {
@@ -260,6 +262,9 @@ func adjustmentLineRows(tenantID string, p map[string]string, each func(at time.
 		for _, l := range jsonLines(data["items"]) {
 			each(at, data, status, l)
 		}
+	}
+	if read == 5000 {
+		return reportReadStopped(read) // 157.4b
 	}
 	return rows.Err()
 }

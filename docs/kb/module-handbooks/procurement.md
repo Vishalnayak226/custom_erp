@@ -5,7 +5,7 @@ order: 30
 summary: Turn a need into stock on the shelf — raise a requisition, shop it round vendors with an optional RFQ, commit to a fully tax-classified Purchase Order, and post the Goods Receipt that actually moves the stock.
 audience: procurement officer, store manager, admin
 last_verified: 2026-09-03
-screens: [purchase-orders, purchase-requisitions, grn, rfq, purchase-returns, module:procurement, module:inbound, vendor-invoices, reports, approvals, configuration]
+screens: [purchase-orders, purchase-requisitions, grn, gate-entry, rfq, purchase-returns, module:procurement, module:inbound, vendor-invoices, reports, approvals, configuration]
 doc_id: DOC-7252AA9770
 type: procedure
 status: draft
@@ -572,3 +572,7 @@ as you type.
 work (`Match3Way`, `PayVendorInvoiceWithTDS`, the Payment Proposals screen)
 but are the natural subject of their own handbook rather than covered here —
 see § After the GRN above.
+
+## Gate entry
+
+**Procurement > Gate Entry** (`gate-entry`) records each arriving truck: vendor, PO, parcels, transporter, LR no, vehicle and a photo. **Start GRN** on an open entry opens Goods Receipt with those details filled in and links the two. The report *Gate entries with no GRN after N hours* lists trucks still waiting.

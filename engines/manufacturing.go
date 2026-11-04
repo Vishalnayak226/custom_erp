@@ -276,7 +276,7 @@ func IssueProductionMaterial(tenantID, orderID string) error {
 // existing frontend action and handler - Stage 26.9.6's finishProductionQty
 // (engines/manufacturing_mrp.go) is what actually does the work now, shared
 // with the new explicit ReportPartialCompletion.
-func CompleteProductionOrder(tenantID, orderID string) error {
+func CompleteProductionOrder(tenantID, orderID string, output ...OutputPieces) error {
 	data, status, err := fetchProductionOrder(tenantID, orderID)
 	if err != nil {
 		return fmt.Errorf("production order not found: %v", err)
@@ -291,7 +291,7 @@ func CompleteProductionOrder(tenantID, orderID string) error {
 	if remaining <= 0 {
 		return fmt.Errorf("production order has no remaining quantity to complete")
 	}
-	return finishProductionQty(tenantID, orderID, remaining)
+	return finishProductionQty(tenantID, orderID, remaining, output...)
 }
 
 // wholeUnitsUp is a component requirement in the whole units stock moves in:

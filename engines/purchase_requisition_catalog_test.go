@@ -40,7 +40,7 @@ func TestPreparePurchaseRequisition(t *testing.T) {
 		}
 	}()
 
-	first := map[string]interface{}{"description": "  " + description + "  "}
+	first := map[string]interface{}{"description": "  " + description + "  ", "quantity": 1, "total_amount": 100}
 	if err := PreparePurchaseRequisition(tenantID, location, true, first); err != nil {
 		t.Fatalf("PreparePurchaseRequisition create: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestPreparePurchaseRequisition(t *testing.T) {
 		t.Fatalf("description master was not created: %v", err)
 	}
 
-	second := map[string]interface{}{"description": strings.ToUpper(description)}
+	second := map[string]interface{}{"description": strings.ToUpper(description), "quantity": 1, "total_amount": 100}
 	if err := PreparePurchaseRequisition(tenantID, location, true, second); err != nil {
 		t.Fatalf("PreparePurchaseRequisition second create: %v", err)
 	}

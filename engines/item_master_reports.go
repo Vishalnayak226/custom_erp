@@ -204,7 +204,9 @@ func paidCarts(tenantID string, params map[string]string, extra string) ([]struc
 		id, date string
 		data     map[string]interface{}
 	}
+	read := 0
 	for rows.Next() {
+		read++
 		var id, date, raw string
 		if err := rows.Scan(&id, &date, &raw); err != nil {
 			return nil, err
@@ -217,6 +219,9 @@ func paidCarts(tenantID string, params map[string]string, extra string) ([]struc
 			id, date string
 			data     map[string]interface{}
 		}{id, date, d})
+	}
+	if read == 5000 {
+		return nil, reportReadStopped(read) // 157.4b
 	}
 	return out, rows.Err()
 }
@@ -365,7 +370,7 @@ func itemExceptionsReport(tenantID string, params map[string]string) ([]map[stri
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT to_char(created_at, 'YYYY-MM-DD HH24:MI'), data::text, COALESCE(status, '') FROM %s.documents
-		WHERE doctype = 'ItemException' AND deleted_at IS NULL AND ($1 = '' OR status = $1) ORDER BY created_at DESC LIMIT 5000`, schema), strings.TrimSpace(params["status"]))
+		WHERE doctype = 'ItemException' AND deleted_at IS NULL AND ($1 = '' OR status = $1) ORDER BY created_at DESC LIMIT 20001`, schema), strings.TrimSpace(params["status"]))
 	if err != nil {
 		return nil, err
 	}

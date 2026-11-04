@@ -309,7 +309,8 @@ func grnStampTotals(data map[string]interface{}, lines []map[string]interface{})
 	data["our_value"] = ov
 	data["our_gst"] = og
 	data["our_total"] = round2(ov + og)
-	typed := numFromInterface(data["vendor_invoice_amount"])
+	// Stage 148.8: the vendor's charges are in the typed total but on no line.
+	typed := numFromInterface(data["vendor_invoice_amount"]) - numFromInterface(data["vendor_charge_gross"])
 	data["invoice_unexplained"] = round2(typed - (iv + ig))
 	data["note_difference"] = round2(typed - (ov + og))
 }
@@ -373,6 +374,9 @@ func PrepareGRNSteps(tenantID, userID string, isCreate bool, payload map[string]
 	payload["status"] = "Pending"
 	payload["received_by"] = userID
 	payload["received_at"] = time.Now().UTC().Format(time.RFC3339)
+	if schema, err := db.GetTenantSchema(tenantID); err == nil {
+		stampStepGRNCharges(db.DB, tenantID, schema, "", payload, lines)
+	}
 	grnStampTotals(payload, lines)
 	return nil
 }
@@ -521,6 +525,7 @@ func (g *stepGRN) requireOpen() error {
 func (g *stepGRN) save(tenantID, userID, step, reason string) error {
 	defer g.tx.Rollback()
 	encodeGRNLines(g.data, g.lines)
+	stampStepGRNCharges(g.tx, tenantID, g.schema, g.id, g.data, g.lines)
 	grnStampTotals(g.data, g.lines)
 	if s := strField(g.data, "status"); s != "" {
 		g.status = s
@@ -961,13 +966,18 @@ func verifyGRNLines(tenantID string, g *stepGRN, in GRNVerifyInput) (*grnExcessR
 
 	// D5: the typed invoice total must be explained by the invoice lines
 	// (GST cannot be split on a lump sum).
-	if c := grnInvoiceCheck(g.lines, numFromInterface(g.data["vendor_invoice_amount"])); c != nil {
+	stampStepGRNCharges(g.tx, tenantID, g.schema, g.id, g.data, g.lines)
+	if c := grnInvoiceCheckOf(g.lines, g.data); c != nil {
 		return nil, &ValidationError{Code: "GOODSR-0942", SubFor: "Invoice Total", Message: c.Message}
 	}
 
 	// D6: goods beyond the PO (plus the vendor's tolerance) or not on it.
 	excess, err := grnExcessByLine(tenantID, g)
 	if err != nil {
+		return nil, err
+	}
+	// Stage 148.11: a full-delivery-only line takes the whole line or nothing.
+	if err := grnFullDeliveryCheck(tenantID, g); err != nil {
 		return nil, err
 	}
 	var undecided []string
@@ -1103,6 +1113,7 @@ func grnExcessByLine(tenantID string, g *stepGRN) (map[int]float64, error) {
 	}
 	ordered := map[string]map[string]float64{}
 	before := map[string]map[string]float64{}
+	ctls := map[string]map[string]*poSkuControl{}
 	for _, k := range order {
 		ls := groups[k]
 		var kept float64
@@ -1110,7 +1121,8 @@ func grnExcessByLine(tenantID string, g *stepGRN) (map[int]float64, error) {
 			kept += numFromInterface(l["grn_qty"]) - numFromInterface(l["rejected_qty"]) - numFromInterface(l["damaged_qty"])
 		}
 		if k.po == "" {
-			if !allowUnexpected {
+			// Stage 148.38: a receipt saved with no PO on purpose has no PO to be beyond.
+			if !allowUnexpected && strField(g.data, "received_before_po") != "Yes" {
 				out[grnLineNo(ls[len(ls)-1])] = round2(kept)
 			}
 			continue
@@ -1130,7 +1142,16 @@ func grnExcessByLine(tenantID string, g *stepGRN) (map[int]float64, error) {
 		orderedQty, onPO := ordered[k.po][k.sku]
 		var allowed float64
 		if onPO {
-			allowed = orderedQty*(1+pct/100) - before[k.po][k.sku]
+			// Stage 148.11: the line / item over % replaces the vendor's, and a
+			// stopped line allows nothing: all of it is excess.
+			if _, ok := ctls[k.po]; !ok {
+				ctls[k.po] = poSkuControls(tenantID, k.po)
+			}
+			c := ctls[k.po][k.sku]
+			allowed = orderedQty*(1+c.effectiveOverPct(pct)/100) - before[k.po][k.sku]
+			if c != nil && c.Stopped {
+				allowed = 0
+			}
 		} else if allowUnexpected {
 			continue
 		}
@@ -1402,6 +1423,7 @@ type GRNStepLineView struct {
 	ItemName     string   `json:"item_name"`
 	POID         string   `json:"po_id"`
 	POOpenQty    *float64 `json:"po_open_qty,omitempty"`
+	BeforePO     bool     `json:"before_po,omitempty"`
 	PORate       *float64 `json:"po_rate,omitempty"`
 	ReceivedQty  float64  `json:"received_qty"`
 	InvoiceQty   float64  `json:"invoice_qty"`
@@ -1539,6 +1561,7 @@ func GetGRNStepView(tenantID, grnID string) (*GRNStepView, error) {
 		return nil, &ValidationError{Code: "GOODSR-0944", Message: fmt.Sprintf("goods receipt %s was posted in one step", grnID)}
 	}
 	lines := grnLineMaps(data)
+	stampStepGRNCharges(db.DB, tenantID, schema, grnID, data, lines)
 	grnStampTotals(data, lines)
 	v := &GRNStepView{
 		ID: grnID, Code: firstNonEmpty(strField(data, "code"), grnID), Step: strField(data, "grn_step"), Status: status,
@@ -1571,7 +1594,7 @@ func GetGRNStepView(tenantID, grnID string) (*GRNStepView, error) {
 	}
 	v.RoundOff = v.Unexplained
 	if v.Step == "Received" {
-		v.InvoiceCheck = grnInvoiceCheck(grnLineMaps(data), v.InvoiceTotal)
+		v.InvoiceCheck = grnInvoiceCheckOf(grnLineMaps(data), data)
 	}
 
 	// Open PO qty per PO and SKU, for the PO column.
@@ -1608,6 +1631,9 @@ func GetGRNStepView(tenantID, grnID string) (*GRNStepView, error) {
 			v.Warnings = append(v.Warnings, "Vendor and store are in different states: the invoice should charge IGST.")
 		}
 	}
+	if other := VendorChallanSeenThisYear(tenantID, v.ID, v.Vendor, strField(data, "vendor_challan_no"), strField(data, "vendor_challan_date")); other != "" {
+		v.Warnings = append(v.Warnings, "PURCHA-4991: this vendor challan no. was already used this year on "+other+".")
+	}
 	posted := map[string]bool{}
 	for _, c := range v.Children {
 		posted[c.Key] = c.Status == GRNStepPosted
@@ -1636,6 +1662,7 @@ func GetGRNStepView(tenantID, grnID string) (*GRNStepView, error) {
 			CurrentMRP: numFromInterface(item["mrp"]), MRP: numFromInterface(l["mrp"]), BatchNo: strField(l, "batch_no"),
 		}
 		lv.POOpenQty = poOpen(lv.POID, sku)
+		lv.BeforePO = lv.POID == "" && strField(data, "received_before_po") == "Yes"
 		if inc, ok := grnLineInclPrice(l, grnInvoicePrice(l), "invoice_rate_incl"); ok {
 			lv.InvoicePriceIncl = inc
 			lv.GRNPriceIncl, _ = grnLineInclPrice(l, grnGRNPrice(l), "grn_price_incl", "invoice_rate_incl")

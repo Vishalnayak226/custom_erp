@@ -27,9 +27,9 @@ import (
 // tenant_id was expected. db.GetTenantSchema never finds a schema name as a
 // tenant_id, so it silently fell back to "tenant_default", meaning every
 // async report export checked tenant_default's row cap/module entitlements
-// instead of the tenant that actually queued the job. A scratch tenant with
-// its own 1-row cap running a report that returns 2 rows only fails
-// (REPORT-0285) if its OWN cap is the one actually applied.
+// instead of the tenant that actually queued the job. A scratch tenant that
+// raised its own cap to 30,000 exports a 25,000-row report only if its OWN cap
+// is the one applied: anyone else's would stop at the 20,000 ceiling (157.4b).
 func TestProcessReportExportJobsUsesTheRequestingTenantsRowCap(t *testing.T) {
 	db.InitDB(testConnStr())
 	tenantID, schema := uniqueLifecycleTenant(t)
@@ -40,9 +40,7 @@ func TestProcessReportExportJobsUsesTheRequestingTenantsRowCap(t *testing.T) {
 	if err := SetModuleEntitlement(tenantID, "reports", true, "test"); err != nil {
 		t.Fatalf("SetModuleEntitlement: %v", err)
 	}
-	// 100 is the registry's own Min bound for this setting (settingBound(100)
-	// in settings_definitions.go) - the report below returns one row over it.
-	if err := SetSetting(tenantID, "platform.max_sync_report_rows", "100", "test"); err != nil {
+	if err := SetSetting(tenantID, "platform.max_sync_report_rows", "30000", "test"); err != nil {
 		t.Fatalf("SetSetting: %v", err)
 	}
 
@@ -53,7 +51,7 @@ func TestProcessReportExportJobsUsesTheRequestingTenantsRowCap(t *testing.T) {
 		Category: "Admin",
 		Columns:  []ReportColumn{{Key: "n", Label: "N"}},
 		Run: func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
-			rows := make([]map[string]interface{}, 101)
+			rows := make([]map[string]interface{}, 25000)
 			for i := range rows {
 				rows[i] = map[string]interface{}{"n": i}
 			}
@@ -72,8 +70,8 @@ func TestProcessReportExportJobsUsesTheRequestingTenantsRowCap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetReportExportJob: %v", err)
 	}
-	if status != "Failed" || code != "REPORT-0285" {
-		t.Fatalf("expected the scratch tenant's own 100-row cap to reject a 101-row report (status=Failed, code=REPORT-0285); got status=%q code=%q - Completed here means processReportExportJobs is checking tenant_default's settings again, not this tenant's", status, code)
+	if status != "Completed" {
+		t.Fatalf("expected the scratch tenant's own 30,000-row cap to let a 25,000-row report out; got status=%q code=%q - REPORT-0285 here means processReportExportJobs is reading another tenant's settings, not this one's", status, code)
 	}
 }
 

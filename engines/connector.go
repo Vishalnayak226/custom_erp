@@ -133,6 +133,12 @@ func classifyConnectorError(rawMessage string) string {
 // Stage 15.2). Pure translation layer over data that already exists - no
 // new source of truth.
 func BuildChannelPayload(tenantID, itemCode, channelCode string) (*ChannelProductPayload, error) {
+	return buildChannelPayload(tenantID, itemCode, channelCode, true)
+}
+
+// buildChannelPayload is BuildChannelPayload with the picture bytes optional:
+// a coverage count (146.5.2) needs the mapped values, not the files.
+func buildChannelPayload(tenantID, itemCode, channelCode string, withImages bool) (*ChannelProductPayload, error) {
 	itemData, _, err := fetchItemDoc(tenantID, itemCode)
 	if err != nil {
 		return nil, fmt.Errorf("item not found: %v", err)
@@ -226,6 +232,9 @@ func BuildChannelPayload(tenantID, itemCode, channelCode string) (*ChannelProduc
 		}
 	}
 
+	if !withImages {
+		return payload, nil
+	}
 	mediaList, err := ListMediaForItem(tenantID, itemCode)
 	if err != nil {
 		return nil, err

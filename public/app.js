@@ -355,7 +355,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '73';
+const VIEW_MODULE_VERSION = '77';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -415,6 +415,7 @@ const LAZY_VIEW_MODULES = {
   approvals: ['view-inbox.js', 'renderTaskInboxView', 'Approvals'],
   'purchase-orders': ['view-procurement.js', 'renderPurchaseOrdersView', 'Purchase Orders', 'txn-screen.css'],
   grn: ['view-procurement.js', 'renderGRNWorkbenchView', 'Goods Receipt', 'txn-screen.css'],
+  'gate-entry': ['view-gate-entry.js', 'renderGateEntryView', 'Gate entries', 'txn-screen.css'],
   'purchase-returns': ['view-procurement.js', 'renderPurchaseReturnsView', 'Purchase Return', 'txn-screen.css'],
   reports: ['view-reports.js', 'renderReportsView', 'Reports'],
   inventory: ['view-reports.js', 'renderInventoryView', 'Inventory'],
@@ -4018,7 +4019,8 @@ const MENU_MODULE_MAP = {
   "menu-grn": {
     "module": "procurement",
     "views": [
-      "grn"
+      "grn",
+      "gate-entry"
     ]
   },
   "menu-purchase-returns": {
@@ -5955,12 +5957,8 @@ async function renderViewContent(view, root) {
   // Stage 88.2: retired screens open their OMS step.
   view = ({ fulfillment: 'oms:pick', marketplace: 'oms:ship' })[view] || view;
   [view, currentViewTab = ''] = view.split(':');
-  // Invalidate a pending quick-create return target the moment navigation
-  // strays anywhere other than the new master's own list or back to the
-  // screen the shortcut was launched from - otherwise a later, unrelated
-  // save could still see it and redirect somewhere stale (e.g. abandon a
-  // GRN item quick-create, browse to Vendors instead, save a new Vendor
-  // there, land back on GRN uninvited). See quickCreateReturn's declaration.
+  // Drop a pending quick-create return once navigation leaves its two screens
+  // (see quickCreateReturn's declaration).
   if (quickCreateReturn) {
     const stillRelevant = view === quickCreateReturn.view ||
       (view === 'doctype-table' && currentDoctype === quickCreateReturn.forDoctype);

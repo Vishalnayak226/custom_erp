@@ -42,6 +42,8 @@ func handleCreateReturnRequest(w http.ResponseWriter, r *http.Request) {
 		Items           []struct {
 			SKU string `json:"sku"`
 			Qty int    `json:"qty"`
+			// Stage 148.1: the one sold piece this line brings back.
+			SerialNo string `json:"serial_no"`
 		} `json:"items"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -62,7 +64,7 @@ func handleCreateReturnRequest(w http.ResponseWriter, r *http.Request) {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Each item requires a non-empty 'sku' and a positive 'qty'")
 			return
 		}
-		items[i] = engines.ReturnItemInput{SKU: it.SKU, Qty: it.Qty}
+		items[i] = engines.ReturnItemInput{SKU: it.SKU, Qty: it.Qty, SerialNo: it.SerialNo}
 	}
 
 	// The requester is the CALLER, never the request body - the same rule

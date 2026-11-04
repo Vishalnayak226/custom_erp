@@ -260,6 +260,9 @@ func GetPrintCatalog(tenantID, txn string) (PrintCatalog, error) {
 		}
 	}
 	switch txn {
+	case PrintTxnPurchaseOrder, PrintTxnVendorPO:
+		add(&out.Line, "Line", "vendor_code", "Vendor item code")
+		add(&out.Line, "Line", "free_qty", "Free qty")
 	case PrintTxnGRN, PrintTxnGRNVendorCopy:
 		for _, f := range [][2]string{{"po_qty", "PO (ordered) qty"}, {"accepted_qty", "Accepted"}, {"rejected_qty", "Rejected"}, {"damaged_qty", "Damaged"},
 			{"qc_status", "QC status"}, {"variance_reason", "Rejection / damage reason"}} {

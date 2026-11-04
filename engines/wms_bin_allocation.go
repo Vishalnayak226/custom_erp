@@ -49,7 +49,7 @@ type stockQuerier interface {
 // still hold stock. A reservation on a task that is gone, Dispatched or
 // Rejected holds nothing, even if a crash or a deleted test fixture left the
 // row Open - the stock must never be stranded by a row nobody will release.
-const liveTaskStatusesSQL = `('Pending', 'Picking', 'Packed')`
+const liveTaskStatusesSQL = `('Pending', 'Picking', 'Packed', 'Approved')`
 
 // openBinReservationsSQL is the "already promised" subquery both allocation
 // strategies join against: units still reserved (qty - picked_qty) on Open
@@ -63,7 +63,7 @@ func openBinReservationsSQL(schema string, byBatch bool) string {
 	return fmt.Sprintf(`
 		SELECT %s, SUM(ba.qty - ba.picked_qty) AS reserved
 		  FROM %s.bin_allocation ba
-		  JOIN %s.documents ft ON ft.id = ba.task_id AND ft.doctype = 'FulfillmentTask'
+		  JOIN %s.documents ft ON ft.id = ba.task_id AND ft.doctype IN ('FulfillmentTask', 'TransferOrder')
 		                      AND ft.status IN %s
 		 WHERE ba.status = 'Open' AND ba.sku = $1 AND ba.location_code = $2
 		 GROUP BY %s`, cols, schema, schema, liveTaskStatusesSQL, cols)
@@ -77,7 +77,7 @@ func BinReservedQty(q stockQuerier, schema, binCode, sku, batchNo string) (int, 
 	err := q.QueryRow(fmt.Sprintf(`
 		SELECT COALESCE(SUM(ba.qty - ba.picked_qty), 0)
 		  FROM %s.bin_allocation ba
-		  JOIN %s.documents ft ON ft.id = ba.task_id AND ft.doctype = 'FulfillmentTask'
+		  JOIN %s.documents ft ON ft.id = ba.task_id AND ft.doctype IN ('FulfillmentTask', 'TransferOrder')
 		                      AND ft.status IN %s
 		 WHERE ba.status = 'Open' AND ba.bin_code = $1 AND ba.sku = $2
 		   AND ($3 = '' OR ba.batch_no = $3)`, schema, schema, liveTaskStatusesSQL),
@@ -451,7 +451,7 @@ func BinStockReconciliation(tenantID, sku, locationCode string, mismatchesOnly b
 		), in_pick AS (
 			SELECT ba.sku, ba.location_code, SUM(ba.picked_qty) AS qty
 			  FROM %s.bin_allocation ba
-			  JOIN %s.documents ft ON ft.id = ba.task_id AND ft.doctype = 'FulfillmentTask'
+			  JOIN %s.documents ft ON ft.id = ba.task_id AND ft.doctype IN ('FulfillmentTask', 'TransferOrder')
 			                      AND ft.status IN %s
 			 GROUP BY ba.sku, ba.location_code
 		)

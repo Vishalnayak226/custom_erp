@@ -100,6 +100,7 @@ async function renderDashboard(container) {
 // ---------------------------------------------------------------------------
 
 const LEDGER_LIMIT = 500;
+let ledgerOffset = 0;
 const ledgerFilter = { sku: '', location_code: '', voucher_type: '', start: '', end: '' };
 
 async function renderLedger(container) {
@@ -131,11 +132,11 @@ async function renderLedger(container) {
     ledgerFilter.start = document.getElementById('inv-l-start').value;
     ledgerFilter.end = document.getElementById('inv-l-end').value;
   };
-  filters.querySelector('[data-inv-l-show]').addEventListener('click', () => { read(); renderView('inventory:ledger'); });
-  filters.querySelector('[data-inv-l-clear]').addEventListener('click', () => { Object.keys(ledgerFilter).forEach(k => { ledgerFilter[k] = ''; }); renderView('inventory:ledger'); });
+  filters.querySelector('[data-inv-l-show]').addEventListener('click', () => { read(); ledgerOffset = 0; renderView('inventory:ledger'); });
+  filters.querySelector('[data-inv-l-clear]').addEventListener('click', () => { Object.keys(ledgerFilter).forEach(k => { ledgerFilter[k] = ''; }); ledgerOffset = 0; renderView('inventory:ledger'); });
 
   const params = new URLSearchParams(Object.entries({ ...ledgerFilter, ...(fixedStore ? { location_code: fixedStore.code } : {}) }).filter(([, v]) => v));
-  const res = await apiFetch(`/api/v1/reports/run/stock-ledger?${params}`);
+  const res = await apiFetch(`/api/v1/reports/run/stock-ledger?${params}&page_size=${LEDGER_LIMIT}&page_offset=${ledgerOffset}&page_order=newest`);
   const host = panel(container, '');
   // 134.6: past the report's row cap the server refuses (REPORT-0161) rather
   // than load every movement - say how to narrow it, the filters stay above.
@@ -148,8 +149,8 @@ async function renderLedger(container) {
   }
   const result = res && res.ok ? await res.json().catch(() => null) : null;
   if (!result) { renderErrorPanel(host, 'Failed to load the inventory ledger.', () => renderView('inventory:ledger')); return; }
-  const all = (Array.isArray(result) ? result : (result.rows || [])).slice().reverse();
-  const rows = all.slice(0, LEDGER_LIMIT);
+  const rows = Array.isArray(result) ? result : (result.rows || []);
+  const total = (result.paging && result.paging.total) || rows.length;
   host.innerHTML = `<div class="table-wrapper"><table>
     <thead><tr><th>When</th><th>Item</th><th>Store</th><th class="num">In</th><th class="num">Out</th><th class="num">Balance</th><th>Document</th><th>From → to</th><th>By</th></tr></thead>
     <tbody>${rows.length ? rows.map(r => {
@@ -159,7 +160,9 @@ async function renderLedger(container) {
         <td class="num">${q > 0 ? fmtQty(q) : ''}</td><td class="num">${q < 0 ? fmtQty(-q) : ''}</td><td class="num">${fmtQty(r.running_balance)}</td>
         <td>${esc(r.voucher_type)} <span class="text-muted">${esc(r.voucher_id || '')}</span></td><td>${esc(moved)}</td><td>${esc(r.user_id || '')}</td></tr>`;
     }).join('') : '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:20px;">No movement matches. Widen the dates or clear the filters.</td></tr>'}</tbody></table></div>
-    ${all.length > rows.length ? `<p class="text-muted" style="margin:10px 0 0;font-size:13px;">Showing the latest ${rows.length} of ${all.length}; narrow the dates or pick an item to see the rest.</p>` : ''}`;
+    ${total > rows.length ? `<div style="display:flex;gap:10px;align-items:center;margin:10px 0 0;font-size:13px;" class="text-muted"><button type="button" class="btn btn-outline" data-inv-l-newer ${ledgerOffset > 0 ? '' : 'disabled'}>Newer</button><span>${ledgerOffset + 1}-${ledgerOffset + rows.length} of ${total}</span><button type="button" class="btn btn-outline" data-inv-l-older ${ledgerOffset + rows.length < total ? '' : 'disabled'}>Older</button></div>` : ''}`;
+  host.querySelector('[data-inv-l-newer]')?.addEventListener('click', () => { ledgerOffset = Math.max(0, ledgerOffset - LEDGER_LIMIT); renderView('inventory:ledger'); });
+  host.querySelector('[data-inv-l-older]')?.addEventListener('click', () => { ledgerOffset += LEDGER_LIMIT; renderView('inventory:ledger'); });
 }
 
 // ---------------------------------------------------------------------------

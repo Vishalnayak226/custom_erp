@@ -373,7 +373,16 @@ func TestStage4938EveryRoleAndSensitiveFieldIsRegistered(t *testing.T) {
 
 	// Sensitive fields: Item.cost_price is JSON-only by design (the file's own
 	// comment); any other field must be a declared doctype_fields row.
-	jsonOnly := map[string]bool{"Item.cost_price": true}
+	jsonOnly := map[string]bool{
+		"Item.cost_price": true,
+		// Stage 148.1: the posting writes these into the record; no form shows them.
+		"Batch.receipt_cost_paise":        true,
+		"Batch.receipt_cost_qty":          true,
+		"FulfillmentTask.sale_costs":      true,
+		"POSCart.sale_costs":              true,
+		"SalesInvoice.sale_costs":         true,
+		"SerialNumber.receipt_cost_paise": true,
+	}
 	fieldsChecked := 0
 	for _, doctype := range engines.SensitiveFieldDoctypes() {
 		for _, field := range engines.SensitiveFieldNames(doctype) {

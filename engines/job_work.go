@@ -274,6 +274,8 @@ type JobWorkReceiveLine struct {
 	OutputQty         *int     `json:"output_qty"`
 	OutputRejectedQty *int     `json:"output_rejected_qty"`
 	Serials           []string `json:"serials"`
+	OutputSerials     []string `json:"output_serials"`  // Stage 148.1: the output's piece codes
+	OutputBatchNo     string   `json:"output_batch_no"` // Stage 148.1: the output's lot
 	GrossWeight       float64  `json:"gross_weight"`
 	NetWeight         float64  `json:"net_weight"`
 	FineWeight        float64  `json:"fine_weight"`
@@ -372,6 +374,7 @@ func ReceiveJobWork(tenantID, id, userID, role, key string, in []JobWorkReceiveL
 		line           JobWorkLine
 		consumed       int
 		output, outRej int
+		named          OutputPieces // Stage 148.1
 	}
 	var conversions []conversion
 	type loss struct {
@@ -408,6 +411,10 @@ func ReceiveJobWork(tenantID, id, userID, role, key string, in []JobWorkReceiveL
 			c.outRej = int(math.Round(float64(r.RejectedQty) * l.yield()))
 			if r.OutputRejectedQty != nil {
 				c.outRej = *r.OutputRejectedQty
+			}
+			c.named = firstOutput([]OutputPieces{{SerialNos: r.OutputSerials, BatchNo: r.OutputBatchNo, UserID: userID}})
+			if err := c.named.check(tenantID, strField(data, "location"), l.OutputSKU, float64(c.output)); err != nil {
+				return status, err
 			}
 			if c.consumed > 0 {
 				conversions = append(conversions, c)
@@ -477,7 +484,9 @@ func ReceiveJobWork(tenantID, id, userID, role, key string, in []JobWorkReceiveL
 			return status, err
 		}
 		if out := c.output + c.outRej; out > 0 {
-			_, ledger, err := PostInventoryLedgerWithVoucherTx(tx, schema, location, []interface{}{map[string]interface{}{"sku": c.line.OutputSKU, "qty": float64(out)}}, false)
+			outLine := []interface{}{map[string]interface{}{"sku": c.line.OutputSKU, "qty": float64(out)}}
+			markStockLineBatch(outLine, c.named.BatchNo)
+			_, ledger, err := PostInventoryLedgerWithVoucherTx(tx, schema, location, outLine, false)
 			if err != nil {
 				return status, err
 			}
@@ -491,7 +500,12 @@ func ReceiveJobWork(tenantID, id, userID, role, key string, in []JobWorkReceiveL
 				}
 			}
 			// The output carries the material it was made from.
-			costsIn = append(costsIn, costIn{sku: c.line.OutputSKU, qty: out, unitPaise: RupeesToPaise(b.UnitCost * float64(c.consumed) / float64(out))})
+			unit := RupeesToPaise(b.UnitCost * float64(c.consumed) / float64(out))
+			costsIn = append(costsIn, costIn{sku: c.line.OutputSKU, qty: out, unitPaise: unit})
+			if c.named.named() {
+				named, sku, accepted := c.named, c.line.OutputSKU, float64(c.output)
+				afterCommit = append(afterCommit, func() { named.register(tenantID, location, sku, accepted, unit, "SubcontractOrder", id) })
+			}
 		}
 	}
 	// (3) Scrap and loss: within tolerance now, above it for approval.
@@ -523,11 +537,18 @@ func ReceiveJobWork(tenantID, id, userID, role, key string, in []JobWorkReceiveL
 	}
 	// The output's cost, in the same transaction (it was written after the
 	// commit, so the stock could arrive without its value).
+	stockIn := map[string]float64{}
 	for _, c := range costsIn {
 		if c.unitPaise > 0 {
-			if err := upsertItemCostReceiptQ(tx, schema, c.sku, float64(c.qty), c.unitPaise*int64(c.qty)); err != nil {
+			stockIn[c.sku] += float64(c.qty)
+		}
+	}
+	for _, c := range costsIn {
+		if c.unitPaise > 0 {
+			if err := blendIntoCostTx(tx, schema, c.sku, float64(c.qty), c.unitPaise*int64(c.qty), stockIn[c.sku], true); err != nil {
 				return status, err
 			}
+			stockIn[c.sku] -= float64(c.qty)
 		}
 	}
 	if err := tx.Commit(); err != nil {

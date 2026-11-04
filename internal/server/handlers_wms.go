@@ -37,11 +37,16 @@ func handlePutaway(w http.ResponseWriter, r *http.Request) {
 	if owner == "" && req.GRNID != "" {
 		owner = engines.ReceiptOwner(tenantID, req.GRNID)
 	}
+	warn := engines.PutawayFillWarning(tenantID, req.BinCode, req.Sku, req.Qty) // 146.3.15, before the stock lands
 	if err := engines.PutawayToBinForOwner(tenantID, req.BinCode, req.Sku, req.Qty, owner, userID); err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+	out := map[string]string{"status": "success"}
+	if warn != "" {
+		out["warning"] = warn
+	}
+	_ = json.NewEncoder(w).Encode(out)
 }
 
 // handlePlaceHold (Stage 42.3.5) is the only creation path for a Hold

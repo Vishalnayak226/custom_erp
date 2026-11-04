@@ -394,7 +394,9 @@ func materialDocs(tenantID string, p map[string]string, doctype string, each fun
 		return err
 	}
 	defer rows.Close()
+	read := 0
 	for rows.Next() {
+		read++
 		var at time.Time
 		var raw, status string
 		if err := rows.Scan(&at, &raw, &status); err != nil {
@@ -404,6 +406,9 @@ func materialDocs(tenantID string, p map[string]string, doctype string, each fun
 		if json.Unmarshal([]byte(raw), &data) == nil {
 			each(at, data, status)
 		}
+	}
+	if read == 5000 {
+		return reportReadStopped(read) // 157.4b
 	}
 	return rows.Err()
 }

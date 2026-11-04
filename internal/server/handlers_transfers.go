@@ -131,3 +131,81 @@ func handleReturnTransferToSource(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewEncoder(w).Encode(res)
 }
+
+// Stage 146.3.12: one allocation upload makes one Draft transfer per store.
+// POST uploads (dry_run=true previews), GET lists a run, POST .../decide
+// submits or approves the whole run through the ordinary transfer approval.
+
+func handleTransferAllocationUpload(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	allowed, err := checkPermission(tenantID, r.Header.Get("Resolved-Role"), "TransferOrder", "create")
+	if err != nil || !allowed {
+		writeAPIError(w, r, "GLOBAL-0011", "")
+		return
+	}
+	if err := r.ParseMultipartForm(2 << 20); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Send the file as multipart form data")
+		return
+	}
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'file' is required")
+		return
+	}
+	defer file.Close()
+	dry := r.FormValue("dry_run") == "true"
+	res, err := engines.RunStoreAllocation(tenantID, engines.AllocationRequest{
+		RunID: r.FormValue("run_id"), FromWarehouse: r.FormValue("from_warehouse"), Purpose: r.FormValue("purpose"),
+	}, file, r.Header.Get("Resolved-User-ID"), dry)
+	if err != nil {
+		if res != nil && len(res.Errors) > 0 {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			_ = json.NewEncoder(w).Encode(res)
+			return
+		}
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(res)
+}
+
+func handleTransferAllocationRun(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	allowed, err := checkPermission(tenantID, r.Header.Get("Resolved-Role"), "TransferOrder", "read")
+	if err != nil || !allowed {
+		writeAPIError(w, r, "GLOBAL-0011", "")
+		return
+	}
+	runID := strings.TrimSpace(r.URL.Query().Get("run_id"))
+	if runID == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'run_id' is required")
+		return
+	}
+	run, err := engines.GetAllocationRun(tenantID, runID)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"run_id": runID, "transfers": run})
+}
+
+func handleTransferAllocationDecide(w http.ResponseWriter, r *http.Request) {
+	if !requireTransferUpdate(w, r) {
+		return
+	}
+	var req struct {
+		RunID  string `json:"run_id"`
+		Action string `json:"action"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.RunID) == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'run_id' is required")
+		return
+	}
+	ok, failed, err := engines.DecideAllocationRun(r.Header.Get("Resolved-Tenant-ID"), strings.TrimSpace(req.RunID), req.Action,
+		r.Header.Get("Resolved-User-ID"), r.Header.Get("Resolved-Role"), r.Header.Get("Resolved-Location"))
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"run_id": req.RunID, "action": req.Action, "done": ok, "failed": failed})
+}

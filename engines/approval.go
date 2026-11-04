@@ -265,10 +265,11 @@ func SubmitForApproval(tenantID, doctype, docID, requesterUserID, requesterRole 
 	// own currency is never compared against a foreign-currency figure. Falls
 	// back to the raw amount for documents saved before the currency stamp.
 	amount := DocumentBaseAmount(data)
-	role, err := requiredApproverRole(tenantID, doctype, amount)
+	role, err := requiredApproverRoleFor(tenantID, doctype, data, amount) // Stage 148.39
 	if err != nil {
 		return err
 	}
+	delete(data, "escalated_to_role") // Stage 148.39: a fresh round starts un-escalated
 	if role == "" {
 		// ADMINC-0032 (Stage 25.5): "Approval workflow missing" - an exact
 		// scenario match for a doctype with no approval_rules row to route
@@ -448,11 +449,11 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 	// own currency is never compared against a foreign-currency figure. Falls
 	// back to the raw amount for documents saved before the currency stamp.
 	amount := DocumentBaseAmount(data)
-	requiredRole, err := requiredApproverRole(tenantID, doctype, amount)
+	requiredRole, err := requiredApproverRoleFor(tenantID, doctype, data, amount) // Stage 148.39
 	if err != nil {
 		return err
 	}
-	if !HasFullAccess(actorRole) && actorRole != requiredRole {
+	if !HasFullAccess(actorRole) && actorRole != requiredRole && !mayAlsoDecide(tenantID, doctype, docID, data, createdBy, actorUserID, actorRole, requiredRole) {
 		return fmt.Errorf("%w: this amount requires approval from role '%s'", ErrApprovalRoleMismatch, requiredRole)
 	}
 	if !HasFullAccess(actorRole) {
@@ -681,6 +682,7 @@ func ResetToPendingOnEdit(tenantID, doctype, docID, editorUserID, editorRole str
 	// own currency is never compared against a foreign-currency figure. Falls
 	// back to the raw amount for documents saved before the currency stamp.
 	amount := DocumentBaseAmount(data)
+	delete(data, "escalated_to_role") // Stage 148.39
 	if err := setDocumentStatus(tenantID, doctype, docID, "Pending Approval", data); err != nil {
 		return err
 	}

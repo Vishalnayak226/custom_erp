@@ -46,6 +46,8 @@ type TillCustomerContext struct {
 	Phone         string                `json:"phone,omitempty"`
 	Balance       int                   `json:"balance"`
 	PointsValue   float64               `json:"points_value"`
+	ExpiringSoon  int                   `json:"expiring_soon,omitempty"` // Stage 146.2.8: usable points lapsing in the next 30 days
+	Pending       int                   `json:"pending,omitempty"`       // Stage 146.2.8: earned, waiting for the return window
 	ConsentSMS    bool                  `json:"consent_sms"`
 	ConsentWA     bool                  `json:"consent_whatsapp"`
 	Tier          string                `json:"tier,omitempty"`
@@ -96,6 +98,7 @@ func TillCustomerContextFor(tenantID, customerID string) (*TillCustomerContext, 
 		return nil, err
 	}
 	out.PointsValue = PaiseToRupees(int64(out.Balance) * loyaltyPointValuePaise(tenantID))
+	out.ExpiringSoon, out.Pending = loyaltyExpiringAndPending(schema, customerID, out.Balance)
 	if out.Spend, err = customerTierSpend(tenantID, schema, customerID); err != nil {
 		return nil, err
 	}

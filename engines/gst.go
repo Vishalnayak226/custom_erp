@@ -476,11 +476,7 @@ func ComputePurchaseOrderGST(tenantID string, payload map[string]interface{}) (G
 	if itemsStr == "" {
 		return GSTBreakdown{}, nil
 	}
-	var rawItems []struct {
-		Sku  string  `json:"sku"`
-		Qty  int     `json:"qty"`
-		Rate float64 `json:"rate"`
-	}
+	var rawItems []POLineInput
 	if err := json.Unmarshal([]byte(itemsStr), &rawItems); err != nil {
 		return GSTBreakdown{}, fmt.Errorf("could not parse items JSON: %v", err)
 	}
@@ -496,7 +492,7 @@ func ComputePurchaseOrderGST(tenantID string, payload map[string]interface{}) (G
 	interstate := truthy(payload["interstate"])
 	lines := make([]GSTLineInput, len(rawItems))
 	for i, it := range rawItems {
-		lines[i] = GSTLineInput{Sku: it.Sku, Qty: it.Qty, UnitRate: it.Rate}
+		lines[i] = GSTLineInput{Sku: it.SKU, Qty: it.Qty, UnitRate: poLineUnitRate(it)}
 	}
 	return ComputeGSTForLinesMode(tenantID, lines, interstate, ResolvePOGSTMode(tenantID, payload))
 }
@@ -508,8 +504,14 @@ func ComputePurchaseOrderGST(tenantID string, payload map[string]interface{}) (G
 // both call it, after ValidateDocument (which derives inter-state from the
 // two parties' states - ApplyPlaceOfSupply, 40.1 / 49.5.6b).
 func ApplyPurchaseOrderTotals(tenantID string, payload map[string]interface{}) error {
+	if err := ValidatePORetroLink(tenantID, payload); err != nil { // Stage 148.38
+		return err
+	}
 	// Stage 110.2: a new PO carries its GST mode from the start.
 	StampNewPOGSTMode(tenantID, payload)
+	if err := StampPOPricing(tenantID, payload); err != nil { // Stage 148.6 / 148.7
+		return err
+	}
 	breakdown, err := ComputePurchaseOrderGST(tenantID, payload)
 	if err != nil {
 		return err

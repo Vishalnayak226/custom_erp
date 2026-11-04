@@ -79,7 +79,10 @@ func RequirePOStates(tenantID string, po map[string]interface{}) error {
 	if err := RequirePOVendorState(tenantID, po); err != nil {
 		return err
 	}
-	return RequirePOStoreState(tenantID, po)
+	if err := RequirePOStoreState(tenantID, po); err != nil {
+		return err
+	}
+	return checkPOVendorHold(tenantID, po) // Stage 148.9: not for a vendor held from new orders
 }
 
 // RequirePOStoreState (49.5.6e, user 2026-10-29: "all recommended") refuses a

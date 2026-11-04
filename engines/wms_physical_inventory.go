@@ -213,6 +213,12 @@ func StartPhysicalInventory(tenantID, locationCode, zoneCode, userID string) (pi
 	}
 	LogAuditEvent(tenantID, userID, "WMS_PHYSICAL_INVENTORY_START", "SUCCESS",
 		fmt.Sprintf("Started physical inventory %s at %s%s - %d bin(s) frozen, %d line(s) created", piID, locationCode, zoneCode, len(frozen), len(skus)))
+	// Stage 146.3.3: one Count task per frozen bin when the work queue is on.
+	var frozenCodes []string
+	for _, fb := range frozen {
+		frozenCodes = append(frozenCodes, fb.BinCode)
+	}
+	emitCountTasks(tenantID, locationCode, piID, userID, frozenCodes)
 	return piID, len(skus), nil
 }
 
@@ -344,6 +350,7 @@ func ClosePhysicalInventory(tenantID, piID, userID string) error {
 		return err
 	}
 	LogAuditEvent(tenantID, userID, "WMS_PHYSICAL_INVENTORY_CLOSE", "SUCCESS", fmt.Sprintf("Closed physical inventory %s", piID))
+	completeWorkTasksForSource(tenantID, "PhysicalInventory", piID, userID)
 	return nil
 }
 
@@ -374,6 +381,7 @@ func CancelPhysicalInventory(tenantID, piID, userID string) error {
 		return err
 	}
 	LogAuditEvent(tenantID, userID, "WMS_PHYSICAL_INVENTORY_CANCEL", "SUCCESS", fmt.Sprintf("Cancelled physical inventory %s", piID))
+	CancelWorkTasksForSource(tenantID, "PhysicalInventory", piID, userID)
 	return nil
 }
 

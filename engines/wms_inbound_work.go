@@ -370,6 +370,9 @@ func checkASNOpenForReceipt(tenantID, grnID, asnID string) error {
 // appointment Completed. A partial receipt leaves the ASN Expected for the
 // rest.
 func MarkASNReceivedIfComplete(tenantID, grnID string) {
+	// Stage 148.11: a PO line received within its under tolerance closes its
+	// rest. Both posting paths (direct and in steps) end here.
+	AutoClosePOLinesForGRN(tenantID, grnID, "system")
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return

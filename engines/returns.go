@@ -34,6 +34,8 @@ import (
 type ReturnItemInput struct {
 	SKU string
 	Qty int
+	// Stage 148.1: the one sold piece this line brings back, when it names it.
+	SerialNo string
 }
 
 // returnItemRecord is the persisted shape of one ReturnRequest line -
@@ -44,6 +46,9 @@ type returnItemRecord struct {
 	OriginalUnitPrice float64 `json:"original_unit_price"`
 	OriginalCostPrice float64 `json:"original_cost_price"`
 	Disposition       string  `json:"disposition"`
+	// Stage 148.1: the sold pieces or lot these units are, so they go back as that.
+	SerialNos []string `json:"serial_nos,omitempty"`
+	BatchNo   string   `json:"batch_no,omitempty"`
 	// ExchangeSKU (Stage 35.9.2) is set only when this line was resolved as
 	// an exchange rather than a refund - see ApplyReturnQC's own comment.
 	ExchangeSKU string `json:"exchange_sku,omitempty"`
@@ -71,6 +76,10 @@ type returnItemRecord struct {
 type originalLinePrice struct {
 	SalePrice float64
 	CostPrice float64
+	// Stage 148.1: what the sale itself booked (engines/moving_cost.go).
+	Pieces  []soldPiece
+	BatchNo string
+	SoldQty int
 }
 
 // returnDispositionRule maps each of the checklist's six QC disposition
@@ -139,6 +148,9 @@ type salesInvoiceLine struct {
 	Rate    float64 `json:"rate"`
 	GSTRate float64 `json:"gst_rate"`
 	Amount  float64 `json:"amount"`
+	// Stage 148.1: the pieces or lot this line sells, at their own cost.
+	SerialNos pieceList `json:"serial_nos,omitempty"`
+	BatchNo   string    `json:"batch_no,omitempty"`
 }
 
 // paidUnitPrice is what the customer was charged for one unit, tax included.
@@ -205,6 +217,10 @@ func resolveOriginalSaleLinePrices(tenantID, orderID string) (map[string]origina
 				costPaise, _ := ResolveQuoteUnitCostPaise(tenantID, l.Sku)
 				prices[l.Sku] = originalLinePrice{SalePrice: l.paidUnitPrice(), CostPrice: PaiseToRupees(costPaise)}
 			}
+			useBookedSaleCosts(prices, invStr)
+			if err := useDispatchedSaleCosts(prices, schema, saleOrderOf(invStr)); err != nil {
+				return nil, err
+			}
 		}
 		return prices, nil
 	} else if err != nil {
@@ -236,6 +252,7 @@ func resolveOriginalSaleLinePrices(tenantID, orderID string) (map[string]origina
 		}
 		prices[l.Sku] = originalLinePrice{SalePrice: price, CostPrice: PaiseToRupees(costPaise)}
 	}
+	useBookedSaleCosts(prices, dataStr)
 	return prices, nil
 }
 
@@ -266,7 +283,14 @@ func resolveSalesOrderLinePrices(tenantID, orderID string) (map[string]originalL
 		}
 		prices[sku] = originalLinePrice{SalePrice: price}
 	}
-	return prices, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// Stage 148.1: a piece the dispatch named comes back at what it booked.
+	if err := useDispatchedSaleCosts(prices, schema, orderID); err != nil {
+		return nil, err
+	}
+	return prices, nil
 }
 
 // The per-original-order return pool used to be summed by a pair of helpers
@@ -400,6 +424,10 @@ func prepareReturnRequest(tenantID, schema, requestType, returnLocation, origina
 		}
 		rtoDestinationPincode, _ = bookingData["destination_pincode"].(string)
 	}
+	// Stage 146.4.6(e): a return with no store takes its sales channel's default store.
+	if returnLocation == "" && out.originalOrderID != "" {
+		returnLocation = channelDefaultReturnStore(schema, out.originalOrderID)
+	}
 	// 140.12.18: an online order's return routes from the pincode it was
 	// shipped to, like an RTO.
 	if requestType == "Customer Return" && returnLocation == "" && rtoDestinationPincode == "" {
@@ -413,18 +441,19 @@ func prepareReturnRequest(tenantID, schema, requestType, returnLocation, origina
 	// ResolveAllocationPlan already uses to source an order, run in reverse to
 	// decide where a return should land.
 	out.returnLocation = returnLocation
-	if out.returnLocation == "" && rtoDestinationPincode != "" {
-		routingItems := make([]map[string]interface{}, len(items))
-		for i, it := range items {
-			routingItems[i] = map[string]interface{}{"sku": it.SKU, "qty": it.Qty}
-		}
-		if loc, ok, errRoute := singleLocationNearestPincode(schema, rtoDestinationPincode, routingItems, nil); errRoute == nil && ok {
+	// 140.14.6: no stock condition (the last unit sold has none), then the
+	// store that shipped it; the error names the cause.
+	routeCause := ""
+	if out.returnLocation == "" {
+		if loc, cause := routeReturnLocation(schema, rtoDestinationPincode, out.originalOrderID); loc != "" {
 			out.returnLocation = loc
 			out.autoRouted = true
+		} else {
+			routeCause = cause
 		}
 	}
 	if out.returnLocation == "" {
-		return nil, errors.New("return_location is required (no return location could be auto-routed for this request)")
+		return nil, fmt.Errorf("return_location is required (no return location could be auto-routed for this request: %s)", routeCause)
 	}
 
 	out.records = make([]returnItemRecord, len(items))
@@ -437,7 +466,8 @@ func prepareReturnRequest(tenantID, schema, requestType, returnLocation, origina
 		// bill resolves to a zero-price record, which the eligibility check
 		// under the lock then rejects outright.
 		p := priceBySku[it.SKU]
-		out.records[i] = returnItemRecord{SKU: it.SKU, Qty: it.Qty, OriginalUnitPrice: p.SalePrice, OriginalCostPrice: p.CostPrice}
+		cost, serials := p.returnedPieces(it)
+		out.records[i] = returnItemRecord{SKU: it.SKU, Qty: it.Qty, OriginalUnitPrice: p.SalePrice, OriginalCostPrice: cost, SerialNos: serials, BatchNo: p.BatchNo}
 	}
 	return out, nil
 }
@@ -761,7 +791,7 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 					ItemID: items[i].SKU, WarehouseID: returnLocation, Qty: float64(returnedBySKU[items[i].SKU]),
 					VoucherType: "SalesReturn", VoucherID: returnRequestID,
 					IdempotencyKey: fmt.Sprintf("ReturnRequest:%s:%s:QC", returnRequestID, items[i].SKU),
-					ToStatus:       rule.Bucket, UserID: qcBy,
+					ToStatus:       rule.Bucket, UserID: qcBy, BatchNo: items[i].BatchNo,
 				}); err != nil {
 					return 0, "", err
 				}
@@ -876,6 +906,9 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 	// same split-commit shape audit finding A-03 named for checkout, applied
 	// to returns. Both now also carry a real posting key, so a retried QC
 	// cannot double-post (the COGS leg had no key at all).
+	if err := returnCostsToAverageTx(tx, schema, returnLocation, items); err != nil {
+		return 0, "", err
+	}
 	if costReceivedTotal > 0 {
 		inventoryDebits := map[string]int64{"1200": RupeesToPaise(costReceivedTotal)}
 		inventoryCredits := map[string]int64{"5100": RupeesToPaise(costReceivedTotal)}
@@ -1121,6 +1154,13 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 			revenueCredits[accountRoundOff] = -ro
 		}
 	}
+	// Stage 148.4: revenue goes back through the account the sale's posting rule used (4100 when it had none).
+	if split := returnRevenueSplitForRequest(tx, schema, tenantID, returnRequestID, revenueDebits["4100"]); split != nil {
+		delete(revenueDebits, "4100")
+		for a, v := range split {
+			revenueDebits[a] += v
+		}
+	}
 	// Stage 73.1.6: money goes back the way the returned units were paid -
 	// each mode to its own clearing account, the gift-card share back onto the
 	// card. A refund with no tender split (an RTO, a No Receipt return, one
@@ -1283,6 +1323,11 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 				}
 				if err := postLoyaltyValueTx(tx, tenantID, schema, "RefundRequest", refundRequestID, "RefundRequest:"+refundRequestID+":LOYALTY_REVERSE",
 					int64(reversed)*loyaltyPointValuePaise(tenantID), false, ""); err != nil {
+					return err
+				}
+			} else if !found {
+				// Stage 146.2.10: an online order is not a till bill; the points it earned on delivery come back here.
+				if _, err := reverseOnlineOrderPointsTx(tx, schema, refundRequestID, originalOrderID); err != nil {
 					return err
 				}
 			}

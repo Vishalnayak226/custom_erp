@@ -985,7 +985,8 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 		writes = append(writes, importWrite{rowNumber: rowNumber, id: id, data: string(marshaled), status: sentStatus})
 	}
 	writes = screenImportWrites(tx, tenantID, doctype, lk.rules, writes, result)
-	writes = screenActionOnlyImportFields(tx, doctype, writes, result) // 49.5.6c
+	writes = holdVendorImportChanges(tx, tenantID, doctype, userID, role, dryRun, writes, result) // Stage 148.10
+	writes = screenActionOnlyImportFields(tx, doctype, writes, result)                            // 49.5.6c
 
 	// 49.4.4a: the batch's valid rows go in one statement instead of an
 	// EXISTS query plus an upsert per row. RETURNING reports which ids were
@@ -1031,8 +1032,12 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 		if execErr != nil {
 			// The statement is all-or-nothing and the transaction is now
 			// aborted, so every queued row failed and nothing commits.
+			msg := fmt.Sprintf("Database write error: %v", execErr)
+			if dup := DuplicateKeyRefusal(tenantID, doctype, execErr); dup != nil { // 140.14.1
+				msg = dup.Message
+			}
 			for _, w := range writes {
-				recordImportError(result, w.rowNumber, fmt.Sprintf("Database write error: %v", execErr))
+				recordImportError(result, w.rowNumber, msg)
 			}
 			return nil
 		}
@@ -1136,6 +1141,7 @@ func RecordImportJob(tenantID, doctype string, res *ImportResult, createdBy stri
 	if err != nil {
 		return "", err
 	}
+	NotifyLongJobDone(tenantID, createdBy, "Import", firstNonEmpty(doctype, "Import")+" "+jobID, res.TotalRows) // Stage 146.4.6(f)
 	return jobID, nil
 }
 

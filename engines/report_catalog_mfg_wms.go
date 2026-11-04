@@ -597,12 +597,12 @@ func cockpitRows(tenantID, schema string, p map[string]string) ([]*catRow, error
 	add(`SELECT data->>'location_code', COUNT(*) FROM %s.documents WHERE doctype = 'ShippingPackage' AND deleted_at IS NULL AND status NOT IN ('Loaded', 'Dispatched', 'Shipped', 'Delivered', 'Cancelled') GROUP BY 1`, "dispatch")
 	add(`SELECT data->>'location_code', COUNT(*) FROM %s.documents WHERE doctype IN ('Hold', 'FloorAssistRequest') AND deleted_at IS NULL AND status NOT IN ('Released', 'Closed', 'Resolved', 'Cancelled') GROUP BY 1`, "exceptions")
 	var out []*catRow
-	for loc, c := range counts {
+	for _, loc := range sortedStringKeys(counts) {
 		if v := p["location"]; v != "" && !containsString(strings.Split(v, ","), loc) {
 			continue
 		}
 		h := map[string]interface{}{"location": loc}
-		for k, v := range c {
+		for k, v := range counts[loc] {
 			h[k] = v
 		}
 		out = append(out, &catRow{ID: loc, H: h})

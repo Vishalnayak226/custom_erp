@@ -559,7 +559,7 @@ func RequestPeriodReopen(tenantID, periodID, reason, actorUserID, actorUsername,
 	}
 	var pending int
 	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.documents WHERE doctype = 'PeriodReopenRequest'
-		AND data->>'period_id' = $1 AND (status = 'Pending Approval' OR (status = 'Approved' AND COALESCE((data->>'applied')::boolean, false) = false))`, schema),
+		AND deleted_at IS NULL AND data->>'period_id' = $1 AND (status = 'Pending Approval' OR (status = 'Approved' AND COALESCE((data->>'applied')::boolean, false) = false))`, schema),
 		periodID).Scan(&pending); err != nil {
 		return "", err
 	}

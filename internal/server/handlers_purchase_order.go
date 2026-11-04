@@ -54,6 +54,18 @@ func handlePreviewPurchaseOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Stage 148.6: the design grid asks before its items exist.
+	if _, asked := payload["design_rows"]; asked {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"design_rows": engines.PriceDesignRows(tenantID, payload)})
+		return
+	}
+
+	// Stage 148.6 / 148.7: the screen sees the agreement price, the discounts
+	// and the free units the save will store (a preview never saves).
+	if err := engines.StampPOPricing(tenantID, payload); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
 	preview, err := engines.PreviewPurchaseOrder(tenantID, payload)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)

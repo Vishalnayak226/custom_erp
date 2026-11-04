@@ -6,9 +6,6 @@ let currentReportTab = 'exec-dashboard';
 const REPORT_TABS = [
   { id: 'exec-dashboard', label: 'Dashboard' },
   { id: 'dashboards', label: 'Custom dashboards' }, // Stage 100 (view-dashboards.js)
-  { id: 'current-stock', label: 'Current Stock' },
-  { id: 'sales-register', label: 'Sales Register' },
-  { id: 'vendor-ledger', label: 'Vendor Ledger' },
   { id: 'payables-ageing', label: 'Payables Ageing' },
   { id: 'receivables-ageing', label: 'Receivables Ageing' },
   { id: 'gst-return-summary', label: 'GST Return Summary' },
@@ -20,7 +17,7 @@ const REPORT_TABS = [
 // related in another flyout"): the Reports menu has one row per area, each opening its reports beside it -
 // the fixed report pages filed under their area, then the catalog's. app.js calls this the first time the
 // menu opens (data-fill). Every report is its own route: "reports:<tab>" or "reports:<catalog id>".
-const REPORT_TAB_AREAS = { 'current-stock': 'Inventory', 'sales-register': 'Sales', 'vendor-ledger': 'Procurement', 'payables-ageing': 'Finance', 'receivables-ageing': 'Finance', 'gst-return-summary': 'Finance' };
+const REPORT_TAB_AREAS = { 'payables-ageing': 'Finance', 'receivables-ageing': 'Finance', 'gst-return-summary': 'Finance' };
 // Stage 75.3: the user's report catalog groups by its own modules (Sales &
 // POS, Procurement & GRN...); each sits beside the older group it extends.
 const REPORT_AREA_ORDER = ['Sales & POS', 'Sales', 'Procurement & GRN', 'Procurement', 'Inventory', 'Stock Transfer', 'GST & Compliance',
@@ -68,12 +65,6 @@ async function renderReportsView(container) {
     const open = sessionStorage.getItem('erp_open_dashboard') || '';
     sessionStorage.removeItem('erp_open_dashboard');
     await (await import('./view-dashboards.js' + new URL(import.meta.url).search)).renderDashboardsTab(panel, open);
-  } else if (currentReportTab === 'current-stock') {
-    await renderCurrentStockReport(panel);
-  } else if (currentReportTab === 'sales-register') {
-    await renderSalesRegisterReport(panel);
-  } else if (currentReportTab === 'vendor-ledger') {
-    await renderVendorLedgerReport(panel);
   } else if (currentReportTab === 'payables-ageing') {
     await renderPayablesAgeingReport(panel);
   } else if (currentReportTab === 'receivables-ageing') {
@@ -318,35 +309,9 @@ function renderExecDashboardTrendChart(container, labels, values) {
 // Inventory (Stage 21 QA fix): "Inventory" routed to a view name the router
 // had no case for, always falling through to the "Module Setup Pending"
 // mock screen - despite USER_GUIDE.md §5 explicitly documenting a working
-// search-by-item stock screen. Reuses the same /api/v1/reports/current-stock
-// endpoint Reports > Current Stock already calls (no new backend), but adds
-// the client-side search box that endpoint's own report tab never had.
-// Stage 145: the screen reads /api/v1/inventory/stock now (stockOnHandHTML);
-// stockTableHTML stays the Current Stock report's.
+// search-by-item stock screen.
+// Stage 145: the screen reads /api/v1/inventory/stock now (stockOnHandHTML).
 let inventorySearchQuery = '';
-function stockTableHTML(rows, showTasks = false, searched = false) {
-  const quantity = value => Number.isFinite(Number(value)) ? Number(value).toLocaleString() : '—';
-  const actions = showTasks ? '<th>Next task</th>' : '';
-  const cells = showTasks ? 8 : 7;
-  return `<table>
-    <thead><tr><th>Item</th><th>Location</th><th title="Book stock before reservations and holds">On hand</th><th title="Matches the reservation admission calculation">Available to sell</th><th>Reserved</th><th>Held</th><th>Why unavailable</th>${actions}</tr></thead>
-    <tbody>${rows.length === 0
-      ? `<tr><td colspan="${cells}" class="text-center py-8 text-muted">${searched ? 'No stock rows match this search. Clear the search to see all locations.' : 'No stock on hand yet. Post a Goods Receipt against a Purchase Order to add stock.'}</td></tr>`
-      : rows.map(r => {
-          const sku = String(r.sku || '');
-          const location = String(r.location_code || '');
-          const holdRoute = '#/view/place-hold';
-          return `<tr>
-            <td data-link-doctype="Item" data-link-ref="${escapeHTMLText(sku)}">${copyableCell(sku, sku)}</td>
-            <td data-link-doctype="Location" data-link-ref="${escapeHTMLText(location)}">${copyableCell(location, location)}</td>
-            <td>${quantity(r.on_hand)}</td><td>${quantity(r.available_to_sell)}</td>
-            <td>${quantity(r.reserved)}</td><td>${quantity(r.hold_qty)}</td>
-            <td><details><summary>Breakdown</summary><span>Base available: ${quantity(r.available)}; committed: ${quantity(r.committed)}; safety: ${quantity(r.safety_stock)}; blocked: ${quantity(r.blocked)}; QC hold: ${quantity(r.qc_hold)}; damaged: ${quantity(r.damaged)}; channel buffer: ${quantity(r.channel_buffer)}.</span></details></td>
-            ${showTasks ? `<td><a href="#/view/transfers" data-stock-task="transfer" data-stock-sku="${escapeHTMLText(sku)}" data-stock-location="${escapeHTMLText(location)}">Transfer</a> · <a href="#/view/cycle-count" data-stock-task="count" data-stock-sku="${escapeHTMLText(sku)}" data-stock-location="${escapeHTMLText(location)}">Count</a> · <a href="${holdRoute}" data-stock-task="hold" data-stock-sku="${escapeHTMLText(sku)}" data-stock-location="${escapeHTMLText(location)}">Hold</a> · <a href="#/view/reports%3Astock-ledger" data-stock-task="movements" data-stock-sku="${escapeHTMLText(sku)}" data-stock-location="${escapeHTMLText(location)}" title="Every movement of this item here, with its source document">Movements</a></td>` : ''}
-          </tr>`;
-        }).join('')}</tbody></table>`;
-}
-
 // Stage 145.3 / 145.4 (user, 2026-10-31): Stock on Hand by design - Design
 // No, Combination ID, Barcode, the short Item name ("Antique Necklace"), each
 // attribute a column - at the top-bar store, with the columns each user adds
@@ -578,65 +543,6 @@ async function renderInventoryView(container) {
   });
 }
 
-async function renderCurrentStockReport(panel) {
-  const res = await apiFetch('/api/v1/reports/current-stock?limit=200');
-  if (!res) return;
-  const rows = res.ok ? await res.json() : [];
-  const total = Number(res.headers.get('X-Total-Count')) || rows.length;
-  panel.innerHTML = stockTableHTML(rows) + (total > rows.length
-    ? `<p class="text-muted" style="padding: 12px 16px; font-size: 13px;">The first ${rows.length} of ${total.toLocaleString()} rows.</p>` : '');
-  sweepLinkNames(panel);
-}
-
-async function renderSalesRegisterReport(panel) {
-  const res = await apiFetch('/api/v1/reports/sales-register');
-  if (!res) return;
-  const rows = res.ok ? await res.json() : [];
-  let html = `
-    <table>
-      <thead><tr><th>Cart Number</th><th>Location</th><th>Payment Mode</th><th>Status</th><th>Sale Total</th><th>Date</th></tr></thead>
-      <tbody>
-  `;
-  html += rows.length === 0
-    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No completed sales yet.</td></tr>`
-    : rows.map(r => `
-        <tr>
-          <td style="font-family: monospace;">${escapeHTMLText(r.cart_number)}</td>
-          <td>${escapeHTMLText(r.location)}</td>
-          <td>${escapeHTMLText(r.payment_mode)}</td>
-          <td><span class="badge badge-success">${escapeHTMLText(r.status)}</span></td>
-          <td>${r.sale_total.toLocaleString()}</td>
-          <td>${new Date(r.created_at).toLocaleString()}</td>
-        </tr>
-      `).join('');
-  html += `</tbody></table>`;
-  panel.innerHTML = html;
-}
-
-async function renderVendorLedgerReport(panel) {
-  const res = await apiFetch('/api/v1/reports/vendor-ledger');
-  if (!res) return;
-  const rows = res.ok ? await res.json() : [];
-  let html = `
-    <table>
-      <thead><tr><th>Vendor</th><th>PO Number</th><th>Total Amount</th><th>Status</th><th>Date</th></tr></thead>
-      <tbody>
-  `;
-  html += rows.length === 0
-    ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No purchase orders yet.</td></tr>`
-    : rows.map(r => `
-        <tr>
-          <td>${escapeHTMLText(r.vendor || '')}</td>
-          <td style="font-family: monospace;">${escapeHTMLText(r.po_number || r.id)}</td>
-          <td>${(r.total_amount ?? 0).toLocaleString()}</td>
-          <td>${escapeHTMLText(r.status)}</td>
-          <td>${new Date(r.created_at).toLocaleString()}</td>
-        </tr>
-      `).join('');
-  html += `</tbody></table>`;
-  panel.innerHTML = html;
-}
-
 async function renderPayablesAgeingReport(panel) {
   const res = await apiFetch('/api/v1/reports/payables-ageing');
   if (!res) return;
@@ -760,7 +666,7 @@ async function renderReportCatalogPanel(panel) {
     return;
   }
   reportCatalogDefs = await res.json();
-  if (!reportCatalogSelectedId && reportCatalogDefs.length > 0) {
+  if (reportCatalogDefs.length > 0 && !reportCatalogDefs.some(d => d.id === reportCatalogSelectedId)) {
     reportCatalogSelectedId = reportCatalogDefs[0].id;
   }
 
@@ -883,6 +789,9 @@ let reportCatalogColumnState = []; // [{key, label, visible}] in display order, 
 let reportColumnProfiles = [];     // ReportColumnProfile docs for the current report
 let reportCatalogLastResult = null;
 let reportCatalogLastParams = {};
+// 157.4b: a report opens a page at a time; the server counts and totals it all.
+const REPORT_PAGE_SIZE = 500;
+let reportCatalogFetchSeq = 0;
 
 function initReportCatalogColumns() {
   const def = currentReportCatalogDef();
@@ -1104,7 +1013,7 @@ function renderReportRunSummary(def, params, result) {
   const labelOf = k => ((def.params || []).find(p => p.key === k) || {}).label || k;
   const filters = Object.entries(params).map(([k, v]) => `${labelOf(k)}: ${v}`).join(' · ') || 'no filters';
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  el.textContent = `${def.number ? `${def.number} ` : ''}${def.label} - ${filters} - ${(result.rows || []).length} row(s) - run ${new Date().toLocaleString('en-IN')} (${tz}) - amounts in INR`;
+  el.textContent = `${def.number ? `${def.number} ` : ''}${def.label} - ${filters} - ${result.paging ? result.paging.total : (result.rows || []).length} row(s) - run ${new Date().toLocaleString('en-IN')} (${tz}) - amounts in INR`;
 }
 
 // Stage 73.2.19: detail = summary = ledger, with its cut-off.
@@ -1286,17 +1195,43 @@ async function runReportCatalogReport() {
   reportParamMemory[def.id] = { ...params };
   resultsEl.innerHTML = '<p style="color:var(--text-muted)">Running...</p>';
   renderReportControlTotals(null);
-  const res = await apiFetch(`/api/v1/reports/run/${def.id}?${reportCatalogQueryString(params)}`);
-  if (!res) return;
-  if (!res.ok) {
-    resultsEl.innerHTML = `<p class="login-error">${escapeHTMLText(await getErrorMessage(res, 'Failed to run report.'))}</p>`;
-    return;
-  }
-  const result = await res.json();
+  const result = await fetchReportCatalogPage(def, params, 0, resultsEl);
+  if (!result) return;
   renderReportRunSummary(def, params, result);
   renderReportControlTotals(result.control_totals);
   renderReportCatalogResultTable(resultsEl, result, params);
   if (document.getElementById('rc-recent-runs')?.open) renderRecentReportRuns();
+}
+
+// One page of a run. An answer is dropped if a newer run or page was asked for
+// meanwhile, or if the user has moved to another report.
+async function fetchReportCatalogPage(def, params, offset, resultsEl) {
+  const seq = ++reportCatalogFetchSeq;
+  const filters = reportCatalogQueryString(params);
+  const res = await apiFetch(`/api/v1/reports/run/${def.id}?${filters ? `${filters}&` : ''}page_size=${REPORT_PAGE_SIZE}&page_offset=${offset}`);
+  const stale = () => seq !== reportCatalogFetchSeq || currentReportCatalogDef()?.id !== def.id;
+  if (!res || stale()) return null;
+  if (!res.ok) {
+    const message = await getErrorMessage(res, 'Failed to run report.');
+    if (!stale()) resultsEl.innerHTML = `<p class="login-error">${escapeHTMLText(message)}</p>`;
+    return null;
+  }
+  const result = await res.json();
+  return stale() ? null : result;
+}
+
+// A page flip keeps the filters of the run and its summary and control totals,
+// which already describe the whole result.
+async function flipReportCatalogPage(offset) {
+  const def = currentReportCatalogDef();
+  const resultsEl = document.getElementById('rc-results');
+  if (!def || !resultsEl) return;
+  resultsEl.querySelectorAll('[data-rc-page]').forEach((b) => { b.disabled = true; });
+  const params = reportCatalogLastParams;
+  const result = await fetchReportCatalogPage(def, params, offset, resultsEl);
+  if (!result) return;
+  renderReportCatalogResultTable(resultsEl, result, params);
+  resultsEl.scrollIntoView({ block: 'start' });
 }
 
 // 2026-10-10: report timestamps (Stock Ledger's Date, created/submitted
@@ -1330,8 +1265,6 @@ function renderReportCatalogResultTable(container, result, params) {
   // is not the kept record of its group (admin only; the server checks too).
   const mergeDoctype = result.id === 'duplicate-suppliers' ? 'Vendor' : result.id === 'duplicate-items' ? 'Item' : '';
   const canMerge = !!mergeDoctype && columns.some(c => c.key === 'proposal');
-  const keptByGroup = {};
-  if (canMerge) rows.forEach(r => { if (r.proposal === 'Keep') keptByGroup[r.group] = r.id; });
   // Stage 49.5.5: an order-to-cash mismatch is dismissed only with a note.
   const canDismiss = result.id === 'order-to-cash';
   const extraCols = (result.has_drill_down ? 1 : 0) + (canAssign ? 1 : 0) + (canMerge ? 1 : 0) + (canDismiss ? 1 : 0);
@@ -1352,7 +1285,10 @@ function renderReportCatalogResultTable(container, result, params) {
       // Stage 75.3: a column titled "... Code" / "... ID" asked for the code, so
       // the screen-wide code -> name swap (sweepLinkNames) leaves it alone.
       const keepCode = /\b(code|id)$/i.test(c.label || '') ? ' data-link-swept="1"' : '';
-      html += c.type === 'image'
+      // Stage 148.34: a doclink column opens the document named by <key>_doctype and <key>_id (or the value).
+      html += c.type === 'doclink' && row[c.key + '_doctype']
+        ? `<td${keepCode}><a class="doc-link" href="#/setup/${encodeURIComponent(row[c.key + '_doctype'])}?q=${encodeURIComponent(String(row[c.key + '_id'] || row[c.key]))}">${escapeHTMLText(reportCellText(row[c.key]))}</a></td>`
+        : c.type === 'image'
         ? `<td>${row[c.key] ? `<img class="rc-thumb" data-rc-media="${escapeHTMLText(row[c.key])}" alt="" width="40" height="40" style="object-fit:cover;border-radius:4px;">` : ''}</td>`
         : `<td${keepCode}>${escapeHTMLText(reportCellText(row[c.key]))}</td>`;
     });
@@ -1367,28 +1303,43 @@ function renderReportCatalogResultTable(container, result, params) {
         : `<td></td>`;
     }
     if (canMerge) {
-      const keepId = keptByGroup[row.group];
+      const keepId = row.keep_id;
       html += row.proposal !== 'Keep' && keepId
         ? `<td><button class="action-btn" data-merge-dup="${escapeHTMLText(String(row.id))}" data-merge-keep="${escapeHTMLText(String(keepId))}" data-merge-doctype="${mergeDoctype}">Merge</button></td>`
         : `<td></td>`;
     }
     if (canDismiss) {
-      html += row.exception ? `<td>${escapeHTMLText(row.exception)}</td>` : `<td><button class="action-btn" data-dismiss-kind="${escapeHTMLText(String(row.kind))}" data-dismiss-ref="${escapeHTMLText(String(row.ref))}">Dismiss</button></td>`;
+      html += row.exception ? `<td>${escapeHTMLText(row.exception)} <button class="action-btn" data-reopen-kind="${escapeHTMLText(String(row.kind))}" data-reopen-ref="${escapeHTMLText(String(row.ref))}">Reopen</button></td>` : `<td><button class="action-btn" data-dismiss-kind="${escapeHTMLText(String(row.kind))}" data-dismiss-ref="${escapeHTMLText(String(row.ref))}">Dismiss</button></td>`;
     }
     html += `</tr><tr id="rc-drilldown-${idx}" class="hidden"><td colspan="${columns.length + extraCols}"></td></tr>`;
   });
   html += `</tbody>`;
   // Stage 75.3.4: a column marked total is summed under the table.
+  // 157.4b: the server's totals cover every page; without them, say it is this page.
+  const paging = result.paging;
+  const allTotals = paging && paging.totals;
+  const manyPages = !!paging && (paging.total > rows.length || paging.offset > 0);
   if (rows.length && columns.some(c => c.total)) {
     html += `<tfoot><tr>${columns.map((c, i) => {
-      if (c.total) return `<td><b>${escapeHTMLText(reportCellText(Math.round(rows.reduce((s, r) => s + (Number(r[c.key]) || 0), 0) * 100) / 100))}</b></td>`;
-      return i === 0 ? '<td><b>Total</b></td>' : '<td></td>';
+      if (c.total) {
+        const sum = allTotals ? allTotals[c.key] : Math.round(rows.reduce((s, r) => s + (Number(r[c.key]) || 0), 0) * 100) / 100;
+        return sum === undefined ? '<td></td>' : `<td><b>${escapeHTMLText(reportCellText(sum))}</b></td>`;
+      }
+      return i === 0 ? `<td><b>${manyPages && !allTotals ? 'Page total' : 'Total'}</b></td>` : '<td></td>';
     }).join('')}${extraCols ? `<td colspan="${extraCols}"></td>` : ''}</tr></tfoot>`;
   }
   html += `</table>`;
+  if (manyPages) {
+    const count = (n) => Number(n).toLocaleString('en-IN');
+    const last = paging.offset + rows.length;
+    html += `<div style="display:flex;gap:10px;align-items:center;margin:10px 0 0;font-size:13px;" class="text-muted"><button type="button" class="btn btn-outline" data-rc-page="${Math.max(0, paging.offset - paging.limit)}" ${paging.offset > 0 ? '' : 'disabled'}>Previous</button><span>${rows.length ? `${count(paging.offset + 1)}-${count(last)}` : '0'} of ${count(paging.total)}</span><button type="button" class="btn btn-outline" data-rc-page="${paging.offset + paging.limit}" ${last < paging.total ? '' : 'disabled'}>Next</button></div>`;
+  }
   container.innerHTML = html;
   loadReportThumbnails(container);
   container.dataset.params = JSON.stringify(params);
+  container.querySelectorAll('[data-rc-page]').forEach((button) => {
+    button.addEventListener('click', () => flipReportCatalogPage(Number(button.dataset.rcPage)));
+  });
   container.querySelectorAll('[data-report-drill-index]').forEach(button => {
     button.addEventListener('click', () => runReportCatalogDrillDown(
       button.dataset.reportId,
@@ -1419,6 +1370,18 @@ function renderReportCatalogResultTable(container, result, params) {
       if (!res.ok) { showCustomAlert(await getErrorMessage(res, 'Could not dismiss.'), 'Dismiss'); return; }
       showToast('Dismissed.', { variant: 'success' });
       button.closest('tr').remove();
+    });
+  });
+  container.querySelectorAll('[data-reopen-kind]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const note = await showCustomPrompt(`Reopen ${button.dataset.reopenKind} for ${button.dataset.reopenRef}. Note (required):`, '', 'Reopen');
+      if (note === null) return;
+      if (!String(note).trim()) { showCustomAlert('A note is required.', 'Reopen'); return; }
+      const res = await apiFetch('/api/v1/finance/reconciliation/exceptions', { method: 'POST', body: JSON.stringify({ kind: button.dataset.reopenKind, ref: button.dataset.reopenRef, status: 'Open', note }) });
+      if (!res) return;
+      if (!res.ok) { showCustomAlert(await getErrorMessage(res, 'Could not reopen.'), 'Reopen'); return; }
+      showToast('Reopened.', { variant: 'success' });
+      button.closest('td').textContent = 'Open';
     });
   });
   container.querySelectorAll('[data-report-assign-item]').forEach(button => {
@@ -1599,7 +1562,7 @@ async function downloadReportExportCSV(jobId, reportId = '') {
 // sheet. Nobody is blocked from printing because the bridge is down.
 
 
-export { renderReportsView, fillReportsMenu, fetchReportRows, execDashboardOpenReport, defaultDashboardTiles, loadDashboardLayouts, renderExecDashboard, renderExecDashboardBody, renderExecDashboardTrendChart, renderInventoryView, renderCurrentStockReport, renderSalesRegisterReport, renderVendorLedgerReport, renderPayablesAgeingReport, renderReceivablesAgeingReport, renderGSTReturnSummaryReport, renderReportCatalogPanel, currentReportCatalogDef, initReportCatalogColumns, effectiveReportColumns, toggleReportColumnsPanel, renderReportColumnsPanel, moveReportColumn, applyReportColumnState, loadReportColumnProfiles, applyReportColumnProfile, saveReportColumnProfile, renderReportCatalogParams, collectReportCatalogParams, reportCatalogQueryString, runReportCatalogReport, renderReportCatalogResultTable, runReportCatalogDrillDown, loadReportCatalogSavedFilters, applyReportCatalogSavedFilter, saveReportCatalogFilter, exportReportCatalogReport, pollReportExportJob, downloadReportExportCSV };
+export { renderReportsView, fillReportsMenu, fetchReportRows, execDashboardOpenReport, defaultDashboardTiles, loadDashboardLayouts, renderExecDashboard, renderExecDashboardBody, renderExecDashboardTrendChart, renderInventoryView, renderPayablesAgeingReport, renderReceivablesAgeingReport, renderGSTReturnSummaryReport, renderReportCatalogPanel, currentReportCatalogDef, initReportCatalogColumns, effectiveReportColumns, toggleReportColumnsPanel, renderReportColumnsPanel, moveReportColumn, applyReportColumnState, loadReportColumnProfiles, applyReportColumnProfile, saveReportColumnProfile, renderReportCatalogParams, collectReportCatalogParams, reportCatalogQueryString, runReportCatalogReport, renderReportCatalogResultTable, runReportCatalogDrillDown, loadReportCatalogSavedFilters, applyReportCatalogSavedFilter, saveReportCatalogFilter, exportReportCatalogReport, pollReportExportJob, downloadReportExportCSV };
 
 // loadReportThumbnails (Stage 75.3.4) fetches an image column's thumbnails with
 // the session (an <img src> cannot send it), the first 200 only; one that

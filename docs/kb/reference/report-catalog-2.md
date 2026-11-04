@@ -21,7 +21,7 @@ screens: [reports]
 # Report catalog (part 2)
 
 This page continues the [report catalog](report-catalog.md), which lists
-every category and explains how to run a report. It holds **144** reports, from
+every category and explains how to run a report. It holds **146** reports, from
 HRMS to PIM / PIMS.
 
 ## Contents
@@ -32,7 +32,7 @@ HRMS to PIM / PIMS.
 - [Manufacturing](#manufacturing) - 21 reports
 - [Master Data & Audit](#master-data-audit) - 11 reports
 - [OMS](#oms) - 25 reports
-- [PIM](#pim) - 4 reports
+- [PIM](#pim) - 6 reports
 - [PIM / PIMS](#pim-pims) - 16 reports
 
 ## HRMS
@@ -323,7 +323,7 @@ HRMS to PIM / PIMS.
 
 **Parameters:** none - it runs as soon as you pick it.
 
-**Columns:** SKU · Location · On Hand · Available · Committed · Reserved · Safety Stock
+**Columns:** SKU · Location · On Hand · Available to sell · Reserved · Held · Base available · Committed · Safety Stock · Blocked · QC Hold · Damaged · Channel Buffer
 
 **Drill-down:** no.
 
@@ -455,7 +455,7 @@ HRMS to PIM / PIMS.
 
 **Parameters:** none - it runs as soon as you pick it.
 
-**Columns:** SKU · Qty On Hand · Unit Cost (Avg) *(sensitive)* · Total Value *(sensitive)* · Costed
+**Columns:** SKU · Qty On Hand · Unit Cost (Avg) *(sensitive)* · Total Value *(sensitive)* · Costed · Rate From
 
 **Drill-down:** no.
 
@@ -1661,6 +1661,26 @@ HRMS to PIM / PIMS.
 **Drill-down:** no.
 
 ## PIM
+
+### R9036 Attribute fill rate
+
+**Report id:** `pim-attribute-fill-rate`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Attribute · Label · Items · Filled · Missing · Filled %
+
+**Drill-down:** no.
+
+### R9037 Brand vocabulary check
+
+**Report id:** `pim-brand-vocabulary`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Brand on items · Items · Brand master spelling
+
+**Drill-down:** no.
 
 ### R7038 PIM Overdue Tasks
 

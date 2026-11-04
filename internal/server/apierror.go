@@ -276,7 +276,7 @@ func writeAPIErrorDetail(w http.ResponseWriter, r *http.Request, code string, su
 	writeResponse(w, entry.HTTPStatus, apiErrorBody{
 		Error:         message,
 		Detail:        detail,
-		UserAction:    entry.UserAction,
+		UserAction:    refusalHint(entry.Code, detail, entry.UserAction),
 		Code:          entry.Code,
 		CorrelationID: correlationID,
 		Retryable:     entry.Retryable,
@@ -320,6 +320,13 @@ func writeEngineError(w http.ResponseWriter, r *http.Request, err error, fallbac
 		// codebase's own validators for a user to read, so they are safe to
 		// show (unlike a raw 5xx internal error).
 		writeAPIErrorDetail(w, r, verr.Code, verr.SubFor, verr.Message)
+		return
+	}
+	// 140.14.1: any other engine path that lets a unique violation through is a
+	// readable refusal too, not a 500.
+	tenantID, _, _ := resolvedContext(r)
+	if dup := engines.DuplicateKeyRefusal(tenantID, "", err); dup != nil {
+		writeAPIErrorDetail(w, r, dup.Code, "", dup.Message)
 		return
 	}
 	writeAPIErrorGeneric(w, r, fallbackStatus, err.Error())
@@ -444,7 +451,7 @@ func writeAPIErrorGeneric(w http.ResponseWriter, r *http.Request, status int, me
 		// and had never been sent to a client. No `detail` here on purpose -
 		// on a 4xx the caller's own specific message is already the headline,
 		// and on a 5xx the raw internal message is deliberately withheld.
-		UserAction:    entry.UserAction,
+		UserAction:    refusalHint(code, message, entry.UserAction),
 		Code:          code,
 		CorrelationID: correlationID,
 		Retryable:     entry.Retryable,

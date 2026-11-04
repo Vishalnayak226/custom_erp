@@ -150,7 +150,7 @@ export async function renderCRMView(root) {
 
 async function crmPaint() {
   const tab = crmState.tab;
-  const tabs = crmTabs.filter(([k]) => k !== 'settings' || (crmMeta && crmMeta.can_manage));
+  const tabs = crmTabs.filter(([k]) => (k !== 'settings' || (crmMeta && crmMeta.can_manage)) && (k !== 'tickets' || canReadDoctype('ServiceTicket')) && (k !== 'pipeline' || canReadDoctype('SalesQuotation'))); // 140.14.3
   crmRoot.innerHTML = `<div class="page-header crm-page-header"><div class="page-title-section"><h1 class="page-title">CRM</h1></div></div>
     <nav class="crm-tabs" aria-label="CRM">${tabs.map(([k, l]) => `<button type="button" class="crm-tab${k === tab ? ' active' : ''}" data-crm-tab="${k}" aria-current="${k === tab}">${l}</button>`).join('')}</nav>
     <div class="table-panel crm-panel" id="crm-page"></div>`;
@@ -195,10 +195,10 @@ async function crmOverview(host) {
       ${tile('Campaigns running', d.campaigns_live, 'campaigns')}
       ${tile('Journeys on', d.journeys_on, 'journeys', `${d.journey_runs_live} customers in one now`)}
       ${tile('NPS (90 days)', d.nps == null ? '-' : d.nps, 'feedback', d.nps == null ? 'No answers yet' : `${d.nps_answers} answers`)}
-      ${tile('Open tickets', d.open_tickets, 'tickets')}
+      ${canReadDoctype('ServiceTicket') ? tile('Open tickets', d.open_tickets, 'tickets') : ''}
       ${tile('Open tasks', d.open_tasks, 'worklist')}
       ${tile('Unread in the inbox', d.unread_inbox, 'inbox')}
-      ${tile('Weighted pipeline', crmMoney(d.pipeline_weighted), 'pipeline')}
+      ${canReadDoctype('SalesQuotation') ? tile('Weighted pipeline', crmMoney(d.pipeline_weighted), 'pipeline') : ''}
     </div>
     ${d.unknown_outcomes ? `<div class="crm-note crm-note-warn">${d.unknown_outcomes} message(s) have an unknown outcome. Messages > Unknown to settle them.</div>` : ''}
     ${setup.length ? `<div class="crm-note"><strong>To finish setting up</strong><ul>${setup.map(s => `<li>${crmEsc(s)}</li>`).join('')}</ul></div>` : ''}

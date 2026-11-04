@@ -54,6 +54,10 @@ async function renderPIMView(container) {
     await renderPIMMyWorkTab(container);
   } else if (currentPIMTab === 'media-library') {
     await renderPIMMediaLibraryTab(container);
+  } else if (['channel-templates', 'feeds', 'design-values', 'checklists'].includes(currentPIMTab)) {
+    // 146.5: marketplace templates, feeds with run history, design-level values
+    const data = await loadViewModule('/view-pim-data.js' + new URL(import.meta.url).search);
+    await data.renderPIMDataPage(container, currentPIMTab);
   }
 }
 
@@ -151,8 +155,14 @@ async function renderPIMMediaLibraryTab(container) {
   `;
   container.appendChild(panel);
 
+  let medlibObserver = null;
+  const medlibUrls = new Set();
   const runSearch = async () => {
     const grid = panel.querySelector('#pim-medlib-grid');
+    if (medlibObserver) medlibObserver.disconnect();
+    medlibObserver = null;
+    medlibUrls.forEach(u => URL.revokeObjectURL(u));
+    medlibUrls.clear();
     grid.innerHTML = `<div class="text-muted">Searching&hellip;</div>`;
     const params = new URLSearchParams();
     const item = panel.querySelector('#pim-medlib-item').value.trim();
@@ -184,16 +194,25 @@ async function renderPIMMediaLibraryTab(container) {
     // <img> can't carry a Bearer token - same authenticated-blob swap
     // renderPIMMediaGallery already uses, preferring the small "small"
     // transform (36.6.1) over the full original for a lighter grid.
-    assets.forEach(async (m) => {
-      let imgRes = await apiFetch(`/api/v1/pim/media/${encodeURIComponent(m.id)}/transform/small`);
-      if (!imgRes || !imgRes.ok) imgRes = m.has_thumbnail ? await apiFetch(`/api/v1/pim/media/${encodeURIComponent(m.id)}/thumbnail`) : null;
-      if (!imgRes || !imgRes.ok) imgRes = await apiFetch(`/api/v1/pim/media/${encodeURIComponent(m.id)}/file`);
-      if (imgRes && imgRes.ok) {
-        const blob = await imgRes.blob();
-        const imgEl = grid.querySelector(`[data-medlib-thumb="${CSS.escape(m.id)}"]`);
-        if (imgEl) imgEl.src = URL.createObjectURL(blob);
-      }
-    });
+    // 156.1: a thumbnail is fetched only as its card nears the viewport.
+    const byId = new Map(assets.map(m => [String(m.id), m]));
+    const obs = medlibObserver = new IntersectionObserver((entries) => {
+      entries.forEach(async (en) => {
+        if (!en.isIntersecting) return;
+        const imgEl = en.target;
+        obs.unobserve(imgEl);
+        const m = byId.get(imgEl.getAttribute('data-medlib-thumb'));
+        let imgRes = await apiFetch(`/api/v1/pim/media/${encodeURIComponent(m.id)}/transform/small`);
+        if (!imgRes || !imgRes.ok) imgRes = m.has_thumbnail ? await apiFetch(`/api/v1/pim/media/${encodeURIComponent(m.id)}/thumbnail`) : null;
+        if (!imgRes || !imgRes.ok) imgRes = await apiFetch(`/api/v1/pim/media/${encodeURIComponent(m.id)}/file`);
+        if (!imgRes || !imgRes.ok || medlibObserver !== obs) return;
+        const url = URL.createObjectURL(await imgRes.blob());
+        if (medlibObserver !== obs) { URL.revokeObjectURL(url); return; }
+        medlibUrls.add(url);
+        imgEl.src = url;
+      });
+    }, { rootMargin: '300px' });
+    grid.querySelectorAll('[data-medlib-thumb]').forEach(el => obs.observe(el));
 
     grid.querySelectorAll('[data-medlib-deactivate]').forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -992,6 +1011,8 @@ async function renderPIMReportsTab(container) {
   await run();
 }
 
+let pimSkuPaste = ''; // 146.5.13: pasted item codes narrowing the workbench
+
 async function renderPIMWorkbenchTab(container) {
   const familiesRes = await apiFetch('/api/v1/doc/ProductFamily');
   const families = familiesRes && familiesRes.ok ? await familiesRes.json() : [];
@@ -1010,16 +1031,28 @@ async function renderPIMWorkbenchTab(container) {
           ${families.map(f => `<option value="${escapeHTMLText(f.code || f.id)}" ${(f.code || f.id) === currentPIMFamilyFilter ? 'selected' : ''}>${escapeHTMLText(f.name || f.code || f.id)}</option>`).join('')}
         </select>
       </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="pim-sku-paste">Item codes</label>
+        <input id="pim-sku-paste" class="form-input" style="width: 260px;" value="${escapeHTMLText(pimSkuPaste)}" placeholder="Paste codes">
+      </div>
     </div>
   `;
   container.appendChild(filterPanel);
+  filterPanel.querySelector('#pim-sku-paste').addEventListener('change', (e) => {
+    pimSkuPaste = e.target.value.trim();
+    currentPIMSelectedItem = '';
+    renderView('pim');
+  });
   filterPanel.querySelector('#pim-family-filter').addEventListener('change', (e) => {
     currentPIMFamilyFilter = e.target.value;
     currentPIMSelectedItem = '';
     renderView('pim');
   });
 
-  const query = currentPIMFamilyFilter ? `?family=${encodeURIComponent(currentPIMFamilyFilter)}` : '';
+  const wbParams = new URLSearchParams();
+  if (currentPIMFamilyFilter) wbParams.set('family', currentPIMFamilyFilter);
+  if (pimSkuPaste) wbParams.set('skus', pimSkuPaste);
+  const query = wbParams.toString() ? `?${wbParams}` : '';
   const wbRes = await apiFetch(`/api/v1/pim/workbench${query}`);
   const entries = wbRes && wbRes.ok ? await wbRes.json() : [];
 
@@ -1090,7 +1123,7 @@ async function renderPIMDetailPanel(container, itemCode) {
         <label class="form-label" for="pim-attr-select">Attribute</label>
         <select id="pim-attr-select" class="form-input" style="width: 200px;">
           <option value="">Select attribute</option>
-          ${attrDefs.map(a => `<option value="${escapeHTMLText(a.code || a.id)}" data-value-type="${escapeHTMLText(a.value_type || 'Data')}">${escapeHTMLText(a.label || a.code || a.id)}</option>`).join('')}
+          ${attrDefs.map(a => `<option value="${escapeHTMLText(a.code || a.id)}" data-value-type="${escapeHTMLText(a.value_type || 'Data')}" data-value-options="${escapeHTMLText(a.value_options || '')}">${escapeHTMLText(a.label || a.code || a.id)}</option>`).join('')}
         </select>
       </div>
       <div class="form-group" style="margin-bottom: 0;">
@@ -1236,9 +1269,8 @@ async function renderPIMDetailPanel(container, itemCode) {
 
   // Stage 127.1: a Number attribute takes a number, a Date one a date.
   document.getElementById('pim-attr-select').addEventListener('change', (e) => {
-    const vt = (e.target.selectedOptions[0] && e.target.selectedOptions[0].dataset.valueType) || 'Data';
-    const input = document.getElementById('pim-attr-value');
-    if (input) input.type = vt === 'Number' ? 'number' : (vt === 'Date' ? 'date' : 'text');
+    const o = e.target.selectedOptions[0];
+    pimSwapValueControl((o && o.dataset.valueType) || 'Data', (o && o.dataset.valueOptions) || '');
   });
   document.getElementById('pim-attr-save-btn').addEventListener('click', () => savePIMAttributeValue(itemCode));
   document.getElementById('pim-content-assist-btn').addEventListener('click', () => runPIMContentAssist(itemCode));
@@ -1257,6 +1289,11 @@ async function renderPIMDetailPanel(container, itemCode) {
   await renderPIMPublishSection(itemCode);
   await renderPIMContentHistory(itemCode);
   await renderPIMRelatedProducts(itemCode);
+  // 146.5.12 / 146.5.13: typed relations and "Live on" links (lazy module)
+  const extras = document.createElement('div');
+  container.appendChild(extras);
+  const x = await loadViewModule('/view-pim-extras.js' + new URL(import.meta.url).search);
+  await x.renderPIMItemExtras(extras, itemCode);
 }
 
 function pimCorrectionMarkup(field, attrDefs) {
@@ -1782,12 +1819,37 @@ async function publishPIMItem(itemCode) {
   await renderPIMPublishSection(itemCode);
 }
 
+// 146.5.11: the value box follows the attribute type.
+function pimSwapValueControl(type, options) {
+  const old = document.getElementById('pim-attr-value');
+  if (!old) return;
+  const list = String(options).split(',').map(x => x.trim()).filter(Boolean);
+  let el;
+  if (type === 'Yes / No' || (type === 'Multi-select' && list.length)) {
+    el = document.createElement('select');
+    const opts = type === 'Yes / No' ? ['Yes', 'No'] : list;
+    el.innerHTML = (type === 'Yes / No' ? '<option value="">-</option>' : '') + opts.map(v => `<option value="${escapeHTMLText(v)}">${escapeHTMLText(v)}</option>`).join('');
+    if (type === 'Multi-select') { el.multiple = true; el.size = Math.min(4, opts.length); }
+  } else if (type === 'Long text') {
+    el = document.createElement('textarea');
+    el.rows = 3;
+  } else {
+    el = document.createElement('input');
+    el.type = type === 'Number' ? 'number' : type === 'Date' ? 'date' : type === 'URL' ? 'url' : 'text';
+  }
+  el.id = 'pim-attr-value';
+  el.className = old.className;
+  el.style.cssText = old.style.cssText;
+  old.replaceWith(el);
+}
+
 async function savePIMAttributeValue(itemCode) {
   const errorEl = document.getElementById('pim-attr-error');
   errorEl.classList.add('hidden');
 
   const attributeId = document.getElementById('pim-attr-select').value;
-  const value = document.getElementById('pim-attr-value').value.trim();
+  const valueEl = document.getElementById('pim-attr-value');
+  const value = (valueEl.multiple ? [...valueEl.selectedOptions].map(o => o.value).join(',') : valueEl.value).trim();
   const locale = document.getElementById('pim-attr-locale').value.trim();
   const channel = document.getElementById('pim-attr-channel').value;
   if (!attributeId || !value) {

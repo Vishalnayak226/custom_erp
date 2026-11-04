@@ -22,12 +22,14 @@ func handlePartialCompleteProductionOrder(w http.ResponseWriter, r *http.Request
 	var req struct {
 		OrderID string  `json:"order_id"`
 		Qty     float64 `json:"qty"`
+		engines.OutputPieces
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.OrderID == "" || req.Qty <= 0 {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'order_id' and a positive 'qty' are required")
 		return
 	}
-	if err := engines.ReportPartialCompletion(tenantID, req.OrderID, req.Qty); err != nil {
+	req.UserID = r.Header.Get("Resolved-User-ID")
+	if err := engines.ReportPartialCompletion(tenantID, req.OrderID, req.Qty, req.OutputPieces); err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}

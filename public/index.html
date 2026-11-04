@@ -218,7 +218,7 @@
             <li><a class="menu-item" id="menu-oms-pack" data-go="oms:pack" data-like="menu-oms"><span>Pack</span></a></li>
             <li><a class="menu-item" id="menu-oms-ship" data-go="oms:ship" data-like="menu-oms"><span>Ship</span></a></li>
             <li><a class="menu-item" id="menu-returns"><span>Returns</span></a></li>
-            <li><a class="menu-item" id="menu-oms-settlements" data-go="oms:settlements" data-doctype="MarketplaceSettlement"><span>Settlements</span></a></li>
+            <li><a class="menu-item" id="menu-oms-settlements" data-go="oms:settlements" data-doctype="MarketplaceSettlementLine"><span>Settlements</span></a></li>
           </ul>
         </li>
 
@@ -281,6 +281,7 @@
             <li><a class="menu-item" id="menu-purchase-orders"><span>Purchase Order</span></a></li>
             <li><a class="menu-item" id="menu-asn"><span>ASN (Advance Shipment)</span></a></li>
             <li><a class="menu-item" id="menu-grn"><span>Goods Receipt</span></a></li>
+            <li><a class="menu-item" id="menu-gate-entry" data-go="gate-entry" data-like="menu-grn"><span>Gate Entry</span></a></li>
             <li><a class="menu-item" id="menu-purchase-returns"><span>Purchase Return</span></a></li>
             <li><a class="menu-item" id="menu-vendors" data-doctype="Vendor"><span>Vendors</span></a></li>
             <li><a class="menu-item" id="menu-rfq"><span>RFQ / Quotes</span></a></li>
@@ -299,6 +300,7 @@
             <li><a class="menu-item" id="menu-inventory"><span>Stock on Hand</span></a></li>
             <li><a class="menu-item" id="menu-inventory-ledger" data-go="inventory:ledger" data-like="menu-inventory"><span>Inventory Ledger</span></a></li>
             <li><a class="menu-item" id="menu-transfers"><span>Stock Movement</span></a></li>
+            <li><a class="menu-item" id="menu-transfer-allocation" data-go="transfers:allocation" data-like="menu-transfers"><span>Allocation</span></a></li>
             <li><a class="menu-item" id="menu-inventory-adjustments" data-go="inventory:adjustments" data-doctype="InventoryAdjustment"><span>Stock Adjustment</span></a></li>
             <li><a class="menu-item" id="menu-inventory-mrp" data-go="inventory:mrp" data-doctype="MRPChange"><span>MRP Change</span></a></li>
             <li><a class="menu-item" id="menu-inventory-materials" data-go="inventory:materials" data-doctype="MaterialIssue"><span>Material Issue</span></a></li>
@@ -419,11 +421,15 @@
           </a>
           <ul class="menu-flyout">
             <li><a class="menu-item" id="menu-pim" data-go="pim:dashboard"><span>Dashboard</span></a></li>
-            <li><a class="menu-item" id="menu-pim-workbench" data-go="pim:workbench" data-like="menu-pim"><span>Workbench</span></a></li>
-            <li><a class="menu-item" id="menu-pim-my-work" data-go="pim:my-work" data-like="menu-pim"><span>My Work</span></a></li>
+            <li><a class="menu-item" id="menu-pim-workbench" data-go="pim:workbench" data-doctype="ProductFamily"><span>Workbench</span></a></li>
+            <li><a class="menu-item" id="menu-pim-my-work" data-go="pim:my-work" data-doctype="PIMProductGroup"><span>My Work</span></a></li>
             <li><a class="menu-item" id="menu-pim-media" data-go="pim:media-library" data-like="menu-pim"><span>Media Library</span></a></li>
             <li><a class="menu-item" id="menu-pim-submissions" data-go="doctype-table" data-doctype="SupplierSubmission"><span>Supplier Submissions</span></a></li>
             <li><a class="menu-item" id="menu-pim-catalogs" data-go="doctype-table" data-doctype="PIMCatalog"><span>Catalogs</span></a></li>
+            <li><a class="menu-item" id="menu-pim-templates" data-go="pim:channel-templates" data-like="menu-pim"><span>Templates</span></a></li>
+            <li><a class="menu-item" id="menu-pim-feeds" data-go="pim:feeds" data-like="menu-pim"><span>Feeds</span></a></li>
+            <li><a class="menu-item" id="menu-pim-design-values" data-go="pim:design-values" data-like="menu-pim"><span>Design Values</span></a></li>
+            <li><a class="menu-item" id="menu-pim-checklists" data-go="pim:checklists" data-like="menu-pim"><span>Checklists</span></a></li>
             <li><a class="menu-item" id="menu-pim-reports" data-go="pim:reports" data-like="menu-pim"><span>PIM Reports</span></a></li>
           </ul>
         </li>
@@ -824,7 +830,7 @@
   <!-- 21.14: this app's first Web Component - plain <script>, no build
        step, registers <erp-typeahead> globally before app.js runs. -->
   <script src="/components/erp-typeahead.js?v=1"></script>
-  <script src="/app.js?v=73"></script>
+  <script src="/app.js?v=77"></script>
   <!-- 31.1: QZ Tray bridge for silent printing. Loaded after app.js because
        it calls apiFetch() for the certificate and per-request signature. -->
   <script src="/qz-print.js?v=2"></script>

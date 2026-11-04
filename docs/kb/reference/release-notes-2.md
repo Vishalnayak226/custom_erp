@@ -2,7 +2,7 @@
 title: Release notes (part 2)
 section: Reference
 order: 26
-summary: Earlier releases, 2026-07-27 to 2026-09-27, continued from the release notes.
+summary: Earlier releases, 2026-07-27 to 2026-09-28, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,7 +19,17 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **104** earlier entries, 2026-07-27 to 2026-09-27.
+This page continues the [release notes](release-notes.md) with **106** earlier entries, 2026-07-27 to 2026-09-28.
+
+## 2026-09-28
+
+**Stage 50 — BLD-034 (usable dense tables): server-backed pagination/search/counts replacing a 500-row client-side cap, plus a search field-permission leak and a pre-existing refresh-persistence bug found and closed along the way** *(code + docs)*
+
+Continuing the same thread that closed BLD-043 (§171) earlier the same day. Per the priority order the prior session handed off (BLD-034 first — DEPENDS on BLD-003/043, both done; BLD-046/035 next). Confirmed genuinely unstarted via `git status`/the build checklist's own `[ ]` mark before touching anything.
+
+**Stage 50 — BLD-043 (realistic datasets and query plans): a real unindexed `sort=recent` cost found and fixed via measurement at three scales** *(code + docs)*
+
+Per the priority order handed off from the 2026-09-25/27 threads (BLD-038/037), both of which turned out to already be closed and committed (`8bed150`) by the time this thread started — confirmed via `git status`/the build checklist's own `[x]` marks before touching anything. BLD-043 was the next genuinely-unstarted READY item (no DEPENDS beyond BLD-001, done).
 
 ## 2026-09-27
 

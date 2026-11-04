@@ -20,8 +20,8 @@ import (
 // An exception (SetReconciliationException) takes a mismatch off the list. It
 // needs a note, may carry an attachment reference, and keeps the figures it
 // was made against: when they change the dismissal lapses and the mismatch
-// returns. Not in this slice: stock ownership, command-to-outbox checks and
-// persisted money / UOM / tax versions.
+// returns. Command-to-outbox findings are in command_outbox_reconciliation.go;
+// persisted money / UOM / tax versions are not built.
 
 const reconcileLimit = 5000
 
@@ -38,6 +38,7 @@ type OrderToCashRow struct {
 	PaidAmount      float64 `json:"paid_amount"`
 	Difference      float64 `json:"difference"`
 	Owner           string  `json:"owner"`
+	Sku             string  `json:"sku,omitempty"`
 	Hint            string  `json:"hint"`
 	Exception       string  `json:"exception,omitempty"`
 	ExceptionNote   string  `json:"exception_note,omitempty"`
@@ -63,6 +64,43 @@ func qtyOf(raw interface{}) float64 {
 		total += numOf(l["qty"])
 	}
 	return total
+}
+
+// skuQtyOf sums the qty of a line list per SKU (Stage 49.5.5, per-SKU slice).
+func skuQtyOf(raw interface{}) map[string]float64 {
+	var lines []map[string]interface{}
+	switch v := raw.(type) {
+	case string:
+		_ = json.Unmarshal([]byte(v), &lines)
+	case []interface{}:
+		b, _ := json.Marshal(v)
+		_ = json.Unmarshal(b, &lines)
+	}
+	out := map[string]float64{}
+	for _, l := range lines {
+		sku := strOf(l["sku"])
+		if sku == "" {
+			sku = strOf(l["item_id"])
+		}
+		if sku == "" {
+			sku = strOf(l["item_code"])
+		}
+		out[sku] += numOf(l["qty"])
+	}
+	return out
+}
+
+// addSku adds one document's per-SKU qty into an order's totals.
+func addSku(into map[string]map[string]float64, order string, qty map[string]float64) {
+	if order == "" {
+		return
+	}
+	if into[order] == nil {
+		into[order] = map[string]float64{}
+	}
+	for s, q := range qty {
+		into[order][s] += q
+	}
 }
 
 func numOf(v interface{}) float64 {
@@ -148,11 +186,13 @@ func OrderToCashMismatches(tenantID string, includeAccepted bool) ([]OrderToCash
 
 	pkgOrder := map[string]string{}
 	shipped := map[string]float64{}
+	shippedSku := map[string]map[string]float64{}
 	for _, p := range pkgs {
 		o := strOf(p.data["order_id"])
 		pkgOrder[p.id] = o
 		if o != "" {
 			shipped[o] += qtyOf(p.data["items"])
+			addSku(shippedSku, o, skuQtyOf(p.data["items"]))
 		}
 	}
 	paidOn := map[string]float64{}
@@ -168,6 +208,7 @@ func OrderToCashMismatches(tenantID string, includeAccepted bool) ([]OrderToCash
 
 	invoicedQty := map[string]float64{}
 	invoicedAmt := map[string]float64{}
+	invoicedSku := map[string]map[string]float64{}
 	orderInvoice := map[string]string{}
 	orderCust := map[string]string{}
 	var rows []OrderToCashRow
@@ -184,6 +225,7 @@ func OrderToCashMismatches(tenantID string, includeAccepted bool) ([]OrderToCash
 		if order != "" {
 			invoicedQty[order] += qtyOf(inv.data["items"])
 			invoicedAmt[order] += total
+			addSku(invoicedSku, order, skuQtyOf(inv.data["items"]))
 			if orderInvoice[order] == "" {
 				orderInvoice[order] = inv.id
 			} else {
@@ -230,7 +272,55 @@ func OrderToCashMismatches(tenantID string, includeAccepted bool) ([]OrderToCash
 			InvoicedQty: inv, InvoicedAmount: invoicedAmt[order], Difference: round3(inv),
 			Owner: "Sales", Hint: "Ship the balance, or credit the excess."})
 	}
+	// Per SKU (49.5.5): an order row names the SKUs that differ; an order whose
+	// totals match but whose SKUs do not (a swap) gets one row per SKU.
+	flagged := map[string]bool{}
 	for i := range rows {
+		if rows[i].Kind == "Shipped not invoiced" || rows[i].Kind == "Invoiced more than shipped" {
+			flagged[rows[i].Order] = true
+			rows[i].Sku = skuDiffText(shippedSku[rows[i].Order], invoicedSku[rows[i].Order])
+		}
+	}
+	skuOrders := make([]string, 0, len(shippedSku))
+	for order := range shippedSku {
+		if !flagged[order] && orderSeen[order] {
+			skuOrders = append(skuOrders, order)
+		}
+	}
+	sort.Strings(skuOrders)
+	for _, order := range skuOrders {
+		cust := orderCust[order]
+		if cust == "" {
+			cust = orderCustomer[order]
+		}
+		for _, sku := range skuNames(shippedSku[order], invoicedSku[order]) {
+			ship, inv := shippedSku[order][sku], invoicedSku[order][sku]
+			switch {
+			case ship > inv+0.0005:
+				rows = append(rows, OrderToCashRow{Kind: "SKU shipped not invoiced", Ref: order + "|" + sku, Order: order, Invoice: orderInvoice[order], Customer: cust, Sku: sku,
+					ShippedQty: ship, InvoicedQty: inv, Difference: round3(ship - inv), Owner: "Sales", Hint: "Invoice this SKU for the shipped quantity."})
+			case inv > ship+0.0005:
+				rows = append(rows, OrderToCashRow{Kind: "SKU invoiced more than shipped", Ref: order + "|" + sku, Order: order, Invoice: orderInvoice[order], Customer: cust, Sku: sku,
+					ShippedQty: ship, InvoicedQty: inv, Difference: round3(inv - ship), Owner: "Sales", Hint: "Ship this SKU, or credit the excess."})
+			}
+		}
+	}
+	// Stock ownership (49.5.5): each location's stock comes only from its owner.
+	own, err := stockOwnershipRows(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	rows = append(rows, own...)
+	// Command <-> outbox (49.5.5): a checkout and its sale event agree.
+	cmdRows, err := commandOutboxRows(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	rows = append(rows, cmdRows...)
+	for i := range rows {
+		if rows[i].fingerprint != "" {
+			continue
+		}
 		rows[i].fingerprint = fmt.Sprintf("%.3f|%.3f|%.2f|%.2f", rows[i].ShippedQty, rows[i].InvoicedQty, rows[i].InvoicedAmount, rows[i].PaidAmount)
 	}
 	sort.Slice(rows, func(i, j int) bool {
@@ -240,22 +330,10 @@ func OrderToCashMismatches(tenantID string, includeAccepted bool) ([]OrderToCash
 		return rows[i].Ref < rows[j].Ref
 	})
 
-	// exceptions: the latest row per key
-	type exc struct{ status, fp, note, by, at, att string }
-	latest := map[string]exc{}
-	er, err := db.DB.Query(fmt.Sprintf(`SELECT DISTINCT ON (mismatch_kind, ref_key) mismatch_kind, ref_key, status, fingerprint, note, changed_by, to_char(changed_at,'YYYY-MM-DD HH24:MI'), attachment
-		FROM %s.reconciliation_exceptions ORDER BY mismatch_kind, ref_key, id DESC`, schema))
+	latest, err := loadLatestReconExceptions(schema)
 	if err != nil {
 		return nil, err
 	}
-	for er.Next() {
-		var k, r string
-		var e exc
-		if err := er.Scan(&k, &r, &e.status, &e.fp, &e.note, &e.by, &e.at, &e.att); err == nil {
-			latest[k+"\x00"+r] = e
-		}
-	}
-	er.Close()
 	out := rows[:0]
 	for _, r := range rows {
 		if e, ok := latest[r.Kind+"\x00"+r.Ref]; ok && e.status == "Dismissed" && e.fp == r.fingerprint {
@@ -267,6 +345,29 @@ func OrderToCashMismatches(tenantID string, includeAccepted bool) ([]OrderToCash
 		out = append(out, r)
 	}
 	return out, nil
+}
+
+// reconException is the latest dismissal / reopen row of one mismatch.
+type reconException struct{ status, fp, note, by, at, att string }
+
+// loadLatestReconExceptions reads the latest exception row per (kind, ref),
+// keyed kind + NUL + ref - shared by every reconciliation list.
+func loadLatestReconExceptions(schema string) (map[string]reconException, error) {
+	latest := map[string]reconException{}
+	er, err := db.DB.Query(fmt.Sprintf(`SELECT DISTINCT ON (mismatch_kind, ref_key) mismatch_kind, ref_key, status, fingerprint, note, changed_by, to_char(changed_at,'YYYY-MM-DD HH24:MI'), attachment
+		FROM %s.reconciliation_exceptions ORDER BY mismatch_kind, ref_key, id DESC`, schema))
+	if err != nil {
+		return nil, err
+	}
+	defer er.Close()
+	for er.Next() {
+		var k, r string
+		var e reconException
+		if err := er.Scan(&k, &r, &e.status, &e.fp, &e.note, &e.by, &e.at, &e.att); err == nil {
+			latest[k+"\x00"+r] = e
+		}
+	}
+	return latest, er.Err()
 }
 
 func round3(f float64) float64 { return math.Round(f*1000) / 1000 }
@@ -319,6 +420,7 @@ func init() {
 			{Key: "order", Label: "Order"},
 			{Key: "invoice", Label: "Invoice"},
 			{Key: "customer", Label: "Customer"},
+			{Key: "sku", Label: "SKU"},
 			{Key: "shipped_qty", Label: "Shipped qty"},
 			{Key: "invoiced_qty", Label: "Invoiced qty"},
 			{Key: "invoiced_amount", Label: "Invoiced", Sensitive: true},
@@ -340,4 +442,76 @@ func init() {
 			return structsToRows(rows)
 		},
 	})
+}
+
+// skuNames is the sorted union of two SKU maps.
+func skuNames(a, b map[string]float64) []string {
+	seen := map[string]bool{}
+	for k := range a {
+		seen[k] = true
+	}
+	for k := range b {
+		seen[k] = true
+	}
+	out := make([]string, 0, len(seen))
+	for k := range seen {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// skuDiffText names the SKUs whose shipped and invoiced quantities differ,
+// e.g. "A-1 (shipped 5, invoiced 3), B-2 (shipped 0, invoiced 2)".
+func skuDiffText(shipped, invoiced map[string]float64) string {
+	var parts []string
+	for _, sku := range skuNames(shipped, invoiced) {
+		s, i := shipped[sku], invoiced[sku]
+		if math.Abs(s-i) > 0.0005 {
+			parts = append(parts, fmt.Sprintf("%s (shipped %g, invoiced %g)", sku, round3(s), round3(i)))
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+// stockOwnershipRows lists the stock-ownership exceptions (Stage 47.5 single
+// owner rule): a location holding more than one owner's stock, and a location
+// with an assigned owner that holds stock of another. Ref is the location.
+func stockOwnershipRows(tenantID string) ([]OrderToCashRow, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	out := []OrderToCashRow{}
+	mixed, err := ListMixedOwnerLocations(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range mixed {
+		out = append(out, OrderToCashRow{Kind: "Stock of more than one owner", Ref: m.LocationCode, Order: m.LocationCode, Sku: strings.Join(m.Owners, ", "),
+			ShippedQty: float64(m.TotalQty), Difference: float64(m.OwnerCount), Owner: "Warehouse",
+			Hint:        "Move one owner's stock to its own location.",
+			fingerprint: fmt.Sprintf("%s|%d", strings.Join(m.Owners, ","), m.TotalQty)})
+	}
+	rs, err := db.DB.Query(fmt.Sprintf(`
+		SELECT w.location_code, w.owner_id, STRING_AGG(DISTINCT b.owner_id, ',' ORDER BY b.owner_id), SUM(b.qty)
+		  FROM %s.warehouse_owner w
+		  JOIN %s.bin_stock_owner b ON b.location_code = w.location_code AND b.qty > 0 AND b.owner_id <> w.owner_id
+		 GROUP BY w.location_code, w.owner_id
+		 ORDER BY w.location_code`, schema, schema))
+	if err != nil {
+		return nil, err
+	}
+	defer rs.Close()
+	for rs.Next() {
+		var loc, owner, others string
+		var qty float64
+		if err := rs.Scan(&loc, &owner, &others, &qty); err != nil {
+			return nil, err
+		}
+		out = append(out, OrderToCashRow{Kind: "Stock not from the owner", Ref: loc, Order: loc, Sku: others,
+			ShippedQty: qty, Owner: "Warehouse", Hint: "Owner is " + owner + ". Move the other stock out.",
+			fingerprint: fmt.Sprintf("%s|%s|%g", owner, others, qty)})
+	}
+	return out, rs.Err()
 }

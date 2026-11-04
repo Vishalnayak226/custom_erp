@@ -125,7 +125,7 @@ func TestStage374BudgetingCreditDunning(t *testing.T) {
 		cleanupIDs(custID, inv1, inv2)
 		defer cleanupIDs(custID, inv1, inv2)
 
-		insert(custID, "Customer", "Active", map[string]interface{}{"code": custID, "name": custID, "status": "Active", "credit_limit": 500.0})
+		insert(custID, "Customer", "Active", map[string]interface{}{"code": custID, "name": custID, "status": "Active", "credit_limit": 500.0, "credit_stop": "Yes"})
 		insert(inv1, "SalesInvoice", "Draft", map[string]interface{}{"code": inv1, "customer": custID, "total_amount": 600})
 		if _, err := PostSalesInvoice(tenantID, inv1, "system"); err == nil {
 			t.Fatalf("expected posting a Rs 600 invoice against a Rs 500 limit to be refused")

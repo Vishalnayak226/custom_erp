@@ -587,6 +587,7 @@ async function addSKUToPOSCart() {
     return;
   }
   if (rows.length === 0) {
+    if (await (await posExtras()).posNamedScan(posTill, term, addResolvedItemToPOSCart)) return;
     errorEl.textContent = `No product matches "${term}". Check the barcode, or search by part of the design no., SKU or product name.`;
     errorEl.classList.remove('hidden');
     return;
@@ -683,6 +684,7 @@ function renderPOSCartTable(skipQuote) {
       <td>
         <div style="font-weight:600;">${cfgEsc(line.name || line.sku)}</div>
         ${line.name && line.name !== line.sku ? `<div style="font-size:11.5px; color:var(--text-muted);">${cfgEsc(line.sku)}</div>` : ''}
+        ${line.namedCell?.() || ''}
         ${posMRPCell(line)}
       </td>
       <td>${posAvailabilityCell(line)}</td>
@@ -1193,7 +1195,8 @@ async function submitPOSCheckoutInner() {
       sale_price: line.unpriced ? line.salePrice : 0,
       mrp: line.mrpPicked ? line.mrp : 0, // Stage 94.6
       barcode: line.barcode || '',
-      scanned: line.scanned || '' // 49.5.6a: checked on POS > Offline Sales
+      scanned: line.scanned || '', // 49.5.6a: checked on POS > Offline Sales
+      ...line.namedFields?.()
     }));
     const customerId = document.getElementById('pos-customer').value.trim();
     // Stage 30.2.5: the redemption travels with the sale and is burned

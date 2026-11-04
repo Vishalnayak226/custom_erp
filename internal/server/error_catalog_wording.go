@@ -20,6 +20,8 @@ package server
 // When the spreadsheet itself carries the new wording, remove the row here in
 // the same change (same rule as error_catalog_extensions.go).
 var catalogWording = []struct{ Code, UserMessage, UserAction string }{
+	// Reports: also what a report on screen says now, not only an export (157.4b).
+	{Code: "REPORT-0161", UserMessage: "This report is too large to show.", UserAction: "Narrow the filters, then run it again."},
 	// Goods receipt.
 	{Code: "GOODSR-0089", UserAction: "Lower the accepted quantity to no more than was received, then save again."},
 	{Code: "GOODSR-0090", UserAction: "Choose a rejection reason on each line with a rejected quantity, then save again."},

@@ -44,6 +44,9 @@ func effectiveBinMixRule(tx *sql.Tx, schema, binCode string) (string, error) {
 // binCode when the bin's mix rule or a home-bin reservation forbids it. The
 // message names both items. Read-only; callers hold their own transaction.
 func enforceBinMixRule(tx *sql.Tx, schema, binCode, sku, batchNo string) error {
+	if err := enforceReceiptsBlock(tx, schema, binCode); err != nil { // 146.3.14
+		return err
+	}
 	rule, err := effectiveBinMixRule(tx, schema, binCode)
 	if err != nil {
 		return err
@@ -174,6 +177,9 @@ func homeBinsFor(tenantID, sku, locationCode string, qty int, batchNo string) ([
 				r.Reason = "no room"
 			} else if err := enforceBinMixRule(tx, schema, r.BinCode, sku, batchNo); err != nil {
 				r.Reason = "mix rule"
+				if ve, ok := err.(*ValidationError); ok && ve.Code == "WMS-1313" {
+					r.Reason = "closed to receipts"
+				}
 			}
 		}
 		r.Usable = r.Reason == ""

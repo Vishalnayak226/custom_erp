@@ -73,6 +73,9 @@ func ConvertRequisitionToOrder(tenantID, requisitionID, target, storeCode, finan
 	if err := json.Unmarshal([]byte(dataStr), &prData); err != nil {
 		return "", err
 	}
+	if reqHasLines(prData) { // 148.14: lines go through Combine; a one-shot RFQ or PO would lose them
+		return "", reqBad("PURCHA-5016", "requisition %s has item lines: use Combine open requests for the vendor", requisitionID)
+	}
 	description, _ := prData["description"].(string)
 	quantity, _ := prData["quantity"].(float64)
 	totalAmount, _ := prData["total_amount"].(float64)

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -100,10 +101,6 @@ func GenerateInvoiceForPackage(tenantID, packageID, userID string, opts PackInvo
 	if ref, _ := orderFieldString(schema, p.OrderID, "customer_reference"); ref != "" {
 		invoiceData["customer_reference"] = ref // Stage 73.2.9: the customer's PO, onto its invoice
 	}
-	encoded, err := json.Marshal(invoiceData)
-	if err != nil {
-		return "", err
-	}
 
 	// Both writes in one transaction. A package marked Invoiced with no
 	// invoice, or an invoice against a package still open for edits, are both
@@ -114,6 +111,13 @@ func GenerateInvoiceForPackage(tenantID, packageID, userID string, opts PackInvo
 	}
 	defer tx.Rollback()
 	if err := db.SetSearchPath(tx, schema); err != nil {
+		return "", err
+	}
+	if err := addPackageShipping(tx, schema, p.OrderID, invoiceData, bill); err != nil { // Stage 148.2
+		return "", err
+	}
+	encoded, err := json.Marshal(invoiceData)
+	if err != nil {
 		return "", err
 	}
 	if _, err := tx.Exec(fmt.Sprintf(
@@ -350,4 +354,52 @@ func shipToStateCode(schema, orderID string) (string, error) {
 		}
 	}
 	return "", nil
+}
+
+// addPackageShipping puts the order's shipping charge on a package invoice
+// (Stage 148.2): the first package invoice of the order only, once - the order
+// row is locked so two packages invoiced together cannot both take it, and an
+// order whose charge is already on a live invoice (the order's own, or an
+// earlier package's) adds nothing. GST is the order invoice's treatment: the
+// charge is GST-inclusive, taxed at the package lines' rate, or exempt when
+// the lines carry no GST.
+func addPackageShipping(tx *sql.Tx, schema, orderID string, invoiceData map[string]interface{}, bill *packageBill) error {
+	if strings.TrimSpace(orderID) == "" {
+		return nil
+	}
+	var raw sql.NullString
+	err := tx.QueryRow(fmt.Sprintf(`SELECT data->>'shipping_charge' FROM %s.documents WHERE doctype = 'SalesOrder' AND id = $1 AND deleted_at IS NULL FOR UPDATE`, schema), orderID).Scan(&raw)
+	if err == sql.ErrNoRows {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	charge, perr := strconv.ParseFloat(strings.TrimSpace(raw.String), 64)
+	shipping := round2(charge)
+	if perr != nil || shipping <= 0 {
+		return nil
+	}
+	var billed bool
+	if err := tx.QueryRow(fmt.Sprintf(`
+		SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'SalesInvoice' AND deleted_at IS NULL AND status <> 'Cancelled'
+		   AND data->>'sales_order_id' = $1
+		   AND CASE WHEN jsonb_typeof(data->'shipping_charge') = 'number' THEN (data->>'shipping_charge')::numeric ELSE 0 END > 0)`, schema), orderID).Scan(&billed); err != nil {
+		return err
+	}
+	if billed {
+		return nil
+	}
+	b := bill.breakdown
+	if b.TaxableAmount > 0 && b.GSTRate > 0 {
+		invoiceData["shipping_gst_rate"] = b.GSTRate
+		b.TotalTax = round2(b.TotalTax + shipping - shipping/(1+b.GSTRate/100))
+	} else {
+		b.ExemptAmount = round2(b.ExemptAmount + shipping)
+	}
+	a := reconcileInvoiceAmounts(b, round2(bill.amounts.Total+shipping), bill.interstate)
+	invoiceData["shipping_charge"] = shipping
+	invoiceData["total_amount"], invoiceData["taxable_amount"], invoiceData["non_taxable"] = a.Total, a.Taxable, a.NonTaxable
+	invoiceData["cgst"], invoiceData["sgst"], invoiceData["igst"], invoiceData["total_tax"] = a.CGST, a.SGST, a.IGST, a.TotalTax
+	return nil
 }

@@ -16935,6 +16935,26 @@
         "sensitive": true
       }
     ],
+    "Batch": [
+      {
+        "doctype": "Batch",
+        "field": "receipt_cost_paise",
+        "category": "inventory.cost",
+        "can_read": false,
+        "can_write": false,
+        "reason": "What a unit of this lot cost - reveals its margin",
+        "sensitive": true
+      },
+      {
+        "doctype": "Batch",
+        "field": "receipt_cost_qty",
+        "category": "inventory.cost",
+        "can_read": false,
+        "can_write": false,
+        "reason": "The quantity behind this lot's cost",
+        "sensitive": true
+      }
+    ],
     "Customer": [
       {
         "doctype": "Customer",
@@ -16992,6 +17012,17 @@
         "can_read": false,
         "can_write": false,
         "reason": "Salary advance - individual financial position",
+        "sensitive": true
+      }
+    ],
+    "FulfillmentTask": [
+      {
+        "doctype": "FulfillmentTask",
+        "field": "sale_costs",
+        "category": "inventory.cost",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Cost of each named piece shipped - reveals margin on the sale",
         "sensitive": true
       }
     ],
@@ -17054,6 +17085,17 @@
         "can_read": false,
         "can_write": false,
         "reason": "Import hook token - system-generated, never hand-entered",
+        "sensitive": true
+      }
+    ],
+    "POSCart": [
+      {
+        "doctype": "POSCart",
+        "field": "sale_costs",
+        "category": "inventory.cost",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Cost of each line sold - reveals margin on every sale",
         "sensitive": true
       }
     ],
@@ -17200,6 +17242,17 @@
         "sensitive": true
       }
     ],
+    "SalesInvoice": [
+      {
+        "doctype": "SalesInvoice",
+        "field": "sale_costs",
+        "category": "inventory.cost",
+        "can_read": false,
+        "can_write": false,
+        "reason": "Cost of each line sold - reveals margin on every sale",
+        "sensitive": true
+      }
+    ],
     "Salesman": [
       {
         "doctype": "Salesman",
@@ -17208,6 +17261,17 @@
         "can_read": false,
         "can_write": false,
         "reason": "Salesman's own mobile number - shown only to the roles that manage salesmen",
+        "sensitive": true
+      }
+    ],
+    "SerialNumber": [
+      {
+        "doctype": "SerialNumber",
+        "field": "receipt_cost_paise",
+        "category": "inventory.cost",
+        "can_read": false,
+        "can_write": false,
+        "reason": "What this piece cost - reveals its margin",
         "sensitive": true
       }
     ],
@@ -17228,6 +17292,26 @@
         "can_read": false,
         "can_write": false,
         "reason": "Vendor payment account - payment-diversion fraud target",
+        "sensitive": true
+      }
+    ],
+    "VendorChange": [
+      {
+        "doctype": "VendorChange",
+        "field": "new_values",
+        "category": "finance.bank",
+        "can_read": false,
+        "can_write": false,
+        "reason": "May hold a vendor's new payment account",
+        "sensitive": true
+      },
+      {
+        "doctype": "VendorChange",
+        "field": "old_values",
+        "category": "finance.bank",
+        "can_read": false,
+        "can_write": false,
+        "reason": "May hold a vendor's old payment account",
         "sensitive": true
       }
     ],
@@ -17476,6 +17560,11 @@
         {
           "key": "costed",
           "label": "Costed",
+          "sensitive": false
+        },
+        {
+          "key": "rate_source",
+          "label": "Rate From",
           "sensitive": false
         }
       ],
@@ -19839,6 +19928,91 @@
       "number": "R3064"
     },
     {
+      "id": "expected-arrivals",
+      "label": "Expected arrivals",
+      "category": "Procurement",
+      "module_key": "procurement",
+      "columns": [
+        {
+          "key": "due",
+          "label": "Due",
+          "sensitive": false
+        },
+        {
+          "key": "store",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "state",
+          "label": "State",
+          "sensitive": false
+        },
+        {
+          "key": "kind",
+          "label": "Kind",
+          "sensitive": false
+        },
+        {
+          "key": "doc_no",
+          "label": "No.",
+          "sensitive": false,
+          "type": "doclink"
+        },
+        {
+          "key": "line_no",
+          "label": "Line",
+          "sensitive": false
+        },
+        {
+          "key": "from",
+          "label": "Vendor / from",
+          "sensitive": false
+        },
+        {
+          "key": "sku",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "sensitive": false
+        },
+        {
+          "key": "due_qty",
+          "label": "Due qty",
+          "sensitive": false
+        },
+        {
+          "key": "pending",
+          "label": "Still to come",
+          "sensitive": false
+        },
+        {
+          "key": "confirmation",
+          "label": "Vendor confirmation",
+          "sensitive": false
+        },
+        {
+          "key": "confirmation_no",
+          "label": "Confirmation no.",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "as_of",
+          "label": "As of",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R9045"
+    },
+    {
       "id": "profit-and-loss",
       "label": "Profit \u0026 Loss",
       "category": "Finance",
@@ -20256,6 +20430,60 @@
       "number": "R5064"
     },
     {
+      "id": "gate-entries-no-grn",
+      "label": "Gate entries with no goods receipt",
+      "category": "Procurement",
+      "module_key": "procurement",
+      "columns": [
+        {
+          "key": "gate_entry",
+          "label": "Gate entry",
+          "sensitive": false
+        },
+        {
+          "key": "vendor",
+          "label": "Vendor",
+          "sensitive": false
+        },
+        {
+          "key": "po",
+          "label": "PO",
+          "sensitive": false
+        },
+        {
+          "key": "location",
+          "label": "Location",
+          "sensitive": false
+        },
+        {
+          "key": "parcels",
+          "label": "Parcels",
+          "sensitive": false
+        },
+        {
+          "key": "arrived",
+          "label": "Arrived",
+          "sensitive": false
+        },
+        {
+          "key": "hours",
+          "label": "Hours waiting",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "hours",
+          "label": "After hours",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R2049"
+    },
+    {
       "id": "gl-journal",
       "label": "General Journal (who posted what)",
       "category": "Finance",
@@ -20502,6 +20730,53 @@
       "has_drill_down": true,
       "has_control_totals": false,
       "number": "R5068"
+    },
+    {
+      "id": "goods-before-po",
+      "label": "Goods received before PO",
+      "category": "Procurement",
+      "module_key": "procurement",
+      "columns": [
+        {
+          "key": "grn",
+          "label": "Receipt",
+          "sensitive": false
+        },
+        {
+          "key": "vendor",
+          "label": "Vendor",
+          "sensitive": false
+        },
+        {
+          "key": "reason",
+          "label": "Reason",
+          "sensitive": false
+        },
+        {
+          "key": "due",
+          "label": "PO due by",
+          "sensitive": false
+        },
+        {
+          "key": "days_overdue",
+          "label": "Days overdue",
+          "sensitive": false
+        },
+        {
+          "key": "retro_po",
+          "label": "Retro PO",
+          "sensitive": false
+        },
+        {
+          "key": "state",
+          "label": "State",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R9055"
     },
     {
       "id": "grn-line-register",
@@ -22929,6 +23204,11 @@
           "sensitive": false
         },
         {
+          "key": "sku",
+          "label": "SKU",
+          "sensitive": false
+        },
+        {
           "key": "shipped_qty",
           "label": "Shipped qty",
           "sensitive": false
@@ -23102,6 +23382,75 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "number": "R7036"
+    },
+    {
+      "id": "pim-attribute-fill-rate",
+      "label": "Attribute fill rate",
+      "category": "PIM",
+      "module_key": "pim",
+      "columns": [
+        {
+          "key": "attribute",
+          "label": "Attribute",
+          "sensitive": false
+        },
+        {
+          "key": "label",
+          "label": "Label",
+          "sensitive": false
+        },
+        {
+          "key": "items",
+          "label": "Items",
+          "sensitive": false
+        },
+        {
+          "key": "filled",
+          "label": "Filled",
+          "sensitive": false
+        },
+        {
+          "key": "missing",
+          "label": "Missing",
+          "sensitive": false
+        },
+        {
+          "key": "fill_pct",
+          "label": "Filled %",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R9036"
+    },
+    {
+      "id": "pim-brand-vocabulary",
+      "label": "Brand vocabulary check",
+      "category": "PIM",
+      "module_key": "pim",
+      "columns": [
+        {
+          "key": "brand_value",
+          "label": "Brand on items",
+          "sensitive": false
+        },
+        {
+          "key": "items",
+          "label": "Items",
+          "sensitive": false
+        },
+        {
+          "key": "suggestion",
+          "label": "Brand master spelling",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R9037"
     },
     {
       "id": "pim-task-workload",
@@ -23491,6 +23840,85 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "number": "R7040"
+    },
+    {
+      "id": "po-overdue-lines",
+      "label": "Overdue PO lines",
+      "category": "Procurement",
+      "module_key": "procurement",
+      "columns": [
+        {
+          "key": "po",
+          "label": "PO",
+          "sensitive": false
+        },
+        {
+          "key": "po_id",
+          "label": "PO id",
+          "sensitive": false
+        },
+        {
+          "key": "line_no",
+          "label": "Line",
+          "sensitive": false
+        },
+        {
+          "key": "vendor",
+          "label": "Vendor",
+          "sensitive": false
+        },
+        {
+          "key": "sku",
+          "label": "Item",
+          "sensitive": false
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "sensitive": false
+        },
+        {
+          "key": "due",
+          "label": "Due",
+          "sensitive": false
+        },
+        {
+          "key": "days_late",
+          "label": "Days late",
+          "sensitive": false
+        },
+        {
+          "key": "due_qty",
+          "label": "Due qty",
+          "sensitive": false
+        },
+        {
+          "key": "pending",
+          "label": "Still to come",
+          "sensitive": false
+        },
+        {
+          "key": "confirmation_no",
+          "label": "Vendor confirmation",
+          "sensitive": false
+        },
+        {
+          "key": "confirmation_date",
+          "label": "Confirmed on",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "as_of",
+          "label": "As of",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R2053"
     },
     {
       "id": "po-delivery-and-terms",
@@ -24092,6 +24520,43 @@
       "has_drill_down": true,
       "has_control_totals": false,
       "number": "R5073"
+    },
+    {
+      "id": "vendor-invoices-before-po",
+      "label": "Vendor invoices dated before their PO",
+      "category": "Procurement",
+      "module_key": "procurement",
+      "columns": [
+        {
+          "key": "invoice",
+          "label": "Invoice",
+          "sensitive": false
+        },
+        {
+          "key": "vendor",
+          "label": "Vendor",
+          "sensitive": false
+        },
+        {
+          "key": "po",
+          "label": "PO",
+          "sensitive": false
+        },
+        {
+          "key": "invoice_date",
+          "label": "Invoice date",
+          "sensitive": false
+        },
+        {
+          "key": "po_date",
+          "label": "PO date",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R2050"
     },
     {
       "id": "rejections-by-reason",
@@ -45692,13 +46157,8 @@
           "sensitive": false
         },
         {
-          "key": "available",
-          "label": "Available",
-          "sensitive": false
-        },
-        {
-          "key": "committed",
-          "label": "Committed",
+          "key": "available_to_sell",
+          "label": "Available to sell",
           "sensitive": false
         },
         {
@@ -45707,8 +46167,43 @@
           "sensitive": false
         },
         {
+          "key": "hold_qty",
+          "label": "Held",
+          "sensitive": false
+        },
+        {
+          "key": "available",
+          "label": "Base available",
+          "sensitive": false
+        },
+        {
+          "key": "committed",
+          "label": "Committed",
+          "sensitive": false
+        },
+        {
           "key": "safety_stock",
           "label": "Safety Stock",
+          "sensitive": false
+        },
+        {
+          "key": "blocked",
+          "label": "Blocked",
+          "sensitive": false
+        },
+        {
+          "key": "qc_hold",
+          "label": "QC Hold",
+          "sensitive": false
+        },
+        {
+          "key": "damaged",
+          "label": "Damaged",
+          "sensitive": false
+        },
+        {
+          "key": "channel_buffer",
+          "label": "Channel Buffer",
           "sensitive": false
         }
       ],
@@ -48567,6 +49062,83 @@
       "has_drill_down": false,
       "has_control_totals": false,
       "number": "R9033"
+    },
+    {
+      "id": "vendor-scorecard",
+      "label": "Vendor scorecard",
+      "category": "Procurement",
+      "module_key": "procurement",
+      "columns": [
+        {
+          "key": "vendor",
+          "label": "Vendor",
+          "sensitive": false
+        },
+        {
+          "key": "orders",
+          "label": "Orders",
+          "sensitive": false
+        },
+        {
+          "key": "receipts",
+          "label": "Receipts",
+          "sensitive": false
+        },
+        {
+          "key": "on_time",
+          "label": "On time",
+          "sensitive": false
+        },
+        {
+          "key": "fill",
+          "label": "Fill rate",
+          "sensitive": false
+        },
+        {
+          "key": "qc_reject",
+          "label": "QC reject",
+          "sensitive": false
+        },
+        {
+          "key": "price_variance",
+          "label": "Price variance",
+          "sensitive": false
+        },
+        {
+          "key": "bills",
+          "label": "Bills",
+          "sensitive": false
+        },
+        {
+          "key": "mismatches",
+          "label": "Bill mismatches",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "vendor",
+          "label": "Vendor",
+          "type": "link",
+          "options": "Vendor",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "number": "R9040"
     },
     {
       "id": "3pl-storage-billing",

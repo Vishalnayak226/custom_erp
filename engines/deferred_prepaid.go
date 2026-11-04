@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -445,6 +446,9 @@ func ValidatePriceListVersionDocument(tenantID string, payload map[string]interf
 	if effectiveFrom != "" && effectiveTo != "" && effectiveTo < effectiveFrom {
 		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Effective To", Message: "effective_to cannot be before effective_from"}
 	}
+	if strings.TrimSpace(pimString(payload["vendor"])) != "" { // Stage 148.6: a vendor agreement
+		return ValidateVendorAgreementRows(payload)
+	}
 	return nil
 }
 
@@ -510,7 +514,7 @@ func ResolvePriceForSKU(tenantID, priceListCode, sku, asOfDate string) (price fl
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT data->>'items' FROM %s.documents
 		WHERE doctype = 'PriceListVersion' AND deleted_at IS NULL AND status IN ('Approved', 'Superseded')
-		  AND data->>'price_list_code' = $1
+		  AND data->>'price_list_code' = $1 AND COALESCE(data->>'vendor','') = ''
 		  AND data->>'effective_from' <= $2
 		  AND (COALESCE(data->>'effective_to','') = '' OR data->>'effective_to' >= $2)
 		ORDER BY data->>'effective_from' DESC LIMIT 1`, schema),

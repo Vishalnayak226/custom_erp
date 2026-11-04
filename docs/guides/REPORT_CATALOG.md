@@ -7,7 +7,7 @@
 > **Generated 2026-09-10.** This page is produced from `engines`' report registry (`report_definitions.go`), for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-Every report reachable from **Sales & Marketplace -> Reports**. There are **432**
+Every report reachable from **Sales & Marketplace -> Reports**. There are **440**
 across **26** categories.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -38,9 +38,9 @@ table has the same shape whoever runs it.
 - [Manufacturing](#manufacturing) - 21 reports
 - [Master Data & Audit](#master-data--audit) - 11 reports
 - [OMS](#oms) - 25 reports
-- [PIM](#pim) - 4 reports
+- [PIM](#pim) - 6 reports
 - [PIM / PIMS](#pim--pims) - 16 reports
-- [Procurement](#procurement) - 18 reports
+- [Procurement](#procurement) - 24 reports
 - [Procurement & GRN](#procurement--grn) - 27 reports
 - [Sales](#sales) - 11 reports
 - [Sales & POS](#sales--pos) - 22 reports
@@ -1694,7 +1694,7 @@ table has the same shape whoever runs it.
 
 - **Include dismissed** (`all`) - select, optional, one of: No,Yes
 
-**Columns:** Mismatch · Order · Invoice · Customer · Shipped qty · Invoiced qty · Invoiced *(sensitive)* · Paid *(sensitive)* · Difference · Owner · What it suggests · Exception · Note
+**Columns:** Mismatch · Order · Invoice · Customer · SKU · Shipped qty · Invoiced qty · Invoiced *(sensitive)* · Paid *(sensitive)* · Difference · Owner · What it suggests · Exception · Note
 
 **Drill-down:** no.
 
@@ -2294,7 +2294,7 @@ table has the same shape whoever runs it.
 
 **Parameters:** none - it runs as soon as you pick it.
 
-**Columns:** SKU · Location · On Hand · Available · Committed · Reserved · Safety Stock
+**Columns:** SKU · Location · On Hand · Available to sell · Reserved · Held · Base available · Committed · Safety Stock · Blocked · QC Hold · Damaged · Channel Buffer
 
 **Drill-down:** no.
 
@@ -2426,7 +2426,7 @@ table has the same shape whoever runs it.
 
 **Parameters:** none - it runs as soon as you pick it.
 
-**Columns:** SKU · Qty On Hand · Unit Cost (Avg) *(sensitive)* · Total Value *(sensitive)* · Costed
+**Columns:** SKU · Qty On Hand · Unit Cost (Avg) *(sensitive)* · Total Value *(sensitive)* · Costed · Rate From
 
 **Drill-down:** no.
 
@@ -3638,6 +3638,26 @@ table has the same shape whoever runs it.
 
 ## PIM
 
+### Attribute fill rate
+
+**Report id:** `pim-attribute-fill-rate`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Attribute · Label · Items · Filled · Missing · Filled %
+
+**Drill-down:** no.
+
+### Brand vocabulary check
+
+**Report id:** `pim-brand-vocabulary`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Brand on items · Items · Brand master spelling
+
+**Drill-down:** no.
+
 ### PIM Overdue Tasks
 
 **Report id:** `pim-task-overdue`
@@ -3883,6 +3903,18 @@ table has the same shape whoever runs it.
 
 ## Procurement
 
+### Expected arrivals
+
+**Report id:** `expected-arrivals`
+
+**Parameters:**
+
+- **As of** (`as_of`) - date, optional
+
+**Columns:** Due · Store · State · Kind · No. · Line · Vendor / from · Item · Name · Due qty · Still to come · Vendor confirmation · Confirmation no.
+
+**Drill-down:** no.
+
 ### GRN Corrections Log
 
 **Report id:** `grn-corrections`
@@ -3933,6 +3965,18 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Gate entries with no goods receipt
+
+**Report id:** `gate-entries-no-grn`
+
+**Parameters:**
+
+- **After hours** (`hours`) - text, optional
+
+**Columns:** Gate entry · Vendor · PO · Location · Parcels · Arrived · Hours waiting
+
+**Drill-down:** no.
+
 ### Goods Receipts Waiting
 
 **Report id:** `grn-waiting`
@@ -3963,6 +4007,16 @@ table has the same shape whoever runs it.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Goods receipt · Vendor · Posted · Days · Vendor invoice no.
+
+**Drill-down:** no.
+
+### Goods received before PO
+
+**Report id:** `goods-before-po`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Receipt · Vendor · Reason · PO due by · Days overdue · Retro PO · State
 
 **Drill-down:** no.
 
@@ -4012,6 +4066,18 @@ table has the same shape whoever runs it.
 **Columns:** Age Bucket · PO Count · Committed Amount *(sensitive)*
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
+
+### Overdue PO lines
+
+**Report id:** `po-overdue-lines`
+
+**Parameters:**
+
+- **As of** (`as_of`) - date, optional
+
+**Columns:** PO · PO id · Line · Vendor · Item · Name · Due · Days late · Due qty · Still to come · Vendor confirmation · Confirmed on
+
+**Drill-down:** no.
 
 ### PO expected delivery and terms
 
@@ -4102,6 +4168,30 @@ table has the same shape whoever runs it.
 - **To** (`to`) - date, optional
 
 **Columns:** Goods receipt · Received · Vendor · Store · Invoice no · Invoice date · Challan no · Challan date · LR / AWB · Vehicle · Transporter · Packages
+
+**Drill-down:** no.
+
+### Vendor invoices dated before their PO
+
+**Report id:** `vendor-invoices-before-po`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Invoice · Vendor · PO · Invoice date · PO date
+
+**Drill-down:** no.
+
+### Vendor scorecard
+
+**Report id:** `vendor-scorecard`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Vendor** (`vendor`) - link, optional, one of: Vendor
+
+**Columns:** Vendor · Orders · Receipts · On time · Fill rate · QC reject · Price variance · Bills · Bill mismatches
 
 **Drill-down:** no.
 

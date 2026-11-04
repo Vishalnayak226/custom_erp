@@ -150,6 +150,7 @@ async function renderManufacturingOrdersTab(container) {
   `;
   // Stage 55.12: what each BOM makes, and where each order stands.
   const bomOutput = Object.fromEntries(boms.map(b => [b.code || b.id, b.parent_item || '']));
+  mfgBomOutput = bomOutput;
   html += orders.length === 0
     ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No production orders yet.</td></tr>`
     : orders.map(o => `
@@ -277,6 +278,32 @@ function renderProductionOrderActions(order) {
   return '';
 }
 
+// Stage 148.1: the codes and lot of what this batch made, so each carries its own
+// cost. Asked only of an item that keeps them; blank posts as before. null = stop.
+let mfgBomOutput = {};
+async function askOutputPieces(orderId) {
+  const orderRes = await apiFetch(`/api/v1/doc/ProductionOrder/${encodeURIComponent(orderId)}`);
+  const order = orderRes && orderRes.ok ? await orderRes.json() : {};
+  const sku = mfgBomOutput[order.bom_id];
+  if (!sku) return {};
+  const found = await apiFetch(`/api/v1/doc/Item?code=${encodeURIComponent(sku)}&limit=1`);
+  const items = found && found.ok ? await found.json() : [];
+  const mode = (items[0] && items[0].tracking_mode) || '';
+  const out = {};
+  if (mode.includes('Serial')) {
+    const codes = await showCustomPrompt(`Piece codes of ${sku}, comma between:`, '', 'Piece Codes');
+    if (codes === null) return null;
+    const list = codes.split(',').map(c => c.trim()).filter(Boolean);
+    if (list.length) out.serial_nos = list;
+  }
+  if (mode.includes('Batch')) {
+    const lot = await showCustomPrompt(`Lot of ${sku}:`, '', 'Lot');
+    if (lot === null) return null;
+    if (lot.trim()) out.batch_no = lot.trim();
+  }
+  return out;
+}
+
 async function reportPartialProductionCompletion(orderId) {
   const qtyStr = await showCustomPrompt('Quantity to report as completed in this batch:', '', 'Report Partial Completion', 'number');
   if (qtyStr === null || qtyStr === '') return;
@@ -285,9 +312,11 @@ async function reportPartialProductionCompletion(orderId) {
     await showCustomAlert('Enter a positive quantity.', 'Invalid Quantity');
     return;
   }
+  const output = await askOutputPieces(orderId);
+  if (output === null) return;
   const send = () => apiFetch('/api/v1/manufacturing/partial-complete', {
     method: 'POST',
-    body: JSON.stringify({ order_id: orderId, qty })
+    body: JSON.stringify({ order_id: orderId, qty, ...output })
   });
   let res = await send();
   if (res && !res.ok) {
@@ -647,20 +676,22 @@ async function issueProductionMaterial(orderId) {
   renderView('manufacturing');
 }
 
-async function completeProductionOrder(orderId) {
+async function completeProductionOrder(orderId, named) {
   const confirmed = await showCustomConfirm('This will receive the finished goods into inventory and close the order. Continue?', 'Complete Production Order');
   if (!confirmed) return;
+  const output = named || await askOutputPieces(orderId);
+  if (output === null) return;
 
   const res = await apiFetch('/api/v1/manufacturing/complete', {
     method: 'POST',
-    body: JSON.stringify({ order_id: orderId })
+    body: JSON.stringify({ order_id: orderId, ...output })
   });
   if (!res) return;
   if (!res.ok) {
     // Stage 26.9.2 (MFG-0276): the BOM changed after material was issued -
     // offer to accept the change and retry, rather than a dead end.
     const next = await acceptBOMChange(orderId, res);
-    if (next === 'retry') return completeProductionOrder(orderId);
+    if (next === 'retry') return completeProductionOrder(orderId, output);
     if (next === 'stop') return;
     await showApiError(res, 'Failed to complete production order.', 'Completion Failed');
     return;

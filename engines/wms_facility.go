@@ -190,7 +190,7 @@ func CopyFacilityConfig(tenantID, sourceLocation, targetLocation, userID string)
 	}
 	var existingBins int
 	if err := db.DB.QueryRow(fmt.Sprintf(
-		`SELECT COUNT(*) FROM %s.documents WHERE doctype = 'Bin' AND data->>'location' = $1`, schema), targetLocation).
+		`SELECT COUNT(*) FROM %s.documents WHERE doctype = 'Bin' AND deleted_at IS NULL AND data->>'location' = $1`, schema), targetLocation).
 		Scan(&existingBins); err != nil {
 		return 0, 0, err
 	}

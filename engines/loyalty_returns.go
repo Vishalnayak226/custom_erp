@@ -33,6 +33,12 @@ const LoyaltyTxnReversal = "Reversal"
 // refunds already reversed, so a bill returned in pieces reverses exactly what
 // it earned by the time the last piece comes back.
 func reverseEarnedPointsTx(tx *sql.Tx, schema, customerID, cartID, refundRequestID string, saleMoneyPaise int64) (int, error) {
+	return reverseEarnedPointsDocTx(tx, schema, "POSCart", customerID, cartID, refundRequestID, saleMoneyPaise)
+}
+
+// reverseEarnedPointsDocTx is the same for any earning document: the till bill
+// (POSCart) or, Stage 146.2.10, a delivered online order (SalesOrder).
+func reverseEarnedPointsDocTx(tx *sql.Tx, schema, doctype, customerID, cartID, refundRequestID string, saleMoneyPaise int64) (int, error) {
 	if customerID == "" || saleMoneyPaise <= 0 {
 		return 0, nil
 	}
@@ -42,8 +48,8 @@ func reverseEarnedPointsTx(tx *sql.Tx, schema, customerID, cartID, refundRequest
 	var earned int64
 	if err := tx.QueryRow(fmt.Sprintf(`
 		SELECT COALESCE(SUM(points), 0) FROM %s.loyalty_point_ledger
-		WHERE customer_id = $1 AND transaction_type = 'Earn' AND reference_doctype = 'POSCart' AND reference_id = $2`, schema),
-		customerID, cartID).Scan(&earned); err != nil {
+		WHERE customer_id = $1 AND transaction_type = 'Earn' AND reference_doctype = $3 AND reference_id = $2`, schema),
+		customerID, cartID, doctype).Scan(&earned); err != nil {
 		return 0, err
 	}
 	if earned <= 0 {
@@ -81,9 +87,9 @@ func reverseEarnedPointsTx(tx *sql.Tx, schema, customerID, cartID, refundRequest
 	if _, err := tx.Exec(fmt.Sprintf(`
 		INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id, pending_until, location)
 		VALUES ($1::text, $2, $3, 'RefundRequest', $4, (SELECT MAX(pending_until) FROM %s.loyalty_point_ledger
-		  WHERE customer_id = $1::text AND transaction_type = 'Earn' AND reference_doctype = 'POSCart' AND reference_id = $5 AND pending_until > LOCALTIMESTAMP),
-		  (SELECT NULLIF(data->>'location','') FROM %s.documents WHERE id = $5::text AND doctype = 'POSCart'))`, schema, schema, schema),
-		customerID, LoyaltyTxnReversal, reverse, refundRequestID, cartID); err != nil {
+		  WHERE customer_id = $1::text AND transaction_type = 'Earn' AND reference_doctype = $6 AND reference_id = $5 AND pending_until > LOCALTIMESTAMP),
+		  (SELECT NULLIF(data->>'location','') FROM %s.documents WHERE id = $5::text AND doctype = $6::text))`, schema, schema, schema),
+		customerID, LoyaltyTxnReversal, reverse, refundRequestID, cartID, doctype); err != nil {
 		return 0, err
 	}
 	return reverse, nil

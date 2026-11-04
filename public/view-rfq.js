@@ -292,6 +292,7 @@ async function renderRFQDetail(container, rfqId, rfqRow) {
         <tr><td>Payment terms</td>${quotes.map(q => `<td class="num">${esc(q.payment_terms || '—')}</td>`).join('')}</tr>
         <tr><td>Valid until</td>${quotes.map(q => `<td class="num">${esc(q.valid_until || '—')}${q.expired ? ' <span class="badge badge-danger">expired</span>' : ''}</td>`).join('')}</tr>
         <tr><td>Lines quoted</td>${quotes.map(q => `<td class="num">${q.lines_quoted}/${lines.length}${q.complete ? '' : ' <span class="badge badge-warning">partial</span>'}</td>`).join('')}</tr>
+        <tr><td>Track record</td>${quotes.map(q => { const s = q.scorecard, p = x => x == null ? 'No data' : `${x}%`; return `<td class="num">${s ? `On time ${p(s.on_time_pct)} · Fill ${p(s.fill_pct)} · QC reject ${p(s.qc_reject_pct)}<div style="font-size: 11.5px;">Price ${s.price_variance_pct == null ? 'No data' : `${s.price_variance_pct > 0 ? '+' : ''}${s.price_variance_pct}%`} · Bill holds ${s.bill_mismatches}</div>` : '—'}</td>`; }).join('')}</tr>
         ${!cmp.awarded_po_id ? `<tr><td></td>${quotes.map(q => `<td class="num">${q.expired ? '' : `<button class="action-btn" ${actionAttrs('awardRFQQuote', [rfqId, q.quote_id])}>Award</button>`}</td>`).join('')}</tr>` : ''}
       </tbody></table>`;
 

@@ -54,7 +54,9 @@ func rejectionsByReasonReport(tenantID string, params map[string]string) ([]map[
 	if err != nil {
 		return nil, err
 	}
+	read := 0
 	for rows.Next() {
+		read++
 		var id, dataStr string
 		if rows.Scan(&id, &dataStr) != nil {
 			continue
@@ -74,6 +76,9 @@ func rejectionsByReasonReport(tenantID string, params map[string]string) ([]map[
 		}
 	}
 	rows.Close()
+	if read == 20000 {
+		return nil, reportReadStopped(read) // 157.4b: this folds, so a cut read is a wrong total
+	}
 	args = nil
 	where = grnDateFilter("created_at", params, &args)
 	rows, err = db.DB.Query(fmt.Sprintf(`SELECT id, data FROM %s.documents WHERE doctype = 'PurchaseReturn' AND deleted_at IS NULL AND status <> 'Cancelled' %s LIMIT 20000`, schema, where), args...)
@@ -81,7 +86,9 @@ func rejectionsByReasonReport(tenantID string, params map[string]string) ([]map[
 		return nil, err
 	}
 	vendorWanted := strings.TrimSpace(params["vendor"])
+	read = 0
 	for rows.Next() {
+		read++
 		var id, dataStr string
 		if rows.Scan(&id, &dataStr) != nil {
 			continue
@@ -103,6 +110,9 @@ func rejectionsByReasonReport(tenantID string, params map[string]string) ([]map[
 		add(key{"Returned to vendor", strField(data, "reason_code"), strField(data, "reason"), vendor}, firstNonEmpty(strField(data, "code"), id), qty)
 	}
 	rows.Close()
+	if read == 20000 {
+		return nil, reportReadStopped(read) // 157.4b
+	}
 	out := []map[string]interface{}{}
 	for k, a := range groups {
 		docs := make([]string, 0, len(a.docs))
@@ -113,6 +123,16 @@ func rejectionsByReasonReport(tenantID string, params map[string]string) ([]map[
 		out = append(out, map[string]interface{}{"kind": k.kind, "reason_code": k.code, "reason": k.reason, "vendor": k.vendor,
 			"documents": strings.Join(docs, ", "), "qty": round2(a.qty)})
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i]["qty"].(float64) > out[j]["qty"].(float64) })
+	sort.Slice(out, func(i, j int) bool {
+		if a, b := out[i]["qty"].(float64), out[j]["qty"].(float64); a != b {
+			return a > b
+		}
+		for _, k := range []string{"kind", "reason_code", "reason", "vendor"} {
+			if a, b := fmt.Sprint(out[i][k]), fmt.Sprint(out[j][k]); a != b {
+				return a < b
+			}
+		}
+		return false
+	})
 	return out, nil
 }

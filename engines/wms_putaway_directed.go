@@ -58,6 +58,24 @@ func SuggestPutawayBin(tenantID, sku, locationCode string, qty int, batchNo stri
 	if home != "" {
 		return home, note, nil
 	}
+	// Stage 146.3.7: a put-away rule (item > design > category > location
+	// default) comes before the directed strategy; no rules leaves this as it was.
+	ruleBin, ruleNote, err := suggestRuleBin(tenantID, sku, locationCode, qty, batchNo)
+	if err != nil {
+		return "", "", err
+	}
+	if ruleBin != "" {
+		if note != "" {
+			ruleNote = note + "; " + ruleNote
+		}
+		return ruleBin, ruleNote, nil
+	}
+	if ruleNote != "" {
+		if note != "" {
+			note += "; "
+		}
+		note += ruleNote
+	}
 	binCode, reason, err = suggestDirectedPutawayBin(tenantID, sku, locationCode, qty, batchNo)
 	if note != "" && err == nil {
 		reason = note + "; " + reason

@@ -7,6 +7,8 @@ import (
 	"log"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // GetCurrentStockReport lists the same available-to-sell figure used by
@@ -41,6 +43,10 @@ type CurrentStockFilter struct {
 	Location string
 	Limit    int
 	Offset   int
+	Desc     bool
+	// Stores, when StoreCut is set, keeps only these locations (157.4b).
+	Stores   []string
+	StoreCut bool
 }
 
 // GetCurrentStockPage returns one page of current stock and how many rows match.
@@ -64,6 +70,10 @@ func GetCurrentStockPage(tenantID string, f CurrentStockFilter) ([]map[string]in
 		args = append(args, loc)
 		where += fmt.Sprintf(" AND location_code = $%d", len(args))
 	}
+	if f.StoreCut {
+		args = append(args, pq.Array(f.Stores))
+		where += fmt.Sprintf(" AND location_code = ANY($%d)", len(args))
+	}
 	var total int
 	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.inventory_availability WHERE %s`, schema, where), args...).Scan(&total); err != nil {
 		return nil, 0, err
@@ -74,11 +84,15 @@ func GetCurrentStockPage(tenantID string, f CurrentStockFilter) ([]map[string]in
 	if f.Offset < 0 {
 		f.Offset = 0
 	}
+	order := "location_code, sku"
+	if f.Desc {
+		order = "location_code DESC, sku DESC"
+	}
 	args = append(args, f.Limit, f.Offset)
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT sku, location_code, on_hand, available, committed, reserved, safety_stock,
 		       blocked, qc_hold, damaged, channel_buffer, hold_qty
-		FROM %s.inventory_availability WHERE %s ORDER BY location_code, sku LIMIT $%d OFFSET $%d`, schema, where, len(args)-1, len(args)), args...)
+		FROM %s.inventory_availability WHERE %s ORDER BY %s LIMIT $%d OFFSET $%d`, schema, where, order, len(args)-1, len(args)), args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -125,16 +139,35 @@ type SalesRegisterEntry struct {
 // qty*sale_price from the items array actually saved, the same figures the
 // checkout response itself was computed from.
 func GetSalesRegisterReport(tenantID string) ([]SalesRegisterEntry, error) {
+	entries, _, err := salesRegisterPage(tenantID, ReportPage{Limit: reportSQLLimit(tenantID)})
+	return entries, err
+}
+
+// salesRegisterPage is one page of the register and how many sales match (157.4b).
+func salesRegisterPage(tenantID string, page ReportPage) ([]SalesRegisterEntry, int, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
+	}
+	where, args := "doctype = 'POSCart' AND status IN ('Paid', 'Settled')", []interface{}{}
+	if page.StoreCut {
+		args = append(args, pq.Array(page.Stores))
+		where += " AND data->>'location' = ANY($1)"
+	}
+	var total int
+	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.documents WHERE %s`, schema, where), args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	order := "DESC"
+	if page.Desc {
+		order = "ASC"
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, data, status, created_at FROM %s.documents
-		WHERE doctype = 'POSCart' AND status IN ('Paid', 'Settled')
-		ORDER BY created_at DESC LIMIT %d`, schema, reportSQLLimit(tenantID)))
+		WHERE %s
+		ORDER BY created_at %s, id %s LIMIT %d OFFSET %d`, schema, where, order, order, page.Limit, page.Offset), args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -143,7 +176,7 @@ func GetSalesRegisterReport(tenantID string) ([]SalesRegisterEntry, error) {
 		var id, status, dataStr string
 		var createdAt time.Time
 		if err := rows.Scan(&id, &dataStr, &status, &createdAt); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		var cart struct {
 			Location    string `json:"location"`
@@ -174,25 +207,31 @@ func GetSalesRegisterReport(tenantID string) ([]SalesRegisterEntry, error) {
 			continue
 		}
 
-		total := 0.0
+		saleTotal := 0.0
 		for _, item := range cart.Items {
-			total += item.Qty * item.SalePrice
+			saleTotal += item.Qty * item.SalePrice
 		}
 		results = append(results, SalesRegisterEntry{
 			CartNumber: id, Location: cart.Location, PaymentMode: cart.PaymentMode,
-			Status: status, SaleTotal: total, CreatedAt: createdAt,
+			Status: status, SaleTotal: saleTotal, CreatedAt: createdAt,
 		})
 	}
-	return results, nil
+	return results, total, rows.Err()
 }
 
 // GetVendorLedgerReport lists PurchaseOrders, optionally filtered to one
 // vendor - the closest thing to a vendor sub-ledger this codebase's data
 // model supports today (no separate AP invoice/payment tracking exists).
 func GetVendorLedgerReport(tenantID, vendorFilter string) ([]map[string]interface{}, error) {
+	rows, _, err := vendorLedgerPage(tenantID, vendorFilter, ReportPage{Limit: reportSQLLimit(tenantID)})
+	return rows, err
+}
+
+// vendorLedgerPage is one page of the ledger and how many POs match (157.4b).
+func vendorLedgerPage(tenantID, vendorFilter string, page ReportPage) ([]map[string]interface{}, int, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	// Stage 30.2.3: COALESCE'd for the same reason GetCustomerLedgerReport is
 	// (engines/finance_reports_stage26.go) - a PurchaseOrder missing either
@@ -208,11 +247,23 @@ func GetVendorLedgerReport(tenantID, vendorFilter string) ([]map[string]interfac
 		query += " AND data->>'vendor' = $1"
 		args = append(args, vendorFilter)
 	}
-	query += fmt.Sprintf(" ORDER BY data->>'vendor', created_at DESC LIMIT %d", reportSQLLimit(tenantID))
+	var total int
+	countSQL := fmt.Sprintf(`SELECT COUNT(*) FROM %s.documents WHERE doctype = 'PurchaseOrder'`, schema)
+	if vendorFilter != "" {
+		countSQL += " AND data->>'vendor' = $1"
+	}
+	if err := db.DB.QueryRow(countSQL, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	order := "data->>'vendor', created_at DESC, id DESC"
+	if page.Desc {
+		order = "data->>'vendor' DESC, created_at, id"
+	}
+	query += fmt.Sprintf(" ORDER BY %s LIMIT %d OFFSET %d", order, page.Limit, page.Offset)
 
 	rows, err := db.DB.Query(query, args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -222,14 +273,14 @@ func GetVendorLedgerReport(tenantID, vendorFilter string) ([]map[string]interfac
 		var totalAmount float64
 		var createdAt time.Time
 		if err := rows.Scan(&id, &vendor, &poNumber, &totalAmount, &status, &createdAt); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		results = append(results, map[string]interface{}{
 			"id": id, "vendor": vendor, "po_number": poNumber,
 			"total_amount": totalAmount, "status": status, "created_at": createdAt,
 		})
 	}
-	return results, nil
+	return results, total, rows.Err()
 }
 
 // PayablesAgeingBucket is one age bucket: received-not-paid value for

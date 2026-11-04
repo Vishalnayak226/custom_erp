@@ -95,12 +95,25 @@ func ReconcileSale(tenantID, cartNumber string) (*SaleReconciliationRow, error) 
 	// 4100 is credited with the full tax-inclusive value and then debited with
 	// the tax portion and any exempt reclass, so summing debit+credit on it
 	// alone would net to the taxable amount. Revenue here is the gross credit.
+	// Stage 148.4: a posting rule moves revenue and cost off 4100 and 5100. Only
+	// then is what the sale's own vouchers posted counted as well, round-off aside.
+	revenueWhere := "account_code = '4100'"
+	if postingProfileExists(tenantID, PostingEventPOSSaleRevenue) {
+		revenueWhere = "(account_code = '4100' OR (idempotency_key LIKE '%:SALE_REVENUE' AND account_code <> '" + accountRoundOff + "'))"
+	}
 	var revenuePaise int64
 	_ = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT COALESCE(SUM(credit), 0) FROM %s.gl_postings
-		WHERE document_type = 'POSCart' AND document_id = $1 AND account_code = '4100'`, schema), cartNumber).Scan(&revenuePaise)
+		WHERE document_type = 'POSCart' AND document_id = $1 AND %s`, schema, revenueWhere), cartNumber).Scan(&revenuePaise)
 	row.RevenuePosted = PaiseToRupees(revenuePaise)
 	row.COGSPosted = glSum([]string{"5100"})
+	if postingProfileExists(tenantID, PostingEventPOSSaleCOGS) {
+		var cogsPaise int64
+		_ = db.DB.QueryRow(fmt.Sprintf(`
+			SELECT COALESCE(SUM(debit), 0) FROM %s.gl_postings
+			WHERE document_type = 'POSCart' AND document_id = $1 AND (account_code = '5100' OR idempotency_key LIKE '%%:SALE_COGS')`, schema), cartNumber).Scan(&cogsPaise)
+		row.COGSPosted = PaiseToRupees(cogsPaise)
+	}
 	row.TaxPosted = glSum([]string{"2200", "2201", "2202"})
 	// Tender: what the clearing accounts NET of this sale hold, plus points
 	// (5250) and gift cards (2610) paid with. Stage 73.1.6: net, not debit +

@@ -186,6 +186,13 @@ var reviewedEgress = map[string]egressEntry{
 		KillSwitch:  `Off in a sandbox client, when the client's Outside calls are off, outside production and under the emergency switch.`,
 		Evidence:    []string{"SMTP_HOST", viaOutsideCalls},
 	},
+	"engines/outbox_email.go": {
+		Uses:        map[string]int{"smtp": 1},
+		Destination: `The operator's mail relay (SMTP_HOST) - feed files and email events from the outbox.`,
+		Guard:       `Not client-typed: the relay is the server's own setting; a client types only the recipient.`,
+		KillSwitch:  `Off in a sandbox client, when the client's Outside calls are off, outside production and under the emergency switch. The client's export freeze also stops feed files.`,
+		Evidence:    []string{"SMTP_HOST", viaOutsideCalls, "SettingFreezeExports"},
+	},
 	"engines/dashboard_digest_html.go": {
 		Uses:        map[string]int{"smtp": 1},
 		Destination: `The operator's mail relay (SMTP_HOST) - scheduled dashboard digests.`,

@@ -302,9 +302,15 @@ async function suggestPutawayBin() {
   if (!res) return;
   if (!res.ok) { await showApiError(res, 'Failed to suggest a bin.', 'Suggestion Failed'); return; }
   const data = await res.json();
+  const warn = data.warning ? ` <span class="badge badge-warning">${escapeHTMLText(data.warning)}</span>` : '';
+  if (!data.bin_code && (data.parts || []).length > 1) { // 146.3.15: split across bins
+    document.getElementById('putaway-bin').value = data.parts[0].bin_code;
+    resultEl.innerHTML = `<span class="badge badge-success">Split: ${data.parts.map(p => escapeHTMLText(p.bin_code) + ' x ' + p.qty).join(', ')}</span> - ${escapeHTMLText(data.reason)}` + warn;
+    return;
+  }
   if (data.bin_code) {
     document.getElementById('putaway-bin').value = data.bin_code;
-    resultEl.innerHTML = `<span class="badge badge-success">Suggested bin ${escapeHTMLText(data.bin_code)}</span> - ${escapeHTMLText(data.reason)}`;
+    resultEl.innerHTML = `<span class="badge badge-success">Suggested bin ${escapeHTMLText(data.bin_code)}</span> - ${escapeHTMLText(data.reason)}` + warn;
   } else {
     resultEl.textContent = data.reason || 'No suggestion available - enter a bin manually.';
   }
@@ -335,7 +341,10 @@ async function submitPutaway() {
     await showApiError(res, 'Failed to put away stock.', 'Putaway Failed');
     return;
   }
+  let putResp = {};
+  try { putResp = await res.json(); } catch (e) { putResp = {}; }
   showToast(`Put away ${qty} x ${sku} into bin ${binCode}.`, { variant: 'success' });
+  if (putResp.warning) showToast(putResp.warning, { variant: 'warning' });
   document.getElementById('putaway-qty').value = 1;
   document.getElementById('putaway-bin').value = '';
   document.getElementById('putaway-sku').value = '';

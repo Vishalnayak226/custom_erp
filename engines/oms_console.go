@@ -184,7 +184,9 @@ func ListOrdersForConsole(tenantID string, f OrderConsoleFilter) (*OrderConsoleR
 		       COALESCE(d.data->>'acceptance_status', ''),
 		       COALESCE(d.data->'channel_push'->>'decision', ''),
 		       COALESCE(d.data->'channel_push'->>'status', ''),
-		       COALESCE(d.data->'channel_push'->>'error', '')
+		       COALESCE(d.data->'channel_push'->>'error', ''),
+		       COALESCE(d.data->>'hold_owner', ''),
+		       COALESCE(NULLIF(d.data->>'hold_since', ''), d.updated_at::text)
 		FROM %s.documents d
 		WHERE %s
 		ORDER BY (COALESCE(d.data->>'priority', '') = 'Expedite') DESC, d.created_at DESC
@@ -197,13 +199,13 @@ func ListOrdersForConsole(tenantID string, f OrderConsoleFilter) (*OrderConsoleR
 
 	for rows.Next() {
 		var id, orderNumber, channel, channelOrderID, customerName, customerPhone, status, holdReason, paymentStatus, priority, locations string
-		var acceptance, pushDecision, pushStatus, pushError string
+		var acceptance, pushDecision, pushStatus, pushError, holdOwner, holdSince string
 		var totalAmount float64
 		var lineCount, ageMinutes int
 		var createdAt time.Time
 		if err := rows.Scan(&id, &orderNumber, &channel, &channelOrderID, &customerName, &customerPhone, &status, &holdReason,
 			&paymentStatus, &totalAmount, &priority, &createdAt, &ageMinutes, &locations, &lineCount,
-			&acceptance, &pushDecision, &pushStatus, &pushError); err != nil {
+			&acceptance, &pushDecision, &pushStatus, &pushError, &holdOwner, &holdSince); err != nil {
 			return nil, err
 		}
 		terminal := false
@@ -217,6 +219,7 @@ func ListOrdersForConsole(tenantID string, f OrderConsoleFilter) (*OrderConsoleR
 			"order_id": id, "order_number": orderNumber, "channel": channel, "channel_order_id": channelOrderID, // order_number: Stage 76.11
 			"customer_name": customerName, "customer_phone": customerPhone,
 			"status": status, "hold_reason": holdReason, "payment_status": paymentStatus,
+			"hold_owner": holdOwner, "hold_since": holdSince,
 			"total_amount": totalAmount, "priority": priority, "created_at": createdAt,
 			"locations": locations, "line_count": lineCount,
 			"age_minutes": ageMinutes,

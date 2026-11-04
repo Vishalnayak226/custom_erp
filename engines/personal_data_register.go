@@ -211,6 +211,12 @@ func businessField(purpose string) PersonalDataField {
 // personalDataRegister is doctype -> field -> row.
 var personalDataRegister = map[string]map[string]PersonalDataField{
 	"Customer": {
+		// 148.4: which revenue account the buyer's sales post to.
+		"customer_group": pdField("preference", "Posting group that picks the revenue account", BasisVoluntary, retainCustomer, readersPOS),
+		// 148.3: credit-control settings on the buyer; the buyer's own terms, held with the master.
+		"payment_term":  pdField("preference", "Default payment terms for the buyer's orders and invoices", BasisVoluntary, retainCustomer, readersPOS),
+		"credit_stop":   pdField("preference", "Whether an invoice over the credit limit is refused (Yes) or only warned", BasisVoluntary, retainCustomer, readersPOS),
+		"one_time":      pdField("preference", "Walk-in buyer kept out of credit exposure and history", BasisVoluntary, retainCustomer, readersPOS),
 		"code":          pdField("identity", "Key every sale, invoice and loyalty entry refers to", BasisVoluntary, retainCustomer, readersPOS),
 		"name":          pdField("identity", "Name on the bill and the customer look-up", BasisVoluntary, retainCustomer, readersPOS),
 		"phone":         pdField("contact", "The till's customer look-up key; e-receipt and order updates", BasisVoluntary, retainCustomer, readersPOS),
@@ -305,6 +311,7 @@ var personalDataRegister = map[string]map[string]PersonalDataField{
 		"vehicle_number": pdField("identity", "Vehicle that took the goods out", BasisVoluntary, retainRecord, readersOps),
 	},
 	"GRN":         {"vehicle_no": pdField("identity", "Vehicle that delivered the goods", BasisVoluntary, retainRecord, readersOps)},
+	"GateEntry":   {"vehicle_number": pdField("identity", "Vehicle that brought the goods to the gate", BasisVoluntary, retainRecord, readersOps)},
 	"YardCheckIn": {"driver_name": pdField("identity", "Who is in the yard", BasisVoluntary, retainRecord, readersOps)},
 	"Trailer":     {"license_plate": pdField("identity", "Identify the trailer in the yard", BasisVoluntary, retainBusiness, readersOps)},
 
@@ -312,6 +319,7 @@ var personalDataRegister = map[string]map[string]PersonalDataField{
 	"DashboardDigest":      {"recipient_email": pdField("contact", "Deliver the scheduled digest", BasisEmployment, retainUser, "the schedule's owner and Super Admin")},
 	"ScheduledReport":      {"recipient_email": pdField("contact", "Deliver the scheduled report", BasisEmployment, retainUser, "the schedule's owner and Super Admin")},
 	"PIMExportSchedule":    {"recipient_email": pdField("contact", "Deliver the scheduled export", BasisEmployment, retainUser, "the schedule's owner and Super Admin")},
+	"PIMFeed":              {"recipient_email": pdField("contact", "Deliver the feed file", BasisEmployment, retainUser, "the feed's owner and Super Admin")},
 	"PasswordResetRequest": {"target_username": pdField("identity", "Whose password a dual-control reset is for", BasisEmployment, retainUser, readersAdmin)},
 
 	// --- Suppliers (a sole proprietor's details are personal data) --------

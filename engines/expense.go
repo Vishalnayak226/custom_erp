@@ -51,7 +51,7 @@ func ValidateExpenseClaimControls(tenantID string, payload map[string]interface{
 	var count int
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT COUNT(*) FROM %s.documents
-		WHERE doctype = 'ExpenseClaim' AND data->>'employee_id' = $1 AND data->>'category' = $2
+		WHERE doctype = 'ExpenseClaim' AND deleted_at IS NULL AND data->>'employee_id' = $1 AND data->>'category' = $2
 		AND data->>'expense_date' = $3 AND (data->>'amount')::numeric = $4`, schema),
 		employeeID, category, expenseDateStr, amount).Scan(&count)
 	if err != nil {

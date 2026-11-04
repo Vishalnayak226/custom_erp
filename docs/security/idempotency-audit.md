@@ -50,7 +50,7 @@ loyalty and voucher redemption - through `commandKeyed` in routes.go
 `idempotency_key` body field. The findings left are commands that move an
 existing record on, guarded by that record's status.
 
-Routes audited: **548**; keyed: **17**; findings (money / stock without a key): **142**.
+Routes audited: **569**; keyed: **17**; findings (money / stock without a key): **150**.
 
 ## Findings
 
@@ -71,6 +71,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/finance/bank-reconcile` | `handleBankReconcile` | money |
 | `POST /api/v1/finance/bank-reconciliation/lines/{id}/{action}` | `handleBankLineAction` | money |
 | `POST /api/v1/finance/bank-reconciliation/rule-match` | `handleBankRuleMatch` | money |
+| `POST /api/v1/finance/charge-entries/bill` | `handleBillChargeEntries` | money |
 | `POST /api/v1/finance/credit-note/{id}/post` | `handlePostCreditNote` | money, stock |
 | `POST /api/v1/finance/debit-note/{id}/post` | `handlePostDebitNote` | stock |
 | `POST /api/v1/finance/fx-revaluation` | `handleFXRevaluation` | money |
@@ -114,6 +115,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/inventory/material-requests/{id}/return` | `handleReturnMaterial` | stock |
 | `POST /api/v1/inventory/mrp-changes` | `handleCreateMRPChange` | stock |
 | `POST /api/v1/inventory/mrp-changes/{id}/cancel` | `handleCancelMRPChange` | stock |
+| `POST /api/v1/inventory/pieces/{doctype}/{id}/correct` | `handleCorrectPieceAttributes` | stock |
 | `POST /api/v1/loyalty/transfers/{id}/confirm` | `handleLoyaltyTransferConfirm` | stock |
 | `POST /api/v1/manufacturing/complete` | `handleCompleteProductionOrder` | stock |
 | `POST /api/v1/manufacturing/confirm-operation` | `handleConfirmProductionOperation` | stock |
@@ -142,9 +144,12 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/pos/price-override` | `handlePOSPriceOverride` | money |
 | `POST /api/v1/pos/session/cash-movement` | `handlePOSCashMovement` | money |
 | `POST /api/v1/pos/session/close` | `handlePOSSessionClose` | money |
+| `POST /api/v1/procurement/purchase-order/{id}/line/{n}/close-rest` | `handlePOLineCloseRest` | money |
 | `POST /api/v1/procurement/purchase-returns/{id}/post` | `handlePostPurchaseReturn` | stock |
+| `POST /api/v1/procurement/vendor-advances/{id}/refund` | `handleRefundVendorAdvance` | money |
 | `POST /api/v1/procurement/vendor-invoice/pay` | `handlePayVendorInvoice` | money |
 | `POST /api/v1/procurement/vendor-invoice/pay-with-tds` | `handlePayVendorInvoiceWithTDS` | money |
+| `POST /api/v1/procurement/vendor-rebates/{id}/settle` | `handleSettleVendorRebateClaim` | money |
 | `POST /api/v1/quality/maintenance-order/{id}/complete` | `handleCompleteMaintenanceOrder` | stock |
 | `POST /api/v1/quality/ncr/{id}/close` | `handleCloseNonConformanceReport` | money |
 | `POST /api/v1/refunds/{id}/approve` | `handleApproveRefundRequest` | money |
@@ -161,8 +166,11 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/stock-locations/defaults` | `handleStockLocationDefault` | stock |
 | `POST /api/v1/stock-locations/move` | `handleMoveStock` | stock |
 | `POST /api/v1/stock-locations/stores` | `handleStoreStockLocations` | stock |
+| `POST /api/v1/transfer/allocation` | `handleTransferAllocationUpload` | stock |
+| `POST /api/v1/transfer/allocation/decide` | `handleTransferAllocationDecide` | stock |
 | `POST /api/v1/transfer/approve-direct` | `handleApproveTransferOrderDirect` | stock |
 | `POST /api/v1/transfer/cancel` | `handleCancelTransferOrder` | stock |
+| `POST /api/v1/transfer/cancel-lines` | `handleCancelTransferLines` | stock |
 | `POST /api/v1/transfer/dispatch` | `handleDispatchTransferOrder` | stock |
 | `POST /api/v1/transfer/receive` | `handleReceiveTransferOrder` | stock |
 | `POST /api/v1/transfer/return` | `handleReturnTransferToSource` | stock |
@@ -369,6 +377,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/finance/bank-reconcile` | `handleBankReconcile` | no | - | money |
 | `POST /api/v1/finance/bank-reconciliation/lines/{id}/{action}` | `handleBankLineAction` | no | - | money |
 | `POST /api/v1/finance/bank-reconciliation/rule-match` | `handleBankRuleMatch` | no | - | money |
+| `POST /api/v1/finance/charge-entries/bill` | `handleBillChargeEntries` | no | - | money |
 | `POST /api/v1/finance/credit-note/{id}/post` | `handlePostCreditNote` | no | - | money, stock |
 | `POST /api/v1/finance/debit-note/{id}/post` | `handlePostDebitNote` | no | - | stock |
 | `POST /api/v1/finance/fx-revaluation` | `handleFXRevaluation` | no | - | money |
@@ -441,6 +450,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/inventory/material-requests/{id}/return` | `handleReturnMaterial` | no | - | stock |
 | `POST /api/v1/inventory/mrp-changes` | `handleCreateMRPChange` | no | - | stock |
 | `POST /api/v1/inventory/mrp-changes/{id}/cancel` | `handleCancelMRPChange` | no | - | stock |
+| `POST /api/v1/inventory/pieces/{doctype}/{id}/correct` | `handleCorrectPieceAttributes` | no | - | stock |
 | `POST /api/v1/inventory/treatment-correction/apply` | `handleTreatmentCorrectionApply` | no | - | document |
 | `POST /api/v1/inventory/treatment-correction/preview` | `handleTreatmentCorrectionPreview` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/jobs/{id}/cancel` | `handleCancelJob` | no | - | document |
@@ -524,11 +534,16 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/pim/barcode/generate` | `handlePIMGenerateBarcode` | no | - | document |
 | `POST /api/v1/pim/bulk-edit` | `handlePIMBulkEdit` | no | - | document |
 | `POST /api/v1/pim/catalogs/{id}/rotate-share-token` | `handlePIMCatalogRotateShareToken` | no | - | document |
+| `POST /api/v1/pim/channel-templates/load` | `handlePIMChannelTemplateLoad` | no | - | document |
 | `POST /api/v1/pim/channels/{code}/apply-pack` | `handlePIMApplyChannelPack` | no | - | document |
 | `POST /api/v1/pim/channels/{code}/credentials` | `handleSaveChannelCredential` | no | - | document |
 | `POST /api/v1/pim/channels/{code}/pull-state` | `handlePIMChannelPullState` | no | - | document |
+| `POST /api/v1/pim/checklists` | `handlePIMChecklists` | n.a. (a question, not a command) | - | document |
 | `POST /api/v1/pim/content/{id}/rollback` | `handlePIMContentRollback` | no | - | document |
+| `POST /api/v1/pim/design-tags` | `handlePIMDesignTags` | no | - | document |
+| `POST /api/v1/pim/design-values` | `handlePIMDesignValues` | no | - | document |
 | `POST /api/v1/pim/export-templates/{id}/run` | `handlePIMExportTemplateRun` | no | - | document |
+| `POST /api/v1/pim/feeds/{id}/run` | `handlePIMFeedRun` | no | - | document |
 | `POST /api/v1/pim/import-schedules/{id}/rotate-hook-token` | `handlePIMImportScheduleRotateHookToken` | no | - | document |
 | `POST /api/v1/pim/import-templates/{id}/import` | `handlePIMImportTemplateRun` | no | - | document |
 | `POST /api/v1/pim/import-templates/{id}/preview` | `handlePIMImportTemplateRun` | n.a. (a question, not a command) | - | document |
@@ -593,6 +608,7 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/print/templates/{id}/versions/{version}` | `handlePrintTemplateVersionAction` | no | - | document |
 | `POST /api/v1/procurement/bulk-upload/apply` | `handleBulkPurchaseApply` | no | - | document |
 | `POST /api/v1/procurement/bulk-upload/preview` | `handleBulkPurchasePreview` | n.a. (a question, not a command) | - | document |
+| `POST /api/v1/procurement/combine-requisitions` | `handleCombineRequisitions` | no | - | document |
 | `POST /api/v1/procurement/convert-requisition` | `handleConvertRequisition` | no | - | document |
 | `POST /api/v1/procurement/design-attribute` | `handleAddDesignAttributeValue` | no | - | document |
 | `POST /api/v1/procurement/design/match` | `handleMatchDesign` | n.a. (a question, not a command) | - | document |
@@ -600,12 +616,22 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/procurement/purchase-order/{id}/images` | `handleUploadPOImage` | no | - | document |
 | `POST /api/v1/procurement/purchase-order/{id}/images/main` | `handlePOImageMain` | no | - | document |
 | `POST /api/v1/procurement/purchase-order/{id}/images/remove` | `handlePOImageRemove` | no | - | document |
+| `POST /api/v1/procurement/purchase-order/{id}/line/{n}/close-rest` | `handlePOLineCloseRest` | no | - | money |
+| `POST /api/v1/procurement/purchase-order/{id}/line/{n}/control` | `handlePOLineControl` | no | - | document |
+| `POST /api/v1/procurement/purchase-order/{id}/line/{n}/stop` | `handlePOLineStop` | no | - | document |
 | `POST /api/v1/procurement/purchase-order/{id}/send` | `handleSendPurchaseOrder` | no | - | document |
 | `POST /api/v1/procurement/purchase-order/{id}/short-close` | `handlePOShortClose` | no | - | document |
 | `POST /api/v1/procurement/purchase-returns/{id}/post` | `handlePostPurchaseReturn` | no | - | stock |
+| `POST /api/v1/procurement/vendor-advances` | `handleGiveVendorAdvance` | no | - | document |
+| `POST /api/v1/procurement/vendor-advances/{id}/apply` | `handleApplyVendorAdvance` | no | - | document |
+| `POST /api/v1/procurement/vendor-advances/{id}/cancel` | `handleCancelVendorAdvance` | no | - | document |
+| `POST /api/v1/procurement/vendor-advances/{id}/refund` | `handleRefundVendorAdvance` | no | - | money |
 | `POST /api/v1/procurement/vendor-invoice/match` | `handleMatchVendorInvoice` | n.a. (a question, not a command) | - | money |
 | `POST /api/v1/procurement/vendor-invoice/pay` | `handlePayVendorInvoice` | no | - | money |
 | `POST /api/v1/procurement/vendor-invoice/pay-with-tds` | `handlePayVendorInvoiceWithTDS` | no | - | money |
+| `POST /api/v1/procurement/vendor-rebates/calculate` | `handleCalculateVendorRebates` | no | - | document |
+| `POST /api/v1/procurement/vendor-rebates/{id}/settle` | `handleSettleVendorRebateClaim` | no | - | money |
+| `POST /api/v1/procurement/vendor-rebates/{id}/submit` | `handleSubmitVendorRebateClaim` | no | - | document |
 | `POST /api/v1/quality/coa` | `handleCreateCertificateOfAnalysis` | no | - | document |
 | `POST /api/v1/quality/coa/{id}/reject` | `handleRejectCertificateOfAnalysis` | no | - | document |
 | `POST /api/v1/quality/coa/{id}/release` | `handleReleaseCertificateOfAnalysis` | no | - | document |
@@ -670,8 +696,11 @@ A retry of any of these can repeat its effect. Each is either given a key throug
 | `POST /api/v1/store-app/push/off` | `handleStoreAppPushOff` | no | - | document |
 | `POST /api/v1/stored-value/cards` | `handleRegisterGiftCards` | no | - | document |
 | `POST /api/v1/stored-value/cards/action` | `handleGiftCardAction` | no | - | document |
+| `POST /api/v1/transfer/allocation` | `handleTransferAllocationUpload` | no | - | stock |
+| `POST /api/v1/transfer/allocation/decide` | `handleTransferAllocationDecide` | no | - | stock |
 | `POST /api/v1/transfer/approve-direct` | `handleApproveTransferOrderDirect` | no | - | stock |
 | `POST /api/v1/transfer/cancel` | `handleCancelTransferOrder` | no | - | stock |
+| `POST /api/v1/transfer/cancel-lines` | `handleCancelTransferLines` | no | - | stock |
 | `POST /api/v1/transfer/dispatch` | `handleDispatchTransferOrder` | no | - | stock |
 | `POST /api/v1/transfer/receive` | `handleReceiveTransferOrder` | no | - | stock |
 | `POST /api/v1/transfer/return` | `handleReturnTransferToSource` | no | - | stock |

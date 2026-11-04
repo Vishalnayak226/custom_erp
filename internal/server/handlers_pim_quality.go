@@ -94,6 +94,24 @@ func handlePIMRelatedProducts(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(related)
 }
 
+// handlePIMLiveOn (146.5.13) lists the channels an item is published on, with
+// the page address where the channel has an address template.
+func handlePIMLiveOn(w http.ResponseWriter, r *http.Request) {
+	if !pimRequireMethod(w, r, http.MethodGet) {
+		return
+	}
+	tenantID, _, ok := pimTaskGuard(w, r, "Item", "read")
+	if !ok {
+		return
+	}
+	links, err := engines.ItemLiveOn(tenantID, r.PathValue("itemCode"))
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(links)
+}
+
 // handlePIMGenerateBarcode (36.7.4) mints a fresh, check-digit-correct
 // EAN-13 for the caller to paste into an Item's barcode field - gated on
 // Item "create" (the same right needed to actually use the code), not a

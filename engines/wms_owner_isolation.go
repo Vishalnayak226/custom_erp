@@ -144,7 +144,7 @@ func ownerBinCapacityQ(q stockQuerier, schema, sku, locationCode, owner string) 
 		         ON own.bin_code = bs.bin_code
 		  LEFT JOIN (SELECT ba.bin_code, SUM(ba.qty - ba.picked_qty) AS reserved
 		               FROM %s.bin_allocation ba
-		               JOIN %s.documents ft ON ft.id = ba.task_id AND ft.doctype = 'FulfillmentTask' AND ft.status IN %s
+		               JOIN %s.documents ft ON ft.id = ba.task_id AND ft.doctype IN ('FulfillmentTask', 'TransferOrder') AND ft.status IN %s
 		              WHERE ba.status = 'Open' AND ba.sku = $1 AND ba.location_code = $2 AND ba.owner_id = $3
 		              GROUP BY ba.bin_code) res
 		         ON res.bin_code = bs.bin_code
@@ -579,7 +579,7 @@ func moveOwnerSliceTx(tx *sql.Tx, tenantID, schema, fromBin, toBin, sku, fromCon
 		var reservedOwn int
 		if err := tx.QueryRow(fmt.Sprintf(`
 			SELECT COALESCE(SUM(ba.qty - ba.picked_qty), 0) FROM %s.bin_allocation ba
-			  JOIN %s.documents ft ON ft.id = ba.task_id AND ft.doctype = 'FulfillmentTask' AND ft.status IN %s
+			  JOIN %s.documents ft ON ft.id = ba.task_id AND ft.doctype IN ('FulfillmentTask', 'TransferOrder') AND ft.status IN %s
 			 WHERE ba.status = 'Open' AND ba.bin_code = $1 AND ba.sku = $2 AND ba.owner_id = $3`, schema, schema, liveTaskStatusesSQL),
 			fromBin, sku, moved).Scan(&reservedOwn); err != nil {
 			return "", err

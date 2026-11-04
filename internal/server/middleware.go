@@ -1501,6 +1501,10 @@ func isBulkExport(r *http.Request) bool {
 	if strings.HasSuffix(p, "/cancel") || p == "/api/v1/reports/exports" {
 		return false
 	}
+	// 146.5.6: a feed run hands over or emails the same file as a template export.
+	if strings.HasPrefix(p, "/api/v1/pim/feeds/") && strings.HasSuffix(p, "/run") {
+		return true
+	}
 	return strings.Contains(p, "/export") || strings.HasSuffix(p, ".csv") || strings.Contains(p, "payroll-export")
 }
 

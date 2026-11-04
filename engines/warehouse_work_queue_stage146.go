@@ -169,6 +169,17 @@ func CompleteWorkTask(tenantID, taskID, worker, bin string) error {
 				return err
 			}
 		}
+	case "Replenish", "Move":
+		// Stage 146.3.3: the stock moves bin to bin; the move closes the task.
+		if t.FromBin != "" && t.ToBin != "" && t.Item != "" && t.Qty >= 1 {
+			in := BinMoveInput{FromBin: t.FromBin, ToBin: t.ToBin, SKU: t.Item, Qty: int(t.Qty + 0.5), BatchNo: t.BatchNo, Reason: t.Notes, UserID: worker, TaskType: t.TaskType}
+			if t.TaskType == "Replenish" {
+				in.VoucherType = "BinReplenishment"
+			}
+			if err := MoveBinStock(tenantID, in); err != nil {
+				return err
+			}
+		}
 	case "Pick":
 		if t.SourceDocType == "FulfillmentTask" && t.SourceDocID != "" && t.Item != "" {
 			n := int(t.Qty + 0.5)
@@ -384,7 +395,7 @@ func emitWavePickTasks(tenantID, schema, waveID, locationCode string, allocation
 		}
 		if _, err := CreateWarehouseTask(tenantID, NewWarehouseTask{
 			TaskType: "Pick", LocationCode: locationCode, FromBin: a.BinCode, Item: a.SKU, BatchNo: a.BatchNo, Qty: float64(a.Qty),
-			WaveID: waveID, SourceDocType: "FulfillmentTask", SourceDocID: a.TaskID,
+			WaveID: waveID, SourceDocType: waveSourceDocType(a.TaskID), SourceDocID: a.TaskID,
 		}, "system"); err != nil {
 			LogSystemError(tenantID, "", "WARN", "emitWavePickTasks", fmt.Sprintf("wave %s: pick task for %s not created: %v", waveID, a.SKU, err), "")
 		}

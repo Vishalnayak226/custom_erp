@@ -136,6 +136,19 @@ export async function renderJobWorkTab(container) {
         <td><input class="form-input" data-jwr="reason" data-i="${i}" style="min-width:140px;"></td></tr>`).join('')}</tbody></table></div>
       <div class="txn-hint" style="margin-top:6px;">Rejected goes to QC hold; excess loss needs approval.</div>
       <div style="margin-top:10px;"><button type="button" class="btn btn-primary" data-jwr-go>Receive</button></div>`;
+    // Stage 148.1: an output that keeps codes or a lot gets them under its line.
+    bal.forEach(async (x, i) => {
+      if (!transforms(x)) return;
+      const found = await apiFetch(`/api/v1/doc/Item?code=${encodeURIComponent(x.output_sku)}&limit=1`);
+      const items = found && found.ok ? await found.json() : [];
+      const mode = (items[0] && items[0].tracking_mode) || '';
+      const row = pane.querySelector(`[data-jwr="accepted_qty"][data-i="${i}"]`)?.closest('tr');
+      if (!row || (!mode.includes('Serial') && !mode.includes('Batch'))) return;
+      const under = document.createElement('tr');
+      const box = (k, label) => `<input class="form-input" style="width:260px;margin-right:8px;" data-jwr="${k}" data-i="${i}" placeholder="${label}">`;
+      under.innerHTML = `<td></td><td colspan="10">${mode.includes('Serial') ? box('output_serials', `Piece codes of ${esc(x.output_sku)}, comma between`) : ''}${mode.includes('Batch') ? box('output_batch_no', `Lot of ${esc(x.output_sku)}`) : ''}</td>`;
+      row.after(under);
+    });
     pane.querySelector('[data-jwr-go]').addEventListener('click', () => {
       const v = (k, i) => pane.querySelector(`[data-jwr="${k}"][data-i="${i}"]`);
       const lines = bal.map((x, i) => {
@@ -143,6 +156,10 @@ export async function renderJobWorkTab(container) {
         ['accepted_qty', 'rejected_qty', 'scrap_qty', 'loss_qty'].forEach(k => { l[k] = num(v(k, i).value); });
         ['net_weight', 'fine_weight'].forEach(k => { l[k] = num(v(k, i).value); });
         ['output_qty', 'output_rejected_qty'].forEach(k => { const el = v(k, i); if (el && el.value !== '') l[k] = num(el.value); });
+        const codes = v('output_serials', i)?.value.split(',').map(c => c.trim()).filter(Boolean);
+        if (codes && codes.length) l.output_serials = codes;
+        const lot = v('output_batch_no', i)?.value.trim();
+        if (lot) l.output_batch_no = lot;
         return l;
       }).filter(l => l.accepted_qty + l.rejected_qty + l.scrap_qty + l.loss_qty > 0);
       if (!lines.length) { showToast('Enter what came back.', { variant: 'warning' }); return; }

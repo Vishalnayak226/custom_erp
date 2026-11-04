@@ -285,6 +285,7 @@ func finalizeStepGRN(tenantID, userID, storeCode, grnID string) {
 	}
 	schema, _ := db.GetTenantSchema(tenantID)
 	lines := grnLineMaps(data)
+	stampStepGRNCharges(db.DB, tenantID, schema, grnID, data, lines)
 	grnStampTotals(data, lines)
 	var warnings []string
 	patch := map[string]interface{}{}
@@ -368,7 +369,12 @@ func ensureStepGRNVendorBill(tenantID, userID, grnID string, grn map[string]inte
 			"payment_basis_exact": true, // owed to the paisa (vendorBasisExact, 135.24)
 		}
 		// Stage 130.16 (74.3.2): due by the PO's payment term.
-		if due := POPaymentDueDate(tenantID, strField(grn, "po_id"), strField(grn, "vendor_invoice_date")); due != "" {
+		// Stage 148.9: else the vendor's default term; an MSME vendor's cap of 45 days from acceptance.
+		accepted := strField(grn, "received_at")
+		if len(accepted) > 10 {
+			accepted = accepted[:10]
+		}
+		if due := VendorBillDueDate(tenantID, strField(grn, "po_id"), strField(grn, "vendor"), strField(grn, "vendor_invoice_date"), accepted); due != "" {
 			doc["due_date"] = due
 		}
 		issueNumberInto(doc, tenantID, "VendorInvoice", id, "", strField(grn, "location"))
@@ -382,8 +388,18 @@ func ensureStepGRNVendorBill(tenantID, userID, grnID string, grn map[string]inte
 	if err != nil {
 		return id, 0, err
 	}
-	if status == "Draft" || status == "MismatchHold" {
-		m, err := MatchVendorInvoice(tenantID, id, "", "", 0)
+	// Stage 148.38: a receipt with no PO has nothing to match against yet. Its
+	// bill waits as a Draft, and the retro PO's approval matches it.
+	if strField(grn, "received_before_po") == "Yes" && strField(bill, "po_id") == "" {
+		var gst float64
+		if b := readStepGRNBilling(grn, grnLineMaps(grn)); b != nil {
+			gst = round2(b.AcceptedNet * (b.TaxRatio - 1))
+		}
+		return id, gst, nil
+	}
+	awaited, tolerance := billAwaitedStepGRN(bill, status)
+	if status == "Draft" || status == "MismatchHold" || awaited {
+		m, err := MatchVendorInvoiceAs(tenantID, userID, id, "", "", tolerance)
 		if err != nil {
 			return id, 0, fmt.Errorf("vendor bill %s was made but could not be matched: %v", id, err)
 		}
@@ -417,7 +433,7 @@ func readStepGRNBilling(grn map[string]interface{}, lines []map[string]interface
 	if net <= 0 {
 		return nil
 	}
-	gross := numFromInterface(grn["vendor_invoice_amount"])
+	gross := numFromInterface(grn["vendor_invoice_amount"]) - numFromInterface(grn["vendor_charge_gross"])
 	if gross <= 0 {
 		iv, ig := grnInvoiceLineTotals(lines)
 		gross = iv + ig
@@ -706,6 +722,9 @@ func PayGRNStep(tenantID, userID, grnID string, in GRNPayInput) (*GRNStepView, e
 	if err != nil {
 		return nil, err
 	}
+	if err := retroPOBlocksBill(tenantID, bill); err != nil { // Stage 148.38
+		return nil, err
+	}
 	// 135.24: a bill made before step bills were paid to the paisa, with
 	// nothing paid on it yet, is paid that way from its first payment.
 	if exact, _ := bill["payment_basis_exact"].(bool); !exact && bill["payment_basis_paise"] == nil && !vendorInvoiceHasPayments(bill) {
@@ -827,6 +846,9 @@ func payStepBillWithTDSTx(tx *sql.Tx, schema, tenantID, userID, billID, section,
 	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
 		return 0, nil, err
 	}
+	if err := retroPOBlocksBill(tenantID, data); err != nil { // Stage 148.38
+		return 0, nil, err
+	}
 	entries, err := readSettlementEntries(data, "payments")
 	if err != nil {
 		return 0, nil, err
@@ -926,9 +948,9 @@ func CorrectGRNStep(tenantID, userID, storeCode, grnID string, in GRNCorrectionI
 	_, oldGST := grnOurTotals(g.lines)
 	oldTotal := numFromInterface(g.data["our_total"])
 	type stockMove struct {
-		sku, batch string
-		qty        float64
-		pricePaise int64
+		sku, batch         string
+		qty                float64
+		value, priceChange int64
 	}
 	var moves []stockMove
 	var valueDelta float64
@@ -976,8 +998,8 @@ func CorrectGRNStep(tenantID, userID, storeCode, grnID string, in GRNCorrectionI
 		}
 		eff.StockDelta += dq
 		valueDelta += dv
-		if math.Abs(dq) > 1e-9 {
-			moves = append(moves, stockMove{sku: sku, batch: strField(l, "batch_no"), qty: dq, pricePaise: RupeesToPaise(newPrice)})
+		if math.Abs(dq) > 1e-9 || math.Abs(dv) >= 0.005 {
+			moves = append(moves, stockMove{sku: sku, batch: strField(l, "batch_no"), qty: dq, value: RupeesToPaise(dv), priceChange: RupeesToPaise(newPrice) - RupeesToPaise(oldPrice)})
 		}
 		l["grn_qty"] = newQty
 		l["grn_price"] = newPrice
@@ -1019,11 +1041,14 @@ func CorrectGRNStep(tenantID, userID, storeCode, grnID string, in GRNCorrectionI
 		if m.batch != "" {
 			line["batch_no"] = m.batch
 		}
-		if _, err := PostInventoryLedgerWithVoucher(tenantID, location, []interface{}{line}, false, "GRNCorrection", voucher, userID); err != nil {
-			return nil, fmt.Errorf("the correction was saved but its stock change for %s could not post (%v) - adjust the stock by hand", m.sku, err)
+		if math.Abs(m.qty) > 1e-9 {
+			if _, err := PostInventoryLedgerWithVoucher(tenantID, location, []interface{}{line}, false, "GRNCorrection", voucher, userID); err != nil {
+				return nil, fmt.Errorf("the correction was saved but its stock change for %s could not post (%v) - adjust the stock by hand", m.sku, err)
+			}
 		}
-		if m.qty > 0 {
-			_ = RecordStockReceiptCost(tenantID, m.sku, m.qty, m.pricePaise)
+		// Stage 148.1: the rate moves by the value this correction books to stock below.
+		if err := correctReceiptCost(tenantID, m.sku, grnID, m.qty, m.value, m.priceChange); err != nil {
+			LogSystemError(tenantID, "", "WARN", "CorrectGRNStep", fmt.Sprintf("GRN %s correction: cost of %s not moved: %v", grnID, m.sku, err), "")
 		}
 	}
 	if p := RupeesToPaise(eff.ValueDelta); p != 0 {

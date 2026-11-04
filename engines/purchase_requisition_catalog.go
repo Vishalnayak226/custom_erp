@@ -23,6 +23,9 @@ func PreparePurchaseRequisition(tenantID, location string, isCreate bool, payloa
 		payload["description"] = description
 	}
 
+	if err := PrepareRequisitionLines(tenantID, isCreate, payload); err != nil { // 148.14
+		return err
+	}
 	if !isCreate {
 		return nil
 	}

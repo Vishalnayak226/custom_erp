@@ -129,7 +129,9 @@ func runDocumentRegister(tenantID string, s RegisterSpec, storeField string, p m
 		data       map[string]interface{}
 	}
 	var recs []rec
+	read := 0
 	for rows.Next() {
+		read++
 		var r rec
 		var raw []byte
 		if rows.Scan(&r.id, &r.status, &r.created, &raw) != nil {
@@ -142,6 +144,9 @@ func runDocumentRegister(tenantID string, s RegisterSpec, storeField string, p m
 		recs = append(recs, r)
 	}
 	rows.Close()
+	if read == registerRowCap {
+		return nil, reportReadStopped(registerRowCap) // 157.4b
+	}
 
 	// One query per master looked up, and one for the images.
 	lookups := map[string]map[string]string{} // "Doctype.field" -> id -> value

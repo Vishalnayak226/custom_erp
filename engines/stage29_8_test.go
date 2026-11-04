@@ -71,9 +71,10 @@ func TestStatusTransitionMap(t *testing.T) {
 	})
 
 	t.Run("a doctype that was NOT flagged strict is unaffected", func(t *testing.T) {
-		// FulfillmentTask has a rich status set and no seeded matrix, so
-		// fail-open must still apply - this is what makes the rollout safe.
-		if err := ValidateStatusTransition(tenantID, "FulfillmentTask", "Pending", "Dispatched", map[string]interface{}{"status": "Dispatched"}); err != nil {
+		// ReportExportJob has a status set and no seeded matrix (FulfillmentTask
+		// was the example until 49.5.3d made it strict), so fail-open must still
+		// apply - this is what makes the rollout safe.
+		if err := ValidateStatusTransition(tenantID, "ReportExportJob", "Pending", "Completed", map[string]interface{}{"status": "Completed"}); err != nil {
 			t.Fatalf("un-flagged doctypes must keep the previous fail-open behaviour, got: %v", err)
 		}
 	})

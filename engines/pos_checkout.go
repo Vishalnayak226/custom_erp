@@ -123,6 +123,9 @@ type posCartLine struct {
 	OfferShare float64 `json:"offer_share"`
 	// NoPoints (Stage 146.2.3): the line cannot be paid with points.
 	NoPoints bool `json:"no_points"`
+	// Stage 148.1: the pieces or lot the cashier scanned, sold at their own cost.
+	SerialNos pieceList `json:"serial_nos,omitempty"`
+	BatchNo   string    `json:"batch_no,omitempty"`
 }
 
 // FinalizeOutcome is what one committed sale produced. Returned so the caller
@@ -223,6 +226,7 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	// so the points economy and the posted revenue are the same figure.
 	totalSalePaise, totalCostPaise := int64(0), int64(0)
 	var costingGaps []CostingGapLine
+	var saleCosts []saleCostLine
 	for _, item := range cart.Items {
 		issue := saleStockIssue(tenantID, item.Sku, item.Qty)
 		itemsInterface = append(itemsInterface, issue.stock...)
@@ -236,6 +240,7 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 			if !issue.costResolved {
 				costingGaps = append(costingGaps, CostingGapLine{SKU: item.Sku, Qty: item.Qty, SaleValue: item.SalePrice * float64(item.Qty)})
 			}
+			saleCosts = append(saleCosts, issue.costLine)
 			continue
 		}
 		// Stage 47.2.2: cost is resolved entirely server-side - a real
@@ -251,6 +256,8 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 			costingGaps = append(costingGaps, CostingGapLine{SKU: item.Sku, Qty: item.Qty, SaleValue: item.SalePrice * float64(item.Qty)})
 		}
 		totalCostPaise += resolvedCostPaise * int64(item.Qty)
+		saleCosts = append(saleCosts, newSaleCostLine(tenantID, item.Sku, item.Qty, resolvedCostPaise, item.SerialNos, item.BatchNo))
+		markStockLineBatch(issue.stock, item.BatchNo)
 	}
 
 	// Stage 130.9 (72.D f): lines whose product type allows negative stock.
@@ -269,6 +276,12 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	if err != nil {
 		return nil, fmt.Errorf("inventory decrement failed: %w", err)
 	}
+	// Stage 148.1: named pieces and lots cost what they cost.
+	pieceDelta, err := settleNamedPiecesTx(tx, schema, saleCosts, cart.OfflineSynced)
+	if err != nil {
+		return nil, err
+	}
+	totalCostPaise += pieceDelta
 
 	// Stage 73.1.1: the bill's offer discount, line by line. Revenue, the
 	// points cap, gift cards and the earn base all work from the net - what
@@ -442,9 +455,9 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	}
 	if _, err := tx.Exec(fmt.Sprintf(
 		`UPDATE %s.documents SET status = 'Paid',
-		   data = jsonb_set(data, '{payment_state}', to_jsonb('Posted'::text)) || jsonb_build_object('allocation', $2::jsonb, 'amount_paid', $3::numeric, 'bill_number', $4::text, 'round_off', $5::numeric),
+		   data = jsonb_set(data, '{payment_state}', to_jsonb('Posted'::text)) || jsonb_build_object('allocation', $2::jsonb, 'amount_paid', $3::numeric, 'bill_number', $4::text, 'round_off', $5::numeric, 'sale_costs', $6::jsonb),
 		   updated_at = CURRENT_TIMESTAMP
-		 WHERE doctype = 'POSCart' AND id = $1`, schema), cartNumber, string(allocation), PaiseToRupees(billPaise), billNumber, PaiseToRupees(roundOff)); err != nil {
+		 WHERE doctype = 'POSCart' AND id = $1`, schema), cartNumber, string(allocation), PaiseToRupees(billPaise), billNumber, PaiseToRupees(roundOff), saleCostsJSON(saleCosts)); err != nil {
 		return nil, err
 	}
 

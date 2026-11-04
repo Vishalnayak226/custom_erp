@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -44,6 +45,8 @@ type StoreAppItem struct {
 	Batches     []BatchAgeingRow `json:"batches"`
 	Stock       []StoreAppStock  `json:"stock"`
 	StockMore   int              `json:"stock_more,omitempty"`
+	// Stage 148.1: the piece the scanned code names.
+	SerialNo string `json:"serial_no,omitempty"`
 }
 
 // storeAppBatchLimit and storeAppStockLimit keep the answer phone-sized: the
@@ -86,6 +89,13 @@ func storeAppLookup(tenantID string, access StoreAccess, workingStore, code stri
 	}
 
 	item, err := ResolveItemBySKU(tenantID, sku)
+	scannedSerial := ""
+	if errors.Is(err, ErrItemNotFound) {
+		if pieceSKU := pieceItemCode(tenantID, code); pieceSKU != "" {
+			scannedSerial = strings.TrimSpace(code)
+			item, err = ResolveItemBySKU(tenantID, pieceSKU)
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -101,6 +111,12 @@ func storeAppLookup(tenantID string, access StoreAccess, workingStore, code stri
 		Batch:     scannedBatch,
 		Batches:   []BatchAgeingRow{},
 		Stock:     []StoreAppStock{},
+	}
+	if scannedSerial != "" {
+		out.MatchedOn, out.SerialNo = "serial", scannedSerial
+		if batches, err = GetBatchAgeing(tenantID, itemCode, 0, false); err != nil {
+			return nil, err
+		}
 	}
 	if scannedBatch != nil {
 		out.MatchedOn = "batch"

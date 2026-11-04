@@ -41,7 +41,7 @@ type commandFamily struct {
 // commandFamilies in matching order: a route belongs to the first family
 // whose pattern matches. Only mutating methods are commands.
 var commandFamilies = []commandFamily{
-	{"Export", regexp.MustCompile(`/export`)},
+	{"Export", regexp.MustCompile(`/export|/pim/feeds/\{id\}/run`)},
 	{"Credential / config change", regexp.MustCompile(`credentials|/admin/settings$|/admin/tenant/package|/admin/security/|/shopify/\{channel\}/settings`)},
 	{"Loyalty", regexp.MustCompile(`loyalty`)},
 	{"Tender", regexp.MustCompile(`/pos/payment/`)},
@@ -399,6 +399,8 @@ var commandNotes = map[string]commandNote{
 		Inputs: "the dataset computed server-side, masked by role", Preconditions: "exports not frozen", Invariants: "the file holds what the dashboard shows for this role"},
 	"POST /api/v1/pim/export-templates/{id}/run": {
 		Inputs: "the feed's columns from the template's field maps", Preconditions: "a template; exports not frozen", Invariants: "every column comes through a template field or a field map; a field appears in one column"},
+	"POST /api/v1/pim/feeds/{id}/run": {
+		Inputs: "the feed (template, product group, ready only, format, destination)", Preconditions: "the feed is Active; the caller can read feeds and items; exports not frozen", Invariants: "every run is recorded with its rows, skipped items and delivery result; an email is shown as sent only when the mail server took it"},
 }
 
 // --- code facts -----------------------------------------------------------

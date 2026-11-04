@@ -411,7 +411,7 @@ export async function checkPOSLoyaltyBalance() {
   const section = (title, rows, empty) => `<h4 style="margin:12px 0 4px; font-size:13px;">${title}</h4>${rows.length ? '<ul style="margin:0; padding-left:18px; font-size:13px;">' + rows.map(r => `<li>${r}</li>`).join('') + '</ul>' : `<div class="txn-hint">${empty}</div>`}`;
   const html = `<div style="font-size:13px; margin-top:8px;">
       <div><strong>${cfgEsc(c.name || customerId)}</strong>${c.phone ? ` &middot; ${cfgEsc(c.phone)}` : ''}</div>
-      <div>Points: <strong>${c.balance}</strong> (worth ${money(c.points_value)})${c.balance < 0 ? ' - negative after a return; new purchases pay it back' : ''}</div>
+      <div>Points: <strong>${c.balance}</strong> (worth ${money(c.points_value)})${c.expiring_soon ? `, ${c.expiring_soon} expire in 30 days` : ''}${c.pending ? `, ${c.pending} pending` : ''}${c.balance < 0 ? ' - negative after a return; new purchases pay it back' : ''}</div>
       <div>Tier: <strong>${cfgEsc(c.tier || 'none yet')}</strong>${c.benefits ? ` - ${cfgEsc(c.benefits)}` : ''}</div>
       <div>Offers: ${c.consent_sms || c.consent_whatsapp ? `agreed by ${[c.consent_sms ? 'SMS' : '', c.consent_whatsapp ? 'WhatsApp' : ''].filter(Boolean).join(' and ')}` : 'not agreed - no SMS or WhatsApp offers are sent'}</div>
       <div>${c.next_tier ? `${money(c.to_next_tier)} more to ${cfgEsc(c.next_tier)}` : 'At the top tier'} (spend counted: ${money(c.spend)})${c.below_tier_since ? ` &middot; below this tier since ${cfgEsc(c.below_tier_since)}` : ''}</div>
@@ -938,6 +938,46 @@ async function openPOSExchange() {
 // Stage 73.2.5: hold and resume. A held bill keeps its bill number, so when it
 // is resumed and paid it posts under that number, once. Points, a split and
 // gift cards are not kept - add them again after resuming.
+// Stage 148.1: a code naming one piece or batch rings up as that piece or batch,
+// and the sale books its own cost. It lives here, not in view-pos.js, for the
+// cold-core budget: the till only calls it, and reads what it leaves on the line.
+// An item has one line, so a piece scanned twice or a second batch on that line
+// is refused: costing it as the first would be wrong.
+export async function posNamedScan(t, term, addToCart) {
+  const res = await apiFetch(`/api/v1/store-app/item?code=${encodeURIComponent(term)}`);
+  const found = res && res.ok ? await res.json() : null;
+  if (found?.matched_on !== 'serial' && found?.matched_on !== 'batch') return false;
+  const sku = found.code;
+  const serial = found.serial_no || '';
+  const batch = found.batch?.batch_no || '';
+  const had = posCart.find(l => l.sku === sku);
+  const refusal = !had ? ''
+    : serial && had.namedSerials?.includes(serial) ? `${serial} is already on this sale.`
+    : batch && had.namedBatch !== batch ? `Sell batch ${batch} on its own sale, or remove this item's line.` : '';
+  if (refusal) {
+    const errorEl = document.getElementById('pos-scan-error');
+    errorEl.textContent = refusal;
+    errorEl.classList.remove('hidden');
+    return true;
+  }
+  const qtyBefore = had?.qty || 0;
+  await addToCart(sku, found.name || '', term);
+  const line = posCart.find(l => l.sku === sku);
+  if (line && line.qty > qtyBefore) {
+    nameLineStock(line, serial, batch);
+    t.renderCart(true);
+  }
+  return true;
+}
+
+function nameLineStock(line, serial, batch) {
+  if (serial) line.namedSerials = [...(line.namedSerials || []), serial];
+  if (batch) line.namedBatch = batch;
+  const pieces = () => (line.namedSerials || []).slice(0, line.qty);
+  line.namedFields = () => ({ serial_nos: pieces(), batch_no: line.namedBatch || '' });
+  line.namedCell = () => `<div style="font-size:11.5px; color:var(--text-muted);">${cfgEsc([...pieces(), line.namedBatch].filter(Boolean).join(', '))}</div>`;
+}
+
 async function holdPOSBill() {
   const infoEl = document.getElementById('pos-loyalty-info');
   if (!posCart.length) {

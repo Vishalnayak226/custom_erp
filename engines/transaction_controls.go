@@ -138,7 +138,11 @@ func transferShortageByReason(tenantID string, p map[string]string) ([]map[strin
 		out = append(out, map[string]interface{}{"reason": reason, "transfers": len(a.transfers), "damaged": a.damaged, "lost": a.lost, "returned": a.returned, "excess": a.excess})
 	}
 	sort.Slice(out, func(i, j int) bool {
-		return out[i]["lost"].(int)+out[i]["damaged"].(int) > out[j]["lost"].(int)+out[j]["damaged"].(int)
+		a, b := out[i]["lost"].(int)+out[i]["damaged"].(int), out[j]["lost"].(int)+out[j]["damaged"].(int)
+		if a != b {
+			return a > b
+		}
+		return out[i]["reason"].(string) < out[j]["reason"].(string)
 	})
 	return out, nil
 }
@@ -159,7 +163,7 @@ func printReprintAudit(tenantID string, p map[string]string) ([]map[string]inter
 		       COUNT(*) FILTER (WHERE (is_reprint OR print_action = 'Reprint') AND COALESCE(reprint_reason, '') = '')
 		FROM %s.print_job_log WHERE doctype IS NOT NULL AND ($1 = '' OR printed_at >= $1::date) AND ($2 = '' OR printed_at < $2::date + 1)
 		GROUP BY 1, 2 HAVING COUNT(*) FILTER (WHERE is_reprint OR print_action = 'Reprint') > 0
-		ORDER BY 4 DESC LIMIT 2000`, schema), strings.TrimSpace(p["from"]), strings.TrimSpace(p["to"]))
+		ORDER BY 4 DESC LIMIT 20001`, schema), strings.TrimSpace(p["from"]), strings.TrimSpace(p["to"]))
 	if err != nil {
 		return nil, err
 	}

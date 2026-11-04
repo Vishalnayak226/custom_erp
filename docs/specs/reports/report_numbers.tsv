@@ -472,3 +472,11 @@ R6076	customer-affinity	Customer affinity and next best offer	CRM
 R6077	suggested-segments	Suggested segments	CRM
 R5087	threshold-splitting	Threshold splitting	Finance
 R5088	order-to-cash	Order to cash mismatches	Finance
+R2049	gate-entries-no-grn	Gate entries with no goods receipt	Procurement
+R2050	vendor-invoices-before-po	Vendor invoices dated before their PO	Procurement
+R9036	pim-attribute-fill-rate	Attribute fill rate	PIM
+R9037	pim-brand-vocabulary	Brand vocabulary check	PIM
+R2053	po-overdue-lines	Overdue PO lines	Procurement
+R9040	vendor-scorecard	Vendor scorecard	Procurement
+R9045	expected-arrivals	Expected arrivals	Procurement
+R9055	goods-before-po	Goods received before PO	Procurement

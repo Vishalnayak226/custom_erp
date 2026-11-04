@@ -56,6 +56,7 @@ var attachmentDoctypes = map[string]map[string]bool{
 	// proof on a purchase return before it posts.
 	"GRN":            {"Pending": true},
 	"PurchaseReturn": {"Draft": true},
+	"GateEntry":      {"Open": true}, // Stage 146.3.8: the driver / parcel photo
 }
 
 // attachmentTypes are the only contents accepted, keyed by the sniffed type,

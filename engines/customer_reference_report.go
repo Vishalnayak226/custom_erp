@@ -34,7 +34,7 @@ func customerReferenceReport(tenantID string, params map[string]string) ([]map[s
 		  AND created_at >= public.erp_day_start($1::date) AND created_at < public.erp_day_start($2::date + 1)
 		  AND ($3 = '' OR data->>'customer_reference' ILIKE '%%' || $3 || '%%')
 		  AND ($4 = '' OR COALESCE(data->>'customer', data->>'customer_name', '') ILIKE '%%' || $4 || '%%')
-		ORDER BY data->>'customer_reference', created_at LIMIT 5000`, schema), from, to, ref, customer)
+		ORDER BY data->>'customer_reference', created_at LIMIT 20001`, schema), from, to, ref, customer)
 	if err != nil {
 		return nil, err
 	}

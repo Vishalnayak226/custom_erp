@@ -243,15 +243,29 @@ func ApproveSupplyProposals(tenantID, userID, storeCode string, in ApprovePropos
 	// Read first (outside the lock) to know how many numbers to take; the
 	// locked re-read below is what decides.
 	fy := documentFinancialYear(time.Now())
-	var vendorName string
+	// Stage 146.4.2: with no vendor chosen, each item goes to its default
+	// vendor and every vendor gets its own PO.
+	vendorOf := map[string]string{} // proposal -> vendor
+	vendorName := map[string]string{}
+	var vendorOrder []string
 	if in.Action == ProposalPurchase {
-		var ok bool
-		if vendorName, ok = vendorNameOf(tenantID, in.Vendor); !ok || strings.TrimSpace(in.Vendor) == "" {
-			return nil, proposalErr("choose an active vendor for the purchase order")
-		}
-		// 49.5.6b: before a number is taken - not for a vendor with no state.
-		if err := RequirePOVendorState(tenantID, map[string]interface{}{"vendor": in.Vendor}); err != nil {
+		var err error
+		if vendorOf, vendorOrder, err = proposalVendors(tenantID, ids, in.Vendor); err != nil {
 			return nil, err
+		}
+		for _, v := range vendorOrder {
+			name, ok := vendorNameOf(tenantID, v)
+			if !ok || strings.TrimSpace(v) == "" {
+				return nil, proposalErr("choose an active vendor for the purchase order")
+			}
+			vendorName[v] = name
+			// 49.5.6b: before a number is taken - not for a vendor with no state.
+			if err := RequirePOVendorState(tenantID, map[string]interface{}{"vendor": v}); err != nil {
+				return nil, err
+			}
+			if err := checkVendorNoNewPO(tenantID, v); err != nil { // 148.9: not for a held vendor
+				return nil, err
+			}
 		}
 	}
 	if in.Action == ProposalTransfer {
@@ -268,6 +282,9 @@ func ApproveSupplyProposals(tenantID, userID, storeCode string, in ApprovePropos
 	need := 1
 	if in.Action == ProposalProduction {
 		need = len(ids)
+	}
+	if in.Action == ProposalPurchase {
+		need = len(vendorOrder)
 	}
 	series := map[string]string{ProposalPurchase: "PO", ProposalTransfer: "TO", ProposalProduction: "PRO"}[in.Action]
 	for i := 0; i < need; i++ {
@@ -335,37 +352,41 @@ func ApproveSupplyProposals(tenantID, userID, storeCode string, in ApprovePropos
 	target := map[string]string{} // proposal -> document
 	switch in.Action {
 	case ProposalPurchase:
-		type poLine struct {
-			SKU  string  `json:"sku"`
-			Qty  int     `json:"qty"`
-			Rate float64 `json:"rate"`
-		}
-		var items []poLine
-		total := 0.0
-		for _, p := range props {
-			rate := 0.0
-			if c, ok := ResolveQuoteUnitCostPaise(tenantID, str(p.data, "sku")); ok {
-				rate = PaiseToRupees(c)
+		for n, vendor := range vendorOrder {
+			var vprops []*prop
+			for i := range props {
+				if vendorOf[props[i].id] == vendor {
+					vprops = append(vprops, &props[i])
+				}
 			}
-			items = append(items, poLine{SKU: str(p.data, "sku"), Qty: int(p.qty), Rate: rate})
-			total += rate * p.qty
-			target[p.id] = numbers[0]
+			var lines []proposalPOLine
+			for _, p := range vprops {
+				lines = append(lines, proposalPOLine{SKU: str(p.data, "sku"), Qty: int(p.qty), Cost: quoteCostRupees(tenantID, str(p.data, "sku"))})
+			}
+			itemsJSON, total, err := PriceProposalPOLines(tenantID, vendor, lines)
+			if err != nil {
+				return nil, err
+			}
+			for i, p := range vprops {
+				p.qty = float64(lines[i].Qty) // rounded up to the vendor's pack multiple
+				target[p.id] = numbers[n]
+			}
+			po := map[string]interface{}{
+				"code": numbers[n], "po_number": numbers[n], "vendor": vendor, "vendor_id": vendor, "location": location,
+				"target_warehouse": location, "items": itemsJSON, "total_amount": round2(total), "gst_mode": GSTModeExclusive,
+				"source_proposal_ids": strings.Join(ids, ","), "status": "Draft",
+			}
+			// 49.5.6e: not for a store with no state either.
+			if err := RequirePOStoreState(tenantID, po); err != nil {
+				return nil, err
+			}
+			ApplyPlaceOfSupply(tenantID, po) // 49.5.6b: the supply type is derived
+			if err := insert(numbers[n], "PurchaseOrder", po); err != nil {
+				return nil, err
+			}
+			res.Documents = append(res.Documents, numbers[n])
 		}
-		itemsJSON, _ := json.Marshal(items)
-		po := map[string]interface{}{
-			"code": numbers[0], "po_number": numbers[0], "vendor": in.Vendor, "vendor_id": in.Vendor, "location": location,
-			"target_warehouse": location, "items": string(itemsJSON), "total_amount": round2(total), "gst_mode": GSTModeExclusive,
-			"source_proposal_ids": strings.Join(ids, ","), "status": "Draft",
-		}
-		// 49.5.6e: not for a store with no state either.
-		if err := RequirePOStoreState(tenantID, po); err != nil {
-			return nil, err
-		}
-		ApplyPlaceOfSupply(tenantID, po) // 49.5.6b: the supply type is derived
-		if err := insert(numbers[0], "PurchaseOrder", po); err != nil {
-			return nil, err
-		}
-		res.Doctype, res.Documents = "PurchaseOrder", []string{numbers[0]}
+		res.Doctype = "PurchaseOrder"
 	case ProposalTransfer:
 		var items []transferLine
 		for _, p := range props {
@@ -407,7 +428,7 @@ func ApproveSupplyProposals(tenantID, userID, storeCode string, in ApprovePropos
 		p.data["target_doctype"], p.data["target_id"] = res.Doctype, target[p.id]
 		p.data["decided_by"], p.data["decided_at"], p.data["reason"] = userID, now, strings.TrimSpace(in.Note)
 		if in.Action == ProposalPurchase {
-			p.data["vendor"], p.data["vendor_name"] = in.Vendor, vendorName
+			p.data["vendor"], p.data["vendor_name"] = vendorOf[p.id], vendorName[vendorOf[p.id]]
 		}
 		if in.Action == ProposalTransfer {
 			p.data["from_location"] = in.FromLocation

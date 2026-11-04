@@ -23,6 +23,13 @@ async function storeStateCode(store) {
   return String((le && (le.state_code || (le.gstin || '').slice(0, 2))) || '');
 }
 
+// Stage 148.1: a tracked item's line names its pieces or batch, so it books their own cost.
+function namedStockInputs(l, i) {
+  const box = (key, label) => `<input class="form-input" style="margin-top:4px;" data-sil="${key}" data-i="${i}" placeholder="${label}" aria-label="${label}" value="${esc(l[key] || '')}">`;
+  return (l.tracking === 'Serial' || l.tracking === 'Batch and Serial' ? box('serial_nos', 'Piece codes') : '')
+    + (l.tracking === 'Batch' || l.tracking === 'Batch and Serial' ? box('batch_no', 'Batch') : '');
+}
+
 export async function renderSalesInvoiceEntry(container, onDone) {
   const S = { lines: [], storeState: '', customer: null };
   const { sessionStore } = await import('./txn-screen.js' + Q);
@@ -71,7 +78,7 @@ export async function renderSalesInvoiceEntry(container, onDone) {
       l.taxable = r2(num(l.qty) * num(l.rate) - l.discount);
       l.tax = r2(l.taxable * num(l.gst_rate) / 100);
       taxable += l.taxable; tax += l.tax;
-      return `<tr><td>${esc(l.name || l.sku)}<div class="text-muted" style="font-size:12px;">${esc(l.sku)}</div></td><td>${esc(l.hsn || '')}</td>
+      return `<tr><td>${esc(l.name || l.sku)}<div class="text-muted" style="font-size:12px;">${esc(l.sku)}</div>${namedStockInputs(l, i)}</td><td>${esc(l.hsn || '')}</td>
         <td class="num"><input type="number" min="0" step="any" class="form-input" style="width:80px;text-align:right;" data-sil="qty" data-i="${i}" value="${esc(l.qty)}"></td>
         <td class="num"><input type="number" min="0" step="0.01" class="form-input" style="width:110px;text-align:right;" data-sil="rate" data-i="${i}" value="${esc(l.rate)}"></td>
         <td class="num"><input type="number" min="0" step="0.01" class="form-input" style="width:90px;text-align:right;" data-sil="discount" data-i="${i}" value="${esc(l.discount)}" title="Taken off this line before GST"></td>
@@ -94,8 +101,28 @@ export async function renderSalesInvoiceEntry(container, onDone) {
     if (c.gstin) panel.querySelector('#si-gstin').value = c.gstin;
     const code = (c.gstin || '').slice(0, 2) || c.state_code || '';
     if (code) panel.querySelector('#si-pos').value = code;
+    fillDue();
     draw();
   } });
+  // Due date from the customer's terms (Stage 148.3); a date typed by hand is never replaced.
+  const dueEl = panel.querySelector('#si-due');
+  let dueAuto = false;
+  dueEl.addEventListener('input', () => { dueAuto = false; });
+  const fillDue = async () => {
+    const term = S.customer && S.customer.payment_term;
+    if (!term || (dueEl.value && !dueAuto)) return;
+    const res = await apiFetch(`/api/v1/doc/PaymentTerm/${encodeURIComponent(term)}`);
+    if (!res || !res.ok) return;
+    const t = await res.json();
+    const day = v('#si-date');
+    if (!day || (dueEl.value && !dueAuto)) return;
+    const d = new Date(day + 'T00:00:00');
+    if (t.end_of_month === 'Yes') d.setMonth(d.getMonth() + 1, 0);
+    d.setDate(d.getDate() + Number(t.net_days || 0));
+    dueEl.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    dueAuto = true;
+  };
+  panel.querySelector('#si-date').addEventListener('change', fillDue);
   const storeEl = panel.querySelector('#si-store');
   attachLinkTypeahead(storeEl, 'Location', { keepCode: true });
   const loadState = async () => { S.storeState = storeEl.value.trim() ? await storeStateCode(storeEl.value.trim()) : ''; draw(); };
@@ -105,7 +132,7 @@ export async function renderSalesInvoiceEntry(container, onDone) {
   panel.querySelector('#si-pos').addEventListener('input', draw);
   const addInput = q('add');
   attachLinkTypeahead(addInput, 'Item', { noSetupHint: true, onPick: (item) => {
-    S.lines.push({ sku: item.code || item.id, name: item.name || '', hsn: item.hsn_code || '', qty: 1, rate: num(item.sale_price || item.price || item.mrp), discount: 0, gst_rate: num(item.gst_rate) });
+    S.lines.push({ sku: item.code || item.id, name: item.name || '', hsn: item.hsn_code || '', qty: 1, rate: num(item.sale_price || item.price || item.mrp), discount: 0, gst_rate: num(item.gst_rate), tracking: item.tracking_mode || '' });
     addInput.value = '';
     addInput.dispatchEvent(new Event('input'));
     draw();
@@ -122,9 +149,9 @@ export async function renderSalesInvoiceEntry(container, onDone) {
     if (g && !/^[0-9]{2}[A-Z0-9]{13}$/i.test(g)) { fail('The buyer GSTIN is 15 characters, starting with the state code.'); return; }
     btn.disabled = true;
     const res = await apiFetch('/api/v1/doc/SalesInvoice', { method: 'POST', body: JSON.stringify({
-      customer: v('#si-customer'), customer_gstin: g.toUpperCase(), location: v('#si-store'), invoice_date: v('#si-date'), place_of_supply: v('#si-pos'),
+      customer: v('#si-customer'), customer_id: (S.customer && (S.customer.code || S.customer.id) && v('#si-customer') === (S.customer.code || S.customer.id) ? (S.customer.id || S.customer.code) : ''), payment_term: (S.customer && S.customer.payment_term) || '', customer_gstin: g.toUpperCase(), location: v('#si-store'), invoice_date: v('#si-date'), place_of_supply: v('#si-pos'),
       due_date: v('#si-due'), customer_reference: v('#si-ref'), delivery_challan: v('#si-challan'), interstate: interstate(),
-      items: JSON.stringify(S.lines.map(l => ({ sku: l.sku, item_name: l.name, hsn_code: l.hsn, qty: num(l.qty), rate: num(l.rate), discount: num(l.discount), gst_rate: num(l.gst_rate), taxable: l.taxable, tax: l.tax, amount: r2(l.taxable + l.tax) }))),
+      items: JSON.stringify(S.lines.map(l => ({ sku: l.sku, item_name: l.name, hsn_code: l.hsn, qty: num(l.qty), rate: num(l.rate), discount: num(l.discount), gst_rate: num(l.gst_rate), taxable: l.taxable, tax: l.tax, amount: r2(l.taxable + l.tax), serial_nos: l.serial_nos || '', batch_no: l.batch_no || '' }))),
       taxable_amount: S.totals.taxable, cgst: S.totals.cgst, sgst: S.totals.sgst, igst: S.totals.igst, total_tax: S.totals.tax, total_amount: S.totals.total, status: 'Draft' }) });
     btn.disabled = false;
     if (!res) return;

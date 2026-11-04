@@ -77,7 +77,7 @@ func glParty(r *catRow) (vendor, customer string) {
 		return "", ""
 	}
 	switch r.hs("doctype") {
-	case "GRN", "VendorInvoice", "DebitNote", "VendorCreditNote", "PurchaseReturn", "LandedCostVoucher", "Asset":
+	case "GRN", "VendorInvoice", "DebitNote", "VendorCreditNote", "PurchaseReturn", "LandedCostVoucher", "Asset", "TradeChargeEntry":
 		return firstNonEmpty(catStr(d["vendor_id"]), catStr(d["vendor"])), ""
 	case "SalesInvoice", "CreditNote", "POSCart", "ReturnRequest", "RefundRequest":
 		return "", firstNonEmpty(catStr(d["customer_id"]), catStr(d["customer"]))

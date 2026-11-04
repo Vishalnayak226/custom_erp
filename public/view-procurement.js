@@ -16,6 +16,14 @@ const grnStepsModule = () => import('./grn-steps.js' + TRADE_DOCS_QUERY);
 // BLD-041: native ES module, loaded on first authorized view visit.
 // Shared app services resolve from the classic shell; these named exports
 // are published by the loader for legacy cross-view calls.
+// What the approver decides, where the record's number alone doesn't say.
+function approvalRowNote(item) {
+  if (item.doctype === 'VendorChange') return item.summary || '';
+  if (item.doctype === 'CreditHoldRelease') return `${item.party || item.order_id} · owed ₹${formatMoney(item.exposure)} · limit ₹${formatMoney(item.credit_limit)}`;
+  if (item.doctype === 'GLAccountChange') return [item.action, item.account_code, item.account_name].filter(Boolean).join(' ');
+  return '';
+}
+
 async function renderApprovalsView(container) {
   const res = await apiFetch('/api/v1/approval/pending');
   // BLD-036: apiFetch already surfaces its own connection/timeout dialog on a
@@ -76,11 +84,12 @@ async function renderApprovalsView(container) {
     const amount = item.total_amount ?? item.amount ?? '';
     const loc = item.location || item.location_code || '';
     const reference = item.code || item.name || item.id;
+    const note = approvalRowNote(item);
     html += `
       <tr>
         <td>${bulkable(item) ? `<input type="checkbox" aria-label="Tick ${escapeHTMLText(reference)}" data-appr-pick data-doctype="${escapeHTMLText(item.doctype)}" data-id="${escapeHTMLText(item.id)}" data-ref="${escapeHTMLText(reference)}">` : ''}</td>
         <td>${escapeHTMLText(getDoctypeLabel(item.doctype))}</td>
-        <td>${escapeHTMLText(reference)}${reference !== item.id ? `<div class="text-muted" style="font-size:11px;">Record ${escapeHTMLText(item.id)}</div>` : ''}</td>
+        <td>${escapeHTMLText(reference)}${reference !== item.id ? `<div class="text-muted" style="font-size:11px;">Record ${escapeHTMLText(item.id)}</div>` : ''}${note ? `<div class="text-muted" style="font-size:12px;">${escapeHTMLText(note)}</div>` : ''}</td>
         <td>${amount !== '' ? Number(amount).toLocaleString() : ''}</td>
         <td>${escapeHTMLText(loc)}</td>
         <td>
@@ -243,6 +252,100 @@ function poTermsHTML(d) {
     </details>`;
 }
 
+// Stage 148.8: charge rows on a PO or receipt, in the line editor the record form uses.
+const TRADE_CHARGE_COLUMNS = JSON.stringify([
+  { key: 'charge_code', label: 'Charge', type: 'link', link: 'TradeChargeCode', required: true },
+  { key: 'amount', label: 'Amount', type: 'number', required: true },
+  { key: 'only_lines', label: 'Only SKUs', type: 'data' },
+  { key: 'exclude_lines', label: 'Leave out SKUs', type: 'data' }
+]);
+
+function chargeRowsHTML(id, value) {
+  return `<details id="${id}" class="po-terms"${value && value !== '[]' ? ' open' : ' hidden'} style="margin:4px 0 10px;flex-basis:100%;"><summary style="cursor:pointer;font-weight:600;">Charges</summary></details>`;
+}
+
+// Nothing shows until this company has a charge code. A company without one is
+// asked again at most once a minute, so a code made just now shows up.
+let chargeCodesSeen = false;
+let chargeCodesAskedAt = 0;
+let chargeCodesAsk = null;
+function whenChargeCodesExist(run) {
+  if (chargeCodesSeen) { run(); return; }
+  if (!canReadDoctype('TradeChargeCode')) return;
+  if (!chargeCodesAsk || Date.now() - chargeCodesAskedAt > 60000) {
+    chargeCodesAskedAt = Date.now();
+    chargeCodesAsk = apiFetch('/api/v1/doc/TradeChargeCode?limit=1').then(r => (r && r.ok ? r.json() : [])).catch(() => []);
+  }
+  chargeCodesAsk.then(rows => { if (rows && rows.length) { chargeCodesSeen = true; run(); } });
+}
+
+function mountChargeRows(id, value, onChange) {
+  const holder = document.getElementById(id);
+  if (!holder) return;
+  renderJSONLineEditor(holder, { fieldname: 'charges', fieldtype: 'JSONTable', options: TRADE_CHARGE_COLUMNS }, value || '');
+  const hidden = holder.querySelector('input[name="charges"]');
+  ['input', 'change', 'click'].forEach(kind => holder.addEventListener(kind, () => onChange?.(hidden.value)));
+  whenChargeCodesExist(() => { holder.hidden = false; });
+}
+
+// Stage 148.8: Book bill on an entry awaiting its carrier's bill.
+function billChargeEntryRow(id, vendor) {
+  document.getElementById('charge-bill-dialog')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'charge-bill-dialog';
+  overlay.innerHTML = `
+    <div class="modal-container" style="max-width: 480px;" role="dialog" aria-modal="true" aria-labelledby="charge-bill-title">
+      <div class="modal-header"><h3 class="modal-title" id="charge-bill-title">Book bill</h3>
+        <button type="button" class="modal-close" aria-label="Close dialog" data-cb-close>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button></div>
+      <div class="modal-body" style="display:flex; flex-direction:column; gap:12px;">
+        <div class="form-group"><label class="form-label" for="charge-bill-vendor">Vendor</label><input id="charge-bill-vendor" class="form-input" autocomplete="off" value="${escapeHTMLText(vendor || '')}"></div>
+        <div class="form-group"><label class="form-label" for="charge-bill-no">Bill no</label><input id="charge-bill-no" class="form-input" autocomplete="off"></div>
+        <div class="form-group"><label class="form-label" for="charge-bill-date">Bill date</label><input id="charge-bill-date" type="date" class="form-input"></div>
+        <div class="form-group"><label class="form-label" for="charge-bill-amount">Bill total</label><input id="charge-bill-amount" type="number" min="0" step="0.01" class="form-input num"></div>
+        <div class="form-group"><label class="form-label" for="charge-bill-gst">GST in it</label><input id="charge-bill-gst" type="number" min="0" step="0.01" class="form-input num"></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline" data-cb-close>Cancel</button>
+        <button type="button" class="btn btn-primary" data-cb-save>Book bill</button></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelectorAll('[data-cb-close]').forEach(b => b.addEventListener('click', close));
+  overlay.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  const vendorInput = overlay.querySelector('#charge-bill-vendor');
+  attachLinkTypeahead(vendorInput, 'Vendor', { keepCode: true });
+  const save = overlay.querySelector('[data-cb-save]');
+  save.addEventListener('click', () => guardAgainstDoubleSubmit(save, 'Saving...', async () => {
+    const value = (field) => overlay.querySelector(`#charge-bill-${field}`).value.trim();
+    const body = { entry_ids: [id], vendor_id: value('vendor'), invoice_number: value('no'), invoice_date: value('date'), invoice_amount: Number(value('amount')) || 0 };
+    if (value('gst') !== '') body.gst_amount = Number(value('gst'));
+    const res = await apiFetch('/api/v1/finance/charge-entries/bill', { method: 'POST', body: JSON.stringify(body) });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'The bill was not booked.'); return; }
+    close();
+    showToast('Bill booked.', { variant: 'success' });
+    renderView('doctype-table');
+  }));
+}
+
+// Stage 148.8: each line's charges on a receipt, or why it has none.
+async function showChargeLinesRow(grnId) {
+  const res = await apiFetch(`/api/v1/grn-steps/${encodeURIComponent(grnId)}/charges`);
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'The lines could not load.'); return; }
+  const { lines } = await res.json();
+  const table = document.createElement('table');
+  table.innerHTML = '<thead><tr><th>SKU</th><th>Charge</th></tr></thead><tbody></tbody>';
+  (lines || []).forEach(l => {
+    const tr = table.tBodies[0].insertRow();
+    tr.insertCell().textContent = l.sku;
+    tr.insertCell().textContent = [...(l.charges || []).map(c => `${c.label || c.code} ${formatMoney(c.paise / 100)}`), ...(l.reasons || [])].join(', ');
+  });
+  await showCustomAlert(table, 'Charges');
+}
+
 function bindPOTerms(d) {
   const term = document.getElementById('po-payment-term');
   if (!term) return;
@@ -252,12 +355,29 @@ function bindPOTerms(d) {
     .forEach(([id, key]) => document.getElementById(id)?.addEventListener('change', (ev) => { d[key] = ev.target.value.trim(); }));
 }
 
+// 146.3.8: the gate entry a receipt was started from; saved with it.
+let grnGateEntryId = '';
+async function startGRNFromGateEntry(id) {
+  const r = await apiFetch(`/api/v1/doc/GateEntry/${encodeURIComponent(id)}`);
+  if (!r || !r.ok) return;
+  const g = await r.json();
+  grnGateEntryId = g.id || id;
+  window.txnShowPane('grn-screen:new');
+  const set = (el, v) => { const e = document.getElementById(el); if (e && v) e.value = v; };
+  set('grn-vendor', g.vendor); set('grn-location', g.location_code); set('grn-lr', g.lr_no);
+  set('grn-vehicle', g.vehicle_number); set('grn-transporter', g.transporter); set('grn-packages', g.parcels);
+  if (g.po_id) { set('grn-po', g.po_id); await loadGRNItemsFromPO(); }
+}
+
 // grnLogisticsPayload (Stage 130.16) reads the new receipt's challan and transport.
 function grnLogisticsPayload() {
   const v = (id) => (document.getElementById(id)?.value || '').trim();
   const out = { vendor_challan_no: v('grn-challan-no'), vendor_challan_date: v('grn-challan-date'), lr_awb_no: v('grn-lr'),
     vehicle_no: v('grn-vehicle'), transporter: v('grn-transporter') };
   if (v('grn-packages')) out.package_count = Number(v('grn-packages')) || 0;
+  if (grnGateEntryId) out.gate_entry_id = grnGateEntryId;
+  const charges = document.querySelector('#grn-charges input[name="charges"]')?.value;
+  if (charges) out.charges = charges;
   return out;
 }
 
@@ -267,6 +387,9 @@ function newPODraft() {
     // '' means "inherit the tenant default", which the first preview response
     // resolves and displays - the screen never hardcodes Exclusive itself.
     gst_mode: '',
+    order_discount_pct: '', order_discount_amt: '', // Stage 148.7
+    charges: '', // Stage 148.8
+    retro_grn_id: '', // Stage 148.38
     lines: [],
     // Stage 65.1: the entry row at the top of the composer; Add moves it into lines.
     entry: newPOEntry(),
@@ -332,6 +455,7 @@ async function renderPurchaseOrdersView(container) {
   screen.innerHTML = `<div class="txn-bar">${poPageHead(orders.length)}${txnContext()}
     <div class="txn-actions txn-landing-only">
       ${canCreateDoctype('PurchaseOrder') ? `<button type="button" class="btn btn-outline" ${actionAttrs('txnShowPane', ['po-composer:upload'])}>Upload from Excel</button>` : ''}
+      <button type="button" class="btn btn-outline" ${actionAttrs('showPOOverdue', [])}>Overdue lines</button>
       <button type="button" class="btn btn-primary" ${actionAttrs('newPurchaseOrder', [])}>+ New Purchase Order</button></div></div>`;
   const panel = document.createElement('div');
   panel.className = 'txn-grid';
@@ -380,7 +504,7 @@ async function renderPurchaseOrdersView(container) {
     html += `
       <tr>
         <td style="font-family: monospace;">${copyableCell(poNumber, poNumber)}</td>
-        <td>${documentSearchLink('PurchaseRequisition', po.source_requisition_id)}</td>
+        <td>${[po.source_requisition_id, ...String(po.source_requisition_ids || '').split(',')].map(s => String(s || '').trim()).filter((s, i, a) => s && a.indexOf(s) === i).map(s => documentSearchLink('PurchaseRequisition', s)).join(' ') || documentSearchLink('PurchaseRequisition', '')}</td>
         <td>${escapeHTMLText(po.vendor || '')}</td>
         <td data-link-doctype="Location" data-link-ref="${escapeHTMLText(po.location || '')}">${escapeHTMLText(po.location || '')}</td>
         <td>${lineCount === 0 ? '<span class="po-no-lines" title="This PO was raised before line items existed, or was created through the API without them.">No lines</span>' : `${lineCount} item${lineCount === 1 ? '' : 's'}`}</td>
@@ -394,6 +518,7 @@ async function renderPurchaseOrdersView(container) {
           ${live ? `<button class="action-btn" ${actionAttrs('amendPurchaseOrder', [po.id])}>Edit</button>` : ''}
           ${canCreateDoctype('PurchaseOrder') ? `<button class="action-btn" title="A new PO with the same vendor, terms and lines" ${actionAttrs('copyPurchaseOrder', [po.id])}>Copy</button>` : ''}
           <button class="action-btn" ${actionAttrs('printPurchaseOrder', [po.id])}>Print</button>
+          ${po.status === 'Approved' || po.status === 'Closed' ? `<button class="action-btn" ${actionAttrs('stickersForPO', [po.id])}>Stickers</button>` : ''}
           ${po.status !== 'Cancelled' && lineCount > 0 ? `<button class="action-btn" ${actionAttrs('openPOImages', [po.id])}>Images</button>` : ''}
           ${po.status !== 'Draft' && po.status !== 'Cancelled' ? `<button class="action-btn" ${actionAttrs('sendPurchaseOrderToVendor', [po.id])}>Send to Vendor</button>` : ''}
           ${canDeleteDoctype('PurchaseOrder') ? `<button class="action-btn action-btn-danger" ${actionAttrs('deletePurchaseOrder', [po.id, poNumber])}>Delete</button>` : ''}
@@ -487,7 +612,7 @@ window.showPOBalance = async function(poId) {
         <div class="table-panel" style="overflow-x: auto;"><table>
           <thead><tr><th>Item</th><th class="num">Ordered</th><th class="num">Received</th><th class="num">Accepted</th><th class="num">Rejected</th><th class="num">Damaged</th><th class="num">Returned</th><th class="num">Short-closed</th><th class="num">Open</th><th class="num">Invoiced</th><th class="num">Paid</th></tr></thead>
           <tbody>${(rec.lines || []).map(l => `<tr><td>${escapeHTMLText(l.name || l.sku)}${l.name ? `<div style="font-size: 11px; color: var(--text-muted);">${escapeHTMLText(l.sku)}</div>` : ''}</td>
-            ${cell(l.ordered)}${cell(l.received)}${cell(l.accepted)}${cell(l.rejected)}${cell(l.damaged)}${cell(l.returned)}${cell(l.short_closed)}<td class="num"><b>${n(l.open)}</b></td>${cell(l.invoiced)}${cell(l.paid)}</tr>`).join('')}</tbody>
+            ${cell(l.ordered)}${cell(l.received)}${cell(l.accepted)}${cell(l.rejected)}${cell(l.damaged)}${cell(l.returned)}${cell(l.short_closed)}<td class="num"><b>${n(l.open)}</b></td>${cell(l.invoiced)}${cell(l.paid)}</tr>${rec.status === 'Approved' ? `<tr><td colspan="11" style="border-top: 0; padding-top: 0; text-align: right;">${l.stopped ? 'Stopped' : `<button type="button" class="action-btn" data-po-line="control" data-line="${l.line_no}">Control</button>${Number(l.open) > 0 ? ` <button type="button" class="action-btn" data-po-line="stop" data-line="${l.line_no}">Stop</button> <button type="button" class="action-btn" data-po-line="close-rest" data-line="${l.line_no}">Close rest</button>` : ''}`}</td></tr>` : ''}`).join('')}</tbody>
         </table></div>
         <p style="margin: 0;">Ordered ₹${formatMoney(rec.ordered_value)} · Accepted ₹${formatMoney(rec.accepted_value)} · Open ₹${formatMoney(rec.open_value)} · Invoiced ₹${formatMoney(rec.invoiced_amount)} · Paid ₹${formatMoney(rec.paid_amount)}</p>
         <p style="margin: 0; color: var(--text-muted);">Receipts: ${(rec.grns || []).length ? rec.grns.map(g => `${escapeHTMLText(g.number)}${g.invoices && g.invoices.length ? ` (invoice ${escapeHTMLText(g.invoices.join(', '))})` : ' (not invoiced)'}`).join(' · ') : 'none yet'}
@@ -513,6 +638,18 @@ window.showPOBalance = async function(poId) {
   overlay.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
   overlay.addEventListener('click', e => { if (e.target.closest('[data-act="openSetupDoctype"]')) close(); });
   requestAnimationFrame(() => overlay.classList.add('open'));
+  overlay.querySelectorAll('[data-po-line]').forEach(b => b.addEventListener('click', async () => {
+    const line = b.dataset.line, kind = b.dataset.poLine;
+    if (kind === 'control') { close(); await window.showPOLineControl(poId, Number(line)); return; }
+    const reasonId = overlay.querySelector('#po-sc-reason')?.value;
+    if (!reasonId) { await showCustomAlert('Choose a reason first.', 'PO line'); return; }
+    const r = await apiFetch(`/api/v1/procurement/purchase-order/${encodeURIComponent(poId)}/line/${line}/${kind}`, {
+      method: 'POST', body: JSON.stringify({ reason_code: reasonId, note: overlay.querySelector('#po-sc-note')?.value.trim() || '' }) });
+    if (!r) return;
+    if (!r.ok) { close(); await showApiError(r, 'The line could not be changed.', 'PO line'); return; }
+    close();
+    window.showPOBalance(poId);
+  }));
   const btn = overlay.querySelector('#po-sc-btn');
   if (btn) btn.addEventListener('click', () => guardAgainstDoubleSubmit(btn, 'Closing...', async () => {
     const errEl = overlay.querySelector('#po-sc-error');
@@ -531,6 +668,108 @@ window.showPOBalance = async function(poId) {
   }));
 };
 
+// Stage 148.11: one PO line's control - vendor confirmation, tolerance (blank =
+// the item's), full delivery only, and the instalments (one "qty date" per row).
+window.showPOLineControl = async function(poId, lineNo) {
+  const res = await apiFetch(`/api/v1/doc/PurchaseOrder/${encodeURIComponent(poId)}`);
+  if (!res || !res.ok) { if (res) await showApiError(res, 'The purchase order could not be loaded.', 'Line control'); return; }
+  const po = await res.json();
+  let l = {};
+  try { l = (JSON.parse(po.items || '[]') || [])[lineNo - 1] || {}; } catch (_) { l = {}; }
+  const inst = (l.instalments || []).map(i => `${i.qty} ${i.date}`).join('\n');
+  const v = x => escapeHTMLText(x == null ? '' : String(x));
+  document.getElementById('po-line-dialog')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'po-line-dialog';
+  overlay.innerHTML = `
+    <div class="modal-container" style="max-width: 520px;" role="dialog" aria-modal="true" aria-labelledby="po-line-title">
+      <div class="modal-header"><h3 class="modal-title" id="po-line-title">Line ${lineNo} - ${v(l.sku)}</h3>
+        <button type="button" class="modal-close" aria-label="Close dialog" data-pl-close>&times;</button></div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; gap: 10px;">
+          <div class="form-group" style="margin: 0; flex: 1;"><label class="form-label" for="pl-cno">Vendor confirmation no.</label><input id="pl-cno" class="form-input" value="${v(l.confirmation_no)}"></div>
+          <div class="form-group" style="margin: 0;"><label class="form-label" for="pl-cdate">Confirmed on</label><input id="pl-cdate" type="date" class="form-input" value="${v(l.confirmation_date)}"></div></div>
+        <div style="display: flex; gap: 10px;">
+          <div class="form-group" style="margin: 0; flex: 1;"><label class="form-label" for="pl-under">Under %</label><input id="pl-under" type="number" min="0" max="100" step="any" class="form-input" value="${v(l.under_pct)}" placeholder="Item's"></div>
+          <div class="form-group" style="margin: 0; flex: 1;"><label class="form-label" for="pl-over">Over %</label><input id="pl-over" type="number" min="0" max="100" step="any" class="form-input" value="${v(l.over_pct)}" placeholder="Item's"></div></div>
+        <label><input type="checkbox" id="pl-full" ${l.full_delivery_only ? 'checked' : ''}> Full delivery only</label>
+        <div class="form-group" style="margin: 0;"><label class="form-label" for="pl-inst">Instalments (qty date)</label><textarea id="pl-inst" class="form-input" rows="4" placeholder="5 2026-11-10">${v(inst)}</textarea></div>
+        <div id="pl-error" class="login-error hidden"></div></div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline" data-pl-close>Cancel</button><button type="button" class="btn btn-primary" id="pl-save">Save</button></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelectorAll('[data-pl-close]').forEach(b => b.addEventListener('click', close));
+  overlay.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  requestAnimationFrame(() => overlay.classList.add('open'));
+  const save = overlay.querySelector('#pl-save');
+  save.addEventListener('click', () => guardAgainstDoubleSubmit(save, 'Saving...', async () => {
+    const q = id => overlay.querySelector(id).value.trim();
+    const errEl = overlay.querySelector('#pl-error');
+    errEl.classList.add('hidden');
+    const rows = q('#pl-inst').split('\n').map(s => s.trim()).filter(Boolean).map(s => { const [qty, date] = s.split(/\s+/); return { qty: Number(qty), date: date || '' }; });
+    const num = s => (s === '' ? null : Number(s));
+    const body = { confirmation_no: q('#pl-cno'), confirmation_date: q('#pl-cdate'), under_pct: num(q('#pl-under')), over_pct: num(q('#pl-over')),
+      full_delivery_only: overlay.querySelector('#pl-full').checked, instalments: rows };
+    const r = await apiFetch(`/api/v1/procurement/purchase-order/${encodeURIComponent(poId)}/line/${lineNo}/control`, { method: 'POST', body: JSON.stringify(body) });
+    if (!r) return;
+    if (!r.ok) { const j = await r.json().catch(() => ({})); errEl.textContent = j.message || j.error || 'Not saved.'; errEl.classList.remove('hidden'); return; }
+    close();
+    window.showPOBalance(poId);
+  }));
+};
+
+// Stage 148.11: PO lines past their due date, with Close rest.
+window.showPOOverdue = async function() {
+  const [res, rr] = await Promise.all([apiFetch('/api/v1/reports/run/po-overdue-lines'), apiFetch('/api/v1/doc/ReasonCode?limit=500')]);
+  if (!res || !res.ok) { if (res) await showApiError(res, 'The overdue lines could not be loaded.', 'Overdue lines'); return; }
+  const data = await res.json();
+  const rows = Array.isArray(data) ? data : (data.rows || []);
+  let reasons = [];
+  if (rr && rr.ok) { const d = await rr.json(); reasons = (Array.isArray(d) ? d : (d.data || [])).filter(x => x.category === 'Cancellation' && (x.status || 'Active') === 'Active'); }
+  const v = x => escapeHTMLText(x == null ? '' : String(x));
+  document.getElementById('po-overdue-dialog')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'po-overdue-dialog';
+  overlay.innerHTML = `
+    <div class="modal-container" style="max-width: 980px;" role="dialog" aria-modal="true" aria-labelledby="po-od-title">
+      <div class="modal-header"><h3 class="modal-title" id="po-od-title">Overdue lines</h3>
+        <button type="button" class="modal-close" aria-label="Close dialog" data-od-close>&times;</button></div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 10px;">
+        ${rows.length ? `<div class="form-group" style="margin: 0; max-width: 320px;"><label class="form-label" for="od-reason">Reason for Close rest</label>
+          <select id="od-reason" class="form-select"><option value="">Choose a reason...</option>${reasons.map(r => `<option value="${v(r.id)}">${v(r.code || r.id)}</option>`).join('')}</select></div>
+        <div class="table-panel" style="overflow-x: auto;"><table><thead><tr><th>PO</th><th>Vendor</th><th>Item</th><th>Due</th><th class="num">Days late</th><th class="num">Still to come</th><th>Confirmation</th><th></th></tr></thead>
+        <tbody>${rows.map(r => `<tr><td>${v(r.po)}</td><td>${v(r.vendor)}</td><td>${v(r.name || r.sku)}</td><td>${v(r.due)}</td><td class="num">${v(r.days_late)}</td><td class="num">${v(r.pending)}</td><td>${v(r.confirmation_no)}</td>
+          <td><button type="button" class="action-btn" data-od-po="${v(r.po_id)}" data-od-line="${v(r.line_no)}">Close rest</button></td></tr>`).join('')}</tbody></table></div>`
+        : '<p style="margin: 0;">No overdue lines.</p>'}
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline" data-od-close>Close</button></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelectorAll('[data-od-close]').forEach(b => b.addEventListener('click', close));
+  overlay.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  requestAnimationFrame(() => overlay.classList.add('open'));
+  overlay.querySelectorAll('[data-od-po]').forEach(b => b.addEventListener('click', async () => {
+    const reason = overlay.querySelector('#od-reason').value;
+    if (!reason) { await showCustomAlert('Choose a reason first.', 'Overdue lines'); return; }
+    const r = await apiFetch(`/api/v1/procurement/purchase-order/${encodeURIComponent(b.dataset.odPo)}/line/${b.dataset.odLine}/close-rest`, {
+      method: 'POST', body: JSON.stringify({ reason_code: reason, note: 'Overdue' }) });
+    if (!r) return;
+    if (!r.ok) { close(); await showApiError(r, 'The line could not be closed.', 'Overdue lines'); return; }
+    close();
+    window.showPOOverdue();
+  }));
+};
+
+// 146.4.6c: Sticker Printing opens on this PO's lines.
+window.stickersForPO = function(poId) {
+  try { sessionStorage.setItem('erp-sticker-source', JSON.stringify({ doctype: 'PurchaseOrder', id: String(poId) })); } catch (_) { /* storage can be disabled */ }
+  renderView('stickers');
+};
+
 window.startGRNFromPO = function(poId) {
   try { sessionStorage.setItem('stage55-grn-source-po', String(poId)); } catch (_) { /* storage can be disabled */ }
   renderView('grn');
@@ -539,6 +778,39 @@ window.startGRNFromPO = function(poId) {
 // formatMoney groups the Indian way (12,34,567.89), matching the printed PO
 // and engines/amount_words.go's FormatIndianCurrency. en-IN is a built-in
 // locale, so this needs no table of its own.
+// Stage 148.38: both fields below are hidden by the server until goods before
+// PO is switched on, so a screen shows its box only when its doctype has them.
+async function docHasField(doctype, field) {
+  const res = await apiFetch(`/api/v1/doc/${doctype}/meta`);
+  if (!res || !res.ok) return false;
+  const fields = await res.json();
+  return Array.isArray(fields) && fields.some(f => f.fieldname === field);
+}
+
+async function attachPORetroBox(d) {
+  if (!await docHasField('PurchaseOrder', 'retro_grn_id')) return;
+  const box = document.getElementById('po-retro-box');
+  const el = document.getElementById('po-retro-grn');
+  if (!box || !el) return;
+  box.classList.remove('hidden');
+  attachLinkTypeahead(el, 'GRN');
+  const read = () => { d.retro_grn_id = el.value.trim(); };
+  el.addEventListener('change', read);
+  el.addEventListener('blur', read);
+}
+
+async function attachGRNBeforePOBox() {
+  if (!await docHasField('GRN', 'before_po_reason')) return;
+  const { loadReasons } = await import('./reason-picker.js' + new URL(import.meta.url).search);
+  const reasons = await loadReasons('Received Before PO');
+  const box = document.getElementById('grn-before-po-box');
+  if (!box) return;
+  box.innerHTML = `<label class="form-label" for="grn-before-po-reason">No PO: reason</label>
+    <select id="grn-before-po-reason" class="form-select"><option value=""></option>${(reasons.codes || []).map(c =>
+      `<option value="${escapeHTMLText(c.code)}">${escapeHTMLText(c.label || c.description || c.code)}</option>`).join('')}</select>`;
+  box.classList.remove('hidden');
+}
+
 function renderPOComposer(panel) {
   const d = poDraft;
   const editing = !!d.id;
@@ -576,6 +848,10 @@ function renderPOComposer(panel) {
         <input type="text" id="po-warehouse" class="form-input" placeholder="Where the goods are delivered" value="${escapeHTMLText(d.target_warehouse)}">
         <div class="txn-hint" id="po-ship-addr"></div>
       </div>
+      <div class="form-group hidden" id="po-retro-box">
+        <label class="form-label" for="po-retro-grn">Received before PO: receipt</label>
+        <input type="text" id="po-retro-grn" class="form-input" autocomplete="off" value="${escapeHTMLText(d.retro_grn_id || '')}">
+      </div>
       <div class="form-group">
         <label class="form-label" for="po-expected">Expected delivery</label>
         <input type="date" id="po-expected" class="form-input" value="${escapeHTMLText(d.expected_delivery_date || '')}">
@@ -588,8 +864,17 @@ function renderPOComposer(panel) {
           <option value="Inclusive"${d.gst_mode === 'Inclusive' ? ' selected' : ''}>Inclusive &mdash; price already has GST</option>
         </select>
       </div>
+      <div class="form-group">
+        <label class="form-label" for="po-disc-pct">Order discount %</label>
+        <input type="number" id="po-disc-pct" class="form-input num" min="0" max="100" step="0.01" value="${escapeHTMLText(d.order_discount_pct)}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="po-disc-amt">Order discount</label>
+        <input type="number" id="po-disc-amt" class="form-input num" min="0" step="0.01" value="${escapeHTMLText(d.order_discount_amt)}">
+      </div>
     </div>
     ${poTermsHTML(d)}
+    ${chargeRowsHTML('po-charges', d.charges)}
 
     <form id="po-vendor-taxid" class="po-supply-banner po-supply-idle hidden"></form>
     <div id="po-supply-banner" class="po-supply-banner"></div>
@@ -666,6 +951,8 @@ function renderPOComposer(panel) {
   // type silently stays underived.
   vendorEl.addEventListener('blur', () => { if (vendorEl.value.trim() !== d.vendor) { d.vendor = vendorEl.value.trim(); schedulePOPreview(); renderPOVendorTaxIdAsk(); } freezeVendor(); });
 
+  attachPORetroBox(d);
+
   const locEl = document.getElementById('po-location');
   const whEl = document.getElementById('po-warehouse');
   attachLinkTypeahead(locEl, 'Location');
@@ -691,9 +978,13 @@ function renderPOComposer(panel) {
     d.gst_mode = e.target.value;
     schedulePOPreview();
   });
+  [['po-disc-pct', 'order_discount_pct'], ['po-disc-amt', 'order_discount_amt']].forEach(([id, k]) => {
+    document.getElementById(id)?.addEventListener('change', (e) => { d[k] = e.target.value.trim(); schedulePOPreview(); });
+  });
   // Stage 130.10 (78.3 a): the date reminders and late receipts are judged by.
   document.getElementById('po-expected')?.addEventListener('change', (e) => { d.expected_delivery_date = e.target.value; });
   bindPOTerms(d);
+  mountChargeRows('po-charges', d.charges, (value) => { d.charges = value; });
 
   // Stage 65.1 (the user: "my screen will be the create zone always"): one
   // entry row at the top; Add (or Enter) appends it to the list below, which
@@ -852,6 +1143,21 @@ async function addPOEntry() {
 // next item, keeping the cursor in the item box.
 // Text that was typed, not picked, goes on only when it is an item's exact SKU
 // or barcode (a scan + Enter) - a name nobody picked or created is refused.
+let poEntryAsking = false;
+
+// The price a vendor agreement gives this line, or null. The preview saves nothing.
+async function poAgreementPrice(d, line) {
+  if (!d.vendor) return null;
+  const res = await apiFetch('/api/v1/procurement/purchase-order/preview', {
+    method: 'POST',
+    body: JSON.stringify(poDraftPayload({ ...d, lines: [...d.lines, line] }))
+  });
+  if (!res || !res.ok) return null;
+  const out = (await res.json()).lines || [];
+  const p = out[out.length - 1];
+  return p && p.sku === line.sku && Number(p.rate) > 0 ? p : null;
+}
+
 async function addPOEntryLine() {
   const d = poDraft;
   const errEl = document.getElementById('po-entry-error');
@@ -880,12 +1186,20 @@ async function addPOEntryLine() {
     el('po-entry-qty').focus();
     return;
   }
-  // Stage 114.7 (the user: "PP is mandatory").
+  // Stage 114.7 (the user: "PP is mandatory"). Stage 148.6: a blank price takes
+  // the vendor agreement's; the server says whether one covers this line.
   if (!(Number(line.rate) > 0)) {
-    errEl.textContent = 'Enter the purchase price.';
-    errEl.classList.remove('hidden');
-    el('po-entry-rate').focus();
-    return;
+    if (poEntryAsking) return;
+    poEntryAsking = true;
+    const agreed = await poAgreementPrice(d, line).finally(() => { poEntryAsking = false; });
+    if (!agreed) {
+      errEl.textContent = 'Enter the purchase price.';
+      errEl.classList.remove('hidden');
+      el('po-entry-rate').focus();
+      return;
+    }
+    line.rate = agreed.rate;
+    line.agreement_rate = agreed.agreement_rate || '';
   }
   errEl.classList.add('hidden');
   d.lines.push(line);
@@ -912,6 +1226,15 @@ async function resolvePOEntrySKU(text) {
   const hit = rows.find(r => (r.code || r.id) === text || r.barcode === text)
     || rows.find(r => same(r.code || r.id) || same(r.barcode));
   return hit ? (hit.code || hit.id) : '';
+}
+
+// poLineNotes (Stage 148.6 / 148.7): the rule used, the discounts, the
+// commitment meter - all stated by the server, never worked out here.
+function poLineNotes(p) {
+  const t = (c, s) => (s ? `<div class="${c}">${escapeHTMLText(s)}</div>` : '');
+  const meter = p.commit_qty > 0 ? `<progress class="po-meter" value="${Number(p.commit_used_qty) || 0}" max="${p.commit_qty}" title="${Number(p.commit_used_qty) || 0} of ${p.commit_qty}"></progress>`
+    : p.commit_value > 0 ? `<progress class="po-meter" value="${Number(p.commit_used_value) || 0}" max="${p.commit_value}" title="${Number(p.commit_used_value) || 0} of ${p.commit_value}"></progress>` : '';
+  return t('po-line-note', p.rule_note) + t('po-line-note', p.discount_note) + meter;
 }
 
 // renderPOLines redraws the line rows and reattaches their handlers.
@@ -948,12 +1271,15 @@ function renderPOLines() {
   const head = document.getElementById('po-lines-head');
   if (head) {
     head.innerHTML = `<th class="num" style="width:36px;">#</th>
-      <th style="min-width:190px;">Item</th>
+      <th style="min-width:170px;">Item</th>
       <th style="width:120px;">Design</th>
       <th style="width:150px;">Combination ID</th>
       ${attrCols.map(a => `<th style="width:90px;">${escapeHTMLText(a.label)}</th>`).join('')}
       <th class="num" style="width:80px;">Qty</th>
       <th class="num" style="width:120px;">Purchase Price</th>
+      <th class="num" style="width:80px;">Disc %</th>
+      <th class="num" style="width:90px;">Disc</th>
+      <th class="num" style="width:70px;">Free</th>
       <th class="num" style="width:110px;">MRP <span class="po-optional">optional</span></th>
       <th style="width:90px;">HSN</th>
       <th class="num" style="width:70px;">GST %</th>
@@ -968,7 +1294,7 @@ function renderPOLines() {
   // by design - a heading per design, its combinations under it; an item of
   // no design stands alone. Display order only: each row keeps its own index
   // (data-po-line), so editing and removing are unchanged.
-  const cols = 13 + attrCols.length;
+  const cols = 16 + attrCols.length;
   const groups = [];
   const byDesign = new Map();
   d.lines.forEach((l, i) => {
@@ -988,13 +1314,16 @@ function renderPOLines() {
         <td class="po-derived num">${sr}</td>
         <td>
           <input type="text" class="form-input" data-po-field="sku" value="${escapeHTMLText(line.sku)}" placeholder="Search item..." title="${escapeHTMLText(p.item_name || '')}">
-          ${err}
+          ${err}${poLineNotes(p)}
         </td>
         <td class="po-derived">${derived(p.design)}</td>
         <td class="po-derived">${derived(line.sku)}</td>
         ${attrCols.map(a => `<td class="po-derived">${derived((p.attributes || {})[a.code])}</td>`).join('')}
         <td><input type="number" class="form-input num" data-po-field="qty" min="1" step="1" value="${escapeHTMLText(line.qty)}"></td>
         <td><input type="number" class="form-input num" data-po-field="rate" min="0" step="0.01" value="${escapeHTMLText(line.rate)}"></td>
+        <td><input type="number" class="form-input num" data-po-field="discount_pct" min="0" max="100" step="0.01" value="${escapeHTMLText(line.discount_pct)}"></td>
+        <td><input type="number" class="form-input num" data-po-field="discount_amt" min="0" step="0.01" value="${escapeHTMLText(line.discount_amt)}"></td>
+        <td class="po-derived num">${p.free_qty ? escapeHTMLText(String(p.free_qty)) : '<span class="text-muted">&mdash;</span>'}</td>
         <td><input type="number" class="form-input num" data-po-field="mrp" min="0" step="1" value="${escapeHTMLText(line.mrp)}" placeholder="&mdash;"></td>
         <td class="po-derived">${derived(p.hsn_code)}</td>
         <td class="po-derived num">${p.gst_rate ? escapeHTMLText(String(p.gst_rate)) + '%' : (p.tax_treatment && p.tax_treatment !== 'Taxable' ? escapeHTMLText(p.tax_treatment) : '<span class="text-muted">&mdash;</span>')}</td>
@@ -1601,6 +1930,16 @@ function applyLoadedDesign(d, design) {
   d.vrows = rows.length ? rows : [{ values: base }];
 }
 
+// Stage 148.6: what the vendor's agreement prices the grid's rows at, or why not.
+// Their items may not exist yet, so a new row goes by design and category.
+async function poDesignAgreementPrices(d, kept, designCode) {
+  const res = await apiFetch('/api/v1/procurement/purchase-order/preview', { method: 'POST', body: JSON.stringify({
+    ...poDraftPayload(d.editing ? { ...poDraft, lines: poDraft.lines.filter(l => !d.editing.skus.includes(l.sku)) } : poDraft),
+    design_rows: kept.map(c => ({ sku: poDesignExistingFor(d, c.values)?.sku || '', design: designCode, category: d.itemName.category || '', qty: Number(vrowValue(d, c.row, 'qty')) || 1 }))
+  }) });
+  return res && res.ok ? (await res.json()).design_rows || [] : [];
+}
+
 async function createPODesign() {
   const d = poDesign;
   if (!d) return;
@@ -1621,12 +1960,6 @@ async function createPODesign() {
   const problem = poDesignRowProblem(d);
   if (problem) return fail(problem);
   const kept = poDesignCombinations(d);
-  // Stage 114.7: every combination needs a purchase price before anything is created.
-  const noPrice = kept.findIndex(c => !(Number(vrowValue(d, c.row, 'rate')) > 0));
-  if (noPrice !== -1) {
-    document.getElementById('po-entry-rate')?.focus();
-    return fail(kept.length > 1 ? `Row ${noPrice + 1} has no purchase price - type it in Purchase price above for every row, or in that row.` : 'Enter the purchase price.');
-  }
   const attrs = poDesignAttributes(d);
   const attrString = Object.keys(attrs).sort().map(k => `${k}:${attrs[k]}`).join(';');
   const typedNo = d.designNumber.trim();
@@ -1649,6 +1982,23 @@ async function createPODesign() {
         const gRes = await apiFetch(`/api/v1/procurement/design/${encodeURIComponent(m.code)}`);
         if (gRes && gRes.ok) { d.loaded = await gRes.json(); designCode = d.loaded.code; }
       }
+    }
+  }
+  // Stage 114.7: every combination needs a purchase price before anything is created.
+  // Stage 148.6: a blank one takes the vendor agreement's, as a plain line does.
+  const agreed = new Map();
+  const typedRate = c => Number(vrowValue(d, c.row, 'rate')) > 0;
+  if (!kept.every(typedRate)) {
+    const answers = await poDesignAgreementPrices(d, kept, designCode);
+    for (let i = 0; i < kept.length; i++) {
+      if (typedRate(kept[i])) continue;
+      const a = answers[i] || {};
+      if (!(Number(a.rate) > 0)) {
+        document.getElementById('po-entry-rate')?.focus();
+        if (a.note) return fail(`${kept.length > 1 ? `Row ${i + 1}: ` : ''}${a.note} - enter the purchase price.`);
+        return fail(kept.length > 1 ? `Row ${i + 1} has no purchase price - type it in Purchase price above for every row, or in that row.` : 'Enter the purchase price.');
+      }
+      agreed.set(kept[i], Number(a.rate));
     }
   }
   let designName = d.loaded ? (d.loaded.name || inm.name) : (typedNo ? `${inm.name} ${typedNo}` : inm.name);
@@ -1676,7 +2026,7 @@ async function createPODesign() {
   for (const c of kept) {
     const row = c.row;
     const qty = Number(vrowValue(d, row, 'qty')) || 0;
-    const rate = Number(vrowValue(d, row, 'rate')) || 0;
+    const rate = Number(vrowValue(d, row, 'rate')) || agreed.get(c) || 0;
     const mrpRaw = vrowValue(d, row, 'mrp');
     const existing = poDesignExistingFor(d, c.values);
     let sku = existing ? existing.sku : '';
@@ -1698,7 +2048,7 @@ async function createPODesign() {
       if (!iRes.ok) { failures.push(`${c.key || designName}: ${await getErrorMessage(iRes, 'could not be created')}`); continue; }
       sku = (await iRes.json()).id;
     }
-    if (qty > 0) added.push({ sku, qty: String(qty), rate: rate ? String(rate) : '', mrp: mrpRaw === '' || mrpRaw == null ? '' : String(mrpRaw) });
+    if (qty > 0) added.push({ sku, qty: String(qty), rate: rate ? String(rate) : '', mrp: mrpRaw === '' || mrpRaw == null ? '' : String(mrpRaw), ...(agreed.has(c) ? { agreement_rate: String(rate) } : {}) });
   }
 
   // 3. Onto the PO - an edited design back in place of its old lines (126.3).
@@ -1755,6 +2105,15 @@ async function runPOPreview() {
     return;
   }
   poPreview = await res.json();
+  // Stage 148.6: a blank price takes the vendor agreement's; a typed one stays.
+  (poPreview.lines || []).forEach((p, i) => {
+    const l = d.lines[i];
+    if (!l || !p.rate || p.sku !== l.sku) return;
+    if (l.rate === '' || l.rate == null || (l.agreement_rate && Number(l.rate) === Number(l.agreement_rate))) {
+      l.rate = p.rate;
+      l.agreement_rate = p.agreement_rate || '';
+    }
+  });
   // Stage 110.2: a new PO starts on the tenant's default (Inclusive unless an
   // admin chose Exclusive), shown and saved as that choice.
   const modeSel = document.getElementById('po-gst-mode');
@@ -1783,7 +2142,11 @@ function poDraftPayload(d) {
       sku: l.sku || '',
       qty: Number(l.qty) || 0,
       rate: Number(l.rate) || 0,
-      ...(l.mrp !== '' && l.mrp != null ? { mrp: Number(l.mrp) || 0 } : {})
+      ...(l.mrp !== '' && l.mrp != null ? { mrp: Number(l.mrp) || 0 } : {}),
+      ...(Number(l.discount_pct) > 0 ? { discount_pct: Number(l.discount_pct) } : {}),
+      ...(Number(l.discount_amt) > 0 ? { discount_amt: Number(l.discount_amt) } : {}),
+      ...(l.agreement_rate ? { agreement_rate: Number(l.agreement_rate) } : {}),
+      ...(l.price_locked ? { price_locked: true } : {})
     }));
   return {
     vendor: d.vendor,
@@ -1791,8 +2154,12 @@ function poDraftPayload(d) {
     target_warehouse: d.target_warehouse,
     location: d.location,
     items: JSON.stringify(lines),
+    ...(Number(d.order_discount_pct) > 0 ? { order_discount_pct: Number(d.order_discount_pct) } : {}),
+    ...(Number(d.order_discount_amt) > 0 ? { order_discount_amt: Number(d.order_discount_amt) } : {}),
+    ...(d.charges ? { charges: d.charges } : {}),
     gst_mode: d.gst_mode,
     expected_delivery_date: d.expected_delivery_date || '',
+    ...(d.retro_grn_id ? { retro_grn_id: d.retro_grn_id } : {}), // Stage 148.38
     // Stage 130.16 (74.3.2): the commercial terms.
     // 49.5.6b: no interstate / override - the server derives the supply type.
     ...Object.fromEntries(PO_TERM_KEYS.map(k => [k, d[k] || '']))
@@ -2067,10 +2434,14 @@ window.amendPurchaseOrder = async function(poId, { copy = false } = {}) {
     location: record.location || '',
     gst_mode: record.gst_mode || '',
     expected_delivery_date: record.expected_delivery_date || '',
+    retro_grn_id: copy ? '' : (record.retro_grn_id || ''), // Stage 148.38
     ...Object.fromEntries(PO_TERM_KEYS.map(k => [k, record[k] || ''])),
     lines: lines.length ? lines.map(l => ({
-      sku: l.sku || '', qty: l.qty ?? '', rate: l.rate ?? '', mrp: l.mrp ?? ''
+      sku: l.sku || '', qty: l.qty ?? '', rate: l.rate ?? '', mrp: l.mrp ?? '',
+      discount_pct: l.discount_pct ?? '', discount_amt: l.discount_amt ?? '', agreement_rate: l.agreement_rate ?? '', price_locked: !!l.price_locked
     })) : [],
+    order_discount_pct: record.order_discount_pct ?? '', order_discount_amt: record.order_discount_amt ?? '',
+    charges: typeof record.charges === 'string' ? record.charges : (record.charges ? JSON.stringify(record.charges) : ''),
     entry: newPOEntry(),
     wasApproved: record.status === 'Approved',
     status: record.status,
@@ -2314,6 +2685,7 @@ async function renderGRNWorkbenchView(container) {
       <div class="form-group txn-head-btn">
         <button class="btn btn-outline" id="grn-load-po-btn" type="button">Add PO &amp; Load Items</button>
       </div>
+      <div class="form-group hidden" id="grn-before-po-box"></div>
       <div class="form-group">
         <label class="form-label" for="grn-location">Receiving Location</label>
         <input type="text" id="grn-location" class="form-input" autocomplete="off">
@@ -2333,6 +2705,7 @@ async function renderGRNWorkbenchView(container) {
         <label class="form-label" for="grn-inv-amount">Invoice Total (incl. GST)<span class="required">*</span></label>
         <input type="number" id="grn-inv-amount" class="form-input num" min="0" step="0.01">
       </div>
+      ${chargeRowsHTML('grn-charges', '')}
       <!-- Stage 130.16 (74.3.2): the vendor's challan and the transport. -->
       <details class="grn-logistics" style="flex-basis:100%;">
         <summary style="cursor:pointer;font-weight:600;">Supplier documents and transport</summary>
@@ -2476,6 +2849,8 @@ async function renderGRNWorkbenchView(container) {
   txnOnPage('grn-screen', showGRNScreenPage);
 
   attachLinkTypeahead(document.getElementById('grn-vendor'), 'Vendor');
+  attachGRNBeforePOBox();
+  mountChargeRows('grn-charges', '');
   document.getElementById('grn-vendor').addEventListener('change', loadGRNOpenPOs);
   attachLinkTypeahead(document.getElementById('grn-po'), 'PurchaseOrder', { valueFields: ['po_number', 'code', 'id'] });
   attachLinkTypeahead(document.getElementById('grn-location'), 'Location');
@@ -2543,13 +2918,14 @@ async function renderGRNWorkbenchView(container) {
         <td>${grnNotesCell(g)}</td>
         <td><span class="badge ${statusBadge}">${escapeHTMLText(g.flow === 'steps' && g.grn_step !== 'Posted' ? (g.grn_step || g.status || '') : (g.status || ''))}</span><div>${g.flow === 'steps'
           ? `<button class="action-btn" type="button" data-grn-steps-open="${escapeHTMLText(g.id)}">Open</button>`
-          : `<button class="action-btn" ${actionAttrs('startVendorInvoiceFromGRN', [g.id, g.po_id])}>Record vendor invoice</button>`} <button class="action-btn" ${actionAttrs('printTransactionDocument', ['GRN', g.id])}>Print</button></div></td>
+          : `<button class="action-btn" ${actionAttrs('startVendorInvoiceFromGRN', [g.id, g.po_id])}>Record vendor invoice</button>`} <button class="action-btn" ${actionAttrs('printTransactionDocument', ['GRN', g.id])}>Print</button> <button class="action-btn" hidden data-grn-charges ${actionAttrs('showChargeLinesRow', [g.id])}>Charges</button></div></td>
       </tr>
     `;
   });
   html += `</tbody></table>`;
   const historyEl = document.getElementById('grn-history');
   historyEl.innerHTML = html;
+  whenChargeCodesExist(() => historyEl.querySelectorAll('[data-grn-charges]').forEach(b => { b.hidden = false; }));
   historyEl.addEventListener('click', e => {
     const b = e.target.closest('[data-grn-steps-open]');
     if (b) openGRNStepsPage(b.dataset.grnStepsOpen);
@@ -2562,6 +2938,9 @@ async function renderGRNWorkbenchView(container) {
     sourcePO = sessionStorage.getItem('stage55-grn-source-po') || '';
     sessionStorage.removeItem('stage55-grn-source-po');
   } catch (_) { /* storage can be disabled */ }
+  let sourceGate = '';
+  try { sourceGate = sessionStorage.getItem('erp-grn-gate-entry') || ''; sessionStorage.removeItem('erp-grn-gate-entry'); } catch (_) { /* storage can be disabled */ }
+  if (sourceGate) await startGRNFromGateEntry(sourceGate);
   if (sourcePO) {
     window.txnShowPane('grn-screen:new'); // "Receive goods" on a PO opens the New page
     document.getElementById('grn-po').value = sourcePO;
@@ -3509,9 +3888,14 @@ async function createGRNInner() {
   const poIds = grnPOs.length ? grnPOs.map(p => p.id) : (typedPO ? [typedPO] : []);
   const poId = poIds.join(', ');
   const location = document.getElementById('grn-location').value.trim();
+  // Stage 148.38: where the setting is on, a reason stands in for the PO.
+  const beforePOBox = document.getElementById('grn-before-po-reason');
+  const beforePOReason = poIds.length === 0 && beforePOBox ? beforePOBox.value : '';
 
-  if (poIds.length === 0 || !location || grnLineItems.length === 0) {
-    errorEl.textContent = 'A Purchase Order, the Receiving Location, and at least one line item are all required.';
+  if ((poIds.length === 0 && !beforePOReason) || !location || grnLineItems.length === 0) {
+    errorEl.textContent = beforePOBox
+      ? 'A Purchase Order or a reason, the Receiving Location, and at least one line item are all required.'
+      : 'A Purchase Order, the Receiving Location, and at least one line item are all required.';
     errorEl.classList.remove('hidden');
     return;
   }
@@ -3537,8 +3921,9 @@ async function createGRNInner() {
     method: 'POST',
     body: JSON.stringify({
       flow: 'steps',
-      po_id: poIds[0],
-      po_ids: poIds.join(','),
+      ...(beforePOReason
+        ? { before_po_reason: beforePOReason, vendor: document.getElementById('grn-vendor').value.trim() }
+        : { po_id: poIds[0], po_ids: poIds.join(',') }),
       asn_id: grnLoadedASNId || undefined,
       location,
       vendor_invoice_no: invNo,
@@ -3561,6 +3946,7 @@ async function createGRNInner() {
   grnLineItems = [];
   grnPOs = [];
   grnListStale = true;
+  grnGateEntryId = '';
   if (saved.id) {
     await openGRNStepsPage(saved.id, false);
     return;
@@ -4028,4 +4414,4 @@ async function cancelPurchaseReturn(id) {
   renderView('purchase-returns');
 }
 
-export { renderApprovalsView, decideApproval, decideApprovalInner, newPODraft, renderPurchaseOrdersView, renderPOComposer, renderPOLines, schedulePOPreview, runPOPreview, poDraftPayload, renderPOSupplyBanner, renderPOTotals, savePurchaseOrder, savePurchaseOrderInner, submitPOForApproval, submitDocForApproval, submitQualityInspectionForApproval, sendSubcontractOrder, receiveSubcontractOrder, mergeCustomerRow, renderGRNWorkbenchView, renderGRNLinesList, lookupGRNBarcode, addGRNLine, populateGRNBatchRow, loadGRNItemsFromPO, loadGRNItemsFromPOInner, loadGRNItemsFromASN, createGRN, createGRNInner, renderASNView, renderASNLinesList, addASNLine, createASN, createASNInner, renderPurchaseReturnsView, loadPurchaseReturnLines, savePurchaseReturn, postPurchaseReturn, submitPurchaseReturnForApproval, cancelPurchaseReturn };
+export { billChargeEntryRow, showChargeLinesRow, renderApprovalsView, decideApproval, decideApprovalInner, newPODraft, renderPurchaseOrdersView, renderPOComposer, renderPOLines, schedulePOPreview, runPOPreview, poDraftPayload, renderPOSupplyBanner, renderPOTotals, savePurchaseOrder, savePurchaseOrderInner, submitPOForApproval, submitDocForApproval, submitQualityInspectionForApproval, sendSubcontractOrder, receiveSubcontractOrder, mergeCustomerRow, renderGRNWorkbenchView, renderGRNLinesList, lookupGRNBarcode, addGRNLine, populateGRNBatchRow, loadGRNItemsFromPO, loadGRNItemsFromPOInner, loadGRNItemsFromASN, createGRN, createGRNInner, renderASNView, renderASNLinesList, addASNLine, createASN, createASNInner, renderPurchaseReturnsView, loadPurchaseReturnLines, savePurchaseReturn, postPurchaseReturn, submitPurchaseReturnForApproval, cancelPurchaseReturn };

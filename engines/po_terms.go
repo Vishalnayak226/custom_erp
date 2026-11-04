@@ -200,18 +200,10 @@ func POPaymentDueDate(tenantID, poID, invoiceDate string) string {
 		return ""
 	}
 	po, _, err := fetchDocData(tenantID, "PurchaseOrder", poID)
-	if err != nil || po == nil || strField(po, "payment_term") == "" {
+	if err != nil || po == nil {
 		return ""
 	}
-	term, _, err := fetchDocData(tenantID, "PaymentTerm", strField(po, "payment_term"))
-	if err != nil || term == nil {
-		return ""
-	}
-	day, err := time.ParseInLocation("2006-01-02", strings.TrimSpace(invoiceDate), time.Local)
-	if err != nil {
-		return ""
-	}
-	return day.AddDate(0, 0, int(numFromInterface(term["net_days"]))).Format("2006-01-02")
+	return paymentTermDueDate(tenantID, strField(po, "payment_term"), invoiceDate) // one helper with the customer side (148.9)
 }
 
 // --- reports ------------------------------------------------------------------
@@ -244,6 +236,9 @@ func docsBetween(tenantID, doctype string, p map[string]string) ([]reportDoc, er
 		}
 		_ = json.Unmarshal([]byte(raw), &d.data)
 		out = append(out, d)
+	}
+	if len(out) == 5000 {
+		return nil, reportReadStopped(5000) // 157.4b
 	}
 	return out, rows.Err()
 }
@@ -319,7 +314,12 @@ func grnDiscrepancyByVendor(tenantID string, p map[string]string) ([]map[string]
 		out = append(out, map[string]interface{}{"vendor": v, "receipts": a.receipts, "received": a.received, "accepted": a.accepted, "rejected": a.rejected,
 			"damaged": a.damaged, "short_vs_invoice": a.short, "invoice_difference": round2(a.diff), "rejected_pct": pct})
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i]["rejected_pct"].(float64) > out[j]["rejected_pct"].(float64) })
+	sort.Slice(out, func(i, j int) bool {
+		if a, b := out[i]["rejected_pct"].(float64), out[j]["rejected_pct"].(float64); a != b {
+			return a > b
+		}
+		return out[i]["vendor"].(string) < out[j]["vendor"].(string)
+	})
 	return out, nil
 }
 

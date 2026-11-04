@@ -1058,4 +1058,12 @@ var reportNumbers = map[string]string{
 	"suggested-segments":                                       "R6077",
 	"threshold-splitting":                                      "R5087",
 	"order-to-cash":                                            "R5088",
+	"gate-entries-no-grn":                                      "R2049",
+	"vendor-invoices-before-po":                                "R2050",
+	"pim-attribute-fill-rate":                                  "R9036",
+	"pim-brand-vocabulary":                                     "R9037",
+	"po-overdue-lines":                                         "R2053",
+	"vendor-scorecard":                                         "R9040",
+	"expected-arrivals":                                        "R9045",
+	"goods-before-po":                                          "R9055",
 }

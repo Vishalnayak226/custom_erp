@@ -601,6 +601,9 @@ func payVendorInvoiceAmountTx(tx *sql.Tx, schema, tenantID, invoiceID, userID st
 	if numFromInterface(data["invoice_amount"]) <= 0 {
 		return res, nil, fmt.Errorf("invoice_amount must be positive to pay")
 	}
+	if err := retroPOBlocksBill(tenantID, data); err != nil { // Stage 148.38
+		return res, nil, err
+	}
 
 	position := documentFXPosition(tenantID, data, "invoice_amount")
 	if position.Foreign && (len(entries) > 0 || (amount > 0 && RupeesToPaise(amount) != RupeesToPaise(position.TransactionAmount))) {

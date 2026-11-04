@@ -555,7 +555,21 @@ func PostPurchaseReturn(tenantID, returnID, userID, storeCode string) (*Purchase
 		}
 	}
 
+	// Stage 148.8: the receipt's charges on these units come back pro rata.
+	chargeBack, vendorBack, vendorBackGST, err := reverseReceiptChargesTx(tx, tenantID, schema, returnID, ctx.GRNID, lines)
+	if err != nil {
+		return nil, err
+	}
+	noteAmount := round2(total + PaiseToRupees(vendorBack))
+
 	valuePaise := RupeesToPaise(total)
+	if valuePaise == 0 && vendorBack > 0 {
+		if err := PostDoubleEntryTx(tx, tenantID, schema, "PurchaseReturn", returnID,
+			map[string]int64{"2100": vendorBack}, map[string]int64{"5150": vendorBack},
+			"", fmt.Sprintf("PurchaseReturn:%s:CHARGE_BACK", returnID)); err != nil {
+			return nil, fmt.Errorf("GL posting failed, return not posted: %v", err)
+		}
+	}
 	var dnID string
 	var itcReversed float64
 	if valuePaise > 0 {
@@ -577,6 +591,13 @@ func PostPurchaseReturn(tenantID, returnID, userID, storeCode string) (*Purchase
 		if err != nil {
 			return nil, err
 		}
+		if vendorBackGST > 0 {
+			claimed, err := billedChargeGSTPaiseQ(tx, schema, ctx.GRNID)
+			if err != nil {
+				return nil, err
+			}
+			itcPaise += minPaise(vendorBackGST, claimed)
+		}
 		if itcPaise > 0 {
 			if err := PostDoubleEntryTx(tx, tenantID, schema, "PurchaseReturn", returnID,
 				map[string]int64{"2100": itcPaise}, map[string]int64{"1500": itcPaise},
@@ -588,17 +609,17 @@ func PostPurchaseReturn(tenantID, returnID, userID, storeCode string) (*Purchase
 		}
 		dn := map[string]interface{}{
 			"code": dnID, "note_number": dnID, "vendor_id": ctx.VendorID, "reference_po": ctx.POID,
-			"amount": total, "reason": fmt.Sprintf("Purchase return %s (GRN %s): %s", returnID, ctx.GRNID, strField(data, "reason")),
+			"amount": noteAmount, "reason": fmt.Sprintf("Purchase return %s (GRN %s): %s", returnID, ctx.GRNID, strField(data, "reason")),
 			"status": "Draft", "source_doctype": "PurchaseReturn", "source_doc_id": returnID,
 		}
 		if itcReversed > 0 {
 			// The note's GL stays at taxable value (Dr 2100 / Cr 5150); these
 			// two fields are what the vendor-facing note shows they refund.
 			dn["gst_amount"] = itcReversed
-			dn["total_with_gst"] = round2(total + itcReversed)
+			dn["total_with_gst"] = round2(noteAmount + itcReversed)
 			// The notes list shows Amount and Reason, so the refund the vendor
 			// owes including GST is stated where it is read.
-			dn["reason"] = fmt.Sprintf("%s | GST %.2f reversed; total with GST %.2f", dn["reason"], itcReversed, round2(total+itcReversed))
+			dn["reason"] = fmt.Sprintf("%s | GST %.2f reversed; total with GST %.2f", dn["reason"], itcReversed, round2(noteAmount+itcReversed))
 		}
 		dnBytes, err := json.Marshal(dn)
 		if err != nil {
@@ -642,8 +663,13 @@ func PostPurchaseReturn(tenantID, returnID, userID, storeCode string) (*Purchase
 		}
 	}
 	for _, l := range lines {
-		if l.StockBucket == PurchaseReturnBucketAccepted && l.LineValue > 0 {
-			if err := reverseItemCostReceipt(tx, schema, l.SKU, l.Qty, RupeesToPaise(l.LineValue)); err != nil {
+		if l.StockBucket == PurchaseReturnBucketAccepted {
+			value := RupeesToPaise(l.LineValue) + chargeBack[l.SKU]
+			delete(chargeBack, l.SKU)
+			if value <= 0 {
+				continue
+			}
+			if err := takeOutOfCostTx(tx, schema, l.SKU, l.Qty, value); err != nil {
 				return nil, fmt.Errorf("item cost for %s: %w", l.SKU, err)
 			}
 		}
@@ -724,7 +750,8 @@ func purchaseReturnITCReversal(tx queryRower, tenantID, schema, poID, grnID stri
 		if documentFXPosition(tenantID, inv, "invoice_amount").Foreign {
 			return 0, nil
 		}
-		amount, gst := numFromInterface(inv["invoice_amount"]), numFromInterface(inv["gst_amount"])
+		// Stage 148.8: the GST on a charge goes back with the charge, not the goods.
+		amount, gst := numFromInterface(inv["invoice_amount"])-numFromInterface(inv["charge_gross"]), numFromInterface(inv["gst_amount"])-numFromInterface(inv["charge_gst"])
 		billed += amount
 		if gst > 0 && gst < amount {
 			billedGST += gst
@@ -747,30 +774,6 @@ func purchaseReturnITCReversal(tx queryRower, tenantID, schema, poID, grnID stri
 	}
 	reversibleGross := math.Min(excess, returnedNet*billing.TaxRatio)
 	return RupeesToPaise(reversibleGross * billedGST / billed), nil
-}
-
-// reverseItemCostReceipt takes a returned receipt back out of the moving
-// average: the qty and value come off cumulative received, and the average
-// is recomputed from what is left (kept as it was if nothing is left).
-func reverseItemCostReceipt(q interface {
-	Exec(string, ...interface{}) (sql.Result, error)
-}, schema, itemCode string, qty float64, valuePaise int64) error {
-	if qty <= 0 || valuePaise <= 0 {
-		return nil
-	}
-	_, err := q.Exec(fmt.Sprintf(`
-		WITH input AS (SELECT $1::varchar AS item_code, $2::numeric AS qty, $3::bigint AS value_paise)
-		UPDATE %s.item_cost c SET
-			cumulative_qty_received = GREATEST(c.cumulative_qty_received - i.qty, 0),
-			cumulative_value_received_paise = GREATEST(c.cumulative_value_received_paise - i.value_paise, 0),
-			avg_unit_cost_paise = CASE
-				WHEN c.cumulative_qty_received - i.qty <= 0 THEN c.avg_unit_cost_paise
-				ELSE (GREATEST(c.cumulative_value_received_paise - i.value_paise, 0)::numeric / (c.cumulative_qty_received - i.qty))::bigint
-				END,
-			updated_at = CURRENT_TIMESTAMP
-		FROM input i WHERE c.item_code = i.item_code`, schema),
-		itemCode, qty, valuePaise)
-	return err
 }
 
 // GetPurchaseReturn reads one return, for the post handler's scope check.

@@ -28,6 +28,8 @@ var CRMTemplateVariables = []struct{ Name, Label, Sample string }{
 	{"customer.name", "Customer's full name", "Asha Rao"},
 	{"customer.points", "Points they can use", "320"},
 	{"customer.tier", "Loyalty tier", "Gold"},
+	{"points.earned", "Points the last bill earned", "25"},
+	{"points.balance", "Points balance", "320"},
 	{"business.name", "Your business name", "Seznik"},
 	{"store.name", "Store", "Seznik Indiranagar"},
 	{"bill.number", "Bill number", "HO/26-27/00123"},
@@ -518,7 +520,9 @@ func crmCustomerVars(schema string, c crmCustomer) map[string]string {
 	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(SUM(CASE WHEN transaction_type = 'Earn' THEN points ELSE -points END), 0) FROM %s.loyalty_point_ledger
 		WHERE customer_id = $1 AND `+crmUsablePointsSQL, schema), c.ID).Scan(&bal); err == nil {
 		vals["customer.points"] = fmt.Sprintf("%d", bal)
+		vals["points.balance"] = vals["customer.points"]
 	}
+	vals["points.earned"] = fmt.Sprintf("%d", loyaltyLastBillEarned(schema, c.ID))
 	store := firstNonEmpty(strField(c.Data, "preferred_store"))
 	if store == "" {
 		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'location', '') FROM %s.documents WHERE doctype = 'POSCart' AND status = 'Paid' AND data->>'customer_id' = $1 ORDER BY created_at DESC LIMIT 1`, schema), c.ID).Scan(&store)

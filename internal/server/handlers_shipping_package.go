@@ -268,5 +268,9 @@ func handleOrderCreditNotes(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
+	if len(notes) == 0 { // 140.14.7: say so instead of a bare "Done."
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "nothing_to_credit", "credit_note_ids": notes, "message": "No posted invoice on this order - nothing to credit"})
+		return
+	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "issued", "credit_note_ids": notes})
 }

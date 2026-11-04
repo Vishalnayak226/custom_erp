@@ -19,6 +19,12 @@ type poItemLine struct {
 	Sku  string  `json:"sku"`
 	Qty  int     `json:"qty"`
 	Rate float64 `json:"rate"`
+	// ClosedQty (Stage 148.11): the rest of the line that will not come.
+	ClosedQty float64 `json:"closed_qty,omitempty"`
+	// FreeQty (Stage 148.7) arrives with the paid units, at no charge.
+	FreeQty int `json:"free_qty,omitempty"`
+	// NetValue is the line's discounted value; nil when it was not discounted.
+	NetValue *float64 `json:"net_value,omitempty"`
 }
 
 type grnItemLine struct {
@@ -101,6 +107,12 @@ func Match3Way(tenantID, poID, grnID, invoiceID string, tolerancePercent float64
 // they must agree with the invoice. tolerancePercent <= 0 falls back to the
 // tenant setting.
 func MatchVendorInvoice(tenantID, invoiceID, poID, grnID string, tolerancePercent float64) (VendorInvoiceMatch, error) {
+	return MatchVendorInvoiceAs(tenantID, "system", invoiceID, poID, grnID, tolerancePercent)
+}
+
+// MatchVendorInvoiceAs is MatchVendorInvoice with the user who asked, kept on
+// the item-rate history a matched bill writes (Stage 148.12).
+func MatchVendorInvoiceAs(tenantID, userID, invoiceID, poID, grnID string, tolerancePercent float64) (VendorInvoiceMatch, error) {
 	var out VendorInvoiceMatch
 	if tolerancePercent <= 0 {
 		tolerancePercent = defaultVendorInvoiceTolerancePercentFor(tenantID)
@@ -168,6 +180,16 @@ func MatchVendorInvoice(tenantID, invoiceID, poID, grnID string, tolerancePercen
 	}
 	poData, taxRatio, poGross, rateDataMissing := billing.POData, billing.TaxRatio, billing.POGross, billing.RateDataMissing
 	expected := billing.AcceptedNet * taxRatio
+	// Stage 148.8: a charge the vendor is paid comes on the vendor's bill, on top
+	// of the goods, with its own GST.
+	charge, err := vendorChargeForBillTx(tx, schema, grnID, invoiceID)
+	if err != nil {
+		return out, err
+	}
+	chargeHere, chargeOtherBills := PaiseToRupees(charge.Gross), PaiseToRupees(charge.AllGross-charge.Gross)
+	if charge.Gross > 0 {
+		expected = math.Round((expected+chargeHere)*100) / 100
+	}
 
 	// Invoices already standing against the same GRN / PO (this one excluded).
 	billedAgainst := func(field, ref string) (float64, error) {
@@ -195,29 +217,39 @@ func MatchVendorInvoice(tenantID, invoiceID, poID, grnID string, tolerancePercen
 		// No PO rate to value the receipt with, so the receipt cannot be
 		// priced: the invoice must equal the PO total, as before this change.
 		// Fails closed - a partial bill holds for review rather than matching.
-		if math.Abs(invoiceAmount-poGross) > poGross*tolerancePercent/100 {
+		if math.Abs(invoiceAmount-chargeHere-poGross) > poGross*tolerancePercent/100 {
 			reasons = append(reasons, fmt.Sprintf(
 				"The PO has no rate for every received item, so the receipt cannot be valued; the invoice %.2f must equal the PO total %.2f.",
 				invoiceAmount, round2(poGross)))
 		}
 	} else {
 		expectedTol := expected * tolerancePercent / 100
-		if math.Abs(invoiceAmount-expected) > expectedTol {
+		// Stage 148.1: a bill that lists its lines is checked line by line instead.
+		if lines := vendorBillLines(invData); len(lines) > 0 && grnID != "" {
+			reasons = append(reasons, billLineReasons(tx, tenantID, schema, invoiceID, invData, grnID, lines, (invoiceAmount-chargeHere)/max(taxRatio, 1), tolerancePercent)...)
+		} else if math.Abs(invoiceAmount-expected) > expectedTol {
 			reasons = append(reasons, fmt.Sprintf(
 				"Invoice amount %.2f differs from the accepted goods' value %.2f (accepted qty x PO rate, incl. tax) by more than %.2f%%.",
 				invoiceAmount, round2(expected), tolerancePercent))
 		}
-		if priorOnGRN > 0 && priorOnGRN+invoiceAmount > expected+expectedTol {
+		if priorOnGRN > 0 && priorOnGRN+invoiceAmount > expected+chargeOtherBills+expectedTol {
 			reasons = append(reasons, fmt.Sprintf(
 				"GRN %s is already billed %.2f; with this invoice that exceeds its value %.2f.",
 				grnID, round2(priorOnGRN), round2(expected)))
 		}
 	}
 	poTol := poGross * tolerancePercent / 100
-	if !billing.Priced && priorOnPO+invoiceAmount > poGross+poTol {
+	if !billing.Priced && priorOnPO+invoiceAmount > poGross+poTol+chargeHere+chargeOtherBills {
 		reasons = append(reasons, fmt.Sprintf(
 			"PO %s total is %.2f incl. tax; already billed %.2f, so this invoice would overbill it.",
 			poID, round2(poGross), round2(priorOnPO)))
+	}
+	// Stage 148.12: what the bill would set the items' purchase rates to; a jump
+	// above the limit holds it until the bill carries a reason.
+	var billRates map[string]float64
+	if len(reasons) == 0 && !rateDataMissing && !documentFXPosition(tenantID, invData, "invoice_amount").Foreign {
+		billRates = matchedBillRates(tenantID, invData, billing, grnID)
+		reasons = append(reasons, billRateJumpReasons(tx, tenantID, schema, invData, billRates)...)
 	}
 	matched := len(reasons) == 0
 
@@ -244,8 +276,15 @@ func MatchVendorInvoice(tenantID, invoiceID, poID, grnID string, tolerancePercen
 	// left the GST as a stray debit there). Split CGST/SGST/IGST in the PO's
 	// proportions for the GST return. A PO without GST records nothing.
 	gstPart := 0.0
-	if taxRatio > 1 && invoiceAmount > 0 {
-		gstPart = round2(invoiceAmount - invoiceAmount/taxRatio)
+	if goods := invoiceAmount - chargeHere; taxRatio > 1 && goods > 0 {
+		gstPart = round2(goods - goods/taxRatio)
+	}
+	delete(invData, "charge_net")
+	delete(invData, "charge_gst")
+	delete(invData, "charge_gross")
+	if charge.Gross > 0 {
+		gstPart = round2(gstPart + PaiseToRupees(charge.GST))
+		invData["charge_net"], invData["charge_gst"], invData["charge_gross"] = PaiseToRupees(charge.Net), PaiseToRupees(charge.GST), chargeHere
 	}
 	invData["taxable_amount"] = round2(invoiceAmount - gstPart)
 	invData["gst_amount"] = gstPart
@@ -260,6 +299,14 @@ func MatchVendorInvoice(tenantID, invoiceID, poID, grnID string, tolerancePercen
 	}
 	details["taxable_amount"] = invData["taxable_amount"]
 	details["gst_amount"] = gstPart
+	if err := settleBillCostDifferenceTx(tx, tenantID, schema, invoiceID, invData, details, grnID, matched, rateDataMissing); err != nil {
+		return out, err
+	}
+	if matched && len(billRates) > 0 {
+		if err := applyBillPurchaseRatesTx(tx, schema, invoiceID, userID, invData, billRates); err != nil {
+			return out, fmt.Errorf("purchase rate: %w", err)
+		}
+	}
 	invData["status"] = newStatus
 	invData["match_details"] = details
 	updatedBytes, _ := json.Marshal(invData)
@@ -351,6 +398,9 @@ func payVendorInvoice(tenantID, invoiceID, userID, actorRole, overrideReason str
 	if amount <= 0 {
 		return 0, false, fmt.Errorf("invoice_amount must be positive to pay")
 	}
+	if err := retroPOBlocksBill(tenantID, data); err != nil { // Stage 148.38
+		return 0, false, err
+	}
 
 	if status != "Matched" {
 		requiredRole, rerr := RequiredApproverRoleForAmount(tenantID, "VendorInvoice", amount)
@@ -430,6 +480,9 @@ func payVendorInvoice(tenantID, invoiceID, userID, actorRole, overrideReason str
 			"2100": position.TransactionAmount,
 			"1100": position.TransactionAmount,
 		})); err != nil {
+		if ve, ok := err.(*ValidationError); ok && isVendorHoldCode(ve.Code) {
+			return 0, false, ve // 148.9 / 148.10: keep the code for the caller
+		}
 		return 0, false, fmt.Errorf("GL posting failed, invoice not marked Paid: %v", err)
 	}
 	recordSettlementFX(data, settlement)
@@ -486,10 +539,17 @@ func FinalizeVendorInvoiceOverridePayment(tenantID, invoiceID, userID string, op
 	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
 		return 0, err
 	}
+	// Stage 148.1: the held bill's difference books as the money goes.
+	if err := settleOverriddenBillTx(tx, tenantID, schema, invoiceID, data); err != nil {
+		return 0, err
+	}
 	// Stage 37.1.3, identical treatment to PayVendorInvoice's own leg. The
 	// override path posts on approval rather than on submission, so the rate
 	// that applies is the one on the day the money actually leaves - which is
 	// today, here, not the day the override was requested.
+	if err := retroPOBlocksBill(tenantID, data); err != nil { // Stage 148.38
+		return 0, err
+	}
 	position := documentFXPosition(tenantID, data, "invoice_amount")
 	settlement, ferr := resolveSettlementFX(tenantID, position, false, settlementOption(opts))
 	if ferr != nil {
@@ -509,7 +569,7 @@ func FinalizeVendorInvoiceOverridePayment(tenantID, invoiceID, userID string, op
 		amountInt = roundToRupees(PaiseToRupees(final.Total))
 	}
 	payKey := fmt.Sprintf("VendorInvoice:%s:PAY_OVERRIDE", invoiceID)
-	if err := PostDoubleEntry(tenantID, "VendorInvoice", invoiceID, final.Debits, final.Credits, settlement.PostingDate(), payKey,
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "VendorInvoice", invoiceID, final.Debits, final.Credits, settlement.PostingDate(), payKey,
 		postingOptionsFor(position, settlement.SettlementRate, debits, credits, map[string]float64{
 			"2100": position.TransactionAmount,
 			"1100": position.TransactionAmount,
@@ -583,7 +643,7 @@ func readGRNBilling(tx queryRower, schema, poID, grnID string) (grnBilling, erro
 			log.Printf("[VENDOR-INVOICE] corrupt PO items for %s: %v", poID, err)
 		}
 		for _, it := range poItems {
-			rateBySku[it.Sku] = it.Rate
+			rateBySku[it.Sku] = poLineBilledRate(it)
 		}
 	}
 

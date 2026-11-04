@@ -406,6 +406,9 @@ func registerRoutes() {
 	// Stage 130.14 (74.2.3b): preview before saving; the linked reversal.
 	http.HandleFunc("POST /api/v1/inventory/adjustments/preview", apiMiddleware(moduleGate("inventory", handlePreviewInventoryAdjustment)))
 	http.HandleFunc("POST /api/v1/inventory/adjustments/{id}/reverse", apiMiddleware(moduleGate("inventory", handleReverseInventoryAdjustment)))
+	// Stage 148.40: correct a batch or serial's attributes, with history.
+	http.HandleFunc("GET /api/v1/inventory/pieces/{doctype}/{id}", apiMiddleware(moduleGate("inventory", handleGetPieceAttributes)))
+	http.HandleFunc("POST /api/v1/inventory/pieces/{doctype}/{id}/correct", apiMiddleware(moduleGate("inventory", handleCorrectPieceAttributes)))
 	// Stage 130.15 (74.2.4): internal Material Issue / Return.
 	http.HandleFunc("POST /api/v1/inventory/material-requests", apiMiddleware(moduleGate("inventory", handleCreateMaterialRequest)))
 	http.HandleFunc("POST /api/v1/inventory/material-requests/{id}/issue", apiMiddleware(moduleGate("inventory", handleIssueMaterial)))
@@ -891,6 +894,7 @@ func registerRoutes() {
 	// generic report catalog.
 	http.HandleFunc("POST /api/v1/finance/landed-cost-voucher", apiMiddleware(handleCreateLandedCostVoucher))
 	http.HandleFunc("POST /api/v1/finance/landed-cost-voucher/{id}/apply", apiMiddleware(handleApplyLandedCostVoucher))
+	http.HandleFunc("POST /api/v1/finance/charge-entries/bill", apiMiddleware(handleBillChargeEntries))
 
 	// Service management (Stage 37.8). ServiceContract is read/list/create
 	// via the generic doc API - only ServiceTicket's dedicated lifecycle
@@ -1240,6 +1244,17 @@ func registerRoutes() {
 	// the generic document API like every PIM master; running one is the one
 	// action that needs logic the generic endpoint doesn't have.
 	http.HandleFunc("POST /api/v1/pim/export-templates/{id}/run", apiMiddleware(moduleGate("pim", handlePIMExportTemplateRun)))
+	// 146.5.2 / 146.5.5 / 146.5.6: marketplace templates from the marketplace's file,
+	// design-level attribute values, and feed runs.
+	http.HandleFunc("POST /api/v1/pim/channel-templates/load", apiMiddleware(moduleGate("pim", handlePIMChannelTemplateLoad)))
+	http.HandleFunc("GET /api/v1/pim/channel-templates/{id}/coverage", apiMiddleware(moduleGate("pim", handlePIMChannelTemplateCoverage)))
+	http.HandleFunc("POST /api/v1/pim/feeds/{id}/run", apiMiddleware(moduleGate("pim", handlePIMFeedRun)))
+	http.HandleFunc("GET /api/v1/pim/design-values", apiMiddleware(moduleGate("pim", handlePIMDesignValues)))
+	http.HandleFunc("POST /api/v1/pim/design-values", apiMiddleware(moduleGate("pim", handlePIMDesignValues)))
+	http.HandleFunc("POST /api/v1/pim/design-tags", apiMiddleware(moduleGate("pim", handlePIMDesignTags)))
+	http.HandleFunc("GET /api/v1/pim/checklists", apiMiddleware(moduleGate("pim", handlePIMChecklists)))
+	http.HandleFunc("POST /api/v1/pim/checklists", apiMiddleware(moduleGate("pim", handlePIMChecklists)))
+	http.HandleFunc("GET /api/v1/pim/checklists/{id}", apiMiddleware(moduleGate("pim", handlePIMChecklist)))
 	http.HandleFunc("POST /api/v1/pim/catalogs/{id}/rotate-share-token", apiMiddleware(moduleGate("pim", handlePIMCatalogRotateShareToken)))
 	// Public: listed in middleware.go's publicRoutes. A partner holds only
 	// the share token (as ?token=, verified inside the handler), never a
@@ -1248,6 +1263,7 @@ func registerRoutes() {
 	// Enrichment & quality (Stage 36.7): related products, UPC/EAN generation.
 	http.HandleFunc("GET /api/v1/pim/content-assist-shapes", apiMiddleware(moduleGate("pim", handlePIMContentAssistShapes)))
 	http.HandleFunc("GET /api/v1/pim/related-products/{itemCode}", apiMiddleware(moduleGate("pim", handlePIMRelatedProducts)))
+	http.HandleFunc("GET /api/v1/pim/live-on/{itemCode}", apiMiddleware(moduleGate("pim", handlePIMLiveOn)))
 	http.HandleFunc("POST /api/v1/pim/barcode/generate", apiMiddleware(moduleGate("pim", handlePIMGenerateBarcode)))
 	http.HandleFunc("POST /api/v1/pim/translations/seed", apiMiddleware(moduleGate("pim", handlePIMSeedTranslations)))
 	// Bulk channel download (36.4.5): pull selected items' live channel
@@ -1300,6 +1316,10 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/transfer/approve-direct", apiMiddleware(moduleGate("inventory", handleApproveTransferOrderDirect)))
 	http.HandleFunc("POST /api/v1/transfer/cancel", apiMiddleware(moduleGate("inventory", handleCancelTransferOrder)))
 	http.HandleFunc("POST /api/v1/transfer/return", apiMiddleware(moduleGate("inventory", handleReturnTransferToSource)))
+	// Stage 146.3.12: one allocation upload makes one Draft transfer per store.
+	http.HandleFunc("POST /api/v1/transfer/allocation", apiMiddleware(moduleGate("inventory", handleTransferAllocationUpload)))
+	http.HandleFunc("GET /api/v1/transfer/allocation", apiMiddleware(moduleGate("inventory", handleTransferAllocationRun)))
+	http.HandleFunc("POST /api/v1/transfer/allocation/decide", apiMiddleware(moduleGate("inventory", handleTransferAllocationDecide)))
 	// Stage 73.2.18: supply proposals (reorder / MRP) the planner approves or rejects.
 	http.HandleFunc("GET /api/v1/planning/proposals", apiMiddleware(moduleGate("inventory", handleListSupplyProposals)))
 	http.HandleFunc("POST /api/v1/planning/proposals/generate", apiMiddleware(moduleGate("inventory", handleGenerateSupplyProposals)))
@@ -1308,6 +1328,7 @@ func registerRoutes() {
 
 	// Purchase requisition conversion (Stage 17.7)
 	http.HandleFunc("POST /api/v1/procurement/convert-requisition", apiMiddleware(moduleGate("procurement", handleConvertRequisition)))
+	http.HandleFunc("POST /api/v1/procurement/combine-requisitions", apiMiddleware(moduleGate("procurement", handleCombineRequisitions)))
 	// Stage 57.15: Purchase Return. Create/edit via /api/v1/doc/PurchaseReturn.
 	http.HandleFunc("GET /api/v1/procurement/purchase-returns/context", apiMiddleware(moduleGate("procurement", handlePurchaseReturnContext)))
 	http.HandleFunc("POST /api/v1/procurement/purchase-returns/{id}/post", apiMiddleware(moduleGate("procurement", handlePostPurchaseReturn)))
@@ -1323,6 +1344,8 @@ func registerRoutes() {
 	// printed GRN and its debit/credit notes, and posting a vendor credit note.
 	http.HandleFunc("GET /api/v1/procurement/design-matrix", apiMiddleware(moduleGate("procurement", handleGetDesignMatrix)))
 	http.HandleFunc("GET /api/v1/procurement/design/{code}", apiMiddleware(moduleGate("procurement", handleGetDesign)))
+	http.HandleFunc("GET /api/v1/procurement/purchase-rate-history", apiMiddleware(moduleGate("procurement", handlePurchaseRateHistory)))
+	http.HandleFunc("GET /api/v1/procurement/vendor-scorecard", apiMiddleware(moduleGate("procurement", handleVendorScorecard)))
 	http.HandleFunc("POST /api/v1/procurement/design/match", apiMiddleware(moduleGate("procurement", handleMatchDesign)))
 	// Stage 74.1.1: reason codes for a picker (handlers_reason_codes.go).
 	http.HandleFunc("GET /api/v1/reason-codes", apiMiddleware(handleListReasonCodes))
@@ -1330,6 +1353,7 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/grn-steps", apiMiddleware(moduleGate("procurement", handleGRNStepsInbox)))
 	http.HandleFunc("GET /api/v1/grn-steps/open-pos", apiMiddleware(moduleGate("procurement", handleGRNStepsOpenPOs)))
 	http.HandleFunc("GET /api/v1/grn-steps/{id}", apiMiddleware(moduleGate("procurement", handleGRNStepsGet)))
+	http.HandleFunc("GET /api/v1/grn-steps/{id}/charges", apiMiddleware(moduleGate("procurement", handleGRNChargeLines)))
 	http.HandleFunc("POST /api/v1/grn-steps/{id}/receive", apiMiddleware(moduleGate("procurement", handleGRNStepsReceive)))
 	http.HandleFunc("POST /api/v1/grn-steps/{id}/verify", apiMiddleware(moduleGate("procurement", handleGRNStepsVerify)))
 	http.HandleFunc("POST /api/v1/grn-steps/{id}/price", apiMiddleware(moduleGate("procurement", handleGRNStepsPrice)))
@@ -1387,10 +1411,23 @@ func registerRoutes() {
 	// Stage 73.2.4 (D05): PO reconciliation and short-close.
 	http.HandleFunc("GET /api/v1/procurement/purchase-order/{id}/reconciliation", apiMiddleware(moduleGate("procurement", handlePOReconciliation)))
 	http.HandleFunc("POST /api/v1/procurement/purchase-order/{id}/short-close", apiMiddleware(moduleGate("procurement", handlePOShortClose)))
+	// Stage 148.11: PO line control, and cancelling lines of a transfer.
+	http.HandleFunc("POST /api/v1/procurement/purchase-order/{id}/line/{n}/control", apiMiddleware(moduleGate("procurement", handlePOLineControl)))
+	http.HandleFunc("POST /api/v1/procurement/purchase-order/{id}/line/{n}/stop", apiMiddleware(moduleGate("procurement", handlePOLineStop)))
+	http.HandleFunc("POST /api/v1/procurement/purchase-order/{id}/line/{n}/close-rest", apiMiddleware(moduleGate("procurement", handlePOLineCloseRest)))
+	http.HandleFunc("POST /api/v1/transfer/cancel-lines", apiMiddleware(moduleGate("inventory", handleCancelTransferLines)))
 
 	// Vendor invoice 3-way match + payment (Stage 17.8)
 	http.HandleFunc("POST /api/v1/procurement/vendor-invoice/match", apiMiddleware(moduleGate("procurement", handleMatchVendorInvoice)))
 	http.HandleFunc("POST /api/v1/procurement/vendor-invoice/pay", apiMiddleware(moduleGate("procurement", handlePayVendorInvoice)))
+	// Vendor advances (148.15) and volume rebate claims (148.17)
+	http.HandleFunc("POST /api/v1/procurement/vendor-advances", apiMiddleware(moduleGate("procurement", handleGiveVendorAdvance)))
+	http.HandleFunc("POST /api/v1/procurement/vendor-advances/{id}/apply", apiMiddleware(moduleGate("procurement", handleApplyVendorAdvance)))
+	http.HandleFunc("POST /api/v1/procurement/vendor-advances/{id}/refund", apiMiddleware(moduleGate("procurement", handleRefundVendorAdvance)))
+	http.HandleFunc("POST /api/v1/procurement/vendor-advances/{id}/cancel", apiMiddleware(moduleGate("procurement", handleCancelVendorAdvance)))
+	http.HandleFunc("POST /api/v1/procurement/vendor-rebates/calculate", apiMiddleware(moduleGate("procurement", handleCalculateVendorRebates)))
+	http.HandleFunc("POST /api/v1/procurement/vendor-rebates/{id}/submit", apiMiddleware(moduleGate("procurement", handleSubmitVendorRebateClaim)))
+	http.HandleFunc("POST /api/v1/procurement/vendor-rebates/{id}/settle", apiMiddleware(moduleGate("procurement", handleSettleVendorRebateClaim)))
 
 	// Administration Scale Test APIs
 	http.HandleFunc("POST /api/v1/admin/scale-test", apiMiddleware(handleScaleTest))

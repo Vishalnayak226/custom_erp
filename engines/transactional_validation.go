@@ -66,6 +66,8 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 		return validatePurchaseOrderEditRules(tenantID, docID, priorStatus, priorData, payload)
 	case "PostingProfile": // Stage 74.1.3
 		return validatePostingProfileRules(tenantID, payload)
+	case GLAccountChangeDoctype: // Stage 148.5
+		return validateGLAccountChange(tenantID, payload)
 	case "TransferOrder":
 		return validateTransferOrderCreateRules(tenantID, payload)
 	case "CycleCountLine":
@@ -79,7 +81,10 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 	case "Attendance":
 		return validateAttendanceRules(tenantID, payload)
 	case "PurchaseRequisition":
-		return validatePurchaseRequisitionEditRules(priorStatus, priorData)
+		if err := validatePurchaseRequisitionEditRules(priorStatus, priorData); err != nil {
+			return err
+		}
+		return validateRequisitionLineEdit(priorData, payload) // 148.14
 	case "PurchaseReturn":
 		return validatePurchaseReturnRules(tenantID, docID, priorStatus, priorData, payload)
 	case "VendorQuote": // Stage 73.2.3: the award selects a quote
@@ -305,7 +310,9 @@ func fetchPOItemQuantities(tenantID, poID string) (map[string]float64, error) {
 	}
 	ordered := map[string]float64{}
 	for _, it := range items {
-		ordered[it.Sku] += float64(it.Qty)
+		// Stage 148.11: what a stop / close-rest / auto-close gave up is no
+		// longer owed, so it neither holds the PO open nor can be received.
+		ordered[it.Sku] += float64(it.Qty+it.FreeQty) - it.ClosedQty
 	}
 	return ordered, nil
 }
@@ -586,6 +593,18 @@ func validateGRNAgainstPO(tenantID, docID, poID string, lines []grnReceivedLine,
 	if err != nil {
 		return err
 	}
+	// Stage 148.11: line control - a stopped line takes nothing (the step flow
+	// takes what arrived and Verify returns it, see grnExcessByLine); the line
+	// or item over % replaces the vendor's tolerance; full-delivery lines refuse
+	// a part delivery.
+	lineCtl := poSkuControlsFromItems(tenantID, strField(poData, "items"))
+	if !stepFlow {
+		for _, line := range lines {
+			if c := lineCtl[line.Sku]; c != nil && c.Stopped && line.derivedAcceptedQty() > 0 {
+				return stoppedLineError(line.Sku, poID)
+			}
+		}
+	}
 	fullyReceivedBefore := true
 	for sku, qty := range ordered {
 		if receivedBefore[sku]+1e-9 < qty {
@@ -604,10 +623,23 @@ func validateGRNAgainstPO(tenantID, docID, poID string, lines []grnReceivedLine,
 			// PURCHA-0088 check above; there is no PO qty to compare against.
 			continue
 		}
-		allowedQty := orderedQty * (1 + overReceiptTolerancePct/100)
+		allowedQty := orderedQty * (1 + lineCtl[line.Sku].effectiveOverPct(overReceiptTolerancePct)/100)
 		// Stage 73.2.4 (D05): the delivery counts by what was accepted.
 		if accepted := line.derivedAcceptedQty(); receivedBefore[line.Sku]+accepted > allowedQty+1e-9 {
 			return &ValidationError{Code: "PURCHA-0087", Message: fmt.Sprintf("accepted quantity for SKU %q (%v) would exceed open PO quantity (%v) plus tolerance (%v)", line.Sku, receivedBefore[line.Sku]+accepted, orderedQty, allowedQty)}
+		}
+	}
+	// Stage 148.11: full delivery only - the SKU's total delivered, this
+	// receipt included, must reach ordered less the under tolerance.
+	if !stepFlow {
+		perSku := map[string]float64{}
+		for _, line := range lines {
+			perSku[line.Sku] += line.derivedAcceptedQty()
+		}
+		for sku, q := range perSku {
+			if lineCtl[sku].fullDeliveryShort(ordered[sku], receivedBefore[sku]+q) {
+				return fullDeliveryError(sku, poID, ordered[sku], receivedBefore[sku]+q)
+			}
 		}
 	}
 	return nil
@@ -721,11 +753,31 @@ func validateVendorInvoiceCreateRules(tenantID string, payload map[string]interf
 // not a status-only update (e.g. the approval flow moving Draft ->
 // Approved touches nothing this function cares about).
 func validatePurchaseOrderEditRules(tenantID, docID, priorStatus string, priorData, payload map[string]interface{}) error {
+	// Stage 148.11: the PO form rebuilds lines from sku / qty / rate, so the
+	// line control of the prior lines is carried over, then checked.
+	if docID != "" && priorData != nil {
+		carryPOLineControls(strField(priorData, "items"), payload)
+		// 148.34: a moved date re-opens the vendor confirmation. Run last, so the
+		// amendment checks below see the lines the user changed, not this stamp.
+		defer reopenPOConfirmations(priorData, payload)
+	}
+	if newItems, _ := payload["items"].(string); newItems != "" {
+		if err := validatePOLineControl(newItems); err != nil {
+			return err
+		}
+	}
 	// Stage 127.7: the purchase price the PO screen requires (114.7) is required
 	// of every save that writes lines - the API and an import too. A save that
 	// leaves the lines as they were (an approval, a status move) is not
 	// checked, so an older PO saved without prices still moves on.
 	if newItems, _ := payload["items"].(string); docID == "" || priorData == nil || newItems != strField(priorData, "items") {
+		// Stage 148.6 / 148.7: the vendor agreement fills a blank price and the
+		// discounts are worked out here, at the choke point every PO save runs,
+		// before the price is required.
+		if err := StampPOPricing(tenantID, payload); err != nil {
+			return err
+		}
+		newItems, _ = payload["items"].(string)
 		if err := validatePurchaseOrderLinePrices(newItems); err != nil {
 			return err
 		}
@@ -820,7 +872,7 @@ func validateEmployeeRules(tenantID, docID string, payload map[string]interface{
 	var existingID string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
-		WHERE doctype = 'Employee' AND data->>'code' = $1 AND id != $2 AND status != 'Cancelled'
+		WHERE doctype = 'Employee' AND deleted_at IS NULL AND data->>'code' = $1 AND id != $2 AND status != 'Cancelled'
 		LIMIT 1`, schema), code, docID).Scan(&existingID)
 	if err == nil {
 		return &ValidationError{Code: "HRPAYR-0149", Message: fmt.Sprintf("employee code %q is already used by %s", code, existingID)}
@@ -867,7 +919,7 @@ func validateLeaveBalance(tenantID, docID, employeeID, leaveType, fromDate strin
 	var usedRaw sql.NullFloat64
 	if err := db.DB.QueryRow(fmt.Sprintf(`
 		SELECT COALESCE(SUM((data->>'days')::numeric), 0) FROM %s.documents
-		WHERE doctype = 'Leave' AND data->>'employee_id' = $1 AND data->>'leave_type' = $2
+		WHERE doctype = 'Leave' AND deleted_at IS NULL AND data->>'employee_id' = $1 AND data->>'leave_type' = $2
 		AND id != $3 AND status IN ('Applied', 'Approved') AND (data->>'from_date') LIKE $4`,
 		schema), employeeID, leaveType, docID, year+"%").Scan(&usedRaw); err != nil {
 		return err
@@ -907,7 +959,7 @@ func validateAttendanceRules(tenantID string, payload map[string]interface{}) er
 	}
 	var assignedToday bool
 	if err := db.DB.QueryRow(fmt.Sprintf(`
-		SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'ShiftAssignment'
+		SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'ShiftAssignment' AND deleted_at IS NULL
 		AND data->>'employee_id' = $1 AND data->>'date' = $2 AND status != 'Cancelled')`,
 		schema), employeeID, date).Scan(&assignedToday); err != nil {
 		return err
@@ -934,7 +986,7 @@ func validateLeaveRules(tenantID, docID string, payload map[string]interface{}) 
 	var existingID string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
-		WHERE doctype = 'Leave' AND data->>'employee_id' = $1 AND id != $2
+		WHERE doctype = 'Leave' AND deleted_at IS NULL AND data->>'employee_id' = $1 AND id != $2
 		AND status NOT IN ('Rejected', 'Cancelled')
 		AND (data->>'from_date') <= $4 AND (data->>'to_date') >= $3
 		LIMIT 1`, schema), employeeID, docID, fromDate, toDate).Scan(&existingID)

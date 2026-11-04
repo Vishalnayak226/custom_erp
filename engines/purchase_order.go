@@ -35,6 +35,26 @@ type POLineInput struct {
 	Qty  int     `json:"qty"`
 	Rate float64 `json:"rate"`
 	MRP  float64 `json:"mrp,omitempty"`
+	// Stage 148.6 / 148.7: discounts and the vendor agreement. The two typed
+	// ones (DiscountPct, DiscountAmt) come from the maker; the rest are stamped
+	// by StampPOPricing and are empty on a PO with no agreement or discount.
+	DiscountPct float64  `json:"discount_pct,omitempty"`
+	DiscountAmt float64  `json:"discount_amt,omitempty"`
+	NetValue    *float64 `json:"net_value,omitempty"`
+	FreeQty     int      `json:"free_qty,omitempty"`
+	RuleNote    string   `json:"rule_note,omitempty"`
+	RuleID      string   `json:"rule_id,omitempty"`
+	// DiscountNote states what was taken off, under the line.
+	DiscountNote         string  `json:"discount_note,omitempty"`
+	AgreementDiscountPct float64 `json:"agreement_discount_pct,omitempty"`
+	AgreementRate        float64 `json:"agreement_rate,omitempty"`
+	VendorCode           string  `json:"vendor_code,omitempty"`
+	PackMultiple         int     `json:"pack_multiple,omitempty"`
+	PriceLocked          bool    `json:"price_locked,omitempty"`
+	CommitQty            float64 `json:"commit_qty,omitempty"`
+	CommitUsedQty        float64 `json:"commit_used_qty,omitempty"`
+	CommitValue          float64 `json:"commit_value,omitempty"`
+	CommitUsedValue      float64 `json:"commit_used_value,omitempty"`
 }
 
 // POLinePreview is one line resolved against the Item master and priced.
@@ -162,7 +182,7 @@ func PreviewPurchaseOrder(tenantID string, payload map[string]interface{}) (POPr
 		}
 		p.HSNCode, p.GSTRate, p.Treatment = info.HSNCode, info.GSTRate, info.Treatment
 
-		gross := l.Rate * float64(l.Qty)
+		gross := POLineNet(l)
 		if !info.Taxable() {
 			// No tax to add or back out either way - the whole gross lands in
 			// its own return bucket and nothing in the tax accumulators.

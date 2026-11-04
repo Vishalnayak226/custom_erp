@@ -263,34 +263,9 @@ async function renderChartOfAccountsPanel(container) {
   const data = await res.json();
   const accounts = data.balances || [];
 
-  const panel = document.createElement('div');
-  panel.className = 'table-panel';
-  let html = `
-    <table>
-      <thead>
-        <tr>
-          <th>Account Code</th>
-          <th>Account Name</th>
-          <th>Type</th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
-  if (accounts.length === 0) {
-    html += `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No GL accounts configured yet. The chart of accounts is seeded during installation &mdash; ask your administrator to apply any pending database migrations.</td></tr>`;
-  }
-  accounts.forEach(a => {
-    html += `
-      <tr>
-        <td style="font-family: monospace;">${escapeHTMLText(a.account_code)}</td>
-        <td style="font-weight:600;">${escapeHTMLText(a.account_name)}</td>
-        <td>${escapeHTMLText(a.account_type)}</td>
-      </tr>
-    `;
-  });
-  html += `</tbody></table>`;
-  panel.innerHTML = html;
-  container.appendChild(panel);
+  // Stage 148.5: list, parents and Add/Change/Block requests live in a lazy module.
+  const mod = await import('./view-finance-coa.js' + new URL(import.meta.url).search);
+  mod.renderChartOfAccounts(container, accounts);
 }
 
 // Accounting Periods (Stage 20.34): this had no frontend at all before this
@@ -633,6 +608,7 @@ async function renderVendorInvoicesView(container) {
       </tbody>
     </table>`
   });
+  container.querySelectorAll('[data-vi-advance]').forEach(btn => btn.addEventListener('click', async () => { await loadViewModule('/view-vendor-advance.js?v=1'); window.applyAdvanceToBill?.(btn.getAttribute('data-vi-advance'), btn.dataset.vendor, btn.dataset.due, btn.dataset.po); }));
   container.querySelectorAll('[data-vi-pay]').forEach(btn => btn.addEventListener('click', () => payVendorInvoicePlain(btn.getAttribute('data-vi-pay'))));
   wirePaymentHistory(container);
   addStatementButton('vi-new-btn', 'VendorStatement', 'Vendor', 'vendor');
@@ -672,6 +648,7 @@ function renderVendorInvoiceActions(v) {
     // part-paid only plain Pay (of what is left) is offered.
     return `
       <button class="action-btn" data-vi-pay="${escapeHTMLText(id)}">Pay</button>
+      <button class="action-btn" style="margin-left:4px;" data-vi-advance="${escapeHTMLText(id)}" data-vendor="${escapeHTMLText(v.vendor_id || '')}" data-po="${escapeHTMLText(v.po_id || '')}" data-due="${escapeHTMLText(String(openBalance(v, 'invoice_amount', ['Matched'])))}">Advance</button>
       ${sections.length > 0 && settlementHistory(v, 'payments').length === 0 ? `
         <select id="tds-select-${id}" class="form-select" style="width: 110px; display:inline-block; margin: 0 4px;">${tdsOptions}</select>
         <button class="action-btn" ${actionAttrs('payVendorInvoiceTDS', [id])}>Pay w/ TDS</button>

@@ -215,6 +215,8 @@ func MoveBinStock(tenantID string, in BinMoveInput) error {
 		TaskType: in.TaskType, LocationCode: locationCode, FromBin: in.FromBin, ToBin: in.ToBin, Item: in.SKU, Qty: float64(in.Qty),
 		BatchNo: batchNo, Notes: in.Reason,
 	}, in.UserID)
+	// Stage 146.3.3: a queued Move or Replenish task for this move is done.
+	closeWorkTasksForMove(tenantID, in)
 	return nil
 }
 

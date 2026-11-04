@@ -390,10 +390,12 @@ func postGRNReceiptPartTx(tx *sql.Tx, tenantID, schema, locationCode string, ite
 		// ledger entry carrying batch_no was written by the accepted-items post
 		// above regardless.
 		vendor := grnVendor(schema, grnID)
+		receiptCost := grnPieceCostResolver(tenantID, schema, grnID)
 		for _, rb := range receivedBatches {
 			rb.info.Vendor = vendor
 			rb.info.GRN = grnID
 			rb.info.Location = locationCode
+			rb.info.ReceiptCostPaise = receiptCost(rb.info.Item)
 			if _, err := EnsureBatch(tenantID, rb.info, rb.acceptedQty, userID); err != nil {
 				LogSystemError(tenantID, "", "WARN", "PostGRNReceiptWithQC",
 					fmt.Sprintf("batch %s of %s could not be registered from GRN %s: %v", rb.info.BatchNo, rb.info.Item, grnID, err), "")
@@ -404,6 +406,8 @@ func postGRNReceiptPartTx(tx *sql.Tx, tenantID, schema, locationCode string, ite
 		// the identical reason.
 		for _, rs := range receivedSerials {
 			rs.info.Vendor = vendor
+			rs.info.ReceiptCostPaise = receiptCost(rs.info.Item)
+			rs.info.ReceiptGRN = grnID
 			if _, err := RegisterSerial(tenantID, rs.info, locationCode, "GRN", grnID, userID); err != nil {
 				LogSystemError(tenantID, "", "WARN", "PostGRNReceiptWithQC",
 					fmt.Sprintf("serial %s of %s could not be registered from GRN %s: %v", rs.info.SerialNo, rs.info.Item, grnID, err), "")

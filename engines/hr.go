@@ -145,8 +145,8 @@ func GetPayrollExport(tenantID, from, to string) ([]PayrollExportEntry, error) {
 	}
 
 	results := make([]PayrollExportEntry, 0, len(byEmployee))
-	for _, e := range byEmployee {
-		results = append(results, *e)
+	for _, id := range sortedStringKeys(byEmployee) {
+		results = append(results, *byEmployee[id])
 	}
 	return results, nil
 }

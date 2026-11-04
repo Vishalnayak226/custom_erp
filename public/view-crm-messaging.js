@@ -236,7 +236,7 @@ async function crmJourneys(host, st) {
   body.querySelectorAll('[data-jr]').forEach(a => a.addEventListener('click', (e) => { e.preventDefault(); crmGo('journeys', 'edit', { id: a.dataset.jr }); }));
 }
 
-const crmStepTypes = [['wait', 'Wait'], ['wait_event', 'Wait for something to happen'], ['check', 'Check (yes / no)'], ['send', 'Send a message'], ['task', 'Create a task for staff'], ['end', 'End']];
+const crmStepTypes = [['wait', 'Wait'], ['wait_event', 'Wait for something to happen'], ['check', 'Check (yes / no)'], ['send', 'Send a message'], ['task', 'Create a task for staff'], ['give_points', 'Give points'], ['end', 'End']];
 
 async function crmJourneyEdit(host, id) {
   let j = { name: '', description: '', draft: { trigger: { type: 'event', event: 'bill_paid' }, cooldown_days: 0, steps: [{ type: 'wait', hours: 2 }] } };
@@ -263,6 +263,8 @@ async function crmJourneyEdit(host, id) {
     if (s.type === 'task') p = crmField(`st-ti-${i}`, 'Task', crmInput(`st-ti-${i}`, s.title || '', `data-sk="title" data-i="${i}"`)) +
       crmField(`st-to-${i}`, 'For', crmSelect(`st-to-${i}`, [['store', 'Anyone at the store'], ['preferred_salesman', 'Their salesman']], s.owner || 'store', `data-sk="owner" data-i="${i}"`)) +
       crmField(`st-td-${i}`, 'Due in hours', crmInput(`st-td-${i}`, s.due_hours || 24, `data-sk="due_hours" data-i="${i}" inputmode="numeric"`));
+    if (s.type === 'give_points') p = crmField(`st-gp-${i}`, 'Points', crmInput(`st-gp-${i}`, s.points || '', `data-sk="points" data-i="${i}" inputmode="numeric"`)) +
+      crmField(`st-go-${i}`, 'For', crmSelect(`st-go-${i}`, [['', 'The journey date'], ['birthday', 'Birthday'], ['anniversary', 'Anniversary']], s.occasion || '', `data-sk="occasion" data-i="${i}"`));
     const branch = (s.type === 'check' || s.type === 'wait_event') ? `<div class="crm-form-row">
       ${crmField(`st-y-${i}`, s.type === 'check' ? 'If yes, go to step' : 'If it happens, go to step', crmSelect(`st-y-${i}`, [[0, 'the next step'], [-1, 'end']].concat(def.steps.map((_, k) => [k + 1, `step ${k + 1}`]).filter(x => x[0] !== i + 1)), s.yes || 0, `data-sk="yes" data-i="${i}"`))}
       ${crmField(`st-n-${i}`, s.type === 'check' ? 'If no, go to step' : 'If not, go to step', crmSelect(`st-n-${i}`, [[0, 'the next step'], [-1, 'end']].concat(def.steps.map((_, k) => [k + 1, `step ${k + 1}`]).filter(x => x[0] !== i + 1)), s.no || 0, `data-sk="no" data-i="${i}"`))}</div>` : '';
@@ -316,7 +318,7 @@ async function crmJourneyEdit(host, id) {
         const s = def.steps[i], k = el.dataset.sk;
         if (k === 'type') { def.steps[i] = { type: el.value }; readTrigger(); paint(); return; }
         if (k === 'voucher_pct') { s.voucher = el.value ? { discount_type: 'Percentage', discount_value: Number(el.value), valid_days: 14, channel: 'Any' } : null; return; }
-        s[k] = ['hours', 'due_hours', 'yes', 'no'].includes(k) ? Number(el.value) : el.value;
+        s[k] = ['hours', 'due_hours', 'points', 'yes', 'no'].includes(k) ? Number(el.value) : el.value;
         if (k === 'channel') { readTrigger(); paint(); }
       }
       if (el.dataset.rk) { const r = def.steps[i].rule; r[el.dataset.rk] = el.dataset.rk === 'value' && /^-?\d+(\.\d+)?$/.test(el.value) ? Number(el.value) : el.value; }

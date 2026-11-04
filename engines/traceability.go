@@ -192,6 +192,9 @@ type BatchInfo struct {
 	MRP           float64           `json:"mrp,omitempty"`           // Stage 94 (D2): the MRP this receipt printed on the lot
 	Status        string            `json:"status"`
 	Attributes    map[string]string `json:"attributes,omitempty"`
+	// Stage 148.1: what a unit of this lot cost, over how many units. Never on the wire.
+	ReceiptCostPaise int64   `json:"-"`
+	ReceiptCostQty   float64 `json:"-"`
 }
 
 // Allocatable reports whether stock from this batch may be issued at all. A
@@ -217,6 +220,8 @@ func batchFromData(docID, dataStr, status string) BatchInfo {
 	out.Location, _ = data["location"].(string)
 	out.AutoNumbered = data["auto_numbered"] == "Yes"
 	out.MRP = numFromInterface(data["mrp"])
+	out.ReceiptCostPaise = int64(numFromInterface(data["receipt_cost_paise"]))
+	out.ReceiptCostQty = numFromInterface(data["receipt_cost_qty"])
 	// The JSON status field and the documents.status column are separate values
 	// in this schema (the CycleCountLine gate documents the same distinction).
 	// The column is authoritative for a lifecycle decision, so it is only
@@ -304,6 +309,12 @@ func EnsureBatch(tenantID string, in BatchInfo, receivedQty float64, userID stri
 			patch["mrp"] = round2(in.MRP)
 			existing.MRP = round2(in.MRP)
 		}
+		// Stage 148.1: a later receipt into the lot blends into what a unit of it cost.
+		// A lot from before this stage has no cost of its own and stays that way.
+		if existing.ReceiptCostPaise > 0 && in.ReceiptCostPaise > 0 && receivedQty > 0 {
+			patch["receipt_cost_paise"] = blendRatePaise(existing.ReceiptCostQty, existing.ReceiptCostPaise, in.ReceiptCostPaise*int64(receivedQty), receivedQty)
+			patch["receipt_cost_qty"] = existing.ReceiptCostQty + receivedQty
+		}
 		// One day's auto-numbered batch shared by a later GRN (per-SKU-per-day
 		// numbering): add that receipt's quantity and record the GRN, once.
 		if grn := strings.TrimSpace(in.GRN); in.AutoNumbered && grn != "" && existing.AutoNumbered {
@@ -351,6 +362,9 @@ func EnsureBatch(tenantID string, in BatchInfo, receivedQty float64, userID stri
 		"vendor":         strings.TrimSpace(in.Vendor),
 		"received_qty":   receivedQty,
 		"status":         BatchActive,
+	}
+	if in.ReceiptCostPaise > 0 {
+		data["receipt_cost_paise"], data["receipt_cost_qty"] = in.ReceiptCostPaise, receivedQty
 	}
 	if grn := strings.TrimSpace(in.GRN); grn != "" {
 		data["grn"] = grn
@@ -846,7 +860,8 @@ func pickableAfterHolds(q stockQuerier, tenantID, sku, locationCode string) (int
 		LEFT JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
 		LEFT JOIN (%s) ra ON ra.bin_code = bs.bin_code
 		WHERE bs.sku = $1 AND bs.location_code = $2 AND bs.condition = 'Good' AND bs.qty - COALESCE(ra.reserved, 0) > 0
-		  AND COALESCE(b.data->>'bin_status', '') NOT IN ('Blocked', 'Full', 'Counting')`, schema, schema, openBinReservationsSQL(schema, false)), sku, locationCode).Scan(&free)
+		  AND COALESCE(b.data->>'bin_status', '') NOT IN ('Blocked', 'Full', 'Counting')
+		  %s`, schema, schema, openBinReservationsSQL(schema, false), pickBlockSQL(schema, "b")), sku, locationCode).Scan(&free)
 	return free - hold, true
 }
 
@@ -891,7 +906,8 @@ func allocateByOrder(q stockQuerier, tenantID, sku, locationCode string, needed 
 		LEFT JOIN (%s) ra ON ra.bin_code = bs.bin_code
 		WHERE bs.sku = $1 AND bs.location_code = $2 AND bs.condition = 'Good' AND bs.qty - COALESCE(ra.reserved, 0) > 0
 		  AND COALESCE(b.data->>'bin_status', '') NOT IN ('Blocked', 'Full', 'Counting')
-		ORDER BY %s`, schema, schema, schema, openBinReservationsSQL(schema, false), orderBy), sku, locationCode)
+		  %s
+		ORDER BY %s`, schema, schema, schema, openBinReservationsSQL(schema, false), pickBlockSQL(schema, "b"), orderBy), sku, locationCode)
 	if err != nil {
 		return nil, needed, err
 	}
@@ -962,8 +978,9 @@ func allocateFEFO(q stockQuerier, tenantID, sku, locationCode string, needed int
 		  AND COALESCE(b.status, '') = 'Active' AND b.deleted_at IS NULL
 		  AND (NULLIF(b.data->>'expiry_date', '') IS NULL OR b.data->>'expiry_date' >= $3)
 		  AND COALESCE(bn.data->>'bin_status', '') NOT IN ('Blocked', 'Full', 'Counting')
+		  %s
 		ORDER BY NULLIF(b.data->>'expiry_date', '') ASC NULLS LAST, bsb.batch_no, bsb.bin_code`,
-		schema, schema, schema, openBinReservationsSQL(schema, true)), sku, locationCode, cutoff)
+		schema, schema, schema, openBinReservationsSQL(schema, true), pickBlockSQL(schema, "bn")), sku, locationCode, cutoff)
 	if err != nil {
 		return nil, needed, err
 	}
@@ -1682,7 +1699,7 @@ func queryBatchAgeing(schema, batchNo, sku string) ([]BatchAgeingRow, error) {
 		  AND ($1 = '' OR UPPER(b.data->>'batch_no') = UPPER($1))
 		  AND ($2 = '' OR b.data->>'item' = $2)
 		ORDER BY COALESCE(NULLIF(b.data->>'received_on', ''), to_char(b.created_at, 'YYYY-MM-DD')), b.created_at, b.data->>'batch_no'
-		LIMIT 5000`, schema), batchNo, sku)
+		LIMIT $3`, schema), batchNo, sku, maxReportRunRows)
 	if err != nil {
 		return nil, err
 	}
@@ -1720,6 +1737,9 @@ func queryBatchAgeing(schema, batchNo, sku string) ([]BatchAgeingRow, error) {
 		}
 		r.AgeBand = ageBand(r.AgeDays)
 		out = append(out, r)
+	}
+	if len(out) == maxReportRunRows {
+		return nil, reportReadStopped(maxReportRunRows)
 	}
 	return out, rows.Err()
 }
@@ -1853,7 +1873,7 @@ func GetStockAgeing(tenantID, scan string) ([]StockAgeingRow, error) {
 		skus = []string{code}
 	} else {
 		rows, err := db.DB.Query(fmt.Sprintf(
-			`SELECT sku FROM %s.inventory_availability GROUP BY sku HAVING SUM(on_hand) > 0 ORDER BY sku LIMIT 20000`, schema))
+			`SELECT sku FROM %s.inventory_availability GROUP BY sku HAVING SUM(on_hand) > 0 ORDER BY sku LIMIT $1`, schema), maxReportRunRows)
 		if err != nil {
 			return nil, err
 		}
@@ -1868,6 +1888,9 @@ func GetStockAgeing(tenantID, scan string) ([]StockAgeingRow, error) {
 		rows.Close()
 		if err := rows.Err(); err != nil {
 			return nil, err
+		}
+		if len(skus) == maxReportRunRows {
+			return nil, reportReadStopped(maxReportRunRows)
 		}
 	}
 	layers, err := batchLayers(schema, skus)

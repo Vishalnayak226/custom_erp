@@ -302,7 +302,7 @@ const loyaltyMovementSQL = `CASE
 	WHEN transaction_type = 'Earn' AND reference_doctype = 'LoyaltyPointTransfer' THEN 'transferred_in'
 	WHEN transaction_type = 'Adjustment' AND reference_doctype = 'LoyaltyPointTransfer' THEN 'transferred_out'
 	WHEN transaction_type = 'Earn' AND COALESCE(reference_id, '') LIKE '%%:REDEMPTION-REVERSAL' THEN 'redeemed_back'
-	WHEN transaction_type = 'Earn' AND reference_doctype = 'POSCart' THEN 'earned'
+	WHEN transaction_type = 'Earn' AND reference_doctype IN ('POSCart', 'SalesOrder') THEN 'earned'
 	WHEN transaction_type = 'Earn' THEN 'other_in'
 	WHEN transaction_type = 'Burn' AND reference_doctype = 'LoyaltyExpiry' THEN 'expired'
 	WHEN transaction_type = 'Burn' THEN 'redeemed'

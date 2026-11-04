@@ -120,6 +120,7 @@ func locScope(field string, mandatory bool) DoctypeScope {
 // at runtime through the Doctype Builder keeps exactly today's behavior
 // instead of silently losing its location filter.
 var doctypeScopes = map[string]DoctypeScope{
+	"TradeChargeEntry": locScope("location", false), // Stage 148.8
 	// --- location mandatory: a missing value is an anomaly, deny --------
 	"ASN":                    locScope("location", true),
 	"Asset":                  locScope("location", true),
@@ -128,6 +129,7 @@ var doctypeScopes = map[string]DoctypeScope{
 	"CycleCountLine":         locScope("location", true),
 	"FulfillmentTask":        locScope("location_code", true),
 	"GRN":                    locScope("location", true),
+	"GateEntry":              locScope("location_code", true),
 	"GatePass":               locScope("location_code", true),
 	"Hold":                   locScope("location_code", true),
 	"Manifest":               locScope("location_code", true),
@@ -180,6 +182,7 @@ var doctypeScopes = map[string]DoctypeScope{
 	"Batch":                 locScope("location", false), // Stage 61.6: where it was received (blank before)
 	"FloorAssistRequest":    locScope("location", false),
 	"PackStation":           locScope("location_code", false),
+	"PutawayRule":           locScope("location_code", false),
 	"PreShipValidationRule": locScope("location_code", false),
 	"OMSBill":               locScope("location", false), // Stage 88.3.2
 	"Printer":               locScope("location", false),

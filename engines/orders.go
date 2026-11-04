@@ -9,6 +9,7 @@ import (
 	"log"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // SalesOrderLineInput is one requested line for CreateSalesOrder - qty/price
@@ -159,6 +160,7 @@ type SalesOrderInput struct {
 	ChannelOrderID    string
 	CustomerName      string
 	CustomerRef       string // Stage 73.2.9: a B2B customer's own PO number / reference
+	CustomerID        string // Stage 148.3: the Customer record, when the caller knows it; else found by exact name
 	ShippingAddress   string // Address Line 1 when the parts below are given (Stage 76.3)
 	ShippingState     string
 	ShippingLine2     string
@@ -367,6 +369,21 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 	if ref := strings.TrimSpace(in.CustomerRef); ref != "" {
 		orderDoc["customer_reference"] = ref // Stage 73.2.9, printed on its invoice
 	}
+	// Stage 148.3: the link to the Customer record (a name matching one
+	// customer exactly, never a guess) and the terms that customer buys on.
+	customerID := strings.TrimSpace(in.CustomerID)
+	if customerID == "" {
+		customerID = ResolveCustomerLink(tenantID, customerName)
+	}
+	if customerID != "" {
+		orderDoc["customer_id"] = customerID
+		if term := customerPaymentTerm(schema, customerID); term != "" {
+			orderDoc["payment_term"] = term
+		}
+	}
+	if holdReason != "" {
+		orderDoc["hold_since"] = time.Now().UTC().Format(time.RFC3339)
+	}
 	orderMarshaled, err := json.Marshal(orderDoc)
 	if err != nil {
 		return "", err
@@ -495,9 +512,13 @@ func PlaceOrderHold(tenantID, orderID, reasonCode, owner string) error {
 		}
 	}
 
+	if strField(orderData, "hold_reason") == HoldCredit && strField(orderData, "order_status") == "On Hold" {
+		return &ValidationError{Code: "ORDERM-0980", SubFor: "SalesOrder", Message: "this order is on Credit hold - it is released by approving its release request"}
+	}
 	orderData["order_status"] = "On Hold"
 	orderData["hold_reason"] = reasonCode
 	orderData["hold_owner"] = owner
+	orderData["hold_since"] = time.Now().UTC().Format(time.RFC3339)
 	marshaled, err := json.Marshal(orderData)
 	if err != nil {
 		return err
@@ -526,6 +547,9 @@ func ReleaseOrderHold(tenantID, orderID string) error {
 	}
 	if orderData["order_status"] != "On Hold" {
 		return fmt.Errorf("order %s is not On Hold", orderID)
+	}
+	if strField(orderData, "hold_reason") == HoldCredit {
+		return &ValidationError{Code: "ORDERM-0980", SubFor: "SalesOrder", Message: "this order is on Credit hold - it is released by approving its release request"}
 	}
 
 	rows, err := db.DB.Query(fmt.Sprintf(
@@ -651,6 +675,7 @@ func ReleaseOrderHold(tenantID, orderID string) error {
 	orderData["order_status"] = "Reserved"
 	orderData["hold_reason"] = ""
 	orderData["hold_owner"] = ""
+	orderData["hold_since"] = ""
 	marshaled, err := json.Marshal(orderData)
 	if err != nil {
 		return err
@@ -768,6 +793,7 @@ func CancelOrder(tenantID, orderID, reasonCode string, actor ...string) error {
 	orderData["order_status"] = "Cancelled"
 	orderData["hold_reason"] = ""
 	orderData["hold_owner"] = ""
+	orderData["hold_since"] = ""
 	orderData["cancel_reason"] = reasonCode
 	marshaled, err := json.Marshal(orderData)
 	if err != nil {

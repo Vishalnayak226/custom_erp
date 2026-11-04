@@ -216,6 +216,10 @@ func PostCreditNote(tenantID, noteID, userID string) (amount int, err error) {
 		}
 	}
 
+	// Stage 148.1: a note naming a sold piece brings it back at what the sale booked.
+	if err := creditNotePieceBackTx(tx, tenantID, schema, noteID, userID, data); err != nil {
+		return 0, err
+	}
 	data["status"] = "Posted"
 	updatedBytes, err := json.Marshal(data)
 	if err != nil {

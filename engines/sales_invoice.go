@@ -70,10 +70,8 @@ func PostSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error
 	// fire from an automated shipment cascade, CreateSalesInvoiceFromOrder's
 	// own doc comment) or leaving it unchecked forever. A blank/zero
 	// Customer.credit_limit is always a no-op.
-	if customer, _ := data["customer"].(string); customer != "" {
-		if err := CheckCustomerCreditLimit(tenantID, customer, float64(amount)); err != nil {
-			return 0, err
-		}
+	if err := checkInvoiceCredit(tenantID, invoiceID, data, float64(amount)); err != nil { // Stage 148.3: refuses a "stop" customer, warns the rest
+		return 0, err
 	}
 
 	// Stage 37.6.1: an invoice flagged deferred_revenue credits 2600 Deferred
@@ -105,7 +103,7 @@ func PostSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error
 			taxPaise += v
 		}
 		if taxPaise < totalPaise {
-			paiseCredits := map[string]int64{revenueAccount: totalPaise - taxPaise}
+			paiseCredits, _ := salesInvoiceRevenueCredits(tenantID, data, dataStr, revenueAccount, totalPaise-taxPaise, !deferred)
 			for account, v := range taxCredits {
 				paiseCredits[account] = v
 			}
@@ -113,7 +111,9 @@ func PostSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error
 			split = true
 		}
 	}
-	if !split {
+	if rc, moved := salesInvoiceRevenueCredits(tenantID, data, dataStr, revenueAccount, RupeesToPaise(float64(amount)), !deferred && !position.Foreign); !split && moved {
+		postErr = PostDoubleEntryTx(tx, tenantID, schema, "SalesInvoice", invoiceID, PaiseMap(debits), rc, "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID))
+	} else if !split {
 		postErr = PostDoubleEntryTx(tx, tenantID, schema, "SalesInvoice", invoiceID, PaiseMap(debits), PaiseMap(credits), "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID),
 			postingOptionsFor(position, position.Rate, debits, credits, map[string]float64{
 				"1300":         position.TransactionAmount,
@@ -193,6 +193,7 @@ func issueSalesInvoiceStockTx(tx *sql.Tx, tenantID, schema, invoiceID, userID, d
 	}
 	var items []interface{}
 	var cogsPaise int64
+	var saleCosts []saleCostLine
 	for _, l := range salesInvoiceLineItems(dataStr) {
 		if l.Sku == "" || l.Qty <= 0 {
 			continue
@@ -200,8 +201,14 @@ func issueSalesInvoiceStockTx(tx *sql.Tx, tenantID, schema, invoiceID, userID, d
 		if policy, _, known := ItemPolicyForSKU(tenantID, l.Sku); !known || !policy.Tracked() {
 			continue
 		}
-		items = append(items, map[string]interface{}{"sku": l.Sku, "qty": -l.Qty})
-		cogsPaise += int64(l.Qty) * ResolveCOGSUnitCostPaise(tenantID, l.Sku, itemStandardCostRupees(tenantID, l.Sku))
+		line := map[string]interface{}{"sku": l.Sku, "qty": -l.Qty}
+		if l.BatchNo != "" {
+			line["batch_no"] = l.BatchNo
+		}
+		items = append(items, line)
+		unitPaise := ResolveCOGSUnitCostPaise(tenantID, l.Sku, itemStandardCostRupees(tenantID, l.Sku))
+		cogsPaise += int64(l.Qty) * unitPaise
+		saleCosts = append(saleCosts, newSaleCostLine(tenantID, l.Sku, l.Qty, unitPaise, l.SerialNos, l.BatchNo))
 	}
 	if len(items) == 0 {
 		return nil
@@ -222,15 +229,28 @@ func issueSalesInvoiceStockTx(tx *sql.Tx, tenantID, schema, invoiceID, userID, d
 	if err := writeStockLedgerLinesInTx(tx, schema, location, "SalesInvoice", invoiceID, userID, posted); err != nil {
 		return err
 	}
+	// Stage 148.1: named pieces and lots cost what they cost.
+	pieceDelta, err := settleNamedPiecesTx(tx, schema, saleCosts, false)
+	if err != nil {
+		return err
+	}
+	cogsPaise += pieceDelta
 	if cogsPaise > 0 {
+		// Stage 148.4 splits by line value; each line's value is what 148.1 booked.
+		cogsLines := make([]groupLine, 0, len(saleCosts))
+		for _, c := range saleCosts {
+			cogsLines = append(cogsLines, groupLine{Sku: c.SKU, Weight: c.ValuePaise})
+		}
+		cogsDebits, cogsCredits := salesInvoiceCOGSAccounts(tenantID, data, cogsLines, cogsPaise)
 		if err := PostDoubleEntryTx(tx, tenantID, schema, "SalesInvoice", invoiceID,
-			map[string]int64{"5100": cogsPaise}, map[string]int64{"1200": cogsPaise}, "",
+			cogsDebits, cogsCredits, "",
 			fmt.Sprintf("SalesInvoice:%s:COGS", invoiceID)); err != nil {
 			return fmt.Errorf("COGS posting failed, invoice not posted: %v", err)
 		}
 	}
 	data["stock_issued_from"] = location
 	data["cogs_amount"] = PaiseToRupees(cogsPaise)
+	data["sale_costs"] = saleCosts
 	return nil
 }
 
@@ -347,7 +367,11 @@ func CancelSalesInvoice(tenantID, invoiceID, userID, reason string) error {
 					continue
 				}
 				if policy, _, known := ItemPolicyForSKU(tenantID, l.Sku); known && policy.Tracked() {
-					items = append(items, map[string]interface{}{"sku": l.Sku, "qty": l.Qty})
+					line := map[string]interface{}{"sku": l.Sku, "qty": l.Qty}
+					if l.BatchNo != "" {
+						line["batch_no"] = l.BatchNo
+					}
+					items = append(items, line)
 				}
 			}
 			if len(items) > 0 {
@@ -356,6 +380,9 @@ func CancelSalesInvoice(tenantID, invoiceID, userID, reason string) error {
 					return err
 				}
 				if err := writeStockLedgerLinesInTx(tx, schema, location, "SalesInvoiceCancel", invoiceID, userID, posted); err != nil {
+					return err
+				}
+				if err := saleCostsBackTx(tx, schema, location, dataStr); err != nil {
 					return err
 				}
 			}

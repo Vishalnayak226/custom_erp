@@ -175,6 +175,14 @@ func ValidateParityFoundationDocument(tenantID, doctype string, payload map[stri
 		return ValidatePIMExportTemplateDocument(tenantID, payload)
 	case "PIMExportSchedule":
 		return ValidatePIMExportScheduleDocument(tenantID, payload)
+	case "ProductAttributeValue": // 146.5.11
+		return ValidateProductAttributeValueDocument(tenantID, payload)
+	case "ProductRelation": // 146.5.12
+		return ValidateProductRelationDocument(tenantID, payload)
+	case "PIMFeed": // 146.5.6
+		return ValidatePIMFeedDocument(tenantID, payload)
+	case "ChannelCategoryTemplate": // 146.5.2
+		return ValidateChannelCategoryTemplateDocument(tenantID, payload)
 	case "PIMCatalog":
 		return ValidatePIMCatalogDocument(tenantID, payload)
 	case "Currency":

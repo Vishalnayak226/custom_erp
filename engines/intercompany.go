@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"sort"
 )
 
 // Stage 37.2: Multi-entity & intercompany. LegalEntity (Stage 17.9) already
@@ -405,6 +406,12 @@ func postedIntercompanyPairTotals(schema, asOfDate string) ([]intercompanyPairTo
 	for key, amount := range totals {
 		out = append(out, intercompanyPairTotal{FromEntity: key[0], ToEntity: key[1], Amount: amount})
 	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].FromEntity != out[j].FromEntity {
+			return out[i].FromEntity < out[j].FromEntity
+		}
+		return out[i].ToEntity < out[j].ToEntity
+	})
 	return out, nil
 }
 

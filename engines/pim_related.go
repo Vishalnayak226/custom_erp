@@ -3,6 +3,7 @@ package engines
 import (
 	"custom_erp/db"
 	"fmt"
+	"strings"
 )
 
 // Stage 36.7.3: related products ("Find Duplicates and Related Products" in
@@ -89,4 +90,36 @@ func FindRelatedProducts(tenantID, itemCode string, limit int) ([]RelatedProduct
 		out = append(out, rp)
 	}
 	return out, rows.Err()
+}
+
+// Stage 146.5.12: typed product relationships. A ProductRelation row says
+// that RelatedItem is a Similar / Complete the look / Alternative / Upsell /
+// Cross-sell / Add-on product for Item. The pair is directional: A upsells to
+// B does not make B an upsell of A.
+
+// ValidateProductRelationDocument is the ValidateDocument hook: no item
+// related to itself, and no second row for the same item, type and related item.
+func ValidateProductRelationDocument(tenantID string, payload map[string]interface{}) error {
+	item, other, typ := strField(payload, "item"), strField(payload, "related_item"), strField(payload, "relation_type")
+	if item == "" || other == "" || typ == "" {
+		return nil // the mandatory check reports it
+	}
+	if strings.EqualFold(item, other) {
+		return &ValidationError{Code: "PIM-0981", SubFor: "Related Item", Message: "an item cannot be related to itself"}
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	var dup bool
+	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT EXISTS(SELECT 1 FROM %s.documents
+		WHERE doctype = 'ProductRelation' AND deleted_at IS NULL AND id <> $4
+		  AND data->>'item' = $1 AND data->>'related_item' = $2 AND data->>'relation_type' = $3)`, schema),
+		item, other, typ, strField(payload, "id")).Scan(&dup); err != nil {
+		return err
+	}
+	if dup {
+		return &ValidationError{Code: "PIM-0982", SubFor: "Related Item", Message: fmt.Sprintf("%s is already a %s of %s", other, typ, item)}
+	}
+	return nil
 }

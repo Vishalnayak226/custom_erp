@@ -19,8 +19,8 @@ applies_to: source registries; not release acceptance
 
 # Error code reference
 
-Every refusal in this application carries a code. There are **589** of them,
-across **75** areas. This page is produced from the running catalog, so it
+Every refusal in this application carries a code. There are **693** of them,
+across **76** areas. This page is produced from the running catalog, so it
 cannot describe a code the application does not have, or miss one it does.
 
 Search is usually faster than scrolling: type the code into the search box
@@ -67,18 +67,18 @@ open the right page.
 - [DocType / Dynamic Metadata](#doctype-dynamic-metadata) - 8 codes
 - [Expense Management](#expense-management) - 8 codes
 - [Extension Hooks / Customization](#extension-hooks-customization) - 4 codes
-- [Finance & Accounting](#finance-accounting) - 47 codes
+- [Finance & Accounting](#finance-accounting) - 75 codes
 - [Fixed Assets](#fixed-assets) - 9 codes
 - [GST](#gst) - 1 codes
 - [Global](#global) - 13 codes
 - [Global / Common](#global-common) - 25 codes
-- [Goods Receipt](#goods-receipt) - 19 codes
+- [Goods Receipt](#goods-receipt) - 20 codes
 - [Goods Receipt / GRN](#goods-receipt-grn) - 8 codes
 - [HR & Payroll](#hr-payroll) - 2 codes
 - [HR / Payroll](#hr-payroll) - 14 codes
 - [Integration / API](#integration-api) - 12 codes
 - [Integrations](#integrations) - 1 codes
-- [Inventory](#inventory) - 10 codes
+- [Inventory](error-code-reference-2.md#inventory) - 14 codes
 - [Inventory / Warehouse](error-code-reference-2.md#inventory-warehouse) - 29 codes
 - [Item Master](error-code-reference-2.md#item-master) - 2 codes
 - [Manufacturing / Production](error-code-reference-2.md#manufacturing-production) - 16 codes
@@ -87,8 +87,8 @@ open the right page.
 - [Notifications](error-code-reference-2.md#notifications) - 6 codes
 - [Observability / Incident](error-code-reference-2.md#observability-incident) - 3 codes
 - [Omnichannel / OMS](error-code-reference-2.md#omnichannel-oms) - 5 codes
-- [Order Management](error-code-reference-2.md#order-management) - 9 codes
-- [PIM](error-code-reference-2.md#pim) - 6 codes
+- [Order Management](error-code-reference-2.md#order-management) - 10 codes
+- [PIM](error-code-reference-2.md#pim) - 23 codes
 - [PIM / Product Publishing](error-code-reference-2.md#pim-product-publishing) - 8 codes
 - [POS / Billing](error-code-reference-2.md#pos-billing) - 42 codes
 - [POS / Offline & Cash Drawer](error-code-reference-2.md#pos-offline-cash-drawer) - 8 codes
@@ -96,22 +96,23 @@ open the right page.
 - [Payments](error-code-reference-2.md#payments) - 7 codes
 - [Planning](error-code-reference-2.md#planning) - 1 codes
 - [Procurement / RFQ](error-code-reference-2.md#procurement-rfq) - 6 codes
-- [Purchase Order](error-code-reference-2.md#purchase-order) - 19 codes
+- [Purchase Order](error-code-reference-2.md#purchase-order) - 52 codes
+- [Purchase Requisition](error-code-reference-2.md#purchase-requisition) - 6 codes
 - [Purchase Return](error-code-reference-2.md#purchase-return) - 1 codes
-- [Purchase Return / RTV](error-code-reference-2.md#purchase-return-rtv) - 5 codes
-- [Quality & Maintenance](error-code-reference-2.md#quality-maintenance) - 6 codes
-- [RFQ](error-code-reference-2.md#rfq) - 6 codes
-- [Reports](error-code-reference-2.md#reports) - 3 codes
-- [Reports & Exports](error-code-reference-2.md#reports-exports) - 8 codes
-- [SaaS / Multi-Tenant](error-code-reference-2.md#saas-multi-tenant) - 8 codes
-- [Sales / POS](error-code-reference-2.md#sales-pos) - 9 codes
-- [Sales Return](error-code-reference-2.md#sales-return) - 7 codes
-- [Security / Rate Limit](error-code-reference-2.md#security-rate-limit) - 5 codes
-- [Stock Transfer](error-code-reference-2.md#stock-transfer) - 10 codes
+- [Purchase Return / RTV](error-code-reference-3.md#purchase-return-rtv) - 5 codes
+- [Quality & Maintenance](error-code-reference-3.md#quality-maintenance) - 6 codes
+- [RFQ](error-code-reference-3.md#rfq) - 6 codes
+- [Reports](error-code-reference-3.md#reports) - 3 codes
+- [Reports & Exports](error-code-reference-3.md#reports-exports) - 8 codes
+- [SaaS / Multi-Tenant](error-code-reference-3.md#saas-multi-tenant) - 8 codes
+- [Sales / POS](error-code-reference-3.md#sales-pos) - 9 codes
+- [Sales Return](error-code-reference-3.md#sales-return) - 7 codes
+- [Security / Rate Limit](error-code-reference-3.md#security-rate-limit) - 5 codes
+- [Stock Transfer](error-code-reference-3.md#stock-transfer) - 17 codes
 - [Tax / GST / E-Invoice](error-code-reference-3.md#tax-gst-e-invoice) - 15 codes
 - [User Access & Security](error-code-reference-3.md#user-access-security) - 9 codes
-- [Vendor Invoice / AP](error-code-reference-3.md#vendor-invoice-ap) - 4 codes
-- [WMS](error-code-reference-3.md#wms) - 1 codes
+- [Vendor Invoice / AP](error-code-reference-3.md#vendor-invoice-ap) - 7 codes
+- [WMS](error-code-reference-3.md#wms) - 5 codes
 - [WMS / Logistics](error-code-reference-3.md#wms-logistics) - 3 codes
 
 ## Admin / Configuration
@@ -406,6 +407,34 @@ open the right page.
 | `FIN-0841` | Pay with TDS on a bill in a foreign currency | TDS cannot be worked out on a bill in a foreign currency. | Pay the bill with Pay, which converts at the payment rate; record any withholding on a foreign payment separately. | Medium | 422 |
 | `FIN-0842` | Matching a vendor bill that is paid, part-paid or awaiting approval | This bill can no longer be matched. | A bill is matched once, before it is paid. Check its payments under Supplier bills; a wrong bill is corrected with a debit or credit note. | Medium | 422 |
 | `FIN-0844` | Changing the amounts of a document that has posted to the accounts | The amounts of a posted document cannot be changed. | Correct it with a credit or debit note, or reverse it; other details of the document can still be edited. | High | 422 |
+| `FIN-0850` | A sale names a piece or batch it cannot sell | This piece or batch cannot be sold here. Check the code and the store. | Scan the piece or batch again, or sell it from the store that holds it. | Medium | 422 |
+| `FIN-0851` | A credit note names a piece it cannot bring back | This piece cannot be brought back on this note. | Check that the piece was sold on this invoice and has not already come back. | Medium | 422 |
+| `FIN-0860` | Order accepted over the customer's credit limit - put on Credit hold | This order takes the customer over their credit limit, so it is on hold. | Ask a Store Manager to approve the release request in the approval inbox, or cancel the order. | Medium | 422 |
+| `FIN-0861` | Sales invoice posting refused - a stop customer over the credit limit | This customer is over their credit limit and set to stop, so the invoice cannot be posted. | Collect payment or raise the customer's credit limit, then post again. | Medium | 422 |
+| `FIN-0870` | Posting to a blocked account | That account is blocked, so nothing was posted. | Unblock the account in the Chart of Accounts, or point the posting rule at another account. | Medium | 422 |
+| `FIN-0871` | Posting to an account that is not in the chart | That account is not in the chart of accounts, so nothing was posted. | Add the account in the Chart of Accounts, or correct the posting rule that names it. | Medium | 422 |
+| `FIN-0872` | Manual journal line on a no-manual-posting control account | That account is a control account and takes no manual journal. | Post through the account's own document, or ask an accountant to lift the flag in the Chart of Accounts. | Medium | 422 |
+| `FIN-0873` | Chart of accounts change request is not valid | That account change cannot be saved. | Fix the field named in the message and save again. | Low | 422 |
+| `FIN-0890` | Charge code account missing, blocked or not in the chart | That account cannot take this charge. | Pick an unblocked account from the Chart of Accounts. | Medium | 422 |
+| `FIN-0891` | Charge code account of the wrong type | That account is the wrong type for this charge. | Pick an account of the type the message names. | Medium | 422 |
+| `FIN-0892` | Buying charge code without a payee or into-cost answer | This charge code is missing a setting. | Fill in Paid to and Into item cost. | Medium | 422 |
+| `FIN-0893` | Charge code GST rate outside 0 to 100 | This GST rate is not allowed. | Enter a rate from 0 to 100. | Medium | 422 |
+| `FIN-0894` | Charge entry saved by hand | Charge entries are written by the system. | Post the receipt or book the bill instead. | Medium | 422 |
+| `FIN-0895` | Charge entry that cannot be billed | This charge cannot be billed. | Pick a charge that is awaiting a bill. | Medium | 422 |
+| `FIN-0896` | Charge bill with a field missing or not valid | This bill is not complete. | Fill in the vendor, bill number, date and amount. | Medium | 422 |
+| `FIN-0897` | Charge entry already on a different bill | This charge is already on another bill. | Open that bill, or pick another charge. | Medium | 422 |
+| `FIN-0898` | Charge bill from a vendor other than the charge's carrier | This bill is from a different vendor than the charge. | Pick the carrier named on the charge. | Medium | 422 |
+| `FIN-0899` | Charge bill number already used for this vendor | That bill number is already used. | Check the number on the bill. | Medium | 422 |
+| `FIN-0910` | Vendor bill deleted with a payment or approval on it | This bill has a payment or an approval on it. | Reverse the payment or decide the approval first. | Medium | 422 |
+| `FIN-0911` | Production or job work output given a piece code already in use | That piece code is already in use. | Scan or type another code. | Medium | 422 |
+| `FIN-0912` | Production or job work output named on an item that keeps no codes or lots | This item keeps no piece codes or lots. | Leave them blank, or set the item's tracking first. | Medium | 422 |
+| `FIN-0920` | Vendor advance with a missing vendor, amount or date | The advance needs a vendor, a positive amount and a valid date. | Pick the vendor, enter the amount in rupees and paise, and check the date. | Medium | 422 |
+| `FIN-0921` | Vendor advance against a purchase order that is not the vendor's or is closed | This purchase order cannot take an advance. | Choose an open purchase order of the same vendor, or leave the order blank. | Medium | 422 |
+| `FIN-0922` | Applying or refunding more than the advance still holds | That is more than is left on the advance. | Use the open amount shown on the advance, or less. | Medium | 422 |
+| `FIN-0923` | Applying an advance to a bill that cannot take it | This bill cannot take the advance. | Apply it to a Matched rupee bill of the same vendor (and the same purchase order, if the advance names one). | Medium | 422 |
+| `FIN-0924` | Cancelling an advance that was already applied or refunded | This advance has been used, so it cannot be cancelled. | Refund what is still open; the applied part stays on its bill. | Medium | 422 |
+| `FIN-0925` | Applying or refunding an advance with nothing open | Nothing is open on this advance. | Check the advance's status; a refunded, fully applied or cancelled advance has nothing left. | Medium | 422 |
+| `FIN-0926` | Vendor advance saved by hand | Vendor advances are made by Give advance. | Use Give advance, Apply, Refund or Cancel on Vendor Advances. | Medium | 422 |
 | `FINANC-0055` | Document not balanced | Accounting entry is not balanced. Debit and credit totals must match. | Correct finance details or request approval. | High | 422 |
 | `FINANC-0056` | GL account inactive | Selected GL account is inactive. Please select an active GL account. | Correct finance details or request approval. | High | 422 |
 | `FINANC-0057` | Cost center missing | Cost center is required for this transaction. | Correct finance details or request approval. | High | 422 |
@@ -510,6 +539,7 @@ open the right page.
 | `GOODSR-0952` | A negative or invalid quantity or price on a goods receipt step | Quantities and prices must be zero or more. | Correct the number on the line named. | Low | 422 |
 | `GOODSR-1305` | Item listed under the receiving store's Items not stocked here | This store does not stock this item. | Receive it at a store that stocks it, or ask an administrator to change the store's Items not stocked here. | Medium | 422 |
 | `GOODSR-1317` | One goods receipt for POs in different currencies | These purchase orders can't be received together. | Receive the POs of each currency on their own goods receipt. | Medium | 422 |
+| `GOODSR-1318` | Packing list of a package that is still open | This package is still open, so its packing list can't be printed yet. | Close the package, then print its packing list. | Low | 422 |
 
 ## Goods Receipt / GRN
 
@@ -572,19 +602,4 @@ open the right page.
 | Code | When it happens | What you see | What to do | Severity | HTTP |
 |---|---|---|---|---|---|
 | `CONN-0994` | Shopify channel set-up incomplete or not valid | The Shopify connection is not ready for this. | Open the channel's Shopify page: save the shop address (yourstore.myshopify.com), the admin API token and the webhook secret, test the connection, and map each Shopify location to a store. | Medium | 422 |
-
-## Inventory
-
-| Code | When it happens | What you see | What to do | Severity | HTTP |
-|---|---|---|---|---|---|
-| `INVENT-1312` | Stock adjustment's snapshot is stale - on-hand changed since it was made | The stock changed since this adjustment was made. | Check the count again. A store manager can post it with the current stock (Post with current stock), or make a new adjustment. | Medium | 409 |
-| `INVENT-1313` | Stock adjustment cannot be reversed (not posted, already reversed, itself a reversal, or no reason) | This adjustment can't be reversed. | Only a posted adjustment that is not a reversal and not already reversed can be reversed, with a reason. | Low | 422 |
-| `INVENT-1314` | Material issue / return refused (no store, department or purpose; non-stock or backflush item; not approved; short stock; more back than issued) | This material request can't go ahead. | Name the store, department and purpose; issue stock items only (not backflushed ones); issue once approved; return no more than was issued. | Medium | 422 |
-| `INVENT-1318` | Delivery challan refused (no store, purpose or party; non-stock item; no return date; short stock; not approved; more back than out; serial not out; write-off with no approver) | This delivery challan can't go ahead. | Name the store, purpose, party and return date; send stock items only; dispatch once approved; take back no more than is out, by the serials that went. | Medium | 422 |
-| `STKLOC-0860` | Stock location name or code missing, duplicate or badly formed | The stock location's name or code is not right. | Give it a name no other location uses, and a code of 2-30 capital letters, digits, '-' or '_'. | Medium | 422 |
-| `STKLOC-0861` | Stock location switched off or taken from a store while it still holds stock | This location still holds stock. | Move the stock out with Stock -> Move Stock first, then switch the location off. | High | 422 |
-| `STKLOC-0862` | Transaction default location not allowed for that transaction | That location cannot be this transaction's default. | Pick Main, Inward, QC Hold, Damage, Purchase Return or one of your own locations, and two different ones for from and to. | Medium | 422 |
-| `STKLOC-0863` | Stock move incomplete or through a location that only transfers / holds change | The stock move is not complete. | Choose the item, a quantity above zero and two different locations the store uses (In-Transit and On Hold change only through transfers and hold codes). | Medium | 422 |
-| `STKLOC-0864` | Stock move larger than the free stock in the from location | There is not enough free stock in that location. | Move no more than the location holds (stock promised to an order is not free). | High | 422 |
-| `STKLOC-0865` | Stock move record written through the generic record API | Stock moves are made from Stock -> Move Stock. | Use Move Stock, which moves the stock and records it in one step. | Medium | 422 |
 

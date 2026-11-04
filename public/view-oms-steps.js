@@ -184,6 +184,7 @@ async function renderPending(container) {
 const HOLD_WORDS = {
   ALLOCATION_FAILED: 'No stock to reserve',
   PAYMENT_PENDING: 'Payment not confirmed',
+  CREDIT: 'Over credit limit',
   ADDR_INVALID: 'Address incomplete',
   SKU_MAPPING_FAILED: 'An item is not mapped'
 };
@@ -200,17 +201,18 @@ async function renderOnHold(container) {
   host.innerHTML = `
     <div class="oms-console-head"><h2>On hold · ${rows.length}</h2></div>
     <div class="table-wrapper"><table>
-      <thead><tr><th>Order</th><th>Source</th><th>Customer</th><th class="num">Lines</th><th>Why</th><th>Waiting</th><th class="num">Value</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Order</th><th>Source</th><th>Customer</th><th class="num">Lines</th><th>Why</th><th>Owner</th><th>Waiting</th><th class="num">Value</th><th>Actions</th></tr></thead>
       <tbody>${rows.map(o => `<tr>
         <td class="oms-mono">${esc(o.order_number || o.order_id)}</td>
         <td>${esc(o.channel || 'Manual')}${o.channel_order_id ? `<div class="oms-channel-ref">${esc(o.channel_order_id)}</div>` : ''}</td>
         <td>${esc(o.customer_name || '—')}${o.customer_phone ? `<div class="oms-channel-ref">${esc(o.customer_phone)}</div>` : ''}</td>
         <td class="num">${esc(o.line_count)}</td>
         <td><span class="badge badge-warning" title="${esc(o.hold_reason || '')}">${esc(holdWords(o.hold_reason))}</span></td>
-        <td title="${esc(o.created_at)}">${esc(ageText(o.created_at))}</td>
+        <td>${esc(o.hold_owner || '—')}</td>
+        <td title="${esc(o.hold_since || o.created_at)}">${esc(ageText(o.hold_since || o.created_at))}</td>
         <td class="num">${formatMoney(o.total_amount)}</td>
         <td class="oms-step-actions">
-          <button type="button" class="btn btn-outline btn-sm" data-hold-act="retry" data-id="${esc(o.order_id)}" title="Try to reserve the stock again">Retry</button>
+          ${o.hold_reason === 'CREDIT' ? '' : `<button type="button" class="btn btn-outline btn-sm" data-hold-act="retry" data-id="${esc(o.order_id)}" title="Try to reserve the stock again">Retry</button>`}
           <button type="button" class="action-btn" data-hold-act="open" data-id="${esc(o.order_id)}">Open</button>
         </td></tr>`).join('')}</tbody>
     </table></div>`;

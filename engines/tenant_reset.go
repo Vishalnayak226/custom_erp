@@ -92,6 +92,7 @@ var tenantResetClear = map[string]string{
 	"bin_stock_owner":                   "bin stock",
 	"warehouse_owner":                   "warehouse owners",
 	"item_cost":                         "item costs",
+	"item_purchase_rate_history":        "item purchase rates",
 	"grn_line":                          "goods receipt lines",
 	"grn_line_change":                   "goods receipt changes",
 	"customer_advances":                 "customer advances",

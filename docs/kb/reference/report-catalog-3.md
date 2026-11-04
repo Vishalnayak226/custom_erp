@@ -21,12 +21,12 @@ screens: [reports]
 # Report catalog (part 3)
 
 This page continues the [report catalog](report-catalog.md), which lists
-every category and explains how to run a report. It holds **88** reports, from
+every category and explains how to run a report. It holds **94** reports, from
 Procurement to Stock Transfer.
 
 ## Contents
 
-- [Procurement](#procurement) - 18 reports
+- [Procurement](#procurement) - 24 reports
 - [Procurement & GRN](#procurement-grn) - 27 reports
 - [Sales](#sales) - 11 reports
 - [Sales & POS](#sales-pos) - 22 reports
@@ -34,6 +34,18 @@ Procurement to Stock Transfer.
 - [Stock Transfer](#stock-transfer) - 9 reports
 
 ## Procurement
+
+### R9045 Expected arrivals
+
+**Report id:** `expected-arrivals`
+
+**Parameters:**
+
+- **As of** (`as_of`) - date, optional
+
+**Columns:** Due · Store · State · Kind · No. · Line · Vendor / from · Item · Name · Due qty · Still to come · Vendor confirmation · Confirmation no.
+
+**Drill-down:** no.
 
 ### R2036 GRN Corrections Log
 
@@ -85,6 +97,18 @@ Procurement to Stock Transfer.
 
 **Drill-down:** no.
 
+### R2049 Gate entries with no goods receipt
+
+**Report id:** `gate-entries-no-grn`
+
+**Parameters:**
+
+- **After hours** (`hours`) - text, optional
+
+**Columns:** Gate entry · Vendor · PO · Location · Parcels · Arrived · Hours waiting
+
+**Drill-down:** no.
+
 ### R2035 Goods Receipts Waiting
 
 **Report id:** `grn-waiting`
@@ -115,6 +139,16 @@ Procurement to Stock Transfer.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Goods receipt · Vendor · Posted · Days · Vendor invoice no.
+
+**Drill-down:** no.
+
+### R9055 Goods received before PO
+
+**Report id:** `goods-before-po`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Receipt · Vendor · Reason · PO due by · Days overdue · Retro PO · State
 
 **Drill-down:** no.
 
@@ -164,6 +198,18 @@ Procurement to Stock Transfer.
 **Columns:** Age Bucket · PO Count · Committed Amount *(sensitive)*
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
+
+### R2053 Overdue PO lines
+
+**Report id:** `po-overdue-lines`
+
+**Parameters:**
+
+- **As of** (`as_of`) - date, optional
+
+**Columns:** PO · PO id · Line · Vendor · Item · Name · Due · Days late · Due qty · Still to come · Vendor confirmation · Confirmed on
+
+**Drill-down:** no.
 
 ### R2039 PO expected delivery and terms
 
@@ -254,6 +300,30 @@ Procurement to Stock Transfer.
 - **To** (`to`) - date, optional
 
 **Columns:** Goods receipt · Received · Vendor · Store · Invoice no · Invoice date · Challan no · Challan date · LR / AWB · Vehicle · Transporter · Packages
+
+**Drill-down:** no.
+
+### R2050 Vendor invoices dated before their PO
+
+**Report id:** `vendor-invoices-before-po`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Invoice · Vendor · PO · Invoice date · PO date
+
+**Drill-down:** no.
+
+### R9040 Vendor scorecard
+
+**Report id:** `vendor-scorecard`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **Vendor** (`vendor`) - link, optional, one of: Vendor
+
+**Columns:** Vendor · Orders · Receipts · On time · Fill rate · QC reject · Price variance · Bills · Bill mismatches
 
 **Drill-down:** no.
 

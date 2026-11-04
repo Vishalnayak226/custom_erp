@@ -124,6 +124,10 @@ func ExecutePaymentProposal(tenantID, proposalID, userID string) ([]PaymentPropo
 		// approval-routing branch; pendingApproval is checked anyway rather
 		// than assumed, in case an invoice's status changed out from under
 		// the proposal between creation and execution.
+		if _, derr := applyEarlyPaymentDiscount(tenantID, userID, invID); derr != nil { // Stage 148.9
+			results = append(results, PaymentProposalResultLine{InvoiceID: invID, Paid: false, Error: derr.Error()})
+			continue
+		}
 		paise, pendingApproval, err := payVendorInvoice(tenantID, invID, userID, "", "")
 		if err != nil {
 			results = append(results, PaymentProposalResultLine{InvoiceID: invID, Paid: false, Error: err.Error()})

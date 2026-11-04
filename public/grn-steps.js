@@ -179,6 +179,7 @@ function totalsHTML(v) {
 // beyondPO is a line's qty beyond what its PO has open (all of it when the
 // item is not on the PO) - a preview; the server applies the tolerance.
 function beyondPO(l, e) {
+  if (l.before_po) return 0; // Stage 148.38
   const acc = Math.max(0, (num(e.grn_qty) ?? 0) - (num(e.rejected_qty) ?? 0) - (num(e.damaged_qty) ?? 0));
   const open = l.po_open_qty;
   return Math.max(0, open == null ? acc : Math.round((acc - open) * 1000) / 1000);
@@ -300,7 +301,7 @@ function verifyHTML(v) {
     const vsPO = l.po_rate == null ? '' : (grnShown - shownPrice(l, l.po_rate));
     return `<tr>
       <td>${l.line_no}</td><td>${itemCell(l)}</td>
-      <td class="num">${open == null ? '<span class="gs-amber">not on PO</span>' : open}</td>
+      <td class="num">${l.before_po ? 'Before PO' : open == null ? '<span class="gs-amber">not on PO</span>' : open}</td>
       <td class="num">${l.received_qty}</td>
       <td class="num">${l.invoice_qty}<div class="text-muted">${money(shownPrice(l, l.invoice_price))}${l.gst_inclusive ? ' incl. GST' : ''}</div></td>
       <td class="num">${numInput(l.line_no, 'grn_qty', e.grn_qty)}${Math.abs(dq) > 1e-9 ? `<div class="gs-amber">${dq > 0 ? '+' : ''}${dq} vs invoice</div>` : ''}</td>

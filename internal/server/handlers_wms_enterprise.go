@@ -234,17 +234,30 @@ func handleWaveAssign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		WaveID  string   `json:"wave_id"`
-		TaskIDs []string `json:"task_ids"`
+		WaveID      string   `json:"wave_id"`
+		TaskIDs     []string `json:"task_ids"`
+		TransferIDs []string `json:"transfer_ids"` // Stage 146.3.5
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.WaveID == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'wave_id' is required")
 		return
 	}
-	tagged, err := engines.AssignTasksToWave(tenantID, req.WaveID, req.TaskIDs, userID)
-	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
-		return
+	tagged := 0
+	if len(req.TaskIDs) > 0 || len(req.TransferIDs) == 0 {
+		n, err := engines.AssignTasksToWave(tenantID, req.WaveID, req.TaskIDs, userID)
+		if err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		tagged = n
+	}
+	if len(req.TransferIDs) > 0 {
+		n, err := engines.AssignTransfersToWave(tenantID, req.WaveID, req.TransferIDs, userID)
+		if err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+		tagged += n
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"tagged": tagged})
 }

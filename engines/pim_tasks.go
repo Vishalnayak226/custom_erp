@@ -69,6 +69,9 @@ type PIMTaskRequest struct {
 	Priority     string `json:"priority"`
 	Instructions string `json:"instructions"`
 
+	// 146.5.10: attributes to fill, set only by CreatePIMChecklistTask.
+	Checklist string `json:"-"`
+
 	// Set only by the workflow engine and template instantiation; not accepted
 	// from an HTTP caller (see handlers_pim_tasks.go, which builds its own
 	// request rather than decoding straight into this struct). A hand-created
@@ -125,10 +128,10 @@ type PIMTaskFilter struct {
 }
 
 type PIMTaskListResult struct {
-	Tasks      []PIMTaskRow   `json:"tasks"`
-	Total      int            `json:"total"`
-	Limit      int            `json:"limit"`
-	Offset     int            `json:"offset"`
+	Tasks       []PIMTaskRow   `json:"tasks"`
+	Total       int            `json:"total"`
+	Limit       int            `json:"limit"`
+	Offset      int            `json:"offset"`
 	StatusTally map[string]int `json:"status_tally"`
 }
 
@@ -405,6 +408,9 @@ func CreatePIMTask(tenantID, actor string, req PIMTaskRequest) (string, error) {
 		"assignee": req.Assignee, "assignee_role": req.AssigneeRole, "due_date": req.DueDate,
 		"priority": req.Priority, "instructions": req.Instructions,
 		"comments": "[]", "status": "Open",
+	}
+	if req.Checklist != "" {
+		data["checklist_attributes"] = req.Checklist
 	}
 	if req.Template != "" {
 		data["template"] = req.Template

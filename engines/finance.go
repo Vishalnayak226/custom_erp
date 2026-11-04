@@ -224,6 +224,14 @@ func PostDoubleEntryTx(tx *sql.Tx, tenantID, schema string, docType string, docI
 	if err := rejectIfCurrentPeriodClosed(tx, schema, docType, docID, transactionDate); err != nil {
 		return err
 	}
+	// Stage 148.5: every account must be in the chart and not blocked.
+	if err := checkPostingAccountsTx(tx, schema, postingKey, debits, credits); err != nil {
+		return err
+	}
+	// Stage 148.9 / 148.10: no payment to a vendor on hold, or with a change waiting.
+	if err := checkVendorPaymentAllowedTx(tx, schema, docType, docID, postingKey); err != nil {
+		return err
+	}
 
 	if postingKey != "" {
 		// Stage 135.19: the key is not a unique index, so two transactions
@@ -371,6 +379,10 @@ type AccountBalance struct {
 	Type   string  `json:"account_type"`
 	Debit  float64 `json:"debit"`
 	Credit float64 `json:"credit"`
+	// Stage 148.5: report grouping and the account flags.
+	Parent   string `json:"parent_code,omitempty"`
+	Blocked  bool   `json:"blocked,omitempty"`
+	NoManual bool   `json:"no_manual_posting,omitempty"`
 }
 
 // FinancialReportFilter (Stage 37.5.1) narrows a statement to one dimension
@@ -427,10 +439,11 @@ func GetTrialBalance(tenantID, asOfDate string, filters ...FinancialReportFilter
 	query := fmt.Sprintf(`
 		SELECT a.account_code, a.account_name, a.account_type,
 		       COALESCE(SUM(p.debit), 0) as total_debit,
-		       COALESCE(SUM(p.credit), 0) as total_credit
+		       COALESCE(SUM(p.credit), 0) as total_credit,
+		       COALESCE(a.parent_code, ''), a.blocked, a.no_manual_posting
 		FROM %s.gl_accounts a
 		LEFT JOIN %s.gl_postings p ON a.account_code = p.account_code AND p.created_at < public.erp_day_start($1::date + 1)%s
-		GROUP BY a.account_code, a.account_name, a.account_type
+		GROUP BY a.account_code, a.account_name, a.account_type, a.parent_code, a.blocked, a.no_manual_posting
 		ORDER BY a.account_code`, schema, schema, dimClause)
 
 	rows, err := db.DB.Query(query, args...)
@@ -445,6 +458,9 @@ func GetTrialBalance(tenantID, asOfDate string, filters ...FinancialReportFilter
 		Type   string
 		Debit  int64
 		Credit int64
+
+		Parent            string
+		Blocked, NoManual bool
 	}
 
 	var balances []AccountBalance
@@ -453,7 +469,7 @@ func GetTrialBalance(tenantID, asOfDate string, filters ...FinancialReportFilter
 
 	for rows.Next() {
 		var b accountBalancePaise
-		err := rows.Scan(&b.Code, &b.Name, &b.Type, &b.Debit, &b.Credit)
+		err := rows.Scan(&b.Code, &b.Name, &b.Type, &b.Debit, &b.Credit, &b.Parent, &b.Blocked, &b.NoManual)
 		if err != nil {
 			return nil, err
 		}
@@ -462,6 +478,7 @@ func GetTrialBalance(tenantID, asOfDate string, filters ...FinancialReportFilter
 		balances = append(balances, AccountBalance{
 			Code: b.Code, Name: b.Name, Type: b.Type,
 			Debit: PaiseToRupees(b.Debit), Credit: PaiseToRupees(b.Credit),
+			Parent: b.Parent, Blocked: b.Blocked, NoManual: b.NoManual,
 		})
 	}
 
@@ -604,7 +621,7 @@ func postSalesFinanceBookingRoundedTx(tx *sql.Tx, schema, tenantID, checkoutID s
 	if loyaltyDiscount > 0 {
 		revenueDebits["5250"] = loyaltyDiscount // Debit: Loyalty Points Redeemed (5250)
 	}
-	revenueCredits := map[string]int64{"4100": salePrice} // Credit: Sales Revenue Account
+	revenueCredits := posRevenueCredits(tx, schema, tenantID, checkoutID, salePrice) // Credit: Sales Revenue Account (4100 unless a posting profile moves an item group)
 	if roundOff > 0 {
 		revenueCredits[accountRoundOff] = roundOff
 	} else if roundOff < 0 {
@@ -624,8 +641,7 @@ func postSalesFinanceBookingRoundedTx(tx *sql.Tx, schema, tenantID, checkoutID s
 	if costPrice == 0 {
 		return nil
 	}
-	cogsDebits := map[string]int64{"5100": costPrice}  // Debit: Cost of Goods Sold Account
-	cogsCredits := map[string]int64{"1200": costPrice} // Credit: Inventory Control Account
+	cogsDebits, cogsCredits := posCOGSAccounts(tx, schema, tenantID, checkoutID, costPrice) // Dr 5100 COGS / Cr 1200 Inventory unless a profile moves an item group
 	return PostDoubleEntryTx(tx, tenantID, schema, "POSCart", checkoutID, cogsDebits, cogsCredits, "", fmt.Sprintf("POSCart:%s:SALE_COGS", checkoutID))
 }
 
@@ -671,7 +687,7 @@ func PostSalesGSTBookingTx(tx *sql.Tx, schema, tenantID, checkoutID string, brea
 	if totalTax <= 0 {
 		return nil
 	}
-	debits := map[string]int64{"4100": totalTax}
+	debits := saleDebitAgainstRevenue(tx, schema, checkoutID, totalTax) // 4100 unless a posting rule put the sale's revenue elsewhere (148.4)
 	credits := map[string]int64{}
 	if breakdown.Interstate {
 		credits["2202"] = paiseIGST // GST Output Payable - IGST
@@ -731,7 +747,7 @@ func PostExemptSalesReclassTx(tx *sql.Tx, schema, tenantID, checkoutID string, b
 	if total <= 0 {
 		return nil
 	}
-	debits := map[string]int64{"4100": total}
+	debits := saleDebitAgainstRevenue(tx, schema, checkoutID, total)
 	credits := map[string]int64{}
 	if paiseExempt > 0 {
 		credits["4110"] = paiseExempt // Exempt Sales Revenue

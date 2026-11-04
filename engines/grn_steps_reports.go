@@ -175,7 +175,7 @@ func grnLineRegisterReport(tenantID string, params map[string]string) ([]map[str
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT grn_code, COALESCE(child_key, ''), COALESCE(location, ''), COALESCE(vendor, ''),
 		COALESCE(vendor_invoice_no, ''), COALESCE(po_id, ''), sku, po_qty, received_qty, invoice_qty, grn_qty, rejected_qty, damaged_qty,
 		po_rate, invoice_price, grn_price, gst_rate, old_mrp, new_mrp, COALESCE(batch_no, ''), COALESCE(step, ''), received_at, posted_at
-		FROM %s.grn_line WHERE TRUE %s ORDER BY COALESCE(posted_at, received_at, updated_at) DESC, grn_id, line_no LIMIT 5000`, schema, where), args...)
+		FROM %s.grn_line WHERE TRUE %s ORDER BY COALESCE(posted_at, received_at, updated_at) DESC, grn_id, line_no LIMIT 20001`, schema, where), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +214,9 @@ func stepGRNDocs(tenantID string, params map[string]string) ([]map[string]interf
 	}
 	defer rows.Close()
 	var out []map[string]interface{}
+	read := 0
 	for rows.Next() {
+		read++
 		var id, dataStr, status string
 		var at time.Time
 		if err := rows.Scan(&id, &dataStr, &status, &at); err != nil {
@@ -227,6 +229,9 @@ func stepGRNDocs(tenantID string, params map[string]string) ([]map[string]interf
 		data["_id"], data["_status"], data["_created"] = id, status, at
 		grnStampTotals(data, grnLineMaps(data))
 		out = append(out, data)
+	}
+	if read == 5000 {
+		return nil, reportReadStopped(read) // 157.4b
 	}
 	return out, rows.Err()
 }
@@ -255,7 +260,7 @@ func grnInvoiceDifferencesReport(tenantID string, params map[string]string) ([]m
 			groups[key] = a
 		}
 		a.n++
-		a.inv += numFromInterface(d["vendor_invoice_amount"])
+		a.inv += numFromInterface(d["vendor_invoice_amount"]) - numFromInterface(d["vendor_charge_gross"]) // 148.8: goods against goods
 		a.ours += numFromInterface(d["our_total"])
 		diff := numFromInterface(d["note_difference"])
 		a.diff += diff
@@ -296,7 +301,7 @@ func grnPriceChangesReport(tenantID string, params map[string]string) ([]map[str
 	where := grnDateFilter("posted_at", params, &args) + grnVendorFilter("vendor", params, &args)
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT posted_at, sku, COALESCE(vendor, ''), grn_code, prev_price, COALESCE(prev_vendor, ''), grn_price, old_mrp, new_mrp
 		FROM %s.grn_line WHERE posted_at IS NOT NULL AND prev_price IS NOT NULL AND grn_price IS NOT NULL
-		  AND abs(grn_price - prev_price) >= 0.005 %s ORDER BY posted_at DESC LIMIT 5000`, schema, where), args...)
+		  AND abs(grn_price - prev_price) >= 0.005 %s ORDER BY posted_at DESC LIMIT 20001`, schema, where), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -355,7 +360,7 @@ func grnCorrectionsReport(tenantID string, params map[string]string) ([]map[stri
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT c.changed_at, COALESCE(d.data->>'code', c.grn_id), c.line_no, COALESCE(c.sku, ''), c.step, c.field,
 		COALESCE(c.old_value, ''), COALESCE(c.new_value, ''), COALESCE(c.reason, ''), COALESCE(c.changed_by, '')
 		FROM %s.grn_line_change c LEFT JOIN %s.documents d ON d.doctype = 'GRN' AND d.id = c.grn_id
-		WHERE TRUE %s ORDER BY c.changed_at DESC, c.id DESC LIMIT 5000`, schema, schema, where), args...)
+		WHERE TRUE %s ORDER BY c.changed_at DESC, c.id DESC LIMIT 20001`, schema, schema, where), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -391,7 +396,7 @@ func grnPOVarianceReport(tenantID string, params map[string]string) ([]map[strin
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT posted_at, COALESCE(vendor, ''), COALESCE(po_id, ''), grn_code, sku,
 		COALESCE(grn_qty, 0) - COALESCE(rejected_qty, 0) - COALESCE(damaged_qty, 0), po_rate, grn_price
 		FROM %s.grn_line WHERE posted_at IS NOT NULL AND po_rate IS NOT NULL AND grn_price IS NOT NULL %s
-		ORDER BY posted_at DESC LIMIT 5000`, schema, where), args...)
+		ORDER BY posted_at DESC LIMIT 20001`, schema, where), args...)
 	if err != nil {
 		return nil, err
 	}

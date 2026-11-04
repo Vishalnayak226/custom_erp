@@ -184,6 +184,12 @@ func runDayLimitJobs(schema string) error {
 	if err != nil || tenantID == "" {
 		return err
 	}
+	if err := RunPOApprovalReminders(tenantID, schema); err != nil { // Stage 146.4.6(a)
+		log.Printf("[DAYLIMITS] PO approval reminders: %v", err)
+	}
+	if err := RunVendorAgreementExpiryAlerts(tenantID, schema); err != nil { // Stage 148.6
+		log.Printf("[DAYLIMITS] vendor agreement expiry alerts: %v", err)
+	}
 	today := todayDate().Format("2006-01-02")
 	stamp := func(doctype, id string, patch map[string]interface{}) error {
 		b, _ := json.Marshal(patch)
@@ -326,7 +332,7 @@ func dayLimitRows(tenantID, query string, args []interface{}, row func(scan func
 func grnReceiptTimingReport(tenantID string, _ map[string]string) ([]map[string]interface{}, error) {
 	return dayLimitRows(tenantID, `SELECT COALESCE(data->>'code', id), COALESCE(data->>'po_id', ''), COALESCE(data->>'vendor', ''),
 		COALESCE(data->>'expected_delivery_date', ''), public.erp_local_date(created_at)::text, data->>'receipt_timing'
-		FROM {s}.documents WHERE doctype = 'GRN' AND deleted_at IS NULL AND COALESCE(data->>'receipt_timing', '') <> '' ORDER BY created_at DESC LIMIT 5000`, nil,
+		FROM {s}.documents WHERE doctype = 'GRN' AND deleted_at IS NULL AND COALESCE(data->>'receipt_timing', '') <> '' ORDER BY created_at DESC LIMIT 20001`, nil,
 		func(scan func(...interface{}) error) (map[string]interface{}, error) {
 			var grn, po, vendor, exp, rec, timing string
 			if err := scan(&grn, &po, &vendor, &exp, &rec, &timing); err != nil {
@@ -346,7 +352,7 @@ func grnNotBilledReport(tenantID string, _ map[string]string) ([]map[string]inte
 		FROM {s}.documents g WHERE g.doctype = 'GRN' AND g.deleted_at IS NULL AND g.status IN ('Posted', 'Completed', 'Received')
 		  AND COALESCE(g.data->>'vendor_bill_id', '') = '' AND g.created_at < NOW() - make_interval(days => $1)
 		  AND NOT EXISTS (SELECT 1 FROM {s}.documents v WHERE v.doctype = 'VendorInvoice' AND v.deleted_at IS NULL AND v.data->>'grn_id' = g.id)
-		ORDER BY g.created_at LIMIT 5000`, []interface{}{n},
+		ORDER BY g.created_at LIMIT 20001`, []interface{}{n},
 		func(scan func(...interface{}) error) (map[string]interface{}, error) {
 			var grn, vendor, posted, inv string
 			var days int
@@ -367,7 +373,7 @@ func transfersInTransitReport(tenantID string, _ map[string]string) ([]map[strin
 		(public.erp_today() - (COALESCE(NULLIF(data->>'dispatched_at', '')::timestamptz, updated_at) AT TIME ZONE public.erp_business_tz())::date)
 		FROM {s}.documents WHERE doctype = 'TransferOrder' AND deleted_at IS NULL AND status = 'Dispatched'
 		  AND COALESCE(NULLIF(data->>'dispatched_at', '')::timestamptz, updated_at) < NOW() - make_interval(days => $1)
-		ORDER BY 4 LIMIT 5000`, []interface{}{n},
+		ORDER BY 4 LIMIT 20001`, []interface{}{n},
 		func(scan func(...interface{}) error) (map[string]interface{}, error) {
 			var id, from, to, at string
 			var days int
@@ -382,7 +388,7 @@ func itcPastDeadlineReport(tenantID string, _ map[string]string) ([]map[string]i
 	return dayLimitRows(tenantID, `SELECT COALESCE(data->>'code', id), doctype, COALESCE(data->>'vendor', data->>'vendor_id', ''),
 		COALESCE(data->>'vendor_invoice_date', data->>'invoice_date', ''), data->>'itc_time_barred'
 		FROM {s}.documents WHERE doctype IN ('GRN', 'VendorInvoice') AND deleted_at IS NULL AND COALESCE(data->>'itc_time_barred', '') <> ''
-		ORDER BY created_at DESC LIMIT 5000`, nil,
+		ORDER BY created_at DESC LIMIT 20001`, nil,
 		func(scan func(...interface{}) error) (map[string]interface{}, error) {
 			var id, typ, vendor, date, note string
 			if err := scan(&id, &typ, &vendor, &date, &note); err != nil {

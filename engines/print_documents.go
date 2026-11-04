@@ -493,6 +493,9 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 	if err != nil {
 		return PrintDocument{}, &ValidationError{Code: "GLOBAL-0004", Message: fmt.Sprintf("%s %s was not found", doctype, id)}
 	}
+	if doctype == "ShippingPackage" && firstNonEmpty(status, strField(data, "status")) == "Draft" { // Stage 146.3.6
+		return PrintDocument{}, &ValidationError{Code: PackingListNotClosedCode, SubFor: id, Message: fmt.Sprintf("package %s is still open - close it before printing its packing list", id)}
+	}
 	d := PrintDocument{Transaction: txn, Doctype: doctype, DocumentID: id, Status: firstNonEmpty(status, strField(data, "status")),
 		Fields: docHeaderFields(data), Lines: []map[string]interface{}{}}
 	for _, t := range PrintTransactions {
@@ -518,9 +521,14 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 		}
 		d.Interstate = preview.Breakdown.Interstate
 		d.Fields["gst_mode"] = preview.GSTMode
+		vcode, free := map[string]string{}, map[string]float64{} // Stage 148.6 / 148.7
+		for _, m := range poLinesFromPayload(data) {
+			s := str(m, "sku")
+			vcode[s], free[s] = str(m, "vendor_code"), free[s]+numFromInterface(m["free_qty"])
+		}
 		for _, l := range preview.Lines {
 			d.addLine(tenantID, printLineIn{SKU: l.SKU, Qty: float64(l.Qty), Rate: l.Rate, Taxable: l.Taxable, GST: l.TaxAmount,
-				GSTRate: l.GSTRate, MRP: l.MRP}, cache, withImages)
+				GSTRate: l.GSTRate, MRP: l.MRP, Extra: map[string]interface{}{"vendor_code": vcode[l.SKU], "free_qty": free[l.SKU]}}, cache, withImages)
 		}
 	case PrintTxnGRN, PrintTxnGRNVendorCopy:
 		d.Title = map[string]string{PrintTxnGRN: "Goods Receipt Note", PrintTxnGRNVendorCopy: "GRN Acknowledgement - Vendor Copy"}[txn]
@@ -860,6 +868,12 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 			// is split back into taxable value and tax at the item's rate.
 			value := PaiseToRupees(l.Gross)
 			gstRate := numFromInterface(printItemFields(tenantID, l.SKU, cache)["gst_rate"])
+			if l.Charge != "" { // Stage 148.2: the order's shipping, at its own rate
+				taxable := round2(value / (1 + l.Rate/100))
+				d.addLine(tenantID, printLineIn{Qty: 1, Rate: taxable, Taxable: taxable, GST: round2(value - taxable), GSTRate: l.Rate,
+					Extra: map[string]interface{}{"item_name": l.Charge, "description": l.Charge}}, cache, false)
+				continue
+			}
 			taxable := round2(value / (1 + gstRate/100))
 			unit := 0.0
 			if l.Qty > 0 {

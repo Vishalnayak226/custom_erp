@@ -593,6 +593,8 @@ type RFQComparisonQuote struct {
 	// its value share of freight.
 	LandedUnit  map[int]float64 `json:"landed_unit"`
 	Recommended bool            `json:"recommended"`
+	// Scorecard (Stage 148.13) is the vendor's track record over the last 12 months.
+	Scorecard *VendorScorecard `json:"scorecard,omitempty"`
 }
 
 // RFQComparison is the side-by-side view (D06: compared on landed total).
@@ -670,6 +672,11 @@ func GetRFQComparison(tenantID, rfqID string) (*RFQComparison, error) {
 			}
 		}
 		c.Complete = len(out.Lines) > 0 && c.LinesQuoted == len(out.Lines)
+		if c.Vendor != "" {
+			if sc, serr := VendorScorecardFor(tenantID, c.Vendor, "", ""); serr == nil {
+				c.Scorecard = &sc
+			}
+		}
 		out.Quotes = append(out.Quotes, c)
 	}
 	sort.SliceStable(out.Quotes, func(i, j int) bool { return out.Quotes[i].Landed < out.Quotes[j].Landed })
@@ -773,6 +780,9 @@ func AwardRFQ(tenantID, rfqID, quoteID, userID, storeCode string, opts AwardOpti
 		SKU  string  `json:"sku"`
 		Qty  int     `json:"qty"`
 		Rate float64 `json:"rate"`
+		// Stage 148.6: the quote's price is the deal; the vendor agreement
+		// still gives its discount and free units, not another price.
+		PriceLocked bool `json:"price_locked,omitempty"`
 	}
 	var items []poLine
 	res := &RFQAwardResult{POID: poID, QuoteID: quoteID, PONumber: poID}
@@ -825,6 +835,21 @@ func AwardRFQ(tenantID, rfqID, quoteID, userID, storeCode string, opts AwardOpti
 		return nil, err
 	}
 	ApplyPlaceOfSupply(tenantID, po)
+	if len(loadVendorAgreementRows(tenantID, vendor)) > 0 { // Stage 148.6 / 148.7
+		for i := range items {
+			items[i].PriceLocked = true
+		}
+		lockedJSON, _ := json.Marshal(items)
+		po["items"] = string(lockedJSON)
+		if err := StampPOPricing(tenantID, po); err != nil {
+			return nil, err
+		}
+		net := 0.0
+		for _, m := range poLinesFromPayload(po) {
+			net += poLineNetValue(m)
+		}
+		po["total_amount"] = round2(net)
+	}
 	pb, _ := json.Marshal(po)
 	if _, err := tx.Exec(fmt.Sprintf(
 		`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, 'PurchaseOrder', $2, 'Draft', $3)`, schema),

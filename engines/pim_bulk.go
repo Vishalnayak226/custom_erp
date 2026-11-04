@@ -199,6 +199,9 @@ func BulkUpdateDocuments(tenantID, doctype string, ids []string, field string, v
 		if _, err := tx.Exec(fmt.Sprintf(`
 			UPDATE %s.documents SET data = $1, status = $2, updated_at = CURRENT_TIMESTAMP
 			WHERE doctype = $3 AND id = $4`, schema), encoded, update.newStatus, doctype, update.id); err != nil {
+			if dup := DuplicateKeyRefusal(tenantID, doctype, err); dup != nil { // 140.14.1
+				return nil, dup
+			}
 			return nil, err
 		}
 		if update.priorStatus == "Approved" && isApprovalGated {

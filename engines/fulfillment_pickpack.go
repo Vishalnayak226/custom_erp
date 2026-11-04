@@ -52,6 +52,9 @@ type fulfillmentTaskItem struct {
 	// ReleaseOrderToFulfillment). Carried through every pick/pack save:
 	// dropping it cost the dispatch its link to the line's reservation.
 	LineID string
+	// SerialNos are the pieces named by scanning their own codes (Stage 148.1).
+	// Never more than were picked; the dispatch costs them at what they cost.
+	SerialNos []string
 }
 
 func fulfillmentItemFromMap(m map[string]interface{}) fulfillmentTaskItem {
@@ -64,6 +67,7 @@ func fulfillmentItemFromMap(m map[string]interface{}) fulfillmentTaskItem {
 		PackedQty: int(numFromInterface(m["packed_qty"])),
 		ShortQty:  int(numFromInterface(m["short_qty"])),
 		LineID:    lineID,
+		SerialNos: taskItemPieces(m),
 	}
 }
 
@@ -77,6 +81,9 @@ func (it fulfillmentTaskItem) toMap() map[string]interface{} {
 	}
 	if it.LineID != "" {
 		m["line_id"] = it.LineID
+	}
+	if len(it.SerialNos) > 0 {
+		m["serial_nos"] = it.SerialNos
 	}
 	return m
 }
@@ -233,8 +240,14 @@ func ScanPickItem(tenantID, taskID, scan string) (sku string, pickedQty int, err
 	if err != nil {
 		return "", 0, err
 	}
+	piece := "" // Stage 148.1: a piece's own code counts a unit and names it
 	if !found {
-		return "", 0, fmt.Errorf("scanned code %q does not match any known item", scan)
+		if resolvedSKU, name, piece, err = resolvePieceScan(tenantID, schema, scan); err != nil {
+			return "", 0, err
+		}
+		if piece == "" {
+			return "", 0, fmt.Errorf("scanned code %q does not match any known item", scan)
+		}
 	}
 
 	// Stage 59.1: the scan and the bin it empties are one transaction, under
@@ -274,6 +287,12 @@ func ScanPickItem(tenantID, taskID, scan string) (sku string, pickedQty int, err
 		}
 		return "", 0, fmt.Errorf("scanned code belongs to %q (%s), which is not part of this task", name, resolvedSKU)
 	}
+	if piece != "" {
+		if err := task.checkScannedPiece(tenantID, schema, resolvedSKU, piece); err != nil {
+			return "", 0, err
+		}
+		task.items[matchIdx].SerialNos = append(task.items[matchIdx].SerialNos, piece)
+	}
 
 	// Reserve the whole task first (a no-op once its pick list has been
 	// produced), so a task scanned without one still takes its units from
@@ -294,6 +313,8 @@ func ScanPickItem(tenantID, taskID, scan string) (sku string, pickedQty int, err
 	if err := tx.Commit(); err != nil {
 		return "", 0, err
 	}
+	// Stage 146.3.3: this pick may have taken a pick face below its min.
+	emitReplenishAfterPick(tenantID, location, resolvedSKU)
 	return resolvedSKU, task.items[matchIdx].PickedQty, nil
 }
 
@@ -312,8 +333,14 @@ func ScanPackItem(tenantID, taskID, scan string) (sku string, packedQty int, err
 	if err != nil {
 		return "", 0, err
 	}
+	piece := "" // Stage 148.1: as at Pick; a unit picked by barcode can be named here
 	if !found {
-		return "", 0, fmt.Errorf("scanned code %q does not match any known item", scan)
+		if resolvedSKU, name, piece, err = resolvePieceScan(tenantID, schema, scan); err != nil {
+			return "", 0, err
+		}
+		if piece == "" {
+			return "", 0, fmt.Errorf("scanned code %q does not match any known item", scan)
+		}
 	}
 
 	task, err := loadPickPackTask(schema, taskID)
@@ -340,6 +367,16 @@ func ScanPackItem(tenantID, taskID, scan string) (sku string, packedQty int, err
 			return "", 0, fmt.Errorf("%q (%s) is already fully packed (or has nothing picked yet) for this task - duplicate scan", name, resolvedSKU)
 		}
 		return "", 0, fmt.Errorf("scanned code belongs to %q (%s), which is not part of this task", name, resolvedSKU)
+	}
+	if piece != "" && !task.namesPiece(piece) {
+		if err := task.checkScannedPiece(tenantID, schema, resolvedSKU, piece); err != nil {
+			return "", 0, err
+		}
+		if line := &task.items[matchIdx]; len(line.SerialNos) < line.PickedQty {
+			line.SerialNos = append(line.SerialNos, piece)
+		} else {
+			return "", 0, fmt.Errorf("every picked unit of %q (%s) already has its piece", name, resolvedSKU)
+		}
 	}
 
 	task.items[matchIdx].PackedQty++

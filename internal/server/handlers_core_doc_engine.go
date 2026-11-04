@@ -79,7 +79,7 @@ func scopeValueExpr(fields []string) string {
 // madeOnOwnScreen names the doctypes handleGenericDoc refuses to write - each
 // is made by its own screen. GET /api/v1/me/permissions sends it so no list or
 // picker offers New for them (132.10 h).
-var madeOnOwnScreen = []string{"StockMove", "OMSBill", "MRPChange", "InventoryAdjustment"}
+var madeOnOwnScreen = []string{"StockMove", "OMSBill", "MRPChange", "InventoryAdjustment", "TradeChargeEntry", "VendorAdvance", "VendorRebateClaim"}
 
 func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
@@ -113,6 +113,22 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 	// reach the items or the stock.
 	if (doctype == "MRPChange" || doctype == "InventoryAdjustment") && r.Method != http.MethodGet {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "MRP changes and stock adjustments are made on their Inventory pages.")
+		return
+	}
+	// Stage 148.8: a charge entry is the receipt's once-only gate and the record
+	// of its postings; deleting one would leave them behind and charge again.
+	if doctype == "TradeChargeEntry" && r.Method != http.MethodGet {
+		writeAPIError(w, r, "FIN-0894", "")
+		return
+	}
+	// Stages 148.15 / 148.17: a typed advance carries money no bank posting backs
+	// and could then pay a bill; a typed claim could reach a debit note.
+	if doctype == "VendorAdvance" && r.Method != http.MethodGet {
+		writeAPIError(w, r, "FIN-0926", "")
+		return
+	}
+	if doctype == "VendorRebateClaim" && r.Method != http.MethodGet {
+		writeAPIError(w, r, "PURCHA-5025", "")
 		return
 	}
 
@@ -776,6 +792,14 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// Stage 62: line POs (multi-PO, one vendor), PO rate vs invoice
 			// rate, and the totals - first, so the header po_id the receiving
 			// location defaults from is already resolved.
+			// Stage 146.3.8: a receipt started from an inward gate entry carries its vendor, PO and transport.
+			if err := engines.PrepareGRNGateEntry(tenantID, id == "", payload); err != nil {
+				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+				return
+			}
+			if id != "" {
+				engines.KeepGRNBeforePOMarks(tenantID, id, payload) // Stage 148.38
+			}
 			if err := engines.PrepareGRNPricing(tenantID, id == "", payload); err != nil {
 				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 				return
@@ -1095,6 +1119,16 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
+		// Stage 148.10: a change to a listed vendor field waits for approval; the live value stays.
+		var vendorFieldsHeld []string
+		if doctype == "Vendor" && priorData != nil {
+			held, err := engines.HoldVendorChanges(tenantID, docID, priorData, payload, userID, role)
+			if err != nil {
+				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+				return
+			}
+			vendorFieldsHeld = held
+		}
 
 		// Optimistic locking (24.10): a caller can optionally include
 		// expected_version (popped out before marshaling - not document
@@ -1117,6 +1151,8 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// Stage 55.17a: a Customer's marketing consent changed on this save is
 		// stamped with when and by whom (consent_updated_at / consent_source).
 		engines.StampMarketingConsent(doctype, priorData, payload, userID)
+		// Stage 146.3.14: who and when a bin or zone was blocked.
+		engines.StampFlowBlock(doctype, priorData, payload, userID)
 		// Stage 101: a Customer whose phone or email was erased is not
 		// re-created, masked contacts are kept, profile fields record their
 		// source, and changed consent ticks become ledger rows after the write.
@@ -1256,6 +1292,10 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			  AND NOT $9::bool`, schema, schema, schema, schema, schema)
 		result, err := db.DB.Exec(query, docID, doctype, payloadBytes, statusVal, userID, expectedVersion, id == "", strings.TrimSpace(editReason), createOverGRN)
 		if err != nil {
+			if dup := engines.DuplicateKeyRefusal(tenantID, doctype, err); dup != nil { // 140.14.1
+				writeEngineError(w, r, dup, http.StatusConflict)
+				return
+			}
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -1271,6 +1311,11 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		}
 		docWritten = true
 		crmSave.Commit(docID, id == "")
+		engines.AuditFlowBlock(tenantID, doctype, priorData, payload, userID) // Stage 146.3.14, once the save is in
+
+		if doctype == "GRN" && id == "" { // Stage 146.3.8: the gate entry now has its receipt
+			_ = engines.LinkGateEntryToGRN(tenantID, docID, func() string { s, _ := payload["gate_entry_id"].(string); return s }())
+		}
 
 		// Extension after_save hooks (Stage 14.17-14.20): fired async - the
 		// save already committed, so a notification/sync hook's failure
@@ -1431,8 +1476,9 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				// Stage 57.7: the tenant's barcode policy - the permanent barcode
 				// unless generation is off, plus a receipt-date barcode when on.
 				engines.EnsureReceiptBarcodes(tenantID, docID, items)
-				engines.MarkASNReceivedIfComplete(tenantID, docID) // Stage 55.7
-				engines.MatchCrossDockPlansForGRN(tenantID, docID) // Stage 130.13 (80.7 g)
+				engines.MarkASNReceivedIfComplete(tenantID, docID)  // Stage 55.7
+				engines.MatchCrossDockPlansForGRN(tenantID, docID)  // Stage 130.13 (80.7 g)
+				engines.NotifyBuyerOfGRNRejections(tenantID, docID) // Stage 146.4.6(d)
 
 				// Stage 62: the PO-vs-invoice price difference is settled by a
 				// Debit Note / Vendor Credit Note raised and posted now - never a
@@ -1466,6 +1512,11 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		if statusVal == "Cancelled" || statusVal == "Rejected" {
 			engines.CancelWorkTasksForSource(tenantID, doctype, docID, userID) // 146.3.3
 		}
+		if doctype == "VendorInvoice" && statusVal == "Cancelled" { // Stage 148.1
+			if rErr := engines.ReverseVendorBillDifference(tenantID, docID, userID); rErr != nil {
+				engines.LogSystemError(tenantID, "", "ERROR", "vendor-bill-cancel", fmt.Sprintf("bill %s cancelled, difference not reversed: %v", docID, rErr), "")
+			}
+		}
 		// BLD-035: this used to always report the literal "saved" regardless of
 		// what the document's real resulting status was - a caller (the generic
 		// dynamic form chief among them) had no truthful signal to distinguish a
@@ -1484,8 +1535,17 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		if grnNotes.VendorCreditNoteID != "" {
 			resp["vendor_credit_note_id"] = grnNotes.VendorCreditNoteID
 		}
+		if doctype == "VendorInvoice" { // Stage 146.4.6(b): warn, never refuse
+			if msg := engines.VendorInvoiceBeforePO(tenantID, payload); msg != "" {
+				resp["warning"] = msg
+				logForEntry(r, errorCatalog[engines.VendorInvoiceBeforePOCode], msg)
+			}
+		}
 		if grnNotes.Warning != "" {
 			resp["notes_warning"] = grnNotes.Warning
+		}
+		if len(vendorFieldsHeld) > 0 { // Stage 148.10: the form says what is waiting, or the edit looks lost
+			resp["held_fields"] = strings.Join(vendorFieldsHeld, ", ")
 		}
 		_ = json.NewEncoder(w).Encode(resp)
 
@@ -1548,6 +1608,13 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// document, never deleted - its stock and GL rows would be orphaned.
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "An approved or posted document cannot be deleted - reverse it instead")
 			return
+		}
+		if doctype == "VendorInvoice" {
+			// Stage 148.1: a bill that goes away takes back the cost difference it booked.
+			if rErr := engines.ReverseVendorBillDifference(tenantID, id, userID); rErr != nil {
+				writeEngineError(w, r, rErr, http.StatusInternalServerError)
+				return
+			}
 		}
 		_, err = db.DB.Exec(fmt.Sprintf("UPDATE %s.documents SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND doctype = $2 AND deleted_at IS NULL", schema), id, doctype)
 		if err != nil {

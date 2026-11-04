@@ -891,7 +891,7 @@ func storedValueLedgerReport(tenantID string, params map[string]string) ([]map[s
 		FROM %[1]s.stored_value_ledger l JOIN %[1]s.stored_value_instruments i ON i.instrument_id = l.instrument_id
 		WHERE ($1 = '' OR COALESCE(i.card_last4, right(i.card_number, 4)) = $1)
 		  AND ($2 = '' OR l.created_at >= public.erp_day_start($2::date)) AND ($3 = '' OR l.created_at < public.erp_day_start($3::date + 1))
-		ORDER BY l.created_at DESC, l.entry_id DESC LIMIT 5000`, schema),
+		ORDER BY l.created_at DESC, l.entry_id DESC LIMIT 20001`, schema),
 		strings.TrimSpace(params["card"]), strings.TrimSpace(params["from"]), strings.TrimSpace(params["to"]))
 	if err != nil {
 		return nil, err

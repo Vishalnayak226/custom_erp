@@ -2,6 +2,7 @@ package server
 
 import (
 	"custom_erp/db"
+	"custom_erp/engines"
 	"fmt"
 	"strings"
 	"testing"
@@ -10,7 +11,8 @@ import (
 
 // 49.5.4 (b): a vendor bank change applied from the Setup Workbook goes
 // through the record save, so it writes the signed EDIT_Vendor row the
-// bank-change detection reads.
+// bank-change detection reads. Stage 148.10: the row says the change waits, and
+// the edit lands when it is approved.
 func TestStage4954WorkbookBankChangeWritesSignedEdit(t *testing.T) {
 	c := swTestCaller(t)
 	tag := fmt.Sprint(time.Now().UnixNano())
@@ -19,6 +21,8 @@ func TestStage4954WorkbookBankChangeWritesSignedEdit(t *testing.T) {
 	t.Cleanup(func() {
 		swCleanup(t, "Vendor", "name", vendor)
 		_, _ = db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.audit_logs WHERE action='EDIT_Vendor' AND details LIKE $1`, schema), "%"+tag+"%")
+		_, _ = db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.approval_log WHERE document_id IN (SELECT id FROM %s.documents WHERE doctype='VendorChange' AND data->>'vendor_name'=$1)`, schema, schema), vendor)
+		_, _ = db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.documents WHERE doctype='VendorChange' AND data->>'vendor_name'=$1`, schema), vendor)
 	})
 	sheets := map[string][][]string{
 		"Vendors": {{"Vendor Name", "State", "Bank Account Number", "Bank IFSC"}, {vendor, "Karnataka", "111122223333", "HDFC0000001"}},
@@ -34,6 +38,19 @@ func TestStage4954WorkbookBankChangeWritesSignedEdit(t *testing.T) {
 	changed := swRunBook(t, c, swBook(t, "", sheets, "Vendors"), true)
 	if row := changed["Vendors"].Rows[0]; row.Action != "change" || row.Result != "done" {
 		t.Fatalf("bank change = %+v", row)
+	} else if !strings.Contains(row.Message, "Waiting for approval: bank account number") {
+		t.Fatalf("the row does not say the change waits: %q", row.Message)
+	}
+	var changeID, bank string
+	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype='VendorChange' AND data->>'vendor_id'=$1`, schema), id).Scan(&changeID); err != nil {
+		t.Fatalf("no request was filed: %v", err)
+	}
+	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT data->>'bank_account_number' FROM %s.documents WHERE doctype='Vendor' AND id=$1`, schema), id).Scan(&bank)
+	if bank != "111122223333" {
+		t.Fatalf("the change went live before approval: %s", bank)
+	}
+	if err := engines.DecideApproval("default", "VendorChange", changeID, "acct4954", "Accountant", "HO", "Approved", "ok"); err != nil {
+		t.Fatal(err)
 	}
 	var details, user string
 	var signed bool

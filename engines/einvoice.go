@@ -496,6 +496,10 @@ type einvoiceLineSource struct {
 	Qty      float64
 	Gross    int64 // paise, tax-inclusive
 	Discount int64
+	// Charge names a non-item line (Stage 148.2: the order's shipping); it
+	// carries its own GST Rate and is billed under SAC 9968.
+	Charge string
+	Rate   float64
 }
 
 // salesInvoiceLines are the lines an invoice billed: its own items when it
@@ -551,6 +555,9 @@ func salesInvoiceLines(tenantID, schema string, data map[string]interface{}) []e
 		if sku := strField(line, "sku"); sku != "" && billed > 0 {
 			out = append(out, einvoiceLineSource{SKU: sku, Qty: billed, Gross: RupeesToPaise(numFromInterface(line["unit_price"]) * billed)})
 		}
+	}
+	if ship := numFromInterface(data["shipping_charge"]); ship > 0 && len(out) > 0 {
+		out = append(out, einvoiceLineSource{Charge: "Shipping charge", Qty: 1, Gross: RupeesToPaise(ship), Rate: numFromInterface(data["shipping_gst_rate"])})
 	}
 	return out
 }
@@ -615,7 +622,7 @@ func BuildCanonicalTaxDocument(tenantID, doctype, id string) (*IRPDocument, erro
 						share = posted - given // the last line takes the paisa left by rounding
 					}
 					given += share
-					lines = append(lines, einvoiceLineSource{SKU: l.SKU, Qty: l.Qty, Gross: share})
+					lines = append(lines, einvoiceLineSource{SKU: l.SKU, Qty: l.Qty, Gross: share, Charge: l.Charge, Rate: l.Rate})
 				}
 			}
 		}
@@ -637,6 +644,9 @@ func BuildCanonicalTaxDocument(tenantID, doctype, id string) (*IRPDocument, erro
 	for i, l := range lines {
 		item := printItemFields(tenantID, l.SKU, cache)
 		rate := numFromInterface(item["gst_rate"])
+		if l.Charge != "" {
+			item, rate = map[string]interface{}{"name": l.Charge, "hsn_code": "9968"}, l.Rate
+		}
 		net := l.Gross - l.Discount
 		assessable := int64(float64(net)/(1+rate/100) + 0.5)
 		tax := net - assessable

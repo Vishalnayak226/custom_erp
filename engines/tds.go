@@ -79,6 +79,9 @@ func PayVendorInvoiceWithTDS(tenantID, invoiceID, sectionCode, userID string) (n
 	if amount <= 0 {
 		return 0, 0, fmt.Errorf("invoice_amount must be positive to pay")
 	}
+	if err := retroPOBlocksBill(tenantID, data); err != nil { // Stage 148.38
+		return 0, 0, err
+	}
 	// Stage 73.D.11: the amounts below are posted as rupees, so a bill in
 	// another currency was booked at its foreign figure. TDS sections here are
 	// for rupee bills (a foreign-currency bill is normally a non-resident's,

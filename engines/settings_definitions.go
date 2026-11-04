@@ -121,7 +121,18 @@ func init() {
 	RegisterSetting(SettingDefinition{
 		Key: "wms.work_queue", Module: "Warehouse",
 		Label: "Handheld work queue", Type: SettingTypeBool, Default: "false",
-		Description: "When on, a posted goods receipt creates put-away tasks and a wave pick list creates pick tasks. Handheld users take them from My next task on the RF screen. Off keeps the handheld as it is.",
+		Description: "When on, a posted goods receipt creates put-away tasks and a wave pick list creates pick tasks. A pick-face bin below its min makes a replenish task, a move request makes a move task, and a count session makes count tasks. Handheld users take them from My next task on the RF screen. Off keeps the handheld as it is.",
+	})
+	// Stage 146.3.15: put-away across several bins, and a fill warning - see engines/putaway_split_stage146.go.
+	RegisterSetting(SettingDefinition{
+		Key: "wms.putaway_split", Module: "Warehouse",
+		Label: "Split put-away across bins", Type: SettingTypeBool, Default: "false",
+		Description: "When on, a put-away that fits no single bin is suggested as parts: the best bin's room first, then the next. A single-item bin is never mixed. Off suggests one bin only.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "wms.putaway_fill_warn_pct", Module: "Warehouse",
+		Label: "Bin fill warning", Type: SettingTypeInt, Default: "0", Unit: "%",
+		Description: "Warn when a put-away would fill a bin to this percent of its capacity or more. 0 gives no warning. The hard capacity limit is unchanged.",
 	})
 	// Stage 61.6: GRN batch numbers - see engines/wms_receiving.go.
 	RegisterSetting(SettingDefinition{
@@ -381,6 +392,11 @@ func registerStage282Settings() {
 	})
 
 	RegisterSetting(SettingDefinition{
+		Key: "loyalty.online_order_points", Module: "Loyalty",
+		Label: "Points on online orders", Type: SettingTypeBool, Default: "true",
+		Description: "A delivered online order earns points for its customer, in the store scheme the order started in. They stay pending until the return window ends; a return inside it takes them back.",
+	})
+	RegisterSetting(SettingDefinition{
 		Key: "loyalty.points_transfer", Module: "Loyalty",
 		Label: "Points transfer between customers", Type: SettingTypeBool, Default: "false",
 		Description: "Lets a manager move usable points from one customer to another after the sender confirms with a one-time code. Large transfers wait for approval.",
@@ -482,6 +498,18 @@ func registerStage282Settings() {
 		Label: "Maximum documents per bulk edit", Type: SettingTypeInt, Default: "100", Unit: "documents",
 		Min: settingBound(1), Max: settingBound(1000),
 		Description: "Upper bound on how many products one bulk-edit operation may change at once.",
+	})
+	// Stage 146.5.5: off, so a variant reads only its own values as before.
+	RegisterSetting(SettingDefinition{
+		Key: SettingDesignValuesFallback, Module: "PIM",
+		Label: "Variants use the design's attribute values", Type: SettingTypeBool, Default: "false",
+		Description: "When on, a variant with no value of its own for an attribute uses the value set on its design (the parent product). Product completeness counts it too.",
+	})
+	// Stage 146.5.11: off, so a Number, Select or Date value saves as it does today.
+	RegisterSetting(SettingDefinition{
+		Key: SettingCheckLegacyAttributeValues, Module: "PIM",
+		Label: "Check Number, Select and Date attribute values", Type: SettingTypeBool, Default: "false",
+		Description: "When on, a changed Number, Select or Date attribute value must fit its definition. Yes / No, Multi-select and URL are always checked. A stored value is never re-checked until it changes.",
 	})
 	RegisterSetting(SettingDefinition{
 		Key: "pim.thumbnail_max_dim", Module: "PIM",
@@ -622,9 +650,9 @@ func registerStage282Settings() {
 	})
 	RegisterSetting(SettingDefinition{
 		Key: "platform.max_sync_report_rows", Module: "Platform",
-		Label: "Maximum rows for an on-screen report", Type: SettingTypeInt, Default: "5000", Unit: "rows",
+		Label: "Maximum rows for a scheduled report or dashboard", Type: SettingTypeInt, Default: "5000", Unit: "rows",
 		Min: settingBound(100), Max: settingBound(100000),
-		Description: "Row count above which a report must be exported rather than rendered synchronously (REPORT-0161).",
+		Description: "Row limit for scheduled reports, dashboards and drill-downs (REPORT-0161). On-screen pages and exports go to 20,000 rows.",
 	})
 	RegisterSetting(SettingDefinition{
 		Key: "platform.max_import_rows", Module: "Platform",

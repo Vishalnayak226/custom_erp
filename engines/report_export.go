@@ -205,7 +205,7 @@ func processReportExportJobs(ctx context.Context, schema string) {
 		newStatus := "Completed"
 		csvText := ""
 		requestedBy, _ := job.data["requested_by"].(string) // Stage 75.3.3: cut to the requester's stores
-		def, resultRows, _, err := RunReportContext(ctx, tenantID, reportID, role, requestedBy, params)
+		def, resultRows, _, err := RunReportContext(withReportExport(ctx), tenantID, reportID, role, requestedBy, params)
 		if err != nil {
 			// REPORT-0285 ("Export job failed") is this async path's own
 			// distinct catalog code, deliberately separate from REPORT-0162
@@ -240,6 +240,8 @@ func processReportExportJobs(ctx context.Context, schema string) {
 			`UPDATE %s.documents SET data = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'ReportExportJob' AND id = $3`, schema),
 			marshaled, newStatus, job.id); err != nil {
 			log.Printf("[REPORT_EXPORT] update failed for job %s: %v", job.id, err)
+		} else if newStatus == "Completed" {
+			NotifyLongJobDone(tenantID, requestedBy, "Export", reportID, len(resultRows)) // Stage 146.4.6(f)
 		}
 	}
 }

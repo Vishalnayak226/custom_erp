@@ -86,8 +86,8 @@ func ListTaskInbox(tenantID string, scope TaskInboxScope) (*TaskInbox, error) {
 				}
 			}
 			amount := DocumentBaseAmount(doc)
-			required, err := RequiredApproverRoleForAmount(tenantID, doctype, amount)
-			if err != nil || (!HasFullAccess(scope.Role) && required != scope.Role) {
+			required, err := requiredApproverRoleFor(tenantID, doctype, doc, amount) // Stage 148.39
+			if err != nil || (!HasFullAccess(scope.Role) && required != scope.Role && !mayAlsoDecide(tenantID, doctype, id, doc, createdBy, scope.UserID, scope.Role, required)) {
 				continue
 			}
 			code := id

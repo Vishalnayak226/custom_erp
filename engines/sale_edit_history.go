@@ -185,7 +185,9 @@ func postSaleEditReport(tenantID string, params map[string]string) ([]map[string
 	}
 	defer rows.Close()
 	out := []map[string]interface{}{}
+	read := 0
 	for rows.Next() {
+		read++
 		var dataStr, at string
 		if err := rows.Scan(&dataStr, &at); err != nil {
 			return nil, err
@@ -215,6 +217,9 @@ func postSaleEditReport(tenantID string, params map[string]string) ([]map[string
 			out = append(out, map[string]interface{}{"edited_at": at, "document_type": docLabel, "document_id": number, "status": h.Status,
 				"field": field, "before": editValueText(c.Before), "after": editValueText(c.After), "edited_by": h.By, "reason": h.Reason})
 		}
+	}
+	if read == 2000 {
+		return nil, reportReadStopped(read) // 157.4b
 	}
 	return out, rows.Err()
 }

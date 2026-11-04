@@ -918,8 +918,23 @@ func (run *swRun) planDoc(sh swSheet, t *swTable) []*swRow {
 					}
 				}
 				row.do = func() error {
-					return run.c.do("/api/v1/doc/{doctype}/{id}", http.MethodPost, "/api/v1/doc/"+url.PathEscape(dt)+"/"+url.PathEscape(id),
+					status, body := run.c.call("/api/v1/doc/{doctype}/{id}", http.MethodPost, "/api/v1/doc/"+url.PathEscape(dt)+"/"+url.PathEscape(id),
 						map[string]string{"doctype": dt, "id": id}, payload, handleGenericDoc)
+					if status < 200 || status >= 300 {
+						return errors.New(swMessage(status, body))
+					}
+					// Stage 148.10: a held vendor field saved nothing yet, so "done" must say so.
+					var saved struct {
+						HeldFields string `json:"held_fields"`
+					}
+					if json.Unmarshal(body, &saved) == nil && saved.HeldFields != "" {
+						held := "Waiting for approval: " + strings.ReplaceAll(saved.HeldFields, "_", " ")
+						if row.Message != "" {
+							held = row.Message + "; " + held
+						}
+						row.Message = held
+					}
+					return nil
 				}
 			}
 		}

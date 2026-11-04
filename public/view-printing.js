@@ -222,7 +222,8 @@ let stickerSKUs = [];
 // a redesign.
 const BULK_STICKER_SOURCE_DOCTYPES = [
   { doctype: 'GRN', label: 'Goods Receipt (GRN)' },
-  { doctype: 'TransferOrder', label: 'Transfer Order' }
+  { doctype: 'TransferOrder', label: 'Transfer Order' },
+  { doctype: 'PurchaseOrder', label: 'Purchase Order' } // 146.4.6c
 ];
 // stickerSourceDoctypes (Stage 127.5: "any new taxn should load properly in
 // print"): GRN and Transfer Order, then every other transaction the client's
@@ -293,6 +294,15 @@ async function renderStickerPrintTab(container) {
   txnRestorePane('sticker-print');
 
   renderStickerSourcePanel(printPage, printers);
+  let pre = null; // 146.4.6c: opened from a PO's Stickers button
+  try { pre = JSON.parse(sessionStorage.getItem('erp-sticker-source') || 'null'); sessionStorage.removeItem('erp-sticker-source'); } catch (_) { /* storage off */ }
+  if (pre) {
+    window.txnShowPane('sticker-print:new');
+    const sel = document.getElementById('sticker-source-doctype');
+    sel.value = pre.doctype; sel.dispatchEvent(new Event('change'));
+    document.getElementById('sticker-source-doc').value = pre.id;
+    loadStickerSourcePreview();
+  }
 
   const formPanel = document.createElement('div');
   formPanel.className = 'table-panel';

@@ -25,6 +25,9 @@ type transferLine struct {
 	Qty     int           `json:"qty"`
 	Lots    []transferLot `json:"lots,omitempty"`
 	Serials []string      `json:"serials,omitempty"`
+	// Cancelled (Stage 148.11): the line was cancelled before dispatch; it is
+	// skipped everywhere a transfer's lines are read.
+	Cancelled bool `json:"cancelled,omitempty"`
 }
 
 // TransferLine and TransferLot name the line shapes for callers outside this
@@ -43,12 +46,17 @@ func parseTransferItems(itemsJSON string) ([]transferLine, error) {
 	if len(lines) == 0 {
 		return nil, fmt.Errorf("transfer order has no items")
 	}
+	live := lines[:0:0]
 	for _, l := range lines {
+		if l.Cancelled {
+			continue
+		}
 		if l.Sku == "" || l.Qty <= 0 {
 			return nil, fmt.Errorf("every transfer line needs a sku and a positive qty (sku=%q qty=%d)", l.Sku, l.Qty)
 		}
+		live = append(live, l)
 	}
-	return lines, nil
+	return live, nil
 }
 
 // PackTransferOrder (Stage 20.19) records box/carton-to-item mapping for an
@@ -153,6 +161,20 @@ func DispatchTransferOrder(tenantID, transferOrderID, userID string) error {
 // quantities are the approved ones, so dispatch can never change what was
 // approved; a pick for an item not on the transfer is refused.
 func DispatchTransferOrderWith(tenantID, transferOrderID, userID string, picks []transferLine) error {
+	return DispatchTransferOrderOpts(tenantID, transferOrderID, userID, DispatchOptions{Picks: picks})
+}
+
+// DispatchOptions carries the optional parts of a dispatch: the lot / serial
+// picks and (Stage 146.3.13) the reason code for quantity closed short.
+type DispatchOptions struct {
+	Picks           []transferLine
+	ShortReasonCode string
+}
+
+// DispatchTransferOrderOpts is DispatchTransferOrderWith plus the fill policy
+// (Stage 146.3.13). With the policy setting off it behaves exactly as before.
+func DispatchTransferOrderOpts(tenantID, transferOrderID, userID string, opts DispatchOptions) error {
+	picks := opts.Picks
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
@@ -222,6 +244,30 @@ func DispatchTransferOrderWith(tenantID, transferOrderID, userID string, picks [
 	// Lock in a fixed order so two transfers sharing items cannot deadlock.
 	sort.SliceStable(lines, func(i, j int) bool { return lines[i].Sku < lines[j].Sku })
 
+	// Stage 146.3.13: the fill policy decides how much of each line ships.
+	// A transfer drawing from a chosen "From" location keeps Exact.
+	var shortClosed []ShortClosedLine
+	rule, _ := resolveTransferFill(tenantID, schema, data)
+	if rule.Policy != FillExact && docStockField(tx, schema, transferOrderID, "stock_from") == "" {
+		fill := map[string]int{}
+		for _, l := range lines {
+			if err := lockSKUAtLocationTx(tx, schema, fromWarehouse, l.Sku); err != nil {
+				return err
+			}
+			f, err := fillableAtTx(tx, schema, l.Sku, fromWarehouse)
+			if err != nil {
+				return err
+			}
+			if f > l.Qty {
+				f = l.Qty
+			}
+			fill[l.Sku] = f
+		}
+		if lines, shortClosed, err = applyTransferFill(tenantID, rule, lines, fill, opts.ShortReasonCode); err != nil {
+			return err
+		}
+	}
+
 	dispatched := make([]transferLine, 0, len(lines))
 	balances := make([]transferLineBalance, 0, len(lines))
 	for _, line := range lines {
@@ -268,6 +314,11 @@ func DispatchTransferOrderWith(tenantID, transferOrderID, userID string, picks [
 	data["dispatched_items"] = string(dispatchedBytes)
 	data["transfer_balance"] = string(balanceBytes)
 	data["dispatched_by"] = userID
+	if len(shortClosed) > 0 {
+		sb, _ := json.Marshal(shortClosed)
+		data["short_closed"] = string(sb)
+		data["fill_policy_applied"] = rule.Policy
+	}
 	// Stage 130.10 (78.3 g): when it left, for the in-transit limit.
 	data["dispatched_at"] = time.Now().Format(time.RFC3339)
 	updatedBytes, _ := json.Marshal(data)
@@ -355,6 +406,14 @@ func dispatchTrackedLineTx(tx *sql.Tx, tenantID, schema, transferOrderID, fromWa
 	}
 	voucher := "TO:" + transferOrderID
 
+	// Stage 146.3.5: a serial or batch line is traced by its own identity, so a
+	// wave's bin reservation for it is handed back and the line draws as ever.
+	if tracking.TracksSerial() || tracking.TracksBatch() {
+		if err := ReleaseTaskBinStockTx(tx, schema, transferOrderID, line.Sku); err != nil {
+			return out, bal, err
+		}
+	}
+
 	if tracking.TracksSerial() {
 		serials := uniqueTrimmed(line.Serials)
 		if len(serials) != line.Qty {
@@ -405,6 +464,12 @@ func dispatchTrackedLineTx(tx *sql.Tx, tenantID, schema, transferOrderID, fromWa
 		// Stage 146.1.3: a plain item leaves its bins too, in the order the
 		// allocator already uses (net of open reservations, holds and frozen
 		// bins). Units no bin holds are location-level stock and just go.
+		// Stage 146.3.5: a wave already reserved this transfer's bins - take those.
+		if done, err := dispatchFromWaveBinsTx(tx, tenantID, schema, transferOrderID, fromWarehouse, line.Sku, line.Qty); err != nil {
+			return out, bal, err
+		} else if done {
+			return out, bal, nil
+		}
 		candidates, short, err := allocateFromStockQ(tx, tenantID, line.Sku, fromWarehouse, line.Qty)
 		if err != nil {
 			return out, bal, err

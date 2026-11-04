@@ -59,6 +59,9 @@ func AcceptPendingOrder(tenantID, orderID, userID string) (string, error) {
 	if status := strField(order, "order_status"); status != "Reserved" {
 		return "", fmt.Errorf("order %s is %s - only an order waiting at Pending (its stock reserved) can be accepted", orderID, status)
 	}
+	if err := enforceCreditAtAccept(tenantID, schema, orderID, order, userID); err != nil { // Stage 148.3
+		return "", err
+	}
 	if _, _, err := ReleaseOrderToFulfillment(tenantID, orderID, userID); err != nil {
 		return "", err
 	}

@@ -16,12 +16,18 @@ func init() {
 		ID: "current-stock", Label: "Current Stock", Category: "Inventory",
 		Columns: []ReportColumn{
 			{Key: "sku", Label: "SKU"}, {Key: "location_code", Label: "Location"},
-			{Key: "on_hand", Label: "On Hand"}, {Key: "available", Label: "Available"},
-			{Key: "committed", Label: "Committed"}, {Key: "reserved", Label: "Reserved"},
-			{Key: "safety_stock", Label: "Safety Stock"},
+			{Key: "on_hand", Label: "On Hand"}, {Key: "available_to_sell", Label: "Available to sell"},
+			{Key: "reserved", Label: "Reserved"}, {Key: "hold_qty", Label: "Held"},
+			{Key: "available", Label: "Base available"}, {Key: "committed", Label: "Committed"},
+			{Key: "safety_stock", Label: "Safety Stock"}, {Key: "blocked", Label: "Blocked"},
+			{Key: "qc_hold", Label: "QC Hold"}, {Key: "damaged", Label: "Damaged"},
+			{Key: "channel_buffer", Label: "Channel Buffer"},
 		},
 		Run: func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
 			return GetCurrentStockReport(tenantID)
+		},
+		RunPage: func(tenantID string, params map[string]string, page ReportPage) ([]map[string]interface{}, int, error) {
+			return GetCurrentStockPage(tenantID, CurrentStockFilter{Limit: page.Limit, Offset: page.Offset, Desc: page.Desc, Stores: page.Stores, StoreCut: page.StoreCut})
 		},
 	})
 
@@ -30,7 +36,7 @@ func init() {
 		Columns: []ReportColumn{
 			{Key: "cart_number", Label: "Cart Number"}, {Key: "location", Label: "Location"},
 			{Key: "payment_mode", Label: "Payment Mode"}, {Key: "status", Label: "Status"},
-			{Key: "sale_total", Label: "Sale Total", Sensitive: true}, {Key: "created_at", Label: "Date"},
+			{Key: "sale_total", Label: "Sale Total", Sensitive: true, FinanceSees: true}, {Key: "created_at", Label: "Date"},
 			// Stage 30.2.3: normally blank; a corrupt cart is now listed with
 			// this filled in instead of being dropped from the register.
 			{Key: "data_issue", Label: "Data Issue"},
@@ -42,18 +48,29 @@ func init() {
 			}
 			return structsToRows(entries)
 		},
+		RunPage: func(tenantID string, params map[string]string, page ReportPage) ([]map[string]interface{}, int, error) {
+			entries, total, err := salesRegisterPage(tenantID, page)
+			if err != nil {
+				return nil, 0, err
+			}
+			rows, err := structsToRows(entries)
+			return rows, total, err
+		},
 	})
 
 	RegisterReport(ReportDefinition{
 		ID: "vendor-ledger", Label: "Vendor Ledger", Category: "Procurement",
 		Columns: []ReportColumn{
 			{Key: "id", Label: "PO ID"}, {Key: "vendor", Label: "Vendor"}, {Key: "po_number", Label: "PO Number"},
-			{Key: "total_amount", Label: "Total Amount", Sensitive: true}, {Key: "status", Label: "Status"},
+			{Key: "total_amount", Label: "Total Amount", Sensitive: true, FinanceSees: true}, {Key: "status", Label: "Status"},
 			{Key: "created_at", Label: "Date"},
 		},
 		Params: []ReportParam{{Key: "vendor_id", Label: "Vendor (optional)", Type: "text"}},
 		Run: func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
 			return GetVendorLedgerReport(tenantID, params["vendor_id"])
+		},
+		RunPage: func(tenantID string, params map[string]string, page ReportPage) ([]map[string]interface{}, int, error) {
+			return vendorLedgerPage(tenantID, params["vendor_id"], page)
 		},
 	})
 

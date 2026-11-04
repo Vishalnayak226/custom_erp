@@ -331,6 +331,7 @@ func TransitionTaskStatus(tenantID string, taskID string, newStatus string) erro
 			sku, _ := item["sku"].(string)
 			qty := taskItemQty(item)
 			lineID, _ := item["line_id"].(string)
+			delete(item, "serial_nos") // Stage 148.1: the next node has its own pieces
 
 			if _, err = tx.Exec(fmt.Sprintf(`
 				UPDATE %s.inventory_availability
@@ -398,6 +399,7 @@ func TransitionTaskStatus(tenantID string, taskID string, newStatus string) erro
 
 	} else if newStatus == "Dispatched" {
 		var cogsPaise int64
+		var namedPieces []saleCostLine // Stage 148.1: only the lines naming a piece
 		for _, itemVal := range itemsRaw {
 			item, ok := itemVal.(map[string]interface{})
 			if !ok {
@@ -451,8 +453,22 @@ func TransitionTaskStatus(tenantID string, taskID string, newStatus string) erro
 				}
 			}
 			if shipped > 0 {
-				cogsPaise += int64(shipped) * ResolveCOGSUnitCostPaise(tenantID, sku, itemStandardCostRupees(tenantID, sku))
+				unit := ResolveCOGSUnitCostPaise(tenantID, sku, itemStandardCostRupees(tenantID, sku))
+				cogsPaise += int64(shipped) * unit
+				if pieces := taskItemPieces(item); len(pieces) > 0 {
+					namedPieces = append(namedPieces, newSaleCostLine(tenantID, sku, shipped, unit, pieces, ""))
+				}
 			}
+		}
+		// Stage 148.1: a named piece costs what it cost, after the stock has moved,
+		// on the one choke point a till sale uses. An unnamed task touches nothing.
+		pieceDelta, err := settleNamedPiecesTx(tx, schema, namedPieces, false)
+		if err != nil {
+			return err
+		}
+		cogsPaise += pieceDelta
+		if len(namedPieces) > 0 {
+			task["sale_costs"] = namedPieces
 		}
 		if cogsPaise > 0 {
 			if err := PostDoubleEntryTx(tx, tenantID, schema, "FulfillmentTask", taskID,

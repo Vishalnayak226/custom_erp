@@ -345,7 +345,7 @@ func ConfirmOperation(tenantID, orderID string, seq int, actorUserID string) (ca
 // (engines/manufacturing.go, one-shot "complete the remaining balance") and
 // ReportPartialCompletion below (explicit partial qty), so both stay
 // behaviorally identical for a simple order that completes in one call.
-func finishProductionQty(tenantID, orderID string, qty float64) error {
+func finishProductionQty(tenantID, orderID string, qty float64, output ...OutputPieces) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
@@ -415,7 +415,13 @@ func finishProductionQty(tenantID, orderID string, qty float64) error {
 		}
 	}
 
+	// Stage 148.1: named output is checked before anything moves.
+	named := firstOutput(output)
+	if err := named.check(tenantID, location, parentItem, qty); err != nil {
+		return err
+	}
 	items := []interface{}{map[string]interface{}{"sku": parentItem, "qty": qty}}
+	markStockLineBatch(items, named.BatchNo)
 	for _, bp := range byProducts(bomData) {
 		items = append(items, map[string]interface{}{"sku": bp.Sku, "qty": bp.QtyPerUnit * qty})
 	}
@@ -443,17 +449,20 @@ func finishProductionQty(tenantID, orderID string, qty float64) error {
 			share = part
 		}
 	}
-	if value := share + backflushPaise; value > 0 {
-		if err := upsertItemCostReceiptQ(tx, schema, parentItem, qty, value); err != nil {
-			return fmt.Errorf("finished goods cost: %v", err)
-		}
-	}
 	data["material_cost_allocated_paise"] = allocated + share
 	// Stage 132.18: the stock ledger names the order (it read "StockAdjustment", no document).
 	// Stage 135.19: each completion keys its own ledger lines.
 	completion := int(numFromInterface(data["completion_count"])) + 1
 	if err := postProductionStockTx(tx, schema, location, orderID, fmt.Sprintf("FINISH:%d", completion), items); err != nil {
 		return fmt.Errorf("finished goods receipt failed: %v", err)
+	}
+	// Stage 148.1: after the stock, which the blend counts itself out of.
+	var unitPaise int64
+	if value := share + backflushPaise; value > 0 {
+		if err := blendIntoCostTx(tx, schema, parentItem, qty, value, qty, true); err != nil {
+			return fmt.Errorf("finished goods cost: %v", err)
+		}
+		unitPaise = sharePaise(value, 1, qty)
 	}
 
 	data["completed_qty"] = newCompleted
@@ -465,14 +474,18 @@ func finishProductionQty(tenantID, orderID string, qty float64) error {
 	if err := saveProductionOrderStatusTx(tx, schema, orderID, newStatus, data); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	named.register(tenantID, location, parentItem, qty, unitPaise, "ProductionOrder", orderID)
+	return nil
 }
 
 // ReportPartialCompletion (26.9.6) posts a partial finished-goods batch
 // without necessarily closing the order - it stays "In Process" until
 // cumulative completed_qty reaches the order quantity.
-func ReportPartialCompletion(tenantID, orderID string, qty float64) error {
-	return finishProductionQty(tenantID, orderID, qty)
+func ReportPartialCompletion(tenantID, orderID string, qty float64, output ...OutputPieces) error {
+	return finishProductionQty(tenantID, orderID, qty, output...)
 }
 
 type reworkEntry struct {

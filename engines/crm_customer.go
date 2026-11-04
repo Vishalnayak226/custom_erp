@@ -309,7 +309,7 @@ func maskContactColumns(tenantID string, columns []ReportColumn, rows []map[stri
 	var phones, emails []string
 	for _, c := range columns {
 		switch c.Key {
-		case "phone", "customer_phone", "mobile":
+		case "phone", "customer_phone", "mobile", "customer_mobile":
 			phones = append(phones, c.Key)
 		case "email", "customer_email":
 			emails = append(emails, c.Key)

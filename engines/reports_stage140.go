@@ -69,7 +69,7 @@ func dayBookReport(tenantID string, p map[string]string) ([]map[string]interface
 		FROM %s.gl_postings g LEFT JOIN %s.gl_accounts a ON a.account_code = g.account_code
 		WHERE g.created_at >= public.erp_day_start($1::date) AND g.created_at < public.erp_day_start($2::date + 1)
 		ORDER BY g.created_at, g.document_type, g.document_id, g.debit DESC, g.account_code
-		LIMIT 20000`, schema, schema), from, to)
+		LIMIT 20001`, schema, schema), from, to)
 	if err != nil {
 		return nil, err
 	}

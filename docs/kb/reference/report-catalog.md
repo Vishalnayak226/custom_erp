@@ -20,7 +20,7 @@ screens: [reports]
 
 # Report catalog
 
-**432** reports across **26** categories, all reachable from
+**440** reports across **26** categories, all reachable from
 **Sales & Marketplace » Reports**.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -59,9 +59,9 @@ open the right page.
 - [Manufacturing](report-catalog-2.md#manufacturing) - 21 reports
 - [Master Data & Audit](report-catalog-2.md#master-data-audit) - 11 reports
 - [OMS](report-catalog-2.md#oms) - 25 reports
-- [PIM](report-catalog-2.md#pim) - 4 reports
+- [PIM](report-catalog-2.md#pim) - 6 reports
 - [PIM / PIMS](report-catalog-2.md#pim-pims) - 16 reports
-- [Procurement](report-catalog-3.md#procurement) - 18 reports
+- [Procurement](report-catalog-3.md#procurement) - 24 reports
 - [Procurement & GRN](report-catalog-3.md#procurement-grn) - 27 reports
 - [Sales](report-catalog-3.md#sales) - 11 reports
 - [Sales & POS](report-catalog-3.md#sales-pos) - 22 reports
@@ -1705,7 +1705,7 @@ open the right page.
 
 - **Include dismissed** (`all`) - select, optional, one of: No,Yes
 
-**Columns:** Mismatch · Order · Invoice · Customer · Shipped qty · Invoiced qty · Invoiced *(sensitive)* · Paid *(sensitive)* · Difference · Owner · What it suggests · Exception · Note
+**Columns:** Mismatch · Order · Invoice · Customer · SKU · Shipped qty · Invoiced qty · Invoiced *(sensitive)* · Paid *(sensitive)* · Difference · Owner · What it suggests · Exception · Note
 
 **Drill-down:** no.
 

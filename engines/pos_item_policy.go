@@ -106,6 +106,9 @@ type saleIssue struct {
 	costPaise    int64         // whole line, not per unit
 	costResolved bool
 	giftAccount  string // set: the cost is a promotional expense, not COGS
+	// costLine is a handled line's record in sale_costs (Stage 148.1): what the sale
+	// booked for it, so its return comes back at that and not today's rate.
+	costLine saleCostLine
 }
 
 // saleStockIssue applies the item's policy to a sold line (Stage 72.9-72.11):
@@ -119,7 +122,7 @@ type saleIssue struct {
 //   - everything else is the ordinary line the caller always costed.
 func saleStockIssue(tenantID, sku string, qty int) saleIssue {
 	if bundle, found, err := loadActiveProductBundle(tenantID, sku); err == nil && found && bundle.FulfillmentMode == "Virtual" && len(bundle.Components) > 0 {
-		out := saleIssue{handled: true, costResolved: true}
+		out := saleIssue{handled: true, costResolved: true, costLine: saleCostLine{SKU: sku, Qty: qty, Source: costSourceNone}}
 		for _, c := range bundle.Components {
 			childQty := c.Quantity * qty
 			if childQty <= 0 {
@@ -131,6 +134,7 @@ func saleStockIssue(tenantID, sku string, qty int) saleIssue {
 			}
 			out.stock = append(out.stock, map[string]interface{}{"sku": c.SKU, "qty": -childQty})
 			if known && !policy.Valuated() {
+				out.costLine.addPart(saleCostLine{SKU: c.SKU, Qty: childQty, Source: costSourceNone})
 				continue
 			}
 			unit, ok := ResolveQuoteUnitCostPaise(tenantID, c.SKU)
@@ -138,6 +142,7 @@ func saleStockIssue(tenantID, sku string, qty int) saleIssue {
 				out.costResolved = false
 			}
 			out.costPaise += unit * int64(childQty)
+			out.costLine.addPart(newSaleCostLine(tenantID, c.SKU, childQty, unit, nil, ""))
 		}
 		return out
 	}
@@ -146,14 +151,16 @@ func saleStockIssue(tenantID, sku string, qty int) saleIssue {
 	if !known {
 		return saleIssue{stock: line}
 	}
+	nothing := saleCostLine{SKU: sku, Qty: qty, Source: costSourceNone}
 	switch {
 	case !policy.Tracked():
-		return saleIssue{handled: true, costResolved: true}
+		return saleIssue{handled: true, costResolved: true, costLine: nothing}
 	case !policy.Valuated():
-		return saleIssue{stock: line, handled: true, costResolved: true}
+		return saleIssue{stock: line, handled: true, costResolved: true, costLine: nothing}
 	case policy.Sellability == SellPromoOnly:
 		unit, ok := ResolveQuoteUnitCostPaise(tenantID, sku)
-		return saleIssue{stock: line, handled: true, costPaise: unit * int64(qty), costResolved: ok, giftAccount: policy.ExpenseAccount}
+		return saleIssue{stock: line, handled: true, costPaise: unit * int64(qty), costResolved: ok, giftAccount: policy.ExpenseAccount,
+			costLine: newSaleCostLine(tenantID, sku, qty, unit, nil, "")}
 	}
 	return saleIssue{stock: line}
 }

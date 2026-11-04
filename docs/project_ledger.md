@@ -44,6 +44,67 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 333. "I told to take next piece of point not already being build 20 point to build. Once this is fixed, Take next 20 to build" - Stage 140.14 screen fixes, what was left of 148.1 / .2 / .3 / .4 / .6, buying W2 and W3 (2026-11-04, code + tests + guides, session erp-60; NOT COMMITTED)
+
+The ask, the 20 items and the result are on the "Next 20" header in micro_checklist.md; each item's line carries what was built under **erp-60 (2026-11-04, second run)**.
+
+- **Built** by eight builders in scratch worktrees (`SP\wt-k..r`), ported with `git merge-file`:
+  - Screens (140.14.1, .2, .3, .4, .6, .7): refusals name the record and what to do, permissions decide the menus, a refused list stops reading as empty.
+  - Left over from the first run: 148.1 bill and piece paths, 148.2 per-package shipping, 148.3 manual due date, 148.4 returns and refunds, 148.6 design grid.
+  - Buying: purchase rate history on the item (148.12), vendor scorecard (148.13), requisition lines and Combine (148.14), vendor advances (148.15), rebate agreements (148.17), PO status report (148.34), goods before PO (148.38), PO routing rules and delegates (148.39), piece attribute correction (148.40).
+- **Security gaps found and fixed in review:** cost rate history readable by anyone who can read items; Combine had no permission check; a GRN edit could clear the bill block; a forged PO escalation; an advance could pay around the retro PO block.
+- **What the browser walk caught that tests did not:** Give advance never showed for full-access roles; a typed advance or rebate claim saved with no posting and could have paid a bill, by form and by CSV (FIN-0926, PURCHA-5025, guard in `validateDocumentWith`); the Apply dialogs asked for a raw id; goods before PO had no screen path and its bill could never match; the rate history printed a raw id; Correct's history printed UTC; FIN-0910 printed a raw id.
+- **What the full suite caught:** `item_purchase_rate_history` unclassified, which blocked every tenant reset; rebate periods on the server's clock day; a requisition test fixture.
+- **Verified:** fresh DB with 363 migration files; full suite on a snapshot identical to the final tree shows only `TestAttackSurfaceManifestIsCurrent` red (gate G6 regenerates it), engines 1773s. Fail-first proofs on every review fix and on the typed-record guard, including the CSV path. Browser walks on the merged tree for everything with a screen; 148.2 and 148.4 are posting paths, tested only. Cold core 184,314 of 184,320.
+- **For the release:** migrations that stop the deploy for YES: 148.15 and 148.17 (`gl_accounts` 1810, 1820 per client), 148.38 (three ReasonCode rows per client), and the first run's 148.3 and 148.1. Existing clients notice with nothing switched on: a bill with a payment or a pending approval cannot be deleted (FIN-0910); held bills paid by Override & Pay book their difference; the purchase rate moves on each matched bill; Store Manager can open GRN lists; Cashier loses Workbench, My Work, Settlements and the CRM Pipeline tab. Advances, rebates and goods before PO are off until used or switched on. Decision lines with recommended answers: 148.1c, 148.1d, 148.12b, 148.12c, 148.14b, 148.14c, 148.15b, 148.17b, 148.38b, 148.40b.
+
+## 332. "start next 20 item ro build" - Stage 148 W1 and W2, the PIM phase of Stage 146, half-built 49 parts (2026-11-04, code + tests + guides, session erp-60; NOT COMMITTED)
+
+The user's ask, the items and the result are on the erp-60 claim header in micro_checklist.md; each item's line carries what was built under **erp-60 (2026-11-04)**. Peers were asked first; erp-48 keeps Stage 143. The user then added "take next piece of point not already being build" and "Once this is fixed, Take next 20", so the next run's header sits below this one.
+
+- **Built** by ten builders in scratch worktrees (`SP\wt-a..j`), ported with `git merge-file`, W2 after W1 as the plan orders:
+  - Numbers right: moving average of stock in hand, 5195 COGS variance (148.1); channel shipping on the invoice (148.2); credit hold at order accept, release by Store Manager (148.3); posting rules by group (148.4); chart of accounts changes through approval, blocked accounts (148.5).
+  - Buying core: vendor agreements that price a PO (148.6, 146.4.2); line and order discounts, free units (148.7); trade charge codes, rules and entries allocated at receipt (148.8); vendor terms and holds (148.9); vendor changes through approval (148.10); PO line control with instalments and under / over % (148.11).
+  - PIM: dynamic groups, tasks with checklists, attribute types, typed relations, small slices (146.5.x); Media Library thumbnails near the viewport (156.1).
+  - Controls: strict transitions 121 → 130 of 257 (49.5.3); command against outbox reconciliation (49.5.5).
+- **Security bug found and fixed (148.10):** an Accountant with no Vendor rights could raise a `VendorChange` and approve it, writing any vendor field including the bank account, and raw bank numbers were readable through the pending list. The request is now read-only by role, its value fields Super Admin only, and approvers read a masked summary.
+- **Verified:** fresh DB with 357 migrations; full suite on the merged tree shows only `TestAttackSurfaceManifestIsCurrent` red (gate G6 regenerates it). Browser walks of W1, W2 and 148.8 on the merged tree with no console errors. Two small fixes came from the 148.8 walk. Cold core 184,297 of 184,320; view modules 75.
+- **For the release:** two migrations stop the deploy for YES: 148.3's back-fill and `credit_stop`, and 148.1's 5195 chart row. Existing clients notice 148.3's holds, 148.10's approvals and payment pause, and 148.1's postings to 5195. Decision lines with recommended answers: 49.5.5b, 148.1b, 148.2b, 148.3b, 148.4b, 148.8b, 148.9b, 148.10b.
+
+## 331. "Once deployed, Start building next20 items" - the rest of Stage 146 plus half-built 47 / 49 / 157 parts (2026-11-04, code + tests + guides, session erp-3f; NOT COMMITTED)
+
+The user's ask, the 20 items and the result are on the erp-3f claim header in micro_checklist.md; each item's line carries what was built under **erp-3f (2026-11-04)**. erp-79, erp-d8, erp-34, erp-48 and erp-f8 were asked first and claimed nothing.
+
+- **Built** by six builders in scratch worktrees (`%TEMP%\erp-3f-a..f`), ported with `git merge-file`:
+  - Loyalty: birthday / anniversary points; expiring and pending points on the till; online-order points (on, D11).
+  - WMS: replenish / move / count tasks, put-away rules, receipt / pick blocks, split put-away.
+  - Transfers: waves, one allocation upload makes one transfer per store, fill policy.
+  - Procurement: packing list per box, inward gate entry, six purchasing conveniences.
+  - PIM: marketplace category templates, design values, and feeds with a real email sender.
+  - Half-built items finished: 49.5.3's fourth strict batch (121 of 247), 49.5.5 per-SKU and stock-ownership reconciliation, 47.14.3 live confidence, 157.4 ledger paging.
+- **Found while combining:**
+  - D queued `notification.email`, which nothing sends; it now uses E's `email.send`.
+  - `index.html` loaded `app.js?v=73` against `VIEW_MODULE_VERSION` 74. G4 skips index.html once app.js has changed, so it was set by hand.
+  - E's three PIM pages could only be opened from a dashboard panel; menu entries added.
+  - The Guide walk showed Gate Entry as "Unavailable": it was missing from `MENU_MODULE_MAP`. The fix put the cold core over budget, so an app.js comment was shortened (184,187 / 184,320).
+  - `docs/security/idempotency-audit.md` regenerated for the new routes (generated in %TEMP%: Controlled Folder Access blocks the test binary).
+  - The full engines suite found `GateEntry.vehicle_number` and `PIMFeed.recipient_email` missing from the personal-data register; rows added.
+  - It also found that E's outbox test read only one 10-event pass of the shared queue. The test now drains until its own events are logged.
+- **Verified:** build / vet clean. Full engines and server suites ran on a freshly migrated DB (`custom_erp_3f_main`); the failures above were fixed and those tests re-run green twice. Guide walks of the new PIM pages, Allocation, Inventory Ledger, Loyalty and Gate Entry: no new findings.
+- **Deploy notes:** 8 additive migrations. Online-order points are on by default. Existing PIM export schedules with a recipient really email once SMTP_HOST is set.
+- **The user's answers, same day:** 146.3.3b No, 146.2.10b No, 146.5.5b Keep; none needed building. 157.4b: "Build the best way. Introduce pagination or whatever required".
+- **157.4b, large reports on screen:**
+  - **The ceiling:** a screen page or an export now reads up to `maxReportRunRows` = 20,000 rows, chosen for the 454 MB production server. Scheduled reports and dashboards stay at the setting `platform.max_sync_report_rows` (5,000). A setting above 20,000 only lifts reports with no read limit of their own.
+  - **The screen:** 500 rows a page in the standard report page, summary and control totals over the whole result and unchanged by page flips. Current Stock, Sales Register and Vendor Ledger page in SQL; every other report is sliced after its run.
+  - **Honest refusals:** over the ceiling, or when a source stopped reading early, the report says so (REPORT-0161) instead of showing a short list as if complete. An export over 20,000 fails with REPORT-0285.
+  - **One report page:** the menu's Current Stock, Sales Register and Vendor Ledger screens are gone; they open the standard page, one extra Run click, gaining pager, filters, export and control totals, plus the store cut on the first two. Their old endpoints stay, see 157.4c.
+  - **Caught before shipping:** the move would have masked the amounts for Accountant, Auditor and other finance roles (new column field `FinanceSees`) and dropped Available to sell, Held and the stock breakdown from Current Stock (now columns).
+  - **Bugs found on the way:** Run silently did nothing when a route named an unregistered report; `customer_mobile` and the control-totals path were unmasked; row order was unstable across pages, now fixed and held by a gate.
+  - **Generated files:** erp-60 kept adding routes and reports in the same tree, so the idempotency audit and generated docs went stale twice and were regenerated; 6 of its files were claimed in the brain map.
+  - **Verified:** the first full engines run hit a 45-minute limit and did not count. The next completed with 1,155 passes and 2 failures, both from erp-60's in-flight work (`TestStage4962RegisterRowsAreComplete`, `TestStage139ReportNumbersFileIsAppendOnly`), which pass on re-run. Full server suite: only the stale audit, regenerated and green. Guide `reportpager` on a seeded DB: three pages of Sales Register, totals steady, refusal text correct.
+  - **Known gaps:** the browser check ran as admin only; masking by role is covered by an engine test. The order gate compared only the 137 of 443 reports that had rows and misses maps returned by helpers. Two-query merged sources in `report_catalog_mis_admin.go` can escape the read-stop check. A sliced report re-runs in full on each page flip (bounded by the ceiling, no cache because of memory); `GetStockAgeing` repeats one query per SKU each time.
+- **Open:** 146.5.2 needs a real marketplace sheet; decision 157.4c.
+
 ## 330. "Push and deploy. All approved" - 0.22.0, every session's work, deployed to app and minn (2026-11-04, release, session erp-d8)
 
 User, 2026-11-04: *"Push and deploy. All approved"*, then *"Deploy"*.

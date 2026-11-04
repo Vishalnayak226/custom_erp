@@ -20,6 +20,7 @@ import (
 //	check       a segment rule on the customer; yes / no
 //	send        a message, queued for the send gate
 //	task        a task for staff (the store worklist)
+//	give_points points for a birthday or anniversary, once a year (146.2.7)
 //	end
 //
 // Triggers: an event (a bill, a new customer, a return, a cart left on the
@@ -67,6 +68,8 @@ type CRMJourneyStep struct {
 	Title      string                 `json:"title,omitempty"`
 	Owner      string                 `json:"owner,omitempty"` // preferred_salesman, store, or a username
 	DueHours   int                    `json:"due_hours,omitempty"`
+	Points     int                    `json:"points,omitempty"`   // give_points (146.2.7)
+	Occasion   string                 `json:"occasion,omitempty"` // give_points: birthday or anniversary
 }
 
 // CRMJourneyDefinition is a whole journey.
@@ -263,6 +266,13 @@ func crmValidateJourney(schema string, def *CRMJourneyDefinition) error {
 		case "task":
 			if strings.TrimSpace(s.Title) == "" {
 				return crmErr(CRMCodeJourney, "%sa task needs a title", at)
+			}
+		case "give_points":
+			if crmGivePointsOccasion(s, t) == "" {
+				return crmErr(CRMCodeJourney, "%schoose birthday or anniversary", at)
+			}
+			if s.Points < 1 || s.Points > 100000 {
+				return crmErr(CRMCodeJourney, "%sgive 1 to 100,000 points", at)
 			}
 		case "end":
 		default:
@@ -857,6 +867,12 @@ func crmAdvanceOneStep(schema, runID string) (bool, error) {
 			return true, err
 		}
 		return move(step+1, "task for "+firstNonEmpty(owner, "the store"))
+	case "give_points":
+		_, note, err := crmGivePointsTx(tx, schema, customerID, s, def.Trigger)
+		if err != nil {
+			return true, err
+		}
+		return move(step+1, note)
 	case "end":
 		return finish("Completed", "", "end step")
 	}

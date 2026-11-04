@@ -51,6 +51,10 @@ type ItemTypeRules struct {
 	// through ItemPolicyFor (engines/item_policy.go), never directly.
 	Policy         map[string]string
 	ExpenseAccount string
+	// Stage 148.1: how far over the GRN rate a bill line may run before the bill
+	// is held. Not set: the match's own tolerance.
+	BillPriceTolerancePercent float64
+	BillPriceToleranceSet     bool
 }
 
 // builtInItemTypeRules covers a tenant whose ItemType records have not been
@@ -157,6 +161,7 @@ func cachedItemTypes(tenantID string) map[string]ItemTypeRules {
 
 // itemTypeRulesFromRecord reads one ItemType record's rules.
 func itemTypeRulesFromRecord(id string, data map[string]interface{}) ItemTypeRules {
+	billTolerance, billToleranceSet := parityNumber(data["bill_price_tolerance_percent"])
 	return ItemTypeRules{
 		Name:            id,
 		BarcodeAt:       barcodeAtFromLabel(pimString(data["barcode_generate_at"])),
@@ -170,6 +175,9 @@ func itemTypeRulesFromRecord(id string, data map[string]interface{}) ItemTypeRul
 		PieceCodes:      yesValue(data["piece_codes"]),
 		Policy:          policyFromRecord(data),
 		ExpenseAccount:  pimString(data["expense_account"]),
+
+		BillPriceTolerancePercent: billTolerance,
+		BillPriceToleranceSet:     billToleranceSet,
 	}
 }
 

@@ -123,9 +123,9 @@ func GetCostCenterPL(tenantID, startDate, endDate string) ([]map[string]interfac
 			"cost_center": costCenter, "account_type": accountType, "amount": amount,
 		})
 	}
-	for costCenter, net := range totals {
+	for _, costCenter := range sortedStringKeys(totals) {
 		out = append(out, map[string]interface{}{
-			"cost_center": costCenter, "account_type": "Net Profit", "amount": net,
+			"cost_center": costCenter, "account_type": "Net Profit", "amount": totals[costCenter],
 		})
 	}
 	if out == nil {
@@ -201,9 +201,9 @@ func GetDepartmentPL(tenantID, startDate, endDate string) ([]map[string]interfac
 			"department": department, "account_type": accountType, "amount": amount,
 		})
 	}
-	for department, net := range totals {
+	for _, department := range sortedStringKeys(totals) {
 		out = append(out, map[string]interface{}{
-			"department": department, "account_type": "Net Profit", "amount": net,
+			"department": department, "account_type": "Net Profit", "amount": totals[department],
 		})
 	}
 	if out == nil {

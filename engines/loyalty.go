@@ -33,6 +33,8 @@ type LoyaltyLedgerEntry struct {
 	// Stage 146.2: the store the row belongs to and, for a bonus row, the offer.
 	Location string `json:"location,omitempty"`
 	Reason   string `json:"reason,omitempty"`
+	// Stage 146.2.8: who made the document behind the row (the cashier).
+	CreatedBy string `json:"created_by,omitempty"`
 }
 
 // insertLoyaltyLedgerEntryInSchema is the schema-level primitive - needed
@@ -151,8 +153,11 @@ func GetLoyaltyLedger(tenantID, customerID string) ([]LoyaltyLedgerEntry, error)
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT transaction_type, points, COALESCE(reference_id, ''), created_at, COALESCE(reference_doctype, ''), expires_at, COALESCE(location, ''), COALESCE(reason, '')
-		FROM %s.loyalty_point_ledger WHERE customer_id = $1 ORDER BY created_at DESC, id DESC LIMIT %d`, schema, loyaltyLedgerRowCap), customerID)
+		SELECT l.transaction_type, l.points, COALESCE(l.reference_id, ''), l.created_at, COALESCE(l.reference_doctype, ''), l.expires_at, COALESCE(l.location, ''), COALESCE(l.reason, ''),
+			COALESCE(d.created_by, '')
+		FROM %s.loyalty_point_ledger l
+		LEFT JOIN %s.documents d ON d.id = l.reference_id AND d.doctype = l.reference_doctype
+		WHERE l.customer_id = $1 ORDER BY l.created_at DESC, l.id DESC LIMIT %d`, schema, schema, loyaltyLedgerRowCap), customerID)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +166,7 @@ func GetLoyaltyLedger(tenantID, customerID string) ([]LoyaltyLedgerEntry, error)
 	var results []LoyaltyLedgerEntry
 	for rows.Next() {
 		var e LoyaltyLedgerEntry
-		if err := rows.Scan(&e.TransactionType, &e.Points, &e.ReferenceID, &e.CreatedAt, &e.ReferenceDoctype, &e.ExpiresAt, &e.Location, &e.Reason); err != nil {
+		if err := rows.Scan(&e.TransactionType, &e.Points, &e.ReferenceID, &e.CreatedAt, &e.ReferenceDoctype, &e.ExpiresAt, &e.Location, &e.Reason, &e.CreatedBy); err != nil {
 			return nil, err
 		}
 		results = append(results, e)
